@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-surface font-sans text-gray-800 antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
+
+@layer components {
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100/70
+           hover:bg-white/10 hover:text-white transition-all duration-150 cursor-pointer;
+  }
+  .sidebar-link.active {
+    @apply bg-brand-blue text-white shadow-sm;
+  }
+  .stat-card {
+    @apply bg-white rounded-xl p-4 shadow-card border border-surface-border;
+  }
+  .widget-card {
+    @apply bg-white rounded-xl shadow-card border border-surface-border overflow-hidden;
+  }
+  .widget-header {
+    @apply flex items-center justify-between px-5 py-3.5 border-b border-surface-border;
+  }
+  .widget-title {
+    @apply text-sm font-semibold text-gray-700;
+  }
+}
