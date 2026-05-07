@@ -175,7 +175,7 @@ export default function Customers() {
           {selected.size === 0 && (
             <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
           )}
-          <Button size="sm" icon={<UserPlus size={14} />}>Add Customer</Button>
+          <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
         </div>
       </div>
 

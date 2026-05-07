@@ -1,79 +1,471 @@
-import { Plus } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Plus, Phone, MessageSquare, Edit3, Clock, TrendingUp,
+  Users, CheckCircle2, XCircle, CalendarDays, ChevronRight,
+  ArrowUpRight, PhoneCall, Search, X
+} from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
-const LEADS = [
-  { id: 'LD-201', name: 'Ramesh Nair', phone: '9876001122', source: 'Website', stage: 'New Inquiry', assigned: 'Arjun', date: '2026-05-06' },
-  { id: 'LD-202', name: 'Sunita Bose', phone: '9765443322', source: 'Referral', stage: 'Site Survey', assigned: 'Preethi', date: '2026-05-05' },
-  { id: 'LD-203', name: 'Harish Kulkarni', phone: '9988001133', source: 'Walk-in', stage: 'Quotation Sent', assigned: 'Arjun', date: '2026-05-04' },
-  { id: 'LD-204', name: 'Meena Iyer', phone: '9123887766', source: 'Social Media', stage: 'Negotiation', assigned: 'Preethi', date: '2026-05-03' },
-  { id: 'LD-205', name: 'Deepak Joshi', phone: '9011556677', source: 'Cold Call', stage: 'CAF Submitted', assigned: 'Arjun', date: '2026-05-01' },
+// ── Static data ──────────────────────────────────────────────────────────────
+
+const STAGES = [
+  { id: 'New Inquiry',    label: 'New Inquiry',    colorBar: 'bg-blue-500',    chip: 'bg-blue-100 text-blue-700',    colBg: 'bg-blue-50/60',    border: 'border-blue-200'    },
+  { id: 'Contacted',      label: 'Contacted',      colorBar: 'bg-cyan-500',    chip: 'bg-cyan-100 text-cyan-700',    colBg: 'bg-cyan-50/60',    border: 'border-cyan-200'    },
+  { id: 'Follow-up',      label: 'Follow-up',      colorBar: 'bg-purple-500',  chip: 'bg-purple-100 text-purple-700',colBg: 'bg-purple-50/60',  border: 'border-purple-200'  },
+  { id: 'Site Survey',    label: 'Site Survey',    colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',  colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
+  { id: 'Quotation Sent', label: 'Quotation Sent', colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
+  { id: 'Negotiation',    label: 'Negotiation',    colorBar: 'bg-pink-500',    chip: 'bg-pink-100 text-pink-700',    colBg: 'bg-pink-50/60',    border: 'border-pink-200'    },
+  { id: 'Won',            label: '🏆 Won',         colorBar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700', colBg: 'bg-emerald-50/60', border: 'border-emerald-200' },
+  { id: 'Lost',           label: 'Lost',           colorBar: 'bg-red-400',     chip: 'bg-red-100 text-red-600',      colBg: 'bg-red-50/40',     border: 'border-red-200'     },
 ]
 
-const STAGE_VARIANT = { 'New Inquiry': 'blue', 'Site Survey': 'purple', 'Quotation Sent': 'yellow', 'Negotiation': 'orange', 'CAF Submitted': 'green' }
+const SOURCE_VARIANT = {
+  'Walk-in':    'orange',
+  'Referral':   'green',
+  'Website':    'blue',
+  'Cold Call':  'gray',
+  'Social Media': 'purple',
+}
+
+const STAFF = [
+  { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue' },
+  { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500' },
+  { name: 'Suresh Babu',   initials: 'SB', color: 'bg-emerald-500' },
+  { name: 'Anita Sharma',  initials: 'AS', color: 'bg-brand-orange' },
+]
+
+const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
+const AREAS = ['Koramangala', 'Indiranagar', 'Whitefield', 'HSR Layout', 'Electronic City', 'Marathahalli', 'BTM Layout']
+const SOURCES = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
+
+const INIT_LEADS = [
+  { id: 'LD-201', name: 'Ramesh Nair',     phone: '9876001122', email: '',                    area: 'Koramangala',    source: 'Website',      stage: 'New Inquiry',    plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',    daysInStage: 2,  lastActivity: 'Form submitted',       followUp: '2026-05-08', priority: 'high'   },
+  { id: 'LD-202', name: 'Sunita Bose',     phone: '9765443322', email: 'sunita@email.com',    area: 'Indiranagar',    source: 'Referral',     stage: 'Contacted',      plan: '200 Mbps Pro',    assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',    daysInStage: 1,  lastActivity: 'Called – Interested',   followUp: '2026-05-09', priority: 'high'   },
+  { id: 'LD-203', name: 'Harish Kulkarni', phone: '9988001133', email: '',                    area: 'Whitefield',     source: 'Walk-in',      stage: 'Site Survey',    plan: '50 Mbps Starter', assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',    daysInStage: 4,  lastActivity: 'Survey scheduled',     followUp: '2026-05-10', priority: 'medium' },
+  { id: 'LD-204', name: 'Meena Iyer',      phone: '9123887766', email: 'meena@email.com',     area: 'HSR Layout',     source: 'Social Media', stage: 'Negotiation',    plan: '500 Mbps Ultra',  assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',    daysInStage: 3,  lastActivity: 'Price discussed',      followUp: '2026-05-07', priority: 'high'   },
+  { id: 'LD-205', name: 'Deepak Joshi',    phone: '9011556677', email: '',                    area: 'Electronic City',source: 'Cold Call',    stage: 'Follow-up',      plan: '100 Mbps Home',   assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',   daysInStage: 6,  lastActivity: 'No answer – retry',    followUp: '2026-05-07', priority: 'medium' },
+  { id: 'LD-206', name: 'Kavita Sharma',   phone: '9876543210', email: 'kavita@email.com',    area: 'BTM Layout',     source: 'Referral',     stage: 'Quotation Sent', plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange',  daysInStage: 2,  lastActivity: 'Quote emailed',        followUp: '2026-05-11', priority: 'medium' },
+  { id: 'LD-207', name: 'Arun Pillai',     phone: '9087654321', email: '',                    area: 'Marathahalli',   source: 'Website',      stage: 'Won',            plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',    daysInStage: 1,  lastActivity: 'CAF submitted',        followUp: '',           priority: 'low'    },
+  { id: 'LD-208', name: 'Lakshmi Devi',    phone: '9123456780', email: '',                    area: 'Koramangala',    source: 'Walk-in',      stage: 'Lost',           plan: '50 Mbps Starter', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',    daysInStage: 12, lastActivity: 'Not interested',       followUp: '',           priority: 'low'    },
+  { id: 'LD-209', name: 'Vinod Kumar',     phone: '9988776655', email: 'vinod@email.com',     area: 'Indiranagar',    source: 'Cold Call',    stage: 'New Inquiry',    plan: '200 Mbps Pro',    assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',   daysInStage: 0,  lastActivity: 'Lead created',         followUp: '2026-05-08', priority: 'low'    },
+  { id: 'LD-210', name: 'Rekha Menon',     phone: '9871234560', email: '',                    area: 'HSR Layout',     source: 'Referral',     stage: 'Contacted',      plan: '500 Mbps Ultra',  assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange',  daysInStage: 2,  lastActivity: 'WhatsApp sent',        followUp: '2026-05-09', priority: 'high'   },
+  { id: 'LD-211', name: 'Sanjay Rao',      phone: '9654321098', email: 'sanjay@email.com',    area: 'Whitefield',     source: 'Website',      stage: 'Site Survey',    plan: '200 Mbps Pro',    assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',    daysInStage: 3,  lastActivity: 'Survey done',          followUp: '2026-05-10', priority: 'high'   },
+  { id: 'LD-212', name: 'Pooja Nair',      phone: '9432109876', email: '',                    area: 'Electronic City',source: 'Social Media', stage: 'Follow-up',      plan: '100 Mbps Home',   assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',    daysInStage: 5,  lastActivity: 'Missed call returned', followUp: '2026-05-07', priority: 'medium' },
+  { id: 'LD-213', name: 'Mohan Das',       phone: '9345678901', email: 'mohan@email.com',     area: 'BTM Layout',     source: 'Walk-in',      stage: 'New Inquiry',    plan: '50 Mbps Starter', assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',   daysInStage: 0,  lastActivity: 'Walked in today',      followUp: '2026-05-09', priority: 'medium' },
+  { id: 'LD-214', name: 'Divya Krishnan',  phone: '9876001234', email: 'divya@email.com',     area: 'Koramangala',    source: 'Referral',     stage: 'Negotiation',    plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange',  daysInStage: 1,  lastActivity: 'Final offer sent',     followUp: '2026-05-08', priority: 'high'   },
+  { id: 'LD-215', name: 'Ravi Shankar',    phone: '9012345678', email: '',                    area: 'Marathahalli',   source: 'Cold Call',    stage: 'Won',            plan: '500 Mbps Ultra',  assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',    daysInStage: 0,  lastActivity: 'Deal closed',          followUp: '',           priority: 'low'    },
+]
+
+const INIT_FORM = {
+  name: '', phone: '', email: '', area: '', source: '',
+  plan: '', assigned: '', followUp: '', notes: '',
+}
+
+// ── Lead card ─────────────────────────────────────────────────────────────────
+
+function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit }) {
+  const urgentFollowUp = lead.followUp && lead.followUp <= '2026-05-07'
+
+  return (
+    <div
+      draggable
+      onDragStart={e => onDragStart(e, lead.id)}
+      onDragEnd={onDragEnd}
+      className={`bg-white rounded-xl border border-surface-border p-4 shadow-card cursor-grab active:cursor-grabbing select-none transition-all ${
+        isDragging ? 'opacity-40 scale-95' : 'hover:shadow-card-hover hover:-translate-y-0.5'
+      }`}
+    >
+      {/* Name + area */}
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-sm text-gray-900 truncate">{lead.name}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{lead.area}</p>
+        </div>
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 ${lead.assignedColor}`}>
+          {lead.assignedInitials}
+        </div>
+      </div>
+
+      {/* Phone */}
+      <p className="text-xs font-mono text-gray-600 mb-3">{lead.phone}</p>
+
+      {/* Badges */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <Badge variant={SOURCE_VARIANT[lead.source] ?? 'gray'} size="sm">{lead.source}</Badge>
+        {lead.plan && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-navy/10 text-navy">
+            {lead.plan}
+          </span>
+        )}
+      </div>
+
+      {/* Days in stage + follow-up */}
+      <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-3">
+        <span className="flex items-center gap-1">
+          <Clock size={11} />
+          {lead.daysInStage === 0 ? 'Today' : `${lead.daysInStage}d in stage`}
+        </span>
+        {lead.followUp && (
+          <span className={`flex items-center gap-1 font-medium ${urgentFollowUp ? 'text-brand-orange' : 'text-gray-500'}`}>
+            <CalendarDays size={11} />
+            {lead.followUp}
+          </span>
+        )}
+      </div>
+
+      {/* Last activity */}
+      <p className="text-[11px] text-gray-400 italic mb-3 truncate">{lead.lastActivity}</p>
+
+      {/* Quick actions */}
+      <div className="flex items-center gap-1 pt-2 border-t border-surface-border">
+        <a
+          href={`tel:${lead.phone}`}
+          onClick={e => e.stopPropagation()}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors"
+        >
+          <Phone size={12} /> Call
+        </a>
+        <a
+          href={`https://wa.me/91${lead.phone}`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+        >
+          <MessageSquare size={12} /> WhatsApp
+        </a>
+        <button
+          onClick={e => { e.stopPropagation(); onEdit(lead) }}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors"
+        >
+          <Edit3 size={12} /> Edit
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Create / Edit Lead Modal ──────────────────────────────────────────────────
+
+function LeadModal({ isOpen, onClose, onSave, initial }) {
+  const isEdit = !!initial?.id
+  const [form, setForm] = useState(initial ?? INIT_FORM)
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function handleSave() {
+    if (!form.name.trim() || !form.phone.match(/^\d{10}$/)) return
+    const staff = STAFF.find(s => s.name === form.assigned)
+    onSave({
+      ...form,
+      id: isEdit ? initial.id : `LD-${Date.now()}`,
+      stage: isEdit ? initial.stage : 'New Inquiry',
+      daysInStage: isEdit ? initial.daysInStage : 0,
+      lastActivity: isEdit ? initial.lastActivity : 'Lead created',
+      assignedInitials: staff?.initials ?? '??',
+      assignedColor: staff?.color ?? 'bg-gray-400',
+      priority: 'medium',
+    })
+    onClose()
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? `Edit Lead — ${initial.name}` : 'Create New Lead'}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave}>{isEdit ? 'Save Changes' : 'Create Lead'}</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Full Name" required>
+          <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ramesh Nair" />
+        </FormField>
+        <FormField label="Phone Number" required>
+          <Input
+            type="tel"
+            value={form.phone}
+            onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+            placeholder="9876543210"
+          />
+        </FormField>
+        <FormField label="Email Address">
+          <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
+        </FormField>
+        <FormField label="Area">
+          <Select value={form.area} onChange={e => set('area', e.target.value)}>
+            <option value="">Select Area</option>
+            {AREAS.map(a => <option key={a}>{a}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Lead Source">
+          <Select value={form.source} onChange={e => set('source', e.target.value)}>
+            <option value="">Select Source</option>
+            {SOURCES.map(s => <option key={s}>{s}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Interested Plan">
+          <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
+            <option value="">Select Plan</option>
+            {PLANS.map(p => <option key={p}>{p}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Assigned To">
+          <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
+            <option value="">Select Sales Rep</option>
+            {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Follow-up Date">
+          <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Notes">
+            <Textarea
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+              placeholder="Any additional notes about this lead…"
+              rows={3}
+            />
+          </FormField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Sales() {
+  const [leads, setLeads]           = useState(INIT_LEADS)
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverStage, setDragOverStage] = useState(null)
+  const [showModal, setShowModal]   = useState(false)
+  const [editLead, setEditLead]     = useState(null)
+  const [search, setSearch]         = useState('')
+
+  // ── Drag and drop ────────────────────────────────────────────────────────
+  function handleDragStart(e, id) {
+    setDraggingId(id)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null)
+    setDragOverStage(null)
+  }
+
+  function handleDragOver(e, stageId) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverStage !== stageId) setDragOverStage(stageId)
+  }
+
+  function handleDrop(e, stageId) {
+    e.preventDefault()
+    if (draggingId) {
+      setLeads(prev => prev.map(l =>
+        l.id === draggingId && l.stage !== stageId
+          ? { ...l, stage: stageId, daysInStage: 0, lastActivity: `Moved to ${stageId}` }
+          : l
+      ))
+    }
+    setDraggingId(null)
+    setDragOverStage(null)
+  }
+
+  function handleDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverStage(null)
+    }
+  }
+
+  // ── Lead CRUD ────────────────────────────────────────────────────────────
+  function saveLead(lead) {
+    setLeads(prev => {
+      const exists = prev.find(l => l.id === lead.id)
+      return exists ? prev.map(l => l.id === lead.id ? lead : l) : [lead, ...prev]
+    })
+  }
+
+  function openEdit(lead) {
+    setEditLead(lead)
+    setShowModal(true)
+  }
+
+  // ── Derived stats ────────────────────────────────────────────────────────
+  const wonCount  = leads.filter(l => l.stage === 'Won').length
+  const lostCount = leads.filter(l => l.stage === 'Lost').length
+  const activeCount = leads.filter(l => !['Won', 'Lost'].includes(l.stage)).length
+  const todayFollowUps = leads.filter(l => l.followUp === '2026-05-07').length
+
+  const filteredLeads = search.trim()
+    ? leads.filter(l =>
+        l.name.toLowerCase().includes(search.toLowerCase()) ||
+        l.phone.includes(search) ||
+        l.area.toLowerCase().includes(search.toLowerCase())
+      )
+    : leads
+
   return (
-    <div className="p-6 space-y-6 max-w-[1600px]">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Sales & Leads</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track your lead pipeline and conversions</p>
-        </div>
-        <Button size="sm" icon={<Plus size={14} />}>Add Lead</Button>
-      </div>
+    <div className="flex flex-col h-full overflow-hidden">
 
-      {/* Kanban-style stage count */}
-      <div className="grid grid-cols-5 gap-4">
-        {[
-          { stage: 'New Inquiry', count: 18, color: 'border-blue-400 bg-blue-50' },
-          { stage: 'Site Survey', count: 11, color: 'border-purple-400 bg-purple-50' },
-          { stage: 'Quotation', count: 7, color: 'border-amber-400 bg-amber-50' },
-          { stage: 'Negotiation', count: 4, color: 'border-orange-400 bg-orange-50' },
-          { stage: 'CAF Done', count: 3, color: 'border-emerald-400 bg-emerald-50' },
-        ].map(s => (
-          <div key={s.stage} className={`border-l-4 ${s.color} rounded-lg p-4`}>
-            <p className="text-2xl font-bold text-gray-900">{s.count}</p>
-            <p className="text-xs text-gray-600 mt-0.5">{s.stage}</p>
+      {/* ── Top bar ────────────────────────────────────────────────────── */}
+      <div className="px-6 pt-6 pb-4 space-y-5 shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Sales Pipeline</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Drag cards between stages to update lead progress</p>
           </div>
-        ))}
+          <div className="flex items-center gap-2">
+            <Link to="/sales/today">
+              <Button variant="secondary" size="sm" icon={<PhoneCall size={14} />}>
+                Today's Calls
+                {todayFollowUps > 0 && (
+                  <span className="ml-1 bg-brand-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {todayFollowUps}
+                  </span>
+                )}
+              </Button>
+            </Link>
+            <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditLead(null); setShowModal(true) }}>
+              Add Lead
+            </Button>
+          </div>
+        </div>
+
+        {/* Pipeline summary stats */}
+        <div className="grid grid-cols-5 gap-3">
+          {[
+            { label: 'Total Leads',     value: leads.length,    icon: Users,        color: 'text-gray-700',        bg: 'bg-gray-100'       },
+            { label: 'Active',          value: activeCount,     icon: TrendingUp,   color: 'text-brand-blue',      bg: 'bg-brand-blue/10'  },
+            { label: 'Today Follow-ups',value: todayFollowUps,  icon: CalendarDays, color: 'text-brand-orange',    bg: 'bg-brand-orange/10'},
+            { label: 'Won This Month',  value: wonCount,        icon: CheckCircle2, color: 'text-emerald-700',     bg: 'bg-emerald-100'    },
+            { label: 'Lost',            value: lostCount,       icon: XCircle,      color: 'text-red-600',         bg: 'bg-red-100'        },
+          ].map(s => {
+            const Icon = s.icon
+            return (
+              <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
+                  <Icon size={18} className={s.color} />
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                  <p className="text-[11px] text-gray-500 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="flex items-center gap-3">
+          <div className="relative w-72">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search leads by name, phone, area…"
+              className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {search && (
+            <span className="text-sm text-gray-500">
+              {filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-surface-border">
-          <h3 className="text-sm font-semibold text-gray-800">All Leads</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface-border bg-gray-50/60">
-                {['Lead ID', 'Name', 'Phone', 'Source', 'Stage', 'Assigned To', 'Date', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {LEADS.map(l => (
-                <tr key={l.id} className="hover:bg-gray-50/70 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{l.id}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{l.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{l.phone}</td>
-                  <td className="px-4 py-3"><Badge variant="gray" size="sm">{l.source}</Badge></td>
-                  <td className="px-4 py-3"><Badge variant={STAGE_VARIANT[l.stage]} size="sm">{l.stage}</Badge></td>
-                  <td className="px-4 py-3 text-gray-600">{l.assigned}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{l.date}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="xs">View</Button>
-                      <Button variant="ghost" size="xs">Update</Button>
+      {/* ── Kanban board ───────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 pb-6">
+        <div className="flex gap-3 h-full" style={{ minWidth: `${STAGES.length * 260}px` }}>
+          {STAGES.map(stage => {
+            const stageLeads = filteredLeads.filter(l => l.stage === stage.id)
+            const isOver = dragOverStage === stage.id
+
+            return (
+              <div
+                key={stage.id}
+                className={`flex flex-col rounded-xl border transition-all duration-150 ${stage.colBg} ${stage.border} ${
+                  isOver ? 'ring-2 ring-brand-blue/50 scale-[1.01]' : ''
+                }`}
+                style={{ width: 252, minWidth: 252 }}
+                onDragOver={e => handleDragOver(e, stage.id)}
+                onDrop={e => handleDrop(e, stage.id)}
+                onDragLeave={handleDragLeave}
+              >
+                {/* Column header */}
+                <div className="px-3 pt-3 pb-2.5 shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${stage.colorBar}`} />
+                      <span className="text-xs font-bold text-gray-700">{stage.label}</span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.chip}`}>
+                      {stageLeads.length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Drop zone indicator */}
+                {isOver && draggingId && (
+                  <div className="mx-3 mb-2 h-1.5 rounded-full bg-brand-blue/40 animate-pulse" />
+                )}
+
+                {/* Cards */}
+                <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2.5 scrollbar-hide">
+                  {stageLeads.length === 0 ? (
+                    <div className={`flex flex-col items-center justify-center py-8 text-center ${
+                      isOver ? 'opacity-0' : 'opacity-100'
+                    }`}>
+                      <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center mb-2">
+                        <Plus size={16} className="text-gray-400" />
+                      </div>
+                      <p className="text-xs text-gray-400">Drop here</p>
+                    </div>
+                  ) : (
+                    stageLeads.map(lead => (
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        isDragging={draggingId === lead.id}
+                        onEdit={openEdit}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
+
+      {/* ── Modals ─────────────────────────────────────────────────────── */}
+      {showModal && (
+        <LeadModal
+          isOpen={showModal}
+          onClose={() => { setShowModal(false); setEditLead(null) }}
+          onSave={saveLead}
+          initial={editLead}
+        />
+      )}
     </div>
   )
 }
