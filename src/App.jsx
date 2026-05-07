@@ -5,7 +5,9 @@ import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
 import Sales from './pages/Sales'
 import Billing from './pages/Billing'
+import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
+import TicketDetail from './pages/TicketDetail'
 import Network from './pages/Network'
 import Inventory from './pages/Inventory'
 import Reports from './pages/Reports'
@@ -21,7 +23,9 @@ export default function App() {
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/billing" element={<Billing />} />
+          <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/network" element={<Network />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
