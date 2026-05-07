@@ -263,7 +263,7 @@ export default function AddCustomer() {
 
   // ── Main form ───────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6">
 
       {/* Page header */}
       <div className="flex items-center gap-3 mb-6">

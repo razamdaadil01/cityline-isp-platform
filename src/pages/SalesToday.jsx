@@ -84,7 +84,7 @@ export default function SalesToday() {
   const highCount    = leads.filter(l => l.priority === 'high' && !l.callDone).length
 
   return (
-    <div className="p-6 max-w-4xl space-y-5">
+    <div className="p-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-center gap-3">
