@@ -10,7 +10,9 @@ import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
+import Packages from './pages/Packages'
 import Network from './pages/Network'
+import NetworkServers from './pages/NetworkServers'
 import Inventory from './pages/Inventory'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
@@ -30,7 +32,9 @@ export default function App() {
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
+          <Route path="/packages" element={<Packages />} />
           <Route path="/network" element={<Network />} />
+          <Route path="/network/servers" element={<NetworkServers />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
