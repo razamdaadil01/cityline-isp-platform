@@ -9,17 +9,20 @@ import {
   Package,
   BarChart3,
   Settings,
-  ChevronRight,
   Wifi,
+  Boxes,
+  Server,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/' },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/', exact: true },
   { label: 'Customers', icon: Users, to: '/customers' },
   { label: 'Sales & Leads', icon: TrendingUp, to: '/sales' },
   { label: 'Billing & Invoice', icon: Receipt, to: '/billing' },
   { label: 'Support & Tickets', icon: HeadphonesIcon, to: '/support' },
-  { label: 'Network', icon: Network, to: '/network' },
+  { label: 'Packages', icon: Boxes, to: '/packages' },
+  { label: 'Network', icon: Network, to: '/network', exact: true },
+  { label: 'Jaze Servers', icon: Server, to: '/network/servers' },
   { label: 'Inventory', icon: Package, to: '/inventory' },
   { label: 'Reports', icon: BarChart3, to: '/reports' },
   { label: 'Settings', icon: Settings, to: '/settings' },
@@ -50,8 +53,10 @@ export default function Sidebar({ collapsed }) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
-        {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
-          const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+        {NAV_ITEMS.map(({ label, icon: Icon, to, exact }) => {
+          const isActive = exact
+            ? location.pathname === to
+            : location.pathname.startsWith(to)
           return (
             <NavLink
               key={to}
