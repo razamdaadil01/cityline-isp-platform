@@ -16,6 +16,10 @@ import NetworkServers from './pages/NetworkServers'
 import Inventory from './pages/Inventory'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Resellers from './pages/Resellers'
+import ResellerDetail from './pages/ResellerDetail'
+import AuditLog from './pages/AuditLog'
+import BandwidthMonitoring from './pages/BandwidthMonitoring'
 
 export default function App() {
   return (
@@ -38,6 +42,10 @@ export default function App() {
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/resellers" element={<Resellers />} />
+          <Route path="/resellers/:id" element={<ResellerDetail />} />
+          <Route path="/audit" element={<AuditLog />} />
+          <Route path="/bandwidth" element={<BandwidthMonitoring />} />
         </Route>
       </Routes>
     </BrowserRouter>

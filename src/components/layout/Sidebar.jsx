@@ -12,20 +12,26 @@ import {
   Wifi,
   Boxes,
   Server,
+  UserCog,
+  Shield,
+  Activity,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/', exact: true },
-  { label: 'Customers', icon: Users, to: '/customers' },
-  { label: 'Sales & Leads', icon: TrendingUp, to: '/sales' },
-  { label: 'Billing & Invoice', icon: Receipt, to: '/billing' },
-  { label: 'Support & Tickets', icon: HeadphonesIcon, to: '/support' },
-  { label: 'Packages', icon: Boxes, to: '/packages' },
-  { label: 'Network', icon: Network, to: '/network', exact: true },
-  { label: 'Jaze Servers', icon: Server, to: '/network/servers' },
-  { label: 'Inventory', icon: Package, to: '/inventory' },
-  { label: 'Reports', icon: BarChart3, to: '/reports' },
-  { label: 'Settings', icon: Settings, to: '/settings' },
+  { label: 'Dashboard',        icon: LayoutDashboard, to: '/',              exact: true },
+  { label: 'Customers',        icon: Users,           to: '/customers'                 },
+  { label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales'                     },
+  { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
+  { label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support'                   },
+  { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
+  { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
+  { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
+  { label: 'Inventory',        icon: Package,         to: '/inventory'                 },
+  { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
+  { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
+  { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },
+  { label: 'Audit Log',        icon: Shield,          to: '/audit'                     },
+  { label: 'Settings',         icon: Settings,        to: '/settings'                  },
 ]
 
 export default function Sidebar({ collapsed }) {
