@@ -3,7 +3,9 @@ import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
+import AddCustomer from './pages/AddCustomer'
 import Sales from './pages/Sales'
+import SalesToday from './pages/SalesToday'
 import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
@@ -20,8 +22,10 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
+          <Route path="/customers/new" element={<AddCustomer />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/sales" element={<Sales />} />
+          <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
