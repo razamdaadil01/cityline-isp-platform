@@ -21,6 +21,7 @@ import ResellerDetail from './pages/ResellerDetail'
 import AuditLog from './pages/AuditLog'
 import BandwidthMonitoring from './pages/BandwidthMonitoring'
 import RolesSettings from './pages/RolesSettings'
+import NotificationSettings from './pages/NotificationSettings'
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/roles" element={<RolesSettings />} />
+          <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />
           <Route path="/audit" element={<AuditLog />} />
