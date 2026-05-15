@@ -18,6 +18,7 @@ import {
   Bell,
   PhoneCall,
   Layers,
+  HardDrive,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -26,8 +27,9 @@ const NAV_ITEMS = [
   {
     label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,
     children: [
-      { label: 'Follow-ups',   icon: PhoneCall,       to: '/sales/followups'           },
-      { label: 'Pipelines',    icon: Layers,          to: '/sales/pipelines'           },
+      { label: 'Follow-ups',   icon: PhoneCall,  to: '/sales/followups'    },
+      { label: 'Pipelines',    icon: Layers,     to: '/sales/pipelines'    },
+      { label: 'HW Assignment',icon: HardDrive,  to: '/sales/hw-assignment'},
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
