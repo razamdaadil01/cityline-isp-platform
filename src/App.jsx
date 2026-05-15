@@ -6,6 +6,8 @@ import CustomerDetail from './pages/CustomerDetail'
 import AddCustomer from './pages/AddCustomer'
 import Sales from './pages/Sales'
 import SalesToday from './pages/SalesToday'
+import SalesFollowups from './pages/SalesFollowups'
+import SalesPipelines from './pages/SalesPipelines'
 import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
@@ -34,6 +36,8 @@ export default function App() {
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/sales/today" element={<SalesToday />} />
+          <Route path="/sales/followups" element={<SalesFollowups />} />
+          <Route path="/sales/pipelines" element={<SalesPipelines />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />

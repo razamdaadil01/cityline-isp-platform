@@ -16,12 +16,20 @@ import {
   Shield,
   Activity,
   Bell,
+  PhoneCall,
+  Layers,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { label: 'Dashboard',        icon: LayoutDashboard, to: '/',              exact: true },
   { label: 'Customers',        icon: Users,           to: '/customers'                 },
-  { label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales'                     },
+  {
+    label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,
+    children: [
+      { label: 'Follow-ups',   icon: PhoneCall,       to: '/sales/followups'           },
+      { label: 'Pipelines',    icon: Layers,          to: '/sales/pipelines'           },
+    ],
+  },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
   { label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support'                   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
@@ -62,32 +70,62 @@ export default function Sidebar({ collapsed }) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
-        {NAV_ITEMS.map(({ label, icon: Icon, to, exact }) => {
+        {NAV_ITEMS.map(({ label, icon: Icon, to, exact, children }) => {
           const isActive = exact
             ? location.pathname === to
             : location.pathname.startsWith(to)
+          const hasActiveChild = children?.some(c => location.pathname.startsWith(c.to))
+
           return (
-            <NavLink
-              key={to}
-              to={to}
-              className={`
-                flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                transition-all duration-150 group relative
-                ${isActive
-                  ? 'bg-brand-blue text-white'
-                  : 'text-blue-100/60 hover:bg-white/8 hover:text-white'
-                }
-              `}
-            >
-              <Icon size={18} className="shrink-0" />
-              {!collapsed && <span>{label}</span>}
-              {collapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md
-                  opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg">
-                  {label}
+            <div key={to}>
+              <NavLink
+                to={to}
+                className={`
+                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                  transition-all duration-150 group relative
+                  ${isActive || hasActiveChild
+                    ? 'bg-brand-blue text-white'
+                    : 'text-blue-100/60 hover:bg-white/8 hover:text-white'
+                  }
+                `}
+              >
+                <Icon size={18} className="shrink-0" />
+                {!collapsed && <span className="flex-1">{label}</span>}
+                {collapsed && (
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md
+                    opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-lg">
+                    {label}
+                  </div>
+                )}
+              </NavLink>
+
+              {/* Sub-items — show when parent is active and sidebar is expanded */}
+              {!collapsed && children && (isActive || hasActiveChild) && (
+                <div className="ml-4 mt-0.5 space-y-0.5 pl-3 border-l border-white/10">
+                  {children.map(child => {
+                    const childActive = location.pathname.startsWith(child.to)
+                    const ChildIcon = child.icon
+                    return (
+                      <NavLink
+                        key={child.to}
+                        to={child.to}
+                        className={`
+                          flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium
+                          transition-all duration-150 group relative
+                          ${childActive
+                            ? 'bg-white/15 text-white'
+                            : 'text-blue-100/50 hover:bg-white/8 hover:text-white'
+                          }
+                        `}
+                      >
+                        <ChildIcon size={14} className="shrink-0" />
+                        <span>{child.label}</span>
+                      </NavLink>
+                    )
+                  })}
                 </div>
               )}
-            </NavLink>
+            </div>
           )
         })}
       </nav>
