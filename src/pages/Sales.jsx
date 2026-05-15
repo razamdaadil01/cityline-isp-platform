@@ -626,8 +626,9 @@ export default function Sales() {
   const navigate                        = useNavigate()
   const userRole                        = 'sales'
 
-  const pl           = PIPELINES[activePipeline]
+  const pl            = PIPELINES[activePipeline]
   const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
+  console.log('[Sales] render — activePipeline:', activePipeline, '| pipelineLeads:', pipelineLeads.length)
 
   // ── Drag and drop ────────────────────────────────────────────────────────
   function handleDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
@@ -726,22 +727,36 @@ export default function Sales() {
         </div>
 
         {/* ── Pipeline tabs ────────────────────────────────────────────── */}
-        <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-surface-border w-fit">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border-2 border-orange-500 w-fit shadow-sm">
           {Object.entries(PIPELINES).map(([key, config]) => {
-            const count = leads.filter(l => l.pipeline === key).length
+            const count    = leads.filter(l => l.pipeline === key).length
             const isActive = activePipeline === key
+            // Use inline styles for active bg to guarantee the custom brand
+            // colors render regardless of Tailwind JIT class scanning
+            const ACTIVE_BG = {
+              B2C:    '#0A8DCD',
+              B2B:    '#0F2744',
+              ILL:    '#7c3aed',
+              Custom: '#E8541A',
+            }
             return (
               <button
                 key={key}
-                onClick={() => { setActivePipeline(key); setSearch('') }}
+                onClick={() => { setActivePipeline(key); setSearch(''); console.log('[Sales] activePipeline →', key) }}
+                style={isActive ? { backgroundColor: ACTIVE_BG[key], color: '#fff' } : {}}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  isActive ? `${config.tabActive} shadow-sm` : `bg-transparent ${config.tabIdle}`
+                  isActive
+                    ? 'shadow-sm text-white'
+                    : 'bg-transparent text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 {config.label}
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
-                  isActive ? config.tabCount : 'bg-gray-200 text-gray-600'
-                }`}>
+                <span
+                  style={isActive ? { backgroundColor: 'rgba(255,255,255,0.25)', color: '#fff' } : {}}
+                  className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
+                    isActive ? '' : 'bg-gray-200 text-gray-600'
+                  }`}
+                >
                   {count}
                 </span>
               </button>
