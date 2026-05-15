@@ -1,95 +1,166 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Plus, Phone, MessageSquare, Edit3, Clock, TrendingUp,
-  Users, CheckCircle2, XCircle, CalendarDays, ChevronRight,
-  ArrowUpRight, PhoneCall, Search, X, HardDrive, Shield,
-  Fingerprint, Send, AlertTriangle, Layers, ChevronDown,
-  CheckCircle, AlertCircle, Loader2
+  Plus, Phone, Edit3, Clock, TrendingUp,
+  Users, CheckCircle2, XCircle, CalendarDays,
+  PhoneCall, Search, X, HardDrive, Shield,
+  Fingerprint, Send, AlertTriangle, Layers,
+  CheckCircle, Loader2
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
-// ── Static data ──────────────────────────────────────────────────────────────
+// ── Pipeline definitions ──────────────────────────────────────────────────────
 
-const STAGES = [
-  { id: 'New Inquiry',          label: 'New Inquiry',          colorBar: 'bg-blue-500',    chip: 'bg-blue-100 text-blue-700',      colBg: 'bg-blue-50/60',    border: 'border-blue-200'    },
-  { id: 'Contacted',            label: 'Contacted',            colorBar: 'bg-cyan-500',    chip: 'bg-cyan-100 text-cyan-700',      colBg: 'bg-cyan-50/60',    border: 'border-cyan-200'    },
-  { id: 'Follow-up',            label: 'Follow-up',            colorBar: 'bg-purple-500',  chip: 'bg-purple-100 text-purple-700',  colBg: 'bg-purple-50/60',  border: 'border-purple-200'  },
-  { id: 'Site Survey',          label: 'Site Survey',          colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
-  { id: 'Quotation Sent',       label: 'Quotation Sent',       colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',  colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
-  { id: 'Negotiation',          label: 'Negotiation',          colorBar: 'bg-pink-500',    chip: 'bg-pink-100 text-pink-700',      colBg: 'bg-pink-50/60',    border: 'border-pink-200'    },
-  { id: 'Hardware Assignment',  label: '🔧 HW Assignment',     colorBar: 'bg-violet-500',  chip: 'bg-violet-100 text-violet-700',  colBg: 'bg-violet-50/60',  border: 'border-violet-200'  },
-  { id: 'Won',                  label: '🏆 Won',               colorBar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700',colBg: 'bg-emerald-50/60', border: 'border-emerald-200' },
-  { id: 'Lost',                 label: 'Lost',                 colorBar: 'bg-red-400',     chip: 'bg-red-100 text-red-600',        colBg: 'bg-red-50/40',     border: 'border-red-200'     },
-]
+const PIPELINES = {
+  B2C: {
+    label: 'B2C',
+    labelFull: 'B2C Residential',
+    stages: [
+      'New Inquiry', 'Contacted', 'Follow-up', 'Site Survey',
+      'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost',
+    ],
+    tabActive: 'bg-brand-blue text-white',
+    tabCount:  'bg-white/25 text-white',
+    tabIdle:   'text-gray-600 hover:text-brand-blue',
+  },
+  B2B: {
+    label: 'B2B',
+    labelFull: 'B2B Corporate',
+    stages: [
+      'New Inquiry', 'Meeting Scheduled', 'Requirement Analysis',
+      'Technical Feasibility', 'Commercial Proposal', 'Negotiation',
+      'Legal/Agreement', 'Hardware Assignment', 'Won', 'Lost',
+    ],
+    tabActive: 'bg-navy text-white',
+    tabCount:  'bg-white/25 text-white',
+    tabIdle:   'text-gray-600 hover:text-navy',
+  },
+  ILL: {
+    label: 'ILL',
+    labelFull: 'ILL Leased Line',
+    stages: [
+      'Inquiry', 'Site Survey', 'Feasibility Report', 'Pricing Approval',
+      'SLA Agreement', 'Installation', 'Testing', 'Won', 'Lost',
+    ],
+    tabActive: 'bg-purple-600 text-white',
+    tabCount:  'bg-white/25 text-white',
+    tabIdle:   'text-gray-600 hover:text-purple-600',
+  },
+  Custom: {
+    label: 'Custom',
+    labelFull: 'Custom Pipeline',
+    stages: ['New Inquiry', 'Contacted', 'Quotation', 'Won', 'Lost'],
+    tabActive: 'bg-brand-orange text-white',
+    tabCount:  'bg-white/25 text-white',
+    tabIdle:   'text-gray-600 hover:text-brand-orange',
+  },
+}
+
+// Visual style for every stage name used across all pipelines
+const STAGE_STYLES = {
+  'New Inquiry':           { colorBar: 'bg-blue-500',    chip: 'bg-blue-100 text-blue-700',      colBg: 'bg-blue-50/60',    border: 'border-blue-200'    },
+  'Contacted':             { colorBar: 'bg-cyan-500',    chip: 'bg-cyan-100 text-cyan-700',      colBg: 'bg-cyan-50/60',    border: 'border-cyan-200'    },
+  'Follow-up':             { colorBar: 'bg-purple-500',  chip: 'bg-purple-100 text-purple-700',  colBg: 'bg-purple-50/60',  border: 'border-purple-200'  },
+  'Site Survey':           { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
+  'Quotation Sent':        { colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',  colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
+  'Negotiation':           { colorBar: 'bg-pink-500',    chip: 'bg-pink-100 text-pink-700',      colBg: 'bg-pink-50/60',    border: 'border-pink-200'    },
+  'Hardware Assignment':   { colorBar: 'bg-violet-500',  chip: 'bg-violet-100 text-violet-700',  colBg: 'bg-violet-50/60',  border: 'border-violet-200'  },
+  'Won':                   { colorBar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700',colBg: 'bg-emerald-50/60', border: 'border-emerald-200' },
+  'Lost':                  { colorBar: 'bg-red-400',     chip: 'bg-red-100 text-red-600',        colBg: 'bg-red-50/40',     border: 'border-red-200'     },
+  // B2B specific
+  'Meeting Scheduled':     { colorBar: 'bg-sky-500',     chip: 'bg-sky-100 text-sky-700',        colBg: 'bg-sky-50/60',     border: 'border-sky-200'     },
+  'Requirement Analysis':  { colorBar: 'bg-indigo-500',  chip: 'bg-indigo-100 text-indigo-700',  colBg: 'bg-indigo-50/60',  border: 'border-indigo-200'  },
+  'Technical Feasibility': { colorBar: 'bg-teal-500',    chip: 'bg-teal-100 text-teal-700',      colBg: 'bg-teal-50/60',    border: 'border-teal-200'    },
+  'Commercial Proposal':   { colorBar: 'bg-orange-400',  chip: 'bg-orange-100 text-orange-600',  colBg: 'bg-orange-50/40',  border: 'border-orange-100'  },
+  'Legal/Agreement':       { colorBar: 'bg-slate-500',   chip: 'bg-slate-100 text-slate-700',    colBg: 'bg-slate-50/60',   border: 'border-slate-200'   },
+  // ILL specific
+  'Inquiry':               { colorBar: 'bg-blue-400',    chip: 'bg-blue-100 text-blue-600',      colBg: 'bg-blue-50/40',    border: 'border-blue-100'    },
+  'Feasibility Report':    { colorBar: 'bg-teal-400',    chip: 'bg-teal-100 text-teal-600',      colBg: 'bg-teal-50/40',    border: 'border-teal-100'    },
+  'Pricing Approval':      { colorBar: 'bg-amber-400',   chip: 'bg-amber-100 text-amber-600',    colBg: 'bg-amber-50/40',   border: 'border-amber-100'   },
+  'SLA Agreement':         { colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',  colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
+  'Installation':          { colorBar: 'bg-violet-400',  chip: 'bg-violet-100 text-violet-600',  colBg: 'bg-violet-50/40',  border: 'border-violet-100'  },
+  'Testing':               { colorBar: 'bg-cyan-400',    chip: 'bg-cyan-100 text-cyan-600',      colBg: 'bg-cyan-50/40',    border: 'border-cyan-100'    },
+  // Custom specific
+  'Quotation':             { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
+}
+
+function getStageLabel(id) {
+  if (id === 'Won')               return '🏆 Won'
+  if (id === 'Hardware Assignment') return '🔧 HW Assignment'
+  return id
+}
+
+// ── Other constants ───────────────────────────────────────────────────────────
 
 const SOURCE_VARIANT = {
-  'Walk-in':    'orange',
-  'Referral':   'green',
-  'Website':    'blue',
-  'Cold Call':  'gray',
-  'Social Media': 'purple',
+  'Walk-in':     'orange',
+  'Referral':    'green',
+  'Website':     'blue',
+  'Cold Call':   'gray',
+  'Social Media':'purple',
 }
 
 const STAFF = [
-  { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'    },
-  { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500'    },
-  { name: 'Suresh Babu',   initials: 'SB', color: 'bg-emerald-500'   },
-  { name: 'Anita Sharma',  initials: 'AS', color: 'bg-brand-orange'  },
+  { name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'   },
+  { name: 'Preethi Nair', initials: 'PN', color: 'bg-purple-500'   },
+  { name: 'Suresh Babu',  initials: 'SB', color: 'bg-emerald-500'  },
+  { name: 'Anita Sharma', initials: 'AS', color: 'bg-brand-orange' },
 ]
 
 const ENGINEERS = [
-  { id: 'ENG-001', name: 'Ravi Technician',   dept: 'Field Engineering' },
-  { id: 'ENG-002', name: 'Kumar Installer',   dept: 'Installation'      },
-  { id: 'ENG-003', name: 'Sunil Networks',    dept: 'Networking'        },
-  { id: 'ENG-004', name: 'Dinesh Fiber',      dept: 'Fiber Optics'      },
+  { id: 'ENG-001', name: 'Ravi Technician',  dept: 'Field Engineering' },
+  { id: 'ENG-002', name: 'Kumar Installer',  dept: 'Installation'      },
+  { id: 'ENG-003', name: 'Sunil Networks',   dept: 'Networking'        },
+  { id: 'ENG-004', name: 'Dinesh Fiber',     dept: 'Fiber Optics'      },
 ]
 
 const EQUIPMENT = [
-  { id: 'EQ-101', name: 'ONT Device – Huawei HG8310M',  category: 'ONT',    stock: 12 },
-  { id: 'EQ-102', name: 'WiFi Router – TP-Link AC1200',  category: 'Router', stock: 8  },
-  { id: 'EQ-103', name: 'ONU – ZTE F660',                category: 'ONU',    stock: 5  },
-  { id: 'EQ-104', name: 'Cat6 Cable (50m roll)',          category: 'Cable',  stock: 20 },
-  { id: 'EQ-105', name: 'Fiber Patch Panel 12-port',     category: 'Patch',  stock: 4  },
-  { id: 'EQ-106', name: 'Media Converter – 1Gbps',       category: 'Switch', stock: 7  },
+  { id: 'EQ-101', name: 'ONT Device – Huawei HG8310M', category: 'ONT',    stock: 12 },
+  { id: 'EQ-102', name: 'WiFi Router – TP-Link AC1200', category: 'Router', stock: 8  },
+  { id: 'EQ-103', name: 'ONU – ZTE F660',               category: 'ONU',    stock: 5  },
+  { id: 'EQ-104', name: 'Cat6 Cable (50m roll)',         category: 'Cable',  stock: 20 },
+  { id: 'EQ-105', name: 'Fiber Patch Panel 12-port',    category: 'Patch',  stock: 4  },
+  { id: 'EQ-106', name: 'Media Converter – 1Gbps',      category: 'Switch', stock: 7  },
 ]
 
-const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
-const AREAS = ['Koramangala', 'Indiranagar', 'Whitefield', 'HSR Layout', 'Electronic City', 'Marathahalli', 'BTM Layout']
+const PLANS   = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
+const AREAS   = ['Koramangala', 'Indiranagar', 'Whitefield', 'HSR Layout', 'Electronic City', 'Marathahalli', 'BTM Layout']
 const SOURCES = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
 
+// ── Initial leads (with pipeline field) ──────────────────────────────────────
+
 const INIT_LEADS = [
-  { id: 'LD-201', name: 'Ramesh Nair',     phone: '9876001122', email: '',                 area: 'Koramangala',     source: 'Website',      stage: 'New Inquiry',         plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 2,  lastActivity: 'Form submitted',        followUp: '2026-05-08', priority: 'high',   ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-202', name: 'Sunita Bose',     phone: '9765443322', email: 'sunita@email.com', area: 'Indiranagar',     source: 'Referral',     stage: 'Contacted',           plan: '200 Mbps Pro',    assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 1,  lastActivity: 'Called – Interested',   followUp: '2026-05-09', priority: 'high',   ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-203', name: 'Harish Kulkarni', phone: '9988001133', email: '',                 area: 'Whitefield',      source: 'Walk-in',      stage: 'Site Survey',         plan: '50 Mbps Starter', assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 4,  lastActivity: 'Survey scheduled',      followUp: '2026-05-10', priority: 'medium', ekycStatus: 'Sent',    hwAssigned: null },
-  { id: 'LD-204', name: 'Meena Iyer',      phone: '9123887766', email: 'meena@email.com',  area: 'HSR Layout',      source: 'Social Media', stage: 'Negotiation',         plan: '500 Mbps Ultra',  assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 3,  lastActivity: 'Price discussed',       followUp: '2026-05-07', priority: 'high',   ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-205', name: 'Deepak Joshi',    phone: '9011556677', email: '',                 area: 'Electronic City', source: 'Cold Call',    stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 6,  lastActivity: 'No answer – retry',     followUp: '2026-05-07', priority: 'medium', ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-206', name: 'Kavita Sharma',   phone: '9876543210', email: 'kavita@email.com', area: 'BTM Layout',      source: 'Referral',     stage: 'Quotation Sent',      plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'Quote emailed',         followUp: '2026-05-11', priority: 'medium', ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-207', name: 'Arun Pillai',     phone: '9087654321', email: '',                 area: 'Marathahalli',    source: 'Website',      stage: 'Hardware Assignment', plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 1,  lastActivity: 'HW pending assignment', followUp: '',           priority: 'medium', ekycStatus: 'Completed',hwAssigned: null },
-  { id: 'LD-208', name: 'Lakshmi Devi',    phone: '9123456780', email: '',                 area: 'Koramangala',     source: 'Walk-in',      stage: 'Lost',                plan: '50 Mbps Starter', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 12, lastActivity: 'Not interested',        followUp: '',           priority: 'low',    ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-209', name: 'Vinod Kumar',     phone: '9988776655', email: 'vinod@email.com',  area: 'Indiranagar',     source: 'Cold Call',    stage: 'New Inquiry',         plan: '200 Mbps Pro',    assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Lead created',          followUp: '2026-05-08', priority: 'low',    ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-210', name: 'Rekha Menon',     phone: '9871234560', email: '',                 area: 'HSR Layout',      source: 'Referral',     stage: 'Contacted',           plan: '500 Mbps Ultra',  assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'WhatsApp sent',         followUp: '2026-05-09', priority: 'high',   ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-211', name: 'Sanjay Rao',      phone: '9654321098', email: 'sanjay@email.com', area: 'Whitefield',      source: 'Website',      stage: 'Site Survey',         plan: '200 Mbps Pro',    assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 3,  lastActivity: 'Survey done',           followUp: '2026-05-10', priority: 'high',   ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-212', name: 'Pooja Nair',      phone: '9432109876', email: '',                 area: 'Electronic City', source: 'Social Media', stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 5,  lastActivity: 'Missed call returned',  followUp: '2026-05-07', priority: 'medium', ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-213', name: 'Mohan Das',       phone: '9345678901', email: 'mohan@email.com',  area: 'BTM Layout',      source: 'Walk-in',      stage: 'New Inquiry',         plan: '50 Mbps Starter', assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Walked in today',       followUp: '2026-05-09', priority: 'medium', ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-214', name: 'Divya Krishnan',  phone: '9876001234', email: 'divya@email.com',  area: 'Koramangala',     source: 'Referral',     stage: 'Negotiation',         plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 1,  lastActivity: 'Final offer sent',      followUp: '2026-05-08', priority: 'high',   ekycStatus: null,      hwAssigned: null },
-  { id: 'LD-215', name: 'Ravi Shankar',    phone: '9012345678', email: '',                 area: 'Marathahalli',    source: 'Cold Call',    stage: 'Won',                 plan: '500 Mbps Ultra',  assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 0,  lastActivity: 'Deal closed',           followUp: '',           priority: 'low',    ekycStatus: 'Completed',hwAssigned: null },
+  // B2C — 9 leads
+  { id: 'LD-201', pipeline: 'B2C',    name: 'Ramesh Nair',     phone: '9876001122', email: '',                 area: 'Koramangala',     source: 'Website',      stage: 'New Inquiry',         plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 2,  lastActivity: 'Form submitted',       followUp: '2026-05-08', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-202', pipeline: 'B2C',    name: 'Sunita Bose',     phone: '9765443322', email: 'sunita@email.com', area: 'Indiranagar',     source: 'Referral',     stage: 'Contacted',           plan: '200 Mbps Pro',    assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 1,  lastActivity: 'Called – Interested',  followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-203', pipeline: 'B2C',    name: 'Harish Kulkarni', phone: '9988001133', email: '',                 area: 'Whitefield',      source: 'Walk-in',      stage: 'Site Survey',         plan: '50 Mbps Starter', assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 4,  lastActivity: 'Survey scheduled',     followUp: '2026-05-10', priority: 'medium', ekycStatus: 'Sent',     hwAssigned: null },
+  { id: 'LD-205', pipeline: 'B2C',    name: 'Deepak Joshi',    phone: '9011556677', email: '',                 area: 'Electronic City', source: 'Cold Call',    stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 6,  lastActivity: 'No answer – retry',    followUp: '2026-05-07', priority: 'medium', ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-206', pipeline: 'B2C',    name: 'Kavita Sharma',   phone: '9876543210', email: 'kavita@email.com', area: 'BTM Layout',      source: 'Referral',     stage: 'Quotation Sent',      plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'Quote emailed',        followUp: '2026-05-11', priority: 'medium', ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-208', pipeline: 'B2C',    name: 'Lakshmi Devi',    phone: '9123456780', email: '',                 area: 'Koramangala',     source: 'Walk-in',      stage: 'Lost',                plan: '50 Mbps Starter', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 12, lastActivity: 'Not interested',       followUp: '',           priority: 'low',    ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-210', pipeline: 'B2C',    name: 'Rekha Menon',     phone: '9871234560', email: '',                 area: 'HSR Layout',      source: 'Referral',     stage: 'Contacted',           plan: '500 Mbps Ultra',  assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'WhatsApp sent',        followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-212', pipeline: 'B2C',    name: 'Pooja Nair',      phone: '9432109876', email: '',                 area: 'Electronic City', source: 'Social Media', stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 5,  lastActivity: 'Missed call returned', followUp: '2026-05-07', priority: 'medium', ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-213', pipeline: 'B2C',    name: 'Mohan Das',       phone: '9345678901', email: 'mohan@email.com',  area: 'BTM Layout',      source: 'Walk-in',      stage: 'New Inquiry',         plan: '50 Mbps Starter', assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Walked in today',      followUp: '2026-05-09', priority: 'medium', ekycStatus: null,       hwAssigned: null },
+  // B2B — 3 leads
+  { id: 'LD-204', pipeline: 'B2B',    name: 'Meena Iyer',      phone: '9123887766', email: 'meena@email.com',  area: 'HSR Layout',      source: 'Social Media', stage: 'Commercial Proposal', plan: '500 Mbps Ultra',  assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 3,  lastActivity: 'Proposal reviewed',    followUp: '2026-05-07', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-207', pipeline: 'B2B',    name: 'Arun Pillai',     phone: '9087654321', email: '',                 area: 'Marathahalli',    source: 'Website',      stage: 'Hardware Assignment', plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 1,  lastActivity: 'HW pending assignment',followUp: '',           priority: 'medium', ekycStatus: 'Completed', hwAssigned: null },
+  { id: 'LD-214', pipeline: 'B2B',    name: 'Divya Krishnan',  phone: '9876001234', email: 'divya@email.com',  area: 'Koramangala',     source: 'Referral',     stage: 'Meeting Scheduled',  plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 1,  lastActivity: 'Meeting confirmed',    followUp: '2026-05-08', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  // ILL — 2 leads
+  { id: 'LD-211', pipeline: 'ILL',    name: 'Sanjay Rao',      phone: '9654321098', email: 'sanjay@email.com', area: 'Whitefield',      source: 'Website',      stage: 'Feasibility Report',  plan: '200 Mbps Pro',    assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 3,  lastActivity: 'Feasibility submitted',followUp: '2026-05-10', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-215', pipeline: 'ILL',    name: 'Ravi Shankar',    phone: '9012345678', email: '',                 area: 'Marathahalli',    source: 'Cold Call',    stage: 'Testing',             plan: '500 Mbps Ultra',  assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 0,  lastActivity: 'Testing in progress',  followUp: '',           priority: 'low',    ekycStatus: 'Completed', hwAssigned: null },
+  // Custom — 1 lead
+  { id: 'LD-209', pipeline: 'Custom', name: 'Vinod Kumar',     phone: '9988776655', email: 'vinod@email.com',  area: 'Indiranagar',     source: 'Cold Call',    stage: 'Quotation',           plan: '200 Mbps Pro',    assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Quotation sent',       followUp: '2026-05-08', priority: 'low',    ekycStatus: null,       hwAssigned: null },
 ]
 
 const INIT_FORM = {
+  pipeline: 'B2C',
   name: '', phone: '', email: '', area: '', source: '',
   plan: '', assigned: '', followUp: '', notes: '',
 }
 
-const EKYC_STATUS_BADGE = {
-  Pending:   'yellow',
-  Sent:      'blue',
-  Completed: 'green',
-  Failed:    'red',
-}
+const EKYC_STATUS_BADGE = { Pending: 'yellow', Sent: 'blue', Completed: 'green', Failed: 'red' }
 
 // ── eKYC Modal (Digio flow) ──────────────────────────────────────────────────
 
@@ -108,12 +179,7 @@ function EkycModal({ isOpen, onClose, lead, onSave }) {
   function handleSend() {
     if (!form.aadhaar.replace(/\s/g, '').match(/^\d{12}$/)) return
     setSubmitting(true)
-    // Simulate Digio API call
-    setTimeout(() => {
-      setSubmitting(false)
-      setSent(true)
-      onSave('Sent')
-    }, 1500)
+    setTimeout(() => { setSubmitting(false); setSent(true); onSave('Sent') }, 1500)
   }
 
   if (sent) {
@@ -134,15 +200,13 @@ function EkycModal({ isOpen, onClose, lead, onSave }) {
             <p className="text-xs text-gray-500 font-semibold mb-1">Timeline</p>
             <div className="space-y-1">
               {[
-                { time: 'Now', event: 'Request created on Digio' },
-                { time: 'Now', event: `${form.sendVia} sent to customer` },
+                { time: 'Now',     event: 'Request created on Digio' },
+                { time: 'Now',     event: `${form.sendVia} sent to customer` },
                 { time: 'Pending', event: 'Customer completes Aadhaar OTP verification' },
                 { time: 'Pending', event: 'Digio webhook confirmation received' },
               ].map((t, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs text-gray-500">
-                  <span className={`font-semibold shrink-0 ${t.time === 'Now' ? 'text-emerald-600' : 'text-gray-400'}`}>
-                    {t.time}
-                  </span>
+                  <span className={`font-semibold shrink-0 ${t.time === 'Now' ? 'text-emerald-600' : 'text-gray-400'}`}>{t.time}</span>
                   <span>{t.event}</span>
                 </div>
               ))}
@@ -154,19 +218,13 @@ function EkycModal({ isOpen, onClose, lead, onSave }) {
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`eKYC Request — ${lead?.name}`}
-      size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title={`eKYC Request — ${lead?.name}`} size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button
-            icon={submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          <Button icon={submitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             onClick={handleSend}
-            disabled={submitting || !form.aadhaar.replace(/\s/g, '').match(/^\d{12}$/)}
-          >
+            disabled={submitting || !form.aadhaar.replace(/\s/g, '').match(/^\d{12}$/)}>
             {submitting ? 'Sending…' : 'Send eKYC Request'}
           </Button>
         </>
@@ -180,18 +238,15 @@ function EkycModal({ isOpen, onClose, lead, onSave }) {
             <p className="text-xs text-gray-500">Customer will verify their Aadhaar via OTP through the Digio platform</p>
           </div>
         </div>
-
         <FormField label="Customer Name">
           <Input value={lead?.name ?? ''} disabled className="bg-gray-50 text-gray-500" />
         </FormField>
-
         <FormField label="Aadhaar Number" required>
           <Input
             value={form.aadhaar}
             onChange={e => {
               const raw = e.target.value.replace(/\D/g, '').slice(0, 12)
-              const formatted = raw.replace(/(\d{4})(?=\d)/g, '$1 ').trim()
-              set('aadhaar', formatted)
+              set('aadhaar', raw.replace(/(\d{4})(?=\d)/g, '$1 ').trim())
             }}
             placeholder="XXXX XXXX XXXX"
             className="font-mono tracking-widest"
@@ -200,44 +255,27 @@ function EkycModal({ isOpen, onClose, lead, onSave }) {
             <p className="text-xs text-red-500 mt-1">Enter a valid 12-digit Aadhaar number</p>
           )}
         </FormField>
-
         <FormField label="Send Via" required>
           <div className="flex gap-4 mt-1">
             {['Email', 'WhatsApp'].map(opt => (
               <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value={opt}
-                  checked={form.sendVia === opt}
-                  onChange={() => set('sendVia', opt)}
-                  className="accent-brand-blue"
-                />
+                <input type="radio" value={opt} checked={form.sendVia === opt}
+                  onChange={() => set('sendVia', opt)} className="accent-brand-blue" />
                 <span className="text-sm font-medium text-gray-700">{opt}</span>
               </label>
             ))}
           </div>
         </FormField>
-
         {form.sendVia === 'Email' ? (
           <FormField label="Customer Email">
-            <Input
-              type="email"
-              value={form.email}
-              onChange={e => set('email', e.target.value)}
-              placeholder="customer@email.com"
-            />
+            <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="customer@email.com" />
           </FormField>
         ) : (
           <FormField label="Customer WhatsApp">
-            <Input
-              type="tel"
-              value={form.phone}
-              onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
-              placeholder="9876543210"
-            />
+            <Input type="tel" value={form.phone}
+              onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" />
           </FormField>
         )}
-
         {lead?.ekycStatus && (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">Current status:</span>
@@ -252,7 +290,7 @@ function EkycModal({ isOpen, onClose, lead, onSave }) {
 // ── Hardware Assignment Modal ─────────────────────────────────────────────────
 
 function HardwareAssignModal({ isOpen, onClose, lead, onConfirm }) {
-  const [engineer, setEngineer] = useState('')
+  const [engineer, setEngineer]   = useState('')
   const [equipment, setEquipment] = useState('')
   const [confirming, setConfirming] = useState(false)
 
@@ -262,42 +300,28 @@ function HardwareAssignModal({ isOpen, onClose, lead, onConfirm }) {
   function handleConfirm() {
     if (!engineer || !equipment) return
     onConfirm({
-      engineerId: engineer,
-      engineerName: selectedEng?.name,
-      equipmentId: equipment,
+      engineerId:    engineer,
+      engineerName:  selectedEng?.name,
+      equipmentId:   equipment,
       equipmentName: selectedEq?.name,
-      assignedAt: new Date().toISOString(),
+      assignedAt:    new Date().toISOString(),
     })
     onClose()
   }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Assign Hardware — ${lead?.name}`}
-      size="md"
-      footer={
-        !confirming ? (
-          <>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button
-              icon={<HardDrive size={14} />}
-              onClick={() => setConfirming(true)}
-              disabled={!engineer || !equipment}
-            >
-              Assign
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={() => setConfirming(false)}>Back</Button>
-            <Button variant="orange" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>
-              Confirm Assignment
-            </Button>
-          </>
-        )
-      }
+    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Hardware — ${lead?.name}`} size="md"
+      footer={!confirming ? (
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<HardDrive size={14} />} onClick={() => setConfirming(true)} disabled={!engineer || !equipment}>Assign</Button>
+        </>
+      ) : (
+        <>
+          <Button variant="secondary" onClick={() => setConfirming(false)}>Back</Button>
+          <Button variant="orange" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>Confirm Assignment</Button>
+        </>
+      )}
     >
       {!confirming ? (
         <div className="space-y-4">
@@ -307,44 +331,27 @@ function HardwareAssignModal({ isOpen, onClose, lead, onConfirm }) {
               Hardware assignment is restricted to Inventory role only. Engineer ID will be auto-tagged to the equipment record.
             </p>
           </div>
-
           <FormField label="Select Engineer" required>
             <Select value={engineer} onChange={e => setEngineer(e.target.value)}>
               <option value="">Choose engineer…</option>
-              {ENGINEERS.map(eng => (
-                <option key={eng.id} value={eng.id}>
-                  {eng.name} ({eng.id}) — {eng.dept}
-                </option>
-              ))}
+              {ENGINEERS.map(eng => <option key={eng.id} value={eng.id}>{eng.name} ({eng.id}) — {eng.dept}</option>)}
             </Select>
           </FormField>
-
           <FormField label="Select Equipment" required>
             <Select value={equipment} onChange={e => setEquipment(e.target.value)}>
               <option value="">Choose equipment…</option>
-              {EQUIPMENT.map(eq => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.name} · Stock: {eq.stock}
-                </option>
-              ))}
+              {EQUIPMENT.map(eq => <option key={eq.id} value={eq.id}>{eq.name} · Stock: {eq.stock}</option>)}
             </Select>
           </FormField>
-
           {engineer && equipment && (
-            <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1.5">
-              <p className="font-semibold text-gray-700 text-xs uppercase tracking-wider mb-2">Assignment Preview</p>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Engineer</span>
-                <span className="font-semibold text-gray-800">{selectedEng?.name} · {engineer}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Equipment</span>
-                <span className="font-semibold text-gray-800">{selectedEq?.name}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Lead</span>
-                <span className="font-semibold text-gray-800">{lead?.name} ({lead?.id})</span>
-              </div>
+            <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+              <p className="font-semibold text-gray-700 text-xs uppercase tracking-wider mb-2">Preview</p>
+              {[['Engineer', `${selectedEng?.name} · ${engineer}`], ['Equipment', selectedEq?.name], ['Lead', `${lead?.name} (${lead?.id})`]].map(([l, v]) => (
+                <div key={l} className="flex justify-between text-xs">
+                  <span className="text-gray-500">{l}</span>
+                  <span className="font-semibold text-gray-800">{v}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -352,21 +359,13 @@ function HardwareAssignModal({ isOpen, onClose, lead, onConfirm }) {
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-700">
-              Please confirm the hardware assignment. This action will deduct equipment from inventory and notify the engineer.
-            </p>
+            <p className="text-sm text-amber-700">Please confirm — this will deduct equipment from inventory and notify the engineer.</p>
           </div>
           <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-            {[
-              ['Lead',          `${lead?.name} (${lead?.id})`],
-              ['Engineer',      `${selectedEng?.name} · ${engineer}`],
-              ['Department',    selectedEng?.dept],
-              ['Equipment',     selectedEq?.name],
-              ['Equipment ID',  equipment],
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between text-sm">
-                <span className="text-gray-500">{label}</span>
-                <span className="font-semibold text-gray-900">{value}</span>
+            {[['Lead', `${lead?.name} (${lead?.id})`], ['Engineer', `${selectedEng?.name} · ${engineer}`], ['Department', selectedEng?.dept], ['Equipment', selectedEq?.name], ['Equipment ID', equipment]].map(([l, v]) => (
+              <div key={l} className="flex justify-between text-sm">
+                <span className="text-gray-500">{l}</span>
+                <span className="font-semibold text-gray-900">{v}</span>
               </div>
             ))}
           </div>
@@ -380,7 +379,7 @@ function HardwareAssignModal({ isOpen, onClose, lead, onConfirm }) {
 
 function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, userRole }) {
   const urgentFollowUp = lead.followUp && lead.followUp <= '2026-05-15'
-  const isHwStage = lead.stage === 'Hardware Assignment'
+  const isHwStage  = lead.stage === 'Hardware Assignment'
   const canAssignHw = userRole === 'inventory'
 
   return (
@@ -392,7 +391,6 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         isDragging ? 'opacity-40 scale-95' : 'hover:shadow-card-hover hover:-translate-y-0.5'
       }`}
     >
-      {/* Name + area */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
           <p className="font-semibold text-sm text-gray-900 truncate">{lead.name}</p>
@@ -403,16 +401,12 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         </div>
       </div>
 
-      {/* Phone */}
       <p className="text-xs font-mono text-gray-600 mb-3">{lead.phone}</p>
 
-      {/* Badges */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         <Badge variant={SOURCE_VARIANT[lead.source] ?? 'gray'} size="sm">{lead.source}</Badge>
         {lead.plan && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-navy/10 text-navy">
-            {lead.plan}
-          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-navy/10 text-navy">{lead.plan}</span>
         )}
         {lead.ekycStatus && (
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -426,7 +420,6 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         )}
       </div>
 
-      {/* HW assigned info */}
       {lead.hwAssigned && (
         <div className="flex items-center gap-1.5 text-[11px] text-violet-600 bg-violet-50 rounded-lg px-2 py-1.5 mb-3 border border-violet-200">
           <HardDrive size={11} />
@@ -436,7 +429,6 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         </div>
       )}
 
-      {/* Days in stage + follow-up */}
       <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-3">
         <span className="flex items-center gap-1">
           <Clock size={11} />
@@ -444,54 +436,39 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         </span>
         {lead.followUp && (
           <span className={`flex items-center gap-1 font-medium ${urgentFollowUp ? 'text-brand-orange' : 'text-gray-500'}`}>
-            <CalendarDays size={11} />
-            {lead.followUp}
+            <CalendarDays size={11} /> {lead.followUp}
           </span>
         )}
       </div>
 
-      {/* Last activity */}
       <p className="text-[11px] text-gray-400 italic mb-3 truncate">{lead.lastActivity}</p>
 
-      {/* Hardware Assignment stage — role-restricted action */}
       {isHwStage && (
-        <div className={`mb-3 p-2 rounded-lg border text-center ${
-          canAssignHw ? 'border-violet-200 bg-violet-50' : 'border-gray-200 bg-gray-50'
-        }`}>
+        <div className={`mb-3 p-2 rounded-lg border text-center ${canAssignHw ? 'border-violet-200 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
           {canAssignHw ? (
-            <button
-              onClick={e => { e.stopPropagation(); onAssignHw(lead) }}
-              className="flex items-center justify-center gap-1.5 w-full text-xs font-semibold text-violet-700 hover:text-violet-900 transition-colors"
-            >
+            <button onClick={e => { e.stopPropagation(); onAssignHw(lead) }}
+              className="flex items-center justify-center gap-1.5 w-full text-xs font-semibold text-violet-700 hover:text-violet-900 transition-colors">
               <HardDrive size={12} /> Assign Hardware
             </button>
           ) : (
             <p className="text-xs text-gray-400 flex items-center justify-center gap-1">
-              <Shield size={11} /> Inventory role required
+              <Shield size={11} /> Inventory role only
             </p>
           )}
         </div>
       )}
 
-      {/* Quick actions */}
       <div className="flex items-center gap-1 pt-2 border-t border-surface-border">
-        <a
-          href={`tel:${lead.phone}`}
-          onClick={e => e.stopPropagation()}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors"
-        >
+        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
           <Phone size={12} /> Call
         </a>
-        <button
-          onClick={e => { e.stopPropagation(); onEkyc(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors"
-        >
+        <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
           <Fingerprint size={12} /> eKYC
         </button>
-        <button
-          onClick={e => { e.stopPropagation(); onEdit(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors"
-        >
+        <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
           <Edit3 size={12} /> Edit
         </button>
       </div>
@@ -501,34 +478,45 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
 // ── Create / Edit Lead Modal ──────────────────────────────────────────────────
 
-function LeadModal({ isOpen, onClose, onSave, initial }) {
+function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline }) {
   const isEdit = !!initial?.id
-  const [form, setForm] = useState(initial ?? INIT_FORM)
+  const [form, setForm] = useState(initial ?? { ...INIT_FORM, pipeline: defaultPipeline ?? 'B2C' })
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function handlePipelineChange(pl) {
+    setForm(p => ({ ...p, pipeline: pl }))
+  }
+
+  const pl = PIPELINES[form.pipeline] ?? PIPELINES.B2C
 
   function handleSave() {
     if (!form.name.trim() || !form.phone.match(/^\d{10}$/)) return
     const staff = STAFF.find(s => s.name === form.assigned)
     onSave({
       ...form,
-      id: isEdit ? initial.id : `LD-${Date.now()}`,
-      stage: isEdit ? initial.stage : 'New Inquiry',
-      daysInStage: isEdit ? initial.daysInStage : 0,
-      lastActivity: isEdit ? initial.lastActivity : 'Lead created',
+      id:               isEdit ? initial.id : `LD-${Date.now()}`,
+      stage:            isEdit ? initial.stage : pl.stages[0],
+      daysInStage:      isEdit ? initial.daysInStage : 0,
+      lastActivity:     isEdit ? initial.lastActivity : 'Lead created',
       assignedInitials: staff?.initials ?? '??',
-      assignedColor: staff?.color ?? 'bg-gray-400',
-      priority: 'medium',
-      ekycStatus: isEdit ? initial.ekycStatus : null,
-      hwAssigned: isEdit ? initial.hwAssigned : null,
+      assignedColor:    staff?.color ?? 'bg-gray-400',
+      priority:         'medium',
+      ekycStatus:       isEdit ? initial.ekycStatus : null,
+      hwAssigned:       isEdit ? initial.hwAssigned : null,
     })
     onClose()
   }
 
+  const PIPELINE_TAB_STYLE = {
+    B2C:    { active: 'bg-brand-blue text-white',   idle: 'text-gray-600 hover:bg-gray-100' },
+    B2B:    { active: 'bg-navy text-white',         idle: 'text-gray-600 hover:bg-gray-100' },
+    ILL:    { active: 'bg-purple-600 text-white',   idle: 'text-gray-600 hover:bg-gray-100' },
+    Custom: { active: 'bg-brand-orange text-white', idle: 'text-gray-600 hover:bg-gray-100' },
+  }
+
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
+    <Modal isOpen={isOpen} onClose={onClose}
       title={isEdit ? `Edit Lead — ${initial.name}` : 'Create New Lead'}
       size="lg"
       footer={
@@ -538,57 +526,85 @@ function LeadModal({ isOpen, onClose, onSave, initial }) {
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Full Name" required>
-          <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ramesh Nair" />
-        </FormField>
-        <FormField label="Phone Number" required>
-          <Input
-            type="tel"
-            value={form.phone}
-            onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
-            placeholder="9876543210"
-          />
-        </FormField>
-        <FormField label="Email Address">
-          <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
-        </FormField>
-        <FormField label="Area">
-          <Select value={form.area} onChange={e => set('area', e.target.value)}>
-            <option value="">Select Area</option>
-            {AREAS.map(a => <option key={a}>{a}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Lead Source">
-          <Select value={form.source} onChange={e => set('source', e.target.value)}>
-            <option value="">Select Source</option>
-            {SOURCES.map(s => <option key={s}>{s}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Interested Plan">
-          <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
-            <option value="">Select Plan</option>
-            {PLANS.map(p => <option key={p}>{p}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Assigned To">
-          <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
-            <option value="">Select Sales Rep</option>
-            {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Follow-up Date">
-          <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
-        </FormField>
-        <div className="col-span-2">
-          <FormField label="Notes">
-            <Textarea
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
-              placeholder="Any additional notes about this lead…"
-              rows={3}
-            />
+      <div className="space-y-5">
+        {/* ── Pipeline selector ── */}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-2">Pipeline <span className="text-red-400">*</span></p>
+          <div className="flex gap-2">
+            {Object.keys(PIPELINES).map(key => {
+              const style = PIPELINE_TAB_STYLE[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => !isEdit && handlePipelineChange(key)}
+                  disabled={isEdit}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-all ${
+                    form.pipeline === key
+                      ? `${style.active} border-transparent shadow-sm`
+                      : `${style.idle} border-surface-border ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`
+                  }`}
+                >
+                  {key}
+                </button>
+              )
+            })}
+          </div>
+          {/* Pipeline hint */}
+          <p className="text-xs text-gray-400 mt-2 flex items-center gap-1.5">
+            <span className="font-semibold text-gray-600">{pl.labelFull}</span>
+            <span>·</span>
+            <span>{pl.stages.length} stages</span>
+            <span>·</span>
+            <span>starts at <strong className="text-gray-600">{pl.stages[0]}</strong></span>
+          </p>
+        </div>
+
+        {/* ── Lead fields ── */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Full Name" required>
+            <Input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ramesh Nair" />
           </FormField>
+          <FormField label="Phone Number" required>
+            <Input type="tel" value={form.phone}
+              onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" />
+          </FormField>
+          <FormField label="Email Address">
+            <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
+          </FormField>
+          <FormField label="Area">
+            <Select value={form.area} onChange={e => set('area', e.target.value)}>
+              <option value="">Select Area</option>
+              {AREAS.map(a => <option key={a}>{a}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Lead Source">
+            <Select value={form.source} onChange={e => set('source', e.target.value)}>
+              <option value="">Select Source</option>
+              {SOURCES.map(s => <option key={s}>{s}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Interested Plan">
+            <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
+              <option value="">Select Plan</option>
+              {PLANS.map(p => <option key={p}>{p}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Assigned To">
+            <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
+              <option value="">Select Sales Rep</option>
+              {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Follow-up Date">
+            <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Notes">
+              <Textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+                placeholder="Any additional notes about this lead…" rows={3} />
+            </FormField>
+          </div>
         </div>
       </div>
     </Modal>
@@ -599,6 +615,7 @@ function LeadModal({ isOpen, onClose, onSave, initial }) {
 
 export default function Sales() {
   const [leads, setLeads]               = useState(INIT_LEADS)
+  const [activePipeline, setActivePipeline] = useState('B2C')
   const [draggingId, setDraggingId]     = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
   const [showModal, setShowModal]       = useState(false)
@@ -609,16 +626,12 @@ export default function Sales() {
   const navigate                        = useNavigate()
   const userRole                        = 'sales'
 
-  // ── Drag and drop ────────────────────────────────────────────────────────
-  function handleDragStart(e, id) {
-    setDraggingId(id)
-    e.dataTransfer.effectAllowed = 'move'
-  }
+  const pl           = PIPELINES[activePipeline]
+  const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
 
-  function handleDragEnd() {
-    setDraggingId(null)
-    setDragOverStage(null)
-  }
+  // ── Drag and drop ────────────────────────────────────────────────────────
+  function handleDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
+  function handleDragEnd()        { setDraggingId(null); setDragOverStage(null) }
 
   function handleDragOver(e, stageId) {
     e.preventDefault()
@@ -635,14 +648,11 @@ export default function Sales() {
           : l
       ))
     }
-    setDraggingId(null)
-    setDragOverStage(null)
+    setDraggingId(null); setDragOverStage(null)
   }
 
   function handleDragLeave(e) {
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setDragOverStage(null)
-    }
+    if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStage(null)
   }
 
   // ── Lead CRUD ────────────────────────────────────────────────────────────
@@ -653,46 +663,35 @@ export default function Sales() {
     })
   }
 
-  function openEdit(lead) {
-    setEditLead(lead)
-    setShowModal(true)
-  }
-
   function saveEkycStatus(leadId, status) {
-    setLeads(prev => prev.map(l =>
-      l.id === leadId
-        ? { ...l, ekycStatus: status, lastActivity: `eKYC ${status}` }
-        : l
-    ))
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ekycStatus: status, lastActivity: `eKYC ${status}` } : l))
   }
 
   function saveHwAssignment(leadId, hw) {
-    setLeads(prev => prev.map(l =>
-      l.id === leadId
-        ? { ...l, hwAssigned: hw, lastActivity: `HW assigned: ${hw.equipmentName}` }
-        : l
-    ))
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, hwAssigned: hw, lastActivity: `HW assigned: ${hw.equipmentName}` } : l))
   }
 
-  // ── Derived stats ────────────────────────────────────────────────────────
-  const wonCount       = leads.filter(l => l.stage === 'Won').length
-  const lostCount      = leads.filter(l => l.stage === 'Lost').length
-  const activeCount    = leads.filter(l => !['Won', 'Lost'].includes(l.stage)).length
-  const todayFollowUps = leads.filter(l => l.followUp === '2026-05-15').length
+  // ── Derived stats (scoped to active pipeline) ────────────────────────────
+  const wonCount       = pipelineLeads.filter(l => l.stage === 'Won').length
+  const lostCount      = pipelineLeads.filter(l => l.stage === 'Lost').length
+  const activeCount    = pipelineLeads.filter(l => !['Won', 'Lost'].includes(l.stage)).length
+  const todayFollowUps = pipelineLeads.filter(l => l.followUp === '2026-05-15').length
 
   const filteredLeads = search.trim()
-    ? leads.filter(l =>
+    ? pipelineLeads.filter(l =>
         l.name.toLowerCase().includes(search.toLowerCase()) ||
         l.phone.includes(search) ||
         l.area.toLowerCase().includes(search.toLowerCase())
       )
-    : leads
+    : pipelineLeads
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
-      <div className="px-6 pt-6 pb-4 space-y-5 shrink-0">
+      <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
+
+        {/* Title row */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Sales Pipeline</h1>
@@ -704,10 +703,8 @@ export default function Sales() {
               <button className="px-3 py-1 rounded-md font-semibold capitalize transition-all bg-white text-gray-900 shadow-sm">
                 📊 Sales
               </button>
-              <button
-                onClick={() => navigate('/sales/hw-assignment')}
-                className="px-3 py-1 rounded-md font-semibold capitalize transition-all text-gray-500 hover:text-gray-700"
-              >
+              <button onClick={() => navigate('/sales/hw-assignment')}
+                className="px-3 py-1 rounded-md font-semibold capitalize transition-all text-gray-500 hover:text-gray-700">
                 🔧 Inventory
               </button>
             </div>
@@ -715,16 +712,12 @@ export default function Sales() {
               <Button variant="secondary" size="sm" icon={<PhoneCall size={14} />}>
                 Follow-ups
                 {todayFollowUps > 0 && (
-                  <span className="ml-1 bg-brand-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                    {todayFollowUps}
-                  </span>
+                  <span className="ml-1 bg-brand-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{todayFollowUps}</span>
                 )}
               </Button>
             </Link>
             <Link to="/sales/pipelines">
-              <Button variant="secondary" size="sm" icon={<Layers size={14} />}>
-                Pipelines
-              </Button>
+              <Button variant="secondary" size="sm" icon={<Layers size={14} />}>Pipelines</Button>
             </Link>
             <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditLead(null); setShowModal(true) }}>
               Add Lead
@@ -732,14 +725,38 @@ export default function Sales() {
           </div>
         </div>
 
-        {/* Pipeline summary stats */}
+        {/* ── Pipeline tabs ────────────────────────────────────────────── */}
+        <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-surface-border w-fit">
+          {Object.entries(PIPELINES).map(([key, config]) => {
+            const count = leads.filter(l => l.pipeline === key).length
+            const isActive = activePipeline === key
+            return (
+              <button
+                key={key}
+                onClick={() => { setActivePipeline(key); setSearch('') }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  isActive ? `${config.tabActive} shadow-sm` : `bg-transparent ${config.tabIdle}`
+                }`}
+              >
+                {config.label}
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
+                  isActive ? config.tabCount : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ── KPI cards ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-5 gap-3">
           {[
-            { label: 'Total Leads',     value: leads.length,    icon: Users,        color: 'text-gray-700',        bg: 'bg-gray-100'       },
-            { label: 'Active',          value: activeCount,     icon: TrendingUp,   color: 'text-brand-blue',      bg: 'bg-brand-blue/10'  },
-            { label: 'Today Follow-ups',value: todayFollowUps,  icon: CalendarDays, color: 'text-brand-orange',    bg: 'bg-brand-orange/10'},
-            { label: 'Won This Month',  value: wonCount,        icon: CheckCircle2, color: 'text-emerald-700',     bg: 'bg-emerald-100'    },
-            { label: 'Lost',            value: lostCount,       icon: XCircle,      color: 'text-red-600',         bg: 'bg-red-100'        },
+            { label: 'Total Leads',      value: pipelineLeads.length, icon: Users,        color: 'text-gray-700',     bg: 'bg-gray-100'        },
+            { label: 'Active',           value: activeCount,          icon: TrendingUp,   color: 'text-brand-blue',   bg: 'bg-brand-blue/10'   },
+            { label: 'Today Follow-ups', value: todayFollowUps,       icon: CalendarDays, color: 'text-brand-orange', bg: 'bg-brand-orange/10' },
+            { label: 'Won This Month',   value: wonCount,             icon: CheckCircle2, color: 'text-emerald-700',  bg: 'bg-emerald-100'     },
+            { label: 'Lost',             value: lostCount,            icon: XCircle,      color: 'text-red-600',      bg: 'bg-red-100'         },
           ].map(s => {
             const Icon = s.icon
             return (
@@ -756,14 +773,12 @@ export default function Sales() {
           })}
         </div>
 
-        {/* Search */}
+        {/* ── Search ───────────────────────────────────────────────────── */}
         <div className="flex items-center gap-3">
           <div className="relative w-72">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search leads by name, phone, area…"
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={`Search ${pl.label} leads…`}
               className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
             />
             {search && (
@@ -772,61 +787,52 @@ export default function Sales() {
               </button>
             )}
           </div>
-          {search && (
-            <span className="text-sm text-gray-500">
-              {filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}
-            </span>
-          )}
+          {search && <span className="text-sm text-gray-500">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>}
         </div>
       </div>
 
       {/* ── Kanban board ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 pb-6">
-        <div className="flex gap-3 h-full" style={{ minWidth: `${STAGES.length * 260}px` }}>
-          {STAGES.map(stage => {
-            const stageLeads = filteredLeads.filter(l => l.stage === stage.id)
-            const isOver = dragOverStage === stage.id
-            const isHwStage = stage.id === 'Hardware Assignment'
+        <div className="flex gap-3 h-full" style={{ minWidth: `${pl.stages.length * 260}px` }}>
+          {pl.stages.map(stageId => {
+            const style     = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
+            const stageLeads = filteredLeads.filter(l => l.stage === stageId)
+            const isOver    = dragOverStage === stageId
+            const isHwStage = stageId === 'Hardware Assignment'
 
             return (
-              <div
-                key={stage.id}
-                className={`flex flex-col rounded-xl border transition-all duration-150 ${stage.colBg} ${stage.border} ${
+              <div key={stageId}
+                className={`flex flex-col rounded-xl border transition-all duration-150 ${style.colBg} ${style.border} ${
                   isOver ? 'ring-2 ring-brand-blue/50 scale-[1.01]' : ''
                 } ${isHwStage ? 'ring-1 ring-violet-300' : ''}`}
                 style={{ width: 252, minWidth: 252 }}
-                onDragOver={e => handleDragOver(e, stage.id)}
-                onDrop={e => handleDrop(e, stage.id)}
+                onDragOver={e => handleDragOver(e, stageId)}
+                onDrop={e => handleDrop(e, stageId)}
                 onDragLeave={handleDragLeave}
               >
                 {/* Column header */}
                 <div className="px-3 pt-3 pb-2.5 shrink-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2.5 h-2.5 rounded-full ${stage.colorBar}`} />
-                      <span className="text-xs font-bold text-gray-700">{stage.label}</span>
+                      <div className={`w-2.5 h-2.5 rounded-full ${style.colorBar}`} />
+                      <span className="text-xs font-bold text-gray-700">{getStageLabel(stageId)}</span>
                     </div>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.chip}`}>
-                      {stageLeads.length}
-                    </span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${style.chip}`}>{stageLeads.length}</span>
                   </div>
                   {isHwStage && (
                     <p className="text-[10px] text-violet-500 mt-1 flex items-center gap-1">
-                      <Shield size={10} />
-                      {userRole === 'inventory' ? 'You can assign hardware' : 'Inventory role only'}
+                      <Shield size={10} /> Inventory role only
                     </p>
                   )}
                 </div>
 
-                {/* Drop zone indicator */}
                 {isOver && draggingId && (
                   <div className="mx-3 mb-2 h-1.5 rounded-full bg-brand-blue/40 animate-pulse" />
                 )}
 
-                {/* Cards */}
                 <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-2.5 scrollbar-hide">
                   {stageLeads.length === 0 ? (
-                    <div className={`flex flex-col items-center justify-center py-8 text-center ${isOver ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className={`flex flex-col items-center justify-center py-8 text-center ${isOver ? 'opacity-0' : ''}`}>
                       <div className="w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center mb-2">
                         <Plus size={16} className="text-gray-400" />
                       </div>
@@ -834,15 +840,12 @@ export default function Sales() {
                     </div>
                   ) : (
                     stageLeads.map(lead => (
-                      <LeadCard
-                        key={lead.id}
-                        lead={lead}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
+                      <LeadCard key={lead.id} lead={lead}
+                        onDragStart={handleDragStart} onDragEnd={handleDragEnd}
                         isDragging={draggingId === lead.id}
-                        onEdit={openEdit}
-                        onEkyc={lead => setEkycLead(lead)}
-                        onAssignHw={lead => setHwLead(lead)}
+                        onEdit={l => { setEditLead(l); setShowModal(true) }}
+                        onEkyc={l => setEkycLead(l)}
+                        onAssignHw={l => setHwLead(l)}
                         userRole={userRole}
                       />
                     ))
@@ -856,30 +859,20 @@ export default function Sales() {
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       {showModal && (
-        <LeadModal
-          isOpen={showModal}
+        <LeadModal isOpen={showModal}
           onClose={() => { setShowModal(false); setEditLead(null) }}
           onSave={saveLead}
           initial={editLead}
+          defaultPipeline={activePipeline}
         />
       )}
-
       {ekycLead && (
-        <EkycModal
-          isOpen={!!ekycLead}
-          onClose={() => setEkycLead(null)}
-          lead={ekycLead}
-          onSave={status => saveEkycStatus(ekycLead.id, status)}
-        />
+        <EkycModal isOpen={!!ekycLead} onClose={() => setEkycLead(null)} lead={ekycLead}
+          onSave={status => saveEkycStatus(ekycLead.id, status)} />
       )}
-
       {hwLead && (
-        <HardwareAssignModal
-          isOpen={!!hwLead}
-          onClose={() => setHwLead(null)}
-          lead={hwLead}
-          onConfirm={hw => saveHwAssignment(hwLead.id, hw)}
-        />
+        <HardwareAssignModal isOpen={!!hwLead} onClose={() => setHwLead(null)} lead={hwLead}
+          onConfirm={hw => saveHwAssignment(hwLead.id, hw)} />
       )}
     </div>
   )
