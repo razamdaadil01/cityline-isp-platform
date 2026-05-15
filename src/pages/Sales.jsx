@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Plus, Phone, MessageSquare, Edit3, Clock, TrendingUp,
   Users, CheckCircle2, XCircle, CalendarDays, ChevronRight,
@@ -606,8 +606,8 @@ export default function Sales() {
   const [ekycLead, setEkycLead]         = useState(null)
   const [hwLead, setHwLead]             = useState(null)
   const [search, setSearch]             = useState('')
-  // Role toggle for demo — 'sales' | 'inventory'
-  const [userRole, setUserRole]         = useState('sales')
+  const navigate                        = useNavigate()
+  const userRole                        = 'sales'
 
   // ── Drag and drop ────────────────────────────────────────────────────────
   function handleDragStart(e, id) {
@@ -699,19 +699,17 @@ export default function Sales() {
             <p className="text-sm text-gray-500 mt-0.5">Drag cards between stages to update lead progress</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Role toggle for demo */}
+            {/* Role toggle */}
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg text-xs">
-              {['sales', 'inventory'].map(role => (
-                <button
-                  key={role}
-                  onClick={() => setUserRole(role)}
-                  className={`px-3 py-1 rounded-md font-semibold capitalize transition-all ${
-                    userRole === role ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {role === 'inventory' ? '🔧' : '📊'} {role}
-                </button>
-              ))}
+              <button className="px-3 py-1 rounded-md font-semibold capitalize transition-all bg-white text-gray-900 shadow-sm">
+                📊 Sales
+              </button>
+              <button
+                onClick={() => navigate('/sales/hw-assignment')}
+                className="px-3 py-1 rounded-md font-semibold capitalize transition-all text-gray-500 hover:text-gray-700"
+              >
+                🔧 Inventory
+              </button>
             </div>
             <Link to="/sales/followups">
               <Button variant="secondary" size="sm" icon={<PhoneCall size={14} />}>
