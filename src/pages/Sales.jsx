@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Plus, Phone, Edit3, Clock, TrendingUp,
   Users, CheckCircle2, XCircle, CalendarDays,
   PhoneCall, Search, X, HardDrive, Shield,
   Fingerprint, Send, AlertTriangle, Layers,
-  CheckCircle, Loader2
+  CheckCircle, Loader2, Lock,
 } from 'lucide-react'
+import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -34,6 +35,9 @@ const PIPELINES = {
       'Technical Feasibility', 'Commercial Proposal', 'Negotiation',
       'Legal/Agreement', 'Hardware Assignment', 'Won', 'Lost',
     ],
+    // Required by default: Feasibility → Technical Feasibility, KYC → Requirement Analysis,
+    // Package Assignment → Commercial Proposal, Advance Payment → Legal/Agreement
+    requiredStages: ['Technical Feasibility', 'Requirement Analysis', 'Commercial Proposal', 'Legal/Agreement'],
     tabActive: 'bg-navy text-white',
     tabCount:  'bg-white/25 text-white',
     tabIdle:   'text-gray-600 hover:text-navy',
@@ -478,9 +482,9 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
 // ── Create / Edit Lead Modal ──────────────────────────────────────────────────
 
-function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline }) {
+function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModules = {} }) {
   const isEdit = !!initial?.id
-  const [form, setForm] = useState(initial ?? { ...INIT_FORM, pipeline: defaultPipeline ?? 'B2C' })
+  const [form, setForm] = useState(initial ?? { ...INIT_FORM, pipeline: defaultPipeline ?? 'B2C', customData: {} })
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
@@ -606,6 +610,100 @@ function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline }) {
             </FormField>
           </div>
         </div>
+
+        {/* ── Custom form fields from Form Builder ── */}
+        {(() => {
+          const customFields = formModules[form.pipeline]?.fields ?? []
+          if (customFields.length === 0) return null
+          return (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex-1 h-px bg-surface-border" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2">
+                  {form.pipeline} Custom Fields
+                </span>
+                <div className="flex-1 h-px bg-surface-border" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {customFields.map(field => {
+                  const val = form.customData?.[field.id] ?? ''
+                  const setVal = v => setForm(p => ({ ...p, customData: { ...(p.customData ?? {}), [field.id]: v } }))
+                  return (
+                    <FormField key={field.id} label={field.label} required={field.required}>
+                      {(field.type === 'Text' || field.type === 'Number' || field.type === 'Phone' || field.type === 'Email' || field.type === 'Date') && (
+                        <Input
+                          type={field.type === 'Number' ? 'number' : field.type === 'Phone' ? 'tel' : field.type === 'Email' ? 'email' : field.type === 'Date' ? 'date' : 'text'}
+                          value={val}
+                          onChange={e => setVal(e.target.value)}
+                          placeholder={field.placeholder}
+                        />
+                      )}
+                      {field.type === 'Textarea' && (
+                        <Textarea value={val} onChange={e => setVal(e.target.value)} placeholder={field.placeholder} rows={2} />
+                      )}
+                      {(field.type === 'Dropdown' || field.type === 'Multi-select') && (
+                        <Select value={val} onChange={e => setVal(e.target.value)}>
+                          <option value="">Select…</option>
+                          {(field.options ?? []).map(o => <option key={o}>{o}</option>)}
+                        </Select>
+                      )}
+                      {field.type === 'Yes/No Toggle' && (
+                        <div className="flex gap-2 mt-1">
+                          {['Yes', 'No'].map(opt => (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setVal(opt)}
+                              className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-all ${
+                                val === opt
+                                  ? 'bg-brand-blue text-white border-transparent'
+                                  : 'border-surface-border text-gray-600 hover:border-brand-blue/40'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {field.type === 'File Upload' && (
+                        <Input type="file" value={val} onChange={e => setVal(e.target.value)} />
+                      )}
+                    </FormField>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+    </Modal>
+  )
+}
+
+// ── Required Stage Warning Modal ──────────────────────────────────────────────
+
+function RequiredStageModal({ isOpen, onClose, stageName }) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Required Stage Incomplete"
+      size="sm"
+      footer={<Button onClick={onClose}>Got it</Button>}
+    >
+      <div className="flex gap-3 items-start">
+        <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+          <AlertTriangle size={20} className="text-amber-600" />
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900 mb-1">Cannot skip required stage</p>
+          <p className="text-sm text-gray-600">
+            Complete <strong className="text-navy">{stageName}</strong> before proceeding to the next stage.
+          </p>
+          <p className="text-xs text-gray-400 mt-2">
+            Required stages ensure all mandatory checks are completed before a lead advances.
+          </p>
+        </div>
       </div>
     </Modal>
   )
@@ -623,8 +721,12 @@ export default function Sales() {
   const [ekycLead, setEkycLead]         = useState(null)
   const [hwLead, setHwLead]             = useState(null)
   const [search, setSearch]             = useState('')
+  const [requiredStageWarning, setRequiredStageWarning] = useState(null) // { stageName }
+  const [formModules, setFormModules]   = useState(getFormModules())
   const navigate                        = useNavigate()
   const userRole                        = 'sales'
+
+  useEffect(() => subscribeFormModules(setFormModules), [])
 
   const pl            = PIPELINES[activePipeline]
   const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
@@ -640,16 +742,40 @@ export default function Sales() {
     if (dragOverStage !== stageId) setDragOverStage(stageId)
   }
 
-  function handleDrop(e, stageId) {
+  function handleDrop(e, targetStage) {
     e.preventDefault()
     if (draggingId) {
+      const lead = leads.find(l => l.id === draggingId)
+      if (lead && lead.stage !== targetStage) {
+        const plDef = PIPELINES[lead.pipeline]
+        const reqStages = plDef.requiredStages ?? []
+
+        if (reqStages.length > 0) {
+          const fromIdx = plDef.stages.indexOf(lead.stage)
+          const toIdx   = plDef.stages.indexOf(targetStage)
+
+          // Only block forward jumps that skip required stages
+          if (toIdx > fromIdx + 1) {
+            const skipped   = plDef.stages.slice(fromIdx + 1, toIdx)
+            const blockedBy = skipped.find(s => reqStages.includes(s))
+            if (blockedBy) {
+              setRequiredStageWarning({ stageName: blockedBy })
+              setDraggingId(null)
+              setDragOverStage(null)
+              return
+            }
+          }
+        }
+      }
+
       setLeads(prev => prev.map(l =>
-        l.id === draggingId && l.stage !== stageId
-          ? { ...l, stage: stageId, daysInStage: 0, lastActivity: `Moved to ${stageId}` }
+        l.id === draggingId && l.stage !== targetStage
+          ? { ...l, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` }
           : l
       ))
     }
-    setDraggingId(null); setDragOverStage(null)
+    setDraggingId(null)
+    setDragOverStage(null)
   }
 
   function handleDragLeave(e) {
@@ -810,10 +936,11 @@ export default function Sales() {
       <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 pb-6">
         <div className="flex gap-3 h-full" style={{ minWidth: `${pl.stages.length * 260}px` }}>
           {pl.stages.map(stageId => {
-            const style     = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
+            const style      = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
             const stageLeads = filteredLeads.filter(l => l.stage === stageId)
-            const isOver    = dragOverStage === stageId
-            const isHwStage = stageId === 'Hardware Assignment'
+            const isOver     = dragOverStage === stageId
+            const isHwStage  = stageId === 'Hardware Assignment'
+            const isRequired = (pl.requiredStages ?? []).includes(stageId)
 
             return (
               <div key={stageId}
@@ -831,6 +958,11 @@ export default function Sales() {
                     <div className="flex items-center gap-2">
                       <div className={`w-2.5 h-2.5 rounded-full ${style.colorBar}`} />
                       <span className="text-xs font-bold text-gray-700">{getStageLabel(stageId)}</span>
+                      {isRequired && (
+                        <span title="Required stage — cannot be skipped" className="text-amber-500">
+                          <Lock size={10} className="shrink-0" />
+                        </span>
+                      )}
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${style.chip}`}>{stageLeads.length}</span>
                   </div>
@@ -879,6 +1011,7 @@ export default function Sales() {
           onSave={saveLead}
           initial={editLead}
           defaultPipeline={activePipeline}
+          formModules={formModules}
         />
       )}
       {ekycLead && (
@@ -888,6 +1021,13 @@ export default function Sales() {
       {hwLead && (
         <HardwareAssignModal isOpen={!!hwLead} onClose={() => setHwLead(null)} lead={hwLead}
           onConfirm={hw => saveHwAssignment(hwLead.id, hw)} />
+      )}
+      {requiredStageWarning && (
+        <RequiredStageModal
+          isOpen={!!requiredStageWarning}
+          onClose={() => setRequiredStageWarning(null)}
+          stageName={requiredStageWarning.stageName}
+        />
       )}
     </div>
   )
