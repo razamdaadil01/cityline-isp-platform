@@ -19,6 +19,8 @@ import {
   PhoneCall,
   Layers,
   HardDrive,
+  FileText,
+  FileCheck,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -30,6 +32,8 @@ const NAV_ITEMS = [
       { label: 'Follow-ups',   icon: PhoneCall,  to: '/sales/followups'    },
       { label: 'Pipelines',    icon: Layers,     to: '/sales/pipelines'    },
       { label: 'HW Assignment',icon: HardDrive,  to: '/sales/hw-assignment'},
+      { label: 'Form Builder', icon: FileText,   to: '/sales/form-builder' },
+      { label: 'Proposals',    icon: FileCheck,  to: '/sales/proposals'    },
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },

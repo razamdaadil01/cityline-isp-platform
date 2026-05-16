@@ -9,6 +9,8 @@ import SalesToday from './pages/SalesToday'
 import SalesFollowups from './pages/SalesFollowups'
 import SalesPipelines from './pages/SalesPipelines'
 import SalesHwAssignment from './pages/SalesHwAssignment'
+import SalesFormBuilder from './pages/SalesFormBuilder'
+import SalesProposals from './pages/SalesProposals'
 import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="/sales/followups" element={<SalesFollowups />} />
           <Route path="/sales/pipelines" element={<SalesPipelines />} />
           <Route path="/sales/hw-assignment" element={<SalesHwAssignment />} />
+          <Route path="/sales/form-builder" element={<SalesFormBuilder />} />
+          <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
