@@ -4,15 +4,8 @@ import {
   Layers, Settings2, HardDrive, AlertCircle, Check, FolderOpen
 } from 'lucide-react'
 import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const TYPE_OPTIONS = ['B2C', 'B2B', 'ILL', 'Custom']
-
-const TYPE_BADGE = { B2C: 'blue', B2B: 'navy', ILL: 'purple', Custom: 'orange' }
+import { FormField, Input, Textarea } from '../components/ui/FormInputs'
 
 const STAGE_COLORS = [
   { label: 'Blue',    value: 'bg-blue-500'    },
@@ -58,7 +51,7 @@ const INIT_PIPELINES = [
   },
 ]
 
-const INIT_PIPELINE_FORM = { name: '', type: 'B2C', description: '' }
+const INIT_PIPELINE_FORM = { name: '', description: '' }
 
 // ── Stage Row (drag-and-drop in editor) ──────────────────────────────────────
 
@@ -268,7 +261,6 @@ function CreatePipelineModal({ isOpen, onClose, onCreate }) {
     onCreate({
       id: `PL-${Date.now()}`,
       name: form.name.trim(),
-      type: form.type,
       description: form.description,
       activeLeads: 0,
       isDefault: false,
@@ -304,11 +296,6 @@ function CreatePipelineModal({ isOpen, onClose, onCreate }) {
             placeholder="e.g. Enterprise ILL 2026"
           />
         </FormField>
-        <FormField label="Type" required>
-          <Select value={form.type} onChange={e => set('type', e.target.value)}>
-            {TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
-          </Select>
-        </FormField>
         <FormField label="Description">
           <Textarea
             value={form.description}
@@ -330,7 +317,6 @@ function CreatePipelineModal({ isOpen, onClose, onCreate }) {
 function EditPipelineModal({ isOpen, onClose, pipeline, onSave }) {
   const [form, setForm] = useState({
     name: pipeline?.name ?? '',
-    type: pipeline?.type ?? 'B2C',
     description: pipeline?.description ?? '',
   })
 
@@ -338,7 +324,7 @@ function EditPipelineModal({ isOpen, onClose, pipeline, onSave }) {
 
   function handleSave() {
     if (!form.name.trim()) return
-    onSave({ name: form.name.trim(), type: form.type, description: form.description })
+    onSave({ name: form.name.trim(), description: form.description })
     onClose()
   }
 
@@ -362,11 +348,6 @@ function EditPipelineModal({ isOpen, onClose, pipeline, onSave }) {
             onChange={e => set('name', e.target.value)}
             placeholder="Pipeline name"
           />
-        </FormField>
-        <FormField label="Type" required>
-          <Select value={form.type} onChange={e => set('type', e.target.value)}>
-            {TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
-          </Select>
         </FormField>
         <FormField label="Description">
           <Textarea
@@ -422,7 +403,6 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-bold text-gray-900 text-base truncate">{pipeline.name}</h3>
-              <Badge variant={TYPE_BADGE[pipeline.type] ?? 'gray'} size="sm">{pipeline.type}</Badge>
               {hwStages.length > 0 && (
                 <span className="flex items-center gap-1 text-[10px] font-semibold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
                   <HardDrive size={10} /> HW Stage
