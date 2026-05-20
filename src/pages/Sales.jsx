@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Plus, Phone, Edit3, Clock, TrendingUp,
   Users, CheckCircle2, XCircle, CalendarDays,
@@ -916,9 +916,21 @@ export default function Sales() {
   const [wonConversionLead, setWonConversionLead] = useState(null)
   const [wonSuccessData, setWonSuccessData]       = useState(null)
   const navigate                        = useNavigate()
+  const location                        = useLocation()
   const userRole                        = 'sales'
 
   useEffect(() => subscribeFormModules(setFormModules), [])
+
+  // Pick up a newly created lead passed back from /sales/leads/new
+  useEffect(() => {
+    if (location.state?.newLead) {
+      setLeads(prev => {
+        const lead = location.state.newLead
+        return prev.find(l => l.id === lead.id) ? prev : [lead, ...prev]
+      })
+      navigate('/sales', { replace: true, state: {} })
+    }
+  }, []) // eslint-disable-line
 
   const pl            = PIPELINES[activePipeline]
   const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
@@ -1049,7 +1061,7 @@ export default function Sales() {
             <Link to="/sales/analytics">
               <Button variant="secondary" size="sm" icon={<BarChart2 size={14} />}>Analytics</Button>
             </Link>
-            <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditLead(null); setShowModal(true) }}>
+            <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')}>
               Add Lead
             </Button>
           </div>
