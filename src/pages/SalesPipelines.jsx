@@ -276,15 +276,20 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave }) {
   )
 }
 
+const RESTRICTED_TYPES = ['B2C', 'B2B', 'ILL']
+
 // ── Create Pipeline Modal ────────────────────────────────────────────────────
 
-function CreatePipelineModal({ isOpen, onClose, onCreate }) {
+function CreatePipelineModal({ isOpen, onClose, onCreate, existingPipelines }) {
   const [form, setForm] = useState(INIT_PIPELINE_FORM)
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
+  const typeBlocked = RESTRICTED_TYPES.includes(form.type) &&
+    existingPipelines.some(p => p.type === form.type)
+
   function handleCreate() {
-    if (!form.name.trim()) return
+    if (!form.name.trim() || typeBlocked) return
     onCreate({
       id: `PL-${Date.now()}`,
       name: form.name.trim(),
@@ -311,7 +316,7 @@ function CreatePipelineModal({ isOpen, onClose, onCreate }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!form.name.trim()}>Create Pipeline</Button>
+          <Button onClick={handleCreate} disabled={!form.name.trim() || typeBlocked}>Create Pipeline</Button>
         </>
       }
     >
@@ -336,9 +341,16 @@ function CreatePipelineModal({ isOpen, onClose, onCreate }) {
             rows={3}
           />
         </FormField>
-        <p className="text-xs text-gray-400">
-          A default set of stages will be created. You can customise them after creation.
-        </p>
+        {typeBlocked ? (
+          <p className="flex items-center gap-1.5 text-sm text-brand-orange font-medium">
+            <AlertCircle size={14} className="shrink-0" />
+            A {form.type} pipeline already exists. Only Custom pipelines can have multiple entries.
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400">
+            A default set of stages will be created. You can customise them after creation.
+          </p>
+        )}
       </div>
     </Modal>
   )
@@ -510,11 +522,13 @@ export default function SalesPipelines() {
             value: pipelines.filter(p => p.type === t).length,
             color: `text-${t === 'B2C' ? 'brand-blue' : t === 'B2B' ? 'navy' : t === 'ILL' ? 'purple-600' : 'brand-orange'}`,
             bg: `bg-${t === 'B2C' ? 'brand-blue' : t === 'B2B' ? 'navy' : t === 'ILL' ? 'purple' : 'brand-orange'}/10`,
+            maxOne: RESTRICTED_TYPES.includes(t),
           })),
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3">
             <p className="text-xl font-bold text-gray-900">{s.value}</p>
             <p className="text-xs text-gray-500">{s.label}</p>
+            {s.maxOne && <p className="text-[10px] text-gray-400 mt-0.5">Max: 1</p>}
           </div>
         ))}
       </div>
@@ -567,6 +581,7 @@ export default function SalesPipelines() {
         isOpen={showCreate}
         onClose={() => setShowCreate(false)}
         onCreate={handleCreate}
+        existingPipelines={pipelines}
       />
 
       {stageEditorPipeline && (
