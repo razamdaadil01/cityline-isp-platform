@@ -5,7 +5,7 @@ import {
   Users, CheckCircle2, XCircle, CalendarDays,
   PhoneCall, Search, X, HardDrive, Shield,
   Fingerprint, Send, AlertTriangle, Layers,
-  CheckCircle, Loader2, Lock,
+  CheckCircle, Loader2, Lock, Upload, FileText, BarChart2,
 } from 'lucide-react'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import Button from '../components/ui/Button'
@@ -162,6 +162,7 @@ const INIT_FORM = {
   pipeline: 'B2C',
   name: '', phone: '', email: '', area: '', source: '',
   plan: '', assigned: '', followUp: '', notes: '',
+  kycDocs: {},
 }
 
 const EKYC_STATUS_BADGE = { Pending: 'yellow', Sent: 'blue', Completed: 'green', Failed: 'red' }
@@ -422,6 +423,18 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
             <Fingerprint size={9} /> {lead.ekycStatus}
           </span>
         )}
+        {(() => {
+          const docs = lead.kycDocs ?? {}
+          const n = ['aadhaar', 'panCard', 'customerPhoto'].filter(k => docs[k]).length
+          if (!n) return null
+          return (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+              n === 3 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+            }`}>
+              <FileText size={9} /> {n === 3 ? 'KYC Docs ✓' : 'Docs Pending'}
+            </span>
+          )
+        })()}
       </div>
 
       {lead.hwAssigned && (
@@ -484,7 +497,11 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
 function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModules = {} }) {
   const isEdit = !!initial?.id
-  const [form, setForm] = useState(initial ?? { ...INIT_FORM, pipeline: defaultPipeline ?? 'B2C', customData: {} })
+  const [form, setForm] = useState(
+    initial
+      ? { ...initial, kycDocs: initial.kycDocs ?? {} }
+      : { ...INIT_FORM, pipeline: defaultPipeline ?? 'B2C', customData: {} }
+  )
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
@@ -675,6 +692,12 @@ function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModu
             </div>
           )
         })()}
+
+        {/* ── KYC Documents ── */}
+        <KycSection
+          kycDocs={form.kycDocs ?? {}}
+          onChange={docs => set('kycDocs', docs)}
+        />
       </div>
     </Modal>
   )
@@ -709,6 +732,173 @@ function RequiredStageModal({ isOpen, onClose, stageName }) {
   )
 }
 
+// ── KYC Document Upload Section ───────────────────────────────────────────────
+
+function KycSection({ kycDocs = {}, onChange }) {
+  const DOCS = [
+    { key: 'aadhaar',       label: 'Aadhaar Card',    accept: 'image/*,.pdf' },
+    { key: 'panCard',       label: 'PAN Card',         accept: 'image/*,.pdf' },
+    { key: 'customerPhoto', label: 'Customer Photo',   accept: 'image/*'      },
+  ]
+
+  function handleFile(key, file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev =>
+      onChange({ ...kycDocs, [key]: { name: file.name, size: file.size, type: file.type, preview: ev.target.result } })
+    reader.readAsDataURL(file)
+  }
+
+  function remove(key) {
+    const next = { ...kycDocs }
+    delete next[key]
+    onChange(next)
+  }
+
+  function fmtSize(b) {
+    if (b < 1024) return `${b} B`
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+    return `${(b / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex-1 h-px bg-surface-border" />
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2 flex items-center gap-1.5">
+          <FileText size={11} /> KYC Documents
+        </span>
+        <div className="flex-1 h-px bg-surface-border" />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {DOCS.map(({ key, label, accept }) => {
+          const doc = kycDocs[key]
+          const isPdf = doc?.type === 'application/pdf'
+          return (
+            <div key={key} className="relative border-2 border-dashed border-surface-border rounded-xl p-3 hover:border-brand-blue/40 transition-colors">
+              {doc ? (
+                <>
+                  {isPdf ? (
+                    <div className="w-full h-16 bg-red-50 rounded-lg flex items-center justify-center mb-2">
+                      <FileText size={24} className="text-red-400" />
+                    </div>
+                  ) : (
+                    <img src={doc.preview} alt={label} className="w-full h-16 object-cover rounded-lg mb-2" />
+                  )}
+                  <p className="text-[11px] font-semibold text-gray-700 truncate">{doc.name}</p>
+                  <p className="text-[10px] text-gray-400">{fmtSize(doc.size)}</p>
+                  <button type="button" onClick={() => remove(key)}
+                    className="absolute top-2 right-2 w-5 h-5 bg-red-100 hover:bg-red-200 rounded-full flex items-center justify-center transition-colors">
+                    <X size={10} className="text-red-600" />
+                  </button>
+                </>
+              ) : (
+                <label className="cursor-pointer block text-center">
+                  <input type="file" accept={accept} className="sr-only"
+                    onChange={e => handleFile(key, e.target.files?.[0])} />
+                  <Upload size={20} className="text-gray-300 mx-auto mb-1.5" />
+                  <p className="text-xs font-semibold text-gray-700 mb-0.5">{label}</p>
+                  <p className="text-[10px] text-gray-400">{accept.includes('pdf') ? 'Image / PDF' : 'Image only'}</p>
+                  <div className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded-full text-[10px] font-semibold">
+                    <Upload size={9} /> Browse
+                  </div>
+                </label>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Won Conversion Modals ─────────────────────────────────────────────────────
+
+function WonConversionModal({ isOpen, onClose, lead, onConfirm }) {
+  const [loading, setLoading] = useState(false)
+
+  function handleConfirm() {
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      const docs = lead?.kycDocs ?? {}
+      const kycComplete = ['aadhaar', 'panCard', 'customerPhoto'].every(k => docs[k])
+      onConfirm({
+        customerName: lead?.name ?? '',
+        customerId:   `CL-${1040 + Math.floor(Math.random() * 20)}`,
+        ticketId:     `TK-${2880 + Math.floor(Math.random() * 50)}`,
+        kycStatus:    kycComplete ? 'Completed' : 'Pending',
+      })
+    }, 1400)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Won?" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button
+            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            onClick={handleConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Converting…' : 'Confirm & Convert'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600 font-medium">This will automatically:</p>
+        <div className="space-y-2.5">
+          {['Create customer record', 'Trigger CAF form', 'Check KYC status', 'Create installation ticket'].map(item => (
+            <div key={item} className="flex items-center gap-3 text-sm text-gray-700">
+              <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                <CheckCircle size={12} className="text-emerald-600" />
+              </div>
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function WonSuccessModal({ isOpen, onClose, lead, data }) {
+  const cards = [
+    { title: 'Customer Created',    desc: `${data?.customerName ?? ''} — ${data?.customerId ?? ''}`,   action: 'View Customer', icon: '👤', bg: 'bg-blue-50 border-blue-200'                                                         },
+    { title: 'CAF Form',            desc: 'Ready to fill',                                              action: 'Open CAF',      icon: '📋', bg: 'bg-purple-50 border-purple-200'                                                     },
+    { title: 'KYC Status',          desc: data?.kycStatus === 'Completed' ? 'Completed ✅' : 'Pending ⚠️', action: data?.kycStatus === 'Completed' ? 'View KYC' : 'Complete KYC', icon: data?.kycStatus === 'Completed' ? '✅' : '⚠️', bg: data?.kycStatus === 'Completed' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200' },
+    { title: 'Installation Ticket', desc: `#${data?.ticketId ?? ''} Created`,                           action: 'View Ticket',   icon: '🔧', bg: 'bg-orange-50 border-orange-200'                                                    },
+  ]
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Conversion Complete" size="lg"
+      footer={<Button onClick={onClose}>Done</Button>}
+    >
+      <div className="text-center py-3 mb-5 border-b border-surface-border">
+        <div className="text-4xl mb-2">🎉</div>
+        <h2 className="text-lg font-bold text-gray-900">Lead Converted Successfully!</h2>
+        <p className="text-sm text-gray-500 mt-1">{lead?.name} has been marked as Won and a customer record created.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map(card => (
+          <div key={card.title} className={`border rounded-xl p-4 ${card.bg}`}>
+            <div className="flex items-start gap-2.5 mb-3">
+              <span className="text-2xl leading-none">{card.icon}</span>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-gray-900">{card.title}</p>
+                <p className="text-xs text-gray-600 mt-0.5 break-words">{card.desc}</p>
+              </div>
+            </div>
+            <Button variant="secondary" size="sm" className="w-full">{card.action}</Button>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Sales() {
@@ -723,6 +913,8 @@ export default function Sales() {
   const [search, setSearch]             = useState('')
   const [requiredStageWarning, setRequiredStageWarning] = useState(null) // { stageName }
   const [formModules, setFormModules]   = useState(getFormModules())
+  const [wonConversionLead, setWonConversionLead] = useState(null)
+  const [wonSuccessData, setWonSuccessData]       = useState(null)
   const navigate                        = useNavigate()
   const userRole                        = 'sales'
 
@@ -765,6 +957,14 @@ export default function Sales() {
               return
             }
           }
+        }
+
+        // Intercept Won drops — show conversion confirmation
+        if (targetStage === 'Won') {
+          setWonConversionLead(lead)
+          setDraggingId(null)
+          setDragOverStage(null)
+          return
         }
       }
 
@@ -845,6 +1045,9 @@ export default function Sales() {
             </Link>
             <Link to="/sales/pipelines">
               <Button variant="secondary" size="sm" icon={<Layers size={14} />}>Pipelines</Button>
+            </Link>
+            <Link to="/sales/analytics">
+              <Button variant="secondary" size="sm" icon={<BarChart2 size={14} />}>Analytics</Button>
             </Link>
             <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditLead(null); setShowModal(true) }}>
               Add Lead
@@ -1027,6 +1230,30 @@ export default function Sales() {
           isOpen={!!requiredStageWarning}
           onClose={() => setRequiredStageWarning(null)}
           stageName={requiredStageWarning.stageName}
+        />
+      )}
+      {wonConversionLead && (
+        <WonConversionModal
+          isOpen={!!wonConversionLead}
+          onClose={() => setWonConversionLead(null)}
+          lead={wonConversionLead}
+          onConfirm={data => {
+            setLeads(prev => prev.map(l =>
+              l.id === wonConversionLead.id
+                ? { ...l, stage: 'Won', daysInStage: 0, lastActivity: 'Converted to Customer' }
+                : l
+            ))
+            setWonSuccessData({ ...data, leadRef: wonConversionLead })
+            setWonConversionLead(null)
+          }}
+        />
+      )}
+      {wonSuccessData && (
+        <WonSuccessModal
+          isOpen={!!wonSuccessData}
+          onClose={() => setWonSuccessData(null)}
+          lead={wonSuccessData.leadRef}
+          data={wonSuccessData}
         />
       )}
     </div>
