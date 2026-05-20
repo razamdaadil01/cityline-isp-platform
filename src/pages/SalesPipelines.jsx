@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import {
   Plus, Edit3, Trash2, GripVertical, ChevronDown, ChevronUp,
-  Layers, Settings2, HardDrive, AlertCircle, Check
+  Layers, Settings2, HardDrive, AlertCircle, Check, FolderOpen
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -29,8 +29,9 @@ const STAGE_TYPES = ['Standard', 'Hardware Assignment']
 
 const INIT_PIPELINES = [
   {
-    id: 'PL-001', name: 'B2C Residential', type: 'B2C', activeLeads: 12,
-    description: 'Standard pipeline for residential internet subscribers',
+    id: 'PL-001', name: 'Residential', type: 'B2C', activeLeads: 12,
+    description: 'Standard pipeline for residential customers',
+    isDefault: true,
     stages: [
       { id: 's1', name: 'New Inquiry',    color: 'bg-blue-500',    required: false, type: 'Standard' },
       { id: 's2', name: 'Contacted',      color: 'bg-cyan-500',    required: false, type: 'Standard' },
@@ -42,8 +43,9 @@ const INIT_PIPELINES = [
     ],
   },
   {
-    id: 'PL-002', name: 'B2B Corporate', type: 'B2B', activeLeads: 5,
-    description: 'Enterprise pipeline with mandatory approval stages',
+    id: 'PL-002', name: 'Corporate', type: 'B2B', activeLeads: 5,
+    description: 'Standard pipeline for business customers',
+    isDefault: true,
     stages: [
       { id: 'b1', name: 'Lead Received',       color: 'bg-blue-500',    required: true,  type: 'Standard' },
       { id: 'b2', name: 'Technical Survey',    color: 'bg-cyan-500',    required: true,  type: 'Standard' },
@@ -52,19 +54,6 @@ const INIT_PIPELINES = [
       { id: 'b5', name: 'Contract Signed',     color: 'bg-orange-500',  required: true,  type: 'Standard' },
       { id: 'b6', name: 'Hardware Assignment', color: 'bg-pink-500',    required: true,  type: 'Hardware Assignment' },
       { id: 'b7', name: 'Active',              color: 'bg-emerald-500', required: false, type: 'Standard' },
-    ],
-  },
-  {
-    id: 'PL-003', name: 'ILL Leased Line', type: 'ILL', activeLeads: 3,
-    description: 'Internet Leased Line pipeline for enterprise connectivity',
-    stages: [
-      { id: 'i1', name: 'Inquiry',           color: 'bg-blue-500',    required: false, type: 'Standard' },
-      { id: 'i2', name: 'Feasibility Check', color: 'bg-cyan-500',    required: true,  type: 'Standard' },
-      { id: 'i3', name: 'Quote Approval',    color: 'bg-purple-500',  required: true,  type: 'Standard' },
-      { id: 'i4', name: 'LOI Signed',        color: 'bg-amber-500',   required: true,  type: 'Standard' },
-      { id: 'i5', name: 'Hardware Setup',    color: 'bg-pink-500',    required: true,  type: 'Hardware Assignment' },
-      { id: 'i6', name: 'Commissioning',     color: 'bg-orange-500',  required: false, type: 'Standard' },
-      { id: 'i7', name: 'Live',              color: 'bg-emerald-500', required: false, type: 'Standard' },
     ],
   },
 ]
@@ -88,7 +77,6 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
       ref={dragRef}
       className="flex items-center gap-2 bg-white border border-surface-border rounded-lg px-3 py-2.5 group hover:border-brand-blue/40 transition-colors"
     >
-      {/* Drag handle & order */}
       <div className="flex flex-col items-center gap-0.5 cursor-grab text-gray-300 hover:text-gray-500 shrink-0">
         <button
           disabled={index === 0}
@@ -107,13 +95,8 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
         </button>
       </div>
 
-      {/* Color dot */}
-      <div
-        className={`w-3 h-3 rounded-full shrink-0 ${stage.color}`}
-        title="Stage color"
-      />
+      <div className={`w-3 h-3 rounded-full shrink-0 ${stage.color}`} title="Stage color" />
 
-      {/* Stage name */}
       <div className="flex-1 min-w-0">
         {editing ? (
           <input
@@ -134,14 +117,12 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
         )}
       </div>
 
-      {/* Type badge */}
       {stage.type === 'Hardware Assignment' && (
         <span className="flex items-center gap-1 text-[10px] font-semibold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full shrink-0">
           <HardDrive size={10} /> HW
         </span>
       )}
 
-      {/* Controls */}
       <select
         value={stage.color}
         onChange={e => onUpdate(stage.id, { color: e.target.value })}
@@ -260,7 +241,6 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave }) {
           )}
         </div>
 
-        {/* Add stage */}
         <div className="flex gap-2 pt-2 border-t border-surface-border">
           <input
             value={newStageName}
@@ -276,26 +256,22 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave }) {
   )
 }
 
-const RESTRICTED_TYPES = ['B2C', 'B2B', 'ILL']
-
 // ── Create Pipeline Modal ────────────────────────────────────────────────────
 
-function CreatePipelineModal({ isOpen, onClose, onCreate, existingPipelines }) {
+function CreatePipelineModal({ isOpen, onClose, onCreate }) {
   const [form, setForm] = useState(INIT_PIPELINE_FORM)
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
-  const typeBlocked = RESTRICTED_TYPES.includes(form.type) &&
-    existingPipelines.some(p => p.type === form.type)
-
   function handleCreate() {
-    if (!form.name.trim() || typeBlocked) return
+    if (!form.name.trim()) return
     onCreate({
       id: `PL-${Date.now()}`,
       name: form.name.trim(),
       type: form.type,
       description: form.description,
       activeLeads: 0,
+      isDefault: false,
       stages: [
         { id: `${Date.now()}-1`, name: 'New Inquiry', color: 'bg-blue-500',    required: false, type: 'Standard' },
         { id: `${Date.now()}-2`, name: 'In Progress', color: 'bg-amber-500',   required: false, type: 'Standard' },
@@ -316,7 +292,7 @@ function CreatePipelineModal({ isOpen, onClose, onCreate, existingPipelines }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!form.name.trim() || typeBlocked}>Create Pipeline</Button>
+          <Button onClick={handleCreate} disabled={!form.name.trim()}>Create Pipeline</Button>
         </>
       }
     >
@@ -325,10 +301,10 @@ function CreatePipelineModal({ isOpen, onClose, onCreate, existingPipelines }) {
           <Input
             value={form.name}
             onChange={e => set('name', e.target.value)}
-            placeholder="e.g. Enterprise B2B 2026"
+            placeholder="e.g. Enterprise ILL 2026"
           />
         </FormField>
-        <FormField label="Customer Type" required>
+        <FormField label="Type" required>
           <Select value={form.type} onChange={e => set('type', e.target.value)}>
             {TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
           </Select>
@@ -341,16 +317,65 @@ function CreatePipelineModal({ isOpen, onClose, onCreate, existingPipelines }) {
             rows={3}
           />
         </FormField>
-        {typeBlocked ? (
-          <p className="flex items-center gap-1.5 text-sm text-brand-orange font-medium">
-            <AlertCircle size={14} className="shrink-0" />
-            A {form.type} pipeline already exists. Only Custom pipelines can have multiple entries.
-          </p>
-        ) : (
-          <p className="text-xs text-gray-400">
-            A default set of stages will be created. You can customise them after creation.
-          </p>
-        )}
+        <p className="text-xs text-gray-400">
+          A default set of stages will be created. You can customise them after creation.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Edit Pipeline Modal ──────────────────────────────────────────────────────
+
+function EditPipelineModal({ isOpen, onClose, pipeline, onSave }) {
+  const [form, setForm] = useState({
+    name: pipeline?.name ?? '',
+    type: pipeline?.type ?? 'B2C',
+    description: pipeline?.description ?? '',
+  })
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function handleSave() {
+    if (!form.name.trim()) return
+    onSave({ name: form.name.trim(), type: form.type, description: form.description })
+    onClose()
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Edit Pipeline"
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!form.name.trim()}>Save Changes</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Pipeline Name" required>
+          <Input
+            value={form.name}
+            onChange={e => set('name', e.target.value)}
+            placeholder="Pipeline name"
+          />
+        </FormField>
+        <FormField label="Type" required>
+          <Select value={form.type} onChange={e => set('type', e.target.value)}>
+            {TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Description">
+          <Textarea
+            value={form.description}
+            onChange={e => set('description', e.target.value)}
+            placeholder="Describe when this pipeline is used…"
+            rows={3}
+          />
+        </FormField>
       </div>
     </Modal>
   )
@@ -394,11 +419,15 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
     <div className="bg-white rounded-xl border border-surface-border shadow-card hover:shadow-card-hover transition-shadow">
       <div className="px-5 py-4">
         <div className="flex items-start justify-between gap-4">
-          {/* Left: info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-bold text-gray-900 text-base truncate">{pipeline.name}</h3>
               <Badge variant={TYPE_BADGE[pipeline.type] ?? 'gray'} size="sm">{pipeline.type}</Badge>
+              {hwStages.length > 0 && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
+                  <HardDrive size={10} /> HW Stage
+                </span>
+              )}
             </div>
             {pipeline.description && (
               <p className="text-xs text-gray-500 mb-3 line-clamp-2">{pipeline.description}</p>
@@ -412,16 +441,9 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
                 <Settings2 size={12} className="text-brand-orange" />
                 <strong className="text-gray-700">{pipeline.activeLeads}</strong> active leads
               </span>
-              {hwStages.length > 0 && (
-                <span className="flex items-center gap-1 text-pink-600">
-                  <HardDrive size={12} />
-                  HW stage
-                </span>
-              )}
             </div>
           </div>
 
-          {/* Right: actions */}
           <div className="flex items-center gap-2 shrink-0">
             <Button size="xs" variant="secondary" icon={<Settings2 size={12} />} onClick={() => onEditStages(pipeline)}>
               Stages
@@ -438,7 +460,6 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
         </div>
       </div>
 
-      {/* Expanded stages preview */}
       {expanded && (
         <div className="px-5 pb-4 border-t border-surface-border pt-3">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Stage Flow</p>
@@ -461,7 +482,7 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
               </div>
             ))}
           </div>
-          {pipeline.type === 'B2B' && (
+          {(pipeline.type === 'B2B' || pipeline.type === 'ILL') && (
             <p className="text-[10px] text-gray-400 mt-2">* Required stages cannot be skipped</p>
           )}
         </div>
@@ -478,14 +499,19 @@ export default function SalesPipelines() {
   const [editingPipeline, setEditingPipeline] = useState(null)
   const [stageEditorPipeline, setStageEditorPipeline] = useState(null)
   const [deletingPipeline, setDeletingPipeline] = useState(null)
-  const [filterType, setFilterType] = useState('All')
 
-  const displayed = filterType === 'All'
-    ? pipelines
-    : pipelines.filter(p => p.type === filterType)
+  const defaultPipelines = pipelines.filter(p => p.isDefault)
+  const customPipelines = pipelines.filter(p => !p.isDefault)
 
   function handleCreate(pipeline) {
     setPipelines(prev => [...prev, pipeline])
+  }
+
+  function handleSaveEdit(patch) {
+    setPipelines(prev => prev.map(p =>
+      p.id === editingPipeline.id ? { ...p, ...patch } : p
+    ))
+    setEditingPipeline(null)
   }
 
   function handleSaveStages(stages) {
@@ -506,69 +532,56 @@ export default function SalesPipelines() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Pipeline Builder</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Configure sales pipelines and their stages</p>
+          <p className="text-sm text-gray-500 mt-0.5">Configure your sales pipelines</p>
         </div>
         <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
           Create Pipeline
         </Button>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Total Pipelines', value: pipelines.length, color: 'text-gray-700', bg: 'bg-gray-100' },
-          ...TYPE_OPTIONS.map(t => ({
-            label: `${t} Pipelines`,
-            value: pipelines.filter(p => p.type === t).length,
-            color: `text-${t === 'B2C' ? 'brand-blue' : t === 'B2B' ? 'navy' : t === 'ILL' ? 'purple-600' : 'brand-orange'}`,
-            bg: `bg-${t === 'B2C' ? 'brand-blue' : t === 'B2B' ? 'navy' : t === 'ILL' ? 'purple' : 'brand-orange'}/10`,
-            maxOne: RESTRICTED_TYPES.includes(t),
-          })),
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3">
-            <p className="text-xl font-bold text-gray-900">{s.value}</p>
-            <p className="text-xs text-gray-500">{s.label}</p>
-            {s.maxOne && <p className="text-[10px] text-gray-400 mt-0.5">Max: 1</p>}
-          </div>
-        ))}
-      </div>
-
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-fit">
-        {['All', ...TYPE_OPTIONS].map(t => (
-          <button
-            key={t}
-            onClick={() => setFilterType(t)}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-              filterType === t
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t}
-            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-              filterType === t ? 'bg-brand-blue/10 text-brand-blue' : 'bg-gray-200 text-gray-500'
-            }`}>
-              {t === 'All' ? pipelines.length : pipelines.filter(p => p.type === t).length}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Pipeline cards */}
+      {/* Default Pipelines */}
       <div className="space-y-3">
-        {displayed.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <Layers size={32} className="mx-auto mb-3 opacity-40" />
-            <p className="font-medium">No pipelines found</p>
-            <p className="text-sm mt-1">Create one to get started</p>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-gray-700">Default Pipelines</h2>
+          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{defaultPipelines.length}</span>
+        </div>
+        {defaultPipelines.map(pipeline => (
+          <PipelineCard
+            key={pipeline.id}
+            pipeline={pipeline}
+            onEdit={setEditingPipeline}
+            onDelete={setDeletingPipeline}
+            onEditStages={setStageEditorPipeline}
+          />
+        ))}
+      </div>
+
+      {/* Custom Pipelines */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-700">Custom Pipelines</h2>
+            {customPipelines.length > 0 && (
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{customPipelines.length}</span>
+            )}
+          </div>
+          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>
+            Create Pipeline
+          </Button>
+        </div>
+
+        {customPipelines.length === 0 ? (
+          <div className="bg-white rounded-xl border border-dashed border-surface-border px-6 py-12 text-center">
+            <FolderOpen size={32} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-sm font-medium text-gray-500">No custom pipelines yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Create one to get started.</p>
           </div>
         ) : (
-          displayed.map(pipeline => (
+          customPipelines.map(pipeline => (
             <PipelineCard
               key={pipeline.id}
               pipeline={pipeline}
-              onEdit={p => { setEditingPipeline(p); }}
+              onEdit={setEditingPipeline}
               onDelete={setDeletingPipeline}
               onEditStages={setStageEditorPipeline}
             />
@@ -581,8 +594,16 @@ export default function SalesPipelines() {
         isOpen={showCreate}
         onClose={() => setShowCreate(false)}
         onCreate={handleCreate}
-        existingPipelines={pipelines}
       />
+
+      {editingPipeline && (
+        <EditPipelineModal
+          isOpen={!!editingPipeline}
+          onClose={() => setEditingPipeline(null)}
+          pipeline={editingPipeline}
+          onSave={handleSaveEdit}
+        />
+      )}
 
       {stageEditorPipeline && (
         <PipelineEditorModal
