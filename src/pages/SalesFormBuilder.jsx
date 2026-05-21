@@ -28,9 +28,8 @@ const FIELD_TYPE_ICON = {
 }
 
 const MODULES_META = [
-  { key: 'B2C', name: 'B2C Lead Form',  sub: 'B2C Residential pipeline', color: '#0A8DCD', badge: 'bg-blue-100 text-blue-700' },
-  { key: 'B2B', name: 'B2B Lead Form',  sub: 'B2B Corporate pipeline',   color: '#0F2744', badge: 'bg-navy/10 text-navy'       },
-  { key: 'ILL', name: 'ILL Form',       sub: 'ILL Leased Line pipeline', color: '#7c3aed', badge: 'bg-purple-100 text-purple-700' },
+  { key: 'B2C', name: 'B2C Lead Form', sub: 'B2C Residential pipeline', color: '#0A8DCD', badge: 'bg-blue-100 text-blue-700' },
+  { key: 'B2B', name: 'B2B Lead Form', sub: 'B2B Corporate pipeline',   color: '#0F2744', badge: 'bg-navy/10 text-navy'      },
 ]
 
 // ── Field row ─────────────────────────────────────────────────────────────────
