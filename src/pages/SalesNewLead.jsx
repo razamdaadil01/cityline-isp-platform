@@ -8,16 +8,12 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
   B2C: {
-    label: 'B2C', labelFull: 'B2C Residential',
+    label: 'Residential', labelFull: 'Residential',
     stages: ['New Inquiry', 'Contacted', 'Follow-up', 'Site Survey', 'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost'],
   },
   B2B: {
-    label: 'B2B', labelFull: 'B2B Corporate',
+    label: 'Corporate', labelFull: 'Corporate',
     stages: ['New Inquiry', 'Meeting Scheduled', 'Requirement Analysis', 'Technical Feasibility', 'Commercial Proposal', 'Negotiation', 'Legal/Agreement', 'Hardware Assignment', 'Won', 'Lost'],
-  },
-  ILL: {
-    label: 'ILL', labelFull: 'ILL Leased Line',
-    stages: ['Inquiry', 'Site Survey', 'Feasibility Report', 'Pricing Approval', 'SLA Agreement', 'Installation', 'Testing', 'Won', 'Lost'],
   },
   Custom: {
     label: 'Custom', labelFull: 'Custom Pipeline',
@@ -28,11 +24,10 @@ const PIPELINES = {
 const PIPELINE_STYLE = {
   B2C:    { active: 'bg-brand-blue text-white',   border: 'border-brand-blue',   idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
   B2B:    { active: 'bg-navy text-white',         border: 'border-navy',         idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
-  ILL:    { active: 'bg-purple-600 text-white',   border: 'border-purple-600',   idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
   Custom: { active: 'bg-brand-orange text-white', border: 'border-brand-orange', idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
 }
 
-const ACTIVE_BG = { B2C: '#0A8DCD', B2B: '#0F2744', ILL: '#7c3aed', Custom: '#E8541A' }
+const ACTIVE_BG = { B2C: '#0A8DCD', B2B: '#0F2744', Custom: '#E8541A' }
 
 const STAFF = [
   { name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'   },
