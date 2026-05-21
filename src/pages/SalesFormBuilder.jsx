@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Plus, Trash2, ChevronUp, ChevronDown, GripVertical,
   Save, CheckCircle, Settings2, Type, Hash, Phone,
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { getFormModules, setFormModule, subscribeFormModules } from '../data/customFormStore'
+import { getFormModules, setFormModule } from '../data/customFormStore'
 
 const FIELD_TYPES = [
   'Text', 'Number', 'Phone', 'Email', 'Dropdown',
@@ -145,18 +145,27 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+function initFields() {
+  const m = getFormModules()
+  return {
+    B2C: m.B2C?.fields ?? [],
+    B2B: m.B2B?.fields ?? [],
+  }
+}
+
 export default function SalesFormBuilder() {
-  const [modules, setModules] = useState(getFormModules())
   const [selectedKey, setSelectedKey] = useState('B2C')
+  const [fieldsByKey, setFieldsByKey] = useState(initFields)
   const [saved, setSaved] = useState(false)
 
-  useEffect(() => subscribeFormModules(setModules), [])
+  const fields = fieldsByKey[selectedKey] ?? []
 
-  const fields = modules[selectedKey]?.fields ?? []
-  const meta = MODULES_META.find(m => m.key === selectedKey)
+  function setFields(next) {
+    setFieldsByKey(prev => ({ ...prev, [selectedKey]: next }))
+  }
 
   function addField() {
-    setFormModule(selectedKey, [
+    setFields([
       ...fields,
       {
         id: `f-${Date.now()}`,
@@ -170,24 +179,27 @@ export default function SalesFormBuilder() {
   }
 
   function updateField(id, patch) {
-    setFormModule(selectedKey, fields.map(f => f.id === id ? { ...f, ...patch } : f))
+    setFields(fields.map(f => f.id === id ? { ...f, ...patch } : f))
   }
 
   function removeField(id) {
-    setFormModule(selectedKey, fields.filter(f => f.id !== id))
+    setFields(fields.filter(f => f.id !== id))
   }
 
   function moveField(fromIdx, toIdx) {
     const arr = [...fields]
     const [item] = arr.splice(fromIdx, 1)
     arr.splice(toIdx, 0, item)
-    setFormModule(selectedKey, arr)
+    setFields(arr)
   }
 
   function handleSave() {
+    Object.entries(fieldsByKey).forEach(([key, flds]) => setFormModule(key, flds))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
+
+  const meta = MODULES_META.find(m => m.key === selectedKey)
 
   return (
     <div className="p-6 space-y-6">
@@ -213,7 +225,7 @@ export default function SalesFormBuilder() {
             Form Modules
           </p>
           {MODULES_META.map(m => {
-            const fieldCount = modules[m.key]?.fields?.length ?? 0
+            const fieldCount = fieldsByKey[m.key]?.length ?? 0
             const isSelected = selectedKey === m.key
             return (
               <button
