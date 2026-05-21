@@ -21,7 +21,6 @@ import {
   HardDrive,
   FileText,
   FileCheck,
-  Cable,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -44,8 +43,6 @@ const NAV_ITEMS = [
   {
     label: 'Inventory',        icon: Package,         to: '/inventory',
     children: [
-      { label: 'Stock List',    icon: Package,    to: '/inventory', exact: true },
-      { label: 'Wire Module',   icon: Cable,      to: '/inventory', exact: true },
       { label: 'HW Assignment', icon: HardDrive,  to: '/sales/hw-assignment'  },
     ],
   },
