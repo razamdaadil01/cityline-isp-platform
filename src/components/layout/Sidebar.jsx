@@ -21,6 +21,7 @@ import {
   HardDrive,
   FileText,
   FileCheck,
+  Cable,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -31,7 +32,6 @@ const NAV_ITEMS = [
     children: [
       { label: 'Follow-ups',   icon: PhoneCall,  to: '/sales/followups'    },
       { label: 'Pipelines',    icon: Layers,     to: '/sales/pipelines'    },
-      { label: 'HW Assignment',icon: HardDrive,  to: '/sales/hw-assignment'},
       { label: 'Form Builder', icon: FileText,   to: '/sales/form-builder' },
       { label: 'Proposals',    icon: FileCheck,  to: '/sales/proposals'    },
     ],
@@ -41,7 +41,14 @@ const NAV_ITEMS = [
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
   { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
-  { label: 'Inventory',        icon: Package,         to: '/inventory'                 },
+  {
+    label: 'Inventory',        icon: Package,         to: '/inventory',
+    children: [
+      { label: 'Stock List',    icon: Package,    to: '/inventory', exact: true },
+      { label: 'Wire Module',   icon: Cable,      to: '/inventory', exact: true },
+      { label: 'HW Assignment', icon: HardDrive,  to: '/sales/hw-assignment'  },
+    ],
+  },
   { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },
@@ -109,7 +116,9 @@ export default function Sidebar({ collapsed }) {
               {!collapsed && children && (isActive || hasActiveChild) && (
                 <div className="ml-4 mt-0.5 space-y-0.5 pl-3 border-l border-white/10">
                   {children.map(child => {
-                    const childActive = location.pathname.startsWith(child.to)
+                    const childActive = child.exact
+                      ? location.pathname === child.to
+                      : location.pathname.startsWith(child.to)
                     const ChildIcon = child.icon
                     return (
                       <NavLink
