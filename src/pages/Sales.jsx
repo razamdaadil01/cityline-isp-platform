@@ -17,8 +17,8 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
   B2C: {
-    label: 'B2C',
-    labelFull: 'B2C Residential',
+    label: 'Residential',
+    labelFull: 'Residential',
     stages: [
       'New Inquiry', 'Contacted', 'Follow-up', 'Site Survey',
       'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost',
@@ -28,30 +28,17 @@ const PIPELINES = {
     tabIdle:   'text-gray-600 hover:text-brand-blue',
   },
   B2B: {
-    label: 'B2B',
-    labelFull: 'B2B Corporate',
+    label: 'Corporate',
+    labelFull: 'Corporate',
     stages: [
       'New Inquiry', 'Meeting Scheduled', 'Requirement Analysis',
       'Technical Feasibility', 'Commercial Proposal', 'Negotiation',
       'Legal/Agreement', 'Hardware Assignment', 'Won', 'Lost',
     ],
-    // Required by default: Feasibility → Technical Feasibility, KYC → Requirement Analysis,
-    // Package Assignment → Commercial Proposal, Advance Payment → Legal/Agreement
     requiredStages: ['Technical Feasibility', 'Requirement Analysis', 'Commercial Proposal', 'Legal/Agreement'],
     tabActive: 'bg-navy text-white',
     tabCount:  'bg-white/25 text-white',
     tabIdle:   'text-gray-600 hover:text-navy',
-  },
-  ILL: {
-    label: 'ILL',
-    labelFull: 'ILL Leased Line',
-    stages: [
-      'Inquiry', 'Site Survey', 'Feasibility Report', 'Pricing Approval',
-      'SLA Agreement', 'Installation', 'Testing', 'Won', 'Lost',
-    ],
-    tabActive: 'bg-purple-600 text-white',
-    tabCount:  'bg-white/25 text-white',
-    tabIdle:   'text-gray-600 hover:text-purple-600',
   },
   Custom: {
     label: 'Custom',
@@ -151,9 +138,6 @@ const INIT_LEADS = [
   { id: 'LD-204', pipeline: 'B2B',    name: 'Meena Iyer',      phone: '9123887766', email: 'meena@email.com',  area: 'HSR Layout',      source: 'Social Media', stage: 'Commercial Proposal', plan: '500 Mbps Ultra',  assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 3,  lastActivity: 'Proposal reviewed',    followUp: '2026-05-07', priority: 'high',   ekycStatus: null,       hwAssigned: null },
   { id: 'LD-207', pipeline: 'B2B',    name: 'Arun Pillai',     phone: '9087654321', email: '',                 area: 'Marathahalli',    source: 'Website',      stage: 'Hardware Assignment', plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 1,  lastActivity: 'HW pending assignment',followUp: '',           priority: 'medium', ekycStatus: 'Completed', hwAssigned: null },
   { id: 'LD-214', pipeline: 'B2B',    name: 'Divya Krishnan',  phone: '9876001234', email: 'divya@email.com',  area: 'Koramangala',     source: 'Referral',     stage: 'Meeting Scheduled',  plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 1,  lastActivity: 'Meeting confirmed',    followUp: '2026-05-08', priority: 'high',   ekycStatus: null,       hwAssigned: null },
-  // ILL — 2 leads
-  { id: 'LD-211', pipeline: 'ILL',    name: 'Sanjay Rao',      phone: '9654321098', email: 'sanjay@email.com', area: 'Whitefield',      source: 'Website',      stage: 'Feasibility Report',  plan: '200 Mbps Pro',    assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 3,  lastActivity: 'Feasibility submitted',followUp: '2026-05-10', priority: 'high',   ekycStatus: null,       hwAssigned: null },
-  { id: 'LD-215', pipeline: 'ILL',    name: 'Ravi Shankar',    phone: '9012345678', email: '',                 area: 'Marathahalli',    source: 'Cold Call',    stage: 'Testing',             plan: '500 Mbps Ultra',  assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 0,  lastActivity: 'Testing in progress',  followUp: '',           priority: 'low',    ekycStatus: 'Completed', hwAssigned: null },
   // Custom — 1 lead
   { id: 'LD-209', pipeline: 'Custom', name: 'Vinod Kumar',     phone: '9988776655', email: 'vinod@email.com',  area: 'Indiranagar',     source: 'Cold Call',    stage: 'Quotation',           plan: '200 Mbps Pro',    assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Quotation sent',       followUp: '2026-05-08', priority: 'low',    ekycStatus: null,       hwAssigned: null },
 ]
@@ -532,7 +516,6 @@ function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModu
   const PIPELINE_TAB_STYLE = {
     B2C:    { active: 'bg-brand-blue text-white',   idle: 'text-gray-600 hover:bg-gray-100' },
     B2B:    { active: 'bg-navy text-white',         idle: 'text-gray-600 hover:bg-gray-100' },
-    ILL:    { active: 'bg-purple-600 text-white',   idle: 'text-gray-600 hover:bg-gray-100' },
     Custom: { active: 'bg-brand-orange text-white', idle: 'text-gray-600 hover:bg-gray-100' },
   }
 
@@ -566,7 +549,7 @@ function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModu
                       : `${style.idle} border-surface-border ${isEdit ? 'opacity-60 cursor-not-allowed' : ''}`
                   }`}
                 >
-                  {key}
+                  {PIPELINES[key]?.label ?? key}
                 </button>
               )
             })}
@@ -1077,7 +1060,6 @@ export default function Sales() {
             const ACTIVE_BG = {
               B2C:    '#0A8DCD',
               B2B:    '#0F2744',
-              ILL:    '#7c3aed',
               Custom: '#E8541A',
             }
             return (
@@ -1094,9 +1076,7 @@ export default function Sales() {
                 {config.label}
                 <span
                   style={isActive ? { backgroundColor: 'rgba(255,255,255,0.25)', color: '#fff' } : {}}
-                  className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
-                    isActive ? '' : 'bg-gray-200 text-gray-600'
-                  }`}
+                  className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${isActive ? '' : 'bg-gray-200 text-gray-600'}`}
                 >
                   {count}
                 </span>
