@@ -562,7 +562,7 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
 
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, userRole }) {
+function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, userRole }) {
   const TODAY_STR = '2026-05-15'
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
@@ -688,23 +688,34 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         </div>
       )}
 
-      <div className="flex items-center gap-1 pt-2 border-t border-surface-border">
-        <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-          <Phone size={11} /> Call
-        </a>
-        <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-          <Fingerprint size={11} /> eKYC
-        </button>
-        <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-          <Bell size={11} /> Follow-up
-        </button>
-        <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
-          <Edit3 size={11} /> Edit
-        </button>
+      <div className="pt-2 border-t border-surface-border">
+        {isHwStage ? (
+          <button
+            onClick={e => { e.stopPropagation(); onSendToInventory(lead) }}
+            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue/90 rounded-lg transition-colors"
+          >
+            <Send size={12} /> Send to Inventory
+          </button>
+        ) : (
+          <div className="flex items-center gap-1">
+            <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+              <Phone size={11} /> Call
+            </a>
+            <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+              <Fingerprint size={11} /> eKYC
+            </button>
+            <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+              <Bell size={11} /> Follow-up
+            </button>
+            <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
+              <Edit3 size={11} /> Edit
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1133,6 +1144,7 @@ export default function Sales() {
   const [wonSuccessData, setWonSuccessData]       = useState(null)
   const [feasibilityLead, setFeasibilityLead]     = useState(null)
   const [followupLead, setFollowupLead]           = useState(null)
+  const [inventoryToast, setInventoryToast]       = useState(false)
   const navigate                        = useNavigate()
   const location                        = useLocation()
   const userRole                        = 'sales'
@@ -1241,6 +1253,11 @@ export default function Sales() {
     ))
   }
 
+  function sendToInventory() {
+    setInventoryToast(true)
+    setTimeout(() => setInventoryToast(false), 3000)
+  }
+
   // ── Derived stats (scoped to active pipeline) ────────────────────────────
   const wonCount       = pipelineLeads.filter(l => l.stage === 'Won').length
   const lostCount      = pipelineLeads.filter(l => l.stage === 'Lost').length
@@ -1257,6 +1274,14 @@ export default function Sales() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+
+      {/* ── Inventory toast ─────────────────────────────────────────────── */}
+      {inventoryToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle size={16} className="shrink-0" />
+          Sent to Inventory team for HW Assignment
+        </div>
+      )}
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
@@ -1438,6 +1463,7 @@ export default function Sales() {
                         onAssignHw={l => setHwLead(l)}
                         onFeasibility={l => setFeasibilityLead(l)}
                         onFollowup={l => setFollowupLead(l)}
+                        onSendToInventory={sendToInventory}
                         userRole={userRole}
                       />
                     ))
