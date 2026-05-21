@@ -6,8 +6,10 @@ import {
   PhoneCall, Search, X, HardDrive, Shield,
   Fingerprint, Send, AlertTriangle, Layers,
   CheckCircle, Loader2, Lock, Upload, FileText, BarChart2,
+  Bell, ClipboardList,
 } from 'lucide-react'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
+import { saveFollowup } from '../data/followupStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -364,12 +366,209 @@ function HardwareAssignModal({ isOpen, onClose, lead, onConfirm }) {
   )
 }
 
+// ── Feasibility helpers ───────────────────────────────────────────────────────
+
+const FEASIBILITY_INIT = {
+  cableType: '', cableLength: '', buildingType: '', floorNumber: '',
+  oltDistance: '', roofAccess: '', powerSource: '', wallDrilling: '', notes: '',
+}
+
+function YesNoButtons({ value, onChange }) {
+  return (
+    <div className="flex gap-2">
+      {['Yes', 'No'].map(opt => (
+        <button key={opt} type="button" onClick={() => onChange(opt)}
+          className={`flex-1 py-1.5 rounded-lg text-sm font-semibold border transition-all ${
+            value === opt
+              ? 'bg-brand-blue text-white border-transparent'
+              : 'border-surface-border text-gray-600 hover:border-brand-blue/40'
+          }`}>
+          {opt}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function FeasibilityModal({ isOpen, onClose, lead, onSave }) {
+  const [form, setForm] = useState(lead?.feasibility ?? FEASIBILITY_INIT)
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function handleSave() {
+    onSave(form)
+    onClose()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}
+      title={`Feasibility Report — ${lead?.name}`}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<ClipboardList size={14} />} onClick={handleSave}>Submit Feasibility</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Cable Type" required>
+            <Select value={form.cableType} onChange={e => set('cableType', e.target.value)}>
+              <option value="">Select type…</option>
+              <option>Fiber Optic</option>
+              <option>Copper</option>
+              <option>Coaxial</option>
+            </Select>
+          </FormField>
+          <FormField label="Cable Length (meters)">
+            <Input type="number" value={form.cableLength} onChange={e => set('cableLength', e.target.value)} placeholder="e.g. 50" />
+          </FormField>
+          <FormField label="Building Type" required>
+            <Select value={form.buildingType} onChange={e => set('buildingType', e.target.value)}>
+              <option value="">Select type…</option>
+              <option>Apartment</option>
+              <option>Villa</option>
+              <option>Independent House</option>
+              <option>Office</option>
+              <option>Shop</option>
+              <option>Other</option>
+            </Select>
+          </FormField>
+          <FormField label="Floor Number">
+            <Input type="number" value={form.floorNumber} onChange={e => set('floorNumber', e.target.value)} placeholder="e.g. 3" />
+          </FormField>
+          <FormField label="OLT Distance (meters)">
+            <Input type="number" value={form.oltDistance} onChange={e => set('oltDistance', e.target.value)} placeholder="e.g. 200" />
+          </FormField>
+          <div />
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Site Conditions</p>
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="Roof/Terrace Access">
+              <YesNoButtons value={form.roofAccess} onChange={v => set('roofAccess', v)} />
+            </FormField>
+            <FormField label="Power Source Available">
+              <YesNoButtons value={form.powerSource} onChange={v => set('powerSource', v)} />
+            </FormField>
+            <FormField label="Wall Drilling Required">
+              <YesNoButtons value={form.wallDrilling} onChange={v => set('wallDrilling', v)} />
+            </FormField>
+          </div>
+        </div>
+
+        <FormField label="Special Notes">
+          <Textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+            placeholder="Any special requirements or observations…" rows={3} />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Set Follow-up Modal (from lead card) ──────────────────────────────────────
+
+function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
+  const [form, setForm] = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function toggleNotify(name) {
+    setForm(p => ({
+      ...p,
+      notifyTo: p.notifyTo.includes(name)
+        ? p.notifyTo.filter(n => n !== name)
+        : [...p.notifyTo, name],
+    }))
+  }
+
+  function handleSave() {
+    if (!form.date) return
+    onSave({
+      id:         `FU-${Date.now()}`,
+      leadId:     lead.id,
+      leadName:   lead.name,
+      phone:      lead.phone,
+      date:       form.date,
+      time:       form.time,
+      note:       form.note,
+      stage:      lead.stage,
+      assignedTo: lead.assigned,
+      notifyTo:   form.notifyTo,
+      priority:   lead.priority ?? 'medium',
+      status:     'Pending',
+    })
+    onClose()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}
+      title={`Set Follow-up — ${lead?.name}`}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<Bell size={14} />} onClick={handleSave} disabled={!form.date}>
+            Set Follow-up
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-surface-border">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${lead?.assignedColor ?? 'bg-gray-400'}`}>
+            {lead?.assignedInitials ?? '??'}
+          </div>
+          <div>
+            <p className="font-semibold text-sm text-gray-900">{lead?.name}</p>
+            <p className="text-xs text-gray-500">{lead?.stage} · {lead?.phone}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Follow-up Date" required>
+            <Input type="date" value={form.date} onChange={e => set('date', e.target.value)} />
+          </FormField>
+          <FormField label="Time">
+            <Input type="time" value={form.time} onChange={e => set('time', e.target.value)} />
+          </FormField>
+        </div>
+        <FormField label="Note">
+          <Textarea value={form.note} onChange={e => set('note', e.target.value)}
+            placeholder="Context or reminder for this follow-up…" rows={3} />
+        </FormField>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Notify To</p>
+          <div className="flex flex-wrap gap-2">
+            {STAFF.map(s => (
+              <button key={s.name} type="button" onClick={() => toggleNotify(s.name)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                  form.notifyTo.includes(s.name)
+                    ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
+                    : 'border-surface-border bg-white text-gray-600 hover:border-brand-blue/40'
+                }`}>
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>
+                  {s.initials}
+                </div>
+                {s.name}
+                {form.notifyTo.includes(s.name) && <CheckCircle2 size={12} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, userRole }) {
-  const urgentFollowUp = lead.followUp && lead.followUp <= '2026-05-15'
-  const isHwStage  = lead.stage === 'Hardware Assignment'
-  const canAssignHw = userRole === 'inventory'
+function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, userRole }) {
+  const TODAY_STR = '2026-05-15'
+  const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
+  const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
+  const isHwStage         = lead.stage === 'Hardware Assignment'
+  const isSiteSurveyStage = lead.stage === 'Site Survey'
+  const canAssignHw       = userRole === 'inventory'
 
   return (
     <div
@@ -407,6 +606,11 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
             <Fingerprint size={9} /> {lead.ekycStatus}
           </span>
         )}
+        {lead.feasibility && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+            <CheckCircle2 size={9} /> Feasibility ✓
+          </span>
+        )}
         {(() => {
           const docs = lead.kycDocs ?? {}
           const n = ['aadhaar', 'panCard', 'customerPhoto'].filter(k => docs[k]).length
@@ -436,8 +640,13 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
           {lead.daysInStage === 0 ? 'Today' : `${lead.daysInStage}d in stage`}
         </span>
         {lead.followUp && (
-          <span className={`flex items-center gap-1 font-medium ${urgentFollowUp ? 'text-brand-orange' : 'text-gray-500'}`}>
+          <span className={`flex items-center gap-1 font-medium ${
+            isOverdueFollowUp ? 'text-red-500'
+            : isTodayFollowUp ? 'text-brand-orange'
+            : 'text-gray-500'
+          }`}>
             <CalendarDays size={11} /> {lead.followUp}
+            {isOverdueFollowUp && ' ⚠'}
           </span>
         )}
       </div>
@@ -459,18 +668,42 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         </div>
       )}
 
+      {isSiteSurveyStage && (
+        <div className={`mb-3 p-2 rounded-lg border text-center ${
+          lead.feasibility ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50/60'
+        }`}>
+          <button
+            onClick={e => { e.stopPropagation(); onFeasibility(lead) }}
+            className={`flex items-center justify-center gap-1.5 w-full text-xs font-semibold transition-colors ${
+              lead.feasibility
+                ? 'text-emerald-700 hover:text-emerald-900'
+                : 'text-amber-700 hover:text-amber-900'
+            }`}
+          >
+            {lead.feasibility
+              ? <><CheckCircle2 size={12} /> View Feasibility</>
+              : <><ClipboardList size={12} /> Feasibility</>
+            }
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center gap-1 pt-2 border-t border-surface-border">
         <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-          <Phone size={12} /> Call
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+          <Phone size={11} /> Call
         </a>
         <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-          <Fingerprint size={12} /> eKYC
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+          <Fingerprint size={11} /> eKYC
+        </button>
+        <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+          <Bell size={11} /> Follow-up
         </button>
         <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
-          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[11px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
-          <Edit3 size={12} /> Edit
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
+          <Edit3 size={11} /> Edit
         </button>
       </div>
     </div>
@@ -898,6 +1131,8 @@ export default function Sales() {
   const [formModules, setFormModules]   = useState(getFormModules())
   const [wonConversionLead, setWonConversionLead] = useState(null)
   const [wonSuccessData, setWonSuccessData]       = useState(null)
+  const [feasibilityLead, setFeasibilityLead]     = useState(null)
+  const [followupLead, setFollowupLead]           = useState(null)
   const navigate                        = useNavigate()
   const location                        = useLocation()
   const userRole                        = 'sales'
@@ -991,6 +1226,19 @@ export default function Sales() {
 
   function saveHwAssignment(leadId, hw) {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, hwAssigned: hw, lastActivity: `HW assigned: ${hw.equipmentName}` } : l))
+  }
+
+  function saveFeasibility(leadId, data) {
+    setLeads(prev => prev.map(l =>
+      l.id === leadId ? { ...l, feasibility: data, lastActivity: 'Feasibility report submitted' } : l
+    ))
+  }
+
+  function handleSaveFollowup(fu) {
+    saveFollowup(fu)
+    setLeads(prev => prev.map(l =>
+      l.id === fu.leadId ? { ...l, followUp: fu.date, lastActivity: `Follow-up set: ${fu.date}` } : l
+    ))
   }
 
   // ── Derived stats (scoped to active pipeline) ────────────────────────────
@@ -1188,6 +1436,8 @@ export default function Sales() {
                         onEdit={l => { setEditLead(l); setShowModal(true) }}
                         onEkyc={l => setEkycLead(l)}
                         onAssignHw={l => setHwLead(l)}
+                        onFeasibility={l => setFeasibilityLead(l)}
+                        onFollowup={l => setFollowupLead(l)}
                         userRole={userRole}
                       />
                     ))
@@ -1246,6 +1496,22 @@ export default function Sales() {
           onClose={() => setWonSuccessData(null)}
           lead={wonSuccessData.leadRef}
           data={wonSuccessData}
+        />
+      )}
+      {feasibilityLead && (
+        <FeasibilityModal
+          isOpen={!!feasibilityLead}
+          onClose={() => setFeasibilityLead(null)}
+          lead={feasibilityLead}
+          onSave={data => saveFeasibility(feasibilityLead.id, data)}
+        />
+      )}
+      {followupLead && (
+        <SetFollowupModal
+          isOpen={!!followupLead}
+          onClose={() => setFollowupLead(null)}
+          lead={followupLead}
+          onSave={handleSaveFollowup}
         />
       )}
     </div>

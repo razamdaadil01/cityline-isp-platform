@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   HardDrive, Shield, AlertTriangle, CheckCircle2, Clock,
-  Package, User, ChevronDown, Check, Loader2, BarChart3,
+  Package, User, ChevronDown, ChevronUp, Check, Loader2, BarChart3,
   Users, Timer, ClipboardList, X
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -56,6 +56,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Completed',
     assignedAt: null,
+    feasibility: { cableType: 'Fiber Optic', cableLength: 50, buildingType: 'Apartment', floorNumber: 3, oltDistance: 200, roofAccess: 'Yes', powerSource: 'Yes', wallDrilling: 'No', notes: '' },
   },
   {
     id: 'HW-002', leadId: 'LD-218', customerName: 'Balaji Reddy',
@@ -65,6 +66,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Sent',
     assignedAt: null,
+    feasibility: null,
   },
   {
     id: 'HW-003', leadId: 'LD-219', customerName: 'Chitra Subramaniam',
@@ -74,6 +76,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Completed',
     assignedAt: null,
+    feasibility: { cableType: 'Copper', cableLength: 75, buildingType: 'Office', floorNumber: 5, oltDistance: 320, roofAccess: 'No', powerSource: 'Yes', wallDrilling: 'Yes', notes: 'Building permission required for drilling' },
   },
   {
     id: 'HW-004', leadId: 'LD-220', customerName: 'Farhan Sheikh',
@@ -83,6 +86,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Completed',
     assignedAt: null,
+    feasibility: null,
   },
   {
     id: 'HW-005', leadId: 'LD-221', customerName: 'Geeta Pillai',
@@ -92,6 +96,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Completed',
     assignedAt: null,
+    feasibility: null,
   },
   {
     id: 'HW-006', leadId: 'LD-222', customerName: 'Harsha Vardhan',
@@ -101,6 +106,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Pending',
     assignedAt: null,
+    feasibility: null,
   },
   {
     id: 'HW-007', leadId: 'LD-223', customerName: 'Indira Krishnamurthy',
@@ -110,6 +116,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Completed',
     assignedAt: null,
+    feasibility: null,
   },
   {
     id: 'HW-008', leadId: 'LD-224', customerName: 'Jayesh Patel',
@@ -119,6 +126,7 @@ const INIT_QUEUE = [
     equipment: [], notes: '',
     status: 'Pending', ekycStatus: 'Sent',
     assignedAt: null,
+    feasibility: null,
   },
   {
     id: 'HW-009', leadId: 'LD-210', customerName: 'Karthik Iyer',
@@ -132,6 +140,7 @@ const INIT_QUEUE = [
     notes: 'Priority install — customer requested morning slot',
     status: 'Assigned', ekycStatus: 'Completed',
     assignedAt: TODAY,
+    feasibility: { cableType: 'Fiber Optic', cableLength: 60, buildingType: 'Apartment', floorNumber: 2, oltDistance: 180, roofAccess: 'Yes', powerSource: 'Yes', wallDrilling: 'No', notes: '' },
   },
   {
     id: 'HW-010', leadId: 'LD-211', customerName: 'Lakshmi Suresh',
@@ -145,6 +154,7 @@ const INIT_QUEUE = [
     notes: '',
     status: 'Assigned', ekycStatus: 'Completed',
     assignedAt: TODAY,
+    feasibility: null,
   },
   {
     id: 'HW-011', leadId: 'LD-212', customerName: 'Mohan Rajan',
@@ -159,6 +169,7 @@ const INIT_QUEUE = [
     notes: 'Fiber trench work required',
     status: 'Assigned', ekycStatus: 'Completed',
     assignedAt: TODAY,
+    feasibility: null,
   },
   {
     id: 'HW-012', leadId: 'LD-205', customerName: 'Nalini Menon',
@@ -172,6 +183,7 @@ const INIT_QUEUE = [
     notes: 'Installation completed and tested',
     status: 'Completed', ekycStatus: 'Completed',
     assignedAt: '2026-05-14',
+    feasibility: { cableType: 'Fiber Optic', cableLength: 40, buildingType: 'Villa', floorNumber: 1, oltDistance: 150, roofAccess: 'Yes', powerSource: 'Yes', wallDrilling: 'No', notes: 'Outdoor cabinet nearby' },
   },
 ]
 
@@ -453,9 +465,19 @@ function EquipmentPills({ items }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SalesHwAssignment() {
-  const [queue, setQueue]         = useState(INIT_QUEUE)
-  const [filter, setFilter]       = useState('All')
+  const [queue, setQueue]           = useState(INIT_QUEUE)
+  const [filter, setFilter]         = useState('All')
   const [assignItem, setAssignItem] = useState(null)
+  const [expandedRows, setExpandedRows] = useState(new Set())
+
+  function toggleExpand(id) {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const pendingCount   = queue.filter(i => i.status === 'Pending').length
   const assignedToday  = queue.filter(i => i.status === 'Assigned' && i.assignedAt === TODAY).length
@@ -562,7 +584,7 @@ export default function SalesHwAssignment() {
               <tr className="bg-gray-50 border-b border-surface-border">
                 {[
                   'Lead / Customer', 'Area', 'Plan', 'Sales Agent',
-                  'Days Waiting', 'Engineer', 'Equipment', 'Status', 'Action',
+                  'Days Waiting', 'Engineer', 'Equipment', 'Requirements', 'Status', 'Action',
                 ].map(h => (
                   <th key={h} className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3 whitespace-nowrap">
                     {h}
@@ -573,7 +595,7 @@ export default function SalesHwAssignment() {
             <tbody>
               {displayed.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-14 text-gray-400">
+                  <td colSpan={10} className="text-center py-14 text-gray-400">
                     <HardDrive size={28} className="mx-auto mb-2 opacity-30" />
                     <p className="text-sm">No assignments in this category</p>
                   </td>
@@ -582,92 +604,146 @@ export default function SalesHwAssignment() {
                 displayed.map(item => {
                   const style = STATUS_STYLE[item.status] ?? STATUS_STYLE.Pending
                   const overdueWait = item.daysWaiting > 2 && item.status === 'Pending'
+                  const isExpanded = expandedRows.has(item.id)
 
                   return (
-                    <tr key={item.id} className={`border-b border-surface-border last:border-0 transition-colors hover:bg-gray-50/60 ${style.row}`}>
+                    <Fragment key={item.id}>
+                      <tr className={`border-b border-surface-border transition-colors hover:bg-gray-50/60 ${style.row} ${isExpanded ? 'border-b-0' : ''}`}>
 
-                      {/* Lead / Customer */}
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-gray-900">{item.customerName}</p>
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">{item.leadId}</p>
-                      </td>
+                        {/* Lead / Customer */}
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-gray-900">{item.customerName}</p>
+                          <p className="text-xs text-gray-400 font-mono mt-0.5">{item.leadId}</p>
+                        </td>
 
-                      {/* Area */}
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.area}</td>
+                        {/* Area */}
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{item.area}</td>
 
-                      {/* Plan */}
-                      <td className="px-4 py-3">
-                        <Badge variant={PLAN_VARIANT[item.plan] ?? 'gray'} size="sm">{item.plan}</Badge>
-                      </td>
+                        {/* Plan */}
+                        <td className="px-4 py-3">
+                          <Badge variant={PLAN_VARIANT[item.plan] ?? 'gray'} size="sm">{item.plan}</Badge>
+                        </td>
 
-                      {/* Sales Agent */}
-                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{item.salesAgent}</td>
+                        {/* Sales Agent */}
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{item.salesAgent}</td>
 
-                      {/* Days Waiting */}
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                          overdueWait
-                            ? 'bg-red-100 text-red-700'
-                            : item.daysWaiting === 0
-                            ? 'bg-gray-100 text-gray-500'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}>
-                          <Clock size={11} />
-                          {item.daysWaiting === 0 ? 'Today' : `${item.daysWaiting}d`}
-                          {overdueWait && ' ⚠'}
-                        </span>
-                      </td>
-
-                      {/* Engineer */}
-                      <td className="px-4 py-3">
-                        {item.engineerName ? (
-                          <div>
-                            <p className="text-xs font-semibold text-gray-800">{item.engineerName}</p>
-                            <p className="text-[10px] text-gray-400 font-mono">{item.engineerId}</p>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-300 italic">Not assigned</span>
-                        )}
-                      </td>
-
-                      {/* Equipment */}
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <EquipmentPills items={item.equipment} />
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-4 py-3">
-                        <Badge variant={style.badge} size="sm">{item.status}</Badge>
-                      </td>
-
-                      {/* Action */}
-                      <td className="px-4 py-3">
-                        {item.status === 'Pending' && (
-                          <Button
-                            size="xs"
-                            icon={<HardDrive size={12} />}
-                            onClick={() => setAssignItem(item)}
-                          >
-                            Assign
-                          </Button>
-                        )}
-                        {item.status === 'Assigned' && (
-                          <Button
-                            size="xs"
-                            variant="secondary"
-                            icon={<CheckCircle2 size={12} />}
-                            onClick={() => markCompleted(item.id)}
-                          >
-                            Complete
-                          </Button>
-                        )}
-                        {item.status === 'Completed' && (
-                          <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold">
-                            <CheckCircle2 size={14} /> Done
+                        {/* Days Waiting */}
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                            overdueWait
+                              ? 'bg-red-100 text-red-700'
+                              : item.daysWaiting === 0
+                              ? 'bg-gray-100 text-gray-500'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}>
+                            <Clock size={11} />
+                            {item.daysWaiting === 0 ? 'Today' : `${item.daysWaiting}d`}
+                            {overdueWait && ' ⚠'}
                           </span>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+
+                        {/* Engineer */}
+                        <td className="px-4 py-3">
+                          {item.engineerName ? (
+                            <div>
+                              <p className="text-xs font-semibold text-gray-800">{item.engineerName}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{item.engineerId}</p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-300 italic">Not assigned</span>
+                          )}
+                        </td>
+
+                        {/* Equipment */}
+                        <td className="px-4 py-3 max-w-[200px]">
+                          <EquipmentPills items={item.equipment} />
+                        </td>
+
+                        {/* Requirements toggle */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <button
+                            onClick={() => toggleExpand(item.id)}
+                            className={`flex items-center gap-1 text-xs font-medium transition-colors ${
+                              item.feasibility
+                                ? 'text-gray-600 hover:text-brand-blue'
+                                : 'text-amber-500 hover:text-amber-700'
+                            }`}
+                          >
+                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            {item.feasibility ? 'View' : 'Pending ⚠'}
+                          </button>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3">
+                          <Badge variant={style.badge} size="sm">{item.status}</Badge>
+                        </td>
+
+                        {/* Action */}
+                        <td className="px-4 py-3">
+                          {item.status === 'Pending' && (
+                            <Button
+                              size="xs"
+                              icon={<HardDrive size={12} />}
+                              onClick={() => setAssignItem(item)}
+                            >
+                              Assign
+                            </Button>
+                          )}
+                          {item.status === 'Assigned' && (
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              icon={<CheckCircle2 size={12} />}
+                              onClick={() => markCompleted(item.id)}
+                            >
+                              Complete
+                            </Button>
+                          )}
+                          {item.status === 'Completed' && (
+                            <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold">
+                              <CheckCircle2 size={14} /> Done
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className={`border-b border-surface-border ${item.feasibility ? 'bg-blue-50/20' : 'bg-amber-50/30'}`}>
+                          <td colSpan={10} className="px-6 py-3">
+                            {item.feasibility ? (
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                                {[
+                                  ['Cable', `${item.feasibility.cableType} · ${item.feasibility.cableLength}m`],
+                                  ['Building', item.feasibility.buildingType],
+                                  ['Floor', item.feasibility.floorNumber],
+                                  ['OLT', `${item.feasibility.oltDistance}m`],
+                                  ['Roof', item.feasibility.roofAccess],
+                                  ['Power', item.feasibility.powerSource],
+                                  ['Drilling', item.feasibility.wallDrilling],
+                                ].map(([label, value], i, arr) => (
+                                  <span key={label} className="flex items-center gap-1">
+                                    <span className="text-gray-500">{label}:</span>
+                                    <span className="font-semibold text-gray-800">{value}</span>
+                                    {i < arr.length - 1 && <span className="text-gray-300 ml-1">|</span>}
+                                  </span>
+                                ))}
+                                {item.feasibility.notes && (
+                                  <>
+                                    <span className="text-gray-300">|</span>
+                                    <span className="text-gray-500 italic">{item.feasibility.notes}</span>
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-600">
+                                <AlertTriangle size={12} /> Feasibility pending ⚠️
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })
               )}
