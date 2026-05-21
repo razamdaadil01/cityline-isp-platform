@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Plus, Edit3, Trash2, GripVertical, ChevronDown, ChevronUp,
   Layers, Settings2, HardDrive, AlertCircle, Check, FolderOpen
@@ -6,6 +6,7 @@ import {
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Textarea } from '../components/ui/FormInputs'
+import { getPipelines, addPipeline, updatePipeline, deletePipeline, subscribePipelines } from '../data/pipelineStore'
 
 const STAGE_COLORS = [
   { label: 'Blue',    value: 'bg-blue-500'    },
@@ -19,37 +20,6 @@ const STAGE_COLORS = [
 ]
 
 const STAGE_TYPES = ['Standard', 'Hardware Assignment']
-
-const INIT_PIPELINES = [
-  {
-    id: 'PL-001', name: 'Residential', type: 'B2C', activeLeads: 12,
-    description: 'Standard pipeline for residential customers',
-    isDefault: true,
-    stages: [
-      { id: 's1', name: 'New Inquiry',    color: 'bg-blue-500',    required: false, type: 'Standard' },
-      { id: 's2', name: 'Contacted',      color: 'bg-cyan-500',    required: false, type: 'Standard' },
-      { id: 's3', name: 'Follow-up',      color: 'bg-purple-500',  required: false, type: 'Standard' },
-      { id: 's4', name: 'Site Survey',    color: 'bg-amber-500',   required: false, type: 'Standard' },
-      { id: 's5', name: 'Quotation Sent', color: 'bg-orange-500',  required: false, type: 'Standard' },
-      { id: 's6', name: 'Won',            color: 'bg-emerald-500', required: false, type: 'Standard' },
-      { id: 's7', name: 'Lost',           color: 'bg-red-500',     required: false, type: 'Standard' },
-    ],
-  },
-  {
-    id: 'PL-002', name: 'Corporate', type: 'B2B', activeLeads: 5,
-    description: 'Standard pipeline for business customers',
-    isDefault: true,
-    stages: [
-      { id: 'b1', name: 'Lead Received',       color: 'bg-blue-500',    required: true,  type: 'Standard' },
-      { id: 'b2', name: 'Technical Survey',    color: 'bg-cyan-500',    required: true,  type: 'Standard' },
-      { id: 'b3', name: 'Proposal Sent',       color: 'bg-purple-500',  required: true,  type: 'Standard' },
-      { id: 'b4', name: 'Negotiation',         color: 'bg-amber-500',   required: true,  type: 'Standard' },
-      { id: 'b5', name: 'Contract Signed',     color: 'bg-orange-500',  required: true,  type: 'Standard' },
-      { id: 'b6', name: 'Hardware Assignment', color: 'bg-pink-500',    required: true,  type: 'Hardware Assignment' },
-      { id: 'b7', name: 'Active',              color: 'bg-emerald-500', required: false, type: 'Standard' },
-    ],
-  },
-]
 
 const INIT_PIPELINE_FORM = { name: '', description: '' }
 
@@ -474,35 +444,31 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SalesPipelines() {
-  const [pipelines, setPipelines] = useState(INIT_PIPELINES)
+  const [pipelines, setPipelines] = useState(getPipelines)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPipeline, setEditingPipeline] = useState(null)
   const [stageEditorPipeline, setStageEditorPipeline] = useState(null)
   const [deletingPipeline, setDeletingPipeline] = useState(null)
 
+  useEffect(() => subscribePipelines(setPipelines), [])
+
   const defaultPipelines = pipelines.filter(p => p.isDefault)
   const customPipelines = pipelines.filter(p => !p.isDefault)
 
-  function handleCreate(pipeline) {
-    setPipelines(prev => [...prev, pipeline])
-  }
+  function handleCreate(pipeline) { addPipeline(pipeline) }
 
   function handleSaveEdit(patch) {
-    setPipelines(prev => prev.map(p =>
-      p.id === editingPipeline.id ? { ...p, ...patch } : p
-    ))
+    updatePipeline(editingPipeline.id, patch)
     setEditingPipeline(null)
   }
 
   function handleSaveStages(stages) {
-    setPipelines(prev => prev.map(p =>
-      p.id === stageEditorPipeline.id ? { ...p, stages } : p
-    ))
+    updatePipeline(stageEditorPipeline.id, { stages })
     setStageEditorPipeline(null)
   }
 
   function handleDelete() {
-    setPipelines(prev => prev.filter(p => p.id !== deletingPipeline.id))
+    deletePipeline(deletingPipeline.id)
     setDeletingPipeline(null)
   }
 

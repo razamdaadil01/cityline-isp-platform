@@ -44,6 +44,12 @@ export function setFormModule(key, fields) {
   _listeners.forEach(fn => fn(_modules))
 }
 
+export function removeFormModule(key) {
+  const { [key]: _, ...rest } = _modules
+  _modules = rest
+  _listeners.forEach(fn => fn(_modules))
+}
+
 export function subscribeFormModules(fn) {
   _listeners.push(fn)
   return () => {

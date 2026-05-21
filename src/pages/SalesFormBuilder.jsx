@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Plus, Trash2, ChevronUp, ChevronDown, GripVertical,
   Save, CheckCircle, Settings2, Type, Hash, Phone,
@@ -8,6 +8,7 @@ import {
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getFormModules, setFormModule } from '../data/customFormStore'
+import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 
 const FIELD_TYPES = [
   'Text', 'Number', 'Phone', 'Email', 'Dropdown',
@@ -27,10 +28,36 @@ const FIELD_TYPE_ICON = {
   'Textarea':      AlignLeft,
 }
 
-const MODULES_META = [
-  { key: 'B2C', name: 'B2C Lead Form', sub: 'B2C Residential pipeline', color: '#0A8DCD', badge: 'bg-blue-100 text-blue-700' },
-  { key: 'B2B', name: 'B2B Lead Form', sub: 'B2B Corporate pipeline',   color: '#0F2744', badge: 'bg-navy/10 text-navy'      },
+// Default modules always present regardless of pipeline store
+const DEFAULT_MODULES = [
+  { key: 'B2C', name: 'Residential Lead Form', sub: 'Residential pipeline', color: '#0A8DCD', badge: 'bg-blue-100 text-blue-700' },
+  { key: 'B2B', name: 'Corporate Lead Form',   sub: 'Corporate pipeline',   color: '#0F2744', badge: 'bg-navy/10 text-navy'      },
 ]
+
+function buildModulesList(pipelines) {
+  const custom = pipelines
+    .filter(p => !p.isDefault)
+    .map(p => ({
+      key:   p.id,
+      name:  `${p.name} Form`,
+      sub:   `${p.name} pipeline`,
+      color: '#475569',
+      badge: 'bg-slate-100 text-slate-600',
+    }))
+  return [...DEFAULT_MODULES, ...custom]
+}
+
+function initFieldsByKey(pipelines) {
+  const m = getFormModules()
+  const result = {
+    B2C: m.B2C?.fields ?? [],
+    B2B: m.B2B?.fields ?? [],
+  }
+  pipelines.filter(p => !p.isDefault).forEach(p => {
+    result[p.id] = m[p.id]?.fields ?? []
+  })
+  return result
+}
 
 // ── Field row ─────────────────────────────────────────────────────────────────
 
@@ -41,7 +68,6 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
   return (
     <div className="bg-white border border-surface-border rounded-xl overflow-hidden transition-shadow hover:shadow-sm">
       <div className="flex items-center gap-2 px-3 py-2.5 group">
-        {/* Move arrows */}
         <div className="flex flex-col gap-0.5 shrink-0">
           <button
             disabled={index === 0}
@@ -60,13 +86,11 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
           </button>
         </div>
 
-        {/* Type icon chip */}
         <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 shrink-0">
           <Icon size={12} />
           {field.type}
         </div>
 
-        {/* Label inline edit */}
         <input
           value={field.label}
           onChange={e => onUpdate(field.id, { label: e.target.value })}
@@ -74,7 +98,6 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
           placeholder="Field label…"
         />
 
-        {/* Required badge */}
         <button
           onClick={() => onUpdate(field.id, { required: !field.required })}
           className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors shrink-0 ${
@@ -86,7 +109,6 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
           {field.required ? 'Required' : 'Optional'}
         </button>
 
-        {/* Expand toggle */}
         <button
           onClick={() => setExpanded(p => !p)}
           className="text-gray-400 hover:text-gray-600 transition-colors shrink-0"
@@ -94,7 +116,6 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
           <ChevronDownIcon size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
 
-        {/* Delete */}
         <button
           onClick={() => onRemove(field.id)}
           className="text-gray-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
@@ -145,20 +166,45 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-function initFields() {
-  const m = getFormModules()
-  return {
-    B2C: m.B2C?.fields ?? [],
-    B2B: m.B2B?.fields ?? [],
-  }
-}
-
 export default function SalesFormBuilder() {
+  const [pipelines, setPipelines] = useState(getPipelines)
+  const [fieldsByKey, setFieldsByKey] = useState(() => initFieldsByKey(getPipelines()))
   const [selectedKey, setSelectedKey] = useState('B2C')
-  const [fieldsByKey, setFieldsByKey] = useState(initFields)
   const [saved, setSaved] = useState(false)
 
+  // Keep local fieldsByKey in sync when pipelines are added or removed
+  useEffect(() => subscribePipelines(newPipelines => {
+    setPipelines(newPipelines)
+    setFieldsByKey(prev => {
+      const m = getFormModules()
+      const customKeys = new Set(newPipelines.filter(p => !p.isDefault).map(p => p.id))
+      const next = { ...prev }
+      // Add entries for newly created pipelines
+      customKeys.forEach(key => {
+        if (!(key in next)) next[key] = m[key]?.fields ?? []
+      })
+      // Remove entries for deleted pipelines
+      Object.keys(next).forEach(key => {
+        if (key !== 'B2C' && key !== 'B2B' && !customKeys.has(key)) {
+          delete next[key]
+        }
+      })
+      return next
+    })
+  }), [])
+
+  // If the selected form's pipeline was deleted, fall back to B2C
+  useEffect(() => {
+    const validKeys = new Set([
+      'B2C', 'B2B',
+      ...pipelines.filter(p => !p.isDefault).map(p => p.id),
+    ])
+    if (!validKeys.has(selectedKey)) setSelectedKey('B2C')
+  }, [pipelines, selectedKey])
+
+  const modulesList = buildModulesList(pipelines)
   const fields = fieldsByKey[selectedKey] ?? []
+  const meta = modulesList.find(m => m.key === selectedKey)
 
   function setFields(next) {
     setFieldsByKey(prev => ({ ...prev, [selectedKey]: next }))
@@ -199,8 +245,6 @@ export default function SalesFormBuilder() {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  const meta = MODULES_META.find(m => m.key === selectedKey)
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -224,7 +268,7 @@ export default function SalesFormBuilder() {
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1 mb-3">
             Form Modules
           </p>
-          {MODULES_META.map(m => {
+          {modulesList.map(m => {
             const fieldCount = fieldsByKey[m.key]?.length ?? 0
             const isSelected = selectedKey === m.key
             return (
@@ -233,7 +277,7 @@ export default function SalesFormBuilder() {
                 onClick={() => setSelectedKey(m.key)}
                 className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
                   isSelected
-                    ? 'border-transparent shadow-sm text-white'
+                    ? 'border-transparent shadow-sm'
                     : 'bg-white border-surface-border hover:border-brand-blue/40 hover:shadow-sm'
                 }`}
                 style={isSelected ? { backgroundColor: m.color } : {}}
