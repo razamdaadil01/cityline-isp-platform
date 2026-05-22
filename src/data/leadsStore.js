@@ -1,0 +1,40 @@
+const INIT_LEADS = [
+  { id: 'LD-201', pipeline: 'B2C', name: 'Ramesh Nair', phone: '9876001122', email: '', area: 'Koramangala', source: 'Website', stage: 'New Inquiry', plan: '100 Mbps Home', assigned: 'Arjun Kumar', assignedInitials: 'AK', assignedColor: 'bg-brand-blue', daysInStage: 2, lastActivity: 'Form submitted', followUp: '2026-05-08', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-17', address: '12, Brigade Road', city: 'Bangalore', pincode: '560001', alternateMobile: '', createdBy: 'Arjun Kumar' },
+  { id: 'LD-202', pipeline: 'B2C', name: 'Sunita Bose', phone: '9765443322', email: 'sunita@email.com', area: 'Indiranagar', source: 'Referral', stage: 'Contacted', plan: '200 Mbps Pro', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 1, lastActivity: 'Called – Interested', followUp: '2026-05-09', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-18', address: '45, 5th Main, Indiranagar', city: 'Bangalore', pincode: '560038', alternateMobile: '9876000111', createdBy: 'Preethi Nair' },
+  { id: 'LD-203', pipeline: 'B2C', name: 'Harish Kulkarni', phone: '9988001133', email: '', area: 'Whitefield', source: 'Walk-in', stage: 'Site Survey', plan: '50 Mbps Starter', assigned: 'Arjun Kumar', assignedInitials: 'AK', assignedColor: 'bg-brand-blue', daysInStage: 4, lastActivity: 'Survey scheduled', followUp: '2026-05-10', priority: 'medium', ekycStatus: 'Sent', hwAssigned: null, createdAt: '2026-05-15', address: '78, Whitefield Main Road', city: 'Bangalore', pincode: '560066', alternateMobile: '', createdBy: 'Arjun Kumar' },
+  { id: 'LD-205', pipeline: 'B2C', name: 'Deepak Joshi', phone: '9011556677', email: '', area: 'Electronic City', source: 'Cold Call', stage: 'Follow-up', plan: '100 Mbps Home', assigned: 'Suresh Babu', assignedInitials: 'SB', assignedColor: 'bg-emerald-500', daysInStage: 6, lastActivity: 'No answer – retry', followUp: '2026-05-07', priority: 'medium', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-13', address: '23, EC Phase II', city: 'Bangalore', pincode: '560100', alternateMobile: '', createdBy: 'Suresh Babu' },
+  { id: 'LD-206', pipeline: 'B2C', name: 'Kavita Sharma', phone: '9876543210', email: 'kavita@email.com', area: 'BTM Layout', source: 'Referral', stage: 'Quotation Sent', plan: '200 Mbps Pro', assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2, lastActivity: 'Quote emailed', followUp: '2026-05-11', priority: 'medium', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-17', address: '34, BTM 2nd Stage', city: 'Bangalore', pincode: '560076', alternateMobile: '9123456789', createdBy: 'Anita Sharma' },
+  { id: 'LD-208', pipeline: 'B2C', name: 'Lakshmi Devi', phone: '9123456780', email: '', area: 'Koramangala', source: 'Walk-in', stage: 'Lost', plan: '50 Mbps Starter', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 12, lastActivity: 'Not interested', followUp: '', priority: 'low', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-07', address: '56, Koramangala 4th Block', city: 'Bangalore', pincode: '560034', alternateMobile: '', createdBy: 'Preethi Nair' },
+  { id: 'LD-210', pipeline: 'B2C', name: 'Rekha Menon', phone: '9871234560', email: '', area: 'HSR Layout', source: 'Referral', stage: 'Contacted', plan: '500 Mbps Ultra', assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2, lastActivity: 'WhatsApp sent', followUp: '2026-05-09', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-18', address: '11, HSR Sector 1', city: 'Bangalore', pincode: '560102', alternateMobile: '', createdBy: 'Admin' },
+  { id: 'LD-212', pipeline: 'B2C', name: 'Pooja Nair', phone: '9432109876', email: '', area: 'Electronic City', source: 'Social Media', stage: 'Follow-up', plan: '100 Mbps Home', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 5, lastActivity: 'Missed call returned', followUp: '2026-05-07', priority: 'medium', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-14', address: '89, EC Phase I', city: 'Bangalore', pincode: '560100', alternateMobile: '', createdBy: 'Preethi Nair' },
+  { id: 'LD-213', pipeline: 'B2C', name: 'Mohan Das', phone: '9345678901', email: 'mohan@email.com', area: 'BTM Layout', source: 'Walk-in', stage: 'New Inquiry', plan: '50 Mbps Starter', assigned: 'Suresh Babu', assignedInitials: 'SB', assignedColor: 'bg-emerald-500', daysInStage: 0, lastActivity: 'Walked in today', followUp: '2026-05-09', priority: 'medium', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-19', address: '45, BTM Layout', city: 'Bangalore', pincode: '560076', alternateMobile: '', createdBy: 'Suresh Babu' },
+  { id: 'LD-204', pipeline: 'B2B', name: 'Meena Iyer', phone: '9123887766', email: 'meena@email.com', area: 'HSR Layout', source: 'Social Media', stage: 'Commercial Proposal', plan: '500 Mbps Ultra', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 3, lastActivity: 'Proposal reviewed', followUp: '2026-05-07', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-16', address: 'Tech Park, HSR', city: 'Bangalore', pincode: '560102', alternateMobile: '9876543211', createdBy: 'Admin' },
+  { id: 'LD-207', pipeline: 'B2B', name: 'Arun Pillai', phone: '9087654321', email: '', area: 'Marathahalli', source: 'Website', stage: 'Hardware Assignment', plan: '100 Mbps Home', assigned: 'Arjun Kumar', assignedInitials: 'AK', assignedColor: 'bg-brand-blue', daysInStage: 1, lastActivity: 'HW pending assignment', followUp: '', priority: 'medium', ekycStatus: 'Completed', hwAssigned: null, createdAt: '2026-05-18', address: '34, Marathahalli Bridge', city: 'Bangalore', pincode: '560037', alternateMobile: '', createdBy: 'Arjun Kumar' },
+  { id: 'LD-214', pipeline: 'B2B', name: 'Divya Krishnan', phone: '9876001234', email: 'divya@email.com', area: 'Koramangala', source: 'Referral', stage: 'Meeting Scheduled', plan: '200 Mbps Pro', assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 1, lastActivity: 'Meeting confirmed', followUp: '2026-05-08', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-18', address: '78, Koramangala 5th Block', city: 'Bangalore', pincode: '560095', alternateMobile: '9898989898', createdBy: 'Anita Sharma' },
+  { id: 'LD-209', pipeline: 'Custom', name: 'Vinod Kumar', phone: '9988776655', email: 'vinod@email.com', area: 'Indiranagar', source: 'Cold Call', stage: 'Quotation', plan: '200 Mbps Pro', assigned: 'Suresh Babu', assignedInitials: 'SB', assignedColor: 'bg-emerald-500', daysInStage: 0, lastActivity: 'Quotation sent', followUp: '2026-05-08', priority: 'low', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-19', address: '23, Indiranagar 12th Main', city: 'Bangalore', pincode: '560038', alternateMobile: '', createdBy: 'Suresh Babu' },
+]
+
+let _leads = [...INIT_LEADS]
+const _listeners = []
+
+export function getLeads() {
+  return _leads
+}
+
+export function saveLead(lead) {
+  const exists = _leads.find(l => l.id === lead.id)
+  if (exists) {
+    _leads = _leads.map(l => l.id === lead.id ? lead : l)
+  } else {
+    _leads = [lead, ..._leads]
+  }
+  _listeners.forEach(fn => fn([..._leads]))
+}
+
+export function subscribeLeads(fn) {
+  _listeners.push(fn)
+  return () => {
+    const i = _listeners.indexOf(fn)
+    if (i > -1) _listeners.splice(i, 1)
+  }
+}

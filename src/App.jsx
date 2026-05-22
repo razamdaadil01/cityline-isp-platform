@@ -13,6 +13,7 @@ import SalesFormBuilder from './pages/SalesFormBuilder'
 import SalesProposals from './pages/SalesProposals'
 import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
+import SalesLeadDetail from './pages/SalesLeadDetail'
 import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
+          <Route path="/sales/leads/:id" element={<SalesLeadDetail />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
