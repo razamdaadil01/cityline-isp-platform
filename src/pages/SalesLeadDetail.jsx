@@ -566,19 +566,24 @@ export default function SalesLeadDetail() {
 
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            {/* Lead name */}
-            <div className="flex items-center gap-2.5 mb-1">
-              <h1 className="text-xl font-bold text-gray-900 truncate">{lead.name} — {lead.plan}</h1>
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${stageStyle.chip}`}>
+            {/* Lead name + stage badges */}
+            <div className="flex items-center gap-2.5 mb-0.5">
+              <h1 className="text-xl font-bold text-gray-900 truncate">
+                {lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`}
+              </h1>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${stageStyle.chip}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
                 {lead.stage}
               </span>
               {status !== 'Open' && (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${status === 'Won' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${status === 'Won' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
                   {status}
                 </span>
               )}
             </div>
+
+            {/* Customer name subtitle */}
+            <p className="text-sm text-gray-500 mb-2">{lead.name}</p>
 
             {/* Meta row */}
             <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
@@ -670,8 +675,8 @@ export default function SalesLeadDetail() {
             <div className="space-y-4">
               <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Basic Details</p>
-                <InfoRow label="Lead ID"      value={lead.id}            highlight />
-                <InfoRow label="Lead Name"    value={`${lead.name} — ${lead.plan}`} />
+                <InfoRow label="Lead ID"      value={lead.id}                                                      highlight />
+                <InfoRow label="Lead Name"    value={lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`} />
                 <InfoRow label="Lead Source"  value={lead.source} />
                 <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
                 <InfoRow label="Created Date" value={lead.createdAt} />

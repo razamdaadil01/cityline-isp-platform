@@ -8,6 +8,7 @@ import {
   getStates, getDistricts, getAreasList, getLocalities, getSubLocalities, lookupSubLocality,
 } from '../data/areaMappingStore'
 import { saveFeasibilityRequest } from '../data/feasibilityStore'
+import { saveLead } from '../data/leadsStore'
 
 // ── Shared constants (mirrors Sales.jsx) ────────────────────────────────────
 
@@ -47,7 +48,8 @@ const CONNECTION_TYPES = ['FTTH', 'Sector', 'Village']
 
 const INIT_FORM = {
   pipeline: 'B2C',
-  name: '', phone: '', email: '',
+  leadName: '',
+  name: '', phone: '', alternatePhone: '', email: '',
   state: '', district: '', area: '', locality: '', subLocality: '',
   source: '', plan: '', assigned: '', followUp: '', notes: '',
   kycDocs: {},
@@ -145,8 +147,11 @@ export default function SalesNewLead() {
 
   function validate() {
     const e = {}
-    if (!form.name.trim())                      e.name  = 'Full name is required'
-    if (!form.phone.match(/^\d{10}$/))          e.phone = 'Enter a valid 10-digit number'
+    if (!form.leadName.trim())                  e.leadName = 'Lead name is required'
+    if (!form.name.trim())                      e.name     = 'Full name is required'
+    if (!form.phone.match(/^\d{10}$/))          e.phone    = 'Enter a valid 10-digit number'
+    if (form.alternatePhone && !form.alternatePhone.match(/^\d{10}$/))
+                                                e.alternatePhone = 'Enter a valid 10-digit number'
     return e
   }
 
@@ -187,16 +192,20 @@ export default function SalesNewLead() {
     const newLead = {
       ...form,
       id:               leadId,
+      alternateMobile:  form.alternatePhone,
       stage:            pl.stages[0],
       daysInStage:      0,
       lastActivity:     'Lead created',
+      createdAt:        new Date().toISOString().slice(0, 10),
+      createdBy:        'Admin User',
       assignedInitials: staff?.initials ?? '??',
       assignedColor:    staff?.color ?? 'bg-gray-400',
       priority:         'medium',
       ekycStatus:       null,
       hwAssigned:       null,
     }
-    navigate('/sales', { state: { newLead } })
+    saveLead(newLead)
+    navigate(`/sales/leads/${leadId}`)
   }
 
   return (
@@ -258,6 +267,18 @@ export default function SalesNewLead() {
           <p className="text-sm font-bold text-gray-700 mb-4">Lead Details</p>
           <div className="grid grid-cols-2 gap-x-5 gap-y-4">
 
+            <div className="col-span-2">
+              <FormField label="Lead Name" required>
+                <Input
+                  value={form.leadName}
+                  onChange={e => { set('leadName', e.target.value); setErrors(p => ({ ...p, leadName: '' })) }}
+                  placeholder="e.g. Customer Name — Plan Interest"
+                  className={errors.leadName ? 'border-red-400 focus:ring-red-400/30' : ''}
+                />
+                {errors.leadName && <p className="text-xs text-red-500 mt-1">{errors.leadName}</p>}
+              </FormField>
+            </div>
+
             <FormField label="Full Name" required>
               <Input
                 value={form.name}
@@ -277,6 +298,17 @@ export default function SalesNewLead() {
                 className={errors.phone ? 'border-red-400 focus:ring-red-400/30' : ''}
               />
               {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+            </FormField>
+
+            <FormField label="Alternate Number">
+              <Input
+                type="tel"
+                value={form.alternatePhone}
+                onChange={e => { set('alternatePhone', e.target.value.replace(/\D/g, '').slice(0, 10)); setErrors(p => ({ ...p, alternatePhone: '' })) }}
+                placeholder="9876543210"
+                className={errors.alternatePhone ? 'border-red-400 focus:ring-red-400/30' : ''}
+              />
+              {errors.alternatePhone && <p className="text-xs text-red-500 mt-1">{errors.alternatePhone}</p>}
             </FormField>
 
             <FormField label="Email Address">
