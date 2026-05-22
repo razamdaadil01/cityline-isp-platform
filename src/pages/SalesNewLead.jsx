@@ -158,10 +158,10 @@ export default function SalesNewLead() {
     ? getSubLocalities(form.state, form.district, form.area, form.locality)
     : []
 
-  const mappedSubLocality = form.subLocality
+  const isOther = form.subLocality === '__other__'
+  const mappedSubLocality = form.subLocality && !isOther
     ? lookupSubLocality(form.state, form.district, form.area, form.locality, form.subLocality)
     : null
-  const subLocalityIsUnmapped = form.subLocality && !mappedSubLocality
 
   function handleCreate() {
     const e = validate()
@@ -169,7 +169,7 @@ export default function SalesNewLead() {
 
     const leadId = `LD-${Date.now()}`
 
-    if (form.feasibilityRequired && subLocalityIsUnmapped) {
+    if (form.feasibilityRequired && isOther) {
       saveFeasibilityRequest({
         leadId,
         customerName: form.name,
@@ -315,10 +315,11 @@ export default function SalesNewLead() {
               <Select value={form.subLocality} onChange={e => setForm(f => ({ ...f, subLocality: e.target.value, feasibilityRequired: false }))} disabled={!form.locality}>
                 <option value="">Select sub locality…</option>
                 {subLocalities.map(sl => <option key={sl.subLocality}>{sl.subLocality}</option>)}
+                <option value="__other__">Other (not in list)</option>
               </Select>
             </FormField>
 
-            {/* Auto-filled site info from mapping */}
+            {/* Auto-filled site info — only for mapped selections */}
             {mappedSubLocality && (
               <div className="flex items-center gap-3 col-span-2">
                 <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-brand-blue/20 rounded-lg">
@@ -333,14 +334,14 @@ export default function SalesNewLead() {
               </div>
             )}
 
-            {/* Feasibility required for unmapped sub localities */}
-            {subLocalityIsUnmapped && (
+            {/* Feasibility required — shown only when "Other (not in list)" is selected */}
+            {isOther && (
               <div className="col-span-2 space-y-3">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={form.feasibilityRequired}
                     onChange={e => set('feasibilityRequired', e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-                  <span className="text-sm font-medium text-gray-700">Feasibility Required</span>
+                  <span className="text-sm font-medium text-gray-700">This area requires feasibility check</span>
                 </label>
 
                 {form.feasibilityRequired && (
