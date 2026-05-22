@@ -21,6 +21,7 @@ import {
   HardDrive,
   FileText,
   FileCheck,
+  BarChart2,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -31,8 +32,10 @@ const NAV_ITEMS = [
     children: [
       { label: 'Follow-ups',   icon: PhoneCall,  to: '/sales/followups'    },
       { label: 'Pipelines',    icon: Layers,     to: '/sales/pipelines'    },
+      { label: 'HW Assignment',icon: HardDrive,  to: '/sales/hw-assignment'},
       { label: 'Form Builder', icon: FileText,   to: '/sales/form-builder' },
       { label: 'Proposals',    icon: FileCheck,  to: '/sales/proposals'    },
+      { label: 'Analytics',    icon: BarChart2,  to: '/sales/analytics'    },
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
