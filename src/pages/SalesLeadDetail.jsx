@@ -1,0 +1,876 @@
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft, Edit3, TrendingUp, Bell, MessageSquare,
+  Activity, Plus, CheckCircle2, XCircle, CalendarDays,
+  Phone, Mail, MapPin, User, Clock, ChevronDown,
+  CheckCircle, Send, Loader2,
+} from 'lucide-react'
+import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
+import { saveFollowup } from '../data/followupStore'
+import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+
+const PIPELINES = {
+  B2C: { label: 'Residential', labelFull: 'Residential', color: '#0A8DCD', stages: ['New Inquiry','Contacted','Follow-up','Site Survey','Quotation Sent','Negotiation','Hardware Assignment','Won','Lost'] },
+  B2B: { label: 'Corporate',   labelFull: 'Corporate',   color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Hardware Assignment','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
+  Custom: { label: 'Custom',   labelFull: 'Custom Pipeline', color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
+}
+
+const STAGE_STYLES = {
+  'New Inquiry':           { chip: 'bg-blue-100 text-blue-700',      dot: 'bg-blue-500'    },
+  'Contacted':             { chip: 'bg-cyan-100 text-cyan-700',      dot: 'bg-cyan-500'    },
+  'Follow-up':             { chip: 'bg-purple-100 text-purple-700',  dot: 'bg-purple-500'  },
+  'Site Survey':           { chip: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'   },
+  'Quotation Sent':        { chip: 'bg-orange-100 text-orange-700',  dot: 'bg-orange-500'  },
+  'Negotiation':           { chip: 'bg-pink-100 text-pink-700',      dot: 'bg-pink-500'    },
+  'Hardware Assignment':   { chip: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500'  },
+  'Won':                   { chip: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500' },
+  'Lost':                  { chip: 'bg-red-100 text-red-600',        dot: 'bg-red-400'     },
+  'Meeting Scheduled':     { chip: 'bg-sky-100 text-sky-700',        dot: 'bg-sky-500'     },
+  'Requirement Analysis':  { chip: 'bg-indigo-100 text-indigo-700',  dot: 'bg-indigo-500'  },
+  'Technical Feasibility': { chip: 'bg-teal-100 text-teal-700',      dot: 'bg-teal-500'    },
+  'Commercial Proposal':   { chip: 'bg-orange-100 text-orange-600',  dot: 'bg-orange-400'  },
+  'Legal/Agreement':       { chip: 'bg-slate-100 text-slate-700',    dot: 'bg-slate-500'   },
+  'Quotation':             { chip: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'   },
+}
+
+const STAFF = [
+  { name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'   },
+  { name: 'Preethi Nair', initials: 'PN', color: 'bg-purple-500'   },
+  { name: 'Suresh Babu',  initials: 'SB', color: 'bg-emerald-500'  },
+  { name: 'Anita Sharma', initials: 'AS', color: 'bg-brand-orange' },
+  { name: 'Admin User',   initials: 'AU', color: 'bg-gray-500'     },
+]
+
+const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
+
+const STAGE_FIELDS = {
+  'Site Survey': [
+    { id: 'feasibilityStatus',   label: 'Feasibility Status',        type: 'dropdown', options: ['Feasible','Not Feasible','Pending'] },
+    { id: 'nearestFiberNode',    label: 'Nearest Fiber Node',         type: 'text' },
+    { id: 'distanceFromNetwork', label: 'Distance from Network (m)',  type: 'number' },
+  ],
+  'Technical Feasibility': [
+    { id: 'feasibilityStatus',   label: 'Feasibility Status',        type: 'dropdown', options: ['Feasible','Not Feasible','Pending'] },
+    { id: 'nearestFiberNode',    label: 'Nearest Fiber Node',         type: 'text' },
+    { id: 'distanceFromNetwork', label: 'Distance from Network (m)',  type: 'number' },
+  ],
+  'Quotation Sent': [
+    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number' },
+    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', options: PLANS },
+    { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
+  ],
+  'Commercial Proposal': [
+    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number' },
+    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', options: PLANS },
+    { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
+  ],
+}
+
+const TODAY = '2026-05-22'
+
+function daysBetween(a, b) {
+  const ms = new Date(b) - new Date(a)
+  return Math.floor(ms / 86400000)
+}
+
+function timeAgo(daysAgo, hoursAgo) {
+  if (hoursAgo !== undefined) return hoursAgo === 0 ? 'just now' : `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`
+  if (daysAgo === 0) return 'today'
+  if (daysAgo === 1) return '1 day ago'
+  return `${daysAgo} days ago`
+}
+
+// ── MoveStageModal ─────────────────────────────────────────────────────────────
+
+function MoveStageModal({ isOpen, onClose, lead, onSave }) {
+  const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
+  const availableStages = pl.stages.filter(s => s !== lead?.stage)
+  const [targetStage, setTargetStage]   = useState('')
+  const [fieldVals, setFieldVals]       = useState({})
+  const [followupEnabled, setFollowupEnabled] = useState(false)
+  const [fuForm, setFuForm]             = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
+  const [loading, setLoading]           = useState(false)
+
+  useEffect(() => {
+    if (isOpen) { setTargetStage(''); setFieldVals({}); setFollowupEnabled(false); setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] }) }
+  }, [isOpen])
+
+  const stageFields = STAGE_FIELDS[targetStage] ?? []
+
+  function toggleNotify(name) {
+    setFuForm(p => ({ ...p, notifyTo: p.notifyTo.includes(name) ? p.notifyTo.filter(n => n !== name) : [...p.notifyTo, name] }))
+  }
+
+  function handleMove() {
+    if (!targetStage) return
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      onSave(targetStage, fieldVals, followupEnabled ? fuForm : null)
+      onClose()
+    }, 600)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Move Stage — ${lead?.name}`} size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+            onClick={handleMove} disabled={!targetStage || loading}>
+            {loading ? 'Moving…' : 'Move Stage'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Current Stage">
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-surface-border">
+              <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead?.stage]?.dot ?? 'bg-gray-400'}`} />
+              <span className="text-sm text-gray-600 font-medium">{lead?.stage}</span>
+            </div>
+          </FormField>
+          <FormField label="Move to Stage" required>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
+              <option value="">Select target stage…</option>
+              {availableStages.map(s => <option key={s}>{s}</option>)}
+            </Select>
+          </FormField>
+        </div>
+
+        {targetStage && stageFields.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Fields required for {targetStage}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {stageFields.map(f => (
+                <FormField key={f.id} label={f.label}>
+                  {f.type === 'dropdown' ? (
+                    <Select value={fieldVals[f.id] ?? ''} onChange={e => setFieldVals(p => ({ ...p, [f.id]: e.target.value }))}>
+                      <option value="">Select…</option>
+                      {f.options.map(o => <option key={o}>{o}</option>)}
+                    </Select>
+                  ) : (
+                    <Input type={f.type === 'number' ? 'number' : 'text'}
+                      value={fieldVals[f.id] ?? ''}
+                      onChange={e => setFieldVals(p => ({ ...p, [f.id]: e.target.value }))}
+                    />
+                  )}
+                </FormField>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="border border-surface-border rounded-xl overflow-hidden">
+          <button type="button" onClick={() => setFollowupEnabled(p => !p)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-2">
+              <Bell size={14} className="text-brand-orange" />
+              Set a follow-up after moving
+            </div>
+            <div className={`w-9 h-5 rounded-full transition-colors relative ${followupEnabled ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${followupEnabled ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+          {followupEnabled && (
+            <div className="px-4 pb-4 pt-1 border-t border-surface-border space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Date" required>
+                  <Input type="date" value={fuForm.date} onChange={e => setFuForm(p => ({ ...p, date: e.target.value }))} />
+                </FormField>
+                <FormField label="Time">
+                  <Input type="time" value={fuForm.time} onChange={e => setFuForm(p => ({ ...p, time: e.target.value }))} />
+                </FormField>
+              </div>
+              <FormField label="Note">
+                <Textarea value={fuForm.note} onChange={e => setFuForm(p => ({ ...p, note: e.target.value }))} rows={2} placeholder="Context for follow-up…" />
+              </FormField>
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-2">Notifiers</p>
+                <div className="flex flex-wrap gap-2">
+                  {STAFF.slice(0, 4).map(s => (
+                    <button key={s.name} type="button" onClick={() => toggleNotify(s.name)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${
+                        fuForm.notifyTo.includes(s.name)
+                          ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
+                          : 'border-surface-border text-gray-600 hover:border-brand-blue/40'
+                      }`}>
+                      <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
+                      {s.name.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── SetFollowupModal ──────────────────────────────────────────────────────────
+
+function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
+  const [form, setForm] = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function toggleNotify(name) {
+    setForm(p => ({ ...p, notifyTo: p.notifyTo.includes(name) ? p.notifyTo.filter(n => n !== name) : [...p.notifyTo, name] }))
+  }
+
+  function handleSave() {
+    if (!form.date) return
+    onSave({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: form.date, time: form.time, note: form.note, stage: lead.stage, assignedTo: lead.assigned, notifyTo: form.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
+    onClose()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Set Follow-up — ${lead?.name}`} size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<Bell size={14} />} onClick={handleSave} disabled={!form.date}>Set Follow-up</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-surface-border">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${lead?.assignedColor ?? 'bg-gray-400'}`}>
+            {lead?.assignedInitials ?? '??'}
+          </div>
+          <div>
+            <p className="font-semibold text-sm text-gray-900">{lead?.name}</p>
+            <p className="text-xs text-gray-500">{lead?.stage} · {lead?.phone}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Follow-up Date" required>
+            <Input type="date" value={form.date} onChange={e => set('date', e.target.value)} />
+          </FormField>
+          <FormField label="Time">
+            <Input type="time" value={form.time} onChange={e => set('time', e.target.value)} />
+          </FormField>
+        </div>
+        <FormField label="Note">
+          <Textarea value={form.note} onChange={e => set('note', e.target.value)} placeholder="Context for this follow-up…" rows={3} />
+        </FormField>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Notify To</p>
+          <div className="flex flex-wrap gap-2">
+            {STAFF.slice(0, 4).map(s => (
+              <button key={s.name} type="button" onClick={() => toggleNotify(s.name)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                  form.notifyTo.includes(s.name) ? 'border-brand-blue bg-brand-blue/10 text-brand-blue' : 'border-surface-border bg-white text-gray-600 hover:border-brand-blue/40'
+                }`}>
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
+                {s.name}
+                {form.notifyTo.includes(s.name) && <CheckCircle2 size={12} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── InfoRow helper ────────────────────────────────────────────────────────────
+
+function InfoRow({ label, value, highlight }) {
+  return (
+    <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+      <span className="text-xs text-gray-500 shrink-0 w-36">{label}</span>
+      <span className={`text-xs font-medium text-right ${highlight ? 'text-brand-blue' : 'text-gray-800'}`}>
+        {value || <span className="text-gray-300">—</span>}
+      </span>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function SalesLeadDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [leads, setLeads]           = useState(getLeads)
+  const [activeTab, setActiveTab]   = useState('overview')
+  const [moveStageOpen, setMoveStageOpen] = useState(false)
+  const [followupOpen, setFollowupOpen]   = useState(false)
+  const [wonOpen, setWonOpen]       = useState(false)
+  const [lostOpen, setLostOpen]     = useState(false)
+  const [newComment, setNewComment] = useState('')
+  const [mentionOpen, setMentionOpen] = useState(false)
+  const [mentionQ, setMentionQ]     = useState('')
+  const [replyTo, setReplyTo]       = useState(null)
+  const [replyText, setReplyText]   = useState('')
+  const commentRef = useRef(null)
+
+  useEffect(() => subscribeLeads(setLeads), [])
+
+  const lead = leads.find(l => l.id === id)
+
+  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+
+  // Mock follow-ups for this lead
+  const [followups, setFollowups] = useState(() => {
+    const base = getLeads().find(l => l.id === id)
+    if (!base) return []
+    return [
+      { id: 'FU-1', date: '2026-05-25', time: '10:00', note: 'Follow-up call to confirm installation slot', status: 'Upcoming', assignedTo: base.assigned, notifyTo: ['Arjun Kumar'] },
+      { id: 'FU-2', date: '2026-05-22', time: '11:30', note: 'Check feasibility status with field team', status: 'Due Today', assignedTo: base.assigned, notifyTo: [] },
+      { id: 'FU-3', date: '2026-05-18', time: '09:00', note: 'Called customer — will call again tomorrow', status: 'Completed', assignedTo: base.assigned, notifyTo: ['Preethi Nair'] },
+    ]
+  })
+
+  // Mock comments
+  const [comments, setComments] = useState([
+    { id: 'C3', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue',   text: 'Feasibility confirmed. Moving to site survey.',                            timeLabel: '5 hours ago',  replies: [] },
+    { id: 'C2', author: 'Preethi Nair', initials: 'PN', color: 'bg-purple-500', text: '@Arjun Kumar please check feasibility for this area.',                      timeLabel: '1 day ago',    replies: [] },
+    { id: 'C1', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue',   text: 'Called customer — interested in 100 Mbps plan. Will follow up tomorrow.', timeLabel: '2 days ago',   replies: [] },
+  ])
+
+  // Mock activity log
+  const activityLog = [
+    { id: 7, icon: '🟡', text: 'Follow-up rescheduled to 25 May', user: lead?.assigned ?? 'Arjun Kumar', time: '5 hours ago' },
+    { id: 6, icon: '🔵', text: `Stage moved: Contacted → Follow-up`, user: lead?.assigned ?? 'Arjun Kumar', time: '1 day ago' },
+    { id: 5, icon: '💬', text: 'Comment added', user: 'Preethi Nair', time: '1 day ago' },
+    { id: 4, icon: '🔵', text: 'Stage moved: New Inquiry → Contacted', user: lead?.assigned ?? 'Arjun Kumar', time: '3 days ago' },
+    { id: 3, icon: '🟡', text: 'Follow-up set for 22 May', user: lead?.assigned ?? 'Arjun Kumar', time: '4 days ago' },
+    { id: 2, icon: '🔵', text: `Assigned to ${lead?.assigned ?? 'Arjun Kumar'}`, user: 'Admin', time: '5 days ago' },
+    { id: 1, icon: '🟢', text: 'Lead Created', user: lead?.createdBy ?? 'Arjun Kumar', time: '5 days ago' },
+  ]
+
+  // Stage history inferred from current stage index
+  const stageHistory = (() => {
+    if (!lead) return []
+    const pl = PIPELINES[lead.pipeline] ?? PIPELINES.B2C
+    const idx = pl.stages.indexOf(lead.stage)
+    const visited = pl.stages.slice(0, idx + 1).filter(s => s !== 'Won' && s !== 'Lost')
+    return visited.map((s, i) => ({
+      stage: s,
+      date: `2026-05-${String(17 + i).padStart(2, '0')}`,
+      movedBy: i === 0 ? (lead.createdBy ?? 'Arjun Kumar') : lead.assigned,
+    }))
+  })()
+
+  if (!lead) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-12">
+        <p className="text-lg font-semibold text-gray-900 mb-2">Lead not found</p>
+        <p className="text-sm text-gray-500 mb-6">The lead ID <code className="bg-gray-100 px-2 py-0.5 rounded">{id}</code> does not exist.</p>
+        <Button onClick={() => navigate('/sales')}>Back to Sales Pipeline</Button>
+      </div>
+    )
+  }
+
+  const pl = PIPELINES[lead.pipeline] ?? PIPELINES.B2C
+  const stageStyle = STAGE_STYLES[lead.stage] ?? STAGE_STYLES['New Inquiry']
+  const status = lead.stage === 'Won' ? 'Won' : lead.stage === 'Lost' ? 'Lost' : 'Open'
+  const daysCreated = lead.createdAt ? daysBetween(lead.createdAt, TODAY) : 0
+  const isOverdue = lead.followUp && lead.followUp < TODAY
+  const staff = STAFF.find(s => s.name === lead.assigned)
+
+  function handleMoveStage(targetStage, fieldVals, fuData) {
+    saveLead({ ...lead, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` })
+    if (fuData?.date) {
+      saveFollowup({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage, assignedTo: lead.assigned, notifyTo: fuData.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
+    }
+  }
+
+  function handleSaveFollowup(fu) {
+    saveFollowup(fu)
+    saveLead({ ...lead, followUp: fu.date, lastActivity: `Follow-up set: ${fu.date}` })
+    setFollowups(p => [{ id: fu.id, date: fu.date, time: fu.time, note: fu.note, status: 'Upcoming', assignedTo: fu.assignedTo, notifyTo: fu.notifyTo }, ...p])
+  }
+
+  function handleMarkWon() {
+    saveLead({ ...lead, stage: 'Won', daysInStage: 0, lastActivity: 'Marked as Won' })
+    setWonOpen(false)
+  }
+
+  function handleMarkLost() {
+    saveLead({ ...lead, stage: 'Lost', daysInStage: 0, lastActivity: 'Marked as Lost' })
+    setLostOpen(false)
+  }
+
+  function handlePostComment() {
+    if (!newComment.trim()) return
+    const staff = STAFF.find(s => s.name === lead.assigned) ?? STAFF[0]
+    setComments(p => [{ id: `C${Date.now()}`, author: staff.name, initials: staff.initials, color: staff.color, text: newComment, timeLabel: 'just now', replies: [] }, ...p])
+    setNewComment('')
+  }
+
+  function handleCommentInput(val) {
+    setNewComment(val)
+    const atIdx = val.lastIndexOf('@')
+    if (atIdx >= 0 && atIdx === val.length - 1) {
+      setMentionOpen(true)
+      setMentionQ('')
+    } else if (atIdx >= 0 && val.slice(atIdx + 1).match(/^\w*$/)) {
+      setMentionOpen(true)
+      setMentionQ(val.slice(atIdx + 1).toLowerCase())
+    } else {
+      setMentionOpen(false)
+    }
+  }
+
+  function insertMention(name) {
+    const atIdx = newComment.lastIndexOf('@')
+    setNewComment(newComment.slice(0, atIdx) + `@${name} `)
+    setMentionOpen(false)
+    commentRef.current?.focus()
+  }
+
+  function handleMarkFollowupComplete(fuId) {
+    setFollowups(p => p.map(f => f.id === fuId ? { ...f, status: 'Completed' } : f))
+  }
+
+  function handleCancelFollowup(fuId) {
+    setFollowups(p => p.map(f => f.id === fuId ? { ...f, status: 'Cancelled' } : f))
+  }
+
+  const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))
+
+  const TABS = [
+    { key: 'overview',   label: 'Overview',     icon: User },
+    { key: 'followups',  label: 'Follow-ups',   icon: Bell },
+    { key: 'comments',   label: 'Comments',     icon: MessageSquare },
+    { key: 'activity',   label: 'Activity Log', icon: Activity },
+  ]
+
+  const FU_STATUS_STYLE = {
+    'Upcoming':   'bg-blue-100 text-blue-700',
+    'Due Today':  'bg-brand-orange/15 text-brand-orange font-semibold',
+    'Overdue':    'bg-red-100 text-red-600',
+    'Completed':  'bg-emerald-100 text-emerald-700',
+    'Cancelled':  'bg-gray-100 text-gray-500',
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="px-6 pt-5 pb-4 bg-white border-b border-surface-border shrink-0">
+        {/* Back */}
+        <button onClick={() => navigate('/sales')}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-4 transition-colors">
+          <ArrowLeft size={15} /> Back to Sales Pipeline
+        </button>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            {/* Lead name */}
+            <div className="flex items-center gap-2.5 mb-1">
+              <h1 className="text-xl font-bold text-gray-900 truncate">{lead.name} — {lead.plan}</h1>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${stageStyle.chip}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
+                {lead.stage}
+              </span>
+              {status !== 'Open' && (
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${status === 'Won' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                  {status}
+                </span>
+              )}
+            </div>
+
+            {/* Meta row */}
+            <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
+              <span className="flex items-center gap-1.5">
+                <Phone size={13} /> {lead.phone}
+              </span>
+              {lead.email && (
+                <span className="flex items-center gap-1.5">
+                  <Mail size={13} /> {lead.email}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <MapPin size={13} /> {lead.area}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <CalendarDays size={13} /> Created {lead.createdAt ?? 'N/A'}
+              </span>
+              {/* Assigned */}
+              <span className="flex items-center gap-1.5">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${staff?.color ?? 'bg-gray-400'}`}>
+                  {staff?.initials ?? '?'}
+                </div>
+                {lead.assigned}
+              </span>
+              {/* Pipeline badge */}
+              <span className="px-2 py-0.5 rounded-full text-xs font-semibold text-white" style={{ backgroundColor: pl.color }}>
+                {PIPELINE_LABEL[lead.pipeline]}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <Button variant="secondary" size="sm" icon={<Edit3 size={14} />}
+              onClick={() => navigate('/sales')}>
+              Edit Lead
+            </Button>
+            <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
+              onClick={() => setMoveStageOpen(true)}>
+              Move Stage
+            </Button>
+            <Button variant="secondary" size="sm" icon={<Bell size={14} />}
+              onClick={() => setFollowupOpen(true)}>
+              Add Follow-up
+            </Button>
+            {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
+              <>
+                <Button size="sm" icon={<CheckCircle2 size={14} />}
+                  onClick={() => setWonOpen(true)}>
+                  Mark as Won
+                </Button>
+                <Button variant="danger" size="sm" icon={<XCircle size={14} />}
+                  onClick={() => setLostOpen(true)}>
+                  Mark as Lost
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tabs ───────────────────────────────────────────────────────── */}
+      <div className="px-6 bg-white border-b border-surface-border shrink-0">
+        <div className="flex gap-0">
+          {TABS.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                  activeTab === tab.key
+                    ? 'border-brand-blue text-brand-blue'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}>
+                <Icon size={14} /> {tab.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Tab content ────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+
+        {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
+        {activeTab === 'overview' && (
+          <div className="p-6 grid grid-cols-3 gap-5">
+
+            {/* Column 1 */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Basic Details</p>
+                <InfoRow label="Lead ID"      value={lead.id}            highlight />
+                <InfoRow label="Lead Name"    value={`${lead.name} — ${lead.plan}`} />
+                <InfoRow label="Lead Source"  value={lead.source} />
+                <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
+                <InfoRow label="Created Date" value={lead.createdAt} />
+                <InfoRow label="Assigned To"  value={lead.assigned} />
+              </div>
+
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Customer Details</p>
+                <InfoRow label="Customer Name"    value={lead.name} />
+                <InfoRow label="Mobile Number"    value={lead.phone} highlight />
+                <InfoRow label="Alternate Number" value={lead.alternateMobile} />
+                <InfoRow label="Email Address"    value={lead.email} />
+              </div>
+
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Address Details</p>
+                <InfoRow label="Address" value={lead.address} />
+                <InfoRow label="Area"    value={lead.area} />
+                <InfoRow label="City"    value={lead.city} />
+                <InfoRow label="Pincode" value={lead.pincode} />
+              </div>
+            </div>
+
+            {/* Column 2 */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Current Stage Info</p>
+                <InfoRow label="Pipeline"       value={PIPELINE_LABEL[lead.pipeline]} />
+                <div className="flex items-start justify-between py-2 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 w-36 shrink-0">Current Stage</span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
+                </div>
+                <InfoRow label="Stage Entered"  value={`2026-05-${String(22 - lead.daysInStage).padStart(2, '0')}`} />
+                <InfoRow label="Days in Stage"  value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
+              </div>
+
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Stage History</p>
+                <div className="space-y-0">
+                  {stageHistory.map((sh, i) => {
+                    const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
+                    return (
+                      <div key={i} className="flex gap-3 pb-4 relative">
+                        {i < stageHistory.length - 1 && (
+                          <div className="absolute left-2 top-5 bottom-0 w-px bg-gray-200" />
+                        )}
+                        <div className={`w-4 h-4 rounded-full shrink-0 mt-0.5 ${ss.dot} z-10`} />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-800">{sh.stage}</p>
+                          <p className="text-[10px] text-gray-400">{sh.date} · by {sh.movedBy}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Column 3 */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Active Follow-up</p>
+                {lead.followUp ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-3">
+                      <CalendarDays size={14} className={isOverdue ? 'text-red-500' : 'text-brand-blue'} />
+                      <span className={`text-sm font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
+                        {lead.followUp} {isOverdue && '⚠ Overdue'}
+                      </span>
+                    </div>
+                    <InfoRow label="Time"        value="10:00 AM" />
+                    <InfoRow label="Assigned to" value={lead.assigned} />
+                    <InfoRow label="Notifiers"   value="Arjun Kumar" />
+                    <div className="flex gap-2 mt-3">
+                      <Button size="xs" className="flex-1" onClick={() => setFollowupOpen(true)}>Mark Complete</Button>
+                      <Button size="xs" variant="secondary" className="flex-1" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-xs text-gray-400 mb-3">No active follow-up</p>
+                    <Button size="xs" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Set Follow-up</Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Quick Stats</p>
+                {[
+                  { label: 'Total Follow-ups',   value: followups.length },
+                  { label: 'Completed',          value: followups.filter(f => f.status === 'Completed').length },
+                  { label: 'Pending',            value: followups.filter(f => ['Upcoming','Due Today','Overdue'].includes(f.status)).length },
+                  { label: 'Days Since Created', value: daysCreated },
+                ].map(stat => (
+                  <div key={stat.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <span className="text-xs text-gray-500">{stat.label}</span>
+                    <span className="text-sm font-bold text-gray-900">{stat.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── FOLLOW-UPS ───────────────────────────────────────────── */}
+        {activeTab === 'followups' && (
+          <div className="p-6 max-w-3xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-gray-700">All Follow-ups</h2>
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
+            </div>
+            <div className="space-y-3">
+              {followups.map(fu => (
+                <div key={fu.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CalendarDays size={13} className="text-brand-blue shrink-0" />
+                        <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
+                      </div>
+                      {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
+                      <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                        <span>Assigned: {fu.assignedTo}</span>
+                        {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
+                      </div>
+                    </div>
+                    {!['Completed','Cancelled'].includes(fu.status) && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
+                        <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                        <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {followups.length === 0 && (
+                <div className="text-center py-12 text-gray-400">
+                  <Bell size={32} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No follow-ups yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── COMMENTS ─────────────────────────────────────────────── */}
+        {activeTab === 'comments' && (
+          <div className="p-6 max-w-3xl">
+            {/* Input */}
+            <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
+              <textarea
+                ref={commentRef}
+                value={newComment}
+                onChange={e => handleCommentInput(e.target.value)}
+                placeholder="Add a comment… use @ to mention"
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white resize-none placeholder-gray-400 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue mb-3"
+              />
+              {mentionOpen && (
+                <div className="absolute left-4 z-20 bg-white border border-surface-border rounded-xl shadow-lg overflow-hidden"
+                  style={{ bottom: '70px' }}>
+                  {mentionFiltered.map(s => (
+                    <button key={s.name} onClick={() => insertMention(s.name)}
+                      className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 w-full text-left text-sm text-gray-700">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button size="sm" icon={<Send size={13} />} onClick={handlePostComment} disabled={!newComment.trim()}>
+                  Post Comment
+                </Button>
+              </div>
+            </div>
+
+            {/* Comments list */}
+            <div className="space-y-4">
+              {comments.map(c => (
+                <div key={c.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${c.color}`}>
+                      {c.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-gray-900">{c.author}</span>
+                        <span className="text-xs text-gray-400">{c.timeLabel}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {c.text.split(/(@\w+ \w+)/).map((part, i) =>
+                          part.startsWith('@')
+                            ? <span key={i} className="text-brand-blue font-medium">{part}</span>
+                            : part
+                        )}
+                      </p>
+                      <button
+                        onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+                        className="text-xs text-gray-400 hover:text-brand-blue mt-2 transition-colors">
+                        Reply
+                      </button>
+                      {replyTo === c.id && (
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            autoFocus
+                            value={replyText}
+                            onChange={e => setReplyText(e.target.value)}
+                            placeholder="Write a reply…"
+                            className="flex-1 text-xs border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                          />
+                          <Button size="xs" onClick={() => {
+                            if (!replyText.trim()) return
+                            setComments(p => p.map(x => x.id === c.id
+                              ? { ...x, replies: [...(x.replies ?? []), { id: `R${Date.now()}`, text: replyText, author: lead.assigned, timeLabel: 'just now' }] }
+                              : x
+                            ))
+                            setReplyText('')
+                            setReplyTo(null)
+                          }}>Send</Button>
+                        </div>
+                      )}
+                      {c.replies?.map(r => (
+                        <div key={r.id} className="mt-2 ml-2 pl-3 border-l-2 border-surface-border">
+                          <span className="text-xs font-semibold text-gray-700 mr-1">{r.author}</span>
+                          <span className="text-xs text-gray-600">{r.text}</span>
+                          <span className="text-[10px] text-gray-400 ml-1">{r.timeLabel}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── ACTIVITY LOG ─────────────────────────────────────────── */}
+        {activeTab === 'activity' && (
+          <div className="p-6 max-w-2xl">
+            <h2 className="text-sm font-bold text-gray-700 mb-4">Activity Log</h2>
+            <div className="space-y-0">
+              {activityLog.map((entry, i) => (
+                <div key={entry.id} className="flex gap-4 pb-5 relative">
+                  {i < activityLog.length - 1 && (
+                    <div className="absolute left-3.5 top-7 bottom-0 w-px bg-gray-200" />
+                  )}
+                  <div className="w-7 h-7 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center shrink-0 text-sm z-10">
+                    {entry.icon}
+                  </div>
+                  <div className="pt-1 min-w-0">
+                    <p className="text-sm text-gray-800 font-medium">{entry.text}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">by <span className="font-medium text-gray-600">{entry.user}</span> · {entry.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Modals ─────────────────────────────────────────────────────── */}
+      <MoveStageModal
+        isOpen={moveStageOpen}
+        onClose={() => setMoveStageOpen(false)}
+        lead={lead}
+        onSave={handleMoveStage}
+      />
+      <SetFollowupModal
+        isOpen={followupOpen}
+        onClose={() => setFollowupOpen(false)}
+        lead={lead}
+        onSave={handleSaveFollowup}
+      />
+
+      {/* Won confirm */}
+      <Modal isOpen={wonOpen} onClose={() => setWonOpen(false)} title="Mark as Won?" size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setWonOpen(false)}>Cancel</Button>
+            <Button icon={<CheckCircle2 size={14} />} onClick={handleMarkWon}>Confirm Won</Button>
+          </>
+        }>
+        <p className="text-sm text-gray-600">Mark <strong>{lead.name}</strong> as Won? This will update the stage and create a conversion record.</p>
+      </Modal>
+
+      {/* Lost confirm */}
+      <Modal isOpen={lostOpen} onClose={() => setLostOpen(false)} title="Mark as Lost?" size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setLostOpen(false)}>Cancel</Button>
+            <Button variant="danger" icon={<XCircle size={14} />} onClick={handleMarkLost}>Mark as Lost</Button>
+          </>
+        }>
+        <p className="text-sm text-gray-600">Mark <strong>{lead.name}</strong> as Lost?</p>
+      </Modal>
+    </div>
+  )
+}

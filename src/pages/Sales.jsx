@@ -6,10 +6,11 @@ import {
   PhoneCall, Search, X, HardDrive, Shield,
   Fingerprint, Send, AlertTriangle, Layers,
   CheckCircle, Loader2, Lock, Upload, FileText, BarChart2,
-  Bell, ClipboardList,
+  Bell, ClipboardList, LayoutGrid, List, Eye, ChevronDown,
 } from 'lucide-react'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
+import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -1129,8 +1130,9 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Sales() {
-  const [leads, setLeads]               = useState(INIT_LEADS)
+  const [leads, setLeads]               = useState(getLeads)
   const [activePipeline, setActivePipeline] = useState('B2C')
+  const [viewMode, setViewMode]          = useState('kanban')
   const [draggingId, setDraggingId]     = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
   const [showModal, setShowModal]       = useState(false)
@@ -1145,19 +1147,27 @@ export default function Sales() {
   const [feasibilityLead, setFeasibilityLead]     = useState(null)
   const [followupLead, setFollowupLead]           = useState(null)
   const [inventoryToast, setInventoryToast]       = useState(false)
+  const [moveStageLeadId, setMoveStageLeadId]     = useState(null)
+  const [tableStageFilter, setTableStageFilter]   = useState('')
+  const [tableUserFilter, setTableUserFilter]     = useState('')
+  const [tableStatusFilter, setTableStatusFilter] = useState('')
+  const [tableSort, setTableSort]                 = useState({ by: 'createdAt', dir: 'desc' })
+  const [tablePage, setTablePage]                 = useState(1)
+  const TABLE_PAGE_SIZE = 10
   const navigate                        = useNavigate()
   const location                        = useLocation()
   const userRole                        = 'sales'
 
   useEffect(() => subscribeFormModules(setFormModules), [])
+  useEffect(() => subscribeLeads(setLeads), [])
 
   // Pick up a newly created lead passed back from /sales/leads/new
   useEffect(() => {
     if (location.state?.newLead) {
-      setLeads(prev => {
-        const lead = location.state.newLead
-        return prev.find(l => l.id === lead.id) ? prev : [lead, ...prev]
-      })
+      const lead = location.state.newLead
+      if (!getLeads().find(l => l.id === lead.id)) {
+        saveLeadToStore(lead)
+      }
       navigate('/sales', { replace: true, state: {} })
     }
   }, []) // eslint-disable-line
@@ -1210,11 +1220,10 @@ export default function Sales() {
         }
       }
 
-      setLeads(prev => prev.map(l =>
-        l.id === draggingId && l.stage !== targetStage
-          ? { ...l, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` }
-          : l
-      ))
+      const movingLead = leads.find(l => l.id === draggingId)
+      if (movingLead && movingLead.stage !== targetStage) {
+        saveLeadToStore({ ...movingLead, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` })
+      }
     }
     setDraggingId(null)
     setDragOverStage(null)
@@ -1225,32 +1234,29 @@ export default function Sales() {
   }
 
   // ── Lead CRUD ────────────────────────────────────────────────────────────
-  function saveLead(lead) {
-    setLeads(prev => {
-      const exists = prev.find(l => l.id === lead.id)
-      return exists ? prev.map(l => l.id === lead.id ? lead : l) : [lead, ...prev]
-    })
+  function handleSaveLead(lead) {
+    saveLeadToStore(lead)
   }
 
   function saveEkycStatus(leadId, status) {
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ekycStatus: status, lastActivity: `eKYC ${status}` } : l))
+    const lead = leads.find(l => l.id === leadId)
+    if (lead) saveLeadToStore({ ...lead, ekycStatus: status, lastActivity: `eKYC ${status}` })
   }
 
   function saveHwAssignment(leadId, hw) {
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, hwAssigned: hw, lastActivity: `HW assigned: ${hw.equipmentName}` } : l))
+    const lead = leads.find(l => l.id === leadId)
+    if (lead) saveLeadToStore({ ...lead, hwAssigned: hw, lastActivity: `HW assigned: ${hw.equipmentName}` })
   }
 
   function saveFeasibility(leadId, data) {
-    setLeads(prev => prev.map(l =>
-      l.id === leadId ? { ...l, feasibility: data, lastActivity: 'Feasibility report submitted' } : l
-    ))
+    const lead = leads.find(l => l.id === leadId)
+    if (lead) saveLeadToStore({ ...lead, feasibility: data, lastActivity: 'Feasibility report submitted' })
   }
 
   function handleSaveFollowup(fu) {
     saveFollowup(fu)
-    setLeads(prev => prev.map(l =>
-      l.id === fu.leadId ? { ...l, followUp: fu.date, lastActivity: `Follow-up set: ${fu.date}` } : l
-    ))
+    const lead = leads.find(l => l.id === fu.leadId)
+    if (lead) saveLeadToStore({ ...lead, followUp: fu.date, lastActivity: `Follow-up set: ${fu.date}` })
   }
 
   function sendToInventory() {
@@ -1293,6 +1299,25 @@ export default function Sales() {
             <p className="text-sm text-gray-500 mt-0.5">Drag cards between stages to update lead progress</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex items-center gap-0.5 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  viewMode === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <LayoutGrid size={13} /> Kanban
+              </button>
+              <button
+                onClick={() => { setViewMode('table'); setTablePage(1) }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <List size={13} /> Table
+              </button>
+            </div>
             {/* Role toggle */}
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg text-xs">
               <button className="px-3 py-1 rounded-md font-semibold capitalize transition-all bg-white text-gray-900 shadow-sm">
@@ -1382,12 +1407,12 @@ export default function Sales() {
           })}
         </div>
 
-        {/* ── Search ───────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-3">
+        {/* ── Search + Table filters ───────────────────────────────────── */}
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="relative w-72">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${pl.label} leads…`}
+            <input value={search} onChange={e => { setSearch(e.target.value); setTablePage(1) }}
+              placeholder={viewMode === 'table' ? `Search name, mobile, lead ID…` : `Search ${pl.label} leads…`}
               className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
             />
             {search && (
@@ -1396,12 +1421,174 @@ export default function Sales() {
               </button>
             )}
           </div>
+          {viewMode === 'table' && (
+            <>
+              <select value={tableStageFilter} onChange={e => { setTableStageFilter(e.target.value); setTablePage(1) }}
+                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                <option value="">All Stages</option>
+                {pl.stages.map(s => <option key={s}>{s}</option>)}
+              </select>
+              <select value={tableUserFilter} onChange={e => { setTableUserFilter(e.target.value); setTablePage(1) }}
+                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                <option value="">All Users</option>
+                {['Arjun Kumar','Preethi Nair','Suresh Babu','Anita Sharma'].map(u => <option key={u}>{u}</option>)}
+              </select>
+              <select value={tableStatusFilter} onChange={e => { setTableStatusFilter(e.target.value); setTablePage(1) }}
+                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                <option value="">All Status</option>
+                <option>Open</option><option>Won</option><option>Lost</option>
+              </select>
+              <select value={`${tableSort.by}:${tableSort.dir}`}
+                onChange={e => { const [by, dir] = e.target.value.split(':'); setTableSort({ by, dir }); setTablePage(1) }}
+                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                <option value="createdAt:desc">Created (Newest)</option>
+                <option value="createdAt:asc">Created (Oldest)</option>
+                <option value="followUp:asc">Follow-up (Earliest)</option>
+                <option value="followUp:desc">Follow-up (Latest)</option>
+              </select>
+            </>
+          )}
           {search && <span className="text-sm text-gray-500">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>}
         </div>
       </div>
 
+      {/* ── Table view ─────────────────────────────────────────────────── */}
+      {viewMode === 'table' && (() => {
+        const TODAY_STR = '2026-05-22'
+        const tableLeads = filteredLeads
+          .filter(l => !tableStageFilter  || l.stage    === tableStageFilter)
+          .filter(l => !tableUserFilter   || l.assigned === tableUserFilter)
+          .filter(l => !tableStatusFilter || (['Won','Lost'].includes(l.stage) ? l.stage : 'Open') === tableStatusFilter)
+          .sort((a, b) => {
+            const av = a[tableSort.by] ?? ''
+            const bv = b[tableSort.by] ?? ''
+            return tableSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+          })
+        const totalPages = Math.max(1, Math.ceil(tableLeads.length / TABLE_PAGE_SIZE))
+        const pageLeads  = tableLeads.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE)
+        const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+
+        return (
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left">Lead ID</th>
+                    <th className="px-4 py-3 text-left">Lead Name</th>
+                    <th className="px-4 py-3 text-left">Customer</th>
+                    <th className="px-4 py-3 text-left">Mobile</th>
+                    <th className="px-4 py-3 text-left">Pipeline</th>
+                    <th className="px-4 py-3 text-left">Stage</th>
+                    <th className="px-4 py-3 text-left">Assigned</th>
+                    <th className="px-4 py-3 text-left">Follow-up</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Created</th>
+                    <th className="px-4 py-3 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {pageLeads.length === 0 && (
+                    <tr>
+                      <td colSpan={11} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
+                    </tr>
+                  )}
+                  {pageLeads.map(lead => {
+                    const ss = STAGE_STYLES[lead.stage] ?? STAGE_STYLES['New Inquiry']
+                    const status = lead.stage === 'Won' ? 'Won' : lead.stage === 'Lost' ? 'Lost' : 'Open'
+                    const fuOverdue = lead.followUp && lead.followUp < TODAY_STR
+                    const STATUS_STYLE = { Won: 'bg-emerald-100 text-emerald-700', Lost: 'bg-red-100 text-red-600', Open: 'bg-blue-100 text-blue-700' }
+                    return (
+                      <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500 font-semibold">{lead.id}</td>
+                        <td className="px-4 py-3 max-w-[200px]">
+                          <button
+                            onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                            className="font-semibold text-brand-blue hover:underline text-left truncate block max-w-full"
+                          >
+                            {lead.name} — {lead.plan}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">{lead.name}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{lead.phone}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs text-gray-600">{PIPELINE_LABEL[lead.pipeline]}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${ss.chip}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${ss.colorBar}`} />
+                            {lead.stage}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
+                              {lead.assignedInitials}
+                            </div>
+                            <span className="text-xs text-gray-700">{lead.assigned}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {lead.followUp
+                            ? <span className={`text-xs font-medium ${fuOverdue ? 'text-red-500' : 'text-gray-700'}`}>{lead.followUp}{fuOverdue && ' ⚠'}</span>
+                            : <span className="text-gray-300 text-xs">—</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLE[status]}`}>{status}</span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+                              <Eye size={11} /> View
+                            </button>
+                            <button onClick={() => setMoveStageLeadId(lead.id)}
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                              <TrendingUp size={11} /> Move
+                            </button>
+                            <button onClick={() => setFollowupLead(lead)}
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
+                              <Bell size={11} /> Follow-up
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
+                <span className="text-xs text-gray-500">
+                  Showing {Math.min((tablePage - 1) * TABLE_PAGE_SIZE + 1, tableLeads.length)}–{Math.min(tablePage * TABLE_PAGE_SIZE, tableLeads.length)} of {tableLeads.length} leads
+                </span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setTablePage(p => Math.max(1, p - 1))} disabled={tablePage === 1}
+                    className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors">
+                    Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <button key={p} onClick={() => setTablePage(p)}
+                      className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${p === tablePage ? 'bg-brand-blue text-white' : 'border border-surface-border hover:bg-white text-gray-600'}`}>
+                      {p}
+                    </button>
+                  ))}
+                  <button onClick={() => setTablePage(p => Math.min(totalPages, p + 1))} disabled={tablePage === totalPages}
+                    className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors">
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Kanban board ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 pb-6">
+      {viewMode === 'kanban' && <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 pb-6">
         <div className="flex gap-3 h-full" style={{ minWidth: `${pl.stages.length * 260}px` }}>
           {pl.stages.map(stageId => {
             const style      = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
@@ -1473,13 +1660,13 @@ export default function Sales() {
             )
           })}
         </div>
-      </div>
+      </div>}
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       {showModal && (
         <LeadModal isOpen={showModal}
           onClose={() => { setShowModal(false); setEditLead(null) }}
-          onSave={saveLead}
+          onSave={handleSaveLead}
           initial={editLead}
           defaultPipeline={activePipeline}
           formModules={formModules}
@@ -1506,11 +1693,7 @@ export default function Sales() {
           onClose={() => setWonConversionLead(null)}
           lead={wonConversionLead}
           onConfirm={data => {
-            setLeads(prev => prev.map(l =>
-              l.id === wonConversionLead.id
-                ? { ...l, stage: 'Won', daysInStage: 0, lastActivity: 'Converted to Customer' }
-                : l
-            ))
+            saveLeadToStore({ ...wonConversionLead, stage: 'Won', daysInStage: 0, lastActivity: 'Converted to Customer' })
             setWonSuccessData({ ...data, leadRef: wonConversionLead })
             setWonConversionLead(null)
           }}
@@ -1540,6 +1723,41 @@ export default function Sales() {
           onSave={handleSaveFollowup}
         />
       )}
+      {moveStageLeadId && (() => {
+        const msLead = leads.find(l => l.id === moveStageLeadId)
+        if (!msLead) return null
+        const pl2 = PIPELINES[msLead.pipeline] ?? PIPELINES.B2C
+        const availableStages = pl2.stages.filter(s => s !== msLead.stage)
+        return (
+          <Modal isOpen={!!moveStageLeadId} onClose={() => setMoveStageLeadId(null)}
+            title={`Move Stage — ${msLead.name}`} size="md"
+            footer={
+              <>
+                <Button variant="secondary" onClick={() => setMoveStageLeadId(null)}>Cancel</Button>
+                <Button icon={<TrendingUp size={14} />} onClick={() => {
+                  const sel = document.getElementById('ms-target-stage')?.value
+                  if (sel) { saveLeadToStore({ ...msLead, stage: sel, daysInStage: 0, lastActivity: `Moved to ${sel}` }); setMoveStageLeadId(null) }
+                }}>Move Stage</Button>
+              </>
+            }
+          >
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-surface-border text-sm text-gray-600">
+                <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[msLead.stage]?.colorBar ?? 'bg-gray-400'}`} />
+                Current: <strong>{msLead.stage}</strong>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Move to</p>
+                <select id="ms-target-stage"
+                  className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                  <option value="">Select target stage…</option>
+                  {availableStages.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }
