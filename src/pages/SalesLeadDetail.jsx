@@ -725,13 +725,13 @@ export default function SalesLeadDetail() {
           <div className="p-6 max-w-3xl">
             {/* Input */}
             <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
-              <Textarea
+              <textarea
                 ref={commentRef}
                 value={newComment}
                 onChange={e => handleCommentInput(e.target.value)}
                 placeholder="Add a comment… use @ to mention"
                 rows={3}
-                className="mb-3"
+                className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white resize-none placeholder-gray-400 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue mb-3"
               />
               {mentionOpen && (
                 <div className="absolute left-4 z-20 bg-white border border-surface-border rounded-xl shadow-lg overflow-hidden"
