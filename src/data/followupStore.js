@@ -81,6 +81,11 @@ export function markFollowupDone(id) {
   notify()
 }
 
+export function cancelFollowup(id) {
+  _followups = _followups.map(f => f.id === id ? { ...f, status: 'Cancelled' } : f)
+  notify()
+}
+
 export function subscribeFollowups(fn) {
   _listeners.push(fn)
   return () => {

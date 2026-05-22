@@ -1,19 +1,20 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Calendar, List, Plus, Clock, Phone, MessageSquare,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle2,
-  Bell, Search, Filter, X, Users
+  Bell, Search, Filter, X, Users, LayoutGrid, MoreVertical, Ban, ChevronDown,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { getFollowups, saveFollowup, markFollowupDone, subscribeFollowups } from '../data/followupStore'
+import {
+  getFollowups, saveFollowup, markFollowupDone, cancelFollowup, subscribeFollowups,
+} from '../data/followupStore'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const TODAY = '2026-05-15'
-const TODAY_DATE = new Date(TODAY)
 
 const STAFF = [
   { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'    },
@@ -27,21 +28,55 @@ const STAGES = [
   'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost',
 ]
 
-const PRIORITY_COLOR = {
-  high:   'text-red-600 bg-red-50 border-red-200',
-  medium: 'text-amber-600 bg-amber-50 border-amber-200',
-  low:    'text-gray-500 bg-gray-50 border-gray-200',
-}
-
 const STATUS_BADGE = {
-  Pending: 'yellow',
-  Done:    'green',
-  Overdue: 'red',
+  Pending:   'yellow',
+  Done:      'green',
+  Overdue:   'red',
+  Cancelled: 'gray',
 }
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+const KANBAN_COLS = [
+  {
+    id: 'dueToday',
+    label: 'Due Today',
+    headerBg: 'bg-brand-orange',
+    colBg: 'bg-orange-50/50',
+    borderColor: 'border-orange-200',
+    emptyMsg: 'No follow-ups due today',
+    filter: fu => fu.date === TODAY && fu.status !== 'Done' && fu.status !== 'Cancelled',
+  },
+  {
+    id: 'upcoming',
+    label: 'Upcoming',
+    headerBg: 'bg-brand-blue',
+    colBg: 'bg-blue-50/50',
+    borderColor: 'border-blue-200',
+    emptyMsg: 'No upcoming follow-ups',
+    filter: fu => fu.date > TODAY && fu.status !== 'Done' && fu.status !== 'Cancelled',
+  },
+  {
+    id: 'overdue',
+    label: 'Overdue',
+    headerBg: 'bg-red-500',
+    colBg: 'bg-red-50/50',
+    borderColor: 'border-red-200',
+    emptyMsg: 'No overdue follow-ups',
+    filter: fu => fu.date < TODAY && fu.status !== 'Done' && fu.status !== 'Cancelled',
+  },
+  {
+    id: 'completed',
+    label: 'Completed',
+    headerBg: 'bg-emerald-500',
+    colBg: 'bg-emerald-50/50',
+    borderColor: 'border-emerald-200',
+    emptyMsg: 'No completed follow-ups',
+    filter: fu => fu.status === 'Done',
+  },
 ]
 
 // ── Set Follow-up Modal ──────────────────────────────────────────────────────
@@ -154,126 +189,482 @@ function FollowupModal({ isOpen, onClose, initial, onSave }) {
   )
 }
 
-// ── Table View ───────────────────────────────────────────────────────────────
+// ── Cancel Confirm Modal ─────────────────────────────────────────────────────
 
-function TableView({ followups, onEdit, onMarkDone, search }) {
-  const filtered = search.trim()
-    ? followups.filter(f =>
-        f.leadName.toLowerCase().includes(search.toLowerCase()) ||
-        f.phone.includes(search)
-      )
-    : followups
+function CancelConfirmModal({ isOpen, onClose, onConfirm, leadName }) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Cancel this follow-up?"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Keep</Button>
+          <Button variant="danger" onClick={onConfirm}>Cancel Follow-up</Button>
+        </>
+      }
+    >
+      <div className="text-center py-2">
+        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Ban size={22} className="text-red-500" />
+        </div>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          This follow-up for{' '}
+          <span className="font-semibold text-gray-900">{leadName}</span>{' '}
+          will be marked as cancelled and removed from the active list.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Kanban Card ───────────────────────────────────────────────────────────────
+
+function KanbanCard({ fu, colId, onMarkDone, onEdit, onCancel, isDragging, onDragStart, onDragEnd }) {
+  const [showMenu, setShowMenu] = useState(false)
+  const menuRef = useRef(null)
+  const isCompleted = fu.status === 'Done'
+  const isCancelled = fu.status === 'Cancelled'
+  const isOverdue = colId === 'overdue'
+  const isUpcoming = colId === 'upcoming'
+
+  const daysOverdue = isOverdue
+    ? Math.floor((new Date(TODAY + 'T00:00:00') - new Date(fu.date + 'T00:00:00')) / 86400000)
+    : 0
+
+  const assignedStaff = STAFF.find(s => s.name === fu.assignedTo)
+
+  // close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setShowMenu(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showMenu])
 
   return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-surface-border">
-              {['Lead Name', 'Phone', 'Date & Time', 'Stage', 'Assigned To', 'Notify To', 'Note', 'Status', 'Actions'].map(h => (
-                <th key={h} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
-              </tr>
-            ) : (
-              filtered.map(fu => {
-                const isOverdue = fu.status === 'Overdue' || (fu.date < TODAY && fu.status === 'Pending')
-                const isDone = fu.status === 'Done'
-                return (
-                  <tr
-                    key={fu.id}
-                    className={`border-b border-surface-border last:border-0 transition-colors hover:bg-gray-50 ${
-                      isOverdue ? 'bg-red-50/40' : isDone ? 'bg-emerald-50/30' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className={`font-semibold text-gray-900 ${isDone ? 'line-through text-gray-400' : ''}`}>
-                        {fu.leadName}
-                      </span>
-                      <span className="text-[10px] text-gray-400 block">{fu.leadId}</span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">
-                      <a href={`tel:${fu.phone}`} className="hover:text-brand-blue transition-colors">{fu.phone}</a>
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`text-xs font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
-                        {fu.date}
-                      </span>
-                      <span className="text-[11px] text-gray-400 block">{fu.time}</span>
-                      {isOverdue && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-semibold mt-0.5">
-                          <AlertCircle size={10} /> Overdue
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">{fu.stage}</span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{fu.assignedTo || '—'}</td>
-                    <td className="px-4 py-3">
-                      {fu.notifyTo.length > 0 ? (
-                        <div className="flex gap-1 flex-wrap">
-                          {fu.notifyTo.map(n => {
-                            const s = STAFF.find(st => st.name === n)
-                            return s ? (
-                              <span
-                                key={n}
-                                title={n}
-                                className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}
-                              >
-                                {s.initials}
-                              </span>
-                            ) : null
-                          })}
-                        </div>
-                      ) : <span className="text-gray-300 text-xs">—</span>}
-                    </td>
-                    <td className="px-4 py-3 max-w-[180px]">
-                      <span className="text-xs text-gray-500 line-clamp-2">{fu.note || '—'}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={STATUS_BADGE[isOverdue ? 'Overdue' : fu.status] ?? 'gray'} size="sm">
-                        {isOverdue && fu.status !== 'Done' ? 'Overdue' : fu.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        {!isDone && (
-                          <button
-                            onClick={() => onMarkDone(fu.id)}
-                            title="Mark Done"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                          >
-                            <CheckCircle2 size={14} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => onEdit(fu)}
-                          title="Edit"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
-                        >
-                          <Bell size={14} />
-                        </button>
-                        <a
-                          href={`tel:${fu.phone}`}
-                          title="Call"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
-                        >
-                          <Phone size={14} />
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })
+    <div
+      draggable={!isCompleted && !isCancelled}
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart?.() }}
+      onDragEnd={onDragEnd}
+      className={`bg-white rounded-lg border border-surface-border p-3 transition-all select-none
+        ${!isCompleted && !isCancelled ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+        ${isDragging ? 'opacity-40 scale-[0.97] shadow-card-hover' : 'shadow-card hover:shadow-card-hover'}
+        ${isCompleted || isCancelled ? 'opacity-60' : ''}
+      `}
+    >
+      {/* Header: name + ⋯ menu */}
+      <div className="flex items-start justify-between gap-1 mb-2">
+        <div className="min-w-0">
+          <p className={`font-semibold text-sm text-gray-900 truncate ${isCompleted ? 'line-through text-gray-400' : ''}`}>
+            {fu.leadName}
+          </p>
+          <p className="text-[10px] text-gray-400">{fu.leadId}</p>
+        </div>
+        {!isCompleted && !isCancelled && (
+          <div className="relative flex-shrink-0" ref={menuRef}>
+            <button
+              onClick={() => setShowMenu(p => !p)}
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <MoreVertical size={13} />
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-7 bg-white rounded-lg border border-surface-border shadow-lg z-20 py-1 w-40">
+                <button
+                  onClick={() => { setShowMenu(false); onCancel(fu) }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Ban size={11} /> Cancel Follow-up
+                </button>
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
+      </div>
+
+      {/* Phone */}
+      <a
+        href={`tel:${fu.phone}`}
+        className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-blue mb-2 transition-colors"
+      >
+        <Phone size={11} /> {fu.phone}
+      </a>
+
+      {/* Stage + priority */}
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+          {fu.stage}
+        </span>
+        {fu.priority === 'high' && <Badge variant="red" size="sm">High</Badge>}
+        {fu.priority === 'medium' && <Badge variant="orange" size="sm">Med</Badge>}
+      </div>
+
+      {/* Date/time — show date prominently for upcoming */}
+      <div className="flex items-center gap-1 text-xs mb-2">
+        <Clock size={11} className="text-gray-400 flex-shrink-0" />
+        {isUpcoming && (
+          <span className="text-brand-blue font-semibold">{fu.date} ·&nbsp;</span>
+        )}
+        <span className="text-gray-500">{fu.time}</span>
+      </div>
+
+      {/* Overdue indicator */}
+      {isOverdue && daysOverdue > 0 && (
+        <div className="flex items-center gap-1 text-xs text-red-600 font-semibold mb-2">
+          <AlertCircle size={11} />
+          {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
+        </div>
+      )}
+
+      {/* Completion date */}
+      {isCompleted && (
+        <div className="flex items-center gap-1 text-xs text-emerald-600 mb-2">
+          <CheckCircle2 size={11} /> Completed · {fu.date}
+        </div>
+      )}
+
+      {/* Note preview */}
+      {fu.note && (
+        <p className="text-xs text-gray-400 italic line-clamp-1 mb-2">{fu.note}</p>
+      )}
+
+      {/* Footer: avatar + actions */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-border">
+        {assignedStaff ? (
+          <span
+            title={fu.assignedTo}
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 ${assignedStaff.color}`}
+          >
+            {assignedStaff.initials}
+          </span>
+        ) : <span />}
+
+        {!isCompleted && !isCancelled && (
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => onMarkDone(fu.id)}
+              className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:bg-emerald-50 px-1.5 py-1 rounded transition-colors whitespace-nowrap"
+            >
+              <CheckCircle2 size={10} /> Mark Complete
+            </button>
+            <button
+              onClick={() => onEdit(fu)}
+              className="flex items-center gap-1 text-[10px] font-medium text-brand-blue hover:bg-brand-blue/5 px-1.5 py-1 rounded transition-colors"
+            >
+              <Bell size={10} /> Reschedule
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Kanban View ───────────────────────────────────────────────────────────────
+
+function KanbanView({ followups, onMarkDone, onEdit, onCancel }) {
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverCol, setDragOverCol] = useState(null)
+  const [cancelledOpen, setCancelledOpen] = useState(false)
+
+  const cancelled = followups.filter(fu => fu.status === 'Cancelled')
+
+  function handleDrop(colId) {
+    if (!draggingId) return
+    const fu = followups.find(f => f.id === draggingId)
+    if (!fu || fu.status === 'Cancelled') return
+
+    if (colId === 'dueToday') {
+      saveFollowup({ ...fu, date: TODAY, status: 'Pending' })
+    } else if (colId === 'completed') {
+      onMarkDone(fu.id)
+    } else if (colId === 'upcoming') {
+      onEdit(fu)
+    }
+    setDraggingId(null)
+    setDragOverCol(null)
+  }
+
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4 items-start">
+      {KANBAN_COLS.map(col => {
+        const cards = followups.filter(col.filter)
+        const isDragTarget = dragOverCol === col.id && draggingId !== null
+
+        return (
+          <div
+            key={col.id}
+            className={`flex-shrink-0 w-72 rounded-xl border overflow-visible transition-all ${col.borderColor}
+              ${isDragTarget ? 'ring-2 ring-brand-blue/50 scale-[1.01]' : ''}
+            `}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverCol !== col.id) setDragOverCol(col.id) }}
+            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCol(null) }}
+            onDrop={e => { e.preventDefault(); handleDrop(col.id) }}
+          >
+            {/* Column header */}
+            <div className={`${col.headerBg} px-4 py-3 flex items-center justify-between rounded-t-xl`}>
+              <span className="font-semibold text-sm text-white">{col.label}</span>
+              <span className="text-white text-xs font-bold bg-white/25 px-2 py-0.5 rounded-full">
+                {cards.length}
+              </span>
+            </div>
+
+            {/* Cards */}
+            <div className={`${col.colBg} p-3 space-y-3 min-h-[200px] rounded-b-xl`}>
+              {cards.length === 0 ? (
+                <div className={`flex flex-col items-center justify-center py-10 text-center rounded-lg border-2 border-dashed transition-colors ${
+                  isDragTarget ? 'border-brand-blue/40 bg-brand-blue/5' : 'border-gray-200'
+                }`}>
+                  <p className="text-xs text-gray-400">{col.emptyMsg}</p>
+                </div>
+              ) : (
+                cards.map(fu => (
+                  <KanbanCard
+                    key={fu.id}
+                    fu={fu}
+                    colId={col.id}
+                    onMarkDone={onMarkDone}
+                    onEdit={onEdit}
+                    onCancel={onCancel}
+                    isDragging={draggingId === fu.id}
+                    onDragStart={() => setDraggingId(fu.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null) }}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Cancelled column (collapsed accordion) */}
+      <div className="flex-shrink-0 w-72 rounded-xl border border-gray-200 overflow-hidden">
+        <button
+          onClick={() => setCancelledOpen(p => !p)}
+          className="w-full bg-gray-400 px-4 py-3 flex items-center justify-between hover:bg-gray-500 transition-colors"
+        >
+          <span className="font-semibold text-sm text-white">Cancelled</span>
+          <div className="flex items-center gap-2">
+            <span className="text-white text-xs font-bold bg-white/25 px-2 py-0.5 rounded-full">
+              {cancelled.length}
+            </span>
+            <ChevronDown
+              size={14}
+              className={`text-white transition-transform duration-200 ${cancelledOpen ? 'rotate-180' : ''}`}
+            />
+          </div>
+        </button>
+
+        {cancelledOpen && (
+          <div className="bg-gray-50/50 p-3 space-y-3 min-h-[80px]">
+            {cancelled.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-center">
+                <p className="text-xs text-gray-400">No cancelled follow-ups</p>
+              </div>
+            ) : (
+              cancelled.map(fu => (
+                <KanbanCard
+                  key={fu.id}
+                  fu={fu}
+                  colId="cancelled"
+                  onMarkDone={onMarkDone}
+                  onEdit={onEdit}
+                  onCancel={onCancel}
+                  isDragging={false}
+                />
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Table View ───────────────────────────────────────────────────────────────
+
+const STATUS_PILLS = [
+  { id: 'all',       label: 'All'       },
+  { id: 'dueToday',  label: 'Due Today' },
+  { id: 'upcoming',  label: 'Upcoming'  },
+  { id: 'overdue',   label: 'Overdue'   },
+  { id: 'completed', label: 'Completed' },
+  { id: 'cancelled', label: 'Cancelled' },
+]
+
+function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const filtered = useMemo(() => {
+    let result = search.trim()
+      ? followups.filter(f =>
+          f.leadName.toLowerCase().includes(search.toLowerCase()) ||
+          f.phone.includes(search)
+        )
+      : followups
+
+    switch (statusFilter) {
+      case 'dueToday':  return result.filter(f => f.date === TODAY && f.status !== 'Done' && f.status !== 'Cancelled')
+      case 'upcoming':  return result.filter(f => f.date > TODAY && f.status !== 'Done' && f.status !== 'Cancelled')
+      case 'overdue':   return result.filter(f => f.date < TODAY && f.status !== 'Done' && f.status !== 'Cancelled')
+      case 'completed': return result.filter(f => f.status === 'Done')
+      case 'cancelled': return result.filter(f => f.status === 'Cancelled')
+      default:          return result
+    }
+  }, [followups, search, statusFilter])
+
+  return (
+    <div className="space-y-3">
+      {/* Status filter pills */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {STATUS_PILLS.map(pill => (
+          <button
+            key={pill.id}
+            onClick={() => setStatusFilter(pill.id)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
+              statusFilter === pill.id
+                ? 'bg-brand-blue text-white border-brand-blue shadow-sm'
+                : 'bg-white text-gray-500 border-surface-border hover:border-brand-blue/40 hover:text-brand-blue'
+            }`}
+          >
+            {pill.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-surface-border">
+                {['Lead Name', 'Phone', 'Date & Time', 'Stage', 'Assigned To', 'Notify To', 'Note', 'Status', 'Actions'].map(h => (
+                  <th key={h} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
+                </tr>
+              ) : (
+                filtered.map(fu => {
+                  const isOverdue = fu.status === 'Overdue' || (fu.date < TODAY && fu.status === 'Pending')
+                  const isDone = fu.status === 'Done'
+                  const isCancelled = fu.status === 'Cancelled'
+                  return (
+                    <tr
+                      key={fu.id}
+                      className={`border-b border-surface-border last:border-0 transition-colors hover:bg-gray-50 ${
+                        isCancelled ? 'bg-gray-50/60 opacity-70'
+                        : isOverdue ? 'bg-red-50/40'
+                        : isDone    ? 'bg-emerald-50/30'
+                        : ''
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <span className={`font-semibold text-gray-900 ${isDone || isCancelled ? 'line-through text-gray-400' : ''}`}>
+                          {fu.leadName}
+                        </span>
+                        <span className="text-[10px] text-gray-400 block">{fu.leadId}</span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">
+                        <a href={`tel:${fu.phone}`} className="hover:text-brand-blue transition-colors">{fu.phone}</a>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`text-xs font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
+                          {fu.date}
+                        </span>
+                        <span className="text-[11px] text-gray-400 block">{fu.time}</span>
+                        {isOverdue && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-semibold mt-0.5">
+                            <AlertCircle size={10} /> Overdue
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">{fu.stage}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{fu.assignedTo || '—'}</td>
+                      <td className="px-4 py-3">
+                        {fu.notifyTo.length > 0 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {fu.notifyTo.map(n => {
+                              const s = STAFF.find(st => st.name === n)
+                              return s ? (
+                                <span
+                                  key={n}
+                                  title={n}
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}
+                                >
+                                  {s.initials}
+                                </span>
+                              ) : null
+                            })}
+                          </div>
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3 max-w-[180px]">
+                        <span className="text-xs text-gray-500 line-clamp-2">{fu.note || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          variant={isCancelled ? 'gray' : (STATUS_BADGE[isOverdue ? 'Overdue' : fu.status] ?? 'gray')}
+                          size="sm"
+                        >
+                          {isCancelled ? 'Cancelled' : isOverdue && !isDone ? 'Overdue' : fu.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          {!isDone && !isCancelled && (
+                            <button
+                              onClick={() => onMarkDone(fu.id)}
+                              title="Mark Complete"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            >
+                              <CheckCircle2 size={14} />
+                            </button>
+                          )}
+                          {!isCancelled && (
+                            <button
+                              onClick={() => onEdit(fu)}
+                              title="Edit"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
+                            >
+                              <Bell size={14} />
+                            </button>
+                          )}
+                          <a
+                            href={`tel:${fu.phone}`}
+                            title="Call"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
+                          >
+                            <Phone size={14} />
+                          </a>
+                          {!isDone && !isCancelled && (
+                            <button
+                              onClick={() => onCancel(fu)}
+                              title="Cancel"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Ban size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -290,7 +681,6 @@ function CalendarView({ followups, onEdit }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const todayStr = TODAY
 
-  // Build date → followups map
   const fuByDate = useMemo(() => {
     const map = {}
     followups.forEach(fu => {
@@ -347,7 +737,6 @@ function CalendarView({ followups, onEdit }) {
 
         {/* Day cells */}
         <div className="grid grid-cols-7">
-          {/* Empty cells before first day */}
           {Array.from({ length: firstDay }).map((_, i) => (
             <div key={`empty-${i}`} className="min-h-[80px] border-b border-r border-surface-border bg-gray-50/50" />
           ))}
@@ -381,6 +770,8 @@ function CalendarView({ followups, onEdit }) {
                           ? 'bg-red-100 text-red-700'
                           : fu.status === 'Done'
                           ? 'bg-emerald-50 text-emerald-700'
+                          : fu.status === 'Cancelled'
+                          ? 'bg-gray-100 text-gray-400 line-through'
                           : 'bg-brand-blue/8 text-brand-blue'
                       }`}
                     >
@@ -464,27 +855,34 @@ function CalendarView({ followups, onEdit }) {
 export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
   const [view, setView] = useState('table')
-
-  useEffect(() => subscribeFollowups(setFollowups), [])
   const [showModal, setShowModal] = useState(false)
   const [editingFU, setEditingFU] = useState(null)
+  const [cancelTarget, setCancelTarget] = useState(null)
   const [search, setSearch] = useState('')
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
-  function saveFU(fu) {
-    saveFollowup(fu)
-  }
+  useEffect(() => subscribeFollowups(setFollowups), [])
 
-  function markDone(id) {
-    markFollowupDone(id)
-  }
+  function saveFU(fu) { saveFollowup(fu) }
+  function markDone(id) { markFollowupDone(id) }
 
   function openEdit(fu) {
     setEditingFU(fu)
     setShowModal(true)
+  }
+
+  function openCancel(fu) {
+    setCancelTarget(fu)
+  }
+
+  function confirmCancel() {
+    if (cancelTarget) {
+      cancelFollowup(cancelTarget.id)
+      setCancelTarget(null)
+    }
   }
 
   const filtered = followups.filter(fu => {
@@ -494,9 +892,10 @@ export default function SalesFollowups() {
     return true
   })
 
-  const pendingCount = followups.filter(f => f.status === 'Pending' || (f.date >= TODAY && f.status !== 'Done')).length
-  const overdueCount = followups.filter(f => f.status === 'Overdue' || (f.date < TODAY && f.status === 'Pending')).length
-  const doneCount    = followups.filter(f => f.status === 'Done').length
+  const pendingCount   = followups.filter(f => f.date >= TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
+  const overdueCount   = followups.filter(f => f.date < TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
+  const doneCount      = followups.filter(f => f.status === 'Done').length
+  const cancelledCount = followups.filter(f => f.status === 'Cancelled').length
 
   return (
     <div className="p-6 space-y-5">
@@ -512,12 +911,13 @@ export default function SalesFollowups() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-5 gap-3">
         {[
-          { label: 'Total',   value: followups.length, color: 'text-gray-700',      bg: 'bg-gray-100'      },
-          { label: 'Pending', value: pendingCount,     color: 'text-amber-600',     bg: 'bg-amber-100'     },
-          { label: 'Overdue', value: overdueCount,     color: 'text-red-600',       bg: 'bg-red-100'       },
-          { label: 'Done',    value: doneCount,        color: 'text-emerald-700',   bg: 'bg-emerald-100'   },
+          { label: 'Total',     value: followups.length, color: 'text-gray-700',    bg: 'bg-gray-100'    },
+          { label: 'Pending',   value: pendingCount,     color: 'text-amber-600',   bg: 'bg-amber-100'   },
+          { label: 'Overdue',   value: overdueCount,     color: 'text-red-600',     bg: 'bg-red-100'     },
+          { label: 'Completed', value: doneCount,        color: 'text-emerald-700', bg: 'bg-emerald-100' },
+          { label: 'Cancelled', value: cancelledCount,   color: 'text-gray-500',    bg: 'bg-gray-100'    },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -545,6 +945,14 @@ export default function SalesFollowups() {
             }`}
           >
             <Calendar size={14} /> Calendar View
+          </button>
+          <button
+            onClick={() => setView('kanban')}
+            className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+              view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <LayoutGrid size={14} /> Kanban View
           </button>
         </div>
 
@@ -623,18 +1031,30 @@ export default function SalesFollowups() {
 
       {/* Main content */}
       {view === 'table' ? (
-        <TableView followups={filtered} onEdit={openEdit} onMarkDone={markDone} search={search} />
-      ) : (
+        <TableView followups={filtered} onEdit={openEdit} onMarkDone={markDone} onCancel={openCancel} search={search} />
+      ) : view === 'calendar' ? (
         <CalendarView followups={filtered} onEdit={openEdit} />
+      ) : (
+        <KanbanView followups={filtered} onMarkDone={markDone} onEdit={openEdit} onCancel={openCancel} />
       )}
 
-      {/* Modal */}
+      {/* Set/Edit follow-up modal */}
       {showModal && (
         <FollowupModal
           isOpen={showModal}
           onClose={() => { setShowModal(false); setEditingFU(null) }}
           initial={editingFU}
           onSave={saveFU}
+        />
+      )}
+
+      {/* Cancel confirmation modal */}
+      {cancelTarget && (
+        <CancelConfirmModal
+          isOpen={!!cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={confirmCancel}
+          leadName={cancelTarget?.leadName}
         />
       )}
     </div>
