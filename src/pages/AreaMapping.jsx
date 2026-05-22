@@ -129,9 +129,9 @@ function AreaForm({ initial, onSave, onCancel }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Tabs */}
-      <div className="flex border-b border-surface-border px-4 pt-4 gap-1 flex-wrap">
+      <div className="flex border-b border-surface-border px-4 pt-4 gap-1 flex-wrap sticky top-0 bg-white z-10">
         {FORM_TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-colors ${
@@ -144,7 +144,7 @@ function AreaForm({ initial, onSave, onCancel }) {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="p-4 space-y-4">
         {/* State */}
         <FormField label="State" required>
           {tab === 'State'
@@ -241,7 +241,7 @@ function AreaForm({ initial, onSave, onCancel }) {
         )}
       </div>
 
-      <div className="p-4 border-t border-surface-border flex justify-end gap-2">
+      <div className="p-4 border-t border-surface-border flex justify-end gap-2 sticky bottom-0 bg-white z-10">
         <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
         <Button size="sm" icon={<Save size={13} />} onClick={handleSave}>Save</Button>
       </div>
@@ -340,7 +340,7 @@ export default function AreaMapping() {
         </div>
 
         {/* Right: Form or summary */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
           {showForm ? (
             <AreaForm
               initial={editItem ? { ...editItem } : null}
