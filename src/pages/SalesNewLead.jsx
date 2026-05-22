@@ -173,6 +173,7 @@ export default function SalesNewLead() {
       saveFeasibilityRequest({
         leadId,
         customerName: form.name,
+        phone: form.phone,
         area: form.area,
         localityName: form.feasibilityLocalityName || form.locality,
         subLocalityName: form.feasibilitySubLocalityName || form.subLocality,
