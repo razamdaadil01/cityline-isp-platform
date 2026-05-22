@@ -30,6 +30,8 @@ import AuditLog from './pages/AuditLog'
 import BandwidthMonitoring from './pages/BandwidthMonitoring'
 import RolesSettings from './pages/RolesSettings'
 import NotificationSettings from './pages/NotificationSettings'
+import AreaMapping from './pages/AreaMapping'
+import FeasibilityRequests from './pages/FeasibilityRequests'
 
 export default function App() {
   return (
@@ -61,6 +63,8 @@ export default function App() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/roles" element={<RolesSettings />} />
+          <Route path="/settings/area-mapping" element={<AreaMapping />} />
+          <Route path="/settings/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />

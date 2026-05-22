@@ -22,6 +22,8 @@ import {
   FileText,
   FileCheck,
   BarChart2,
+  MapPin,
+  ClipboardCheck,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -53,9 +55,15 @@ const NAV_ITEMS = [
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },
   { label: 'Audit Log',        icon: Shield,          to: '/audit'                     },
-  { label: 'Settings',         icon: Settings,        to: '/settings',          exact: true },
+  {
+    label: 'Settings',         icon: Settings,        to: '/settings',          exact: true,
+    children: [
+      { label: 'Area Mapping',          icon: MapPin,          to: '/settings/area-mapping'          },
+      { label: 'Feasibility Requests',  icon: ClipboardCheck,  to: '/settings/feasibility-requests'  },
+      { label: 'Roles',                 icon: Shield,          to: '/settings/roles'                 },
+    ],
+  },
   { label: 'Notifications',    icon: Bell,            to: '/notification-settings'         },
-  { label: 'Roles',            icon: Shield,          to: '/settings/roles'                },
 ]
 
 export default function Sidebar({ collapsed }) {
