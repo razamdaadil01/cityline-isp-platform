@@ -1298,7 +1298,7 @@ export default function Sales() {
             <h1 className="text-xl font-bold text-gray-900">Sales Pipeline</h1>
             <p className="text-sm text-gray-500 mt-0.5">Drag cards between stages to update lead progress</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* View toggle */}
             <div className="flex items-center gap-0.5 bg-gray-100 p-1 rounded-lg">
               <button
@@ -1318,30 +1318,6 @@ export default function Sales() {
                 <List size={13} /> Table
               </button>
             </div>
-            {/* Role toggle */}
-            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg text-xs">
-              <button className="px-3 py-1 rounded-md font-semibold capitalize transition-all bg-white text-gray-900 shadow-sm">
-                📊 Sales
-              </button>
-              <button onClick={() => navigate('/sales/hw-assignment')}
-                className="px-3 py-1 rounded-md font-semibold capitalize transition-all text-gray-500 hover:text-gray-700">
-                🔧 Inventory
-              </button>
-            </div>
-            <Link to="/sales/followups">
-              <Button variant="secondary" size="sm" icon={<PhoneCall size={14} />}>
-                Follow-ups
-                {todayFollowUps > 0 && (
-                  <span className="ml-1 bg-brand-orange text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{todayFollowUps}</span>
-                )}
-              </Button>
-            </Link>
-            <Link to="/sales/pipelines">
-              <Button variant="secondary" size="sm" icon={<Layers size={14} />}>Pipelines</Button>
-            </Link>
-            <Link to="/sales/analytics">
-              <Button variant="secondary" size="sm" icon={<BarChart2 size={14} />}>Analytics</Button>
-            </Link>
             <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')}>
               Add Lead
             </Button>
@@ -1470,21 +1446,22 @@ export default function Sales() {
 
         return (
           <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-xl border border-surface-border shadow-card overflow-hidden bg-white">
+            <div className="overflow-x-auto">
+              <table className="text-sm" style={{ minWidth: 1160 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left">Lead ID</th>
-                    <th className="px-4 py-3 text-left">Lead Name</th>
-                    <th className="px-4 py-3 text-left">Customer</th>
-                    <th className="px-4 py-3 text-left">Mobile</th>
-                    <th className="px-4 py-3 text-left">Pipeline</th>
-                    <th className="px-4 py-3 text-left">Stage</th>
-                    <th className="px-4 py-3 text-left">Assigned</th>
-                    <th className="px-4 py-3 text-left">Follow-up</th>
-                    <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-left">Created</th>
-                    <th className="px-4 py-3 text-left">Actions</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 80 }}>Lead ID</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 180 }}>Lead Name</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Customer</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Mobile</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 110 }}>Pipeline</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 130 }}>Stage</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Assigned</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 110 }}>Follow-up</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 90 }}>Status</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 100 }}>Created</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 100 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
@@ -1559,6 +1536,7 @@ export default function Sales() {
                   })}
                 </tbody>
               </table>
+            </div>
 
               {/* Pagination */}
               <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
