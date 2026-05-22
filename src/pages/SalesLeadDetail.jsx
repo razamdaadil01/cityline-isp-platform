@@ -48,26 +48,68 @@ const STAFF = [
 const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 
 const STAGE_FIELDS = {
+  'Contacted': [
+    { id: 'contactMethod',       label: 'Contact Method',             type: 'dropdown', required: true,  options: ['Call','WhatsApp','Email','Visit'] },
+    { id: 'interested',          label: 'Interested',                 type: 'dropdown', required: true,  options: ['Yes','No','Maybe'] },
+    { id: 'contactNotes',        label: 'Contact Notes',              type: 'textarea' },
+  ],
   'Site Survey': [
-    { id: 'feasibilityStatus',   label: 'Feasibility Status',        type: 'dropdown', options: ['Feasible','Not Feasible','Pending'] },
+    { id: 'feasibilityStatus',   label: 'Feasibility Status',         type: 'dropdown', required: true,  options: ['Feasible','Not Feasible','Pending'] },
     { id: 'nearestFiberNode',    label: 'Nearest Fiber Node',         type: 'text' },
     { id: 'distanceFromNetwork', label: 'Distance from Network (m)',  type: 'number' },
+    { id: 'address',             label: 'Address',                    type: 'textarea' },
+    { id: 'pincode',             label: 'Pincode',                    type: 'text' },
   ],
   'Technical Feasibility': [
-    { id: 'feasibilityStatus',   label: 'Feasibility Status',        type: 'dropdown', options: ['Feasible','Not Feasible','Pending'] },
+    { id: 'feasibilityStatus',   label: 'Feasibility Status',         type: 'dropdown', required: true,  options: ['Feasible','Not Feasible','Pending'] },
     { id: 'nearestFiberNode',    label: 'Nearest Fiber Node',         type: 'text' },
     { id: 'distanceFromNetwork', label: 'Distance from Network (m)',  type: 'number' },
+    { id: 'address',             label: 'Address',                    type: 'textarea' },
+    { id: 'pincode',             label: 'Pincode',                    type: 'text' },
+  ],
+  'Site Visit Scheduled': [
+    { id: 'visitDate',           label: 'Visit Date',                 type: 'date',     required: true },
+    { id: 'visitTime',           label: 'Visit Time',                 type: 'time' },
+    { id: 'technicianName',      label: 'Technician Name',            type: 'text' },
+    { id: 'visitNotes',          label: 'Visit Notes',                type: 'textarea' },
   ],
   'Quotation Sent': [
-    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number' },
-    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', options: PLANS },
+    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number',   required: true },
+    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', required: true,  options: PLANS },
     { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
+    { id: 'validUntil',          label: 'Valid Until',                type: 'date' },
+  ],
+  'Quotation': [
+    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number',   required: true },
+    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', required: true,  options: PLANS },
+    { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
+    { id: 'validUntil',          label: 'Valid Until',                type: 'date' },
   ],
   'Commercial Proposal': [
-    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number' },
-    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', options: PLANS },
+    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number',   required: true },
+    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', required: true,  options: PLANS },
     { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
+    { id: 'validUntil',          label: 'Valid Until',                type: 'date' },
   ],
+  'Negotiation': [
+    { id: 'customerConcern',     label: 'Customer Concern',           type: 'textarea', required: true },
+    { id: 'offeredDiscount',     label: 'Offered Discount (%)',       type: 'number' },
+    { id: 'counterOfferAmount',  label: 'Counter Offer Amount (₹)',   type: 'number' },
+  ],
+  'Won': [
+    { id: 'installationDate',    label: 'Installation Date',          type: 'date',     required: true },
+    { id: 'finalPlan',           label: 'Final Plan',                 type: 'dropdown', required: true,  options: PLANS },
+    { id: 'finalAmount',         label: 'Final Amount (₹)',           type: 'number',   required: true },
+    { id: 'technicianAssigned',  label: 'Technician Assigned',        type: 'text' },
+  ],
+  'Lost': [
+    { id: 'lostReason',          label: 'Lost Reason',                type: 'dropdown', required: true,  options: ['Price Too High','No Feasibility','Competition','Not Interested','Other'] },
+    { id: 'lostNotes',           label: 'Lost Notes',                 type: 'textarea' },
+  ],
+}
+
+function getFieldLabel(stage, fieldId) {
+  return (STAGE_FIELDS[stage] ?? []).find(f => f.id === fieldId)?.label ?? fieldId
 }
 
 const TODAY = '2026-05-22'
@@ -89,24 +131,29 @@ function timeAgo(daysAgo, hoursAgo) {
 function MoveStageModal({ isOpen, onClose, lead, onSave }) {
   const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
   const availableStages = pl.stages.filter(s => s !== lead?.stage)
-  const [targetStage, setTargetStage]   = useState('')
-  const [fieldVals, setFieldVals]       = useState({})
+  const [targetStage, setTargetStage]         = useState('')
+  const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
-  const [fuForm, setFuForm]             = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
-  const [loading, setLoading]           = useState(false)
+  const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
+  const [loading, setLoading]                 = useState(false)
 
   useEffect(() => {
     if (isOpen) { setTargetStage(''); setFieldVals({}); setFollowupEnabled(false); setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] }) }
   }, [isOpen])
 
-  const stageFields = STAGE_FIELDS[targetStage] ?? []
+  const stageFields    = STAGE_FIELDS[targetStage] ?? []
+  const requiredFields = stageFields.filter(f => f.required)
+  const requiredFilled = requiredFields.every(f => !!fieldVals[f.id])
+  const filledCount    = stageFields.filter(f => !!fieldVals[f.id]).length
+
+  function setField(id, val) { setFieldVals(p => ({ ...p, [id]: val })) }
 
   function toggleNotify(name) {
     setFuForm(p => ({ ...p, notifyTo: p.notifyTo.includes(name) ? p.notifyTo.filter(n => n !== name) : [...p.notifyTo, name] }))
   }
 
   function handleMove() {
-    if (!targetStage) return
+    if (!targetStage || !requiredFilled) return
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
@@ -121,13 +168,15 @@ function MoveStageModal({ isOpen, onClose, lead, onSave }) {
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
-            onClick={handleMove} disabled={!targetStage || loading}>
+            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled}>
             {loading ? 'Moving…' : 'Move Stage'}
           </Button>
         </>
       }
     >
       <div className="space-y-5">
+
+        {/* Stage selectors */}
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Current Stage">
             <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-surface-border">
@@ -143,31 +192,57 @@ function MoveStageModal({ isOpen, onClose, lead, onSave }) {
           </FormField>
         </div>
 
+        {/* Dynamic stage fields */}
         {targetStage && stageFields.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-              Fields required for {targetStage}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-brand-blue uppercase tracking-wider">
+                Stage Fields — {targetStage}
+              </p>
+              <span className="text-[11px] text-gray-500 font-medium bg-white border border-surface-border rounded-full px-2 py-0.5">
+                {filledCount}/{stageFields.length} filled
+                {requiredFields.length > 0 && ` · ${requiredFields.length} required`}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               {stageFields.map(f => (
-                <FormField key={f.id} label={f.label}>
-                  {f.type === 'dropdown' ? (
-                    <Select value={fieldVals[f.id] ?? ''} onChange={e => setFieldVals(p => ({ ...p, [f.id]: e.target.value }))}>
-                      <option value="">Select…</option>
-                      {f.options.map(o => <option key={o}>{o}</option>)}
-                    </Select>
-                  ) : (
-                    <Input type={f.type === 'number' ? 'number' : 'text'}
-                      value={fieldVals[f.id] ?? ''}
-                      onChange={e => setFieldVals(p => ({ ...p, [f.id]: e.target.value }))}
-                    />
-                  )}
-                </FormField>
+                <div key={f.id} className={f.type === 'textarea' ? 'col-span-2' : ''}>
+                  <FormField label={f.label} required={f.required}>
+                    {f.type === 'dropdown' ? (
+                      <Select value={fieldVals[f.id] ?? ''} onChange={e => setField(f.id, e.target.value)}>
+                        <option value="">Select…</option>
+                        {f.options.map(o => <option key={o}>{o}</option>)}
+                      </Select>
+                    ) : f.type === 'textarea' ? (
+                      <Textarea
+                        value={fieldVals[f.id] ?? ''}
+                        onChange={e => setField(f.id, e.target.value)}
+                        rows={2}
+                        placeholder={`Enter ${f.label.toLowerCase()}…`}
+                      />
+                    ) : (
+                      <Input
+                        type={f.type}
+                        value={fieldVals[f.id] ?? ''}
+                        onChange={e => setField(f.id, e.target.value)}
+                      />
+                    )}
+                  </FormField>
+                </div>
               ))}
             </div>
           </div>
         )}
 
+        {/* No fields notice */}
+        {targetStage && stageFields.length === 0 && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
+            No additional fields required for this stage.
+          </div>
+        )}
+
+        {/* Follow-up toggle */}
         <div className="border border-surface-border rounded-xl overflow-hidden">
           <button type="button" onClick={() => setFollowupEnabled(p => !p)}
             className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
@@ -337,8 +412,9 @@ export default function SalesLeadDetail() {
     { id: 'C1', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue',   text: 'Called customer — interested in 100 Mbps plan. Will follow up tomorrow.', timeLabel: '2 days ago',   replies: [] },
   ])
 
-  // Mock activity log
+  // Activity log — dynamic entries from lead prepended to mock history
   const activityLog = [
+    ...(lead?.activityLog ?? []),
     { id: 7, icon: '🟡', text: 'Follow-up rescheduled to 25 May', user: lead?.assigned ?? 'Arjun Kumar', time: '5 hours ago' },
     { id: 6, icon: '🔵', text: `Stage moved: Contacted → Follow-up`, user: lead?.assigned ?? 'Arjun Kumar', time: '1 day ago' },
     { id: 5, icon: '💬', text: 'Comment added', user: 'Preethi Nair', time: '1 day ago' },
@@ -348,8 +424,8 @@ export default function SalesLeadDetail() {
     { id: 1, icon: '🟢', text: 'Lead Created', user: lead?.createdBy ?? 'Arjun Kumar', time: '5 days ago' },
   ]
 
-  // Stage history inferred from current stage index
-  const stageHistory = (() => {
+  // Stage history — use persisted version if available, otherwise infer from current stage index
+  const stageHistory = lead?.stageHistory ?? (() => {
     if (!lead) return []
     const pl = PIPELINES[lead.pipeline] ?? PIPELINES.B2C
     const idx = pl.stages.indexOf(lead.stage)
@@ -358,6 +434,7 @@ export default function SalesLeadDetail() {
       stage: s,
       date: `2026-05-${String(17 + i).padStart(2, '0')}`,
       movedBy: i === 0 ? (lead.createdBy ?? 'Arjun Kumar') : lead.assigned,
+      fields: {},
     }))
   })()
 
@@ -379,7 +456,29 @@ export default function SalesLeadDetail() {
   const staff = STAFF.find(s => s.name === lead.assigned)
 
   function handleMoveStage(targetStage, fieldVals, fuData) {
-    saveLead({ ...lead, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` })
+    const filledCount = Object.values(fieldVals).filter(Boolean).length
+    const newHistoryEntry = {
+      stage: targetStage,
+      date: TODAY,
+      movedBy: lead.assigned ?? 'Arjun Kumar',
+      fields: fieldVals,
+    }
+    const updatedHistory = [...stageHistory, newHistoryEntry]
+    const newActivityEntry = {
+      id: Date.now(),
+      icon: '🔵',
+      text: `Stage moved to ${targetStage}${filledCount > 0 ? ` with ${filledCount} field${filledCount !== 1 ? 's' : ''} filled` : ''}`,
+      user: lead.assigned ?? 'Arjun Kumar',
+      time: 'just now',
+    }
+    saveLead({
+      ...lead,
+      stage: targetStage,
+      daysInStage: 0,
+      lastActivity: `Moved to ${targetStage}`,
+      stageHistory: updatedHistory,
+      activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
+    })
     if (fuData?.date) {
       saveFollowup({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage, assignedTo: lead.assigned, notifyTo: fuData.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
     }
@@ -614,15 +713,26 @@ export default function SalesLeadDetail() {
                 <div className="space-y-0">
                   {stageHistory.map((sh, i) => {
                     const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
+                    const filledFields = Object.entries(sh.fields ?? {}).filter(([, v]) => v)
                     return (
                       <div key={i} className="flex gap-3 pb-4 relative">
                         {i < stageHistory.length - 1 && (
                           <div className="absolute left-2 top-5 bottom-0 w-px bg-gray-200" />
                         )}
                         <div className={`w-4 h-4 rounded-full shrink-0 mt-0.5 ${ss.dot} z-10`} />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-gray-800">{sh.stage}</p>
                           <p className="text-[10px] text-gray-400">{sh.date} · by {sh.movedBy}</p>
+                          {filledFields.length > 0 && (
+                            <div className="mt-1.5 bg-gray-50 rounded-lg border border-gray-100 p-2 space-y-1">
+                              {filledFields.map(([key, val]) => (
+                                <div key={key} className="flex items-start gap-1 text-[10px]">
+                                  <span className="text-gray-400 shrink-0">{getFieldLabel(sh.stage, key)}:</span>
+                                  <span className="text-gray-700 font-medium break-all">{val}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
