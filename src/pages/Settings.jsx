@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook,
+  BookOpen, Webhook, MapPin, ClipboardCheck, ChevronRight,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -12,12 +13,13 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'general',       label: 'General',               icon: Building2 },
-  { id: 'billing',       label: 'Billing',               icon: Receipt   },
-  { id: 'notifications', label: 'Notifications',         icon: Bell      },
-  { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
-  { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen  },
-  { id: 'roles',         label: 'Roles & Permissions',   icon: Shield    },
+  { id: 'general',       label: 'General',               icon: Building2      },
+  { id: 'billing',       label: 'Billing',               icon: Receipt        },
+  { id: 'notifications', label: 'Notifications',         icon: Bell           },
+  { id: 'jaze',          label: 'Jaze Servers',          icon: Server         },
+  { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen       },
+  { id: 'roles',         label: 'Roles & Permissions',   icon: Shield         },
+  { id: 'area-mapping',  label: 'Area Mapping',          icon: MapPin         },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -536,6 +538,64 @@ function RolesTab() {
   )
 }
 
+// ── Area Mapping Tab ──────────────────────────────────────────────────────────
+
+function AreaMappingTab() {
+  const navigate = useNavigate()
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Area Mapping</h2>
+        <p className="text-xs text-gray-500 mt-1">Manage service areas, localities and feasibility settings for lead address selection</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => navigate('/settings/area-mapping')}
+          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
+              <MapPin size={18} className="text-brand-blue" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Manage Area Mapping</p>
+              <p className="text-xs text-gray-400 mt-0.5">States, districts, areas, localities &amp; sub localities</p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
+        </button>
+
+        <button
+          onClick={() => navigate('/settings/feasibility-requests')}
+          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-orange/40 hover:bg-orange-50/30 transition-all group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-orange/10 rounded-xl flex items-center justify-center shrink-0">
+              <ClipboardCheck size={18} className="text-brand-orange" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Feasibility Requests</p>
+              <p className="text-xs text-gray-400 mt-0.5">Review and update pending feasibility checks</p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-orange transition-colors" />
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-surface-border bg-gray-50/50 p-4">
+        <p className="text-xs font-semibold text-gray-500 mb-2">How it works</p>
+        <ol className="text-xs text-gray-500 space-y-1.5 list-decimal list-inside">
+          <li>Add states, districts, areas, localities and sub-localities in <strong className="text-gray-700">Manage Area Mapping</strong>.</li>
+          <li>When a lead is created, the address dropdowns are powered by this mapping.</li>
+          <li>If a sub-locality isn&apos;t in the mapping, the agent can flag it as <strong className="text-gray-700">Feasibility Required</strong>.</li>
+          <li>Admin reviews and updates those requests in <strong className="text-gray-700">Feasibility Requests</strong>.</li>
+        </ol>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -573,6 +633,7 @@ export default function Settings() {
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'         && <RolesTab />}
+          {activeTab === 'area-mapping'  && <AreaMappingTab />}
         </div>
       </div>
     </div>
