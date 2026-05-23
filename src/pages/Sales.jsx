@@ -1132,7 +1132,7 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 export default function Sales() {
   const [leads, setLeads]               = useState(getLeads)
   const [activePipeline, setActivePipeline] = useState('B2C')
-  const [viewMode, setViewMode]          = useState('kanban')
+  const [viewMode, setViewMode]          = useState('table')
   const [draggingId, setDraggingId]     = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
   const [showModal, setShowModal]       = useState(false)
