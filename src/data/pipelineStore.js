@@ -13,6 +13,7 @@ const INIT_PIPELINES = [
       { id: 's5', name: 'Quotation Sent',       color: 'bg-orange-500',  required: false, type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
       { id: 's5b', name: 'Negotiation',         color: 'bg-pink-500',    required: false, type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
       { id: 's5c', name: 'Hardware Assignment', color: 'bg-violet-500',  required: false, type: 'Hardware Assignment', active: true, statusType: 'Open', followUpAllowed: true  },
+      { id: 's5d', name: 'Installation Visit', color: 'bg-purple-600', required: false, type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
       { id: 's6', name: 'Won',                  color: 'bg-emerald-500', required: false, type: 'Standard',           active: true, statusType: 'Won',  followUpAllowed: false },
       { id: 's7', name: 'Lost',                 color: 'bg-red-500',     required: false, type: 'Standard',           active: true, statusType: 'Lost', followUpAllowed: false },
     ],

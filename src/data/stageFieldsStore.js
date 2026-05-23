@@ -27,6 +27,12 @@ const INIT = {
     field('s5-f3', 'Installation Charges', 'Number',   false),
     field('s5-f4', 'Valid Until',          'Date',     false),
   ],
+  s5d: [
+    field('s5d-f1', 'Installation Date',  'Date',     true),
+    field('s5d-f2', 'Installation Time',  'Time',     true),
+    field('s5d-f3', 'Engineer Assigned',  'Dropdown', true, ['Ravi Technician (ENG-001)', 'Kumar Installer (ENG-002)', 'Sunil Networks (ENG-003)']),
+    field('s5d-f4', 'Installation Notes', 'Textarea', false),
+  ],
   s6: [
     field('s6-f1', 'Installation Date',   'Date',     true),
     field('s6-f2', 'Technician Assigned', 'Text',     true),
