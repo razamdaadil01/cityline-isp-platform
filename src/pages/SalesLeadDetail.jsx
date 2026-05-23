@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit3, TrendingUp, Bell, MessageSquare,
   Activity, Plus, CheckCircle2, XCircle, CalendarDays,
-  Phone, Mail, MapPin, User, Clock, ChevronDown,
+  Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
+  Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { saveFollowup } from '../data/followupStore'
@@ -17,7 +18,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
-  B2C: { label: 'Residential', labelFull: 'Residential', color: '#0A8DCD', stages: ['New Inquiry','Contacted','Follow-up','Site Survey','Quotation Sent','Negotiation','Hardware Assignment','Won','Lost'] },
+  B2C: { label: 'Residential', labelFull: 'Residential', color: '#0A8DCD', stages: ['New Inquiry','Contacted','Follow-up','Site Survey','Quotation Sent','Negotiation','Hardware Assignment','Installation Visit','Won','Lost'] },
   B2B: { label: 'Corporate',   labelFull: 'Corporate',   color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Hardware Assignment','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
   Custom: { label: 'Custom',   labelFull: 'Custom Pipeline', color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
 }
@@ -30,6 +31,7 @@ const STAGE_STYLES = {
   'Quotation Sent':        { chip: 'bg-orange-100 text-orange-700',  dot: 'bg-orange-500'  },
   'Negotiation':           { chip: 'bg-pink-100 text-pink-700',      dot: 'bg-pink-500'    },
   'Hardware Assignment':   { chip: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500'  },
+  'Installation Visit':    { chip: 'bg-purple-100 text-purple-700',  dot: 'bg-purple-600'  },
   'Won':                   { chip: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500' },
   'Lost':                  { chip: 'bg-red-100 text-red-600',        dot: 'bg-red-400'     },
   'Meeting Scheduled':     { chip: 'bg-sky-100 text-sky-700',        dot: 'bg-sky-500'     },
@@ -78,6 +80,444 @@ function timeAgo(daysAgo, hoursAgo) {
   if (daysAgo === 0) return 'today'
   if (daysAgo === 1) return '1 day ago'
   return `${daysAgo} days ago`
+}
+
+function formatTimer(secs) {
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 3) return phone
+  return 'X'.repeat(phone.length - 3) + phone.slice(-3)
+}
+
+// ── OTPModal ──────────────────────────────────────────────────────────────────
+
+function OTPModal({ isOpen, onClose, phone, onVerified }) {
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [resent, setResent] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) { setOtp(''); setError(''); setResent(false) }
+  }, [isOpen])
+
+  function handleVerify() {
+    if (otp.length !== 6) return
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      if (otp === '123456') {
+        onVerified()
+        onClose()
+      } else {
+        setError('Invalid OTP. Please try again.')
+      }
+    }, 800)
+  }
+
+  function handleResend() {
+    setResent(true)
+    setError('')
+    setTimeout(() => setResent(false), 3000)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Verify Customer" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleResend} disabled={loading || resent}>
+            {resent ? 'OTP Sent!' : 'Resend OTP'}
+          </Button>
+          <Button
+            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            onClick={handleVerify}
+            disabled={otp.length !== 6 || loading}
+          >
+            {loading ? 'Verifying…' : 'Verify & Start'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <div className="flex flex-col items-center py-4">
+          <div className="w-14 h-14 bg-brand-blue/10 rounded-full flex items-center justify-center mb-3">
+            <Smartphone size={24} className="text-brand-blue" />
+          </div>
+          <p className="text-sm text-gray-600 text-center leading-relaxed">
+            An OTP has been sent to the customer's registered mobile
+          </p>
+          <p className="text-base font-bold text-gray-900 mt-2 font-mono tracking-widest">
+            {maskPhone(phone)}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-2 text-center">Enter 6-digit OTP</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            value={otp}
+            onChange={e => { setOtp(e.target.value.replace(/\D/g, '')); setError('') }}
+            placeholder="• • • • • •"
+            className="w-full text-center text-2xl font-mono tracking-[0.6em] px-4 py-3 border-2 border-surface-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-gray-50 placeholder-gray-300"
+          />
+          {error && <p className="text-xs text-red-500 mt-2 text-center">{error}</p>}
+          <p className="text-[11px] text-gray-400 mt-2 text-center">Demo: use OTP <span className="font-mono font-bold">123456</span></p>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── HardwareAssignmentModal ───────────────────────────────────────────────────
+
+function HardwareAssignmentModal({ isOpen, onClose, lead, onConfirm }) {
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({
+    deviceType: 'ONT', deviceModel: '', serialNumber: '',
+    macAddress: '', condition: 'New',
+    cableType: 'Fiber Optic', cableLength: '', drumNumber: '',
+  })
+
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1)
+      setForm({ deviceType: 'ONT', deviceModel: '', serialNumber: '', macAddress: '', condition: 'New', cableType: 'Fiber Optic', cableLength: '', drumNumber: '' })
+    }
+  }, [isOpen])
+
+  const canNext = form.serialNumber.trim() && form.macAddress.trim()
+
+  function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
+
+  const cableSummary = [form.cableType, form.cableLength ? `${form.cableLength}m` : '', form.drumNumber ? `Drum ${form.drumNumber}` : ''].filter(Boolean).join(' — ')
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Hardware Assignment" size="lg"
+      footer={
+        step === 1 ? (
+          <>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button iconRight={<ChevronRight size={14} />} onClick={() => setStep(2)} disabled={!canNext}>
+              Next: Confirm
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={() => setStep(1)}>Back</Button>
+            <Button icon={<CheckCircle2 size={14} />} onClick={() => onConfirm(form)}>
+              Confirm & Complete
+            </Button>
+          </>
+        )
+      }
+    >
+      {step === 1 ? (
+        <div className="space-y-6">
+          <p className="text-sm text-gray-500">Assign equipment before completing installation</p>
+
+          {/* ONT / Router section */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Package size={13} className="text-gray-500" />
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">ONT / Router</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Device Type">
+                <Select value={form.deviceType} onChange={e => set('deviceType', e.target.value)}>
+                  {['ONT', 'Router', 'ONU', 'Switch'].map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Device Model">
+                <Input value={form.deviceModel} onChange={e => set('deviceModel', e.target.value)} placeholder="e.g. Huawei HG8310M" />
+              </FormField>
+              <FormField label="Serial Number" required>
+                <Input value={form.serialNumber} onChange={e => set('serialNumber', e.target.value)} placeholder="e.g. HW2024001234" />
+              </FormField>
+              <FormField label="MAC Address" required>
+                <Input value={form.macAddress} onChange={e => set('macAddress', e.target.value)} placeholder="e.g. 123450A1B2C3D4" />
+              </FormField>
+              <FormField label="Condition">
+                <Select value={form.condition} onChange={e => set('condition', e.target.value)}>
+                  <option>New</option>
+                  <option>Refurbished</option>
+                </Select>
+              </FormField>
+            </div>
+          </div>
+
+          {/* Wire / Cable section */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={13} className="text-gray-500" />
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Wire / Cable</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Cable Type">
+                <Select value={form.cableType} onChange={e => set('cableType', e.target.value)}>
+                  {['Fiber Optic', 'CAT6', 'Coaxial'].map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Cable Length (meters)">
+                <Input type="number" value={form.cableLength} onChange={e => set('cableLength', e.target.value)} placeholder="e.g. 50" />
+              </FormField>
+              <FormField label="Drum Number">
+                <Input value={form.drumNumber} onChange={e => set('drumNumber', e.target.value)} placeholder="e.g. DR-2024-001" />
+              </FormField>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="bg-gray-50 border border-surface-border rounded-xl p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Summary</p>
+            <div className="space-y-0">
+              <InfoRow label="Customer" value={lead?.name} />
+              <InfoRow label="Device"   value={`${form.deviceType}${form.deviceModel ? ` — ${form.deviceModel}` : ''}`} />
+              {form.serialNumber && <InfoRow label="Serial"   value={form.serialNumber} highlight />}
+              {form.macAddress   && <InfoRow label="MAC"      value={form.macAddress}   highlight />}
+              {form.condition    && <InfoRow label="Condition" value={form.condition} />}
+              {cableSummary      && <InfoRow label="Cable"    value={cableSummary} />}
+            </div>
+          </div>
+
+          {/* Warning banner */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-amber-800 mb-2.5">This will:</p>
+            <div className="space-y-2">
+              {[
+                'Link device to customer account',
+                'Generate PPPoE credentials',
+                'Mark lead as Won',
+                'Create customer account',
+              ].map(item => (
+                <div key={item} className="flex items-center gap-2 text-xs text-amber-700">
+                  <CheckCircle size={12} className="text-amber-600 shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ── PaymentModal ──────────────────────────────────────────────────────────────
+
+function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
+  const [paymentType, setPaymentType] = useState('received')
+  const [form, setForm] = useState({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
+  const [copied, setCopied] = useState(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setPaymentType('received')
+      setForm({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
+      setCopied(null)
+    }
+  }, [isOpen])
+
+  function handleCopy(text, key) {
+    navigator.clipboard?.writeText(text).catch(() => {})
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Customer Account Created" size="lg">
+      <div className="space-y-5">
+
+        {/* PPPoE Credentials */}
+        <div className="bg-navy/5 border border-navy/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Wifi size={13} className="text-navy" />
+            <p className="text-xs font-bold text-navy uppercase tracking-wider">PPPoE Credentials</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: 'Customer ID', value: data?.customerId },
+              { label: 'Plan',        value: data?.plan       },
+              { label: 'Username',    value: data?.username   },
+              { label: 'Password',    value: data?.password   },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white rounded-lg border border-surface-border p-3">
+                <p className="text-[10px] text-gray-400 mb-1">{label}</p>
+                <div className="flex items-center justify-between gap-1">
+                  <p className="text-sm font-mono font-bold text-gray-900 truncate">{value}</p>
+                  <button onClick={() => handleCopy(value ?? '', label)} className="shrink-0 text-gray-400 hover:text-brand-blue transition-colors">
+                    {copied === label ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Payment Status */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <CreditCard size={13} className="text-gray-500" />
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Status</p>
+          </div>
+
+          <div className="space-y-3">
+            {/* Option A — Payment Received */}
+            <div
+              onClick={() => setPaymentType('received')}
+              className={`border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'received' ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:border-brand-blue/30'}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${paymentType === 'received' ? 'border-brand-blue' : 'border-gray-300'}`}>
+                  {paymentType === 'received' && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Payment Already Received</p>
+                  <p className="text-xs text-gray-500">Customer has paid in advance</p>
+                  {paymentType === 'received' && (
+                    <div className="mt-3 space-y-3" onClick={e => e.stopPropagation()}>
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Amount Paid">
+                          <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" />
+                        </FormField>
+                        <FormField label="Payment Mode">
+                          <Select value={form.mode} onChange={e => setForm(p => ({ ...p, mode: e.target.value }))}>
+                            {['Cash', 'UPI', 'Bank Transfer', 'Cheque'].map(m => <option key={m}>{m}</option>)}
+                          </Select>
+                        </FormField>
+                      </div>
+                      <FormField label="Reference Number">
+                        <Input value={form.reference} onChange={e => setForm(p => ({ ...p, reference: e.target.value }))} placeholder="Transaction ID or Cheque no." />
+                      </FormField>
+                      <Button className="w-full" icon={<CheckCircle2 size={14} />} onClick={onPaymentConfirmed}>
+                        Confirm Payment
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Option B — Payment Pending */}
+            <div
+              onClick={() => setPaymentType('pending')}
+              className={`border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'pending' ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:border-brand-blue/30'}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${paymentType === 'pending' ? 'border-brand-blue' : 'border-gray-300'}`}>
+                  {paymentType === 'pending' && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Payment Pending</p>
+                  <p className="text-xs text-gray-500">Send payment request to customer</p>
+                  {paymentType === 'pending' && (
+                    <div className="mt-3 space-y-3" onClick={e => e.stopPropagation()}>
+                      <FormField label="Amount Due">
+                        <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" />
+                      </FormField>
+                      <FormField label="Payment Link (auto-generated)">
+                        <div className="flex items-center gap-2">
+                          <Input value="https://pay.cityline.in/inv-001" readOnly className="bg-gray-50 text-gray-500 text-xs" />
+                          <button
+                            onClick={() => handleCopy('https://pay.cityline.in/inv-001', 'paylink')}
+                            className="shrink-0 p-2 border border-surface-border rounded-lg text-gray-400 hover:text-brand-blue hover:border-brand-blue/40 transition-colors"
+                          >
+                            {copied === 'paylink' ? <CheckCircle size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                          </button>
+                        </div>
+                      </FormField>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 mb-2">Send via</p>
+                        <div className="flex gap-2">
+                          {['WhatsApp', 'Email', 'SMS'].map(via => (
+                            <button
+                              key={via}
+                              onClick={() => setForm(p => ({ ...p, sendVia: via }))}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${form.sendVia === via ? 'border-brand-blue bg-brand-blue/10 text-brand-blue' : 'border-surface-border text-gray-600 hover:border-brand-blue/40'}`}
+                            >
+                              {via}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <Button className="w-full" icon={<Send size={14} />} onClick={onPaymentConfirmed}>
+                        Send Payment Request
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── ActivationSuccessModal ────────────────────────────────────────────────────
+
+function ActivationSuccessModal({ isOpen, onClose, data }) {
+  const [copied, setCopied] = useState(null)
+
+  function handleCopy(text, key) {
+    navigator.clipboard?.writeText(text).catch(() => {})
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Activation Complete" size="lg"
+      footer={
+        <div className="flex gap-3 w-full">
+          <Button variant="secondary" className="flex-1" icon={<MessageSquare size={14} />}>
+            Send via WhatsApp
+          </Button>
+          <Button variant="secondary" className="flex-1" icon={<Mail size={14} />}>
+            Send via Email
+          </Button>
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <div className="text-center py-4">
+          <div className="text-5xl mb-3">🎉</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Internet Service Activated!</h2>
+          <p className="text-sm text-gray-500">The customer's internet service is now live.</p>
+        </div>
+
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+          <div className="space-y-3">
+            {[
+              { label: 'Customer ID', value: data?.customerId },
+              { label: 'Username',    value: data?.username   },
+              { label: 'Password',    value: data?.password   },
+              { label: 'Plan',        value: data?.plan       },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-xs font-medium text-emerald-700">{label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono font-bold text-emerald-900">{value}</span>
+                  <button onClick={() => handleCopy(value ?? '', label)} className="text-emerald-600 hover:text-emerald-800 transition-colors">
+                    {copied === label ? <CheckCircle size={13} /> : <Copy size={13} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
 }
 
 // ── MoveStageModal ─────────────────────────────────────────────────────────────
@@ -421,12 +861,40 @@ export default function SalesLeadDetail() {
   const [replyText, setReplyText]   = useState('')
   const commentRef = useRef(null)
 
+  // Installation flow state
+  const [installStatus, setInstallStatus]         = useState('not_started')
+  const [otpOpen, setOtpOpen]                     = useState(false)
+  const [installStartedAt, setInstallStartedAt]   = useState('')
+  const [elapsed, setElapsed]                     = useState(0)
+  const [hwModalOpen, setHwModalOpen]             = useState(false)
+  const [activationData, setActivationData]       = useState(null)
+  const [activationModalOpen, setActivationModalOpen]   = useState(false)
+  const [activationSuccessOpen, setActivationSuccessOpen] = useState(false)
+
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribePipelines(setPipelines), [])
+
+  // Live installation timer
+  useEffect(() => {
+    if (installStatus !== 'in_progress') return
+    const id = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [installStatus])
 
   const lead = leads.find(l => l.id === id)
 
   const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+
+  // Installation visit data from stage history
+  const installVisitEntry = lead?.stageHistory?.find(sh => sh.stage === 'Installation Visit')
+  const installDate   = installVisitEntry?.fields?.['s5d-f1'] ?? '—'
+  const installTime   = installVisitEntry?.fields?.['s5d-f2'] ?? '—'
+  const engineerName  = installVisitEntry?.fields?.['s5d-f3'] ?? 'Ravi Technician (ENG-001)'
+
+  // eKYC completeness check
+  const eKycComplete = lead
+    ? ['aadhaar', 'panCard', 'customerPhoto'].every(k => lead.kycDocs?.[k])
+    : false
 
   // Mock follow-ups for this lead
   const [followups, setFollowups] = useState(() => {
@@ -446,7 +914,7 @@ export default function SalesLeadDetail() {
     { id: 'C1', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue',   text: 'Called customer — interested in 100 Mbps plan. Will follow up tomorrow.', timeLabel: '2 days ago',   replies: [] },
   ])
 
-  // Activity log — dynamic entries from lead prepended to mock history
+  // Activity log
   const activityLog = [
     ...(lead?.activityLog ?? []),
     { id: 7, icon: '🟡', text: 'Follow-up rescheduled to 25 May', user: lead?.assigned ?? 'Arjun Kumar', time: '5 hours ago' },
@@ -458,7 +926,7 @@ export default function SalesLeadDetail() {
     { id: 1, icon: '🟢', text: 'Lead Created', user: lead?.createdBy ?? 'Arjun Kumar', time: '5 days ago' },
   ]
 
-  // Stage history — use persisted version if available, otherwise infer from current stage index
+  // Stage history
   const stageHistory = lead?.stageHistory ?? (() => {
     if (!lead) return []
     const pl = PIPELINES[lead.pipeline] ?? PIPELINES.B2C
@@ -564,6 +1032,39 @@ export default function SalesLeadDetail() {
     setFollowups(p => p.map(f => f.id === fuId ? { ...f, status: 'Cancelled' } : f))
   }
 
+  function handleOTPVerified() {
+    setInstallStatus('in_progress')
+    const now = new Date()
+    const h = now.getHours() % 12 || 12
+    const m = String(now.getMinutes()).padStart(2, '0')
+    const ampm = now.getHours() >= 12 ? 'PM' : 'AM'
+    setInstallStartedAt(`${h}:${m} ${ampm}`)
+    setElapsed(0)
+  }
+
+  function handleHardwareConfirm(hwFormData) {
+    const parts = lead.name.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/)
+    const username = parts.join('_') + '_001'
+    const firstName = parts[0] ?? 'customer'
+    const password = `Cit@2024#${firstName.charAt(0).toUpperCase()}${firstName.slice(1, 3)}`
+    const customerId = `CL-${1040 + Math.floor(Math.random() * 20)}`
+
+    const newHistoryEntry = { stage: 'Won', date: TODAY, movedBy: lead.assigned ?? 'Arjun Kumar', fields: {} }
+    const newActivityEntry = { id: Date.now(), icon: '🏆', text: 'Installation completed — Lead marked as Won', user: lead.assigned ?? 'Arjun Kumar', time: 'just now' }
+    saveLead({
+      ...lead,
+      stage: 'Won',
+      daysInStage: 0,
+      lastActivity: 'Installation completed',
+      stageHistory: [...(lead.stageHistory ?? []), newHistoryEntry],
+      activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
+    })
+
+    setActivationData({ customerId, username, password, plan: lead.plan ?? '100 Mbps Home', customerName: lead.name })
+    setHwModalOpen(false)
+    setActivationModalOpen(true)
+  }
+
   const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))
 
   const TABS = [
@@ -586,7 +1087,6 @@ export default function SalesLeadDetail() {
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="px-6 pt-5 pb-4 bg-white border-b border-surface-border shrink-0">
-        {/* Back */}
         <button onClick={() => navigate('/sales')}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-4 transition-colors">
           <ArrowLeft size={15} /> Back to Sales Pipeline
@@ -594,7 +1094,6 @@ export default function SalesLeadDetail() {
 
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            {/* Lead name + stage badges */}
             <div className="flex items-center gap-2.5 mb-0.5">
               <h1 className="text-xl font-bold text-gray-900 truncate">
                 {lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`}
@@ -610,51 +1109,33 @@ export default function SalesLeadDetail() {
               )}
             </div>
 
-            {/* Customer name subtitle */}
             <p className="text-sm text-gray-500 mb-2">{lead.name}</p>
 
-            {/* Meta row */}
             <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
-              <span className="flex items-center gap-1.5">
-                <Phone size={13} /> {lead.phone}
-              </span>
-              {lead.email && (
-                <span className="flex items-center gap-1.5">
-                  <Mail size={13} /> {lead.email}
-                </span>
-              )}
-              <span className="flex items-center gap-1.5">
-                <MapPin size={13} /> {lead.area}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <CalendarDays size={13} /> Created {lead.createdAt ?? 'N/A'}
-              </span>
-              {/* Assigned */}
+              <span className="flex items-center gap-1.5"><Phone size={13} /> {lead.phone}</span>
+              {lead.email && <span className="flex items-center gap-1.5"><Mail size={13} /> {lead.email}</span>}
+              <span className="flex items-center gap-1.5"><MapPin size={13} /> {lead.area}</span>
+              <span className="flex items-center gap-1.5"><CalendarDays size={13} /> Created {lead.createdAt ?? 'N/A'}</span>
               <span className="flex items-center gap-1.5">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${staff?.color ?? 'bg-gray-400'}`}>
                   {staff?.initials ?? '?'}
                 </div>
                 {lead.assigned}
               </span>
-              {/* Pipeline badge */}
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold text-white" style={{ backgroundColor: pl.color }}>
                 {PIPELINE_LABEL[lead.pipeline]}
               </span>
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <Button variant="secondary" size="sm" icon={<Edit3 size={14} />}
-              onClick={() => navigate('/sales')}>
+            <Button variant="secondary" size="sm" icon={<Edit3 size={14} />} onClick={() => navigate('/sales')}>
               Edit Lead
             </Button>
-            <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
-              onClick={() => setMoveStageOpen(true)}>
+            <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />} onClick={() => setMoveStageOpen(true)}>
               Move Stage
             </Button>
-            <Button variant="secondary" size="sm" icon={<Bell size={14} />}
-              onClick={() => setFollowupOpen(true)}>
+            <Button variant="secondary" size="sm" icon={<Bell size={14} />} onClick={() => setFollowupOpen(true)}>
               Add Follow-up
             </Button>
             {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
@@ -776,6 +1257,82 @@ export default function SalesLeadDetail() {
 
             {/* Column 3 */}
             <div className="space-y-4">
+
+              {/* ── Installation Actions Panel ────────────────────────── */}
+              {lead.stage === 'Installation Visit' && (
+                <div className="bg-white rounded-xl border-2 border-purple-200 p-4 shadow-card">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Wrench size={15} className="text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Installation Actions</p>
+                    </div>
+                  </div>
+
+                  {/* STATE 1 — Not Started */}
+                  {installStatus === 'not_started' && (
+                    <>
+                      <div className="space-y-0 mb-4">
+                        <InfoRow label="Install Date" value={installDate} />
+                        <InfoRow label="Install Time" value={installTime} />
+                        <InfoRow label="Engineer"     value={engineerName} />
+                      </div>
+                      <Button className="w-full" icon={<Wrench size={14} />} onClick={() => setOtpOpen(true)}>
+                        Start Installation
+                      </Button>
+                    </>
+                  )}
+
+                  {/* STATE 2 — In Progress */}
+                  {installStatus === 'in_progress' && (
+                    <>
+                      {/* Live timer */}
+                      <div className="text-center py-4 mb-3 bg-purple-50 border border-purple-100 rounded-xl">
+                        <p className="text-3xl font-mono font-bold text-purple-700 tabular-nums">{formatTimer(elapsed)}</p>
+                        <p className="text-xs text-purple-500 mt-1">Installation in progress</p>
+                      </div>
+
+                      <div className="space-y-0 mb-3">
+                        <InfoRow label="Started at" value={installStartedAt} />
+                        <InfoRow label="Engineer"   value={engineerName} />
+                      </div>
+
+                      {/* eKYC status */}
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-xs font-medium ${
+                        eKycComplete
+                          ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                          : 'bg-amber-50 border border-amber-200 text-amber-700'
+                      }`}>
+                        {eKycComplete
+                          ? <CheckCircle size={13} className="shrink-0" />
+                          : <AlertTriangle size={13} className="shrink-0" />
+                        }
+                        {eKycComplete ? '✅ eKYC Verified' : '⚠️ Complete eKYC before marking done'}
+                      </div>
+
+                      {/* Installation Done button (green when available) */}
+                      <button
+                        disabled={!eKycComplete}
+                        onClick={() => setHwModalOpen(true)}
+                        className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400/40 ${
+                          eKycComplete
+                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm cursor-pointer'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <CheckCircle2 size={14} />
+                        Installation Done
+                      </button>
+                      {!eKycComplete && (
+                        <p className="text-xs text-amber-600 text-center mt-2">Complete eKYC to enable this button</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Active Follow-up */}
               <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Active Follow-up</p>
                 {lead.followUp ? (
@@ -866,7 +1423,6 @@ export default function SalesLeadDetail() {
         {/* ─── COMMENTS ─────────────────────────────────────────────── */}
         {activeTab === 'comments' && (
           <div className="p-6 max-w-3xl">
-            {/* Input */}
             <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
               <textarea
                 ref={commentRef}
@@ -895,7 +1451,6 @@ export default function SalesLeadDetail() {
               </div>
             </div>
 
-            {/* Comments list */}
             <div className="space-y-4">
               {comments.map(c => (
                 <div key={c.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
@@ -1014,6 +1569,35 @@ export default function SalesLeadDetail() {
           data={wonSuccessData}
         />
       )}
+
+      {/* Installation flow modals */}
+      <OTPModal
+        isOpen={otpOpen}
+        onClose={() => setOtpOpen(false)}
+        phone={lead.phone}
+        onVerified={handleOTPVerified}
+      />
+      <HardwareAssignmentModal
+        isOpen={hwModalOpen}
+        onClose={() => setHwModalOpen(false)}
+        lead={lead}
+        onConfirm={handleHardwareConfirm}
+      />
+      <PaymentModal
+        isOpen={activationModalOpen}
+        onClose={() => setActivationModalOpen(false)}
+        lead={lead}
+        data={activationData}
+        onPaymentConfirmed={() => {
+          setActivationModalOpen(false)
+          setActivationSuccessOpen(true)
+        }}
+      />
+      <ActivationSuccessModal
+        isOpen={activationSuccessOpen}
+        onClose={() => setActivationSuccessOpen(false)}
+        data={activationData}
+      />
     </div>
   )
 }
