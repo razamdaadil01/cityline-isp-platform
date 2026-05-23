@@ -158,6 +158,15 @@ export default function SalesNewLead() {
     if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
   }
 
+  // Only show pipelines that are active in the store (B2C→PL-001, B2B→PL-002, Custom always shown)
+  const PIPELINE_STORE_IDS = { B2C: 'PL-001', B2B: 'PL-002' }
+  const activePipelineKeys = Object.keys(PIPELINES).filter(key => {
+    const pid = PIPELINE_STORE_IDS[key]
+    if (!pid) return true
+    const p = pipelines.find(pl => pl.id === pid)
+    return !p || p.active !== false
+  })
+
   const pl = PIPELINES[form.pipeline]
 
   const activePipeline = pipelines.find(p => p.id === (PIPELINE_MAP[form.pipeline] ?? ''))
@@ -269,7 +278,7 @@ export default function SalesNewLead() {
             Pipeline <span className="text-red-400">*</span>
           </p>
           <div className="flex gap-2.5">
-            {Object.keys(PIPELINES).map(key => {
+            {activePipelineKeys.map(key => {
               const isActive = form.pipeline === key
               return (
                 <button

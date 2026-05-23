@@ -6,11 +6,12 @@ import {
   PhoneCall, Search, X, HardDrive, Shield,
   Fingerprint, Send, AlertTriangle, Layers,
   CheckCircle, Loader2, Lock, Upload, FileText, BarChart2,
-  Bell, ClipboardList, LayoutGrid, List, Eye, ChevronDown,
+  Bell, ClipboardList, LayoutGrid, List, Eye, ChevronDown, Trophy,
 } from 'lucide-react'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
+import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -81,8 +82,18 @@ const STAGE_STYLES = {
   'Quotation':             { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
 }
 
+// Maps the hardcoded pipeline keys to pipelineStore IDs for stage config lookup
+const PIPELINE_STORE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
+
+function getStageConfig(pipelineKey, stageName, plStore) {
+  const pid = PIPELINE_STORE_MAP[pipelineKey]
+  if (!pid) return null
+  const pipeline = plStore.find(p => p.id === pid)
+  if (!pipeline) return null
+  return pipeline.stages.find(s => s.name === stageName) ?? null
+}
+
 function getStageLabel(id) {
-  if (id === 'Won')               return '🏆 Won'
   if (id === 'Hardware Assignment') return '🔧 HW Assignment'
   return id
 }
@@ -563,7 +574,7 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
 
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, userRole }) {
+function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, userRole, followUpAllowed = true, isClosed = false }) {
   const TODAY_STR = '2026-05-15'
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
@@ -596,6 +607,11 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         <Badge variant={SOURCE_VARIANT[lead.source] ?? 'gray'} size="sm">{lead.source}</Badge>
         {lead.plan && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-navy/10 text-navy">{lead.plan}</span>
+        )}
+        {isClosed && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+            Closed
+          </span>
         )}
         {lead.ekycStatus && (
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -707,10 +723,12 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
               className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
               <Fingerprint size={11} /> eKYC
             </button>
-            <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-              <Bell size={11} /> Follow-up
-            </button>
+            {followUpAllowed && (
+              <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                <Bell size={11} /> Follow-up
+              </button>
+            )}
             <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
               <Edit3 size={11} /> Edit
@@ -1127,10 +1145,68 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
   )
 }
 
+// ── Move Stage Modal ──────────────────────────────────────────────────────────
+
+function MoveStageModal({ lead, availableStages, plStore, onClose, onMove }) {
+  const [targetStage, setTargetStage] = useState('')
+  const [followUpDate, setFollowUpDate] = useState('')
+
+  const targetSC = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
+  const targetFollowUpAllowed = targetSC?.followUpAllowed !== false
+
+  function handleMove() {
+    if (!targetStage) return
+    onMove(targetStage, targetFollowUpAllowed ? followUpDate : '')
+    onClose()
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Move Stage — ${lead.name}`} size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<TrendingUp size={14} />} onClick={handleMove} disabled={!targetStage}>
+            Move Stage
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-surface-border text-sm text-gray-600">
+          <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead.stage]?.colorBar ?? 'bg-gray-400'}`} />
+          Current: <strong>{lead.stage}</strong>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Move to</p>
+          <select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFollowUpDate('') }}
+            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+            <option value="">Select target stage…</option>
+            {availableStages.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        {targetStage && targetFollowUpAllowed && (
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1.5">Set follow-up after moving <span className="text-gray-400 font-normal">(optional)</span></p>
+            <input type="date" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+          </div>
+        )}
+        {targetStage && !targetFollowUpAllowed && (
+          <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-surface-border text-xs text-gray-500">
+            <Bell size={12} className="text-gray-400 shrink-0" />
+            Follow-ups are disabled for <strong>{targetStage}</strong> stage.
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Sales() {
   const [leads, setLeads]               = useState(getLeads)
+  const [plStore, setPlStore]           = useState(getPipelines)
   const [activePipeline, setActivePipeline] = useState('B2C')
   const [viewMode, setViewMode]          = useState('table')
   const [draggingId, setDraggingId]     = useState(null)
@@ -1160,6 +1236,7 @@ export default function Sales() {
 
   useEffect(() => subscribeFormModules(setFormModules), [])
   useEffect(() => subscribeLeads(setLeads), [])
+  useEffect(() => subscribePipelines(setPlStore), [])
 
   // Pick up a newly created lead passed back from /sales/leads/new
   useEffect(() => {
@@ -1191,6 +1268,14 @@ export default function Sales() {
     if (draggingId) {
       const lead = leads.find(l => l.id === draggingId)
       if (lead && lead.stage !== targetStage) {
+        // Block dropping onto inactive stages
+        const targetSC = getStageConfig(lead.pipeline, targetStage, plStore)
+        if (targetSC?.active === false) {
+          setDraggingId(null)
+          setDragOverStage(null)
+          return
+        }
+
         const plDef = PIPELINES[lead.pipeline]
         const reqStages = plDef.requiredStages ?? []
 
@@ -1212,7 +1297,9 @@ export default function Sales() {
         }
 
         // Intercept Won drops — show conversion confirmation
-        if (targetStage === 'Won') {
+        const dropSC = getStageConfig(lead.pipeline, targetStage, plStore)
+        const isWonDrop = targetStage === 'Won' || dropSC?.statusType === 'Won'
+        if (isWonDrop) {
           setWonConversionLead(lead)
           setDraggingId(null)
           setDragOverStage(null)
@@ -1516,20 +1603,28 @@ export default function Sales() {
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-                              <Eye size={11} /> View
-                            </button>
-                            <button onClick={() => setMoveStageLeadId(lead.id)}
-                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                              <TrendingUp size={11} /> Move
-                            </button>
-                            <button onClick={() => setFollowupLead(lead)}
-                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
-                              <Bell size={11} /> Follow-up
-                            </button>
-                          </div>
+                          {(() => {
+                            const tsc = getStageConfig(lead.pipeline, lead.stage, plStore)
+                            const tFollowUpAllowed = tsc?.followUpAllowed !== false
+                            return (
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
+                                  <Eye size={11} /> View
+                                </button>
+                                <button onClick={() => setMoveStageLeadId(lead.id)}
+                                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                                  <TrendingUp size={11} /> Move
+                                </button>
+                                {tFollowUpAllowed && (
+                                  <button onClick={() => setFollowupLead(lead)}
+                                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
+                                    <Bell size={11} /> Follow-up
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </td>
                       </tr>
                     )
@@ -1569,11 +1664,20 @@ export default function Sales() {
       {viewMode === 'kanban' && <div className="flex-1 overflow-x-auto overflow-y-hidden px-6 pb-6">
         <div className="flex gap-3 h-full" style={{ minWidth: `${pl.stages.length * 260}px` }}>
           {pl.stages.map(stageId => {
+            const sc         = getStageConfig(activePipeline, stageId, plStore)
+            // Skip inactive stages in Kanban
+            if (sc?.active === false) return null
+
             const style      = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
             const stageLeads = filteredLeads.filter(l => l.stage === stageId)
             const isOver     = dragOverStage === stageId
             const isHwStage  = stageId === 'Hardware Assignment'
             const isRequired = (pl.requiredStages ?? []).includes(stageId)
+            const statusType = sc?.statusType ?? (stageId === 'Won' ? 'Won' : stageId === 'Lost' ? 'Lost' : 'Open')
+            const isWonCol   = statusType === 'Won'
+            const isLostCol  = statusType === 'Lost'
+            const followUpAllowed = sc?.followUpAllowed !== false
+            const isClosed   = isWonCol || isLostCol
 
             return (
               <div key={stageId}
@@ -1591,6 +1695,8 @@ export default function Sales() {
                     <div className="flex items-center gap-2">
                       <div className={`w-2.5 h-2.5 rounded-full ${style.colorBar}`} />
                       <span className="text-xs font-bold text-gray-700">{getStageLabel(stageId)}</span>
+                      {isWonCol && <Trophy size={12} className="text-emerald-500 shrink-0" title="Won stage" />}
+                      {isLostCol && <XCircle size={12} className="text-red-400 shrink-0" title="Lost stage" />}
                       {isRequired && (
                         <span title="Required stage — cannot be skipped" className="text-amber-500">
                           <Lock size={10} className="shrink-0" />
@@ -1630,6 +1736,8 @@ export default function Sales() {
                         onFollowup={l => setFollowupLead(l)}
                         onSendToInventory={sendToInventory}
                         userRole={userRole}
+                        followUpAllowed={followUpAllowed}
+                        isClosed={isClosed}
                       />
                     ))
                   )}
@@ -1705,35 +1813,31 @@ export default function Sales() {
         const msLead = leads.find(l => l.id === moveStageLeadId)
         if (!msLead) return null
         const pl2 = PIPELINES[msLead.pipeline] ?? PIPELINES.B2C
-        const availableStages = pl2.stages.filter(s => s !== msLead.stage)
+        // Filter out inactive stages and current stage
+        const availableStages = pl2.stages.filter(s => {
+          if (s === msLead.stage) return false
+          const sc = getStageConfig(msLead.pipeline, s, plStore)
+          return sc?.active !== false
+        })
         return (
-          <Modal isOpen={!!moveStageLeadId} onClose={() => setMoveStageLeadId(null)}
-            title={`Move Stage — ${msLead.name}`} size="md"
-            footer={
-              <>
-                <Button variant="secondary" onClick={() => setMoveStageLeadId(null)}>Cancel</Button>
-                <Button icon={<TrendingUp size={14} />} onClick={() => {
-                  const sel = document.getElementById('ms-target-stage')?.value
-                  if (sel) { saveLeadToStore({ ...msLead, stage: sel, daysInStage: 0, lastActivity: `Moved to ${sel}` }); setMoveStageLeadId(null) }
-                }}>Move Stage</Button>
-              </>
-            }
-          >
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-surface-border text-sm text-gray-600">
-                <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[msLead.stage]?.colorBar ?? 'bg-gray-400'}`} />
-                Current: <strong>{msLead.stage}</strong>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Move to</p>
-                <select id="ms-target-stage"
-                  className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
-                  <option value="">Select target stage…</option>
-                  {availableStages.map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
-          </Modal>
+          <MoveStageModal
+            lead={msLead}
+            availableStages={availableStages}
+            plStore={plStore}
+            onClose={() => setMoveStageLeadId(null)}
+            onMove={(targetStage, followUpDate) => {
+              const sc = getStageConfig(msLead.pipeline, targetStage, plStore)
+              const isWonMove = targetStage === 'Won' || sc?.statusType === 'Won'
+              if (isWonMove) {
+                setWonConversionLead(msLead)
+              } else {
+                const update = { ...msLead, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` }
+                if (followUpDate) update.followUp = followUpDate
+                saveLeadToStore(update)
+              }
+              setMoveStageLeadId(null)
+            }}
+          />
         )
       })()}
     </div>

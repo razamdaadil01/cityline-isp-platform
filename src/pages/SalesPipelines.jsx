@@ -4,12 +4,14 @@ import {
   Layers, Settings2, HardDrive, AlertCircle, Check, FolderOpen,
   X, List, Type, Hash, Phone, Mail,
   Circle, Calendar, Clock, CheckSquare, AlignLeft, Upload, Link, FileText,
+  Trophy, XCircle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getPipelines, addPipeline, updatePipeline, deletePipeline, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields, setStageFields } from '../data/stageFieldsStore'
+import { getLeads, subscribeLeads } from '../data/leadsStore'
 
 const STAGE_COLORS = [
   { label: 'Blue',    value: 'bg-blue-500'    },
@@ -23,6 +25,7 @@ const STAGE_COLORS = [
 ]
 
 const STAGE_TYPES = ['Standard', 'Hardware Assignment']
+const STATUS_TYPES = ['Open', 'Won', 'Lost']
 
 const FIELD_TYPES = [
   'Text', 'Number', 'Phone', 'Email',
@@ -50,6 +53,9 @@ const FIELD_TYPE_ICON_MAP = {
   'URL':         Link,
 }
 
+// Reverse map for pipeline type key → lead pipeline field value
+const PIPELINE_LEAD_KEY_MAP = { 'PL-001': 'B2C', 'PL-002': 'B2B' }
+
 const INIT_PIPELINE_FORM = { name: '', description: '' }
 
 const INIT_FIELD_FORM = {
@@ -64,18 +70,21 @@ const INIT_FIELD_FORM = {
 
 // ── Toggle ───────────────────────────────────────────────────────────────────
 
-function Toggle({ value, onChange }) {
+function Toggle({ value, onChange, size = 'md' }) {
+  const isSmall = size === 'sm'
   return (
     <button
       type="button"
       onClick={() => onChange(!value)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand-blue/40 ${
-        value ? 'bg-brand-blue' : 'bg-gray-200'
-      }`}
+      className={`relative inline-flex shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand-blue/40 ${
+        isSmall ? 'h-4 w-7' : 'h-5 w-9'
+      } ${value ? 'bg-brand-blue' : 'bg-gray-200'}`}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-          value ? 'translate-x-5' : 'translate-x-0.5'
+        className={`inline-block transform rounded-full bg-white shadow transition-transform ${
+          isSmall
+            ? `h-2.5 w-2.5 ${value ? 'translate-x-3.5' : 'translate-x-0.5'}`
+            : `h-3.5 w-3.5 ${value ? 'translate-x-5' : 'translate-x-0.5'}`
         }`}
       />
     </button>
@@ -432,110 +441,173 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
   const dragRef = useRef(null)
   const [localName, setLocalName] = useState(stage.name)
 
+  const isActive = stage.active !== false
+  const statusType = stage.statusType ?? 'Open'
+  const followUpAllowed = stage.followUpAllowed !== false
+
   function commitName() {
     if (localName.trim()) onUpdate(stage.id, { name: localName.trim() })
     setEditing(false)
   }
 
+  const STATUS_TYPE_COLORS = {
+    Open: 'text-brand-blue',
+    Won:  'text-emerald-600',
+    Lost: 'text-red-500',
+  }
+
   return (
     <div
       ref={dragRef}
-      className="flex items-center gap-2 bg-white border border-surface-border rounded-lg px-3 py-2.5 group hover:border-brand-blue/40 transition-colors"
+      className={`flex flex-col gap-1.5 border rounded-lg px-3 py-2.5 group transition-colors ${
+        isActive
+          ? 'bg-white border-surface-border hover:border-brand-blue/40'
+          : 'bg-gray-50 border-gray-200 opacity-70'
+      }`}
     >
-      <div className="flex flex-col items-center gap-0.5 cursor-grab text-gray-300 hover:text-gray-500 shrink-0">
+      {/* Row 1: Move, color, name, HW badge, type controls, delete */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-col items-center gap-0.5 cursor-grab text-gray-300 hover:text-gray-500 shrink-0">
+          <button
+            disabled={index === 0}
+            onClick={() => onMove(index, index - 1)}
+            className="w-4 h-4 flex items-center justify-center hover:text-brand-blue disabled:opacity-20 disabled:cursor-not-allowed"
+          >
+            <ChevronUp size={12} />
+          </button>
+          <GripVertical size={14} className="text-gray-300" />
+          <button
+            disabled={index === total - 1}
+            onClick={() => onMove(index, index + 1)}
+            className="w-4 h-4 flex items-center justify-center hover:text-brand-blue disabled:opacity-20 disabled:cursor-not-allowed"
+          >
+            <ChevronDown size={12} />
+          </button>
+        </div>
+
+        <div className={`w-3 h-3 rounded-full shrink-0 ${stage.color}`} title="Stage color" />
+
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <input
+              autoFocus
+              value={localName}
+              onChange={e => setLocalName(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={e => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') setEditing(false) }}
+              className="w-full text-sm border-b border-brand-blue outline-none bg-transparent pb-0.5"
+            />
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className={`text-sm font-medium text-left w-full truncate ${isActive ? 'text-gray-800 hover:text-brand-blue' : 'text-gray-500'}`}
+            >
+              {stage.name}
+            </button>
+          )}
+        </div>
+
+        {/* Badges */}
+        <div className="flex items-center gap-1 shrink-0">
+          {!isActive && (
+            <span className="text-[10px] font-semibold bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">Inactive</span>
+          )}
+          {statusType === 'Won' && (
+            <Trophy size={11} className="text-emerald-500" title="Won stage" />
+          )}
+          {statusType === 'Lost' && (
+            <XCircle size={11} className="text-red-400" title="Lost stage" />
+          )}
+          {stage.type === 'Hardware Assignment' && (
+            <span className="flex items-center gap-1 text-[10px] font-semibold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
+              <HardDrive size={10} /> HW
+            </span>
+          )}
+        </div>
+
         <button
-          disabled={index === 0}
-          onClick={() => onMove(index, index - 1)}
-          className="w-4 h-4 flex items-center justify-center hover:text-brand-blue disabled:opacity-20 disabled:cursor-not-allowed"
+          onClick={() => onRemove(stage.id)}
+          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
         >
-          <ChevronUp size={12} />
-        </button>
-        <GripVertical size={14} className="text-gray-300" />
-        <button
-          disabled={index === total - 1}
-          onClick={() => onMove(index, index + 1)}
-          className="w-4 h-4 flex items-center justify-center hover:text-brand-blue disabled:opacity-20 disabled:cursor-not-allowed"
-        >
-          <ChevronDown size={12} />
+          <Trash2 size={14} />
         </button>
       </div>
 
-      <div className={`w-3 h-3 rounded-full shrink-0 ${stage.color}`} title="Stage color" />
+      {/* Row 2: Config controls */}
+      <div className="flex items-center gap-2 pl-6 flex-wrap">
+        {/* Color */}
+        <select
+          value={stage.color}
+          onChange={e => onUpdate(stage.id, { color: e.target.value })}
+          className="text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0"
+          title="Stage color"
+        >
+          {STAGE_COLORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </select>
 
-      <div className="flex-1 min-w-0">
-        {editing ? (
-          <input
-            autoFocus
-            value={localName}
-            onChange={e => setLocalName(e.target.value)}
-            onBlur={commitName}
-            onKeyDown={e => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') setEditing(false) }}
-            className="w-full text-sm border-b border-brand-blue outline-none bg-transparent pb-0.5"
-          />
-        ) : (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-sm font-medium text-gray-800 hover:text-brand-blue text-left w-full truncate"
+        {/* Type */}
+        <select
+          value={stage.type}
+          onChange={e => onUpdate(stage.id, { type: e.target.value })}
+          className="text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0"
+          title="Stage type"
+        >
+          {STAGE_TYPES.map(t => <option key={t}>{t}</option>)}
+        </select>
+
+        {/* Status Type */}
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-gray-400">Status:</span>
+          <select
+            value={statusType}
+            onChange={e => onUpdate(stage.id, { statusType: e.target.value })}
+            className={`text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0 font-semibold ${STATUS_TYPE_COLORS[statusType]}`}
+            title="Status type"
           >
-            {stage.name}
+            {STATUS_TYPES.map(t => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+
+        {/* Active toggle */}
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-gray-400">Active</span>
+          <Toggle size="sm" value={isActive} onChange={v => onUpdate(stage.id, { active: v })} />
+        </div>
+
+        {/* Follow-up Allowed toggle */}
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-gray-400">Follow-up</span>
+          <Toggle size="sm" value={followUpAllowed} onChange={v => onUpdate(stage.id, { followUpAllowed: v })} />
+        </div>
+
+        {/* Required (B2B only) */}
+        {showRequired && (
+          <button
+            onClick={() => onUpdate(stage.id, { required: !stage.required })}
+            title={stage.required ? 'Required (click to toggle)' : 'Optional (click to toggle)'}
+            className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors shrink-0 ${
+              stage.required
+                ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/30'
+                : 'bg-gray-100 text-gray-400 border-gray-200 hover:border-brand-blue/30'
+            }`}
+          >
+            {stage.required ? <Check size={10} /> : <AlertCircle size={10} />}
+            {stage.required ? 'Required' : 'Optional'}
           </button>
         )}
-      </div>
 
-      {stage.type === 'Hardware Assignment' && (
-        <span className="flex items-center gap-1 text-[10px] font-semibold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full shrink-0">
-          <HardDrive size={10} /> HW
-        </span>
-      )}
-
-      <select
-        value={stage.color}
-        onChange={e => onUpdate(stage.id, { color: e.target.value })}
-        className="text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0"
-      >
-        {STAGE_COLORS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-      </select>
-
-      <select
-        value={stage.type}
-        onChange={e => onUpdate(stage.id, { type: e.target.value })}
-        className="text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0"
-      >
-        {STAGE_TYPES.map(t => <option key={t}>{t}</option>)}
-      </select>
-
-      {showRequired && (
-        <button
-          onClick={() => onUpdate(stage.id, { required: !stage.required })}
-          title={stage.required ? 'Required (click to toggle)' : 'Optional (click to toggle)'}
-          className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors shrink-0 ${
-            stage.required
-              ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/30'
-              : 'bg-gray-100 text-gray-400 border-gray-200 hover:border-brand-blue/30'
-          }`}
+        {/* Fields */}
+        <Button
+          size="xs"
+          variant="secondary"
+          icon={<List size={11} />}
+          onClick={() => onOpenFields(stage)}
+          title="Manage stage fields"
+          className="shrink-0"
         >
-          {stage.required ? <Check size={10} /> : <AlertCircle size={10} />}
-          {stage.required ? 'Required' : 'Optional'}
-        </button>
-      )}
-
-      <Button
-        size="xs"
-        variant="secondary"
-        icon={<List size={11} />}
-        onClick={() => onOpenFields(stage)}
-        title="Manage stage fields"
-        className="shrink-0"
-      >
-        Fields
-      </Button>
-
-      <button
-        onClick={() => onRemove(stage.id)}
-        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-      >
-        <Trash2 size={14} />
-      </button>
+          Fields
+        </Button>
+      </div>
     </div>
   )
 }
@@ -575,6 +647,9 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields }
         color: 'bg-blue-500',
         required: false,
         type: 'Standard',
+        active: true,
+        statusType: 'Open',
+        followUpAllowed: true,
       },
     ])
     setNewStageName('')
@@ -596,11 +671,12 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields }
       <div className="space-y-3">
         <p className="text-xs text-gray-500">
           Reorder stages using the arrow buttons. Click a stage name to rename it inline.
-          Click <strong>Fields</strong> to configure what data is collected at each stage.
+          Configure status type, active state, and follow-up allowance per stage.
+          Click <strong>Fields</strong> to configure data collected at each stage.
           {showRequired && ' Toggle Required for mandatory stages.'}
         </p>
 
-        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
           {stages.map((stage, idx) => (
             <StageRow
               key={stage.id}
@@ -643,17 +719,19 @@ function CreatePipelineModal({ isOpen, onClose, onCreate }) {
 
   function handleCreate() {
     if (!form.name.trim()) return
+    const t = Date.now()
     onCreate({
-      id: `PL-${Date.now()}`,
+      id: `PL-${t}`,
       name: form.name.trim(),
       description: form.description,
       activeLeads: 0,
       isDefault: false,
+      active: true,
       stages: [
-        { id: `${Date.now()}-1`, name: 'New Inquiry', color: 'bg-blue-500',    required: false, type: 'Standard' },
-        { id: `${Date.now()}-2`, name: 'In Progress', color: 'bg-amber-500',   required: false, type: 'Standard' },
-        { id: `${Date.now()}-3`, name: 'Won',         color: 'bg-emerald-500', required: false, type: 'Standard' },
-        { id: `${Date.now()}-4`, name: 'Lost',        color: 'bg-red-500',     required: false, type: 'Standard' },
+        { id: `${t}-1`, name: 'New Inquiry', color: 'bg-blue-500',    required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
+        { id: `${t}-2`, name: 'In Progress', color: 'bg-amber-500',   required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
+        { id: `${t}-3`, name: 'Won',         color: 'bg-emerald-500', required: false, type: 'Standard', active: true, statusType: 'Won',  followUpAllowed: false },
+        { id: `${t}-4`, name: 'Lost',        color: 'bg-red-500',     required: false, type: 'Standard', active: true, statusType: 'Lost', followUpAllowed: false },
       ],
     })
     setForm(INIT_PIPELINE_FORM)
@@ -749,7 +827,34 @@ function EditPipelineModal({ isOpen, onClose, pipeline, onSave }) {
 
 // ── Delete Confirm Modal ──────────────────────────────────────────────────────
 
-function DeleteConfirmModal({ isOpen, onClose, pipeline, onConfirm }) {
+function DeleteConfirmModal({ isOpen, onClose, pipeline, onConfirm, leadCount }) {
+  if (leadCount > 0) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Cannot Delete Pipeline"
+        size="sm"
+        footer={<Button onClick={onClose}>Got It</Button>}
+      >
+        <div className="flex gap-3 items-start">
+          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+            <AlertCircle size={20} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 mb-1">
+              Cannot delete — this pipeline has{' '}
+              <strong className="text-red-600">{leadCount} active lead{leadCount > 1 ? 's' : ''}</strong>.
+            </p>
+            <p className="text-sm text-gray-600">
+              Deactivate it instead to stop new leads from being added while keeping existing leads visible.
+            </p>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -759,17 +864,13 @@ function DeleteConfirmModal({ isOpen, onClose, pipeline, onConfirm }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="danger" onClick={() => { onConfirm(); onClose() }}>Delete</Button>
+          <Button variant="danger" onClick={() => { onConfirm(); onClose() }}>Delete Pipeline</Button>
         </>
       }
     >
       <p className="text-sm text-gray-600">
-        Are you sure you want to delete <strong>{pipeline?.name}</strong>? This action cannot be undone.
-        {pipeline?.activeLeads > 0 && (
-          <span className="block mt-2 text-brand-orange font-medium">
-            Warning: This pipeline has {pipeline.activeLeads} active leads.
-          </span>
-        )}
+        Are you sure? This will permanently delete <strong>{pipeline?.name}</strong> and all its stage configurations.
+        This action cannot be undone.
       </p>
     </Modal>
   )
@@ -777,17 +878,29 @@ function DeleteConfirmModal({ isOpen, onClose, pipeline, onConfirm }) {
 
 // ── Pipeline Card ─────────────────────────────────────────────────────────────
 
-function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
+function PipelineCard({ pipeline, onEdit, onDelete, onEditStages, onToggleActive }) {
   const [expanded, setExpanded] = useState(false)
   const hwStages = pipeline.stages.filter(s => s.type === 'Hardware Assignment')
+  const isActive = pipeline.active !== false
 
   return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card hover:shadow-card-hover transition-shadow">
+    <div className={`rounded-xl border shadow-card hover:shadow-card-hover transition-all ${
+      isActive
+        ? 'bg-white border-surface-border'
+        : 'bg-gray-50 border-gray-200 opacity-80'
+    }`}>
       <div className="px-5 py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-bold text-gray-900 text-base truncate">{pipeline.name}</h3>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h3 className={`font-bold text-base truncate ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
+                {pipeline.name}
+              </h3>
+              {!isActive && (
+                <span className="flex items-center gap-1 text-[10px] font-semibold bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full border border-gray-300">
+                  Inactive
+                </span>
+              )}
               {hwStages.length > 0 && (
                 <span className="flex items-center gap-1 text-[10px] font-semibold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
                   <HardDrive size={10} /> HW Stage
@@ -809,7 +922,15 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {/* Active/Inactive toggle */}
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-surface-border bg-gray-50">
+              <span className={`text-[10px] font-semibold ${isActive ? 'text-brand-blue' : 'text-gray-400'}`}>
+                {isActive ? 'Active' : 'Inactive'}
+              </span>
+              <Toggle value={isActive} onChange={onToggleActive} />
+            </div>
+
             <Button size="xs" variant="secondary" icon={<Settings2 size={12} />} onClick={() => onEditStages(pipeline)}>
               Stages
             </Button>
@@ -829,23 +950,34 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
         <div className="px-5 pb-4 border-t border-surface-border pt-3">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Stage Flow</p>
           <div className="flex items-center gap-1 flex-wrap">
-            {pipeline.stages.map((stage, idx) => (
-              <div key={stage.id} className="flex items-center gap-1">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-50 border border-surface-border text-xs font-medium text-gray-700">
-                  <div className={`w-2 h-2 rounded-full ${stage.color}`} />
-                  {stage.name}
-                  {stage.required && (
-                    <span className="text-brand-blue text-[9px] font-bold">*</span>
-                  )}
-                  {stage.type === 'Hardware Assignment' && (
-                    <HardDrive size={10} className="text-pink-500" />
+            {pipeline.stages.map((stage, idx) => {
+              const stgActive = stage.active !== false
+              const stgStatus = stage.statusType ?? 'Open'
+              return (
+                <div key={stage.id} className="flex items-center gap-1">
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-opacity ${
+                    stgActive
+                      ? 'bg-gray-50 border-surface-border text-gray-700'
+                      : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full ${stage.color}`} />
+                    {stage.name}
+                    {stage.required && (
+                      <span className="text-brand-blue text-[9px] font-bold">*</span>
+                    )}
+                    {stage.type === 'Hardware Assignment' && (
+                      <HardDrive size={10} className="text-pink-500" />
+                    )}
+                    {stgStatus === 'Won' && <Trophy size={9} className="text-emerald-500" />}
+                    {stgStatus === 'Lost' && <XCircle size={9} className="text-red-400" />}
+                    {!stgActive && <span className="text-[9px] text-gray-400">(off)</span>}
+                  </div>
+                  {idx < pipeline.stages.length - 1 && (
+                    <span className="text-gray-300 text-xs">→</span>
                   )}
                 </div>
-                {idx < pipeline.stages.length - 1 && (
-                  <span className="text-gray-300 text-xs">→</span>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
           {(pipeline.type === 'B2B' || pipeline.type === 'ILL') && (
             <p className="text-[10px] text-gray-400 mt-2">* Required stages cannot be skipped</p>
@@ -860,6 +992,7 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages }) {
 
 export default function SalesPipelines() {
   const [pipelines, setPipelines] = useState(getPipelines)
+  const [leads, setLeads]         = useState(getLeads)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPipeline, setEditingPipeline] = useState(null)
   const [stageEditorPipeline, setStageEditorPipeline] = useState(null)
@@ -867,9 +1000,16 @@ export default function SalesPipelines() {
   const [fieldManagerStage, setFieldManagerStage] = useState(null)
 
   useEffect(() => subscribePipelines(setPipelines), [])
+  useEffect(() => subscribeLeads(setLeads), [])
 
   const defaultPipelines = pipelines.filter(p => p.isDefault)
   const customPipelines = pipelines.filter(p => !p.isDefault)
+
+  function getPipelineLeadCount(pipelineId) {
+    const key = PIPELINE_LEAD_KEY_MAP[pipelineId]
+    if (key) return leads.filter(l => l.pipeline === key).length
+    return leads.filter(l => l.pipeline === pipelineId).length
+  }
 
   function handleCreate(pipeline) { addPipeline(pipeline) }
 
@@ -886,6 +1026,14 @@ export default function SalesPipelines() {
   function handleDelete() {
     deletePipeline(deletingPipeline.id)
     setDeletingPipeline(null)
+  }
+
+  function handleOpenDelete(pipeline) {
+    setDeletingPipeline({ ...pipeline, _leadCount: getPipelineLeadCount(pipeline.id) })
+  }
+
+  function handleToggleActive(pipelineId, value) {
+    updatePipeline(pipelineId, { active: value })
   }
 
   return (
@@ -907,8 +1055,9 @@ export default function SalesPipelines() {
             key={pipeline.id}
             pipeline={pipeline}
             onEdit={setEditingPipeline}
-            onDelete={setDeletingPipeline}
+            onDelete={handleOpenDelete}
             onEditStages={setStageEditorPipeline}
+            onToggleActive={v => handleToggleActive(pipeline.id, v)}
           />
         ))}
       </div>
@@ -939,8 +1088,9 @@ export default function SalesPipelines() {
               key={pipeline.id}
               pipeline={pipeline}
               onEdit={setEditingPipeline}
-              onDelete={setDeletingPipeline}
+              onDelete={handleOpenDelete}
               onEditStages={setStageEditorPipeline}
+              onToggleActive={v => handleToggleActive(pipeline.id, v)}
             />
           ))
         )}
@@ -978,6 +1128,7 @@ export default function SalesPipelines() {
           onClose={() => setDeletingPipeline(null)}
           pipeline={deletingPipeline}
           onConfirm={handleDelete}
+          leadCount={deletingPipeline._leadCount ?? 0}
         />
       )}
 
