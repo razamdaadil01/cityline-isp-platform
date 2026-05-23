@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Calendar, List, Plus, Clock, Phone, MessageSquare,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle2,
-  Bell, Search, Filter, X, Users, LayoutGrid, MoreVertical, Ban, ChevronDown,
+  Bell, Search, Filter, X, Users, LayoutGrid, MoreVertical, Ban, ChevronDown, CalendarClock,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -214,6 +214,50 @@ function CancelConfirmModal({ isOpen, onClose, onConfirm, leadName }) {
           <span className="font-semibold text-gray-900">{leadName}</span>{' '}
           will be marked as cancelled and removed from the active list.
         </p>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Reschedule Modal ─────────────────────────────────────────────────────────
+
+function RescheduleModal({ isOpen, onClose, followup, onSave }) {
+  const [date, setDate] = useState(followup?.date ?? TODAY)
+  const [time, setTime] = useState(followup?.time ?? '10:00')
+
+  useEffect(() => {
+    if (isOpen && followup) {
+      setDate(followup.date)
+      setTime(followup.time)
+    }
+  }, [isOpen, followup])
+
+  function handleSave() {
+    if (!date) return
+    onSave({ ...followup, date, time, status: followup.status === 'Cancelled' ? 'Pending' : followup.status })
+    onClose()
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Reschedule — ${followup?.leadName ?? ''}`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave}>Reschedule</Button>
+        </>
+      }
+    >
+      <div className="space-y-4 py-2">
+        <FormField label="New Date" required>
+          <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </FormField>
+        <FormField label="New Time">
+          <Input type="time" value={time} onChange={e => setTime(e.target.value)} />
+        </FormField>
       </div>
     </Modal>
   )
@@ -496,7 +540,7 @@ const STATUS_PILLS = [
   { id: 'cancelled', label: 'Cancelled' },
 ]
 
-function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
+function TableView({ followups, onMarkDone, onReschedule, onCancel, search }) {
   const [statusFilter, setStatusFilter] = useState('all')
 
   const filtered = useMemo(() => {
@@ -542,7 +586,7 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-surface-border">
-                {['Lead Name', 'Phone', 'Date & Time', 'Stage', 'Assigned To', 'Notify To', 'Note', 'Status', 'Actions'].map(h => (
+                {['FU ID', 'Lead Name', 'Customer', 'Pipeline', 'Stage', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -550,7 +594,7 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
+                  <td colSpan={11} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
                 </tr>
               ) : (
                 filtered.map(fu => {
@@ -567,30 +611,66 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
                         : ''
                       }`}
                     >
+                      {/* FU ID */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs font-mono font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                          {fu.id}
+                        </span>
+                      </td>
+
+                      {/* Lead Name */}
                       <td className="px-4 py-3">
-                        <span className={`font-semibold text-gray-900 ${isDone || isCancelled ? 'line-through text-gray-400' : ''}`}>
+                        <span className={`font-semibold text-gray-900 text-sm ${isDone || isCancelled ? 'line-through text-gray-400' : ''}`}>
                           {fu.leadName}
                         </span>
-                        <span className="text-[10px] text-gray-400 block">{fu.leadId}</span>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">
-                        <a href={`tel:${fu.phone}`} className="hover:text-brand-blue transition-colors">{fu.phone}</a>
+
+                      {/* Customer */}
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        {fu.customer || '—'}
                       </td>
+
+                      {/* Pipeline */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`text-xs font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
-                          {fu.date}
+                        {fu.pipeline ? (
+                          <Badge variant={fu.pipeline === 'Corporate' ? 'navy' : 'blue'} size="sm">
+                            {fu.pipeline}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+
+                      {/* Stage */}
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          {fu.stage}
                         </span>
-                        <span className="text-[11px] text-gray-400 block">{fu.time}</span>
+                      </td>
+
+                      {/* Date */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className={`text-xs font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
+                          {fu.date}
+                        </div>
                         {isOverdue && (
                           <span className="flex items-center gap-0.5 text-[10px] text-red-500 font-semibold mt-0.5">
                             <AlertCircle size={10} /> Overdue
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">{fu.stage}</span>
+
+                      {/* Time */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-500">{fu.time}</span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{fu.assignedTo || '—'}</td>
+
+                      {/* Assigned */}
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        {fu.assignedTo || '—'}
+                      </td>
+
+                      {/* Notifiers */}
                       <td className="px-4 py-3">
                         {fu.notifyTo.length > 0 ? (
                           <div className="flex gap-1 flex-wrap">
@@ -609,9 +689,8 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
                           </div>
                         ) : <span className="text-gray-300 text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 max-w-[180px]">
-                        <span className="text-xs text-gray-500 line-clamp-2">{fu.note || '—'}</span>
-                      </td>
+
+                      {/* Status */}
                       <td className="px-4 py-3">
                         <Badge
                           variant={isCancelled ? 'gray' : (STATUS_BADGE[isOverdue ? 'Overdue' : fu.status] ?? 'gray')}
@@ -620,6 +699,8 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
                           {isCancelled ? 'Cancelled' : isOverdue && !isDone ? 'Overdue' : fu.status}
                         </Badge>
                       </td>
+
+                      {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           {!isDone && !isCancelled && (
@@ -631,13 +712,13 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
                               <CheckCircle2 size={14} />
                             </button>
                           )}
-                          {!isCancelled && (
+                          {!isDone && !isCancelled && (
                             <button
-                              onClick={() => onEdit(fu)}
-                              title="Edit"
+                              onClick={() => onReschedule(fu)}
+                              title="Reschedule"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
                             >
-                              <Bell size={14} />
+                              <CalendarClock size={14} />
                             </button>
                           )}
                           <a
@@ -650,7 +731,7 @@ function TableView({ followups, onEdit, onMarkDone, onCancel, search }) {
                           {!isDone && !isCancelled && (
                             <button
                               onClick={() => onCancel(fu)}
-                              title="Cancel"
+                              title="Cancel Follow-up"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                             >
                               <Ban size={14} />
@@ -858,6 +939,7 @@ export default function SalesFollowups() {
   const [showModal, setShowModal] = useState(false)
   const [editingFU, setEditingFU] = useState(null)
   const [cancelTarget, setCancelTarget] = useState(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState(null)
   const [search, setSearch] = useState('')
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
@@ -872,6 +954,10 @@ export default function SalesFollowups() {
   function openEdit(fu) {
     setEditingFU(fu)
     setShowModal(true)
+  }
+
+  function openReschedule(fu) {
+    setRescheduleTarget(fu)
   }
 
   function openCancel(fu) {
@@ -1031,7 +1117,7 @@ export default function SalesFollowups() {
 
       {/* Main content */}
       {view === 'table' ? (
-        <TableView followups={filtered} onEdit={openEdit} onMarkDone={markDone} onCancel={openCancel} search={search} />
+        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onCancel={openCancel} search={search} />
       ) : view === 'calendar' ? (
         <CalendarView followups={filtered} onEdit={openEdit} />
       ) : (
@@ -1055,6 +1141,17 @@ export default function SalesFollowups() {
           onClose={() => setCancelTarget(null)}
           onConfirm={confirmCancel}
           leadName={cancelTarget?.leadName}
+        />
+      )}
+
+      {/* Reschedule modal */}
+      {rescheduleTarget && (
+        <RescheduleModal
+          key={rescheduleTarget.id}
+          isOpen={!!rescheduleTarget}
+          onClose={() => setRescheduleTarget(null)}
+          followup={rescheduleTarget}
+          onSave={saveFU}
         />
       )}
     </div>
