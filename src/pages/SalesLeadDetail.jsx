@@ -82,18 +82,23 @@ function timeAgo(daysAgo, hoursAgo) {
 
 // ── MoveStageModal ─────────────────────────────────────────────────────────────
 
-function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave }) {
+function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage = '' }) {
   const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
   const availableStages = pl.stages.filter(s => s !== lead?.stage)
-  const [targetStage, setTargetStage]         = useState('')
+  const [targetStage, setTargetStage]         = useState(initialStage)
   const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
 
   useEffect(() => {
-    if (isOpen) { setTargetStage(''); setFieldVals({}); setFollowupEnabled(false); setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] }) }
-  }, [isOpen])
+    if (isOpen) {
+      setTargetStage(initialStage ?? '')
+      setFieldVals({})
+      setFollowupEnabled(false)
+      setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
+    }
+  }, [isOpen, initialStage])
 
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
   const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
@@ -301,6 +306,88 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
   )
 }
 
+// ── WonConversionModal ────────────────────────────────────────────────────────
+
+function WonConversionModal({ isOpen, onClose, lead, onConfirm }) {
+  const [loading, setLoading] = useState(false)
+
+  function handleConfirm() {
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      const docs = lead?.kycDocs ?? {}
+      const kycComplete = ['aadhaar', 'panCard', 'customerPhoto'].every(k => docs[k])
+      onConfirm({
+        customerName: lead?.name ?? '',
+        customerId:   `CL-${1040 + Math.floor(Math.random() * 20)}`,
+        ticketId:     `TK-${2880 + Math.floor(Math.random() * 50)}`,
+        kycStatus:    kycComplete ? 'Completed' : 'Pending',
+      })
+    }, 1400)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Won?" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button
+            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+            onClick={handleConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Converting…' : 'Confirm & Convert'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600 font-medium">This will automatically:</p>
+        <div className="space-y-2.5">
+          {['Create customer record', 'Trigger CAF form', 'Check KYC status', 'Create installation ticket'].map(item => (
+            <div key={item} className="flex items-center gap-3 text-sm text-gray-700">
+              <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                <CheckCircle size={12} className="text-emerald-600" />
+              </div>
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function WonSuccessModal({ isOpen, onClose, lead, data }) {
+  const cards = [
+    { title: 'Customer Created',    desc: `${data?.customerName ?? ''} — ${data?.customerId ?? ''}`,   action: 'View Customer', bg: 'bg-blue-50 border-blue-200'    },
+    { title: 'CAF Form',            desc: 'Ready to fill',                                              action: 'Open CAF',      bg: 'bg-purple-50 border-purple-200' },
+    { title: 'KYC Status',          desc: data?.kycStatus === 'Completed' ? 'Completed ✅' : 'Pending ⚠️', action: data?.kycStatus === 'Completed' ? 'View KYC' : 'Complete KYC', bg: data?.kycStatus === 'Completed' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200' },
+    { title: 'Installation Ticket', desc: `#${data?.ticketId ?? ''} Created`,                           action: 'View Ticket',   bg: 'bg-orange-50 border-orange-200' },
+  ]
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Conversion Complete" size="lg"
+      footer={<Button onClick={onClose}>Done</Button>}
+    >
+      <div className="text-center py-3 mb-5 border-b border-surface-border">
+        <div className="text-4xl mb-2">🎉</div>
+        <h2 className="text-lg font-bold text-gray-900">Lead Converted Successfully!</h2>
+        <p className="text-sm text-gray-500 mt-1">{lead?.name} has been marked as Won and a customer record created.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map(card => (
+          <div key={card.title} className={`border rounded-xl p-4 ${card.bg}`}>
+            <p className="font-semibold text-sm text-gray-900 mb-1">{card.title}</p>
+            <p className="text-xs text-gray-600 mb-3 break-words">{card.desc}</p>
+            <Button variant="secondary" size="sm" className="w-full">{card.action}</Button>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  )
+}
+
 // ── InfoRow helper ────────────────────────────────────────────────────────────
 
 function InfoRow({ label, value, highlight }) {
@@ -322,10 +409,11 @@ export default function SalesLeadDetail() {
   const [leads, setLeads]           = useState(getLeads)
   const [pipelines, setPipelines]   = useState(getPipelines)
   const [activeTab, setActiveTab]   = useState('overview')
-  const [moveStageOpen, setMoveStageOpen] = useState(false)
-  const [followupOpen, setFollowupOpen]   = useState(false)
-  const [wonOpen, setWonOpen]       = useState(false)
-  const [lostOpen, setLostOpen]     = useState(false)
+  const [moveStageOpen, setMoveStageOpen]     = useState(false)
+  const [moveStageInitial, setMoveStageInitial] = useState('')
+  const [wonConversionLead, setWonConversionLead] = useState(null)
+  const [wonSuccessData, setWonSuccessData]   = useState(null)
+  const [followupOpen, setFollowupOpen]       = useState(false)
   const [newComment, setNewComment] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionQ, setMentionQ]     = useState('')
@@ -417,16 +505,20 @@ export default function SalesLeadDetail() {
       user: lead.assigned ?? 'Arjun Kumar',
       time: 'just now',
     }
-    saveLead({
+    const updatedLead = {
       ...lead,
       stage: targetStage,
       daysInStage: 0,
       lastActivity: `Moved to ${targetStage}`,
       stageHistory: updatedHistory,
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
-    })
+    }
+    saveLead(updatedLead)
     if (fuData?.date) {
       saveFollowup({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage, assignedTo: lead.assigned, notifyTo: fuData.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
+    }
+    if (targetStage === 'Won') {
+      setWonConversionLead(updatedLead)
     }
   }
 
@@ -434,16 +526,6 @@ export default function SalesLeadDetail() {
     saveFollowup(fu)
     saveLead({ ...lead, followUp: fu.date, lastActivity: `Follow-up set: ${fu.date}` })
     setFollowups(p => [{ id: fu.id, date: fu.date, time: fu.time, note: fu.note, status: 'Upcoming', assignedTo: fu.assignedTo, notifyTo: fu.notifyTo }, ...p])
-  }
-
-  function handleMarkWon() {
-    saveLead({ ...lead, stage: 'Won', daysInStage: 0, lastActivity: 'Marked as Won' })
-    setWonOpen(false)
-  }
-
-  function handleMarkLost() {
-    saveLead({ ...lead, stage: 'Lost', daysInStage: 0, lastActivity: 'Marked as Lost' })
-    setLostOpen(false)
   }
 
   function handlePostComment() {
@@ -578,11 +660,11 @@ export default function SalesLeadDetail() {
             {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
               <>
                 <Button size="sm" icon={<CheckCircle2 size={14} />}
-                  onClick={() => setWonOpen(true)}>
+                  onClick={() => { setMoveStageInitial('Won'); setMoveStageOpen(true) }}>
                   Mark as Won
                 </Button>
                 <Button variant="danger" size="sm" icon={<XCircle size={14} />}
-                  onClick={() => setLostOpen(true)}>
+                  onClick={() => { setMoveStageInitial('Lost'); setMoveStageOpen(true) }}>
                   Mark as Lost
                 </Button>
               </>
@@ -900,9 +982,10 @@ export default function SalesLeadDetail() {
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       <MoveStageModal
         isOpen={moveStageOpen}
-        onClose={() => setMoveStageOpen(false)}
+        onClose={() => { setMoveStageOpen(false); setMoveStageInitial('') }}
         lead={lead}
         pipelines={pipelines}
+        initialStage={moveStageInitial}
         onSave={handleMoveStage}
       />
       <SetFollowupModal
@@ -911,28 +994,26 @@ export default function SalesLeadDetail() {
         lead={lead}
         onSave={handleSaveFollowup}
       />
-
-      {/* Won confirm */}
-      <Modal isOpen={wonOpen} onClose={() => setWonOpen(false)} title="Mark as Won?" size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setWonOpen(false)}>Cancel</Button>
-            <Button icon={<CheckCircle2 size={14} />} onClick={handleMarkWon}>Confirm Won</Button>
-          </>
-        }>
-        <p className="text-sm text-gray-600">Mark <strong>{lead.name}</strong> as Won? This will update the stage and create a conversion record.</p>
-      </Modal>
-
-      {/* Lost confirm */}
-      <Modal isOpen={lostOpen} onClose={() => setLostOpen(false)} title="Mark as Lost?" size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setLostOpen(false)}>Cancel</Button>
-            <Button variant="danger" icon={<XCircle size={14} />} onClick={handleMarkLost}>Mark as Lost</Button>
-          </>
-        }>
-        <p className="text-sm text-gray-600">Mark <strong>{lead.name}</strong> as Lost?</p>
-      </Modal>
+      {wonConversionLead && (
+        <WonConversionModal
+          isOpen={!!wonConversionLead}
+          onClose={() => setWonConversionLead(null)}
+          lead={wonConversionLead}
+          onConfirm={data => {
+            saveLead({ ...wonConversionLead, lastActivity: 'Converted to Customer' })
+            setWonSuccessData({ ...data, leadRef: wonConversionLead })
+            setWonConversionLead(null)
+          }}
+        />
+      )}
+      {wonSuccessData && (
+        <WonSuccessModal
+          isOpen={!!wonSuccessData}
+          onClose={() => setWonSuccessData(null)}
+          lead={wonSuccessData.leadRef}
+          data={wonSuccessData}
+        />
+      )}
     </div>
   )
 }

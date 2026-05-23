@@ -12,10 +12,12 @@ import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
+import { getStageFields } from '../data/stageFieldsStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
 
 // ── Pipeline definitions ──────────────────────────────────────────────────────
 
@@ -1147,54 +1149,164 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 
 // ── Move Stage Modal ──────────────────────────────────────────────────────────
 
-function MoveStageModal({ lead, availableStages, plStore, onClose, onMove }) {
-  const [targetStage, setTargetStage] = useState('')
-  const [followUpDate, setFollowUpDate] = useState('')
+function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initialStage = '' }) {
+  const [targetStage, setTargetStage]         = useState(initialStage)
+  const [fieldVals, setFieldVals]             = useState({})
+  const [followupEnabled, setFollowupEnabled] = useState(false)
+  const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
+  const [loading, setLoading]                 = useState(false)
 
-  const targetSC = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
-  const targetFollowUpAllowed = targetSC?.followUpAllowed !== false
+  useEffect(() => {
+    setTargetStage(initialStage ?? '')
+    setFieldVals({})
+    setFollowupEnabled(false)
+    setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
+  }, [initialStage])
+
+  const targetSC       = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
+  const targetStageId  = targetSC?.id ?? null
+  const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const requiredFields = stageFields.filter(f => f.required)
+  const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
+  const filledCount    = stageFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
+  const followUpAllowed = targetSC?.followUpAllowed !== false
+
+  function setField(id, val) { setFieldVals(p => ({ ...p, [id]: val })) }
+
+  function toggleNotify(name) {
+    setFuForm(p => ({ ...p, notifyTo: p.notifyTo.includes(name) ? p.notifyTo.filter(n => n !== name) : [...p.notifyTo, name] }))
+  }
 
   function handleMove() {
-    if (!targetStage) return
-    onMove(targetStage, targetFollowUpAllowed ? followUpDate : '')
-    onClose()
+    if (!targetStage || !requiredFilled) return
+    setLoading(true)
+    setTimeout(() => {
+      setLoading(false)
+      onMove(targetStage, fieldVals, followupEnabled && followUpAllowed ? fuForm : null)
+    }, 500)
   }
 
   return (
-    <Modal isOpen onClose={onClose} title={`Move Stage — ${lead.name}`} size="md"
+    <Modal isOpen onClose={onClose} title={`Move Stage — ${lead.name}`} size="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button icon={<TrendingUp size={14} />} onClick={handleMove} disabled={!targetStage}>
-            Move Stage
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button
+            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+            onClick={handleMove}
+            disabled={!targetStage || loading || !requiredFilled}
+          >
+            {loading ? 'Moving…' : 'Move Stage'}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-surface-border text-sm text-gray-600">
-          <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead.stage]?.colorBar ?? 'bg-gray-400'}`} />
-          Current: <strong>{lead.stage}</strong>
+      <div className="space-y-5">
+        {/* Stage selectors */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Current Stage">
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-surface-border">
+              <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead.stage]?.colorBar ?? 'bg-gray-400'}`} />
+              <span className="text-sm text-gray-600 font-medium">{lead.stage}</span>
+            </div>
+          </FormField>
+          <FormField label="Move to Stage" required>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
+              <option value="">Select target stage…</option>
+              {availableStages.map(s => <option key={s}>{s}</option>)}
+            </Select>
+          </FormField>
         </div>
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Move to</p>
-          <select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFollowUpDate('') }}
-            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
-            <option value="">Select target stage…</option>
-            {availableStages.map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        {targetStage && targetFollowUpAllowed && (
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1.5">Set follow-up after moving <span className="text-gray-400 font-normal">(optional)</span></p>
-            <input type="date" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)}
-              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+
+        {/* Dynamic stage fields */}
+        {targetStage && stageFields.length > 0 && (
+          <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-brand-blue uppercase tracking-wider">
+                Stage Fields — {targetStage}
+              </p>
+              <span className="text-[11px] text-gray-500 font-medium bg-white border border-surface-border rounded-full px-2 py-0.5">
+                {filledCount}/{stageFields.length} filled
+                {requiredFields.length > 0 && ` · ${requiredFields.length} required`}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {stageFields.map(f => {
+                const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
+                return (
+                  <div key={f.id} className={isWide ? 'col-span-2' : ''}>
+                    <FormField label={f.label} required={f.required} hint={f.help || undefined}>
+                      <DynamicFieldInput
+                        field={f}
+                        value={fieldVals[f.id]}
+                        onChange={val => setField(f.id, val)}
+                      />
+                    </FormField>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
-        {targetStage && !targetFollowUpAllowed && (
-          <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-surface-border text-xs text-gray-500">
+
+        {/* No fields notice */}
+        {targetStage && stageFields.length === 0 && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
+            No additional fields required for this stage.
+          </div>
+        )}
+
+        {/* Follow-up toggle — hidden for stages where followUpAllowed is false */}
+        {targetStage && followUpAllowed && (
+          <div className="border border-surface-border rounded-xl overflow-hidden">
+            <button type="button" onClick={() => setFollowupEnabled(p => !p)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-2">
+                <Bell size={14} className="text-brand-orange" />
+                Set a follow-up after moving
+              </div>
+              <div className={`w-9 h-5 rounded-full transition-colors relative ${followupEnabled ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${followupEnabled ? 'left-4' : 'left-0.5'}`} />
+              </div>
+            </button>
+            {followupEnabled && (
+              <div className="px-4 pb-4 pt-1 border-t border-surface-border space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Date" required>
+                    <Input type="date" value={fuForm.date} onChange={e => setFuForm(p => ({ ...p, date: e.target.value }))} />
+                  </FormField>
+                  <FormField label="Time">
+                    <Input type="time" value={fuForm.time} onChange={e => setFuForm(p => ({ ...p, time: e.target.value }))} />
+                  </FormField>
+                </div>
+                <FormField label="Note">
+                  <Textarea value={fuForm.note} onChange={e => setFuForm(p => ({ ...p, note: e.target.value }))} rows={2} placeholder="Context for follow-up…" />
+                </FormField>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-2">Notify</p>
+                  <div className="flex flex-wrap gap-2">
+                    {STAFF.map(s => (
+                      <button key={s.name} type="button" onClick={() => toggleNotify(s.name)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${
+                          fuForm.notifyTo.includes(s.name)
+                            ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
+                            : 'border-surface-border text-gray-600 hover:border-brand-blue/40'
+                        }`}>
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
+                        {s.name.split(' ')[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {targetStage && !followUpAllowed && (
+          <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border border-surface-border rounded-xl text-xs text-gray-500">
             <Bell size={12} className="text-gray-400 shrink-0" />
-            Follow-ups are disabled for <strong>{targetStage}</strong> stage.
+            Follow-ups are disabled for the <strong>{targetStage}</strong> stage.
           </div>
         )}
       </div>
@@ -1224,6 +1336,7 @@ export default function Sales() {
   const [followupLead, setFollowupLead]           = useState(null)
   const [inventoryToast, setInventoryToast]       = useState(false)
   const [moveStageLeadId, setMoveStageLeadId]     = useState(null)
+  const [moveStageInitial, setMoveStageInitial]   = useState('')
   const [tableStageFilter, setTableStageFilter]   = useState('')
   const [tableUserFilter, setTableUserFilter]     = useState('')
   const [tableStatusFilter, setTableStatusFilter] = useState('')
@@ -1296,11 +1409,13 @@ export default function Sales() {
           }
         }
 
-        // Intercept Won drops — show conversion confirmation
+        // Intercept Won/Lost drops — route through MoveStageModal for field capture
         const dropSC = getStageConfig(lead.pipeline, targetStage, plStore)
-        const isWonDrop = targetStage === 'Won' || dropSC?.statusType === 'Won'
-        if (isWonDrop) {
-          setWonConversionLead(lead)
+        const isWonDrop  = targetStage === 'Won'  || dropSC?.statusType === 'Won'
+        const isLostDrop = targetStage === 'Lost' || dropSC?.statusType === 'Lost'
+        if (isWonDrop || isLostDrop) {
+          setMoveStageLeadId(lead.id)
+          setMoveStageInitial(targetStage)
           setDraggingId(null)
           setDragOverStage(null)
           return
@@ -1779,7 +1894,7 @@ export default function Sales() {
           onClose={() => setWonConversionLead(null)}
           lead={wonConversionLead}
           onConfirm={data => {
-            saveLeadToStore({ ...wonConversionLead, stage: 'Won', daysInStage: 0, lastActivity: 'Converted to Customer' })
+            saveLeadToStore({ ...wonConversionLead, lastActivity: 'Converted to Customer' })
             setWonSuccessData({ ...data, leadRef: wonConversionLead })
             setWonConversionLead(null)
           }}
@@ -1824,18 +1939,25 @@ export default function Sales() {
             lead={msLead}
             availableStages={availableStages}
             plStore={plStore}
-            onClose={() => setMoveStageLeadId(null)}
-            onMove={(targetStage, followUpDate) => {
+            initialStage={moveStageInitial}
+            onClose={() => { setMoveStageLeadId(null); setMoveStageInitial('') }}
+            onMove={(targetStage, fieldVals, fuData) => {
               const sc = getStageConfig(msLead.pipeline, targetStage, plStore)
               const isWonMove = targetStage === 'Won' || sc?.statusType === 'Won'
-              if (isWonMove) {
-                setWonConversionLead(msLead)
-              } else {
-                const update = { ...msLead, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` }
-                if (followUpDate) update.followUp = followUpDate
-                saveLeadToStore(update)
+              const updatedLead = {
+                ...msLead,
+                stage: targetStage,
+                daysInStage: 0,
+                lastActivity: `Moved to ${targetStage}`,
+                ...(fieldVals && Object.keys(fieldVals).length > 0
+                  ? { stageFields: { ...(msLead.stageFields ?? {}), [targetStage]: fieldVals } }
+                  : {}),
               }
+              if (fuData?.date) updatedLead.followUp = fuData.date
+              saveLeadToStore(updatedLead)
+              if (isWonMove) setWonConversionLead(updatedLead)
               setMoveStageLeadId(null)
+              setMoveStageInitial('')
             }}
           />
         )
