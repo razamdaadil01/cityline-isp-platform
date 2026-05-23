@@ -8,6 +8,9 @@ import {
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { saveFollowup } from '../data/followupStore'
+import { getPipelines, subscribePipelines } from '../data/pipelineStore'
+import { getStageFields } from '../data/stageFieldsStore'
+import DynamicFieldInput, { isFieldFilled, displayFieldValue } from '../components/ui/DynamicFieldInput'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -47,69 +50,20 @@ const STAFF = [
 
 const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 
-const STAGE_FIELDS = {
-  'Contacted': [
-    { id: 'contactMethod',       label: 'Contact Method',             type: 'dropdown', required: true,  options: ['Call','WhatsApp','Email','Visit'] },
-    { id: 'interested',          label: 'Interested',                 type: 'dropdown', required: true,  options: ['Yes','No','Maybe'] },
-    { id: 'contactNotes',        label: 'Contact Notes',              type: 'textarea' },
-  ],
-  'Site Survey': [
-    { id: 'feasibilityStatus',   label: 'Feasibility Status',         type: 'dropdown', required: true,  options: ['Feasible','Not Feasible','Pending'] },
-    { id: 'nearestFiberNode',    label: 'Nearest Fiber Node',         type: 'text' },
-    { id: 'distanceFromNetwork', label: 'Distance from Network (m)',  type: 'number' },
-    { id: 'address',             label: 'Address',                    type: 'textarea' },
-    { id: 'pincode',             label: 'Pincode',                    type: 'text' },
-  ],
-  'Technical Feasibility': [
-    { id: 'feasibilityStatus',   label: 'Feasibility Status',         type: 'dropdown', required: true,  options: ['Feasible','Not Feasible','Pending'] },
-    { id: 'nearestFiberNode',    label: 'Nearest Fiber Node',         type: 'text' },
-    { id: 'distanceFromNetwork', label: 'Distance from Network (m)',  type: 'number' },
-    { id: 'address',             label: 'Address',                    type: 'textarea' },
-    { id: 'pincode',             label: 'Pincode',                    type: 'text' },
-  ],
-  'Site Visit Scheduled': [
-    { id: 'visitDate',           label: 'Visit Date',                 type: 'date',     required: true },
-    { id: 'visitTime',           label: 'Visit Time',                 type: 'time' },
-    { id: 'technicianName',      label: 'Technician Name',            type: 'text' },
-    { id: 'visitNotes',          label: 'Visit Notes',                type: 'textarea' },
-  ],
-  'Quotation Sent': [
-    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number',   required: true },
-    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', required: true,  options: PLANS },
-    { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
-    { id: 'validUntil',          label: 'Valid Until',                type: 'date' },
-  ],
-  'Quotation': [
-    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number',   required: true },
-    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', required: true,  options: PLANS },
-    { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
-    { id: 'validUntil',          label: 'Valid Until',                type: 'date' },
-  ],
-  'Commercial Proposal': [
-    { id: 'quotationAmount',     label: 'Quotation Amount (₹)',       type: 'number',   required: true },
-    { id: 'planOffered',         label: 'Plan Offered',               type: 'dropdown', required: true,  options: PLANS },
-    { id: 'installationCharges', label: 'Installation Charges (₹)',   type: 'number' },
-    { id: 'validUntil',          label: 'Valid Until',                type: 'date' },
-  ],
-  'Negotiation': [
-    { id: 'customerConcern',     label: 'Customer Concern',           type: 'textarea', required: true },
-    { id: 'offeredDiscount',     label: 'Offered Discount (%)',       type: 'number' },
-    { id: 'counterOfferAmount',  label: 'Counter Offer Amount (₹)',   type: 'number' },
-  ],
-  'Won': [
-    { id: 'installationDate',    label: 'Installation Date',          type: 'date',     required: true },
-    { id: 'finalPlan',           label: 'Final Plan',                 type: 'dropdown', required: true,  options: PLANS },
-    { id: 'finalAmount',         label: 'Final Amount (₹)',           type: 'number',   required: true },
-    { id: 'technicianAssigned',  label: 'Technician Assigned',        type: 'text' },
-  ],
-  'Lost': [
-    { id: 'lostReason',          label: 'Lost Reason',                type: 'dropdown', required: true,  options: ['Price Too High','No Feasibility','Competition','Not Interested','Other'] },
-    { id: 'lostNotes',           label: 'Lost Notes',                 type: 'textarea' },
-  ],
+const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
+
+function findStageId(pipelines, pipelineKey, stageName) {
+  const pipeline = pipelines.find(p => p.id === (PIPELINE_MAP[pipelineKey] ?? ''))
+  return pipeline?.stages.find(s => s.name === stageName)?.id ?? null
 }
 
-function getFieldLabel(stage, fieldId) {
-  return (STAGE_FIELDS[stage] ?? []).find(f => f.id === fieldId)?.label ?? fieldId
+function getFieldLabel(pipelines, pipelineKey, stageName, fieldId) {
+  const stageId = findStageId(pipelines, pipelineKey, stageName)
+  if (stageId) {
+    const f = getStageFields(stageId).find(x => x.id === fieldId)
+    if (f) return f.label
+  }
+  return fieldId
 }
 
 const TODAY = '2026-05-22'
@@ -128,7 +82,7 @@ function timeAgo(daysAgo, hoursAgo) {
 
 // ── MoveStageModal ─────────────────────────────────────────────────────────────
 
-function MoveStageModal({ isOpen, onClose, lead, onSave }) {
+function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave }) {
   const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
   const availableStages = pl.stages.filter(s => s !== lead?.stage)
   const [targetStage, setTargetStage]         = useState('')
@@ -141,10 +95,11 @@ function MoveStageModal({ isOpen, onClose, lead, onSave }) {
     if (isOpen) { setTargetStage(''); setFieldVals({}); setFollowupEnabled(false); setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] }) }
   }, [isOpen])
 
-  const stageFields    = STAGE_FIELDS[targetStage] ?? []
+  const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
+  const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const requiredFields = stageFields.filter(f => f.required)
-  const requiredFilled = requiredFields.every(f => !!fieldVals[f.id])
-  const filledCount    = stageFields.filter(f => !!fieldVals[f.id]).length
+  const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
+  const filledCount    = stageFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
 
   function setField(id, val) { setFieldVals(p => ({ ...p, [id]: val })) }
 
@@ -205,31 +160,20 @@ function MoveStageModal({ isOpen, onClose, lead, onSave }) {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {stageFields.map(f => (
-                <div key={f.id} className={f.type === 'textarea' ? 'col-span-2' : ''}>
-                  <FormField label={f.label} required={f.required}>
-                    {f.type === 'dropdown' ? (
-                      <Select value={fieldVals[f.id] ?? ''} onChange={e => setField(f.id, e.target.value)}>
-                        <option value="">Select…</option>
-                        {f.options.map(o => <option key={o}>{o}</option>)}
-                      </Select>
-                    ) : f.type === 'textarea' ? (
-                      <Textarea
-                        value={fieldVals[f.id] ?? ''}
-                        onChange={e => setField(f.id, e.target.value)}
-                        rows={2}
-                        placeholder={`Enter ${f.label.toLowerCase()}…`}
+              {stageFields.map(f => {
+                const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
+                return (
+                  <div key={f.id} className={isWide ? 'col-span-2' : ''}>
+                    <FormField label={f.label} required={f.required} hint={f.help || undefined}>
+                      <DynamicFieldInput
+                        field={f}
+                        value={fieldVals[f.id]}
+                        onChange={val => setField(f.id, val)}
                       />
-                    ) : (
-                      <Input
-                        type={f.type}
-                        value={fieldVals[f.id] ?? ''}
-                        onChange={e => setField(f.id, e.target.value)}
-                      />
-                    )}
-                  </FormField>
-                </div>
-              ))}
+                    </FormField>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -376,6 +320,7 @@ export default function SalesLeadDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [leads, setLeads]           = useState(getLeads)
+  const [pipelines, setPipelines]   = useState(getPipelines)
   const [activeTab, setActiveTab]   = useState('overview')
   const [moveStageOpen, setMoveStageOpen] = useState(false)
   const [followupOpen, setFollowupOpen]   = useState(false)
@@ -389,6 +334,7 @@ export default function SalesLeadDetail() {
   const commentRef = useRef(null)
 
   useEffect(() => subscribeLeads(setLeads), [])
+  useEffect(() => subscribePipelines(setPipelines), [])
 
   const lead = leads.find(l => l.id === id)
 
@@ -732,8 +678,8 @@ export default function SalesLeadDetail() {
                             <div className="mt-1.5 bg-gray-50 rounded-lg border border-gray-100 p-2 space-y-1">
                               {filledFields.map(([key, val]) => (
                                 <div key={key} className="flex items-start gap-1 text-[10px]">
-                                  <span className="text-gray-400 shrink-0">{getFieldLabel(sh.stage, key)}:</span>
-                                  <span className="text-gray-700 font-medium break-all">{val}</span>
+                                  <span className="text-gray-400 shrink-0">{getFieldLabel(pipelines, lead.pipeline, sh.stage, key)}:</span>
+                                  <span className="text-gray-700 font-medium break-all">{displayFieldValue(val)}</span>
                                 </div>
                               ))}
                             </div>
@@ -956,6 +902,7 @@ export default function SalesLeadDetail() {
         isOpen={moveStageOpen}
         onClose={() => setMoveStageOpen(false)}
         lead={lead}
+        pipelines={pipelines}
         onSave={handleMoveStage}
       />
       <SetFollowupModal

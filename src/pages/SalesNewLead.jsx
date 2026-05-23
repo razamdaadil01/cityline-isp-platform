@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, FileText, X, MapPin } from 'lucide-react'
+import { ArrowLeft, Upload, FileText, X, MapPin, CheckCircle } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -9,6 +9,9 @@ import {
 } from '../data/areaMappingStore'
 import { saveFeasibilityRequest } from '../data/feasibilityStore'
 import { saveLead } from '../data/leadsStore'
+import { getPipelines, subscribePipelines } from '../data/pipelineStore'
+import { getStageFields, subscribeStageFields } from '../data/stageFieldsStore'
+import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
 
 // ── Shared constants (mirrors Sales.jsx) ────────────────────────────────────
 
@@ -59,6 +62,8 @@ const INIT_FORM = {
   feasibilityRequirement: '', feasibilityRemarks: '',
   feasibilityConnectionType: 'FTTH', feasibilityBranch: '',
 }
+
+const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
 
 // ── KYC Document Upload ───────────────────────────────────────────────────────
 
@@ -137,13 +142,29 @@ function KycSection({ kycDocs = {}, onChange }) {
 
 export default function SalesNewLead() {
   const navigate = useNavigate()
-  const [form, setForm]     = useState({ ...INIT_FORM })
-  const [errors, setErrors] = useState({})
-  const [submitted, setSubmitted] = useState(false)
+  const [form, setForm]             = useState({ ...INIT_FORM })
+  const [errors, setErrors]         = useState({})
+  const [submitted, setSubmitted]   = useState(false)
+  const [pipelines, setPipelines]   = useState(getPipelines)
+  const [stageFieldVals, setStageFieldVals] = useState({})
+  const [stageErrors, setStageErrors]       = useState({})
+  const [, setSfTick]               = useState(0)
 
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+  useEffect(() => subscribePipelines(setPipelines), [])
+  useEffect(() => subscribeStageFields(() => setSfTick(n => n + 1)), [])
+
+  function set(f, v) {
+    setForm(p => ({ ...p, [f]: v }))
+    if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
+  }
 
   const pl = PIPELINES[form.pipeline]
+
+  const activePipeline = pipelines.find(p => p.id === (PIPELINE_MAP[form.pipeline] ?? ''))
+  const firstStage     = activePipeline?.stages[0]
+  const firstStageFields = firstStage
+    ? getStageFields(firstStage.id).filter(f => f.active !== false)
+    : []
 
   function validate() {
     const e = {}
@@ -152,7 +173,12 @@ export default function SalesNewLead() {
     if (!form.phone.match(/^\d{10}$/))          e.phone    = 'Enter a valid 10-digit number'
     if (form.alternatePhone && !form.alternatePhone.match(/^\d{10}$/))
                                                 e.alternatePhone = 'Enter a valid 10-digit number'
-    return e
+    const se = {}
+    firstStageFields.filter(f => f.required).forEach(f => {
+      if (!isFieldFilled(f, stageFieldVals[f.id])) se[f.id] = `${f.label} is required`
+    })
+    setStageErrors(se)
+    return { ...e, ...se }
   }
 
   const states = getStates()
@@ -189,6 +215,7 @@ export default function SalesNewLead() {
     }
 
     const staff = STAFF.find(s => s.name === form.assigned)
+    const today = new Date().toISOString().slice(0, 10)
     const newLead = {
       ...form,
       id:               leadId,
@@ -196,13 +223,19 @@ export default function SalesNewLead() {
       stage:            pl.stages[0],
       daysInStage:      0,
       lastActivity:     'Lead created',
-      createdAt:        new Date().toISOString().slice(0, 10),
+      createdAt:        today,
       createdBy:        'Admin User',
       assignedInitials: staff?.initials ?? '??',
       assignedColor:    staff?.color ?? 'bg-gray-400',
       priority:         'medium',
       ekycStatus:       null,
       hwAssigned:       null,
+      stageHistory: [{
+        stage:   pl.stages[0],
+        date:    today,
+        movedBy: 'Admin User',
+        fields:  Object.keys(stageFieldVals).length > 0 ? stageFieldVals : {},
+      }],
     }
     saveLead(newLead)
     navigate(`/sales/leads/${leadId}`)
@@ -474,6 +507,57 @@ export default function SalesNewLead() {
 
           </div>
         </div>
+
+        {/* Stage Fields card — dynamic fields for first stage */}
+        {firstStageFields.length > 0 && (
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-bold text-gray-700">
+                  Fields for{' '}
+                  <span className="text-brand-blue">{firstStage?.name}</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Configured in Pipeline Builder · {firstStageFields.filter(f => f.required).length} required
+                </p>
+              </div>
+              <span className="text-[11px] text-gray-500 font-medium bg-surface rounded-full px-2.5 py-1 border border-surface-border">
+                {firstStageFields.filter(f => isFieldFilled(f, stageFieldVals[f.id])).length}/{firstStageFields.length} filled
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+              {firstStageFields.map(f => {
+                const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
+                return (
+                  <div key={f.id} className={isWide ? 'col-span-2' : ''}>
+                    <FormField
+                      label={f.label}
+                      required={f.required}
+                      hint={f.help || undefined}
+                      error={stageErrors[f.id]}
+                    >
+                      <DynamicFieldInput
+                        field={f}
+                        value={stageFieldVals[f.id]}
+                        onChange={val => {
+                          setStageFieldVals(p => ({ ...p, [f.id]: val }))
+                          if (stageErrors[f.id]) setStageErrors(p => ({ ...p, [f.id]: '' }))
+                        }}
+                      />
+                    </FormField>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {firstStageFields.length === 0 && activePipeline && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
+            No additional fields configured for <strong className="ml-1">{firstStage?.name ?? pl.stages[0]}</strong>
+          </div>
+        )}
 
         {/* KYC Documents card */}
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
