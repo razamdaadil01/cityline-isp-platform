@@ -841,6 +841,48 @@ function InfoRow({ label, value, highlight }) {
   )
 }
 
+// ── ReopenModal ───────────────────────────────────────────────────────────────
+
+function ReopenModal({ isOpen, onClose, lead, firstStage, onConfirm }) {
+  const [loading, setLoading] = useState(false)
+
+  function handleConfirm() {
+    setLoading(true)
+    setTimeout(() => { setLoading(false); onConfirm() }, 500)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Reopen this lead?" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button
+            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+            onClick={handleConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Reopening…' : 'Reopen Lead'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-700">
+            Lead will be moved back to <strong>{firstStage}</strong> and marked as <strong>Open</strong>.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span className="font-medium">{lead?.name}</span>
+          <span className="text-gray-400">·</span>
+          <span className="text-gray-500">{lead?.stage}</span>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
@@ -854,6 +896,8 @@ export default function SalesLeadDetail() {
   const [wonConversionLead, setWonConversionLead] = useState(null)
   const [wonSuccessData, setWonSuccessData]   = useState(null)
   const [followupOpen, setFollowupOpen]       = useState(false)
+  const [reopenOpen, setReopenOpen]           = useState(false)
+  const [reopenToast, setReopenToast]         = useState(false)
   const [expandedStages, setExpandedStages] = useState({})
   const [newComment, setNewComment] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -997,6 +1041,29 @@ export default function SalesLeadDetail() {
     setFollowups(p => [{ id: fu.id, date: fu.date, time: fu.time, note: fu.note, status: 'Upcoming', assignedTo: fu.assignedTo, notifyTo: fu.notifyTo }, ...p])
   }
 
+  function handleReopen() {
+    const firstStage = pl.stages[0]
+    const reopenEntry = {
+      id: Date.now(),
+      icon: '🔄',
+      text: `Lead reopened by Admin`,
+      user: 'Admin',
+      time: 'just now',
+    }
+    saveLead({
+      ...lead,
+      stage:       firstStage,
+      daysInStage: 0,
+      lastActivity: 'Lead reopened',
+      followUp:    '',
+      activityLog: [reopenEntry, ...(lead.activityLog ?? [])],
+      stageHistory: [...(lead.stageHistory ?? []), { stage: firstStage, date: TODAY, movedBy: 'Admin', fields: {} }],
+    })
+    setReopenOpen(false)
+    setReopenToast(true)
+    setTimeout(() => setReopenToast(false), 3000)
+  }
+
   function handlePostComment() {
     if (!newComment.trim()) return
     const staff = STAFF.find(s => s.name === lead.assigned) ?? STAFF[0]
@@ -1086,6 +1153,14 @@ export default function SalesLeadDetail() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
+      {/* ── Reopen toast ────────────────────────────────────────────────── */}
+      {reopenToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-brand-blue text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          Lead reopened and moved to {pl.stages[0]}
+        </div>
+      )}
+
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="px-6 pt-5 pb-4 bg-white border-b border-surface-border shrink-0">
         <button onClick={() => navigate('/sales')}
@@ -1150,6 +1225,13 @@ export default function SalesLeadDetail() {
                   Mark as Lost
                 </Button>
               </>
+            )}
+            {(lead.stage === 'Won' || lead.stage === 'Lost') && (
+              <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
+                onClick={() => setReopenOpen(true)}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                Reopen Lead
+              </Button>
             )}
           </div>
         </div>
@@ -1617,6 +1699,13 @@ export default function SalesLeadDetail() {
         isOpen={activationSuccessOpen}
         onClose={() => setActivationSuccessOpen(false)}
         data={activationData}
+      />
+      <ReopenModal
+        isOpen={reopenOpen}
+        onClose={() => setReopenOpen(false)}
+        lead={lead}
+        firstStage={pl.stages[0]}
+        onConfirm={handleReopen}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   Plus, Phone, Edit3, Clock, TrendingUp,
@@ -7,7 +7,9 @@ import {
   Fingerprint, Send, AlertTriangle, Layers,
   CheckCircle, Loader2, Lock, Upload, FileText, BarChart2,
   Bell, ClipboardList, LayoutGrid, List, Eye, ChevronDown, Trophy,
+  Download, Filter,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
@@ -1340,8 +1342,15 @@ export default function Sales() {
   const [tableStageFilter, setTableStageFilter]   = useState('')
   const [tableUserFilter, setTableUserFilter]     = useState('')
   const [tableStatusFilter, setTableStatusFilter] = useState('')
+  const [tableDateFrom, setTableDateFrom]         = useState('')
+  const [tableDateTo, setTableDateTo]             = useState('')
+  const [tableFollowFrom, setTableFollowFrom]     = useState('')
+  const [tableFollowTo, setTableFollowTo]         = useState('')
   const [tableSort, setTableSort]                 = useState({ by: 'createdAt', dir: 'desc' })
   const [tablePage, setTablePage]                 = useState(1)
+  const [showExportMenu, setShowExportMenu]       = useState(false)
+  const [exportToast, setExportToast]             = useState('')
+  const exportMenuRef                             = useRef(null)
   const TABLE_PAGE_SIZE = 10
   const navigate                        = useNavigate()
   const location                        = useLocation()
@@ -1350,6 +1359,15 @@ export default function Sales() {
   useEffect(() => subscribeFormModules(setFormModules), [])
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribePipelines(setPlStore), [])
+
+  useEffect(() => {
+    if (!showExportMenu) return
+    function handler(e) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setShowExportMenu(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showExportMenu])
 
   // Pick up a newly created lead passed back from /sales/leads/new
   useEffect(() => {
@@ -1466,6 +1484,65 @@ export default function Sales() {
     setTimeout(() => setInventoryToast(false), 3000)
   }
 
+  function clearAllFilters() {
+    setTableStageFilter('')
+    setTableUserFilter('')
+    setTableStatusFilter('')
+    setTableDateFrom('')
+    setTableDateTo('')
+    setTableFollowFrom('')
+    setTableFollowTo('')
+    setTablePage(1)
+  }
+
+  const hasActiveFilters = !!(
+    tableStageFilter || tableUserFilter || tableStatusFilter ||
+    tableDateFrom || tableDateTo || tableFollowFrom || tableFollowTo
+  )
+
+  function buildExportRows(rows) {
+    const PIPELINE_LABEL_MAP = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+    return rows.map(l => ({
+      'Lead ID':       l.id,
+      'Lead Name':     l.name,
+      'Customer Name': l.name,
+      'Mobile':        l.phone,
+      'Pipeline':      PIPELINE_LABEL_MAP[l.pipeline] ?? l.pipeline,
+      'Stage':         l.stage,
+      'Assigned User': l.assigned ?? '',
+      'Follow-up Date': l.followUp ?? '',
+      'Status':        ['Won','Lost'].includes(l.stage) ? l.stage : 'Open',
+      'Created Date':  l.createdAt ?? '',
+    }))
+  }
+
+  function doExport(format) {
+    const rows = buildExportRows(getFilteredTableLeads())
+    const count = rows.length
+    if (format === 'csv') {
+      const headers = Object.keys(rows[0] ?? {})
+      const csvLines = [
+        headers.join(','),
+        ...rows.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')),
+      ]
+      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `leads-export-${new Date().toISOString().slice(0,10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } else {
+      const ws  = XLSX.utils.json_to_sheet(rows)
+      const wb  = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Leads')
+      XLSX.writeFile(wb, `leads-export-${new Date().toISOString().slice(0,10)}.xlsx`)
+    }
+    setShowExportMenu(false)
+    setExportToast(`Exported ${count} lead${count !== 1 ? 's' : ''} successfully`)
+    setTimeout(() => setExportToast(''), 3000)
+  }
+
   // ── Derived stats (scoped to active pipeline) ────────────────────────────
   const wonCount       = pipelineLeads.filter(l => l.stage === 'Won').length
   const lostCount      = pipelineLeads.filter(l => l.stage === 'Lost').length
@@ -1480,6 +1557,22 @@ export default function Sales() {
       )
     : pipelineLeads
 
+  function getFilteredTableLeads() {
+    return filteredLeads
+      .filter(l => !tableStageFilter  || l.stage    === tableStageFilter)
+      .filter(l => !tableUserFilter   || l.assigned === tableUserFilter)
+      .filter(l => !tableStatusFilter || (['Won','Lost'].includes(l.stage) ? l.stage : 'Open') === tableStatusFilter)
+      .filter(l => !tableDateFrom     || (l.createdAt ?? '') >= tableDateFrom)
+      .filter(l => !tableDateTo       || (l.createdAt ?? '') <= tableDateTo)
+      .filter(l => !tableFollowFrom   || (l.followUp  ?? '') >= tableFollowFrom)
+      .filter(l => !tableFollowTo     || (l.followUp  ?? '') <= tableFollowTo)
+      .sort((a, b) => {
+        const av = a[tableSort.by] ?? ''
+        const bv = b[tableSort.by] ?? ''
+        return tableSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+      })
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
@@ -1488,6 +1581,14 @@ export default function Sales() {
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle size={16} className="shrink-0" />
           Sent to Inventory team for HW Assignment
+        </div>
+      )}
+
+      {/* ── Export toast ────────────────────────────────────────────────── */}
+      {exportToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-brand-blue text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <Download size={16} className="shrink-0" />
+          {exportToast}
         </div>
       )}
 
@@ -1520,6 +1621,27 @@ export default function Sales() {
                 <List size={13} /> Table
               </button>
             </div>
+            {/* Export button */}
+            {viewMode === 'table' && (
+              <div className="relative" ref={exportMenuRef}>
+                <Button variant="secondary" size="sm" icon={<Download size={14} />}
+                  onClick={() => setShowExportMenu(p => !p)}>
+                  Export <ChevronDown size={12} className="ml-1" />
+                </Button>
+                {showExportMenu && (
+                  <div className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-surface-border rounded-xl shadow-xl z-30 overflow-hidden">
+                    <button onClick={() => doExport('csv')}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <FileText size={14} className="text-gray-400" /> Export as CSV
+                    </button>
+                    <button onClick={() => doExport('excel')}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-surface-border">
+                      <Download size={14} className="text-emerald-500" /> Export as Excel
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')}>
               Add Lead
             </Button>
@@ -1586,62 +1708,129 @@ export default function Sales() {
         </div>
 
         {/* ── Search + Table filters ───────────────────────────────────── */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-72">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => { setSearch(e.target.value); setTablePage(1) }}
-              placeholder={viewMode === 'table' ? `Search name, mobile, lead ID…` : `Search ${pl.label} leads…`}
-              className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={14} />
-              </button>
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={search} onChange={e => { setSearch(e.target.value); setTablePage(1) }}
+                placeholder={viewMode === 'table' ? `Search name, mobile, lead ID…` : `Search ${pl.label} leads…`}
+                className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {viewMode === 'table' && (
+              <>
+                <select value={tableStageFilter} onChange={e => { setTableStageFilter(e.target.value); setTablePage(1) }}
+                  className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                  <option value="">All Stages</option>
+                  {pl.stages.map(s => <option key={s}>{s}</option>)}
+                </select>
+                <select value={tableUserFilter} onChange={e => { setTableUserFilter(e.target.value); setTablePage(1) }}
+                  className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                  <option value="">All Users</option>
+                  {['Arjun Kumar','Preethi Nair','Suresh Babu','Anita Sharma'].map(u => <option key={u}>{u}</option>)}
+                </select>
+                <select value={tableStatusFilter} onChange={e => { setTableStatusFilter(e.target.value); setTablePage(1) }}
+                  className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                  <option value="">All Status</option>
+                  <option>Open</option><option>Won</option><option>Lost</option>
+                </select>
+                {/* Date Range */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Created:</span>
+                  <input type="date" value={tableDateFrom}
+                    onChange={e => { setTableDateFrom(e.target.value); setTablePage(1) }}
+                    className="text-sm border border-surface-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-[130px]" />
+                  <span className="text-xs text-gray-400">→</span>
+                  <input type="date" value={tableDateTo}
+                    onChange={e => { setTableDateTo(e.target.value); setTablePage(1) }}
+                    className="text-sm border border-surface-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-[130px]" />
+                </div>
+                {/* Follow-up Date Range */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-500 font-medium whitespace-nowrap">Follow-up:</span>
+                  <input type="date" value={tableFollowFrom}
+                    onChange={e => { setTableFollowFrom(e.target.value); setTablePage(1) }}
+                    className="text-sm border border-surface-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-[130px]" />
+                  <span className="text-xs text-gray-400">→</span>
+                  <input type="date" value={tableFollowTo}
+                    onChange={e => { setTableFollowTo(e.target.value); setTablePage(1) }}
+                    className="text-sm border border-surface-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-[130px]" />
+                </div>
+                <select value={`${tableSort.by}:${tableSort.dir}`}
+                  onChange={e => { const [by, dir] = e.target.value.split(':'); setTableSort({ by, dir }); setTablePage(1) }}
+                  className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+                  <option value="createdAt:desc">Created (Newest)</option>
+                  <option value="createdAt:asc">Created (Oldest)</option>
+                  <option value="followUp:asc">Follow-up (Earliest)</option>
+                  <option value="followUp:desc">Follow-up (Latest)</option>
+                </select>
+              </>
             )}
+            {search && <span className="text-sm text-gray-500">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>}
           </div>
-          {viewMode === 'table' && (
-            <>
-              <select value={tableStageFilter} onChange={e => { setTableStageFilter(e.target.value); setTablePage(1) }}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
-                <option value="">All Stages</option>
-                {pl.stages.map(s => <option key={s}>{s}</option>)}
-              </select>
-              <select value={tableUserFilter} onChange={e => { setTableUserFilter(e.target.value); setTablePage(1) }}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
-                <option value="">All Users</option>
-                {['Arjun Kumar','Preethi Nair','Suresh Babu','Anita Sharma'].map(u => <option key={u}>{u}</option>)}
-              </select>
-              <select value={tableStatusFilter} onChange={e => { setTableStatusFilter(e.target.value); setTablePage(1) }}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
-                <option value="">All Status</option>
-                <option>Open</option><option>Won</option><option>Lost</option>
-              </select>
-              <select value={`${tableSort.by}:${tableSort.dir}`}
-                onChange={e => { const [by, dir] = e.target.value.split(':'); setTableSort({ by, dir }); setTablePage(1) }}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
-                <option value="createdAt:desc">Created (Newest)</option>
-                <option value="createdAt:asc">Created (Oldest)</option>
-                <option value="followUp:asc">Follow-up (Earliest)</option>
-                <option value="followUp:desc">Follow-up (Latest)</option>
-              </select>
-            </>
+
+          {/* ── Active filter pills ── */}
+          {viewMode === 'table' && hasActiveFilters && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Filter size={12} className="text-gray-400 shrink-0" />
+              {tableStageFilter && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-medium">
+                  Stage: {tableStageFilter}
+                  <button onClick={() => { setTableStageFilter(''); setTablePage(1) }} className="hover:text-brand-blue-dark ml-0.5">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {tableUserFilter && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                  Assigned: {tableUserFilter}
+                  <button onClick={() => { setTableUserFilter(''); setTablePage(1) }} className="hover:text-purple-900 ml-0.5">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {tableStatusFilter && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                  Status: {tableStatusFilter}
+                  <button onClick={() => { setTableStatusFilter(''); setTablePage(1) }} className="hover:text-emerald-900 ml-0.5">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {(tableDateFrom || tableDateTo) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                  Created: {tableDateFrom || '…'} → {tableDateTo || '…'}
+                  <button onClick={() => { setTableDateFrom(''); setTableDateTo(''); setTablePage(1) }} className="hover:text-amber-900 ml-0.5">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {(tableFollowFrom || tableFollowTo) && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-brand-orange rounded-full text-xs font-medium">
+                  Follow-up: {tableFollowFrom || '…'} → {tableFollowTo || '…'}
+                  <button onClick={() => { setTableFollowFrom(''); setTableFollowTo(''); setTablePage(1) }} className="hover:text-brand-orange-dark ml-0.5">
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              <button onClick={clearAllFilters}
+                className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors ml-1">
+                Clear All Filters
+              </button>
+            </div>
           )}
-          {search && <span className="text-sm text-gray-500">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>}
         </div>
       </div>
 
       {/* ── Table view ─────────────────────────────────────────────────── */}
       {viewMode === 'table' && (() => {
         const TODAY_STR = '2026-05-22'
-        const tableLeads = filteredLeads
-          .filter(l => !tableStageFilter  || l.stage    === tableStageFilter)
-          .filter(l => !tableUserFilter   || l.assigned === tableUserFilter)
-          .filter(l => !tableStatusFilter || (['Won','Lost'].includes(l.stage) ? l.stage : 'Open') === tableStatusFilter)
-          .sort((a, b) => {
-            const av = a[tableSort.by] ?? ''
-            const bv = b[tableSort.by] ?? ''
-            return tableSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-          })
+        const tableLeads = getFilteredTableLeads()
         const totalPages = Math.max(1, Math.ceil(tableLeads.length / TABLE_PAGE_SIZE))
         const pageLeads  = tableLeads.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE)
         const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
