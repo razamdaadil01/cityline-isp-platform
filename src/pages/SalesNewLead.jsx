@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, FileText, X, MapPin, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Upload, FileText, X, MapPin, CheckCircle, AlertTriangle } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -8,7 +8,7 @@ import {
   getStates, getDistricts, getAreasList, getLocalities, getSubLocalities, lookupSubLocality,
 } from '../data/areaMappingStore'
 import { saveFeasibilityRequest } from '../data/feasibilityStore'
-import { saveLead } from '../data/leadsStore'
+import { getLeads, saveLead } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields, subscribeStageFields } from '../data/stageFieldsStore'
 import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
@@ -64,6 +64,40 @@ const INIT_FORM = {
 }
 
 const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
+
+// ── Duplicate Warning Banner ──────────────────────────────────────────────────
+
+function DuplicateWarning({ lead, onView, onContinue }) {
+  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+  return (
+    <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+      <div className="flex items-start gap-2 mb-2">
+        <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+        <p className="text-xs font-semibold text-amber-800">A lead already exists with this mobile number</p>
+      </div>
+      <div className="ml-5 mb-3 text-[11px] text-amber-700 space-y-0.5">
+        <p className="font-semibold text-amber-900">{lead.name} — {PIPELINE_LABEL[lead.pipeline] ?? lead.pipeline} — {lead.stage}</p>
+        <p>Created {lead.createdAt} · Assigned to {lead.assigned || '—'}</p>
+      </div>
+      <div className="ml-5 flex gap-2">
+        <button
+          type="button"
+          onClick={onView}
+          className="px-3 py-1 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+        >
+          View Existing Lead
+        </button>
+        <button
+          type="button"
+          onClick={onContinue}
+          className="px-3 py-1 text-xs font-semibold border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
+        >
+          Continue Anyway
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // ── KYC Document Upload ───────────────────────────────────────────────────────
 
@@ -149,6 +183,10 @@ export default function SalesNewLead() {
   const [stageFieldVals, setStageFieldVals] = useState({})
   const [stageErrors, setStageErrors]       = useState({})
   const [, setSfTick]               = useState(0)
+  const [phoneDup, setPhoneDup]         = useState(null)
+  const [altPhoneDup, setAltPhoneDup]   = useState(null)
+  const [phoneContinued, setPhoneContinued]       = useState(false)
+  const [altPhoneContinued, setAltPhoneContinued] = useState(false)
 
   useEffect(() => subscribePipelines(setPipelines), [])
   useEffect(() => subscribeStageFields(() => setSfTick(n => n + 1)), [])
@@ -156,6 +194,25 @@ export default function SalesNewLead() {
   function set(f, v) {
     setForm(p => ({ ...p, [f]: v }))
     if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
+  }
+
+  function findDuplicate(phoneNum) {
+    if (!phoneNum || phoneNum.length !== 10) return null
+    return getLeads().find(l => l.phone === phoneNum || l.alternateMobile === phoneNum) ?? null
+  }
+
+  function handlePhoneBlur() {
+    if (form.phone.length === 10) {
+      setPhoneDup(findDuplicate(form.phone))
+      setPhoneContinued(false)
+    }
+  }
+
+  function handleAltPhoneBlur() {
+    if (form.alternatePhone.length === 10) {
+      setAltPhoneDup(findDuplicate(form.alternatePhone))
+      setAltPhoneContinued(false)
+    }
   }
 
   // Only show pipelines that are active in the store (B2C→PL-001, B2B→PL-002, Custom always shown)
@@ -206,6 +263,7 @@ export default function SalesNewLead() {
   function handleCreate() {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
+    const hasDuplicate = (phoneDup && phoneContinued) || (altPhoneDup && altPhoneContinued)
 
     const leadId = `LD-${Date.now()}`
 
@@ -245,6 +303,13 @@ export default function SalesNewLead() {
         movedBy: 'Admin User',
         fields:  Object.keys(stageFieldVals).length > 0 ? stageFieldVals : {},
       }],
+      activityLog: hasDuplicate ? [{
+        id:   Date.now(),
+        icon: '⚠️',
+        text: 'Created despite duplicate mobile number warning',
+        user: 'Admin User',
+        time: 'just now',
+      }] : [],
     }
     saveLead(newLead)
     navigate(`/sales/leads/${leadId}`)
@@ -335,22 +400,48 @@ export default function SalesNewLead() {
               <Input
                 type="tel"
                 value={form.phone}
-                onChange={e => { set('phone', e.target.value.replace(/\D/g, '').slice(0, 10)); setErrors(p => ({ ...p, phone: '' })) }}
+                onChange={e => {
+                  set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))
+                  setErrors(p => ({ ...p, phone: '' }))
+                  setPhoneDup(null)
+                  setPhoneContinued(false)
+                }}
+                onBlur={handlePhoneBlur}
                 placeholder="9876543210"
-                className={errors.phone ? 'border-red-400 focus:ring-red-400/30' : ''}
+                className={errors.phone ? 'border-red-400 focus:ring-red-400/30' : phoneDup && !phoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
               />
               {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+              {phoneDup && !phoneContinued && (
+                <DuplicateWarning
+                  lead={phoneDup}
+                  onView={() => navigate(`/sales/leads/${phoneDup.id}`)}
+                  onContinue={() => setPhoneContinued(true)}
+                />
+              )}
             </FormField>
 
             <FormField label="Alternate Number">
               <Input
                 type="tel"
                 value={form.alternatePhone}
-                onChange={e => { set('alternatePhone', e.target.value.replace(/\D/g, '').slice(0, 10)); setErrors(p => ({ ...p, alternatePhone: '' })) }}
+                onChange={e => {
+                  set('alternatePhone', e.target.value.replace(/\D/g, '').slice(0, 10))
+                  setErrors(p => ({ ...p, alternatePhone: '' }))
+                  setAltPhoneDup(null)
+                  setAltPhoneContinued(false)
+                }}
+                onBlur={handleAltPhoneBlur}
                 placeholder="9876543210"
-                className={errors.alternatePhone ? 'border-red-400 focus:ring-red-400/30' : ''}
+                className={errors.alternatePhone ? 'border-red-400 focus:ring-red-400/30' : altPhoneDup && !altPhoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
               />
               {errors.alternatePhone && <p className="text-xs text-red-500 mt-1">{errors.alternatePhone}</p>}
+              {altPhoneDup && !altPhoneContinued && (
+                <DuplicateWarning
+                  lead={altPhoneDup}
+                  onView={() => navigate(`/sales/leads/${altPhoneDup.id}`)}
+                  onContinue={() => setAltPhoneContinued(true)}
+                />
+              )}
             </FormField>
 
             <FormField label="Email Address">
