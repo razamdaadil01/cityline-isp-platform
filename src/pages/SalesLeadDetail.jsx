@@ -68,7 +68,7 @@ function getFieldLabel(pipelines, pipelineKey, stageName, fieldId) {
   return fieldId
 }
 
-const TODAY = '2026-05-22'
+const TODAY = new Date().toISOString().split('T')[0]
 
 function daysBetween(a, b) {
   const ms = new Date(b) - new Date(a)
@@ -1301,7 +1301,7 @@ export default function SalesLeadDetail() {
                   <span className="text-xs text-gray-500 w-36 shrink-0">Current Stage</span>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
                 </div>
-                <InfoRow label="Stage Entered"  value={`2026-05-${String(22 - lead.daysInStage).padStart(2, '0')}`} />
+                <InfoRow label="Stage Entered"  value={(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()} />
                 <InfoRow label="Days in Stage"  value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
               </div>
 

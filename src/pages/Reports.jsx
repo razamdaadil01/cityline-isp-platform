@@ -491,8 +491,8 @@ const DETAIL_VIEWS = {
 
 export default function Reports() {
   const [active,    setActive]    = useState(null)
-  const [dateFrom,  setDateFrom]  = useState('2026-01-01')
-  const [dateTo,    setDateTo]    = useState('2026-05-31')
+  const [dateFrom,  setDateFrom]  = useState(() => `${new Date().getFullYear()}-01-01`)
+  const [dateTo,    setDateTo]    = useState(() => new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0])
 
   const activeCard = REPORT_CARDS.find(c => c.id === active)
   const DetailView = active ? DETAIL_VIEWS[active] : null
