@@ -65,34 +65,43 @@ const INIT_FORM = {
 
 const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
 
-// ── Duplicate Warning Banner ──────────────────────────────────────────────────
+// ── Duplicate Warning Banner (top of page) ───────────────────────────────────
 
-function DuplicateWarning({ lead, onView, onContinue }) {
+function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
   const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
   return (
-    <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
-      <div className="flex items-start gap-2 mb-2">
-        <AlertTriangle size={14} className="text-amber-600 shrink-0 mt-0.5" />
-        <p className="text-xs font-semibold text-amber-800">A lead already exists with this mobile number</p>
+    <div className="shrink-0 flex items-center gap-4 px-6 py-3 bg-amber-50 border-b border-amber-300">
+      <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-amber-900">Duplicate lead detected</p>
+        <p className="text-xs text-amber-700 mt-0.5">
+          A lead already exists with this {fieldLabel}:{' '}
+          <span className="font-semibold text-amber-900">{lead.name}</span>
+          {' — '}{PIPELINE_LABEL[lead.pipeline] ?? lead.pipeline}{' — '}{lead.stage}
+          {' · Created '}{lead.createdAt}{' · Assigned to '}{lead.assigned || '—'}
+        </p>
       </div>
-      <div className="ml-5 mb-3 text-[11px] text-amber-700 space-y-0.5">
-        <p className="font-semibold text-amber-900">{lead.name} — {PIPELINE_LABEL[lead.pipeline] ?? lead.pipeline} — {lead.stage}</p>
-        <p>Created {lead.createdAt} · Assigned to {lead.assigned || '—'}</p>
-      </div>
-      <div className="ml-5 flex gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <button
           type="button"
           onClick={onView}
-          className="px-3 py-1 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+          className="px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
         >
           View Existing Lead
         </button>
         <button
           type="button"
           onClick={onContinue}
-          className="px-3 py-1 text-xs font-semibold border border-amber-400 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
+          className="px-3 py-1.5 text-xs font-semibold border border-amber-400 text-amber-700 bg-white rounded-lg hover:bg-amber-100 transition-colors"
         >
           Continue Anyway
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-amber-500 hover:bg-amber-100 transition-colors"
+        >
+          <X size={14} />
         </button>
       </div>
     </div>
@@ -334,6 +343,26 @@ export default function SalesNewLead() {
         </div>
       </div>
 
+      {/* ── Duplicate banners ───────────────────────────────────────────── */}
+      {phoneDup && !phoneContinued && (
+        <DuplicateBanner
+          lead={phoneDup}
+          fieldLabel="mobile number"
+          onView={() => navigate(`/sales/leads/${phoneDup.id}`)}
+          onContinue={() => setPhoneContinued(true)}
+          onDismiss={() => { setPhoneDup(null); setPhoneContinued(false) }}
+        />
+      )}
+      {altPhoneDup && !altPhoneContinued && (
+        <DuplicateBanner
+          lead={altPhoneDup}
+          fieldLabel="alternate number"
+          onView={() => navigate(`/sales/leads/${altPhoneDup.id}`)}
+          onContinue={() => setAltPhoneContinued(true)}
+          onDismiss={() => { setAltPhoneDup(null); setAltPhoneContinued(false) }}
+        />
+      )}
+
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 
@@ -411,13 +440,6 @@ export default function SalesNewLead() {
                 className={errors.phone ? 'border-red-400 focus:ring-red-400/30' : phoneDup && !phoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
               />
               {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
-              {phoneDup && !phoneContinued && (
-                <DuplicateWarning
-                  lead={phoneDup}
-                  onView={() => navigate(`/sales/leads/${phoneDup.id}`)}
-                  onContinue={() => setPhoneContinued(true)}
-                />
-              )}
             </FormField>
 
             <FormField label="Alternate Number">
@@ -435,13 +457,6 @@ export default function SalesNewLead() {
                 className={errors.alternatePhone ? 'border-red-400 focus:ring-red-400/30' : altPhoneDup && !altPhoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
               />
               {errors.alternatePhone && <p className="text-xs text-red-500 mt-1">{errors.alternatePhone}</p>}
-              {altPhoneDup && !altPhoneContinued && (
-                <DuplicateWarning
-                  lead={altPhoneDup}
-                  onView={() => navigate(`/sales/leads/${altPhoneDup.id}`)}
-                  onContinue={() => setAltPhoneContinued(true)}
-                />
-              )}
             </FormField>
 
             <FormField label="Email Address">
