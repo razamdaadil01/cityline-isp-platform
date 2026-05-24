@@ -854,6 +854,7 @@ export default function SalesLeadDetail() {
   const [wonConversionLead, setWonConversionLead] = useState(null)
   const [wonSuccessData, setWonSuccessData]   = useState(null)
   const [followupOpen, setFollowupOpen]       = useState(false)
+  const [expandedStages, setExpandedStages] = useState({})
   const [newComment, setNewComment] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionQ, setMentionQ]     = useState('')
@@ -1129,7 +1130,7 @@ export default function SalesLeadDetail() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <Button variant="secondary" size="sm" icon={<Edit3 size={14} />} onClick={() => navigate('/sales')}>
+            <Button variant="secondary" size="sm" icon={<Edit3 size={14} />} onClick={() => navigate(`/sales/leads/${lead.id}/edit`)}>
               Edit Lead
             </Button>
             <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />} onClick={() => setMoveStageOpen(true)}>
@@ -1228,23 +1229,42 @@ export default function SalesLeadDetail() {
                   {stageHistory.map((sh, i) => {
                     const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
                     const filledFields = Object.entries(sh.fields ?? {}).filter(([, v]) => v)
+                    const isExpanded = expandedStages[i] ?? false
                     return (
-                      <div key={i} className="flex gap-3 pb-4 relative">
+                      <div key={i} className="flex gap-3 pb-3 relative">
                         {i < stageHistory.length - 1 && (
                           <div className="absolute left-2 top-5 bottom-0 w-px bg-gray-200" />
                         )}
-                        <div className={`w-4 h-4 rounded-full shrink-0 mt-0.5 ${ss.dot} z-10`} />
+                        <div className={`w-4 h-4 rounded-full shrink-0 mt-1 ${ss.dot} z-10`} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-gray-800">{sh.stage}</p>
-                          <p className="text-[10px] text-gray-400">{sh.date} · by {sh.movedBy}</p>
-                          {filledFields.length > 0 && (
-                            <div className="mt-1.5 bg-gray-50 rounded-lg border border-gray-100 p-2 space-y-1">
-                              {filledFields.map(([key, val]) => (
-                                <div key={key} className="flex items-start gap-1 text-[10px]">
-                                  <span className="text-gray-400 shrink-0">{getFieldLabel(pipelines, lead.pipeline, sh.stage, key)}:</span>
-                                  <span className="text-gray-700 font-medium break-all">{displayFieldValue(val)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedStages(p => ({ ...p, [i]: !p[i] }))}
+                            className="w-full text-left group"
+                          >
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ss.chip}`}>{sh.stage}</span>
+                              <ChevronDown
+                                size={11}
+                                className={`text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                              />
+                            </div>
+                            <p className="text-[10px] text-gray-400">{sh.date} · by {sh.movedBy}</p>
+                          </button>
+                          {isExpanded && (
+                            <div className="mt-1.5">
+                              {filledFields.length > 0 ? (
+                                <div className="bg-gray-50 rounded-lg border border-gray-100 p-2 space-y-1">
+                                  {filledFields.map(([key, val]) => (
+                                    <div key={key} className="flex items-start gap-1 text-[10px]">
+                                      <span className="text-gray-400 shrink-0">{getFieldLabel(pipelines, lead.pipeline, sh.stage, key)}:</span>
+                                      <span className="text-gray-700 font-medium break-all">{displayFieldValue(val)}</span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              ) : (
+                                <p className="text-[10px] text-gray-400 italic px-1">No fields recorded for this stage</p>
+                              )}
                             </div>
                           )}
                         </div>
