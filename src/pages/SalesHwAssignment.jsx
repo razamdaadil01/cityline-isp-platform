@@ -45,7 +45,7 @@ const STATUS_STYLE = {
 
 const FILTERS = ['All', 'Pending', 'Assigned', 'Completed']
 
-const TODAY = '2026-05-15'
+const TODAY = new Date().toISOString().split('T')[0]
 
 const INIT_QUEUE = [
   {

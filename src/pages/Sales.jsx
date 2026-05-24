@@ -579,7 +579,7 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
 function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, userRole, followUpAllowed = true, isClosed = false }) {
-  const TODAY_STR = '2026-05-15'
+  const TODAY_STR = new Date().toISOString().split('T')[0]
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
   const isHwStage         = lead.stage === 'Hardware Assignment'
@@ -1382,7 +1382,6 @@ export default function Sales() {
 
   const pl            = PIPELINES[activePipeline]
   const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
-  console.log('[Sales] render — activePipeline:', activePipeline, '| pipelineLeads:', pipelineLeads.length)
 
   // ── Drag and drop ────────────────────────────────────────────────────────
   function handleDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
@@ -1547,7 +1546,7 @@ export default function Sales() {
   const wonCount       = pipelineLeads.filter(l => l.stage === 'Won').length
   const lostCount      = pipelineLeads.filter(l => l.stage === 'Lost').length
   const activeCount    = pipelineLeads.filter(l => !['Won', 'Lost'].includes(l.stage)).length
-  const todayFollowUps = pipelineLeads.filter(l => l.followUp === '2026-05-15').length
+  const todayFollowUps = pipelineLeads.filter(l => l.followUp === new Date().toISOString().split('T')[0]).length
 
   const filteredLeads = search.trim()
     ? pipelineLeads.filter(l =>
@@ -1663,7 +1662,7 @@ export default function Sales() {
             return (
               <button
                 key={key}
-                onClick={() => { setActivePipeline(key); setSearch(''); console.log('[Sales] activePipeline →', key) }}
+                onClick={() => { setActivePipeline(key); setSearch('') }}
                 style={isActive ? { backgroundColor: ACTIVE_BG[key], color: '#fff' } : {}}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   isActive
@@ -1829,7 +1828,7 @@ export default function Sales() {
 
       {/* ── Table view ─────────────────────────────────────────────────── */}
       {viewMode === 'table' && (() => {
-        const TODAY_STR = '2026-05-22'
+        const TODAY_STR = new Date().toISOString().split('T')[0]
         const tableLeads = getFilteredTableLeads()
         const totalPages = Math.max(1, Math.ceil(tableLeads.length / TABLE_PAGE_SIZE))
         const pageLeads  = tableLeads.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE)

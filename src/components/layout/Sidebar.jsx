@@ -63,7 +63,7 @@ const NAV_ITEMS = [
       { label: 'Roles',                 icon: Shield,          to: '/settings/roles'                 },
     ],
   },
-  { label: 'Notifications',    icon: Bell,            to: '/notification-settings'         },
+  { label: 'Notifications',    icon: Bell,            to: '/notifications'                 },
 ]
 
 export default function Sidebar({ collapsed }) {

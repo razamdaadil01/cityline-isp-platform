@@ -9,6 +9,7 @@ import {
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
+import { CUSTOMERS as BASE_CUSTOMERS } from '../data/customersData'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -61,17 +62,56 @@ const MOCK_CUSTOMERS = {
   },
 }
 
-// Fallback for unknown IDs
-function makeFallbackCustomer(id) {
+// Build a customer record from base data when full mock data is unavailable
+function makeCustomerFromBase(id) {
+  const base = BASE_CUSTOMERS.find(c => c.id === id)
+  if (!base) {
+    return {
+      id, name: 'Unknown Customer', phone: '—', altPhone: '—', email: '—',
+      dob: '—', gender: '—', status: 'inactive', online: false,
+      services: [], outstandingDues: 0, ekyc: 'pending', accountManager: '—',
+      createdOn: '—',
+      address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
+      payment: { mode: '—', advanceDeposit: 0, creditLimit: 0, billingCycle: '—' },
+      radius: { jazeUserId: '—', pppoeUsername: '—', pppoePassword: '—', nas: '—', interface: '—', ipAddress: '—', macAddress: '—' },
+      kyc: { aadhaar: 'pending', pan: 'pending', photo: 'pending', agreementSigned: false },
+      notes: '',
+    }
+  }
+  const slug = base.name.toLowerCase().replace(/\s+/g, '.')
+  const idSlug = base.id.replace('-', '').toLowerCase()
   return {
-    id, name: 'Unknown Customer', phone: '—', altPhone: '—', email: '—',
-    dob: '—', gender: '—', status: 'inactive', online: false,
-    services: [], outstandingDues: 0, ekyc: 'pending', accountManager: '—',
-    createdOn: '—',
+    id: base.id,
+    name: base.name,
+    phone: base.phone.replace(/(\d{5})(\d{5})/, '$1 $2'),
+    altPhone: '—',
+    email: `${slug}@email.com`,
+    dob: '—',
+    gender: '—',
+    status: base.status,
+    online: base.status === 'active',
+    services: [],
+    outstandingDues: 0,
+    ekyc: base.status === 'active' ? 'verified' : 'pending',
+    accountManager: 'Admin User',
+    createdOn: '01 Jan 2023',
     address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
-    payment: { mode: '—', advanceDeposit: 0, creditLimit: 0, billingCycle: '—' },
-    radius: { jazeUserId: '—', pppoeUsername: '—', pppoePassword: '—', nas: '—', interface: '—', ipAddress: '—', macAddress: '—' },
-    kyc: { aadhaar: 'pending', pan: 'pending', photo: 'pending', agreementSigned: false },
+    payment: { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
+    radius: {
+      jazeUserId: idSlug,
+      pppoeUsername: `${base.id.replace('-', '')}@cityline`,
+      pppoePassword: '—',
+      nas: 'NAS-01',
+      interface: '—',
+      ipAddress: '—',
+      macAddress: '—',
+    },
+    kyc: {
+      aadhaar: base.status === 'active' ? 'verified' : 'pending',
+      pan: base.status === 'active' ? 'verified' : 'pending',
+      photo: base.status === 'active' ? 'uploaded' : 'pending',
+      agreementSigned: base.status === 'active',
+    },
     notes: '',
   }
 }
@@ -753,7 +793,7 @@ export default function CustomerDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
 
-  const customer = MOCK_CUSTOMERS[id] ?? makeFallbackCustomer(id)
+  const customer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
 
   const [activeTab, setActiveTab] = useState('Profile')
   const [notes, setNotes]         = useState(customer.notes)

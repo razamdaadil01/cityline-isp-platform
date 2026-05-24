@@ -14,7 +14,7 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const TODAY = '2026-05-15'
+const TODAY = new Date().toISOString().split('T')[0]
 
 const STAFF = [
   { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'    },
