@@ -52,16 +52,7 @@ const NAV_ITEMS = [
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },
   { label: 'Audit Log',        icon: Shield,          to: '/audit'                     },
-  {
-    label: 'Settings',         icon: Settings,        to: '/settings',          exact: true,
-    children: [
-      { label: 'Pipeline Builder',      icon: Layers,          to: '/settings/sales/pipelines'       },
-      { label: 'Form Builder',          icon: FileText,        to: '/settings/sales/form-builder'    },
-      { label: 'Area Mapping',          icon: MapPin,          to: '/settings/area-mapping'          },
-      { label: 'Feasibility Requests',  icon: ClipboardCheck,  to: '/settings/feasibility-requests'  },
-      { label: 'Roles',                 icon: Shield,          to: '/settings/roles'                 },
-    ],
-  },
+  { label: 'Settings',         icon: Settings,        to: '/settings',          exact: true },
   { label: 'Notifications',    icon: Bell,            to: '/notifications'                 },
 ]
 

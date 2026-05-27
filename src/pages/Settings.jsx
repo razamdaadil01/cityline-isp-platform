@@ -19,7 +19,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',         icon: Bell           },
   { id: 'jaze',          label: 'Jaze Servers',          icon: Server         },
   { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen       },
-  { id: 'sales-config',  label: 'Sales Configuration',   icon: Layers,        sub: 'Manage pipelines, stages and lead form fields' },
+  { id: 'sales-config',  label: 'Sales Configuration',   icon: Layers         },
   { id: 'roles',         label: 'Roles & Permissions',   icon: Shield         },
   { id: 'area-mapping',  label: 'Area Mapping',          icon: MapPin         },
 ]
@@ -662,17 +662,14 @@ export default function Settings() {
         {/* Sidebar nav */}
         <div className="w-52 shrink-0">
           <nav className="space-y-1">
-            {TABS.map(({ id, label, icon: Icon, sub }) => (
+            {TABS.map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => setActiveTab(id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
-                <Icon size={15} className={`shrink-0 ${activeTab === id ? 'text-blue-200' : 'text-gray-400'}`} />
-                <span className="flex-1 min-w-0">
-                  <span className="block leading-tight">{label}</span>
-                  {sub && <span className={`block text-[10px] font-normal leading-tight mt-0.5 ${activeTab === id ? 'text-blue-200' : 'text-gray-400'}`}>{sub}</span>}
-                </span>
+                <Icon size={15} className={activeTab === id ? 'text-blue-200' : 'text-gray-400'} />
+                {label}
               </button>
             ))}
           </nav>
