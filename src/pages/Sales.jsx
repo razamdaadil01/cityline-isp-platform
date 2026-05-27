@@ -1423,7 +1423,7 @@ export default function Sales() {
   }, []) // eslint-disable-line
 
   const pl            = PIPELINES[activePipeline] ?? PIPELINES.B2C
-  const pipelineLeads = activePipeline === 'All' ? leads : leads.filter(l => l.pipeline === activePipeline)
+  const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
 
   // ── Drag and drop ────────────────────────────────────────────────────────
   function handleDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
@@ -1666,37 +1666,27 @@ export default function Sales() {
             {/* ── Pipeline dropdown ──────────────────────────────── */}
             <div className="relative" ref={pipelineDropdownRef}>
               {(() => {
-                const isAll = activePipeline === 'All'
-                const label = isAll ? 'All Pipelines' : (PIPELINES[activePipeline]?.label ?? activePipeline)
-                const count = isAll ? leads.length : leads.filter(l => l.pipeline === activePipeline).length
+                const label = PIPELINES[activePipeline]?.label ?? activePipeline
+                const count = leads.filter(l => l.pipeline === activePipeline).length
                 return (
                   <button
                     onClick={() => setPipelineDropdownOpen(o => !o)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                      pipelineDropdownOpen || !isAll
-                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-surface-border bg-white text-gray-700 hover:border-purple-300 hover:text-purple-600'
-                    }`}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-purple-500 bg-purple-50 text-purple-700 text-xs font-semibold transition-all hover:bg-purple-100"
                   >
                     <Layers size={13} />
                     {label}
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] text-center ${
-                      pipelineDropdownOpen || !isAll ? 'bg-purple-200 text-purple-700' : 'bg-gray-200 text-gray-600'
-                    }`}>{count}</span>
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] text-center bg-purple-200 text-purple-700">{count}</span>
                     <ChevronDown size={12} className={`transition-transform ${pipelineDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
                 )
               })()}
               {pipelineDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1.5 bg-white border border-surface-border rounded-xl shadow-lg z-30 min-w-[180px] py-1 overflow-hidden">
-                  {[
-                    { key: 'All', label: 'All Pipelines', count: leads.length },
-                    ...Object.entries(PIPELINES).map(([key, cfg]) => ({
-                      key,
-                      label: cfg.label,
-                      count: leads.filter(l => l.pipeline === key).length,
-                    })),
-                  ].map(opt => (
+                  {Object.entries(PIPELINES).map(([key, cfg]) => ({
+                    key,
+                    label: cfg.label,
+                    count: leads.filter(l => l.pipeline === key).length,
+                  })).map(opt => (
                     <button
                       key={opt.key}
                       onClick={() => { setActivePipeline(opt.key); setSearch(''); setPipelineDropdownOpen(false) }}
@@ -1744,9 +1734,7 @@ export default function Sales() {
 
         {/* ── Filters (shared by both views) ──────────────────────────── */}
         {(() => {
-          const availableStages = activePipeline === 'All'
-            ? [...new Set(Object.values(PIPELINES).flatMap(p => p.stages))]
-            : pl.stages
+          const availableStages = pl.stages
           return (
             <div className="space-y-2.5">
               {/* Row 1: Search | Export | Add Lead */}
@@ -1968,20 +1956,18 @@ export default function Sales() {
         const tableLeads = getFilteredTableLeads()
         const totalPages = Math.max(1, Math.ceil(tableLeads.length / TABLE_PAGE_SIZE))
         const pageLeads  = tableLeads.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE)
-        const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
 
         return (
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="rounded-xl border border-surface-border shadow-card overflow-hidden bg-white">
             <div className="overflow-x-auto">
-              <table className="text-sm table-fixed w-full" style={{ minWidth: 1370 }}>
+              <table className="text-sm table-fixed w-full" style={{ minWidth: 1250 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
                     <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>
                     <th className="px-4 py-3 text-left" style={{ width: 180 }}>Lead Name</th>
                     <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 120 }}>Pipeline</th>
                     <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Follow-up</th>
@@ -1993,7 +1979,7 @@ export default function Sales() {
                 <tbody className="divide-y divide-surface-border">
                   {pageLeads.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
+                      <td colSpan={10} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
                     </tr>
                   )}
                   {pageLeads.map(lead => {
@@ -2019,9 +2005,6 @@ export default function Sales() {
                           <span className="block truncate text-xs text-gray-700">{lead.name}</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-gray-600">{lead.phone}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="text-xs text-gray-600">{PIPELINE_LABEL[lead.pipeline]}</span>
-                        </td>
                         <td className="px-4 py-3 overflow-hidden" title={lead.stage}>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${ss.chip}`}>
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ss.colorBar}`} />
