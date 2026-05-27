@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, FileText, X, MapPin, CheckCircle, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
+import { ArrowLeft, X, MapPin, CheckCircle, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -56,6 +56,7 @@ const INIT_FORM = {
   pipeline: 'B2C',
   leadName: '',
   name: '', phone: '', alternatePhone: '', email: '',
+  addressLine: '', city: '', pincode: '',
   state: '', district: '', area: '', locality: '', subLocality: '',
   source: '', plan: '', assigned: '',
   notes: '',
@@ -115,79 +116,6 @@ function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
           <X size={14} />
         </button>
       </div>
-    </div>
-  )
-}
-
-// ── KYC Document Upload ───────────────────────────────────────────────────────
-
-function KycSection({ kycDocs = {}, onChange }) {
-  const DOCS = [
-    { key: 'aadhaar',       label: 'Aadhaar Card',   accept: 'image/*,.pdf' },
-    { key: 'panCard',       label: 'PAN Card',        accept: 'image/*,.pdf' },
-    { key: 'customerPhoto', label: 'Customer Photo',  accept: 'image/*'      },
-  ]
-
-  function handleFile(key, file) {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev =>
-      onChange({ ...kycDocs, [key]: { name: file.name, size: file.size, type: file.type, preview: ev.target.result } })
-    reader.readAsDataURL(file)
-  }
-
-  function remove(key) {
-    const next = { ...kycDocs }
-    delete next[key]
-    onChange(next)
-  }
-
-  function fmtSize(b) {
-    if (b < 1024) return `${b} B`
-    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
-    return `${(b / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      {DOCS.map(({ key, label, accept }) => {
-        const doc = kycDocs[key]
-        const isPdf = doc?.type === 'application/pdf'
-        return (
-          <div key={key} className="relative border-2 border-dashed border-surface-border rounded-xl p-4 hover:border-brand-blue/40 transition-colors bg-gray-50/50">
-            {doc ? (
-              <>
-                {isPdf ? (
-                  <div className="w-full h-20 bg-red-50 rounded-lg flex items-center justify-center mb-3">
-                    <FileText size={28} className="text-red-400" />
-                  </div>
-                ) : (
-                  <img src={doc.preview} alt={label} className="w-full h-20 object-cover rounded-lg mb-3" />
-                )}
-                <p className="text-xs font-semibold text-gray-700 truncate">{doc.name}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">{fmtSize(doc.size)}</p>
-                <button type="button" onClick={() => remove(key)}
-                  className="absolute top-3 right-3 w-6 h-6 bg-red-100 hover:bg-red-200 rounded-full flex items-center justify-center transition-colors">
-                  <X size={11} className="text-red-600" />
-                </button>
-              </>
-            ) : (
-              <label className="cursor-pointer block text-center py-2">
-                <input type="file" accept={accept} className="sr-only"
-                  onChange={e => handleFile(key, e.target.files?.[0])} />
-                <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center mx-auto mb-2">
-                  <Upload size={18} className="text-brand-blue" />
-                </div>
-                <p className="text-sm font-semibold text-gray-700 mb-0.5">{label}</p>
-                <p className="text-[11px] text-gray-400">{accept.includes('pdf') ? 'Image or PDF' : 'Image only'}</p>
-                <div className="mt-3 inline-flex items-center gap-1 px-3 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-semibold">
-                  <Upload size={10} /> Browse file
-                </div>
-              </label>
-            )}
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -312,6 +240,8 @@ export default function SalesNewLead() {
     if (!form.phone.match(/^\d{10}$/)) e.phone    = 'Enter a valid 10-digit number'
     if (form.alternatePhone && !form.alternatePhone.match(/^\d{10}$/))
                                        e.alternatePhone = 'Enter a valid 10-digit number'
+    if (form.pincode && !form.pincode.match(/^\d{6}$/))
+                                       e.pincode = 'Enter a valid 6-digit pincode'
 
     if (form.followUpEnabled) {
       if (!form.followUp)     e.followUp     = 'Follow-up date is required'
@@ -565,6 +495,38 @@ export default function SalesNewLead() {
             </FormField>
 
             {/* ── Address Section ─────────────────────────────────────────── */}
+
+            <div className="col-span-2">
+              <FormField label="Address Line">
+                <Textarea
+                  value={form.addressLine}
+                  onChange={e => set('addressLine', e.target.value)}
+                  placeholder={"House/Flat no., Street, Building name"}
+                  rows={2}
+                />
+              </FormField>
+            </div>
+
+            <FormField label="City">
+              <Input
+                value={form.city}
+                onChange={e => set('city', e.target.value)}
+                placeholder="e.g. Bangalore"
+              />
+            </FormField>
+
+            <FormField label="Pincode">
+              <Input
+                value={form.pincode}
+                onChange={e => {
+                  set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))
+                  setErrors(p => ({ ...p, pincode: '' }))
+                }}
+                placeholder="e.g. 560076"
+                className={errors.pincode ? 'border-red-400 focus:ring-red-400/30' : ''}
+              />
+              {errors.pincode && <p className="text-xs text-red-500 mt-1">{errors.pincode}</p>}
+            </FormField>
 
             <FormField label="State">
               <Select value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value, district: '', area: '', locality: '', subLocality: '', feasibilityRequired: false }))}>
@@ -904,27 +866,6 @@ export default function SalesNewLead() {
           </div>
         )}
 
-        {/* KYC Documents card */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText size={15} className="text-gray-500" />
-            <p className="text-sm font-bold text-gray-700">KYC Documents</p>
-            <span className="text-xs text-gray-400 font-normal">— optional, can be added later</span>
-          </div>
-          <KycSection
-            kycDocs={form.kycDocs ?? {}}
-            onChange={docs => set('kycDocs', docs)}
-          />
-          {(() => {
-            const n = ['aadhaar', 'panCard', 'customerPhoto'].filter(k => form.kycDocs?.[k]).length
-            if (!n) return null
-            return (
-              <p className={`text-xs font-medium mt-3 ${n === 3 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                {n === 3 ? '✓ All 3 KYC documents uploaded' : `${n}/3 documents uploaded`}
-              </p>
-            )
-          })()}
-        </div>
 
       </div>
 
