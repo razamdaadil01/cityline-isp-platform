@@ -33,9 +33,6 @@ const NAV_ITEMS = [
     label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,
     children: [
       { label: 'Follow-ups',   icon: PhoneCall,  to: '/sales/followups'    },
-      { label: 'Pipelines',    icon: Layers,     to: '/sales/pipelines'    },
-      { label: 'HW Assignment',icon: HardDrive,  to: '/sales/hw-assignment'},
-      { label: 'Form Builder', icon: FileText,   to: '/sales/form-builder' },
       { label: 'Proposals',    icon: FileCheck,  to: '/sales/proposals'    },
       { label: 'Analytics',    icon: BarChart2,  to: '/sales/analytics'    },
     ],
@@ -48,7 +45,7 @@ const NAV_ITEMS = [
   {
     label: 'Inventory',        icon: Package,         to: '/inventory',
     children: [
-      { label: 'HW Assignment', icon: HardDrive,  to: '/sales/hw-assignment'  },
+      { label: 'HW Assignment', icon: HardDrive,  to: '/inventory/hw-assignment' },
     ],
   },
   { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
@@ -58,6 +55,8 @@ const NAV_ITEMS = [
   {
     label: 'Settings',         icon: Settings,        to: '/settings',          exact: true,
     children: [
+      { label: 'Pipeline Builder',      icon: Layers,          to: '/settings/sales/pipelines'       },
+      { label: 'Form Builder',          icon: FileText,        to: '/settings/sales/form-builder'    },
       { label: 'Area Mapping',          icon: MapPin,          to: '/settings/area-mapping'          },
       { label: 'Feasibility Requests',  icon: ClipboardCheck,  to: '/settings/feasibility-requests'  },
       { label: 'Roles',                 icon: Shield,          to: '/settings/roles'                 },

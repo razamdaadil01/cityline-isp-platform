@@ -4,6 +4,7 @@ import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, MapPin, ClipboardCheck, ChevronRight,
+  Layers, FileText,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',         icon: Bell           },
   { id: 'jaze',          label: 'Jaze Servers',          icon: Server         },
   { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen       },
+  { id: 'sales-config',  label: 'Sales Configuration',   icon: Layers,        sub: 'Manage pipelines, stages and lead form fields' },
   { id: 'roles',         label: 'Roles & Permissions',   icon: Shield         },
   { id: 'area-mapping',  label: 'Area Mapping',          icon: MapPin         },
 ]
@@ -596,6 +598,54 @@ function AreaMappingTab() {
   )
 }
 
+// ── Sales Configuration Tab ───────────────────────────────────────────────────
+
+function SalesConfigTab() {
+  const navigate = useNavigate()
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Sales Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">Manage pipelines, stages and lead form fields</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => navigate('/settings/sales/pipelines')}
+          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
+              <Layers size={18} className="text-brand-blue" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Pipeline Builder</p>
+              <p className="text-xs text-gray-400 mt-0.5">Create and manage sales pipelines and stages</p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
+        </button>
+
+        <button
+          onClick={() => navigate('/settings/sales/form-builder')}
+          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
+              <FileText size={18} className="text-brand-blue" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Form Builder</p>
+              <p className="text-xs text-gray-400 mt-0.5">Customize lead capture fields for each pipeline</p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -612,14 +662,17 @@ export default function Settings() {
         {/* Sidebar nav */}
         <div className="w-52 shrink-0">
           <nav className="space-y-1">
-            {TABS.map(({ id, label, icon: Icon }) => (
+            {TABS.map(({ id, label, icon: Icon, sub }) => (
               <button key={id} onClick={() => setActiveTab(id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
-                <Icon size={15} className={activeTab === id ? 'text-blue-200' : 'text-gray-400'} />
-                {label}
+                <Icon size={15} className={`shrink-0 ${activeTab === id ? 'text-blue-200' : 'text-gray-400'}`} />
+                <span className="flex-1 min-w-0">
+                  <span className="block leading-tight">{label}</span>
+                  {sub && <span className={`block text-[10px] font-normal leading-tight mt-0.5 ${activeTab === id ? 'text-blue-200' : 'text-gray-400'}`}>{sub}</span>}
+                </span>
               </button>
             ))}
           </nav>
@@ -632,6 +685,7 @@ export default function Settings() {
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
+          {activeTab === 'sales-config'  && <SalesConfigTab />}
           {activeTab === 'roles'         && <RolesTab />}
           {activeTab === 'area-mapping'  && <AreaMappingTab />}
         </div>

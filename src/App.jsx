@@ -47,9 +47,9 @@ export default function App() {
           <Route path="/sales" element={<Sales />} />
           <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/sales/followups" element={<SalesFollowups />} />
-          <Route path="/sales/pipelines" element={<SalesPipelines />} />
-          <Route path="/sales/hw-assignment" element={<SalesHwAssignment />} />
-          <Route path="/sales/form-builder" element={<SalesFormBuilder />} />
+          <Route path="/settings/sales/pipelines"    element={<SalesPipelines />} />
+          <Route path="/settings/sales/form-builder" element={<SalesFormBuilder />} />
+          <Route path="/inventory/hw-assignment"     element={<SalesHwAssignment />} />
           <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
