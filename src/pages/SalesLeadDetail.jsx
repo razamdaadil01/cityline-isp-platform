@@ -1022,6 +1022,11 @@ export default function SalesLeadDetail() {
     }))
   })()
 
+  // Past stages for overview (all except current, most recent first)
+  const pastStagesForOverview = stageHistory.length > 1
+    ? [...stageHistory].slice(0, -1).reverse()
+    : []
+
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-12">
@@ -1350,6 +1355,67 @@ export default function SalesLeadDetail() {
                   <InfoRow label="City"    value={lead.city} />
                   <InfoRow label="Pincode" value={lead.pincode} />
                 </Card>
+
+                {/* Previously Filled Fields */}
+                {pastStagesForOverview.length > 0 && (
+                  <div className="bg-white rounded-xl border border-surface-border shadow-card">
+                    <div className="px-5 py-4 border-b border-surface-border">
+                      <h3 className="text-sm font-semibold text-gray-800">Previously Filled Fields</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {pastStagesForOverview.length} past stage{pastStagesForOverview.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div className="px-5 py-4 space-y-2">
+                      {pastStagesForOverview.map((sh, i) => {
+                        const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
+                        const filledFields = Object.entries(sh.fields ?? {}).filter(([, v]) => v)
+                        const expandKey = `prev_${i}`
+                        const isExpanded = expandedStages[expandKey] ?? false
+                        return (
+                          <div key={i} className="border border-surface-border rounded-xl overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedStages(p => ({ ...p, [expandKey]: !p[expandKey] }))}
+                              className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${ss.dot}`} />
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ss.chip}`}>{sh.stage}</span>
+                                <span className="text-gray-300">·</span>
+                                <span className="text-xs text-gray-400">{sh.date}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {filledFields.length > 0 && (
+                                  <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                    {filledFields.length} field{filledFields.length !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                                <ChevronDown size={14} className={`text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                              </div>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-3 border-t border-surface-border">
+                                {filledFields.length > 0 ? (
+                                  <div className="space-y-0">
+                                    {filledFields.map(([fieldId, val]) => (
+                                      <InfoRow
+                                        key={fieldId}
+                                        label={getFieldLabel(pipelines, lead.pipeline, sh.stage, fieldId)}
+                                        value={displayFieldValue(val)}
+                                      />
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-gray-400 text-center py-2">No additional fields recorded</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Right 40% */}
