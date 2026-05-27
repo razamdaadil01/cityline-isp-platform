@@ -31,14 +31,6 @@ const PIPELINES = {
   },
 }
 
-const PIPELINE_STYLE = {
-  B2C:    { active: 'bg-brand-blue text-white',   border: 'border-brand-blue',   idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
-  B2B:    { active: 'bg-navy text-white',         border: 'border-navy',         idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
-  Custom: { active: 'bg-brand-orange text-white', border: 'border-brand-orange', idle: 'text-gray-600 hover:bg-gray-100 border-surface-border' },
-}
-
-const ACTIVE_BG = { B2C: '#0A8DCD', B2B: '#0F2744', Custom: '#E8541A' }
-
 const STAFF = [
   { name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'   },
   { name: 'Preethi Nair', initials: 'PN', color: 'bg-purple-500'   },
@@ -54,6 +46,7 @@ const NOTIFY_USERS    = STAFF.map(s => s.name)
 
 const INIT_FORM = {
   pipeline: 'B2C',
+  startingStage: PIPELINES.B2C.stages[0],
   leadName: '',
   name: '', phone: '', alternatePhone: '', email: '',
   addressLine: '', city: '', pincode: '',
@@ -228,7 +221,9 @@ export default function SalesNewLead() {
 
   const pl = PIPELINES[form.pipeline]
   const activePipeline = pipelines.find(p => p.id === (PIPELINE_MAP[form.pipeline] ?? ''))
-  const firstStage     = activePipeline?.stages[0]
+  const selectedStageName = form.startingStage || pl.stages[0]
+  const firstStage = activePipeline?.stages.find(s => s.name === selectedStageName)
+    ?? activePipeline?.stages[0]
   const firstStageFields = firstStage
     ? getStageFields(firstStage.id).filter(f => f.active !== false)
     : []
@@ -312,7 +307,7 @@ export default function SalesNewLead() {
         date: form.followUp,
         time: form.followUpTime,
         note: form.followUpNotes,
-        stage: pl.stages[0],
+        stage: selectedStageName,
         assignedTo: form.assigned || '',
         notifyTo: form.followUpNotify,
         priority: 'medium',
@@ -326,7 +321,7 @@ export default function SalesNewLead() {
       ...form,
       id:               leadId,
       alternateMobile:  form.alternatePhone,
-      stage:            pl.stages[0],
+      stage:            selectedStageName,
       daysInStage:      0,
       lastActivity:     'Lead created',
       createdAt:        today,
@@ -337,7 +332,7 @@ export default function SalesNewLead() {
       ekycStatus:       null,
       hwAssigned:       null,
       stageHistory: [{
-        stage:   pl.stages[0],
+        stage:   selectedStageName,
         date:    today,
         movedBy: 'Admin User',
         fields:  Object.keys(stageFieldVals).length > 0 ? stageFieldVals : {},
@@ -398,33 +393,40 @@ export default function SalesNewLead() {
 
         {/* Pipeline selector */}
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <p className="text-sm font-bold text-gray-700 mb-3">
-            Pipeline <span className="text-red-400">*</span>
-          </p>
-          <div className="flex gap-2.5">
-            {activePipelineKeys.map(key => {
-              const isActive = form.pipeline === key
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => set('pipeline', key)}
-                  style={isActive ? { backgroundColor: ACTIVE_BG[key], color: '#fff' } : {}}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-                    isActive ? 'shadow-sm border-transparent' : PIPELINE_STYLE[key].idle
-                  }`}
-                >
-                  {PIPELINES[key].label}
-                </button>
-              )
-            })}
+          <div className="grid grid-cols-2 gap-5">
+            <FormField label="Pipeline" required>
+              <Select
+                value={form.pipeline}
+                onChange={e => {
+                  const key = e.target.value
+                  setForm(p => ({ ...p, pipeline: key, startingStage: PIPELINES[key]?.stages[0] ?? '' }))
+                  setStageFieldVals({})
+                  setStageErrors({})
+                }}
+              >
+                {activePipelineKeys.map(key => (
+                  <option key={key} value={key}>{PIPELINES[key].label}</option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="Starting Stage" required hint="Lead will start at this stage">
+              <Select
+                value={selectedStageName}
+                onChange={e => set('startingStage', e.target.value)}
+              >
+                {pl.stages.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </Select>
+            </FormField>
           </div>
           <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
             <span className="font-semibold text-gray-600">{pl.labelFull}</span>
             <span>·</span>
             <span>{pl.stages.length} stages</span>
             <span>·</span>
-            <span>starts at <strong className="text-gray-600">{pl.stages[0]}</strong></span>
+            <span>starts at <strong className="text-gray-600">{selectedStageName}</strong></span>
           </p>
         </div>
 
