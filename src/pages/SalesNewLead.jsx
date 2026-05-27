@@ -391,45 +391,6 @@ export default function SalesNewLead() {
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 
-        {/* Pipeline selector */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <div className="grid grid-cols-2 gap-5">
-            <FormField label="Pipeline" required>
-              <Select
-                value={form.pipeline}
-                onChange={e => {
-                  const key = e.target.value
-                  setForm(p => ({ ...p, pipeline: key, startingStage: PIPELINES[key]?.stages[0] ?? '' }))
-                  setStageFieldVals({})
-                  setStageErrors({})
-                }}
-              >
-                {activePipelineKeys.map(key => (
-                  <option key={key} value={key}>{PIPELINES[key].label}</option>
-                ))}
-              </Select>
-            </FormField>
-
-            <FormField label="Starting Stage" required hint="Lead will start at this stage">
-              <Select
-                value={selectedStageName}
-                onChange={e => set('startingStage', e.target.value)}
-              >
-                {pl.stages.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </Select>
-            </FormField>
-          </div>
-          <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
-            <span className="font-semibold text-gray-600">{pl.labelFull}</span>
-            <span>·</span>
-            <span>{pl.stages.length} stages</span>
-            <span>·</span>
-            <span>starts at <strong className="text-gray-600">{selectedStageName}</strong></span>
-          </p>
-        </div>
-
         {/* Lead details card */}
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
           <p className="text-sm font-bold text-gray-700 mb-4">Lead Details</p>
@@ -711,21 +672,100 @@ export default function SalesNewLead() {
               </FormField>
             </div>
 
-            <div className="col-span-2">
-              <FormField label="Notes">
-                <Textarea
-                  value={form.notes}
-                  onChange={e => set('notes', e.target.value)}
-                  placeholder="Any additional notes about this lead…"
-                  rows={3}
-                />
-              </FormField>
-            </div>
-
           </div>
         </div>
 
-        {/* ── Fix 3: Follow-up Section ────────────────────────────────────── */}
+        {/* Pipeline selector */}
+        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+          <div className="grid grid-cols-2 gap-5">
+            <FormField label="Pipeline" required>
+              <Select
+                value={form.pipeline}
+                onChange={e => {
+                  const key = e.target.value
+                  setForm(p => ({ ...p, pipeline: key, startingStage: PIPELINES[key]?.stages[0] ?? '' }))
+                  setStageFieldVals({})
+                  setStageErrors({})
+                }}
+              >
+                {activePipelineKeys.map(key => (
+                  <option key={key} value={key}>{PIPELINES[key].label}</option>
+                ))}
+              </Select>
+            </FormField>
+
+            <FormField label="Starting Stage" required hint="Lead will start at this stage">
+              <Select
+                value={selectedStageName}
+                onChange={e => set('startingStage', e.target.value)}
+              >
+                {pl.stages.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+          <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
+            <span className="font-semibold text-gray-600">{pl.labelFull}</span>
+            <span>·</span>
+            <span>{pl.stages.length} stages</span>
+            <span>·</span>
+            <span>starts at <strong className="text-gray-600">{selectedStageName}</strong></span>
+          </p>
+        </div>
+
+        {/* Stage Fields card — dynamic fields for first stage */}
+        {firstStageFields.length > 0 && (
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-bold text-gray-700">
+                  Fields for{' '}
+                  <span className="text-brand-blue">{firstStage?.name}</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Configured in Pipeline Builder · {firstStageFields.filter(f => f.required).length} required
+                </p>
+              </div>
+              <span className="text-[11px] text-gray-500 font-medium bg-surface rounded-full px-2.5 py-1 border border-surface-border">
+                {firstStageFields.filter(f => isFieldFilled(f, stageFieldVals[f.id])).length}/{firstStageFields.length} filled
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+              {firstStageFields.map(f => {
+                const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
+                return (
+                  <div key={f.id} className={isWide ? 'col-span-2' : ''}>
+                    <FormField
+                      label={f.label}
+                      required={f.required}
+                      hint={f.help || undefined}
+                      error={stageErrors[f.id]}
+                    >
+                      <DynamicFieldInput
+                        field={f}
+                        value={stageFieldVals[f.id]}
+                        onChange={val => {
+                          setStageFieldVals(p => ({ ...p, [f.id]: val }))
+                          if (stageErrors[f.id]) setStageErrors(p => ({ ...p, [f.id]: '' }))
+                        }}
+                      />
+                    </FormField>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {firstStageFields.length === 0 && activePipeline && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
+            No additional fields configured for <strong className="ml-1">{firstStage?.name ?? pl.stages[0]}</strong>
+          </div>
+        )}
+
+        {/* Set Follow-up section */}
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -816,58 +856,6 @@ export default function SalesNewLead() {
             </div>
           )}
         </div>
-
-        {/* Stage Fields card — dynamic fields for first stage */}
-        {firstStageFields.length > 0 && (
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm font-bold text-gray-700">
-                  Fields for{' '}
-                  <span className="text-brand-blue">{firstStage?.name}</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Configured in Pipeline Builder · {firstStageFields.filter(f => f.required).length} required
-                </p>
-              </div>
-              <span className="text-[11px] text-gray-500 font-medium bg-surface rounded-full px-2.5 py-1 border border-surface-border">
-                {firstStageFields.filter(f => isFieldFilled(f, stageFieldVals[f.id])).length}/{firstStageFields.length} filled
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              {firstStageFields.map(f => {
-                const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
-                return (
-                  <div key={f.id} className={isWide ? 'col-span-2' : ''}>
-                    <FormField
-                      label={f.label}
-                      required={f.required}
-                      hint={f.help || undefined}
-                      error={stageErrors[f.id]}
-                    >
-                      <DynamicFieldInput
-                        field={f}
-                        value={stageFieldVals[f.id]}
-                        onChange={val => {
-                          setStageFieldVals(p => ({ ...p, [f.id]: val }))
-                          if (stageErrors[f.id]) setStageErrors(p => ({ ...p, [f.id]: '' }))
-                        }}
-                      />
-                    </FormField>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {firstStageFields.length === 0 && activePipeline && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
-            No additional fields configured for <strong className="ml-1">{firstStage?.name ?? pl.stages[0]}</strong>
-          </div>
-        )}
-
 
       </div>
 
