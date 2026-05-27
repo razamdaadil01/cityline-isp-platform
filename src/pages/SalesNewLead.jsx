@@ -11,6 +11,7 @@ import { saveFeasibilityRequest } from '../data/feasibilityStore'
 import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
+import { getFormModules } from '../data/customFormStore'
 import { getStageFields, subscribeStageFields } from '../data/stageFieldsStore'
 import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
 
@@ -263,6 +264,8 @@ export default function SalesNewLead() {
   const subLocalities = form.state && form.district && form.area && form.locality
     ? getSubLocalities(form.state, form.district, form.area, form.locality)
     : []
+
+  const showFollowUp = getFormModules()[form.pipeline]?.includeFollowUp !== false
 
   const isOther = form.subLocality === '__other__'
   const mappedSubLocality = form.subLocality && !isOther
@@ -766,7 +769,7 @@ export default function SalesNewLead() {
         )}
 
         {/* Set Follow-up section */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+        {showFollowUp && <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
@@ -855,7 +858,7 @@ export default function SalesNewLead() {
 
             </div>
           )}
-        </div>
+        </div>}
 
       </div>
 

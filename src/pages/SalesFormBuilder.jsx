@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { getFormModules, setFormModule } from '../data/customFormStore'
+import { getFormModules, setFormModule, setFormModuleConfig } from '../data/customFormStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import {
   DATA_SOURCE_GROUPS, DATA_SOURCE_MAP,
@@ -272,9 +272,18 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove, cascadeInfo
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+function initIncludeFollowUpByKey(pipelines) {
+  const m = getFormModules()
+  const keys = ['B2C', 'B2B', ...pipelines.filter(p => !p.isDefault).map(p => p.id)]
+  const out = {}
+  keys.forEach(k => { out[k] = m[k]?.includeFollowUp !== false })
+  return out
+}
+
 export default function SalesFormBuilder() {
   const [pipelines, setPipelines] = useState(getPipelines)
   const [fieldsByKey, setFieldsByKey] = useState(() => initFieldsByKey(getPipelines()))
+  const [includeFollowUpByKey, setIncludeFollowUpByKey] = useState(() => initIncludeFollowUpByKey(getPipelines()))
   const [selectedKey, setSelectedKey] = useState('B2C')
   const [saved, setSaved] = useState(false)
 
@@ -307,6 +316,7 @@ export default function SalesFormBuilder() {
   const modulesList = buildModulesList(pipelines)
   const fields = fieldsByKey[selectedKey] ?? []
   const meta = modulesList.find(m => m.key === selectedKey)
+  const includeFollowUp = includeFollowUpByKey[selectedKey] !== false
 
   function setFields(next) {
     const withCascade = applyCascadeDetection(next)
@@ -353,6 +363,7 @@ export default function SalesFormBuilder() {
 
   function handleSave() {
     Object.entries(fieldsByKey).forEach(([key, flds]) => setFormModule(key, flds))
+    Object.entries(includeFollowUpByKey).forEach(([key, val]) => setFormModuleConfig(key, { includeFollowUp: val }))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -464,17 +475,37 @@ export default function SalesFormBuilder() {
             )}
           </div>
 
-          {fields.length > 0 && (
-            <div className="px-5 pb-5">
-              <div className="mt-3 p-3 bg-brand-blue/5 rounded-lg border border-brand-blue/20">
+          <div className="px-5 pb-5 space-y-3">
+            {/* Follow-up toggle */}
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-surface-border">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeFollowUp}
+                  onChange={e => setIncludeFollowUpByKey(prev => ({ ...prev, [selectedKey]: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Include "Set Follow-up" section in this form</p>
+                  <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                    When enabled, a follow-up scheduling section appears at the bottom of the lead form.
+                    This section is fixed and cannot be reordered.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Info text */}
+            {fields.length > 0 && (
+              <div className="p-3 bg-brand-blue/5 rounded-lg border border-brand-blue/20">
                 <p className="text-xs text-brand-blue font-medium">
                   These {fields.length} field{fields.length !== 1 ? 's' : ''} will appear in the{' '}
                   <strong>{meta?.name}</strong> when creating a new lead in the{' '}
                   {meta?.sub.replace(' pipeline', '')} pipeline.
                 </p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
