@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, FileText, X, MapPin, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Upload, FileText, X, MapPin, CheckCircle, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -8,6 +8,7 @@ import {
   getStates, getDistricts, getAreasList, getLocalities, getSubLocalities, lookupSubLocality,
 } from '../data/areaMappingStore'
 import { saveFeasibilityRequest } from '../data/feasibilityStore'
+import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields, subscribeStageFields } from '../data/stageFieldsStore'
@@ -45,17 +46,27 @@ const STAFF = [
   { name: 'Anita Sharma', initials: 'AS', color: 'bg-brand-orange' },
 ]
 
-const SOURCES = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
-const PLANS   = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
+const SOURCES         = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
+const PLANS           = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 const CONNECTION_TYPES = ['FTTH', 'Sector', 'Village']
+const BRANCHES        = ['CNPL-001', 'CNPL-002', 'CNPL-003', 'CNPL-010', 'CNPL-011']
+const NOTIFY_USERS    = STAFF.map(s => s.name)
 
 const INIT_FORM = {
   pipeline: 'B2C',
   leadName: '',
   name: '', phone: '', alternatePhone: '', email: '',
   state: '', district: '', area: '', locality: '', subLocality: '',
-  source: '', plan: '', assigned: '', followUp: '', notes: '',
+  source: '', plan: '', assigned: '',
+  notes: '',
+  // Follow-up
+  followUpEnabled: false,
+  followUp: '',
+  followUpTime: '',
+  followUpNotes: '',
+  followUpNotify: [],
   kycDocs: {},
+  // Feasibility
   feasibilityRequired: false,
   feasibilityLocalityName: '', feasibilitySubLocalityName: '',
   feasibilityAddress: '', feasibilityLandmark: '',
@@ -65,7 +76,7 @@ const INIT_FORM = {
 
 const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
 
-// ── Duplicate Warning Banner (top of page) ───────────────────────────────────
+// ── Duplicate Warning Banner ──────────────────────────────────────────────────
 
 function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
   const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
@@ -181,6 +192,61 @@ function KycSection({ kycDocs = {}, onChange }) {
   )
 }
 
+// ── Multi-Select Dropdown ─────────────────────────────────────────────────────
+
+function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Select…' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function toggle(option) {
+    onChange(value.includes(option) ? value.filter(v => v !== option) : [...value, option])
+  }
+
+  const displayText = value.length === 0
+    ? null
+    : value.length <= 2
+      ? value.join(', ')
+      : `${value.slice(0, 2).join(', ')} +${value.length - 2} more`
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition-colors"
+      >
+        <span className={value.length === 0 ? 'text-gray-400' : 'text-gray-800'}>
+          {displayText ?? placeholder}
+        </span>
+        <ChevronDown size={14} className={`text-gray-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 right-0 z-20 bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden">
+          {options.map(option => (
+            <label key={option} className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors">
+              <input
+                type="checkbox"
+                checked={value.includes(option)}
+                onChange={() => toggle(option)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              />
+              <span className="text-sm text-gray-700">{option}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SalesNewLead() {
@@ -224,7 +290,6 @@ export default function SalesNewLead() {
     }
   }
 
-  // Only show pipelines that are active in the store (B2C→PL-001, B2B→PL-002, Custom always shown)
   const PIPELINE_STORE_IDS = { B2C: 'PL-001', B2B: 'PL-002' }
   const activePipelineKeys = Object.keys(PIPELINES).filter(key => {
     const pid = PIPELINE_STORE_IDS[key]
@@ -234,7 +299,6 @@ export default function SalesNewLead() {
   })
 
   const pl = PIPELINES[form.pipeline]
-
   const activePipeline = pipelines.find(p => p.id === (PIPELINE_MAP[form.pipeline] ?? ''))
   const firstStage     = activePipeline?.stages[0]
   const firstStageFields = firstStage
@@ -243,11 +307,21 @@ export default function SalesNewLead() {
 
   function validate() {
     const e = {}
-    if (!form.leadName.trim())                  e.leadName = 'Lead name is required'
-    if (!form.name.trim())                      e.name     = 'Full name is required'
-    if (!form.phone.match(/^\d{10}$/))          e.phone    = 'Enter a valid 10-digit number'
+    if (!form.leadName.trim())         e.leadName = 'Lead name is required'
+    if (!form.name.trim())             e.name     = 'Full name is required'
+    if (!form.phone.match(/^\d{10}$/)) e.phone    = 'Enter a valid 10-digit number'
     if (form.alternatePhone && !form.alternatePhone.match(/^\d{10}$/))
-                                                e.alternatePhone = 'Enter a valid 10-digit number'
+                                       e.alternatePhone = 'Enter a valid 10-digit number'
+
+    if (form.followUpEnabled) {
+      if (!form.followUp)     e.followUp     = 'Follow-up date is required'
+      if (!form.followUpTime) e.followUpTime = 'Follow-up time is required'
+      if (form.followUp && form.followUpTime) {
+        const dt = new Date(`${form.followUp}T${form.followUpTime}`)
+        if (dt <= new Date()) e.followUp = 'Date and time cannot be in the past'
+      }
+    }
+
     const se = {}
     firstStageFields.filter(f => f.required).forEach(f => {
       if (!isFieldFilled(f, stageFieldVals[f.id])) se[f.id] = `${f.label} is required`
@@ -256,10 +330,11 @@ export default function SalesNewLead() {
     return { ...e, ...se }
   }
 
-  const states = getStates()
-  const districts = form.state ? getDistricts(form.state) : []
-  const areas = form.state && form.district ? getAreasList(form.state, form.district) : []
-  const localities = form.state && form.district && form.area ? getLocalities(form.state, form.district, form.area) : []
+  const states      = getStates()
+  const districts   = form.state ? getDistricts(form.state) : []
+  const areas       = form.state && form.district ? getAreasList(form.state, form.district) : []
+  const localities  = form.state && form.district && form.area
+    ? getLocalities(form.state, form.district, form.area) : []
   const subLocalities = form.state && form.district && form.area && form.locality
     ? getSubLocalities(form.state, form.district, form.area, form.locality)
     : []
@@ -268,6 +343,12 @@ export default function SalesNewLead() {
   const mappedSubLocality = form.subLocality && !isOther
     ? lookupSubLocality(form.state, form.district, form.area, form.locality, form.subLocality)
     : null
+
+  // Fix 1: show auto-detected fields when a mapped sub locality is selected
+  const showAutoDetect = !!form.subLocality && !isOther
+
+  // Fix 2: show feasibility banner when sub locality is not in mapping
+  const showFeasibilityBanner = isOther
 
   function handleCreate() {
     const e = validate()
@@ -287,6 +368,25 @@ export default function SalesNewLead() {
         connectionType: form.feasibilityConnectionType,
         assignedBranch: form.feasibilityBranch,
         feasibilityStatus: 'Pending',
+      })
+    }
+
+    if (form.followUpEnabled && form.followUp) {
+      saveFollowup({
+        id: `FU-${Date.now()}`,
+        leadId,
+        leadName: form.leadName || form.name,
+        customer: form.name,
+        pipeline: form.pipeline === 'B2C' ? 'Residential' : form.pipeline === 'B2B' ? 'Corporate' : 'Custom',
+        phone: form.phone,
+        date: form.followUp,
+        time: form.followUpTime,
+        note: form.followUpNotes,
+        stage: pl.stages[0],
+        assignedTo: form.assigned || '',
+        notifyTo: form.followUpNotify,
+        priority: 'medium',
+        status: 'Pending',
       })
     }
 
@@ -464,6 +564,8 @@ export default function SalesNewLead() {
                 onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
             </FormField>
 
+            {/* ── Address Section ─────────────────────────────────────────── */}
+
             <FormField label="State">
               <Select value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value, district: '', area: '', locality: '', subLocality: '', feasibilityRequired: false }))}>
                 <option value="">Select state…</option>
@@ -500,45 +602,71 @@ export default function SalesNewLead() {
               </Select>
             </FormField>
 
-            {/* Auto-filled site info — only for mapped selections */}
-            {mappedSubLocality && (
-              <div className="flex items-center gap-3 col-span-2">
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-brand-blue/20 rounded-lg">
-                  <MapPin size={13} className="text-brand-blue shrink-0" />
-                  <span className="text-xs text-gray-600">Site Type:</span>
-                  <Badge variant="blue" size="sm">{mappedSubLocality.siteType}</Badge>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-brand-blue/20 rounded-lg">
-                  <span className="text-xs text-gray-600">Branch Code:</span>
-                  <span className="text-xs font-mono font-semibold text-navy">{mappedSubLocality.branchCode}</span>
+            {/* ── Fix 1: Auto-detected Site Type + Branch Code ────────────── */}
+            {showAutoDetect && (
+              <div className="col-span-2 space-y-2">
+                <p className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
+                  <MapPin size={11} className="text-brand-blue" />
+                  Auto-detected from area mapping
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Site Type">
+                    <Input
+                      value={mappedSubLocality?.siteType ?? 'Not mapped'}
+                      disabled
+                      readOnly
+                      className="bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200"
+                    />
+                  </FormField>
+                  <FormField label="Branch Code">
+                    <Input
+                      value={mappedSubLocality?.branchCode ?? 'Not mapped'}
+                      disabled
+                      readOnly
+                      className="bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200 font-mono"
+                    />
+                  </FormField>
                 </div>
               </div>
             )}
 
-            {/* Feasibility required — shown only when "Other (not in list)" is selected */}
-            {isOther && (
+            {/* ── Fix 2: Feasibility Required Banner ──────────────────────── */}
+            {showFeasibilityBanner && (
               <div className="col-span-2 space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.feasibilityRequired}
-                    onChange={e => set('feasibilityRequired', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-                  <span className="text-sm font-medium text-gray-700">This area requires feasibility check</span>
-                </label>
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+                  <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-800">Selected area is not fully mapped.</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Mark as feasibility required?</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer shrink-0 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={form.feasibilityRequired}
+                      onChange={e => set('feasibilityRequired', e.target.checked)}
+                      className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-400/30"
+                    />
+                    <span className="text-sm font-semibold text-amber-800">Feasibility Required</span>
+                  </label>
+                </div>
 
                 {form.feasibilityRequired && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
-                    <p className="text-xs font-semibold text-amber-700">Feasibility Details</p>
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
                     <div className="grid grid-cols-2 gap-4">
+
                       <FormField label="Enter Locality Name">
                         <Input value={form.feasibilityLocalityName}
                           onChange={e => set('feasibilityLocalityName', e.target.value)}
                           placeholder={form.locality || 'Locality name'} />
                       </FormField>
+
                       <FormField label="Enter Sub Locality Name">
                         <Input value={form.feasibilitySubLocalityName}
                           onChange={e => set('feasibilitySubLocalityName', e.target.value)}
-                          placeholder={form.subLocality || 'Sub locality name'} />
+                          placeholder="Sub locality name" />
                       </FormField>
+
                       <div className="col-span-2">
                         <FormField label="Complete Address">
                           <Textarea value={form.feasibilityAddress}
@@ -546,17 +674,20 @@ export default function SalesNewLead() {
                             placeholder="Full address" rows={2} />
                         </FormField>
                       </div>
+
                       <FormField label="Landmark">
                         <Input value={form.feasibilityLandmark}
                           onChange={e => set('feasibilityLandmark', e.target.value)}
                           placeholder="Nearby landmark" />
                       </FormField>
+
                       <FormField label="Expected Connection Type">
                         <Select value={form.feasibilityConnectionType}
                           onChange={e => set('feasibilityConnectionType', e.target.value)}>
                           {CONNECTION_TYPES.map(t => <option key={t}>{t}</option>)}
                         </Select>
                       </FormField>
+
                       <div className="col-span-2">
                         <FormField label="Customer Requirement">
                           <Textarea value={form.feasibilityRequirement}
@@ -564,26 +695,35 @@ export default function SalesNewLead() {
                             placeholder="Describe connectivity needs" rows={2} />
                         </FormField>
                       </div>
+
                       <FormField label="Assigned Branch">
-                        <Input value={form.feasibilityBranch}
-                          onChange={e => set('feasibilityBranch', e.target.value)}
-                          placeholder="e.g. CNPL-001" />
+                        <Select value={form.feasibilityBranch}
+                          onChange={e => set('feasibilityBranch', e.target.value)}>
+                          <option value="">Select branch…</option>
+                          {BRANCHES.map(b => <option key={b}>{b}</option>)}
+                        </Select>
                       </FormField>
-                      <FormField label="Remarks">
-                        <Input value={form.feasibilityRemarks}
-                          onChange={e => set('feasibilityRemarks', e.target.value)}
-                          placeholder="Any remarks" />
-                      </FormField>
+
+                      <div className="col-span-2">
+                        <FormField label="Remarks">
+                          <Textarea value={form.feasibilityRemarks}
+                            onChange={e => set('feasibilityRemarks', e.target.value)}
+                            placeholder="Any remarks" rows={2} />
+                        </FormField>
+                      </div>
+
                       <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
                         <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
                         <Badge variant="yellow" size="sm">Pending</Badge>
                       </div>
+
                     </div>
                   </div>
                 )}
               </div>
             )}
 
+            {/* Lead meta */}
             <FormField label="Lead Source">
               <Select value={form.source} onChange={e => set('source', e.target.value)}>
                 <option value="">Select source…</option>
@@ -598,16 +738,14 @@ export default function SalesNewLead() {
               </Select>
             </FormField>
 
-            <FormField label="Assigned To">
-              <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
-                <option value="">Select sales rep…</option>
-                {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Follow-up Date">
-              <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
-            </FormField>
+            <div className="col-span-2">
+              <FormField label="Assigned To">
+                <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
+                  <option value="">Select sales rep…</option>
+                  {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
+                </Select>
+              </FormField>
+            </div>
 
             <div className="col-span-2">
               <FormField label="Notes">
@@ -621,6 +759,98 @@ export default function SalesNewLead() {
             </div>
 
           </div>
+        </div>
+
+        {/* ── Fix 3: Follow-up Section ────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
+                <Calendar size={15} className="text-brand-blue" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
+                <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
+              </div>
+            </div>
+            {/* Toggle switch */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.followUpEnabled}
+              onClick={() => {
+                if (form.followUpEnabled) {
+                  setForm(p => ({ ...p, followUpEnabled: false, followUp: '', followUpTime: '', followUpNotes: '', followUpNotify: [] }))
+                  setErrors(p => ({ ...p, followUp: '', followUpTime: '' }))
+                } else {
+                  set('followUpEnabled', true)
+                }
+              }}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
+                form.followUpEnabled ? 'bg-brand-blue' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                  form.followUpEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {form.followUpEnabled && (
+            <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
+
+              <FormField label="Follow-up Date" required>
+                <Input
+                  type="date"
+                  value={form.followUp}
+                  onChange={e => { set('followUp', e.target.value); setErrors(p => ({ ...p, followUp: '' })) }}
+                  className={errors.followUp ? 'border-red-400 focus:ring-red-400/30' : ''}
+                />
+                {errors.followUp && <p className="text-xs text-red-500 mt-1">{errors.followUp}</p>}
+              </FormField>
+
+              <FormField label="Follow-up Time" required>
+                <Input
+                  type="time"
+                  value={form.followUpTime}
+                  onChange={e => { set('followUpTime', e.target.value); setErrors(p => ({ ...p, followUpTime: '' })) }}
+                  className={errors.followUpTime ? 'border-red-400 focus:ring-red-400/30' : ''}
+                />
+                {errors.followUpTime && <p className="text-xs text-red-500 mt-1">{errors.followUpTime}</p>}
+              </FormField>
+
+              <div className="col-span-2">
+                <FormField label="Notes">
+                  <Textarea
+                    value={form.followUpNotes}
+                    onChange={e => set('followUpNotes', e.target.value)}
+                    placeholder="Follow-up agenda or notes…"
+                    rows={2}
+                  />
+                </FormField>
+              </div>
+
+              <div className="col-span-2">
+                <FormField label="Notify Users">
+                  <MultiSelectDropdown
+                    options={NOTIFY_USERS}
+                    value={form.followUpNotify}
+                    onChange={v => set('followUpNotify', v)}
+                    placeholder="Select team members to notify…"
+                  />
+                  {form.followUpNotify.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                      <AlertTriangle size={11} className="shrink-0" />
+                      No notifiers selected — at least one is recommended
+                    </p>
+                  )}
+                </FormField>
+              </div>
+
+            </div>
+          )}
         </div>
 
         {/* Stage Fields card — dynamic fields for first stage */}
