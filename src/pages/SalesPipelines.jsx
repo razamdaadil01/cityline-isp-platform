@@ -12,6 +12,10 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getPipelines, addPipeline, updatePipeline, deletePipeline, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields, setStageFields } from '../data/stageFieldsStore'
 import { getLeads, subscribeLeads } from '../data/leadsStore'
+import {
+  DATA_SOURCE_GROUPS, DATA_SOURCE_MAP,
+  getLinkedSourceLabel, applyCascadeDetection,
+} from '../data/linkedDataStore'
 
 const STAGE_COLORS = [
   { label: 'Blue',    value: 'bg-blue-500'    },
@@ -58,6 +62,8 @@ const PIPELINE_LEAD_KEY_MAP = { 'PL-001': 'B2C', 'PL-002': 'B2B' }
 
 const INIT_PIPELINE_FORM = { name: '', description: '' }
 
+const SUPPORTS_LINKED = ['Dropdown', 'Multi-select']
+
 const INIT_FIELD_FORM = {
   label: '',
   type: 'Text',
@@ -66,6 +72,8 @@ const INIT_FIELD_FORM = {
   help: '',
   required: false,
   active: true,
+  linkedSource: null,
+  cascadeEnabled: true,
 }
 
 // ── Toggle ───────────────────────────────────────────────────────────────────
@@ -135,6 +143,23 @@ function FieldListItem({ field, index, total, onMove, onEdit, onDelete, isActive
           {!field.active && (
             <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">Inactive</span>
           )}
+          {SUPPORTS_LINKED.includes(field.type) && (
+            field.linkedSource ? (
+              <span className="text-[10px] font-semibold text-brand-blue bg-brand-blue/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                <Link size={9} />
+                {DATA_SOURCE_MAP[field.linkedSource] ?? 'Linked'}
+              </span>
+            ) : (
+              <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                📝 {field.options?.length ?? 0} opts
+              </span>
+            )
+          )}
+          {field.cascadeFrom && (
+            <span className="text-[10px] font-semibold text-brand-blue bg-brand-blue/5 border border-brand-blue/20 px-1.5 py-0.5 rounded">
+              ↳ cascade
+            </span>
+          )}
         </div>
       </div>
 
@@ -168,13 +193,20 @@ function FieldForm({ initialData, onSave, onCancel }) {
   )
   const [newOption, setNewOption] = useState('')
 
-  const hasOptions = TYPES_WITH_OPTIONS.includes(form.type)
+  const supportsLinked = SUPPORTS_LINKED.includes(form.type)
+  const isLinked = supportsLinked && !!form.linkedSource
+  const hasOptions = TYPES_WITH_OPTIONS.includes(form.type) && !isLinked
   const isEditing = !!initialData
 
   function set(key, value) { setForm(p => ({ ...p, [key]: value })) }
 
   function handleTypeChange(newType) {
-    setForm(p => ({ ...p, type: newType, options: TYPES_WITH_OPTIONS.includes(newType) ? p.options : [] }))
+    setForm(p => ({
+      ...p,
+      type: newType,
+      options: TYPES_WITH_OPTIONS.includes(newType) ? p.options : [],
+      linkedSource: SUPPORTS_LINKED.includes(newType) ? p.linkedSource : null,
+    }))
   }
 
   function addOption() {
@@ -190,19 +222,21 @@ function FieldForm({ initialData, onSave, onCancel }) {
 
   function handleSubmit() {
     if (!form.label.trim()) return
-    if (hasOptions && form.options.length === 0) return
+    if (!isLinked && hasOptions && form.options.length === 0) return
     onSave({
-      label:       form.label.trim(),
-      type:        form.type,
-      options:     form.options,
-      placeholder: form.placeholder,
-      help:        form.help,
-      required:    form.required,
-      active:      form.active,
+      label:          form.label.trim(),
+      type:           form.type,
+      options:        isLinked ? [] : form.options,
+      linkedSource:   form.linkedSource ?? null,
+      cascadeEnabled: form.cascadeEnabled,
+      placeholder:    form.placeholder,
+      help:           form.help,
+      required:       form.required,
+      active:         form.active,
     })
   }
 
-  const canSave = form.label.trim() && (!hasOptions || form.options.length > 0)
+  const canSave = form.label.trim() && (isLinked || !hasOptions || form.options.length > 0)
 
   return (
     <div className="space-y-4">
@@ -225,6 +259,67 @@ function FieldForm({ initialData, onSave, onCancel }) {
         </Select>
       </FormField>
 
+      {/* Linked data source toggle for Dropdown / Multi-select */}
+      {supportsLinked && (
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-gray-600 mb-2">Data Source</p>
+            <div className="flex gap-5">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name={`pf-src-${isEditing ? initialData?.id : 'new'}`}
+                  checked={!isLinked}
+                  onChange={() => set('linkedSource', null)}
+                  className="w-3.5 h-3.5 accent-brand-blue"
+                />
+                <span className={`text-sm ${!isLinked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+                  Manual Options
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name={`pf-src-${isEditing ? initialData?.id : 'new'}`}
+                  checked={isLinked}
+                  onChange={() => setForm(p => ({ ...p, linkedSource: 'area.states', options: [] }))}
+                  className="w-3.5 h-3.5 accent-brand-blue"
+                />
+                <span className={`text-sm ${isLinked ? 'text-brand-blue font-medium' : 'text-gray-500'}`}>
+                  Linked Data Source
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {isLinked && (
+            <div className="space-y-2">
+              <FormField label="Select Data Source">
+                <Select
+                  value={form.linkedSource}
+                  onChange={e => set('linkedSource', e.target.value)}
+                >
+                  {DATA_SOURCE_GROUPS.map(group => (
+                    <optgroup key={group.group} label={group.group}>
+                      {group.sources.map(s => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </Select>
+              </FormField>
+              <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <p className="text-xs text-emerald-700">
+                  This field will show data from{' '}
+                  <strong>{getLinkedSourceLabel(form.linkedSource)}</strong> automatically.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Manual options editor */}
       {hasOptions && (
         <FormField label="Options">
           <div className="space-y-2">
@@ -334,7 +429,7 @@ function StageFieldManagerModal({ isOpen, onClose, stage }) {
   }
 
   function handleDelete(fieldId) {
-    persist(fields.filter(f => f.id !== fieldId))
+    persist(applyCascadeDetection(fields.filter(f => f.id !== fieldId)))
     if (editingField?.id === fieldId) { setShowForm(false); setEditingField(null) }
   }
 
@@ -342,15 +437,17 @@ function StageFieldManagerModal({ isOpen, onClose, stage }) {
     const arr = [...fields]
     const [item] = arr.splice(fromIdx, 1)
     arr.splice(toIdx, 0, item)
-    persist(arr)
+    persist(applyCascadeDetection(arr))
   }
 
   function handleSaveField(fieldData) {
+    let newFields
     if (editingField) {
-      persist(fields.map(f => f.id === editingField.id ? { ...f, ...fieldData } : f))
+      newFields = fields.map(f => f.id === editingField.id ? { ...f, ...fieldData } : f)
     } else {
-      persist([...fields, { ...fieldData, id: `${stage.id}-field-${Date.now()}` }])
+      newFields = [...fields, { ...fieldData, id: `${stage.id}-field-${Date.now()}` }]
     }
+    persist(applyCascadeDetection(newFields))
     setShowForm(false)
     setEditingField(null)
   }
