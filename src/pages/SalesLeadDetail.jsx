@@ -14,6 +14,7 @@ import { getStageFields } from '../data/stageFieldsStore'
 import DynamicFieldInput, { isFieldFilled, displayFieldValue } from '../components/ui/DynamicFieldInput'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
@@ -891,6 +892,8 @@ export default function SalesLeadDetail() {
   const [leads, setLeads]           = useState(getLeads)
   const [pipelines, setPipelines]   = useState(getPipelines)
   const [activeTab, setActiveTab]   = useState('overview')
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsRef = useRef(null)
   const [moveStageOpen, setMoveStageOpen]     = useState(false)
   const [moveStageInitial, setMoveStageInitial] = useState('')
   const [wonConversionLead, setWonConversionLead] = useState(null)
@@ -925,6 +928,16 @@ export default function SalesLeadDetail() {
     const id = setInterval(() => setElapsed(s => s + 1), 1000)
     return () => clearInterval(id)
   }, [installStatus])
+
+  // Close actions dropdown on outside click
+  useEffect(() => {
+    if (!actionsOpen) return
+    function handler(e) {
+      if (!actionsRef.current?.contains(e.target)) setActionsOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [actionsOpen])
 
   const lead = leads.find(l => l.id === id)
 
@@ -1001,6 +1014,7 @@ export default function SalesLeadDetail() {
   const daysCreated = lead.createdAt ? daysBetween(lead.createdAt, TODAY) : 0
   const isOverdue = lead.followUp && lead.followUp < TODAY
   const staff = STAFF.find(s => s.name === lead.assigned)
+  const leadDisplayName = lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`
 
   function handleMoveStage(targetStage, fieldVals, fuData) {
     const filledCount = Object.values(fieldVals).filter(Boolean).length
@@ -1136,10 +1150,11 @@ export default function SalesLeadDetail() {
   const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))
 
   const TABS = [
-    { key: 'overview',   label: 'Overview',     icon: User },
-    { key: 'followups',  label: 'Follow-ups',   icon: Bell },
-    { key: 'comments',   label: 'Comments',     icon: MessageSquare },
-    { key: 'activity',   label: 'Activity Log', icon: Activity },
+    { key: 'overview',     label: 'Overview',      icon: User },
+    { key: 'followups',    label: 'Follow-ups',    icon: Bell },
+    { key: 'comments',     label: 'Comments',      icon: MessageSquare },
+    { key: 'stageHistory', label: 'Stage History', icon: TrendingUp },
+    { key: 'activity',     label: 'Activity Log',  icon: Activity },
   ]
 
   const FU_STATUS_STYLE = {
@@ -1151,9 +1166,9 @@ export default function SalesLeadDetail() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="p-6 max-w-[1400px] space-y-5">
 
-      {/* ── Reopen toast ────────────────────────────────────────────────── */}
+      {/* Reopen toast */}
       {reopenToast && (
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-brand-blue text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle2 size={16} className="shrink-0" />
@@ -1161,479 +1176,554 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="px-6 pt-5 pb-4 bg-white border-b border-surface-border shrink-0">
-        <button onClick={() => navigate('/sales')}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-4 transition-colors">
-          <ArrowLeft size={15} /> Back to Sales Pipeline
-        </button>
+      {/* Back nav */}
+      <button onClick={() => navigate('/sales')}
+        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-blue transition-colors">
+        <ArrowLeft size={15} /> Back to Sales Pipeline
+      </button>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5 mb-0.5">
-              <h1 className="text-xl font-bold text-gray-900 truncate">
-                {lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`}
-              </h1>
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${stageStyle.chip}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
-                {lead.stage}
-              </span>
-              {status !== 'Open' && (
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${status === 'Won' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                  {status}
+      {/* ── Header card ── */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-5">
+
+            {/* Avatar */}
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xl font-bold shrink-0 shadow-md">
+              {lead.name.charAt(0)}
+            </div>
+
+            {/* Core info */}
+            <div className="flex-1 min-w-0">
+              {/* Row 1: Lead name + stage badge */}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-xl font-bold text-gray-900">{leadDisplayName}</h1>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${stageStyle.chip}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
+                  {lead.stage}
                 </span>
+                {status !== 'Open' && (
+                  <Badge variant={status === 'Won' ? 'green' : 'red'} size="sm">{status}</Badge>
+                )}
+              </div>
+
+              {/* Subtitle: customer name */}
+              <p className="text-sm text-gray-500 font-medium mb-2">{lead.name}</p>
+
+              {/* Row 2: Phone | Email | Location | Created | Assigned | Pipeline */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-gray-500">
+                <span className="flex items-center gap-1.5"><Phone size={13} />{lead.phone}</span>
+                {lead.email && <span className="flex items-center gap-1.5"><Mail size={13} />{lead.email}</span>}
+                {lead.area && <span className="flex items-center gap-1.5"><MapPin size={13} />{lead.area}</span>}
+                <span className="flex items-center gap-1.5"><CalendarDays size={13} />Created {lead.createdAt ?? 'N/A'}</span>
+                <span className="flex items-center gap-1.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${staff?.color ?? 'bg-gray-400'}`}>
+                    {staff?.initials ?? '?'}
+                  </div>
+                  {lead.assigned}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold text-white shrink-0" style={{ backgroundColor: pl.color }}>
+                  {PIPELINE_LABEL[lead.pipeline]}
+                </span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              {/* Actions dropdown */}
+              <div className="relative" ref={actionsRef}>
+                <Button variant="secondary" size="sm" iconRight={<ChevronDown size={13} />}
+                  onClick={() => setActionsOpen(v => !v)}>
+                  Actions
+                </Button>
+                {actionsOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden w-48">
+                    <button
+                      onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Edit3 size={14} className="text-gray-400" /> Edit Lead
+                    </button>
+                    <button
+                      onClick={() => { setMoveStageOpen(true); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <TrendingUp size={14} className="text-gray-400" /> Move Stage
+                    </button>
+                    <button
+                      onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Bell size={14} className="text-gray-400" /> Add Follow-up
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Prominent standalone buttons */}
+              {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
+                <>
+                  <Button size="sm" icon={<CheckCircle2 size={14} />}
+                    onClick={() => { setMoveStageInitial('Won'); setMoveStageOpen(true) }}>
+                    Mark as Won
+                  </Button>
+                  <Button variant="danger" size="sm" icon={<XCircle size={14} />}
+                    onClick={() => { setMoveStageInitial('Lost'); setMoveStageOpen(true) }}>
+                    Mark as Lost
+                  </Button>
+                </>
+              )}
+              {(lead.stage === 'Won' || lead.stage === 'Lost') && (
+                <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
+                  onClick={() => setReopenOpen(true)}
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                  Reopen Lead
+                </Button>
               )}
             </div>
-
-            <p className="text-sm text-gray-500 mb-2">{lead.name}</p>
-
-            <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
-              <span className="flex items-center gap-1.5"><Phone size={13} /> {lead.phone}</span>
-              {lead.email && <span className="flex items-center gap-1.5"><Mail size={13} /> {lead.email}</span>}
-              <span className="flex items-center gap-1.5"><MapPin size={13} /> {lead.area}</span>
-              <span className="flex items-center gap-1.5"><CalendarDays size={13} /> Created {lead.createdAt ?? 'N/A'}</span>
-              <span className="flex items-center gap-1.5">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${staff?.color ?? 'bg-gray-400'}`}>
-                  {staff?.initials ?? '?'}
-                </div>
-                {lead.assigned}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold text-white" style={{ backgroundColor: pl.color }}>
-                {PIPELINE_LABEL[lead.pipeline]}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <Button variant="secondary" size="sm" icon={<Edit3 size={14} />} onClick={() => navigate(`/sales/leads/${lead.id}/edit`)}>
-              Edit Lead
-            </Button>
-            <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />} onClick={() => setMoveStageOpen(true)}>
-              Move Stage
-            </Button>
-            <Button variant="secondary" size="sm" icon={<Bell size={14} />} onClick={() => setFollowupOpen(true)}>
-              Add Follow-up
-            </Button>
-            {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
-              <>
-                <Button size="sm" icon={<CheckCircle2 size={14} />}
-                  onClick={() => { setMoveStageInitial('Won'); setMoveStageOpen(true) }}>
-                  Mark as Won
-                </Button>
-                <Button variant="danger" size="sm" icon={<XCircle size={14} />}
-                  onClick={() => { setMoveStageInitial('Lost'); setMoveStageOpen(true) }}>
-                  Mark as Lost
-                </Button>
-              </>
-            )}
-            {(lead.stage === 'Won' || lead.stage === 'Lost') && (
-              <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
-                onClick={() => setReopenOpen(true)}
-                className="border-amber-300 text-amber-700 hover:bg-amber-50">
-                Reopen Lead
-              </Button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* ── Tabs ───────────────────────────────────────────────────────── */}
-      <div className="px-6 bg-white border-b border-surface-border shrink-0">
-        <div className="flex gap-0">
+      {/* ── Tabs + content card ── */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+
+        {/* Tab nav */}
+        <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
           {TABS.map(tab => {
             const Icon = tab.icon
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-                  activeTab === tab.key
+                className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                  ${activeTab === tab.key
                     ? 'border-brand-blue text-brand-blue'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}>
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                  }`}>
                 <Icon size={14} /> {tab.label}
               </button>
             )
           })}
         </div>
-      </div>
 
-      {/* ── Tab content ────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
+        <div className="p-5 sm:p-6">
 
-        {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
-        {activeTab === 'overview' && (
-          <div className="p-6 grid grid-cols-3 gap-5">
+          {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
 
-            {/* Column 1 */}
-            <div className="space-y-4">
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Basic Details</p>
-                <InfoRow label="Lead ID"      value={lead.id}                                                      highlight />
-                <InfoRow label="Lead Name"    value={lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`} />
-                <InfoRow label="Lead Source"  value={lead.source} />
-                <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
-                <InfoRow label="Created Date" value={lead.createdAt} />
-                <InfoRow label="Assigned To"  value={lead.assigned} />
+              {/* Left 60% */}
+              <div className="xl:col-span-3 space-y-4">
+                <Card>
+                  <CardHeader title="Basic Details" />
+                  <InfoRow label="Lead ID"      value={lead.id} highlight />
+                  <InfoRow label="Lead Name"    value={leadDisplayName} />
+                  <InfoRow label="Lead Source"  value={lead.source} />
+                  <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
+                  <InfoRow label="Created Date" value={lead.createdAt} />
+                  <InfoRow label="Assigned To"  value={lead.assigned} />
+                </Card>
+
+                <Card>
+                  <CardHeader title="Customer Details" />
+                  <InfoRow label="Customer Name"    value={lead.name} />
+                  <InfoRow label="Mobile Number"    value={lead.phone} highlight />
+                  <InfoRow label="Alternate Number" value={lead.alternateMobile} />
+                  <InfoRow label="Email Address"    value={lead.email} />
+                </Card>
+
+                <Card>
+                  <CardHeader title="Address Details" />
+                  <InfoRow label="Address" value={lead.address} />
+                  <InfoRow label="Area"    value={lead.area} />
+                  <InfoRow label="City"    value={lead.city} />
+                  <InfoRow label="Pincode" value={lead.pincode} />
+                </Card>
               </div>
 
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Customer Details</p>
-                <InfoRow label="Customer Name"    value={lead.name} />
-                <InfoRow label="Mobile Number"    value={lead.phone} highlight />
-                <InfoRow label="Alternate Number" value={lead.alternateMobile} />
-                <InfoRow label="Email Address"    value={lead.email} />
-              </div>
+              {/* Right 40% */}
+              <div className="xl:col-span-2 space-y-4">
 
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Address Details</p>
-                <InfoRow label="Address" value={lead.address} />
-                <InfoRow label="Area"    value={lead.area} />
-                <InfoRow label="City"    value={lead.city} />
-                <InfoRow label="Pincode" value={lead.pincode} />
-              </div>
-            </div>
+                <Card>
+                  <CardHeader title="Current Stage Info" />
+                  <InfoRow label="Pipeline" value={PIPELINE_LABEL[lead.pipeline]} />
+                  <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+                    <span className="text-xs text-gray-500 shrink-0 w-36">Current Stage</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
+                  </div>
+                  <InfoRow label="Stage Entered"
+                    value={(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()} />
+                  <InfoRow label="Days in Stage"
+                    value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
+                </Card>
 
-            {/* Column 2 */}
-            <div className="space-y-4">
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Current Stage Info</p>
-                <InfoRow label="Pipeline"       value={PIPELINE_LABEL[lead.pipeline]} />
-                <div className="flex items-start justify-between py-2 border-b border-gray-50">
-                  <span className="text-xs text-gray-500 w-36 shrink-0">Current Stage</span>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
-                </div>
-                <InfoRow label="Stage Entered"  value={(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()} />
-                <InfoRow label="Days in Stage"  value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
-              </div>
-
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Stage History</p>
-                <div className="space-y-0">
-                  {stageHistory.map((sh, i) => {
-                    const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
-                    const filledFields = Object.entries(sh.fields ?? {}).filter(([, v]) => v)
-                    const isExpanded = expandedStages[i] ?? false
-                    return (
-                      <div key={i} className="flex gap-3 pb-3 relative">
-                        {i < stageHistory.length - 1 && (
-                          <div className="absolute left-2 top-5 bottom-0 w-px bg-gray-200" />
-                        )}
-                        <div className={`w-4 h-4 rounded-full shrink-0 mt-1 ${ss.dot} z-10`} />
-                        <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedStages(p => ({ ...p, [i]: !p[i] }))}
-                            className="w-full text-left group"
-                          >
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ss.chip}`}>{sh.stage}</span>
-                              <ChevronDown
-                                size={11}
-                                className={`text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                              />
-                            </div>
-                            <p className="text-[10px] text-gray-400">{sh.date} · by {sh.movedBy}</p>
-                          </button>
-                          {isExpanded && (
-                            <div className="mt-1.5">
-                              {filledFields.length > 0 ? (
-                                <div className="bg-gray-50 rounded-lg border border-gray-100 p-2 space-y-1">
-                                  {filledFields.map(([key, val]) => (
-                                    <div key={key} className="flex items-start gap-1 text-[10px]">
-                                      <span className="text-gray-400 shrink-0">{getFieldLabel(pipelines, lead.pipeline, sh.stage, key)}:</span>
-                                      <span className="text-gray-700 font-medium break-all">{displayFieldValue(val)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-[10px] text-gray-400 italic px-1">No fields recorded for this stage</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                {/* Installation Actions — only in Installation Visit stage */}
+                {lead.stage === 'Installation Visit' && (
+                  <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Wrench size={15} className="text-purple-600" />
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Column 3 */}
-            <div className="space-y-4">
-
-              {/* ── Installation Actions Panel ────────────────────────── */}
-              {lead.stage === 'Installation Visit' && (
-                <div className="bg-white rounded-xl border-2 border-purple-200 p-4 shadow-card">
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                      <Wrench size={15} className="text-purple-600" />
-                    </div>
-                    <div>
                       <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Installation Actions</p>
                     </div>
-                  </div>
 
-                  {/* STATE 1 — Not Started */}
-                  {installStatus === 'not_started' && (
-                    <>
-                      <div className="space-y-0 mb-4">
-                        <InfoRow label="Install Date" value={installDate} />
-                        <InfoRow label="Install Time" value={installTime} />
-                        <InfoRow label="Engineer"     value={engineerName} />
-                      </div>
-                      <Button className="w-full" icon={<Wrench size={14} />} onClick={() => setOtpOpen(true)}>
-                        Start Installation
-                      </Button>
-                    </>
-                  )}
+                    {installStatus === 'not_started' && (
+                      <>
+                        <div className="space-y-0 mb-4">
+                          <InfoRow label="Install Date" value={installDate} />
+                          <InfoRow label="Install Time" value={installTime} />
+                          <InfoRow label="Engineer"     value={engineerName} />
+                        </div>
+                        <Button className="w-full" icon={<Wrench size={14} />} onClick={() => setOtpOpen(true)}>
+                          Start Installation
+                        </Button>
+                      </>
+                    )}
 
-                  {/* STATE 2 — In Progress */}
-                  {installStatus === 'in_progress' && (
-                    <>
-                      {/* Live timer */}
-                      <div className="text-center py-4 mb-3 bg-purple-50 border border-purple-100 rounded-xl">
-                        <p className="text-3xl font-mono font-bold text-purple-700 tabular-nums">{formatTimer(elapsed)}</p>
-                        <p className="text-xs text-purple-500 mt-1">Installation in progress</p>
-                      </div>
-
-                      <div className="space-y-0 mb-3">
-                        <InfoRow label="Started at" value={installStartedAt} />
-                        <InfoRow label="Engineer"   value={engineerName} />
-                      </div>
-
-                      {/* eKYC status */}
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-xs font-medium ${
-                        eKycComplete
-                          ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                          : 'bg-amber-50 border border-amber-200 text-amber-700'
-                      }`}>
-                        {eKycComplete
-                          ? <CheckCircle size={13} className="shrink-0" />
-                          : <AlertTriangle size={13} className="shrink-0" />
-                        }
-                        {eKycComplete ? '✅ eKYC Verified' : '⚠️ Complete eKYC before marking done'}
-                      </div>
-
-                      {/* Installation Done button (green when available) */}
-                      <button
-                        disabled={!eKycComplete}
-                        onClick={() => setHwModalOpen(true)}
-                        className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400/40 ${
+                    {installStatus === 'in_progress' && (
+                      <>
+                        <div className="text-center py-4 mb-3 bg-purple-50 border border-purple-100 rounded-xl">
+                          <p className="text-3xl font-mono font-bold text-purple-700 tabular-nums">{formatTimer(elapsed)}</p>
+                          <p className="text-xs text-purple-500 mt-1">Installation in progress</p>
+                        </div>
+                        <div className="space-y-0 mb-3">
+                          <InfoRow label="Started at" value={installStartedAt} />
+                          <InfoRow label="Engineer"   value={engineerName} />
+                        </div>
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-xs font-medium ${
                           eKycComplete
-                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm cursor-pointer'
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        <CheckCircle2 size={14} />
-                        Installation Done
-                      </button>
-                      {!eKycComplete && (
-                        <p className="text-xs text-amber-600 text-center mt-2">Complete eKYC to enable this button</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
+                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                            : 'bg-amber-50 border border-amber-200 text-amber-700'
+                        }`}>
+                          {eKycComplete
+                            ? <CheckCircle size={13} className="shrink-0" />
+                            : <AlertTriangle size={13} className="shrink-0" />
+                          }
+                          {eKycComplete ? '✅ eKYC Verified' : '⚠️ Complete eKYC before marking done'}
+                        </div>
+                        <button
+                          disabled={!eKycComplete}
+                          onClick={() => setHwModalOpen(true)}
+                          className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400/40 ${
+                            eKycComplete
+                              ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm cursor-pointer'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <CheckCircle2 size={14} />
+                          Installation Done
+                        </button>
+                        {!eKycComplete && (
+                          <p className="text-xs text-amber-600 text-center mt-2">Complete eKYC to enable this button</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
 
-              {/* Active Follow-up */}
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Active Follow-up</p>
-                {lead.followUp ? (
-                  <>
-                    <div className="flex items-center gap-2 mb-3">
-                      <CalendarDays size={14} className={isOverdue ? 'text-red-500' : 'text-brand-blue'} />
-                      <span className={`text-sm font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-                        {lead.followUp} {isOverdue && '⚠ Overdue'}
-                      </span>
+                <Card>
+                  <CardHeader title="Active Follow-up"
+                    action={<Button size="xs" variant="ghost" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Add</Button>} />
+                  {lead.followUp ? (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <CalendarDays size={14} className={isOverdue ? 'text-red-500' : 'text-brand-blue'} />
+                        <span className={`text-sm font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
+                          {lead.followUp} {isOverdue && '⚠ Overdue'}
+                        </span>
+                      </div>
+                      <InfoRow label="Time"        value="10:00 AM" />
+                      <InfoRow label="Assigned to" value={lead.assigned} />
+                      <InfoRow label="Notifiers"   value="Arjun Kumar" />
+                      <div className="flex gap-2 mt-3">
+                        <Button size="xs" className="flex-1" onClick={() => setFollowupOpen(true)}>Mark Complete</Button>
+                        <Button size="xs" variant="secondary" className="flex-1" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-xs text-gray-400 mb-3">No active follow-up</p>
+                      <Button size="xs" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Set Follow-up</Button>
                     </div>
-                    <InfoRow label="Time"        value="10:00 AM" />
-                    <InfoRow label="Assigned to" value={lead.assigned} />
-                    <InfoRow label="Notifiers"   value="Arjun Kumar" />
-                    <div className="flex gap-2 mt-3">
-                      <Button size="xs" className="flex-1" onClick={() => setFollowupOpen(true)}>Mark Complete</Button>
-                      <Button size="xs" variant="secondary" className="flex-1" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                  )}
+                </Card>
+
+                <Card>
+                  <CardHeader title="Quick Stats" />
+                  {[
+                    { label: 'Total Follow-ups',   value: followups.length },
+                    { label: 'Completed',          value: followups.filter(f => f.status === 'Completed').length },
+                    { label: 'Pending',            value: followups.filter(f => ['Upcoming','Due Today','Overdue'].includes(f.status)).length },
+                    { label: 'Days Since Created', value: daysCreated },
+                  ].map(stat => (
+                    <div key={stat.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-xs text-gray-500">{stat.label}</span>
+                      <span className="text-sm font-bold text-gray-900">{stat.value}</span>
                     </div>
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-xs text-gray-400 mb-3">No active follow-up</p>
-                    <Button size="xs" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Set Follow-up</Button>
+                  ))}
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {/* ─── FOLLOW-UPS ───────────────────────────────────────────── */}
+          {activeTab === 'followups' && (
+            <div className="max-w-3xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold text-gray-700">All Follow-ups</h2>
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
+              </div>
+              <div className="space-y-3">
+                {followups.map(fu => (
+                  <div key={fu.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CalendarDays size={13} className="text-brand-blue shrink-0" />
+                          <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
+                        </div>
+                        {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
+                        <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                          <span>Assigned: {fu.assignedTo}</span>
+                          {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
+                        </div>
+                      </div>
+                      {!['Completed','Cancelled'].includes(fu.status) && (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
+                          <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                          <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {followups.length === 0 && (
+                  <div className="text-center py-12 text-gray-400">
+                    <Bell size={32} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No follow-ups yet</p>
                   </div>
                 )}
               </div>
+            </div>
+          )}
 
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Quick Stats</p>
-                {[
-                  { label: 'Total Follow-ups',   value: followups.length },
-                  { label: 'Completed',          value: followups.filter(f => f.status === 'Completed').length },
-                  { label: 'Pending',            value: followups.filter(f => ['Upcoming','Due Today','Overdue'].includes(f.status)).length },
-                  { label: 'Days Since Created', value: daysCreated },
-                ].map(stat => (
-                  <div key={stat.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-xs text-gray-500">{stat.label}</span>
-                    <span className="text-sm font-bold text-gray-900">{stat.value}</span>
+          {/* ─── COMMENTS ─────────────────────────────────────────────── */}
+          {activeTab === 'comments' && (
+            <div className="max-w-3xl">
+              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
+                <textarea
+                  ref={commentRef}
+                  value={newComment}
+                  onChange={e => handleCommentInput(e.target.value)}
+                  placeholder="Add a comment… use @ to mention"
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white resize-none placeholder-gray-400 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue mb-3"
+                />
+                {mentionOpen && (
+                  <div className="absolute left-4 z-20 bg-white border border-surface-border rounded-xl shadow-lg overflow-hidden"
+                    style={{ bottom: '70px' }}>
+                    {mentionFiltered.map(s => (
+                      <button key={s.name} onClick={() => insertMention(s.name)}
+                        className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 w-full text-left text-sm text-gray-700">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button size="sm" icon={<Send size={13} />} onClick={handlePostComment} disabled={!newComment.trim()}>
+                    Post Comment
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {comments.map(c => (
+                  <div key={c.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${c.color}`}>
+                        {c.initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-gray-900">{c.author}</span>
+                          <span className="text-xs text-gray-400">{c.timeLabel}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {c.text.split(/(@\w+ \w+)/).map((part, i) =>
+                            part.startsWith('@')
+                              ? <span key={i} className="text-brand-blue font-medium">{part}</span>
+                              : part
+                          )}
+                        </p>
+                        <button
+                          onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
+                          className="text-xs text-gray-400 hover:text-brand-blue mt-2 transition-colors">
+                          Reply
+                        </button>
+                        {replyTo === c.id && (
+                          <div className="mt-2 flex gap-2">
+                            <input
+                              autoFocus
+                              value={replyText}
+                              onChange={e => setReplyText(e.target.value)}
+                              placeholder="Write a reply…"
+                              className="flex-1 text-xs border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                            />
+                            <Button size="xs" onClick={() => {
+                              if (!replyText.trim()) return
+                              setComments(p => p.map(x => x.id === c.id
+                                ? { ...x, replies: [...(x.replies ?? []), { id: `R${Date.now()}`, text: replyText, author: lead.assigned, timeLabel: 'just now' }] }
+                                : x
+                              ))
+                              setReplyText('')
+                              setReplyTo(null)
+                            }}>Send</Button>
+                          </div>
+                        )}
+                        {c.replies?.map(r => (
+                          <div key={r.id} className="mt-2 ml-2 pl-3 border-l-2 border-surface-border">
+                            <span className="text-xs font-semibold text-gray-700 mr-1">{r.author}</span>
+                            <span className="text-xs text-gray-600">{r.text}</span>
+                            <span className="text-[10px] text-gray-400 ml-1">{r.timeLabel}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ─── FOLLOW-UPS ───────────────────────────────────────────── */}
-        {activeTab === 'followups' && (
-          <div className="p-6 max-w-3xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-gray-700">All Follow-ups</h2>
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
-            </div>
-            <div className="space-y-3">
-              {followups.map(fu => (
-                <div key={fu.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CalendarDays size={13} className="text-brand-blue shrink-0" />
-                        <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
-                      </div>
-                      {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
-                      <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                        <span>Assigned: {fu.assignedTo}</span>
-                        {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
-                      </div>
-                    </div>
-                    {!['Completed','Cancelled'].includes(fu.status) && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
-                        <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
-                        <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
-                      </div>
-                    )}
+          {/* ─── STAGE HISTORY ────────────────────────────────────────── */}
+          {activeTab === 'stageHistory' && (
+            <div>
+              <Card padding={false}>
+                <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">Stage History</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {stageHistory.length} stage{stageHistory.length !== 1 ? 's' : ''} traversed
+                    </p>
                   </div>
+                  <Badge variant={status === 'Won' ? 'green' : status === 'Lost' ? 'red' : 'blue'} dot size="sm">
+                    {status}
+                  </Badge>
                 </div>
-              ))}
-              {followups.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  <Bell size={32} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No follow-ups yet</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+                <div className="px-5 py-5">
+                  {stageHistory.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">No stage history recorded</p>
+                  ) : (
+                    <div className="space-y-0">
+                      {stageHistory.map((sh, i) => {
+                        const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
+                        const filledFields = Object.entries(sh.fields ?? {}).filter(([, v]) => v)
+                        const isExpanded = expandedStages[`hist_${i}`] ?? false
+                        const isLatest = i === stageHistory.length - 1
+                        return (
+                          <div key={i} className="flex gap-4 pb-6 relative">
+                            {i < stageHistory.length - 1 && (
+                              <div className="absolute left-3 top-8 bottom-0 w-px bg-gray-200" />
+                            )}
+                            <div className={`w-6 h-6 rounded-full shrink-0 mt-1.5 z-10 flex items-center justify-center ${ss.dot} ${isLatest ? 'ring-2 ring-offset-2 ring-gray-200' : ''}`}>
+                              {isLatest && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedStages(p => ({ ...p, [`hist_${i}`]: !p[`hist_${i}`] }))}
+                                className="w-full text-left"
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${ss.chip}`}>{sh.stage}</span>
+                                    {isLatest && (
+                                      <span className="text-[10px] font-semibold text-brand-blue bg-brand-blue/10 px-2 py-0.5 rounded-full">
+                                        Current
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {filledFields.length > 0 && (
+                                      <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                        {filledFields.length} field{filledFields.length !== 1 ? 's' : ''}
+                                      </span>
+                                    )}
+                                    <ChevronDown size={14} className={`text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                                  </div>
+                                </div>
+                                <p className="text-xs text-gray-400">{sh.date} · by {sh.movedBy}</p>
+                              </button>
 
-        {/* ─── COMMENTS ─────────────────────────────────────────────── */}
-        {activeTab === 'comments' && (
-          <div className="p-6 max-w-3xl">
-            <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
-              <textarea
-                ref={commentRef}
-                value={newComment}
-                onChange={e => handleCommentInput(e.target.value)}
-                placeholder="Add a comment… use @ to mention"
-                rows={3}
-                className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white resize-none placeholder-gray-400 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue mb-3"
-              />
-              {mentionOpen && (
-                <div className="absolute left-4 z-20 bg-white border border-surface-border rounded-xl shadow-lg overflow-hidden"
-                  style={{ bottom: '70px' }}>
-                  {mentionFiltered.map(s => (
-                    <button key={s.name} onClick={() => insertMention(s.name)}
-                      className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 w-full text-left text-sm text-gray-700">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
-                      {s.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="flex justify-end">
-                <Button size="sm" icon={<Send size={13} />} onClick={handlePostComment} disabled={!newComment.trim()}>
-                  Post Comment
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {comments.map(c => (
-                <div key={c.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${c.color}`}>
-                      {c.initials}
+                              {isExpanded && (
+                                <div className="mt-3 mb-2">
+                                  {filledFields.length > 0 ? (
+                                    <div className="bg-gray-50 rounded-xl border border-surface-border p-4">
+                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
+                                        Captured Fields
+                                      </p>
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        {filledFields.map(([key, val]) => (
+                                          <div key={key} className="bg-white rounded-lg border border-surface-border p-3">
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
+                                              {getFieldLabel(pipelines, lead.pipeline, sh.stage, key)}
+                                            </p>
+                                            <p className="text-xs font-semibold text-gray-800 break-all">
+                                              {displayFieldValue(val)}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border border-surface-border rounded-xl">
+                                      <span className="text-xs text-gray-400 italic">
+                                        No fields recorded for this stage
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-semibold text-gray-900">{c.author}</span>
-                        <span className="text-xs text-gray-400">{c.timeLabel}</span>
-                      </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">
-                        {c.text.split(/(@\w+ \w+)/).map((part, i) =>
-                          part.startsWith('@')
-                            ? <span key={i} className="text-brand-blue font-medium">{part}</span>
-                            : part
-                        )}
-                      </p>
-                      <button
-                        onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}
-                        className="text-xs text-gray-400 hover:text-brand-blue mt-2 transition-colors">
-                        Reply
-                      </button>
-                      {replyTo === c.id && (
-                        <div className="mt-2 flex gap-2">
-                          <input
-                            autoFocus
-                            value={replyText}
-                            onChange={e => setReplyText(e.target.value)}
-                            placeholder="Write a reply…"
-                            className="flex-1 text-xs border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-                          />
-                          <Button size="xs" onClick={() => {
-                            if (!replyText.trim()) return
-                            setComments(p => p.map(x => x.id === c.id
-                              ? { ...x, replies: [...(x.replies ?? []), { id: `R${Date.now()}`, text: replyText, author: lead.assigned, timeLabel: 'just now' }] }
-                              : x
-                            ))
-                            setReplyText('')
-                            setReplyTo(null)
-                          }}>Send</Button>
-                        </div>
-                      )}
-                      {c.replies?.map(r => (
-                        <div key={r.id} className="mt-2 ml-2 pl-3 border-l-2 border-surface-border">
-                          <span className="text-xs font-semibold text-gray-700 mr-1">{r.author}</span>
-                          <span className="text-xs text-gray-600">{r.text}</span>
-                          <span className="text-[10px] text-gray-400 ml-1">{r.timeLabel}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ─── ACTIVITY LOG ─────────────────────────────────────────── */}
-        {activeTab === 'activity' && (
-          <div className="p-6 max-w-2xl">
-            <h2 className="text-sm font-bold text-gray-700 mb-4">Activity Log</h2>
-            <div className="space-y-0">
-              {activityLog.map((entry, i) => (
-                <div key={entry.id} className="flex gap-4 pb-5 relative">
-                  {i < activityLog.length - 1 && (
-                    <div className="absolute left-3.5 top-7 bottom-0 w-px bg-gray-200" />
                   )}
-                  <div className="w-7 h-7 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center shrink-0 text-sm z-10">
-                    {entry.icon}
-                  </div>
-                  <div className="pt-1 min-w-0">
-                    <p className="text-sm text-gray-800 font-medium">{entry.text}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">by <span className="font-medium text-gray-600">{entry.user}</span> · {entry.time}</p>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* ─── ACTIVITY LOG ─────────────────────────────────────────── */}
+          {activeTab === 'activity' && (
+            <div className="max-w-2xl">
+              <Card padding={false}>
+                <div className="px-5 py-4 border-b border-surface-border">
+                  <h3 className="text-sm font-semibold text-gray-800">Audit Trail</h3>
+                </div>
+                <div className="px-5 py-5">
+                  <div className="space-y-0">
+                    {activityLog.map((entry, i) => (
+                      <div key={entry.id} className="flex gap-4 pb-5 relative">
+                        {i < activityLog.length - 1 && (
+                          <div className="absolute left-3.5 top-7 bottom-0 w-px bg-gray-200" />
+                        )}
+                        <div className="w-7 h-7 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center shrink-0 text-sm z-10">
+                          {entry.icon}
+                        </div>
+                        <div className="pt-1 min-w-0">
+                          <p className="text-sm text-gray-800 font-medium">{entry.text}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">by <span className="font-medium text-gray-600">{entry.user}</span> · {entry.time}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
+              </Card>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
@@ -1671,8 +1761,6 @@ export default function SalesLeadDetail() {
           data={wonSuccessData}
         />
       )}
-
-      {/* Installation flow modals */}
       <OTPModal
         isOpen={otpOpen}
         onClose={() => setOtpOpen(false)}
