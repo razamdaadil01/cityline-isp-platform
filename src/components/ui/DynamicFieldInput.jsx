@@ -1,4 +1,5 @@
 import { Input, Select, Textarea } from './FormInputs'
+import { resolveOptions } from '../../data/linkedDataStore'
 
 export function isFieldFilled(field, value) {
   if (field.type === 'Multi-select') return Array.isArray(value) && value.length > 0
@@ -13,24 +14,35 @@ export function displayFieldValue(val) {
   return String(val ?? '')
 }
 
-export default function DynamicFieldInput({ field, value, onChange }) {
-  const { type, options = [], placeholder = '', label } = field
+// formValues: optional object keyed by field.id — used for cascade resolution
+export default function DynamicFieldInput({ field, value, onChange, formValues = {} }) {
+  const { type, options = [], placeholder = '', label, linkedSource, cascadeFrom } = field
   const val = value ?? (type === 'Multi-select' ? [] : type === 'Checkbox' ? false : '')
+
+  const effectiveOptions = (() => {
+    if (!linkedSource) return options
+    const parentValue = cascadeFrom ? (formValues[cascadeFrom] ?? null) : null
+    const resolved = resolveOptions(linkedSource, parentValue)
+    return resolved.length > 0 ? resolved : []
+  })()
 
   if (type === 'Dropdown') {
     return (
       <Select value={val} onChange={e => onChange(e.target.value)}>
-        <option value="">Select…</option>
-        {options.map(o => <option key={o}>{o}</option>)}
+        <option value="">{effectiveOptions.length === 0 ? 'No options available' : 'Select…'}</option>
+        {effectiveOptions.map(o => <option key={o}>{o}</option>)}
       </Select>
     )
   }
 
   if (type === 'Multi-select') {
     const arr = Array.isArray(val) ? val : []
+    if (effectiveOptions.length === 0) {
+      return <p className="text-xs text-gray-400 py-1 italic">No options available</p>
+    }
     return (
       <div className="space-y-1.5 py-0.5">
-        {options.map(o => (
+        {effectiveOptions.map(o => (
           <label key={o} className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
@@ -48,7 +60,7 @@ export default function DynamicFieldInput({ field, value, onChange }) {
   if (type === 'Radio') {
     return (
       <div className="space-y-1.5 py-0.5">
-        {options.map(o => (
+        {effectiveOptions.map(o => (
           <label key={o} className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="radio"

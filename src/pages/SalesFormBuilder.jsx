@@ -3,12 +3,16 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, GripVertical,
   Save, CheckCircle, Settings2, Type, Hash, Phone,
   Mail, List, ToggleLeft, Calendar, Upload, AlignLeft,
-  ChevronDown as ChevronDownIcon,
+  ChevronDown as ChevronDownIcon, Link2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getFormModules, setFormModule } from '../data/customFormStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
+import {
+  DATA_SOURCE_GROUPS, DATA_SOURCE_MAP,
+  getLinkedSourceLabel, applyCascadeDetection,
+} from '../data/linkedDataStore'
 
 const FIELD_TYPES = [
   'Text', 'Number', 'Phone', 'Email', 'Dropdown',
@@ -28,7 +32,6 @@ const FIELD_TYPE_ICON = {
   'Textarea':      AlignLeft,
 }
 
-// Default modules always present regardless of pipeline store
 const DEFAULT_MODULES = [
   { key: 'B2C', name: 'Residential Lead Form', sub: 'Residential pipeline', color: '#0A8DCD', badge: 'bg-blue-100 text-blue-700' },
   { key: 'B2B', name: 'Corporate Lead Form',   sub: 'Corporate pipeline',   color: '#0F2744', badge: 'bg-navy/10 text-navy'      },
@@ -59,15 +62,20 @@ function initFieldsByKey(pipelines) {
   return result
 }
 
+const SUPPORTS_LINKED = ['Dropdown', 'Multi-select']
+
 // ── Field row ─────────────────────────────────────────────────────────────────
 
-function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
+function FieldRow({ field, index, total, onMove, onUpdate, onRemove, cascadeInfo }) {
   const [expanded, setExpanded] = useState(false)
   const Icon = FIELD_TYPE_ICON[field.type] ?? Type
+  const isLinked = !!field.linkedSource
+  const supportsLinked = SUPPORTS_LINKED.includes(field.type)
 
   return (
     <div className="bg-white border border-surface-border rounded-xl overflow-hidden transition-shadow hover:shadow-sm">
       <div className="flex items-center gap-2 px-3 py-2.5 group">
+        {/* Reorder */}
         <div className="flex flex-col gap-0.5 shrink-0">
           <button
             disabled={index === 0}
@@ -86,11 +94,13 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
           </button>
         </div>
 
+        {/* Type chip */}
         <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 shrink-0">
           <Icon size={12} />
           {field.type}
         </div>
 
+        {/* Label */}
         <input
           value={field.label}
           onChange={e => onUpdate(field.id, { label: e.target.value })}
@@ -98,6 +108,21 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
           placeholder="Field label…"
         />
 
+        {/* Source badge */}
+        {supportsLinked && (
+          isLinked ? (
+            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue border border-brand-blue/20 shrink-0 flex items-center gap-1">
+              <Link2 size={9} />
+              {DATA_SOURCE_MAP[field.linkedSource] ?? 'Linked'}
+            </span>
+          ) : (
+            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">
+              📝 {field.options?.length ?? 0} opts
+            </span>
+          )
+        )}
+
+        {/* Required toggle */}
         <button
           onClick={() => onUpdate(field.id, { required: !field.required })}
           className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors shrink-0 ${
@@ -130,7 +155,10 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
             <FormField label="Field Type">
               <Select
                 value={field.type}
-                onChange={e => onUpdate(field.id, { type: e.target.value })}
+                onChange={e => onUpdate(field.id, {
+                  type: e.target.value,
+                  linkedSource: SUPPORTS_LINKED.includes(e.target.value) ? field.linkedSource : null,
+                })}
               >
                 {FIELD_TYPES.map(t => <option key={t}>{t}</option>)}
               </Select>
@@ -146,17 +174,95 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove }) {
             </div>
           </div>
 
-          {(field.type === 'Dropdown' || field.type === 'Multi-select') && (
-            <FormField label="Options (one per line)">
-              <Textarea
-                value={(field.options ?? []).join('\n')}
-                onChange={e => onUpdate(field.id, {
-                  options: e.target.value.split('\n').filter(Boolean),
-                })}
-                placeholder={'Option 1\nOption 2\nOption 3'}
-                rows={3}
-              />
-            </FormField>
+          {/* Options / Linked source section */}
+          {supportsLinked && (
+            <div className="space-y-3">
+              {/* Radio toggle */}
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Data Source</p>
+                <div className="flex gap-5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name={`src-${field.id}`}
+                      checked={!isLinked}
+                      onChange={() => onUpdate(field.id, { linkedSource: null })}
+                      className="w-3.5 h-3.5 text-brand-blue accent-brand-blue"
+                    />
+                    <span className={`text-sm ${!isLinked ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+                      Manual Options
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name={`src-${field.id}`}
+                      checked={isLinked}
+                      onChange={() => onUpdate(field.id, { linkedSource: 'area.states', options: [] })}
+                      className="w-3.5 h-3.5 text-brand-blue accent-brand-blue"
+                    />
+                    <span className={`text-sm ${isLinked ? 'text-brand-blue font-medium' : 'text-gray-500'}`}>
+                      Linked Data Source
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {isLinked ? (
+                <div className="space-y-2">
+                  <FormField label="Select Data Source">
+                    <Select
+                      value={field.linkedSource}
+                      onChange={e => onUpdate(field.id, { linkedSource: e.target.value })}
+                    >
+                      {DATA_SOURCE_GROUPS.map(group => (
+                        <optgroup key={group.group} label={group.group}>
+                          {group.sources.map(s => (
+                            <option key={s.key} value={s.key}>{s.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </Select>
+                  </FormField>
+
+                  {/* Cascade indicator */}
+                  {cascadeInfo && (
+                    <div className="flex items-center justify-between px-3 py-2 bg-brand-blue/5 border border-brand-blue/20 rounded-lg">
+                      <span className="flex items-center gap-1.5 text-xs text-brand-blue font-medium">
+                        <Link2 size={11} />
+                        Cascades from <strong>{cascadeInfo.fromFieldLabel}</strong>
+                      </span>
+                      <button
+                        onClick={() => onUpdate(field.id, { cascadeEnabled: field.cascadeEnabled === false })}
+                        className="text-[10px] text-gray-400 hover:text-brand-blue underline shrink-0 ml-2"
+                      >
+                        {field.cascadeEnabled === false ? 'Re-enable cascade' : 'Disable cascade'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Preview */}
+                  <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <p className="text-xs text-emerald-700">
+                      This dropdown will show data from{' '}
+                      <strong>{getLinkedSourceLabel(field.linkedSource)}</strong> automatically.
+                      Options update when source data changes.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <FormField label="Options (one per line)">
+                  <Textarea
+                    value={(field.options ?? []).join('\n')}
+                    onChange={e => onUpdate(field.id, {
+                      options: e.target.value.split('\n').filter(Boolean),
+                    })}
+                    placeholder={'Option 1\nOption 2\nOption 3'}
+                    rows={3}
+                  />
+                </FormField>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -172,18 +278,15 @@ export default function SalesFormBuilder() {
   const [selectedKey, setSelectedKey] = useState('B2C')
   const [saved, setSaved] = useState(false)
 
-  // Keep local fieldsByKey in sync when pipelines are added or removed
   useEffect(() => subscribePipelines(newPipelines => {
     setPipelines(newPipelines)
     setFieldsByKey(prev => {
       const m = getFormModules()
       const customKeys = new Set(newPipelines.filter(p => !p.isDefault).map(p => p.id))
       const next = { ...prev }
-      // Add entries for newly created pipelines
       customKeys.forEach(key => {
         if (!(key in next)) next[key] = m[key]?.fields ?? []
       })
-      // Remove entries for deleted pipelines
       Object.keys(next).forEach(key => {
         if (key !== 'B2C' && key !== 'B2B' && !customKeys.has(key)) {
           delete next[key]
@@ -193,7 +296,6 @@ export default function SalesFormBuilder() {
     })
   }), [])
 
-  // If the selected form's pipeline was deleted, fall back to B2C
   useEffect(() => {
     const validKeys = new Set([
       'B2C', 'B2B',
@@ -207,7 +309,8 @@ export default function SalesFormBuilder() {
   const meta = modulesList.find(m => m.key === selectedKey)
 
   function setFields(next) {
-    setFieldsByKey(prev => ({ ...prev, [selectedKey]: next }))
+    const withCascade = applyCascadeDetection(next)
+    setFieldsByKey(prev => ({ ...prev, [selectedKey]: withCascade }))
   }
 
   function addField() {
@@ -220,6 +323,9 @@ export default function SalesFormBuilder() {
         placeholder: '',
         required: false,
         options: [],
+        linkedSource: null,
+        cascadeFrom: null,
+        cascadeEnabled: true,
       },
     ])
   }
@@ -237,6 +343,12 @@ export default function SalesFormBuilder() {
     const [item] = arr.splice(fromIdx, 1)
     arr.splice(toIdx, 0, item)
     setFields(arr)
+  }
+
+  function getCascadeInfo(field, allFields) {
+    if (!field.cascadeFrom) return null
+    const parent = allFields.find(f => f.id === field.cascadeFrom)
+    return parent ? { fromFieldId: parent.id, fromFieldLabel: parent.label } : null
   }
 
   function handleSave() {
@@ -345,6 +457,7 @@ export default function SalesFormBuilder() {
                     onMove={moveField}
                     onUpdate={updateField}
                     onRemove={removeField}
+                    cascadeInfo={getCascadeInfo(field, fields)}
                   />
                 ))}
               </div>
