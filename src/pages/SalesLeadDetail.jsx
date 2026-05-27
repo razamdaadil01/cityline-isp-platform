@@ -6,6 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
+  Fingerprint,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { saveFollowup } from '../data/followupStore'
@@ -884,6 +885,29 @@ function ReopenModal({ isOpen, onClose, lead, firstStage, onConfirm }) {
   )
 }
 
+// ── EKycModal ─────────────────────────────────────────────────────────────────
+
+function EKycModal({ isOpen, onClose, phone, onConfirm }) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Initiate eKYC Verification" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<Send size={14} />} onClick={onConfirm}>Send eKYC Link</Button>
+        </>
+      }
+    >
+      <div className="py-2">
+        <p className="text-sm text-gray-600 leading-relaxed">
+          A Digio verification link will be sent to{' '}
+          <span className="font-semibold text-gray-900">{phone}</span>.
+          The customer must complete Aadhaar-based verification before installation can proceed.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
@@ -911,13 +935,17 @@ export default function SalesLeadDetail() {
 
   // Installation flow state
   const [installStatus, setInstallStatus]         = useState('not_started')
-  const [otpOpen, setOtpOpen]                     = useState(false)
   const [installStartedAt, setInstallStartedAt]   = useState('')
   const [elapsed, setElapsed]                     = useState(0)
   const [hwModalOpen, setHwModalOpen]             = useState(false)
   const [activationData, setActivationData]       = useState(null)
   const [activationModalOpen, setActivationModalOpen]   = useState(false)
   const [activationSuccessOpen, setActivationSuccessOpen] = useState(false)
+
+  // eKYC state
+  const [ekycStatus, setEkycStatus]       = useState('not_started')
+  const [ekycVerifiedAt, setEkycVerifiedAt] = useState(null)
+  const [ekycModalOpen, setEkycModalOpen] = useState(false)
 
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribePipelines(setPipelines), [])
@@ -949,10 +977,6 @@ export default function SalesLeadDetail() {
   const installTime   = installVisitEntry?.fields?.['s5d-f2'] ?? '—'
   const engineerName  = installVisitEntry?.fields?.['s5d-f3'] ?? 'Ravi Technician (ENG-001)'
 
-  // eKYC completeness check
-  const eKycComplete = lead
-    ? ['aadhaar', 'panCard', 'customerPhoto'].every(k => lead.kycDocs?.[k])
-    : false
 
   // Mock follow-ups for this lead
   const [followups, setFollowups] = useState(() => {
@@ -1114,15 +1138,6 @@ export default function SalesLeadDetail() {
     setFollowups(p => p.map(f => f.id === fuId ? { ...f, status: 'Cancelled' } : f))
   }
 
-  function handleOTPVerified() {
-    setInstallStatus('in_progress')
-    const now = new Date()
-    const h = now.getHours() % 12 || 12
-    const m = String(now.getMinutes()).padStart(2, '0')
-    const ampm = now.getHours() >= 12 ? 'PM' : 'AM'
-    setInstallStartedAt(`${h}:${m} ${ampm}`)
-    setElapsed(0)
-  }
 
   function handleHardwareConfirm(hwFormData) {
     const parts = lead.name.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/)
@@ -1365,14 +1380,16 @@ export default function SalesLeadDetail() {
 
                     {installStatus === 'not_started' && (
                       <>
-                        <div className="space-y-0 mb-4">
+                        <div className="space-y-0 mb-3">
                           <InfoRow label="Install Date" value={installDate} />
                           <InfoRow label="Install Time" value={installTime} />
                           <InfoRow label="Engineer"     value={engineerName} />
                         </div>
-                        <Button className="w-full" icon={<Wrench size={14} />} onClick={() => setOtpOpen(true)}>
-                          Start Installation
-                        </Button>
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+                          <span className="text-xs font-medium text-gray-600">Installation Status</span>
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-500">Not Started</span>
+                        </div>
+                        <p className="text-[11px] text-gray-400 text-center mt-2">Managed by Field Engineer app</p>
                       </>
                     )}
 
@@ -1386,22 +1403,26 @@ export default function SalesLeadDetail() {
                           <InfoRow label="Started at" value={installStartedAt} />
                           <InfoRow label="Engineer"   value={engineerName} />
                         </div>
+                        <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                          <span className="text-xs font-medium text-amber-700">Installation Status</span>
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-200 text-amber-700">In Progress</span>
+                        </div>
                         <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-xs font-medium ${
-                          eKycComplete
+                          ekycStatus === 'verified'
                             ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
                             : 'bg-amber-50 border border-amber-200 text-amber-700'
                         }`}>
-                          {eKycComplete
+                          {ekycStatus === 'verified'
                             ? <CheckCircle size={13} className="shrink-0" />
                             : <AlertTriangle size={13} className="shrink-0" />
                           }
-                          {eKycComplete ? '✅ eKYC Verified' : '⚠️ Complete eKYC before marking done'}
+                          {ekycStatus === 'verified' ? '✅ eKYC Verified' : '⚠️ Complete eKYC before marking done'}
                         </div>
                         <button
-                          disabled={!eKycComplete}
+                          disabled={ekycStatus !== 'verified'}
                           onClick={() => setHwModalOpen(true)}
                           className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400/40 ${
-                            eKycComplete
+                            ekycStatus === 'verified'
                               ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm cursor-pointer'
                               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
@@ -1409,13 +1430,62 @@ export default function SalesLeadDetail() {
                           <CheckCircle2 size={14} />
                           Installation Done
                         </button>
-                        {!eKycComplete && (
+                        {ekycStatus !== 'verified' && (
                           <p className="text-xs text-amber-600 text-center mt-2">Complete eKYC to enable this button</p>
                         )}
+                        <p className="text-[11px] text-gray-400 text-center mt-2">Managed by Field Engineer app</p>
                       </>
                     )}
                   </div>
                 )}
+
+                {/* eKYC Verification — visible on all stages */}
+                <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                      <Fingerprint size={15} className="text-purple-600" />
+                    </div>
+                    <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-medium text-gray-500">Status:</span>
+                    {ekycStatus === 'not_started' && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-500">Not Started</span>
+                    )}
+                    {ekycStatus === 'in_progress' && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">In Progress</span>
+                    )}
+                    {ekycStatus === 'verified' && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">Verified ✓</span>
+                    )}
+                    {ekycStatus === 'failed' && (
+                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-600">Failed</span>
+                    )}
+                  </div>
+
+                  {ekycStatus === 'verified' && ekycVerifiedAt && (
+                    <p className="text-xs text-gray-500 mb-3">Verified at {ekycVerifiedAt}</p>
+                  )}
+
+                  {ekycStatus === 'failed' && (
+                    <p className="text-xs text-red-500 mb-3">Verification failed. Please retry.</p>
+                  )}
+
+                  {(ekycStatus === 'not_started' || ekycStatus === 'failed') && (
+                    <Button
+                      className="w-full"
+                      icon={<Fingerprint size={14} />}
+                      onClick={() => setEkycModalOpen(true)}
+                    >
+                      {ekycStatus === 'failed' ? 'Retry eKYC' : 'Start eKYC'}
+                    </Button>
+                  )}
+
+                  <p className="text-[11px] text-gray-400 text-center mt-3">
+                    eKYC must be completed before Installation Done can be marked.
+                  </p>
+                </div>
 
                 <Card>
                   <CardHeader title="Active Follow-up"
@@ -1761,11 +1831,14 @@ export default function SalesLeadDetail() {
           data={wonSuccessData}
         />
       )}
-      <OTPModal
-        isOpen={otpOpen}
-        onClose={() => setOtpOpen(false)}
+      <EKycModal
+        isOpen={ekycModalOpen}
+        onClose={() => setEkycModalOpen(false)}
         phone={lead.phone}
-        onVerified={handleOTPVerified}
+        onConfirm={() => {
+          setEkycStatus('in_progress')
+          setEkycModalOpen(false)
+        }}
       />
       <HardwareAssignmentModal
         isOpen={hwModalOpen}
