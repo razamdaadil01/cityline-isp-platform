@@ -1352,9 +1352,11 @@ export default function Sales() {
   const [showDateDropdown, setShowDateDropdown]     = useState(false)
   const [showFollowDropdown, setShowFollowDropdown] = useState(false)
   const [exportToast, setExportToast]               = useState('')
-  const exportMenuRef     = useRef(null)
-  const dateDropdownRef   = useRef(null)
-  const followDropdownRef = useRef(null)
+  const [pipelineDropdownOpen, setPipelineDropdownOpen] = useState(false)
+  const exportMenuRef       = useRef(null)
+  const dateDropdownRef     = useRef(null)
+  const followDropdownRef   = useRef(null)
+  const pipelineDropdownRef = useRef(null)
   const TABLE_PAGE_SIZE = 10
   const navigate                        = useNavigate()
   const location                        = useLocation()
@@ -1391,6 +1393,15 @@ export default function Sales() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showFollowDropdown])
 
+  useEffect(() => {
+    if (!pipelineDropdownOpen) return
+    function handler(e) {
+      if (pipelineDropdownRef.current && !pipelineDropdownRef.current.contains(e.target)) setPipelineDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [pipelineDropdownOpen])
+
   // Pick up a newly created lead passed back from /sales/leads/new
   useEffect(() => {
     if (location.state?.newLead) {
@@ -1402,8 +1413,8 @@ export default function Sales() {
     }
   }, []) // eslint-disable-line
 
-  const pl            = PIPELINES[activePipeline]
-  const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
+  const pl            = PIPELINES[activePipeline] ?? PIPELINES.B2C
+  const pipelineLeads = activePipeline === 'All' ? leads : leads.filter(l => l.pipeline === activePipeline)
 
   // ── Drag and drop ────────────────────────────────────────────────────────
   function handleDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
@@ -1642,47 +1653,66 @@ export default function Sales() {
                 <List size={13} /> Table
               </button>
             </div>
+
+            {/* ── Pipeline dropdown ──────────────────────────────── */}
+            <div className="relative" ref={pipelineDropdownRef}>
+              {(() => {
+                const isAll = activePipeline === 'All'
+                const label = isAll ? 'All Pipelines' : (PIPELINES[activePipeline]?.label ?? activePipeline)
+                const count = isAll ? leads.length : leads.filter(l => l.pipeline === activePipeline).length
+                return (
+                  <button
+                    onClick={() => setPipelineDropdownOpen(o => !o)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                      pipelineDropdownOpen || !isAll
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-surface-border bg-white text-gray-700 hover:border-purple-300 hover:text-purple-600'
+                    }`}
+                  >
+                    <Layers size={13} />
+                    {label}
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] text-center ${
+                      pipelineDropdownOpen || !isAll ? 'bg-purple-200 text-purple-700' : 'bg-gray-200 text-gray-600'
+                    }`}>{count}</span>
+                    <ChevronDown size={12} className={`transition-transform ${pipelineDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                )
+              })()}
+              {pipelineDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1.5 bg-white border border-surface-border rounded-xl shadow-lg z-30 min-w-[180px] py-1 overflow-hidden">
+                  {[
+                    { key: 'All', label: 'All Pipelines', count: leads.length },
+                    ...Object.entries(PIPELINES).map(([key, cfg]) => ({
+                      key,
+                      label: cfg.label,
+                      count: leads.filter(l => l.pipeline === key).length,
+                    })),
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setActivePipeline(opt.key); setSearch(''); setPipelineDropdownOpen(false) }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors ${
+                        activePipeline === opt.key
+                          ? 'bg-purple-50 text-purple-700'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {opt.label}
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] text-center ${
+                        activePipeline === opt.key ? 'bg-purple-200 text-purple-700' : 'bg-gray-200 text-gray-600'
+                      }`}>{opt.count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {viewMode === 'kanban' && (
               <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')}>
                 Add Lead
               </Button>
             )}
           </div>
-        </div>
-
-        {/* ── Pipeline tabs ────────────────────────────────────────────── */}
-        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border-2 border-orange-500 w-fit shadow-sm">
-          {Object.entries(PIPELINES).map(([key, config]) => {
-            const count    = leads.filter(l => l.pipeline === key).length
-            const isActive = activePipeline === key
-            // Use inline styles for active bg to guarantee the custom brand
-            // colors render regardless of Tailwind JIT class scanning
-            const ACTIVE_BG = {
-              B2C:    '#0A8DCD',
-              B2B:    '#0F2744',
-              Custom: '#E8541A',
-            }
-            return (
-              <button
-                key={key}
-                onClick={() => { setActivePipeline(key); setSearch('') }}
-                style={isActive ? { backgroundColor: ACTIVE_BG[key], color: '#fff' } : {}}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  isActive
-                    ? 'shadow-sm text-white'
-                    : 'bg-transparent text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {config.label}
-                <span
-                  style={isActive ? { backgroundColor: 'rgba(255,255,255,0.25)', color: '#fff' } : {}}
-                  className={`text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${isActive ? '' : 'bg-gray-200 text-gray-600'}`}
-                >
-                  {count}
-                </span>
-              </button>
-            )
-          })}
         </div>
 
         {/* ── KPI cards ────────────────────────────────────────────────── */}
@@ -1949,7 +1979,7 @@ export default function Sales() {
               <table className="text-sm" style={{ minWidth: 1160 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 80 }}>Lead ID</th>
+                    <th className="px-4 py-3 text-left" style={{ minWidth: 90 }}>Lead ID</th>
                     <th className="px-4 py-3 text-left" style={{ minWidth: 180 }}>Lead Name</th>
                     <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Customer</th>
                     <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Mobile</th>
@@ -1975,7 +2005,7 @@ export default function Sales() {
                     const STATUS_STYLE = { Won: 'bg-emerald-100 text-emerald-700', Lost: 'bg-red-100 text-red-600', Open: 'bg-blue-100 text-blue-700' }
                     return (
                       <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-500 font-semibold">{lead.id}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-500 font-semibold whitespace-nowrap">{lead.id}</td>
                         <td className="px-4 py-3 max-w-[200px]">
                           <button
                             onClick={() => navigate(`/sales/leads/${lead.id}`)}
@@ -2018,19 +2048,28 @@ export default function Sales() {
                             const tsc = getStageConfig(lead.pipeline, lead.stage, plStore)
                             const tFollowUpAllowed = tsc?.followUpAllowed !== false
                             return (
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-                                  <Eye size={11} /> View
+                              <div className="flex items-center gap-0.5">
+                                <button
+                                  title="View lead"
+                                  onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                                  className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                >
+                                  <Eye size={14} />
                                 </button>
-                                <button onClick={() => setMoveStageLeadId(lead.id)}
-                                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                                  <TrendingUp size={11} /> Move
+                                <button
+                                  title="Move stage"
+                                  onClick={() => setMoveStageLeadId(lead.id)}
+                                  className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                >
+                                  <TrendingUp size={14} />
                                 </button>
                                 {tFollowUpAllowed && (
-                                  <button onClick={() => setFollowupLead(lead)}
-                                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
-                                    <Bell size={11} /> Follow-up
+                                  <button
+                                    title="Add follow-up"
+                                    onClick={() => setFollowupLead(lead)}
+                                    className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                  >
+                                    <Bell size={14} />
                                   </button>
                                 )}
                               </div>
