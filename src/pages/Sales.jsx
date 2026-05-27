@@ -1976,20 +1976,20 @@ export default function Sales() {
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="rounded-xl border border-surface-border shadow-card overflow-hidden bg-white">
             <div className="overflow-x-auto">
-              <table className="text-sm" style={{ minWidth: 1160 }}>
+              <table className="text-sm table-fixed w-full" style={{ minWidth: 1370 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 90 }}>Lead ID</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 180 }}>Lead Name</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Customer</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Mobile</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 110 }}>Pipeline</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 130 }}>Stage</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 120 }}>Assigned</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 110 }}>Follow-up</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 90 }}>Status</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 100 }}>Created</th>
-                    <th className="px-4 py-3 text-left" style={{ minWidth: 100 }}>Actions</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 180 }}>Lead Name</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 120 }}>Pipeline</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Follow-up</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 90 }}>Status</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 110 }}>Created</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 100 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
@@ -2003,46 +2003,51 @@ export default function Sales() {
                     const status = lead.stage === 'Won' ? 'Won' : lead.stage === 'Lost' ? 'Lost' : 'Open'
                     const fuOverdue = lead.followUp && lead.followUp < TODAY_STR
                     const STATUS_STYLE = { Won: 'bg-emerald-100 text-emerald-700', Lost: 'bg-red-100 text-red-600', Open: 'bg-blue-100 text-blue-700' }
+                    const leadTitle = `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`
                     return (
                       <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-500 font-semibold whitespace-nowrap">{lead.id}</td>
-                        <td className="px-4 py-3 max-w-[200px]">
+                        <td className="px-4 py-3 overflow-hidden" title={lead.id}>
+                          <span className="block truncate font-mono text-xs text-gray-500 font-semibold">{lead.id}</span>
+                        </td>
+                        <td className="px-4 py-3 overflow-hidden" title={leadTitle}>
                           <button
                             onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                            className="font-semibold text-brand-blue hover:underline text-left truncate block max-w-full"
+                            className="block w-full truncate font-semibold text-brand-blue hover:underline text-left text-xs"
                           >
-                            {lead.name} — {lead.plan}
+                            {leadTitle}
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-gray-700">{lead.name}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{lead.phone}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 overflow-hidden" title={lead.name}>
+                          <span className="block truncate text-xs text-gray-700">{lead.name}</span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-gray-600">{lead.phone}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <span className="text-xs text-gray-600">{PIPELINE_LABEL[lead.pipeline]}</span>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${ss.chip}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${ss.colorBar}`} />
-                            {lead.stage}
+                        <td className="px-4 py-3 overflow-hidden" title={lead.stage}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${ss.chip}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ss.colorBar}`} />
+                            <span className="truncate">{lead.stage}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                        <td className="px-4 py-3 overflow-hidden" title={lead.assigned}>
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
                               {lead.assignedInitials}
                             </div>
-                            <span className="text-xs text-gray-700">{lead.assigned}</span>
+                            <span className="truncate text-xs text-gray-700">{lead.assigned}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {lead.followUp
                             ? <span className={`text-xs font-medium ${fuOverdue ? 'text-red-500' : 'text-gray-700'}`}>{lead.followUp}{fuOverdue && ' ⚠'}</span>
                             : <span className="text-gray-300 text-xs">—</span>
                           }
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLE[status]}`}>{status}</span>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
                         <td className="px-4 py-3">
                           {(() => {
                             const tsc = getStageConfig(lead.pipeline, lead.stage, plStore)
