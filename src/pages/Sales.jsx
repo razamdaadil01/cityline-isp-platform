@@ -578,7 +578,7 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
 
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, userRole, followUpAllowed = true, isClosed = false }) {
+function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, onView, userRole, followUpAllowed = true, isClosed = false }) {
   const TODAY_STR = new Date().toISOString().split('T')[0]
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
@@ -621,10 +621,10 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
             lead.ekycStatus === 'Completed' ? 'bg-emerald-100 text-emerald-700'
             : lead.ekycStatus === 'Failed'  ? 'bg-red-100 text-red-600'
-            : lead.ekycStatus === 'Sent'    ? 'bg-blue-100 text-blue-700'
+            : lead.ekycStatus === 'Sent'    ? 'bg-sky-100 text-sky-600'
             : 'bg-yellow-100 text-yellow-700'
           }`}>
-            <Fingerprint size={9} /> {lead.ekycStatus}
+            <Fingerprint size={9} /> eKYC {lead.ekycStatus}
           </span>
         )}
         {lead.feasibility && (
@@ -718,24 +718,33 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
             <Send size={12} /> Send to Inventory
           </button>
         ) : (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-around">
             <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-              <Phone size={11} /> Call
+              title="Call"
+              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+              <Phone size={14} />
             </a>
             <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors">
-              <Fingerprint size={11} /> eKYC
+              title="eKYC"
+              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+              <Fingerprint size={14} />
             </button>
             {followUpAllowed && (
               <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
-                className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                <Bell size={11} /> Follow-up
+                title="Add Follow-up"
+                className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+                <Bell size={14} />
               </button>
             )}
             <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
-              className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-gray-600 hover:text-brand-orange hover:bg-brand-orange/5 rounded-lg transition-colors">
-              <Edit3 size={11} /> Edit
+              title="Edit Lead"
+              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+              <Edit3 size={14} />
+            </button>
+            <button onClick={e => { e.stopPropagation(); onView(lead) }}
+              title="View Lead"
+              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+              <Eye size={14} />
             </button>
           </div>
         )}
@@ -1706,12 +1715,6 @@ export default function Sales() {
                 </div>
               )}
             </div>
-
-            {viewMode === 'kanban' && (
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')}>
-                Add Lead
-              </Button>
-            )}
           </div>
         </div>
 
@@ -1739,229 +1742,224 @@ export default function Sales() {
           })}
         </div>
 
-        {/* ── Search + Table filters ───────────────────────────────────── */}
-        {viewMode === 'table' ? (
-          <div className="space-y-2.5">
-            {/* Row 1: Search | Export | Add Lead */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={search} onChange={e => { setSearch(e.target.value); setTablePage(1) }}
-                  placeholder="Search name, mobile, lead ID…"
-                  className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-              <div className="relative shrink-0" ref={exportMenuRef}>
-                <Button variant="secondary" size="sm" icon={<Download size={14} />}
-                  onClick={() => setShowExportMenu(p => !p)}>
-                  Export <ChevronDown size={12} className="ml-1" />
+        {/* ── Filters (shared by both views) ──────────────────────────── */}
+        {(() => {
+          const availableStages = activePipeline === 'All'
+            ? [...new Set(Object.values(PIPELINES).flatMap(p => p.stages))]
+            : pl.stages
+          return (
+            <div className="space-y-2.5">
+              {/* Row 1: Search | Export | Add Lead */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={search} onChange={e => { setSearch(e.target.value); setTablePage(1) }}
+                    placeholder="Search leads…"
+                    className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="relative shrink-0" ref={exportMenuRef}>
+                  <Button variant="secondary" size="sm" icon={<Download size={14} />}
+                    onClick={() => setShowExportMenu(p => !p)}>
+                    Export <ChevronDown size={12} className="ml-1" />
+                  </Button>
+                  {showExportMenu && (
+                    <div className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-surface-border rounded-xl shadow-xl z-30 overflow-hidden">
+                      <button onClick={() => doExport('csv')}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <FileText size={14} className="text-gray-400" /> Export as CSV
+                      </button>
+                      <button onClick={() => doExport('excel')}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-surface-border">
+                        <Download size={14} className="text-emerald-500" /> Export as Excel
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')} className="shrink-0">
+                  Add Lead
                 </Button>
-                {showExportMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 w-44 bg-white border border-surface-border rounded-xl shadow-xl z-30 overflow-hidden">
-                    <button onClick={() => doExport('csv')}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <FileText size={14} className="text-gray-400" /> Export as CSV
-                    </button>
-                    <button onClick={() => doExport('excel')}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-surface-border">
-                      <Download size={14} className="text-emerald-500" /> Export as Excel
-                    </button>
-                  </div>
-                )}
               </div>
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')} className="shrink-0">
-                Add Lead
-              </Button>
-            </div>
 
-            {/* Row 2: Filter dropdowns */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Stage */}
-              <div className="relative">
-                <select value={tableStageFilter} onChange={e => { setTableStageFilter(e.target.value); setTablePage(1) }}
-                  className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
-                  <option value="">All Stages</option>
-                  {pl.stages.map(s => <option key={s}>{s}</option>)}
-                </select>
-                <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-              {/* User */}
-              <div className="relative">
-                <select value={tableUserFilter} onChange={e => { setTableUserFilter(e.target.value); setTablePage(1) }}
-                  className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
-                  <option value="">All Users</option>
-                  {['Arjun Kumar','Preethi Nair','Suresh Babu','Anita Sharma'].map(u => <option key={u}>{u}</option>)}
-                </select>
-                <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-              {/* Status */}
-              <div className="relative">
-                <select value={tableStatusFilter} onChange={e => { setTableStatusFilter(e.target.value); setTablePage(1) }}
-                  className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
-                  <option value="">All Status</option>
-                  <option>Open</option><option>Won</option><option>Lost</option>
-                </select>
-                <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-              {/* Date Range dropdown */}
-              <div className="relative" ref={dateDropdownRef}>
-                <button
-                  onClick={() => { setShowDateDropdown(p => !p); setShowFollowDropdown(false) }}
-                  className={`flex items-center gap-1.5 text-sm border rounded-lg pl-3 pr-2.5 py-2 bg-white transition-colors ${
-                    tableDateFrom || tableDateTo
-                      ? 'border-brand-blue text-brand-blue bg-brand-blue/5'
-                      : 'border-surface-border text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <CalendarDays size={13} className={tableDateFrom || tableDateTo ? 'text-brand-blue' : 'text-gray-400'} />
-                  <span>Date Range</span>
-                  {(tableDateFrom || tableDateTo) && <span className="w-1.5 h-1.5 rounded-full bg-brand-blue shrink-0" />}
-                  <ChevronDown size={13} className="text-gray-400" />
-                </button>
-                {showDateDropdown && (
-                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-surface-border rounded-xl shadow-xl p-4 w-56">
-                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Created Date Range</p>
-                    <div className="space-y-2.5">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">From</label>
-                        <input type="date" value={tableDateFrom}
-                          onChange={e => { setTableDateFrom(e.target.value); setTablePage(1) }}
-                          className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">To</label>
-                        <input type="date" value={tableDateTo}
-                          onChange={e => { setTableDateTo(e.target.value); setTablePage(1) }}
-                          className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
-                      </div>
-                    </div>
-                    {(tableDateFrom || tableDateTo) && (
-                      <button onClick={() => { setTableDateFrom(''); setTableDateTo(''); setTablePage(1) }}
-                        className="mt-3 text-xs text-red-500 hover:text-red-700 font-medium">
-                        Clear dates
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              {/* Follow-up dropdown */}
-              <div className="relative" ref={followDropdownRef}>
-                <button
-                  onClick={() => { setShowFollowDropdown(p => !p); setShowDateDropdown(false) }}
-                  className={`flex items-center gap-1.5 text-sm border rounded-lg pl-3 pr-2.5 py-2 bg-white transition-colors ${
-                    tableFollowFrom || tableFollowTo
-                      ? 'border-brand-orange text-brand-orange bg-brand-orange/5'
-                      : 'border-surface-border text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Bell size={13} className={tableFollowFrom || tableFollowTo ? 'text-brand-orange' : 'text-gray-400'} />
-                  <span>Follow-up</span>
-                  {(tableFollowFrom || tableFollowTo) && <span className="w-1.5 h-1.5 rounded-full bg-brand-orange shrink-0" />}
-                  <ChevronDown size={13} className="text-gray-400" />
-                </button>
-                {showFollowDropdown && (
-                  <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-surface-border rounded-xl shadow-xl p-4 w-56">
-                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Follow-up Date Range</p>
-                    <div className="space-y-2.5">
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">From</label>
-                        <input type="date" value={tableFollowFrom}
-                          onChange={e => { setTableFollowFrom(e.target.value); setTablePage(1) }}
-                          className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 mb-1 block">To</label>
-                        <input type="date" value={tableFollowTo}
-                          onChange={e => { setTableFollowTo(e.target.value); setTablePage(1) }}
-                          className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
-                      </div>
-                    </div>
-                    {(tableFollowFrom || tableFollowTo) && (
-                      <button onClick={() => { setTableFollowFrom(''); setTableFollowTo(''); setTablePage(1) }}
-                        className="mt-3 text-xs text-red-500 hover:text-red-700 font-medium">
-                        Clear dates
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              {/* Sort */}
-              <div className="relative">
-                <select value={`${tableSort.by}:${tableSort.dir}`}
-                  onChange={e => { const [by, dir] = e.target.value.split(':'); setTableSort({ by, dir }); setTablePage(1) }}
-                  className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
-                  <option value="createdAt:desc">Created (Newest)</option>
-                  <option value="createdAt:asc">Created (Oldest)</option>
-                  <option value="followUp:asc">Follow-up (Earliest)</option>
-                  <option value="followUp:desc">Follow-up (Latest)</option>
-                </select>
-                <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Row 3: Active filter pills */}
-            {hasActiveFilters && (
+              {/* Row 2: Filter dropdowns */}
               <div className="flex items-center gap-2 flex-wrap">
-                <Filter size={12} className="text-gray-400 shrink-0" />
-                {tableStageFilter && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-medium">
-                    Stage: {tableStageFilter}
-                    <button onClick={() => { setTableStageFilter(''); setTablePage(1) }} className="hover:text-brand-blue-dark ml-0.5"><X size={11} /></button>
-                  </span>
-                )}
-                {tableUserFilter && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                    Assigned: {tableUserFilter}
-                    <button onClick={() => { setTableUserFilter(''); setTablePage(1) }} className="hover:text-purple-900 ml-0.5"><X size={11} /></button>
-                  </span>
-                )}
-                {tableStatusFilter && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
-                    Status: {tableStatusFilter}
-                    <button onClick={() => { setTableStatusFilter(''); setTablePage(1) }} className="hover:text-emerald-900 ml-0.5"><X size={11} /></button>
-                  </span>
-                )}
-                {(tableDateFrom || tableDateTo) && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
-                    Created: {tableDateFrom || '…'} → {tableDateTo || '…'}
-                    <button onClick={() => { setTableDateFrom(''); setTableDateTo(''); setTablePage(1) }} className="hover:text-amber-900 ml-0.5"><X size={11} /></button>
-                  </span>
-                )}
-                {(tableFollowFrom || tableFollowTo) && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-brand-orange rounded-full text-xs font-medium">
-                    Follow-up: {tableFollowFrom || '…'} → {tableFollowTo || '…'}
-                    <button onClick={() => { setTableFollowFrom(''); setTableFollowTo(''); setTablePage(1) }} className="hover:text-brand-orange-dark ml-0.5"><X size={11} /></button>
-                  </span>
-                )}
-                <button onClick={clearAllFilters}
-                  className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors ml-1">
-                  Clear All Filters
-                </button>
+                {/* Stage */}
+                <div className="relative">
+                  <select value={tableStageFilter} onChange={e => { setTableStageFilter(e.target.value); setTablePage(1) }}
+                    className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
+                    <option value="">All Stages</option>
+                    {availableStages.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+                {/* User */}
+                <div className="relative">
+                  <select value={tableUserFilter} onChange={e => { setTableUserFilter(e.target.value); setTablePage(1) }}
+                    className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
+                    <option value="">All Users</option>
+                    {['Arjun Kumar','Preethi Nair','Suresh Babu','Anita Sharma'].map(u => <option key={u}>{u}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+                {/* Status */}
+                <div className="relative">
+                  <select value={tableStatusFilter} onChange={e => { setTableStatusFilter(e.target.value); setTablePage(1) }}
+                    className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
+                    <option value="">All Status</option>
+                    <option>Open</option><option>Won</option><option>Lost</option>
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+                {/* Date Range dropdown */}
+                <div className="relative" ref={dateDropdownRef}>
+                  <button
+                    onClick={() => { setShowDateDropdown(p => !p); setShowFollowDropdown(false) }}
+                    className={`flex items-center gap-1.5 text-sm border rounded-lg pl-3 pr-2.5 py-2 bg-white transition-colors ${
+                      tableDateFrom || tableDateTo
+                        ? 'border-brand-blue text-brand-blue bg-brand-blue/5'
+                        : 'border-surface-border text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <CalendarDays size={13} className={tableDateFrom || tableDateTo ? 'text-brand-blue' : 'text-gray-400'} />
+                    <span>Date Range</span>
+                    {(tableDateFrom || tableDateTo) && <span className="w-1.5 h-1.5 rounded-full bg-brand-blue shrink-0" />}
+                    <ChevronDown size={13} className="text-gray-400" />
+                  </button>
+                  {showDateDropdown && (
+                    <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-surface-border rounded-xl shadow-xl p-4 w-56">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Created Date Range</p>
+                      <div className="space-y-2.5">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">From</label>
+                          <input type="date" value={tableDateFrom}
+                            onChange={e => { setTableDateFrom(e.target.value); setTablePage(1) }}
+                            className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">To</label>
+                          <input type="date" value={tableDateTo}
+                            onChange={e => { setTableDateTo(e.target.value); setTablePage(1) }}
+                            className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
+                        </div>
+                      </div>
+                      {(tableDateFrom || tableDateTo) && (
+                        <button onClick={() => { setTableDateFrom(''); setTableDateTo(''); setTablePage(1) }}
+                          className="mt-3 text-xs text-red-500 hover:text-red-700 font-medium">
+                          Clear dates
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Follow-up dropdown */}
+                <div className="relative" ref={followDropdownRef}>
+                  <button
+                    onClick={() => { setShowFollowDropdown(p => !p); setShowDateDropdown(false) }}
+                    className={`flex items-center gap-1.5 text-sm border rounded-lg pl-3 pr-2.5 py-2 bg-white transition-colors ${
+                      tableFollowFrom || tableFollowTo
+                        ? 'border-brand-orange text-brand-orange bg-brand-orange/5'
+                        : 'border-surface-border text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Bell size={13} className={tableFollowFrom || tableFollowTo ? 'text-brand-orange' : 'text-gray-400'} />
+                    <span>Follow-up</span>
+                    {(tableFollowFrom || tableFollowTo) && <span className="w-1.5 h-1.5 rounded-full bg-brand-orange shrink-0" />}
+                    <ChevronDown size={13} className="text-gray-400" />
+                  </button>
+                  {showFollowDropdown && (
+                    <div className="absolute left-0 top-full mt-1.5 z-30 bg-white border border-surface-border rounded-xl shadow-xl p-4 w-56">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Follow-up Date Range</p>
+                      <div className="space-y-2.5">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">From</label>
+                          <input type="date" value={tableFollowFrom}
+                            onChange={e => { setTableFollowFrom(e.target.value); setTablePage(1) }}
+                            className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-1 block">To</label>
+                          <input type="date" value={tableFollowTo}
+                            onChange={e => { setTableFollowTo(e.target.value); setTablePage(1) }}
+                            className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 w-full" />
+                        </div>
+                      </div>
+                      {(tableFollowFrom || tableFollowTo) && (
+                        <button onClick={() => { setTableFollowFrom(''); setTableFollowTo(''); setTablePage(1) }}
+                          className="mt-3 text-xs text-red-500 hover:text-red-700 font-medium">
+                          Clear dates
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Sort */}
+                <div className="relative">
+                  <select value={`${tableSort.by}:${tableSort.dir}`}
+                    onChange={e => { const [by, dir] = e.target.value.split(':'); setTableSort({ by, dir }); setTablePage(1) }}
+                    className="appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-7 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700 cursor-pointer">
+                    <option value="createdAt:desc">Created (Newest)</option>
+                    <option value="createdAt:asc">Created (Oldest)</option>
+                    <option value="followUp:asc">Follow-up (Earliest)</option>
+                    <option value="followUp:desc">Follow-up (Latest)</option>
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="relative w-64">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder={`Search ${pl.label} leads…`}
-                className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={14} />
-                </button>
+
+              {/* Row 3: Active filter pills */}
+              {(hasActiveFilters || search.trim()) && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Filter size={12} className="text-gray-400 shrink-0" />
+                  {search.trim() && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                      Search: {search}
+                      <button onClick={() => setSearch('')} className="hover:text-gray-900 ml-0.5"><X size={11} /></button>
+                    </span>
+                  )}
+                  {tableStageFilter && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-medium">
+                      Stage: {tableStageFilter}
+                      <button onClick={() => { setTableStageFilter(''); setTablePage(1) }} className="hover:text-brand-blue-dark ml-0.5"><X size={11} /></button>
+                    </span>
+                  )}
+                  {tableUserFilter && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                      Assigned: {tableUserFilter}
+                      <button onClick={() => { setTableUserFilter(''); setTablePage(1) }} className="hover:text-purple-900 ml-0.5"><X size={11} /></button>
+                    </span>
+                  )}
+                  {tableStatusFilter && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                      Status: {tableStatusFilter}
+                      <button onClick={() => { setTableStatusFilter(''); setTablePage(1) }} className="hover:text-emerald-900 ml-0.5"><X size={11} /></button>
+                    </span>
+                  )}
+                  {(tableDateFrom || tableDateTo) && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                      Created: {tableDateFrom || '…'} → {tableDateTo || '…'}
+                      <button onClick={() => { setTableDateFrom(''); setTableDateTo(''); setTablePage(1) }} className="hover:text-amber-900 ml-0.5"><X size={11} /></button>
+                    </span>
+                  )}
+                  {(tableFollowFrom || tableFollowTo) && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-brand-orange rounded-full text-xs font-medium">
+                      Follow-up: {tableFollowFrom || '…'} → {tableFollowTo || '…'}
+                      <button onClick={() => { setTableFollowFrom(''); setTableFollowTo(''); setTablePage(1) }} className="hover:text-brand-orange-dark ml-0.5"><X size={11} /></button>
+                    </span>
+                  )}
+                  <button onClick={() => { clearAllFilters(); setSearch('') }}
+                    className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors ml-1">
+                    Clear All
+                  </button>
+                </div>
               )}
             </div>
-            {search && <span className="text-sm text-gray-500">{filteredLeads.length} result{filteredLeads.length !== 1 ? 's' : ''}</span>}
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* ── Table view ─────────────────────────────────────────────────── */}
@@ -2124,7 +2122,7 @@ export default function Sales() {
             if (sc?.active === false) return null
 
             const style      = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
-            const stageLeads = filteredLeads.filter(l => l.stage === stageId)
+            const stageLeads = getFilteredTableLeads().filter(l => l.stage === stageId)
             const isOver     = dragOverStage === stageId
             const isHwStage  = stageId === 'Hardware Assignment'
             const isRequired = (pl.requiredStages ?? []).includes(stageId)
@@ -2189,6 +2187,7 @@ export default function Sales() {
                         onAssignHw={l => setHwLead(l)}
                         onFeasibility={l => setFeasibilityLead(l)}
                         onFollowup={l => setFollowupLead(l)}
+                        onView={l => navigate(`/sales/leads/${l.id}`)}
                         onSendToInventory={sendToInventory}
                         userRole={userRole}
                         followUpAllowed={followUpAllowed}
