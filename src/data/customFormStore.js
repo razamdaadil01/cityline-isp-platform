@@ -1,7 +1,7 @@
 // Module-level store shared between FormBuilder and Sales pages
 const INITIAL = {
   B2C: {
-    key: 'B2C', name: 'B2C Lead Form',
+    key: 'B2C', name: 'B2C Lead Form', includeFollowUp: true,
     fields: [
       { id: 'b2c-1',  type: 'Text',        label: 'Full Name',       placeholder: 'Enter full name',         required: true,  options: [] },
       { id: 'b2c-2',  type: 'Phone',       label: 'Phone Number',    placeholder: 'Enter phone number',      required: true,  options: [] },
@@ -16,7 +16,7 @@ const INITIAL = {
     ],
   },
   B2B: {
-    key: 'B2B', name: 'B2B Lead Form',
+    key: 'B2B', name: 'B2B Lead Form', includeFollowUp: true,
     fields: [
       { id: 'b2b-1',  type: 'Text',        label: 'Company Name',                    placeholder: 'Enter company name',           required: true,  options: [] },
       { id: 'b2b-2',  type: 'Text',        label: 'Contact Person',                  placeholder: 'Enter contact person name',    required: true,  options: [] },
@@ -41,6 +41,11 @@ export function getFormModules() { return _modules }
 
 export function setFormModule(key, fields) {
   _modules = { ..._modules, [key]: { ..._modules[key], fields } }
+  _listeners.forEach(fn => fn(_modules))
+}
+
+export function setFormModuleConfig(key, config) {
+  _modules = { ..._modules, [key]: { ..._modules[key], ...config } }
   _listeners.forEach(fn => fn(_modules))
 }
 
