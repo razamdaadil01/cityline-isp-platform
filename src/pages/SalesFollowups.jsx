@@ -884,7 +884,7 @@ export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
   const [allUsers, setAllUsers]   = useState(getUsers)
-  const [view, setView]           = useState('table')
+  const [view, setView]           = useState('table') // 'table' | 'calendar' (kanban hidden)
   const [showModal, setShowModal] = useState(false)
   const [editingFU, setEditingFU] = useState(null)
   const [cancelTarget, setCancelTarget]       = useState(null)
@@ -957,6 +957,7 @@ export default function SalesFollowups() {
         <div className="flex items-center gap-3">
           {/* View toggle */}
           <div className="flex items-center gap-0.5 bg-gray-100 p-1 rounded-lg">
+            {/* Kanban button hidden — re-enable by uncommenting
             <button onClick={() => setView('kanban')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -964,6 +965,7 @@ export default function SalesFollowups() {
             >
               <LayoutGrid size={13} /> Kanban
             </button>
+            */}
             <button onClick={() => setView('table')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 view === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -1087,13 +1089,14 @@ export default function SalesFollowups() {
       </div>
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
-      {view === 'table' ? (
-        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onCancel={openCancel} />
-      ) : view === 'calendar' ? (
+      {view === 'calendar' ? (
         <CalendarView followups={filtered} onEdit={openEdit} />
       ) : (
-        <KanbanView followups={filtered} onMarkDone={markDone} onEdit={openEdit} onCancel={openCancel} />
+        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onCancel={openCancel} />
       )}
+      {/* KanbanView kept in code for re-enablement — rendered when button is uncommented above:
+      {view === 'kanban' && <KanbanView followups={filtered} onMarkDone={markDone} onEdit={openEdit} onCancel={openCancel} />}
+      */}
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
       {showModal && (
