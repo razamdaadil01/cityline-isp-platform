@@ -7,7 +7,7 @@ import {
   Fingerprint, Send, AlertTriangle, Layers,
   CheckCircle, Loader2, Lock, Upload, FileText, BarChart2,
   Bell, ClipboardList, LayoutGrid, List, Eye, ChevronDown, Trophy,
-  Download, Filter,
+  Download, Filter, MoreVertical,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
@@ -1336,6 +1336,9 @@ export default function Sales() {
   const [drawerOpen, setDrawerOpen]             = useState(false)
   const exportMenuRef       = useRef(null)
   const pipelineDropdownRef = useRef(null)
+  const tableMenuRef        = useRef(null)
+  const [tableMenuId, setTableMenuId]   = useState(null)
+  const [tableMenuPos, setTableMenuPos] = useState({ top: 0, right: 0 })
   const TABLE_PAGE_SIZE = 10
   const navigate                        = useNavigate()
   const location                        = useLocation()
@@ -1365,6 +1368,15 @@ export default function Sales() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [pipelineDropdownOpen])
+
+  useEffect(() => {
+    if (!tableMenuId) return
+    function handler(e) {
+      if (tableMenuRef.current && !tableMenuRef.current.contains(e.target)) setTableMenuId(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [tableMenuId])
 
   // Pick up a newly created lead passed back from /sales/leads/new
   useEffect(() => {
@@ -1887,37 +1899,24 @@ export default function Sales() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
                         <td className="px-4 py-3">
-                          {(() => {
-                            const tsc = getStageConfig(lead.pipeline, lead.stage, plStore)
-                            const tFollowUpAllowed = tsc?.followUpAllowed !== false
-                            return (
-                              <div className="flex items-center gap-0.5">
-                                <button
-                                  title="View lead"
-                                  onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                                  className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                                <button
-                                  title="Move stage"
-                                  onClick={() => setMoveStageLeadId(lead.id)}
-                                  className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                >
-                                  <TrendingUp size={14} />
-                                </button>
-                                {tFollowUpAllowed && (
-                                  <button
-                                    title="Add follow-up"
-                                    onClick={() => setFollowupLead(lead)}
-                                    className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                  >
-                                    <Bell size={14} />
-                                  </button>
-                                )}
-                              </div>
-                            )
-                          })()}
+                          <button
+                            onClick={e => {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              const menuH = 220
+                              setTableMenuPos({
+                                top: window.innerHeight - rect.bottom < menuH ? rect.top - menuH : rect.bottom + 4,
+                                right: window.innerWidth - rect.right,
+                              })
+                              setTableMenuId(prev => prev === lead.id ? null : lead.id)
+                            }}
+                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                              tableMenuId === lead.id
+                                ? 'bg-gray-100 text-gray-700'
+                                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                            }`}
+                          >
+                            <MoreVertical size={15} />
+                          </button>
                         </td>
                       </tr>
                     )
@@ -2297,6 +2296,57 @@ export default function Sales() {
           </div>
         </div>
       </div>
+
+      {/* ── Table row ⋮ dropdown portal ──────────────────────────────────────── */}
+      {tableMenuId && (() => {
+        const lead = leads.find(l => l.id === tableMenuId)
+        if (!lead) return null
+        const isWon  = lead.stage === 'Won'
+        const isLost = lead.stage === 'Lost'
+        return (
+          <div
+            ref={tableMenuRef}
+            style={{ position: 'fixed', top: tableMenuPos.top, right: tableMenuPos.right, zIndex: 9999 }}
+            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
+          >
+            <button
+              onClick={() => { navigate(`/sales/leads/${lead.id}`); setTableMenuId(null) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Eye size={13} className="text-purple-500 shrink-0" /> View Lead
+            </button>
+            <button
+              onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setTableMenuId(null) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Edit3 size={13} className="text-gray-400 shrink-0" /> Edit Lead
+            </button>
+            <button
+              onClick={() => { setMoveStageLeadId(lead.id); setTableMenuId(null) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <TrendingUp size={13} className="text-brand-blue shrink-0" /> Move Stage
+            </button>
+            {!isWon && !isLost && (
+              <>
+                <div className="my-1 border-t border-surface-border" />
+                <button
+                  onClick={() => { setMoveStageLeadId(lead.id); setMoveStageInitial('Won'); setTableMenuId(null) }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 transition-colors"
+                >
+                  <CheckCircle2 size={13} className="shrink-0" /> Mark as Won
+                </button>
+                <button
+                  onClick={() => { setMoveStageLeadId(lead.id); setMoveStageInitial('Lost'); setTableMenuId(null) }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <XCircle size={13} className="shrink-0" /> Mark as Lost
+                </button>
+              </>
+            )}
+          </div>
+        )
+      })()}
 
     </div>
   )
