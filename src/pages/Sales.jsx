@@ -1468,7 +1468,8 @@ export default function Sales() {
 
       const movingLead = leads.find(l => l.id === draggingId)
       if (movingLead && movingLead.stage !== targetStage) {
-        saveLeadToStore({ ...movingLead, stage: targetStage, daysInStage: 0, lastActivity: `Moved to ${targetStage}` })
+        setMoveStageLeadId(movingLead.id)
+        setMoveStageInitial(targetStage)
       }
     }
     setDraggingId(null)
