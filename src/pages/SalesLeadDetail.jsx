@@ -1608,7 +1608,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── FOLLOW-UPS ───────────────────────────────────────────── */}
           {activeTab === 'followups' && (
-            <div className="max-w-3xl">
+            <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-gray-700">All Follow-ups</h2>
                 <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
@@ -1651,7 +1651,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── COMMENTS ─────────────────────────────────────────────── */}
           {activeTab === 'comments' && (
-            <div className="max-w-3xl">
+            <div>
               <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
                 <textarea
                   ref={commentRef}
@@ -1841,7 +1841,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── ACTIVITY LOG ─────────────────────────────────────────── */}
           {activeTab === 'activity' && (
-            <div className="max-w-2xl">
+            <div>
               <Card padding={false}>
                 <div className="px-5 py-4 border-b border-surface-border">
                   <h3 className="text-sm font-semibold text-gray-800">Audit Trail</h3>
