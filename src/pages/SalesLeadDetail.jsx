@@ -917,6 +917,7 @@ export default function SalesLeadDetail() {
   const [pipelines, setPipelines]   = useState(getPipelines)
   const [activeTab, setActiveTab]   = useState('overview')
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [actionsPos, setActionsPos]   = useState({ top: 0, right: 0 })
   const actionsRef = useRef(null)
   const [moveStageOpen, setMoveStageOpen]     = useState(false)
   const [moveStageInitial, setMoveStageInitial] = useState('')
@@ -1253,11 +1254,18 @@ export default function SalesLeadDetail() {
               {/* Actions dropdown */}
               <div className="relative" ref={actionsRef}>
                 <Button variant="secondary" size="sm" iconRight={<ChevronDown size={13} />}
-                  onClick={() => setActionsOpen(v => !v)}>
+                  onClick={() => {
+                    const rect = actionsRef.current.getBoundingClientRect()
+                    setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+                    setActionsOpen(v => !v)
+                  }}>
                   Actions
                 </Button>
                 {actionsOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden w-48">
+                  <div
+                    style={{ top: actionsPos.top, right: actionsPos.right }}
+                    className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden w-48"
+                  >
                     <button
                       onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
                       className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
