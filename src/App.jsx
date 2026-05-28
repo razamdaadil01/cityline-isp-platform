@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
@@ -36,6 +36,11 @@ import AreaMapping from './pages/AreaMapping'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import UserManagement from './pages/UserManagement'
 
+function LeadDetailRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/sales/leads/${id}/overview`} replace />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -55,7 +60,8 @@ export default function App() {
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
           <Route path="/sales/leads/:id/edit" element={<SalesEditLead />} />
-          <Route path="/sales/leads/:id" element={<SalesLeadDetail />} />
+          <Route path="/sales/leads/:id" element={<LeadDetailRedirect />} />
+          <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
