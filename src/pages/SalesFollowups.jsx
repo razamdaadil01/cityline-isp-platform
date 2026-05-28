@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Calendar, List, Plus, Clock, Phone, MessageSquare,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle2,
-  Bell, Search, Filter, X, Users, LayoutGrid, MoreVertical, Ban, ChevronDown, CalendarClock,
+  Bell, Search, Filter, X, Users, LayoutGrid, MoreVertical, Ban, ChevronDown, CalendarClock, Edit3,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -527,8 +527,34 @@ function KanbanView({ followups, onMarkDone, onEdit, onCancel }) {
 
 // ── Table View ───────────────────────────────────────────────────────────────
 
-function TableView({ followups, onMarkDone, onReschedule, onCancel }) {
+function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [menuPos, setMenuPos]       = useState({ top: 0, right: 0 })
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!openMenuId) return
+    function handler(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenuId(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openMenuId])
+
+  function openMenu(e, id) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const menuH = 172
+    setMenuPos({
+      top: window.innerHeight - rect.bottom < menuH ? rect.top - menuH : rect.bottom + 4,
+      right: window.innerWidth - rect.right,
+    })
+    setOpenMenuId(prev => prev === id ? null : id)
+  }
+
+  const menuFu = followups.find(f => f.id === openMenuId) ?? null
+
   return (
+    <>
     <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -650,42 +676,16 @@ function TableView({ followups, onMarkDone, onReschedule, onCancel }) {
 
                       {/* Actions */}
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {!isDone && !isCancelled && (
-                            <button
-                              onClick={() => onMarkDone(fu.id)}
-                              title="Mark Complete"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                            >
-                              <CheckCircle2 size={14} />
-                            </button>
-                          )}
-                          {!isDone && !isCancelled && (
-                            <button
-                              onClick={() => onReschedule(fu)}
-                              title="Reschedule"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
-                            >
-                              <CalendarClock size={14} />
-                            </button>
-                          )}
-                          <a
-                            href={`tel:${fu.phone}`}
-                            title="Call"
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors"
-                          >
-                            <Phone size={14} />
-                          </a>
-                          {!isDone && !isCancelled && (
-                            <button
-                              onClick={() => onCancel(fu)}
-                              title="Cancel Follow-up"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <Ban size={14} />
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          onClick={e => openMenu(e, fu.id)}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                            openMenuId === fu.id
+                              ? 'bg-gray-100 text-gray-700'
+                              : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                          }`}
+                        >
+                          <MoreVertical size={15} />
+                        </button>
                       </td>
                     </tr>
                   )
@@ -695,6 +695,50 @@ function TableView({ followups, onMarkDone, onReschedule, onCancel }) {
           </table>
         </div>
       </div>
+
+    {/* ⋮ Dropdown portal */}
+    {menuFu && (
+      <div
+        ref={menuRef}
+        style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+        className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
+      >
+        {menuFu.status !== 'Done' && menuFu.status !== 'Cancelled' && (
+          <button
+            onClick={() => { onMarkDone(menuFu.id); setOpenMenuId(null) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Mark Complete
+          </button>
+        )}
+        {menuFu.status !== 'Done' && menuFu.status !== 'Cancelled' && (
+          <button
+            onClick={() => { onReschedule(menuFu); setOpenMenuId(null) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <CalendarClock size={13} className="text-brand-blue shrink-0" /> Reschedule
+          </button>
+        )}
+        <button
+          onClick={() => { onEdit(menuFu); setOpenMenuId(null) }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <Edit3 size={13} className="text-gray-400 shrink-0" /> Edit
+        </button>
+        {menuFu.status !== 'Done' && menuFu.status !== 'Cancelled' && (
+          <>
+            <div className="my-1 border-t border-surface-border" />
+            <button
+              onClick={() => { onCancel(menuFu); setOpenMenuId(null) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <X size={13} className="shrink-0" /> Cancel
+            </button>
+          </>
+        )}
+      </div>
+    )}
+    </>
   )
 }
 
@@ -1092,7 +1136,7 @@ export default function SalesFollowups() {
       {view === 'calendar' ? (
         <CalendarView followups={filtered} onEdit={openEdit} />
       ) : (
-        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onCancel={openCancel} />
+        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onEdit={openEdit} onCancel={openCancel} />
       )}
       {/* KanbanView kept in code for re-enablement — rendered when button is uncommented above:
       {view === 'kanban' && <KanbanView followups={filtered} onMarkDone={markDone} onEdit={openEdit} onCancel={openCancel} />}
