@@ -13,7 +13,6 @@ const INIT_LEADS = [
     { stage: 'Contacted',          date: '2026-05-20', movedBy: 'Arjun Kumar', fields: { 's2-f1': 'Call', 's2-f2': 'Yes' } },
     { stage: 'Site Survey',        date: '2026-05-20', movedBy: 'Arjun Kumar', fields: { 's4-f1': 'Feasible' } },
     { stage: 'Quotation Sent',     date: '2026-05-21', movedBy: 'Arjun Kumar', fields: { 's5-f1': '3500', 's5-f2': '100 Mbps' } },
-    { stage: 'Hardware Assignment',date: '2026-05-21', movedBy: 'Arjun Kumar', fields: {} },
     { stage: 'Installation Visit', date: '2026-05-22', movedBy: 'Arjun Kumar', fields: { 's5d-f1': '2026-05-23', 's5d-f2': '10:30', 's5d-f3': 'Ravi Technician (ENG-001)' } },
   ] },
   { id: 'LD-204', pipeline: 'B2B', name: 'Meena Iyer', phone: '9123887766', email: 'meena@email.com', area: 'HSR Layout', source: 'Social Media', stage: 'Commercial Proposal', plan: '500 Mbps Ultra', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 3, lastActivity: 'Proposal reviewed', followUp: '2026-05-07', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-16', address: 'Tech Park, HSR', city: 'Bangalore', pincode: '560102', state: 'Karnataka', district: 'Bangalore Urban', locality: 'HSR Layout', subLocality: 'Sector 3', siteType: 'FTTH', branchCode: 'CNPL-HSR-02', alternateMobile: '9876543211', createdBy: 'Admin' },
