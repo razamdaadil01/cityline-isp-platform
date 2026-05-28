@@ -1385,7 +1385,7 @@ export default function SalesLeadDetail() {
                 </Card>
 
                 {/* Installation Actions — only in Installation Visit stage */}
-                {lead.stage === 'Installation Visit' && (
+                {false && lead.stage === 'Installation Visit' && (
                   <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
                     <div className="flex items-center gap-2.5 mb-4">
                       <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
@@ -1503,7 +1503,8 @@ export default function SalesLeadDetail() {
                   </p>
                 </div>
 
-                <Card>
+                {/* <Card> */}
+                {false && <Card>
                   <CardHeader title="Active Follow-up"
                     action={<Button size="xs" variant="ghost" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Add</Button>} />
                   {lead.followUp ? (
@@ -1528,9 +1529,9 @@ export default function SalesLeadDetail() {
                       <Button size="xs" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Set Follow-up</Button>
                     </div>
                   )}
-                </Card>
+                </Card>}
 
-                <Card>
+                {false && <Card>
                   <CardHeader title="Quick Stats" />
                   {[
                     { label: 'Total Follow-ups',   value: followups.length },
@@ -1543,7 +1544,7 @@ export default function SalesLeadDetail() {
                       <span className="text-sm font-bold text-gray-900">{stat.value}</span>
                     </div>
                   ))}
-                </Card>
+                </Card>}
               </div>
             </div>
           )}
