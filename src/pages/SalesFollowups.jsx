@@ -527,73 +527,25 @@ function KanbanView({ followups, onMarkDone, onEdit, onCancel }) {
 
 // ── Table View ───────────────────────────────────────────────────────────────
 
-const STATUS_PILLS = [
-  { id: 'all',       label: 'All'       },
-  { id: 'dueToday',  label: 'Due Today' },
-  { id: 'upcoming',  label: 'Upcoming'  },
-  { id: 'overdue',   label: 'Overdue'   },
-  { id: 'completed', label: 'Completed' },
-  { id: 'cancelled', label: 'Cancelled' },
-]
-
-function TableView({ followups, onMarkDone, onReschedule, onCancel, search }) {
-  const [statusFilter, setStatusFilter] = useState('all')
-
-  const filtered = useMemo(() => {
-    let result = search.trim()
-      ? followups.filter(f =>
-          f.leadName.toLowerCase().includes(search.toLowerCase()) ||
-          f.phone.includes(search)
-        )
-      : followups
-
-    switch (statusFilter) {
-      case 'dueToday':  return result.filter(f => f.date === TODAY && f.status !== 'Done' && f.status !== 'Cancelled')
-      case 'upcoming':  return result.filter(f => f.date > TODAY && f.status !== 'Done' && f.status !== 'Cancelled')
-      case 'overdue':   return result.filter(f => f.date < TODAY && f.status !== 'Done' && f.status !== 'Cancelled')
-      case 'completed': return result.filter(f => f.status === 'Done')
-      case 'cancelled': return result.filter(f => f.status === 'Cancelled')
-      default:          return result
-    }
-  }, [followups, search, statusFilter])
-
+function TableView({ followups, onMarkDone, onReschedule, onCancel }) {
   return (
-    <div className="space-y-3">
-      {/* Status filter pills */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {STATUS_PILLS.map(pill => (
-          <button
-            key={pill.id}
-            onClick={() => setStatusFilter(pill.id)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${
-              statusFilter === pill.id
-                ? 'bg-brand-blue text-white border-brand-blue shadow-sm'
-                : 'bg-white text-gray-500 border-surface-border hover:border-brand-blue/40 hover:text-brand-blue'
-            }`}
-          >
-            {pill.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-surface-border">
-                {['FU ID', 'Lead Name', 'Customer', 'Pipeline', 'Stage', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="text-left text-xs font-semibold text-gray-500 px-4 py-3 whitespace-nowrap">{h}</th>
-                ))}
+    <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
+              {['FU ID', 'Lead Name', 'Customer', 'Pipeline', 'Stage', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
+                <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {followups.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
               </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
-                </tr>
-              ) : (
-                filtered.map(fu => {
+            ) : (
+              followups.map(fu => {
                   const isOverdue = fu.status === 'Overdue' || (fu.date < TODAY && fu.status === 'Pending')
                   const isDone = fu.status === 'Done'
                   const isCancelled = fu.status === 'Cancelled'
@@ -743,7 +695,6 @@ function TableView({ followups, onMarkDone, onReschedule, onCancel, search }) {
           </table>
         </div>
       </div>
-    </div>
   )
 }
 
@@ -933,16 +884,18 @@ export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
   const [allUsers, setAllUsers]   = useState(getUsers)
-  const [view, setView] = useState('table')
+  const [view, setView]           = useState('table')
   const [showModal, setShowModal] = useState(false)
   const [editingFU, setEditingFU] = useState(null)
-  const [cancelTarget, setCancelTarget] = useState(null)
+  const [cancelTarget, setCancelTarget]       = useState(null)
   const [rescheduleTarget, setRescheduleTarget] = useState(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch]         = useState('')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [filterStatus, setFilterStatus]     = useState('')
+  const [filterPipeline, setFilterPipeline] = useState('')
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
-  const [filterDateTo, setFilterDateTo] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
+  const [filterDateTo, setFilterDateTo]     = useState('')
 
   useEffect(() => subscribeFollowups(setFollowups), [])
   useEffect(() => subscribeSalesPermission(setSalesPerm), [])
@@ -952,185 +905,197 @@ export default function SalesFollowups() {
 
   function saveFU(fu) { saveFollowup(fu) }
   function markDone(id) { markFollowupDone(id) }
-
-  function openEdit(fu) {
-    setEditingFU(fu)
-    setShowModal(true)
-  }
-
-  function openReschedule(fu) {
-    setRescheduleTarget(fu)
-  }
-
-  function openCancel(fu) {
-    setCancelTarget(fu)
-  }
+  function openEdit(fu) { setEditingFU(fu); setShowModal(true) }
+  function openReschedule(fu) { setRescheduleTarget(fu) }
+  function openCancel(fu) { setCancelTarget(fu) }
 
   function confirmCancel() {
-    if (cancelTarget) {
-      cancelFollowup(cancelTarget.id)
-      setCancelTarget(null)
-    }
+    if (cancelTarget) { cancelFollowup(cancelTarget.id); setCancelTarget(null) }
+  }
+
+  function clearAllFilters() {
+    setFilterStatus(''); setFilterPipeline('')
+    setFilterAssigned(''); setFilterDateFrom(''); setFilterDateTo('')
   }
 
   const scopedFollowups = salesPerm === 'view_my'
     ? followups.filter(fu => fu.assignedTo === CURRENT_USER)
     : followups
 
+  const searchTrimmed = search.trim().toLowerCase()
   const filtered = scopedFollowups.filter(fu => {
+    if (searchTrimmed && !fu.leadName.toLowerCase().includes(searchTrimmed) && !fu.phone.includes(search.trim())) return false
+    if (filterStatus === 'dueToday'  && !(fu.date === TODAY && fu.status !== 'Done' && fu.status !== 'Cancelled')) return false
+    if (filterStatus === 'upcoming'  && !(fu.date > TODAY  && fu.status !== 'Done' && fu.status !== 'Cancelled')) return false
+    if (filterStatus === 'overdue'   && !(fu.date < TODAY  && fu.status !== 'Done' && fu.status !== 'Cancelled')) return false
+    if (filterStatus === 'completed' && fu.status !== 'Done') return false
+    if (filterStatus === 'cancelled' && fu.status !== 'Cancelled') return false
+    if (filterPipeline && fu.pipeline !== filterPipeline) return false
     if (filterAssigned && fu.assignedTo !== filterAssigned) return false
     if (filterDateFrom && fu.date < filterDateFrom) return false
     if (filterDateTo && fu.date > filterDateTo) return false
     return true
   })
 
+  const filterCount = [filterStatus, filterPipeline, filterAssigned, filterDateFrom || filterDateTo].filter(Boolean).length
+  const hasActiveFilters = filterCount > 0
+
   const pendingCount   = scopedFollowups.filter(f => f.date >= TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
-  const overdueCount   = scopedFollowups.filter(f => f.date < TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
+  const overdueCount   = scopedFollowups.filter(f => f.date < TODAY  && f.status !== 'Done' && f.status !== 'Cancelled').length
   const doneCount      = scopedFollowups.filter(f => f.status === 'Done').length
   const cancelledCount = scopedFollowups.filter(f => f.status === 'Cancelled').length
 
   return (
     <div className="p-6 space-y-5">
-      {/* Header */}
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Follow-ups</h1>
           <p className="text-sm text-gray-500 mt-0.5">Schedule and track lead follow-ups</p>
         </div>
-        <Button icon={<Plus size={14} />} onClick={() => { setEditingFU(null); setShowModal(true) }}>
-          Set Follow-up
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex items-center gap-0.5 bg-gray-100 p-1 rounded-lg">
+            <button onClick={() => setView('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <LayoutGrid size={13} /> Kanban
+            </button>
+            <button onClick={() => setView('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                view === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <List size={13} /> Table
+            </button>
+            <button onClick={() => setView('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                view === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Calendar size={13} /> Calendar
+            </button>
+          </div>
+          <Button icon={<Plus size={14} />} onClick={() => { setEditingFU(null); setShowModal(true) }}>
+            Set Follow-up
+          </Button>
+        </div>
       </div>
 
-      {/* Stats */}
+      {/* ── Stats ──────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-5 gap-3">
         {[
-          { label: 'Total',     value: scopedFollowups.length, color: 'text-gray-700',    bg: 'bg-gray-100'    },
-          { label: 'Pending',   value: pendingCount,     color: 'text-amber-600',   bg: 'bg-amber-100'   },
-          { label: 'Overdue',   value: overdueCount,     color: 'text-red-600',     bg: 'bg-red-100'     },
-          { label: 'Completed', value: doneCount,        color: 'text-emerald-700', bg: 'bg-emerald-100' },
-          { label: 'Cancelled', value: cancelledCount,   color: 'text-gray-500',    bg: 'bg-gray-100'    },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-gray-500">{s.label}</p>
-          </div>
-        ))}
+          { label: 'Total',     value: scopedFollowups.length, icon: CalendarClock, color: 'text-gray-600',    bg: 'bg-gray-100'    },
+          { label: 'Pending',   value: pendingCount,           icon: Clock,         color: 'text-amber-600',   bg: 'bg-amber-50'    },
+          { label: 'Overdue',   value: overdueCount,           icon: AlertCircle,   color: 'text-red-600',     bg: 'bg-red-100'     },
+          { label: 'Completed', value: doneCount,              icon: CheckCircle2,  color: 'text-emerald-700', bg: 'bg-emerald-100' },
+          { label: 'Cancelled', value: cancelledCount,         icon: Ban,           color: 'text-gray-500',    bg: 'bg-gray-100'    },
+        ].map(s => {
+          const Icon = s.icon
+          return (
+            <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
+                <Icon size={18} className={s.color} />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                <p className="text-[11px] text-gray-500 leading-tight">{s.label}</p>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* View toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+      {/* ── Search + Filter ─────────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search leads…"
+              className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <button
-            onClick={() => setView('table')}
-            className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-              view === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            onClick={() => setDrawerOpen(true)}
+            className={`relative flex items-center justify-center w-9 h-9 rounded-lg border transition-all shrink-0 ${
+              hasActiveFilters
+                ? 'border-purple-500 bg-purple-50 text-purple-600 hover:bg-purple-100'
+                : 'border-surface-border bg-white text-gray-500 hover:border-purple-300 hover:text-purple-600 hover:bg-purple-50'
             }`}
+            title="Open filters"
           >
-            <List size={14} /> Table View
-          </button>
-          <button
-            onClick={() => setView('calendar')}
-            className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-              view === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Calendar size={14} /> Calendar View
-          </button>
-          <button
-            onClick={() => setView('kanban')}
-            className={`flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-              view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <LayoutGrid size={14} /> Kanban View
+            <Filter size={15} />
+            {filterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center bg-purple-600 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                {filterCount}
+              </span>
+            )}
           </button>
         </div>
 
-        {/* Search + filters (table only) */}
-        {view === 'table' && (
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search leads…"
-                className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-56 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-            <Button
-              size="sm"
-              variant={showFilters ? 'primary' : 'secondary'}
-              icon={<Filter size={13} />}
-              onClick={() => setShowFilters(p => !p)}
-            >
-              Filters
-            </Button>
+        {/* Active filter pills */}
+        {(hasActiveFilters || search.trim()) && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Filter size={11} className="text-purple-400 shrink-0" />
+            {search.trim() && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                "{search}"
+                <button onClick={() => setSearch('')} className="hover:text-gray-900 ml-0.5"><X size={10} /></button>
+              </span>
+            )}
+            {filterStatus && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                {filterStatus === 'dueToday' ? 'Due Today' : filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)}
+                <button onClick={() => setFilterStatus('')} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+              </span>
+            )}
+            {filterPipeline && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                {filterPipeline}
+                <button onClick={() => setFilterPipeline('')} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+              </span>
+            )}
+            {filterAssigned && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                {filterAssigned}
+                <button onClick={() => setFilterAssigned('')} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+              </span>
+            )}
+            {(filterDateFrom || filterDateTo) && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                Date: {filterDateFrom || '…'} → {filterDateTo || '…'}
+                <button onClick={() => { setFilterDateFrom(''); setFilterDateTo('') }} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+              </span>
+            )}
+            <button onClick={() => { clearAllFilters(); setSearch('') }}
+              className="text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors ml-0.5">
+              Clear all
+            </button>
           </div>
         )}
       </div>
 
-      {/* Admin filters */}
-      {showFilters && view === 'table' && (
-        <div className="bg-white rounded-xl border border-surface-border shadow-card p-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Assigned By</label>
-              <select
-                value={filterAssigned}
-                onChange={e => setFilterAssigned(e.target.value)}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-              >
-                <option value="">All Staff</option>
-                {activeStaff.map(s => <option key={s.name}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">From Date</label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={e => setFilterDateFrom(e.target.value)}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">To Date</label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={e => setFilterDateTo(e.target.value)}
-                className="text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-              />
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => { setFilterAssigned(''); setFilterDateFrom(''); setFilterDateTo('') }}
-            >
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Main content */}
+      {/* ── Main content ────────────────────────────────────────────────────── */}
       {view === 'table' ? (
-        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onCancel={openCancel} search={search} />
+        <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onCancel={openCancel} />
       ) : view === 'calendar' ? (
         <CalendarView followups={filtered} onEdit={openEdit} />
       ) : (
         <KanbanView followups={filtered} onMarkDone={markDone} onEdit={openEdit} onCancel={openCancel} />
       )}
 
-      {/* Set/Edit follow-up modal */}
+      {/* ── Modals ──────────────────────────────────────────────────────────── */}
       {showModal && (
         <FollowupModal
           isOpen={showModal}
@@ -1140,8 +1105,6 @@ export default function SalesFollowups() {
           staff={activeStaff}
         />
       )}
-
-      {/* Cancel confirmation modal */}
       {cancelTarget && (
         <CancelConfirmModal
           isOpen={!!cancelTarget}
@@ -1150,8 +1113,6 @@ export default function SalesFollowups() {
           leadName={cancelTarget?.leadName}
         />
       )}
-
-      {/* Reschedule modal */}
       {rescheduleTarget && (
         <RescheduleModal
           key={rescheduleTarget.id}
@@ -1161,6 +1122,110 @@ export default function SalesFollowups() {
           onSave={saveFU}
         />
       )}
+
+      {/* ── Filter Drawer ────────────────────────────────────────────────────── */}
+      <div className={`fixed inset-0 z-50 transition-opacity duration-300 ${drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className="absolute inset-0 bg-black/30" onClick={() => setDrawerOpen(false)} />
+        <div className={`absolute right-0 top-0 h-full w-80 bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${drawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+
+          {/* Drawer header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border shrink-0">
+            <div className="flex items-center gap-2">
+              <Filter size={15} className="text-purple-600" />
+              <h2 className="text-sm font-bold text-gray-900">Filters</h2>
+              {filterCount > 0 && (
+                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full">
+                  {filterCount} active
+                </span>
+              )}
+            </div>
+            <button onClick={() => setDrawerOpen(false)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Drawer body */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+            {/* Status */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Status</label>
+              <div className="relative">
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                  <option value="">All</option>
+                  <option value="dueToday">Due Today</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Pipeline */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pipeline</label>
+              <div className="relative">
+                <select value={filterPipeline} onChange={e => setFilterPipeline(e.target.value)}
+                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                  <option value="">All Pipelines</option>
+                  <option value="Residential">Residential</option>
+                  <option value="Corporate">Corporate</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Assigned User */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Assigned User</label>
+              <div className="relative">
+                <select value={filterAssigned} onChange={e => setFilterAssigned(e.target.value)}
+                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                  <option value="">All Users</option>
+                  {activeStaff.map(s => <option key={s.name}>{s.name}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Follow-up Date */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Follow-up Date</label>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">From</p>
+                  <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
+                    className="w-full text-sm border border-surface-border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">To</p>
+                  <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
+                    className="w-full text-sm border border-surface-border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Drawer footer */}
+          <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-gray-50 flex items-center gap-3">
+            <button onClick={clearAllFilters}
+              className="flex-1 py-2.5 text-sm font-semibold text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-xl transition-colors bg-white">
+              Clear All Filters
+            </button>
+            <button onClick={() => setDrawerOpen(false)}
+              className="flex-1 py-2.5 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-colors shadow-sm">
+              Apply Filters
+            </button>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   )
 }
