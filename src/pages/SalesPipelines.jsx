@@ -711,9 +711,10 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
 
 // ── Pipeline Editor Modal ─────────────────────────────────────────────────────
 
-function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields }) {
+function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, leads = [] }) {
   const [stages, setStages] = useState(pipeline?.stages ?? [])
   const [newStageName, setNewStageName] = useState('')
+  const [stageDeleteTarget, setStageDeleteTarget] = useState(null)
 
   const showRequired = pipeline?.type === 'B2B' || pipeline?.type === 'ILL'
 
@@ -732,6 +733,15 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields }
 
   function removeStage(id) {
     setStages(prev => prev.filter(s => s.id !== id))
+    setStageDeleteTarget(null)
+  }
+
+  function handleRemoveStage(id) {
+    const stage = stages.find(s => s.id === id)
+    if (!stage) return
+    const pipelineKey = PIPELINE_LEAD_KEY_MAP[pipeline?.id] ?? pipeline?.type ?? pipeline?.id
+    const leadCount = leads.filter(l => l.pipeline === pipelineKey && l.stage === stage.name).length
+    setStageDeleteTarget({ stage, leadCount })
   }
 
   function addStage() {
@@ -782,7 +792,7 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields }
               total={stages.length}
               onMove={moveStage}
               onUpdate={updateStage}
-              onRemove={removeStage}
+              onRemove={handleRemoveStage}
               showRequired={showRequired}
               onOpenFields={onOpenFields}
             />
@@ -803,6 +813,14 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields }
           <Button size="sm" icon={<Plus size={14} />} onClick={addStage}>Add Stage</Button>
         </div>
       </div>
+
+      <StageDeleteModal
+        isOpen={!!stageDeleteTarget}
+        onClose={() => setStageDeleteTarget(null)}
+        stage={stageDeleteTarget?.stage}
+        leadCount={stageDeleteTarget?.leadCount ?? 0}
+        onConfirm={() => removeStage(stageDeleteTarget.stage.id)}
+      />
     </Modal>
   )
 }
@@ -968,6 +986,56 @@ function DeleteConfirmModal({ isOpen, onClose, pipeline, onConfirm, leadCount })
       <p className="text-sm text-gray-600">
         Are you sure? This will permanently delete <strong>{pipeline?.name}</strong> and all its stage configurations.
         This action cannot be undone.
+      </p>
+    </Modal>
+  )
+}
+
+// ── Stage Delete Modal ────────────────────────────────────────────────────────
+
+function StageDeleteModal({ isOpen, onClose, stage, onConfirm, leadCount }) {
+  if (leadCount > 0) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Cannot Delete Stage"
+        size="sm"
+        footer={<Button onClick={onClose}>Got It</Button>}
+      >
+        <div className="flex gap-3 items-start">
+          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+            <AlertCircle size={20} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 mb-1">
+              Cannot delete — this stage has{' '}
+              <strong className="text-red-600">{leadCount} active lead{leadCount !== 1 ? 's' : ''}</strong>.
+            </p>
+            <p className="text-sm text-gray-600">
+              Deactivate it instead to stop new leads from entering while keeping existing leads visible.
+            </p>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Delete Stage?"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" onClick={() => { onConfirm(); onClose() }}>Delete</Button>
+        </>
+      }
+    >
+      <p className="text-sm text-gray-600">
+        This will permanently delete <strong>'{stage?.name}'</strong>. This cannot be undone.
       </p>
     </Modal>
   )
@@ -1216,6 +1284,7 @@ export default function SalesPipelines() {
           pipeline={stageEditorPipeline}
           onSave={handleSaveStages}
           onOpenFields={setFieldManagerStage}
+          leads={leads}
         />
       )}
 
