@@ -21,7 +21,7 @@ const TODAY = new Date().toISOString().split('T')[0]
 
 const STAGES = [
   'New Inquiry', 'Contacted', 'Follow-up', 'Site Survey',
-  'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost',
+  'Quotation Sent', 'Negotiation', 'Won', 'Lost',
 ]
 
 const STATUS_BADGE = {

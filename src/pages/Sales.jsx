@@ -30,7 +30,7 @@ const PIPELINES = {
     labelFull: 'Residential',
     stages: [
       'New Inquiry', 'Contacted', 'Follow-up', 'Site Survey',
-      'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost',
+      'Quotation Sent', 'Negotiation', 'Won', 'Lost',
     ],
     tabActive: 'bg-brand-blue text-white',
     tabCount:  'bg-white/25 text-white',
@@ -42,7 +42,7 @@ const PIPELINES = {
     stages: [
       'New Inquiry', 'Meeting Scheduled', 'Requirement Analysis',
       'Technical Feasibility', 'Commercial Proposal', 'Negotiation',
-      'Legal/Agreement', 'Hardware Assignment', 'Won', 'Lost',
+      'Legal/Agreement', 'Won', 'Lost',
     ],
     requiredStages: ['Technical Feasibility', 'Requirement Analysis', 'Commercial Proposal', 'Legal/Agreement'],
     tabActive: 'bg-navy text-white',
@@ -67,7 +67,6 @@ const STAGE_STYLES = {
   'Site Survey':           { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
   'Quotation Sent':        { colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',  colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
   'Negotiation':           { colorBar: 'bg-pink-500',    chip: 'bg-pink-100 text-pink-700',      colBg: 'bg-pink-50/60',    border: 'border-pink-200'    },
-  'Hardware Assignment':   { colorBar: 'bg-violet-500',  chip: 'bg-violet-100 text-violet-700',  colBg: 'bg-violet-50/60',  border: 'border-violet-200'  },
   'Won':                   { colorBar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700',colBg: 'bg-emerald-50/60', border: 'border-emerald-200' },
   'Lost':                  { colorBar: 'bg-red-400',     chip: 'bg-red-100 text-red-600',        colBg: 'bg-red-50/40',     border: 'border-red-200'     },
   // B2B specific
@@ -99,7 +98,6 @@ function getStageConfig(pipelineKey, stageName, plStore) {
 }
 
 function getStageLabel(id) {
-  if (id === 'Hardware Assignment') return '🔧 HW Assignment'
   return id
 }
 
@@ -583,9 +581,7 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
   const TODAY_STR = new Date().toISOString().split('T')[0]
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
-  const isHwStage         = lead.stage === 'Hardware Assignment'
   const isSiteSurveyStage = lead.stage === 'Site Survey'
-  const canAssignHw       = userRole === 'inventory'
 
   return (
     <div
@@ -675,21 +671,6 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
       <p className="text-[11px] text-gray-400 italic mb-3 truncate">{lead.lastActivity}</p>
 
-      {isHwStage && (
-        <div className={`mb-3 p-2 rounded-lg border text-center ${canAssignHw ? 'border-violet-200 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
-          {canAssignHw ? (
-            <button onClick={e => { e.stopPropagation(); onAssignHw(lead) }}
-              className="flex items-center justify-center gap-1.5 w-full text-xs font-semibold text-violet-700 hover:text-violet-900 transition-colors">
-              <HardDrive size={12} /> Assign Hardware
-            </button>
-          ) : (
-            <p className="text-xs text-gray-400 flex items-center justify-center gap-1">
-              <Shield size={11} /> Inventory role only
-            </p>
-          )}
-        </div>
-      )}
-
       {isSiteSurveyStage && (
         <div className={`mb-3 p-2 rounded-lg border text-center ${
           lead.feasibility ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50/60'
@@ -711,44 +692,35 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
       )}
 
       <div className="pt-2 border-t border-surface-border">
-        {isHwStage ? (
-          <button
-            onClick={e => { e.stopPropagation(); onSendToInventory(lead) }}
-            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue/90 rounded-lg transition-colors"
-          >
-            <Send size={12} /> Send to Inventory
+        <div className="flex items-center justify-around">
+          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+            title="Call"
+            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+            <Phone size={14} />
+          </a>
+          <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
+            title="eKYC"
+            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+            <Fingerprint size={14} />
           </button>
-        ) : (
-          <div className="flex items-center justify-around">
-            <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-              title="Call"
+          {followUpAllowed && (
+            <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
+              title="Add Follow-up"
               className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-              <Phone size={14} />
-            </a>
-            <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
-              title="eKYC"
-              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-              <Fingerprint size={14} />
+              <Bell size={14} />
             </button>
-            {followUpAllowed && (
-              <button onClick={e => { e.stopPropagation(); onFollowup(lead) }}
-                title="Add Follow-up"
-                className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-                <Bell size={14} />
-              </button>
-            )}
-            <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
-              title="Edit Lead"
-              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-              <Edit3 size={14} />
-            </button>
-            <button onClick={e => { e.stopPropagation(); onView(lead) }}
-              title="View Lead"
-              className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
-              <Eye size={14} />
-            </button>
-          </div>
-        )}
+          )}
+          <button onClick={e => { e.stopPropagation(); onEdit(lead) }}
+            title="Edit Lead"
+            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+            <Edit3 size={14} />
+          </button>
+          <button onClick={e => { e.stopPropagation(); onView(lead) }}
+            title="View Lead"
+            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+            <Eye size={14} />
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -1992,7 +1964,6 @@ export default function Sales() {
             const style      = STAGE_STYLES[stageId] ?? STAGE_STYLES['New Inquiry']
             const stageLeads = getFilteredTableLeads().filter(l => l.stage === stageId)
             const isOver     = dragOverStage === stageId
-            const isHwStage  = stageId === 'Hardware Assignment'
             const isRequired = (pl.requiredStages ?? []).includes(stageId)
             const statusType = sc?.statusType ?? (stageId === 'Won' ? 'Won' : stageId === 'Lost' ? 'Lost' : 'Open')
             const isWonCol   = statusType === 'Won'
@@ -2004,7 +1975,7 @@ export default function Sales() {
               <div key={stageId}
                 className={`flex flex-col rounded-xl border transition-all duration-150 ${style.colBg} ${style.border} ${
                   isOver ? 'ring-2 ring-brand-blue/50 scale-[1.01]' : ''
-                } ${isHwStage ? 'ring-1 ring-violet-300' : ''}`}
+                }`}
                 style={{ width: 252, minWidth: 252 }}
                 onDragOver={e => handleDragOver(e, stageId)}
                 onDrop={e => handleDrop(e, stageId)}
@@ -2026,11 +1997,6 @@ export default function Sales() {
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${style.chip}`}>{stageLeads.length}</span>
                   </div>
-                  {isHwStage && (
-                    <p className="text-[10px] text-violet-500 mt-1 flex items-center gap-1">
-                      <Shield size={10} /> Inventory role only
-                    </p>
-                  )}
                 </div>
 
                 {isOver && draggingId && (

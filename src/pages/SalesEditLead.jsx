@@ -18,7 +18,6 @@ const STAGE_CHIP = {
   'Site Survey':           'bg-amber-100 text-amber-700',
   'Quotation Sent':        'bg-orange-100 text-orange-700',
   'Negotiation':           'bg-pink-100 text-pink-700',
-  'Hardware Assignment':   'bg-violet-100 text-violet-700',
   'Installation Visit':    'bg-purple-100 text-purple-700',
   'Won':                   'bg-emerald-100 text-emerald-700',
   'Lost':                  'bg-red-100 text-red-600',
