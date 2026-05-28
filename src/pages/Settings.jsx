@@ -10,6 +10,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+import { setSalesPermission } from '../data/salesPermissionStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -59,15 +60,26 @@ const ROLES = [
 const MODULES = ['Dashboard', 'Customers', 'Sales', 'Billing', 'Support', 'Network', 'Inventory', 'Reports', 'Settings']
 
 const PERMISSIONS = {
-  super_admin: { Dashboard: 'full', Customers: 'full', Sales: 'full', Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'full' },
-  admin:       { Dashboard: 'full', Customers: 'full', Sales: 'full', Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'view' },
-  billing:     { Dashboard: 'view', Customers: 'view', Sales: 'view', Billing: 'full', Support: 'none', Network: 'none', Inventory: 'view', Reports: 'view', Settings: 'none' },
-  support:     { Dashboard: 'view', Customers: 'view', Sales: 'none', Billing: 'view', Support: 'full', Network: 'view', Inventory: 'view', Reports: 'none', Settings: 'none' },
-  engineer:    { Dashboard: 'view', Customers: 'view', Sales: 'none', Billing: 'none', Support: 'view', Network: 'view', Inventory: 'full', Reports: 'none', Settings: 'none' },
-  readonly:    { Dashboard: 'view', Customers: 'view', Sales: 'view', Billing: 'view', Support: 'view', Network: 'view', Inventory: 'view', Reports: 'view', Settings: 'none' },
+  super_admin: { Dashboard: 'full', Customers: 'full', Sales: 'full',     Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'full' },
+  admin:       { Dashboard: 'full', Customers: 'full', Sales: 'full',     Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'view' },
+  billing:     { Dashboard: 'view', Customers: 'view', Sales: 'view_all', Billing: 'full', Support: 'none', Network: 'none', Inventory: 'view', Reports: 'view', Settings: 'none' },
+  support:     { Dashboard: 'view', Customers: 'view', Sales: 'none',     Billing: 'view', Support: 'full', Network: 'view', Inventory: 'view', Reports: 'none', Settings: 'none' },
+  engineer:    { Dashboard: 'view', Customers: 'view', Sales: 'view_my',  Billing: 'none', Support: 'view', Network: 'view', Inventory: 'full', Reports: 'none', Settings: 'none' },
+  readonly:    { Dashboard: 'view', Customers: 'view', Sales: 'view_all', Billing: 'view', Support: 'view', Network: 'view', Inventory: 'view', Reports: 'view', Settings: 'none' },
 }
-const PERM_VARIANT = { full: 'green', view: 'blue', none: 'gray' }
-const PERM_LABEL   = { full: 'Full',  view: 'View', none: '—'    }
+
+const STD_OPTIONS = [
+  { value: 'full', label: 'Full Access' },
+  { value: 'view', label: 'View Only'   },
+  { value: 'none', label: 'No Access'   },
+]
+
+const SALES_OPTIONS = [
+  { value: 'full',     label: 'Full Access'        },
+  { value: 'view_all', label: 'View All Leads'     },
+  { value: 'view_my',  label: 'View My Leads Only' },
+  { value: 'none',     label: 'No Access'          },
+]
 
 const NOTIF_EVENTS = [
   { id: 'new_customer',      label: 'New Customer Activation',   whatsapp: true,  sms: true  },
@@ -470,8 +482,20 @@ function ZohoBooksTab() {
 
 function RolesTab() {
   const [activeRole, setActiveRole] = useState('admin')
+  const [perms, setPerms]           = useState(() => JSON.parse(JSON.stringify(PERMISSIONS)))
+  const [saved, setSaved]           = useState(false)
 
   const role = ROLES.find(r => r.id === activeRole)
+
+  function handleSave() {
+    setSalesPermission(perms['admin']?.Sales ?? 'full')
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  function handleReset() {
+    setPerms(JSON.parse(JSON.stringify(PERMISSIONS)))
+  }
 
   return (
     <div className="space-y-5">
@@ -508,31 +532,36 @@ function RolesTab() {
           </div>
           <div className="divide-y divide-surface-border">
             {MODULES.map(mod => {
-              const perm = PERMISSIONS[activeRole]?.[mod] || 'none'
+              const perm    = perms[activeRole]?.[mod] ?? 'none'
+              const options = mod === 'Sales' ? SALES_OPTIONS : STD_OPTIONS
               return (
-                <div key={mod} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50">
+                <div key={mod} className="flex items-center justify-between px-5 py-3">
                   <span className="text-sm font-medium text-gray-700">{mod}</span>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
-                    <div className="flex gap-1">
-                      {['full', 'view', 'none'].map(p => (
-                        <button key={p}
-                          className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
-                            ${perm === p
-                              ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
-                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                          {p === 'none' ? 'No Access' : p.charAt(0).toUpperCase() + p.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <select
+                    value={perm}
+                    onChange={e => setPerms(prev => ({
+                      ...prev,
+                      [activeRole]: { ...prev[activeRole], [mod]: e.target.value },
+                    }))}
+                    className="text-sm border border-surface-border rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition-colors"
+                  >
+                    {options.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 </div>
               )
             })}
           </div>
           <div className="px-5 py-4 border-t border-surface-border flex justify-end gap-2">
-            <Button variant="secondary" size="sm">Reset</Button>
-            <Button size="sm" icon={<Save size={14} />}>Save Permissions</Button>
+            <Button variant="secondary" size="sm" onClick={handleReset}>Reset</Button>
+            <Button
+              size="sm"
+              icon={saved ? <Check size={14} /> : <Save size={14} />}
+              onClick={handleSave}
+            >
+              {saved ? 'Saved!' : 'Save Permissions'}
+            </Button>
           </div>
         </div>
       </div>

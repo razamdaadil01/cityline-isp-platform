@@ -14,6 +14,7 @@ import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
+import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
 import { getStageFields } from '../data/stageFieldsStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -1368,9 +1369,12 @@ export default function Sales() {
   const location                        = useLocation()
   const userRole                        = 'sales'
 
+  const [salesPerm, setSalesPerm] = useState(getSalesPermission)
+
   useEffect(() => subscribeFormModules(setFormModules), [])
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribePipelines(setPlStore), [])
+  useEffect(() => subscribeSalesPermission(setSalesPerm), [])
 
   useEffect(() => {
     if (!showExportMenu) return
@@ -1402,7 +1406,9 @@ export default function Sales() {
   }, []) // eslint-disable-line
 
   const pl            = PIPELINES[activePipeline] ?? PIPELINES.B2C
-  const pipelineLeads = leads.filter(l => l.pipeline === activePipeline)
+  const pipelineLeads = leads
+    .filter(l => l.pipeline === activePipeline)
+    .filter(l => salesPerm !== 'view_my' || l.assigned === CURRENT_USER || (l.createdBy ?? '') === CURRENT_USER)
 
   // ── Drag and drop ────────────────────────────────────────────────────────
   function handleDragStart(e, id) { setDraggingId(id); e.dataTransfer.effectAllowed = 'move' }
