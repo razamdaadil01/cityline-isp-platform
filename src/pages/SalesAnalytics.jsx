@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users, TrendingUp, CheckCircle2, XCircle, PhoneCall,
-  Layers, ArrowLeft, Target, Award, AlertCircle,
+  Layers, ArrowLeft, Target, Award, AlertCircle, Eye,
 } from 'lucide-react'
+import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell,
@@ -496,6 +497,12 @@ const ROLES = [
 
 export default function SalesAnalytics() {
   const [role, setRole] = useState('owner')
+  const [salesPerm, setSalesPerm] = useState(getSalesPermission)
+
+  useEffect(() => subscribeSalesPermission(setSalesPerm), [])
+
+  const viewMy = salesPerm === 'view_my'
+  const activeRole = viewMy ? 'exec' : role
 
   const ROLE_BG = { owner: NAVY, manager: BLUE, exec: ORANGE }
 
@@ -531,28 +538,38 @@ export default function SalesAnalytics() {
           </div>
         </div>
 
-        {/* Role toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit shadow-sm">
-          {ROLES.map(r => (
-            <button
-              key={r.key}
-              onClick={() => setRole(r.key)}
-              style={role === r.key ? { backgroundColor: ROLE_BG[r.key], color: '#fff' } : {}}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                role === r.key ? 'shadow-sm' : 'text-gray-600 hover:bg-white/60'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        {/* Scope indicator */}
+        {viewMy && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-brand-blue/8 border border-brand-blue/20 rounded-lg w-fit">
+            <Eye size={13} className="text-brand-blue shrink-0" />
+            <span className="text-xs font-medium text-brand-blue">Viewing your leads only — {CURRENT_USER}</span>
+          </div>
+        )}
+
+        {/* Role toggle — hidden when view_my is active */}
+        {!viewMy && (
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit shadow-sm">
+            {ROLES.map(r => (
+              <button
+                key={r.key}
+                onClick={() => setRole(r.key)}
+                style={role === r.key ? { backgroundColor: ROLE_BG[r.key], color: '#fff' } : {}}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  role === r.key ? 'shadow-sm' : 'text-gray-600 hover:bg-white/60'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
-        {role === 'owner'   && <OwnerView />}
-        {role === 'manager' && <ManagerView />}
-        {role === 'exec'    && <ExecView />}
+        {activeRole === 'owner'   && <OwnerView />}
+        {activeRole === 'manager' && <ManagerView />}
+        {activeRole === 'exec'    && <ExecView />}
       </div>
     </div>
   )

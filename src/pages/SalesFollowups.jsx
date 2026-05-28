@@ -11,6 +11,7 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getFollowups, saveFollowup, markFollowupDone, cancelFollowup, subscribeFollowups,
 } from '../data/followupStore'
+import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -935,6 +936,7 @@ function CalendarView({ followups, onEdit }) {
 
 export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
+  const [salesPerm, setSalesPerm] = useState(getSalesPermission)
   const [view, setView] = useState('table')
   const [showModal, setShowModal] = useState(false)
   const [editingFU, setEditingFU] = useState(null)
@@ -947,6 +949,7 @@ export default function SalesFollowups() {
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => subscribeFollowups(setFollowups), [])
+  useEffect(() => subscribeSalesPermission(setSalesPerm), [])
 
   function saveFU(fu) { saveFollowup(fu) }
   function markDone(id) { markFollowupDone(id) }
@@ -971,17 +974,21 @@ export default function SalesFollowups() {
     }
   }
 
-  const filtered = followups.filter(fu => {
+  const scopedFollowups = salesPerm === 'view_my'
+    ? followups.filter(fu => fu.assignedTo === CURRENT_USER)
+    : followups
+
+  const filtered = scopedFollowups.filter(fu => {
     if (filterAssigned && fu.assignedTo !== filterAssigned) return false
     if (filterDateFrom && fu.date < filterDateFrom) return false
     if (filterDateTo && fu.date > filterDateTo) return false
     return true
   })
 
-  const pendingCount   = followups.filter(f => f.date >= TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
-  const overdueCount   = followups.filter(f => f.date < TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
-  const doneCount      = followups.filter(f => f.status === 'Done').length
-  const cancelledCount = followups.filter(f => f.status === 'Cancelled').length
+  const pendingCount   = scopedFollowups.filter(f => f.date >= TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
+  const overdueCount   = scopedFollowups.filter(f => f.date < TODAY && f.status !== 'Done' && f.status !== 'Cancelled').length
+  const doneCount      = scopedFollowups.filter(f => f.status === 'Done').length
+  const cancelledCount = scopedFollowups.filter(f => f.status === 'Cancelled').length
 
   return (
     <div className="p-6 space-y-5">
@@ -999,7 +1006,7 @@ export default function SalesFollowups() {
       {/* Stats */}
       <div className="grid grid-cols-5 gap-3">
         {[
-          { label: 'Total',     value: followups.length, color: 'text-gray-700',    bg: 'bg-gray-100'    },
+          { label: 'Total',     value: scopedFollowups.length, color: 'text-gray-700',    bg: 'bg-gray-100'    },
           { label: 'Pending',   value: pendingCount,     color: 'text-amber-600',   bg: 'bg-amber-100'   },
           { label: 'Overdue',   value: overdueCount,     color: 'text-red-600',     bg: 'bg-red-100'     },
           { label: 'Completed', value: doneCount,        color: 'text-emerald-700', bg: 'bg-emerald-100' },
