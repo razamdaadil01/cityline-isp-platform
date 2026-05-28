@@ -13,6 +13,7 @@ import {
   Boxes,
   Server,
   UserCog,
+  UsersRound,
   Shield,
   Activity,
   Bell,
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },
   { label: 'Audit Log',        icon: Shield,          to: '/audit'                     },
+  { label: 'User Management',  icon: UsersRound,      to: '/users'                     },
   { label: 'Settings',         icon: Settings,        to: '/settings',          exact: true },
   { label: 'Notifications',    icon: Bell,            to: '/notifications'                 },
 ]

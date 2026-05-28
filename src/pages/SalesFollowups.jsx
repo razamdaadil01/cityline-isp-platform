@@ -12,17 +12,12 @@ import {
   getFollowups, saveFollowup, markFollowupDone, cancelFollowup, subscribeFollowups,
 } from '../data/followupStore'
 import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
+import { getUsers, subscribeUsers } from '../data/userStore'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const TODAY = new Date().toISOString().split('T')[0]
 
-const STAFF = [
-  { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'    },
-  { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500'    },
-  { name: 'Suresh Babu',   initials: 'SB', color: 'bg-emerald-500'   },
-  { name: 'Anita Sharma',  initials: 'AS', color: 'bg-brand-orange'  },
-]
 
 const STAGES = [
   'New Inquiry', 'Contacted', 'Follow-up', 'Site Survey',
@@ -82,7 +77,7 @@ const KANBAN_COLS = [
 
 // ── Set Follow-up Modal ──────────────────────────────────────────────────────
 
-function FollowupModal({ isOpen, onClose, initial, onSave }) {
+function FollowupModal({ isOpen, onClose, initial, onSave, staff = [] }) {
   const isEdit = !!initial?.id
   const [form, setForm] = useState(initial ?? {
     leadName: '', phone: '', date: TODAY, time: '10:00',
@@ -146,7 +141,7 @@ function FollowupModal({ isOpen, onClose, initial, onSave }) {
         <FormField label="Assigned To">
           <Select value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}>
             <option value="">Select Rep</option>
-            {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
+            {staff.map(s => <option key={s.name}>{s.name}</option>)}
           </Select>
         </FormField>
         <FormField label="Priority">
@@ -165,7 +160,7 @@ function FollowupModal({ isOpen, onClose, initial, onSave }) {
         <div className="col-span-2">
           <p className="text-sm font-medium text-gray-700 mb-2">Notify To</p>
           <div className="flex flex-wrap gap-2">
-            {STAFF.map(s => (
+            {staff.map(s => (
               <button
                 key={s.name}
                 type="button"
@@ -278,7 +273,7 @@ function KanbanCard({ fu, colId, onMarkDone, onEdit, onCancel, isDragging, onDra
     ? Math.floor((new Date(TODAY + 'T00:00:00') - new Date(fu.date + 'T00:00:00')) / 86400000)
     : 0
 
-  const assignedStaff = STAFF.find(s => s.name === fu.assignedTo)
+  const assignedStaff = getUsers().find(s => s.name === fu.assignedTo)
 
   // close menu on outside click
   useEffect(() => {
@@ -676,7 +671,7 @@ function TableView({ followups, onMarkDone, onReschedule, onCancel, search }) {
                         {fu.notifyTo.length > 0 ? (
                           <div className="flex gap-1 flex-wrap">
                             {fu.notifyTo.map(n => {
-                              const s = STAFF.find(st => st.name === n)
+                              const s = getUsers().find(st => st.name === n)
                               return s ? (
                                 <span
                                   key={n}
@@ -937,6 +932,7 @@ function CalendarView({ followups, onEdit }) {
 export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
+  const [allUsers, setAllUsers]   = useState(getUsers)
   const [view, setView] = useState('table')
   const [showModal, setShowModal] = useState(false)
   const [editingFU, setEditingFU] = useState(null)
@@ -950,6 +946,9 @@ export default function SalesFollowups() {
 
   useEffect(() => subscribeFollowups(setFollowups), [])
   useEffect(() => subscribeSalesPermission(setSalesPerm), [])
+  useEffect(() => subscribeUsers(setAllUsers), [])
+
+  const activeStaff = allUsers.filter(u => u.status === 'active')
 
   function saveFU(fu) { saveFollowup(fu) }
   function markDone(id) { markFollowupDone(id) }
@@ -1090,7 +1089,7 @@ export default function SalesFollowups() {
                 className="text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
               >
                 <option value="">All Staff</option>
-                {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
+                {activeStaff.map(s => <option key={s.name}>{s.name}</option>)}
               </select>
             </div>
             <div>
@@ -1138,6 +1137,7 @@ export default function SalesFollowups() {
           onClose={() => { setShowModal(false); setEditingFU(null) }}
           initial={editingFU}
           onSave={saveFU}
+          staff={activeStaff}
         />
       )}
 

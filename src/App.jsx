@@ -34,6 +34,7 @@ import NotificationSettings from './pages/NotificationSettings'
 import Notifications from './pages/Notifications'
 import AreaMapping from './pages/AreaMapping'
 import FeasibilityRequests from './pages/FeasibilityRequests'
+import UserManagement from './pages/UserManagement'
 
 export default function App() {
   return (
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/resellers/:id" element={<ResellerDetail />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
+          <Route path="/users" element={<UserManagement />} />
         </Route>
       </Routes>
     </BrowserRouter>
