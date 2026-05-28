@@ -20,8 +20,8 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
-  B2C: { label: 'Residential', labelFull: 'Residential', color: '#0A8DCD', stages: ['New Inquiry','Contacted','Follow-up','Site Survey','Quotation Sent','Negotiation','Hardware Assignment','Installation Visit','Won','Lost'] },
-  B2B: { label: 'Corporate',   labelFull: 'Corporate',   color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Hardware Assignment','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
+  B2C: { label: 'Residential', labelFull: 'Residential', color: '#0A8DCD', stages: ['New Inquiry','Contacted','Follow-up','Site Survey','Quotation Sent','Negotiation','Installation Visit','Won','Lost'] },
+  B2B: { label: 'Corporate',   labelFull: 'Corporate',   color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
   Custom: { label: 'Custom',   labelFull: 'Custom Pipeline', color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
 }
 
@@ -32,7 +32,6 @@ const STAGE_STYLES = {
   'Site Survey':           { chip: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'   },
   'Quotation Sent':        { chip: 'bg-orange-100 text-orange-700',  dot: 'bg-orange-500'  },
   'Negotiation':           { chip: 'bg-pink-100 text-pink-700',      dot: 'bg-pink-500'    },
-  'Hardware Assignment':   { chip: 'bg-violet-100 text-violet-700',  dot: 'bg-violet-500'  },
   'Installation Visit':    { chip: 'bg-purple-100 text-purple-700',  dot: 'bg-purple-600'  },
   'Won':                   { chip: 'bg-emerald-100 text-emerald-700',dot: 'bg-emerald-500' },
   'Lost':                  { chip: 'bg-red-100 text-red-600',        dot: 'bg-red-400'     },

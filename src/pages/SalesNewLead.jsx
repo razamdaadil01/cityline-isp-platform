@@ -20,11 +20,11 @@ import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldI
 const PIPELINES = {
   B2C: {
     label: 'Residential', labelFull: 'Residential',
-    stages: ['New Inquiry', 'Contacted', 'Follow-up', 'Site Survey', 'Quotation Sent', 'Negotiation', 'Hardware Assignment', 'Won', 'Lost'],
+    stages: ['New Inquiry', 'Contacted', 'Follow-up', 'Site Survey', 'Quotation Sent', 'Negotiation', 'Won', 'Lost'],
   },
   B2B: {
     label: 'Corporate', labelFull: 'Corporate',
-    stages: ['New Inquiry', 'Meeting Scheduled', 'Requirement Analysis', 'Technical Feasibility', 'Commercial Proposal', 'Negotiation', 'Legal/Agreement', 'Hardware Assignment', 'Won', 'Lost'],
+    stages: ['New Inquiry', 'Meeting Scheduled', 'Requirement Analysis', 'Technical Feasibility', 'Commercial Proposal', 'Negotiation', 'Legal/Agreement', 'Won', 'Lost'],
   },
   Custom: {
     label: 'Custom', labelFull: 'Custom Pipeline',
