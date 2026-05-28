@@ -907,14 +907,22 @@ function EKycModal({ isOpen, onClose, phone, onConfirm }) {
   )
 }
 
+const TAB_PATH_TO_KEY = {
+  'overview':      'overview',
+  'followups':     'followups',
+  'comments':      'comments',
+  'stage-history': 'stageHistory',
+  'activity-log':  'activity',
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
-  const { id } = useParams()
+  const { id, tab: tabParam } = useParams()
   const navigate = useNavigate()
   const [leads, setLeads]           = useState(getLeads)
   const [pipelines, setPipelines]   = useState(getPipelines)
-  const [activeTab, setActiveTab]   = useState('overview')
+  const activeTab = TAB_PATH_TO_KEY[tabParam] ?? 'overview'
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsPos, setActionsPos]   = useState({ top: 0, right: 0 })
   const actionsRef = useRef(null)
@@ -1170,11 +1178,11 @@ export default function SalesLeadDetail() {
   const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))
 
   const TABS = [
-    { key: 'overview',     label: 'Overview',      icon: User },
-    { key: 'followups',    label: 'Follow-ups',    icon: Bell },
-    { key: 'comments',     label: 'Comments',      icon: MessageSquare },
-    { key: 'stageHistory', label: 'Stage History', icon: TrendingUp },
-    { key: 'activity',     label: 'Activity Log',  icon: Activity },
+    { key: 'overview',     path: 'overview',      label: 'Overview',      icon: User },
+    { key: 'followups',    path: 'followups',     label: 'Follow-ups',    icon: Bell },
+    { key: 'comments',     path: 'comments',      label: 'Comments',      icon: MessageSquare },
+    { key: 'stageHistory', path: 'stage-history', label: 'Stage History', icon: TrendingUp },
+    { key: 'activity',     path: 'activity-log',  label: 'Activity Log',  icon: Activity },
   ]
 
   const FU_STATUS_STYLE = {
@@ -1317,7 +1325,7 @@ export default function SalesLeadDetail() {
           {TABS.map(tab => {
             const Icon = tab.icon
             return (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
                 className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
                   ${activeTab === tab.key
                     ? 'border-brand-blue text-brand-blue'
