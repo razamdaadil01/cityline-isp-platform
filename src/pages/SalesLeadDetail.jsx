@@ -1361,10 +1361,30 @@ export default function SalesLeadDetail() {
 
                 <Card>
                   <CardHeader title="Address Details" />
-                  <InfoRow label="Address" value={lead.address} />
-                  <InfoRow label="Area"    value={lead.area} />
-                  <InfoRow label="City"    value={lead.city} />
-                  <InfoRow label="Pincode" value={lead.pincode} />
+                  {lead.address     && <InfoRow label="Address"      value={lead.address} />}
+                  {lead.area        && <InfoRow label="Area"         value={lead.area} />}
+                  {lead.locality    && <InfoRow label="Locality"     value={lead.locality} />}
+                  {lead.subLocality && <InfoRow label="Sub Locality" value={lead.subLocality} />}
+                  {lead.city        && <InfoRow label="City"         value={lead.city} />}
+                  {lead.district    && <InfoRow label="District"     value={lead.district} />}
+                  {lead.state       && <InfoRow label="State"        value={lead.state} />}
+                  {lead.pincode     && <InfoRow label="Pincode"      value={lead.pincode} />}
+                  {lead.siteType    && (
+                    <InfoRow label="Site Type" value={
+                      <span className="flex items-center gap-1.5">
+                        {lead.siteType}
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
+                      </span>
+                    } />
+                  )}
+                  {lead.branchCode  && (
+                    <InfoRow label="Branch Code" value={
+                      <span className="flex items-center gap-1.5">
+                        <span className="font-mono">{lead.branchCode}</span>
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
+                      </span>
+                    } />
+                  )}
                 </Card>
               </div>
 
