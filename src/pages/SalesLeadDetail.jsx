@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Edit3, TrendingUp, Bell, MessageSquare,
+  Edit3, TrendingUp, Bell, MessageSquare,
   Activity, Plus, CheckCircle2, XCircle, CalendarDays,
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
@@ -1200,11 +1200,14 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* Back nav */}
-      <button onClick={() => navigate('/sales')}
-        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-blue transition-colors">
-        <ArrowLeft size={15} /> Back to Sales Pipeline
-      </button>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-[13px] mb-2">
+        <button onClick={() => navigate('/sales')} className="text-gray-500 hover:underline transition-colors">
+          Sales Pipeline
+        </button>
+        <span className="text-gray-300">›</span>
+        <span className="text-gray-900 font-medium truncate">{leadDisplayName}</span>
+      </div>
 
       {/* ── Header card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
