@@ -929,7 +929,7 @@ export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
   const [allUsers, setAllUsers]   = useState(getUsers)
-  const [view, setView]           = useState('table') // 'table' | 'calendar' (kanban hidden)
+  const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'table' // 'table' | 'calendar' (kanban hidden)
   const [searchParams, setSearchParams] = useSearchParams()
   const [editingFU, setEditingFU] = useState(null)
   const showModal = searchParams.get('action') === 'new' || editingFU !== null
@@ -1004,7 +1004,7 @@ export default function SalesFollowups() {
           {/* View toggle */}
           <div className="flex items-center gap-0.5 bg-gray-100 p-1 rounded-lg">
             {/* Kanban button hidden — re-enable by uncommenting
-            <button onClick={() => setView('kanban')}
+            <button onClick={() => setSearchParams(p => { const n = new URLSearchParams(p); n.set('view', 'kanban'); return n })}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 view === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
@@ -1012,14 +1012,14 @@ export default function SalesFollowups() {
               <LayoutGrid size={13} /> Kanban
             </button>
             */}
-            <button onClick={() => setView('table')}
+            <button onClick={() => setSearchParams(p => { const n = new URLSearchParams(p); n.set('view', 'table'); return n })}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 view === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               <List size={13} /> Table
             </button>
-            <button onClick={() => setView('calendar')}
+            <button onClick={() => setSearchParams(p => { const n = new URLSearchParams(p); n.set('view', 'calendar'); return n })}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                 view === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
