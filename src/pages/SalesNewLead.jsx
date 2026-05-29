@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, X, MapPin, CheckCircle, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -173,7 +173,11 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
 
 export default function SalesNewLead() {
   const navigate = useNavigate()
-  const [form, setForm]             = useState({ ...INIT_FORM })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [form, setForm]             = useState({
+    ...INIT_FORM,
+    feasibilityRequired: searchParams.get('feasibility') === 'true',
+  })
   const [errors, setErrors]         = useState({})
   const [submitted, setSubmitted]   = useState(false)
   const [pipelines, setPipelines]   = useState(getPipelines)
@@ -571,7 +575,14 @@ export default function SalesNewLead() {
                     <input
                       type="checkbox"
                       checked={form.feasibilityRequired}
-                      onChange={e => set('feasibilityRequired', e.target.checked)}
+                      onChange={e => {
+                        set('feasibilityRequired', e.target.checked)
+                        if (e.target.checked) {
+                          setSearchParams({ feasibility: 'true' })
+                        } else {
+                          setSearchParams({})
+                        }
+                      }}
                       className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-400/30"
                     />
                     <span className="text-sm font-semibold text-amber-800">Feasibility Required</span>
