@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Calendar, List, Plus, Clock, Phone, MessageSquare,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle2,
@@ -929,8 +930,9 @@ export default function SalesFollowups() {
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
   const [allUsers, setAllUsers]   = useState(getUsers)
   const [view, setView]           = useState('table') // 'table' | 'calendar' (kanban hidden)
-  const [showModal, setShowModal] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [editingFU, setEditingFU] = useState(null)
+  const showModal = searchParams.get('action') === 'new' || editingFU !== null
   const [cancelTarget, setCancelTarget]       = useState(null)
   const [rescheduleTarget, setRescheduleTarget] = useState(null)
   const [search, setSearch]         = useState('')
@@ -949,7 +951,7 @@ export default function SalesFollowups() {
 
   function saveFU(fu) { saveFollowup(fu) }
   function markDone(id) { markFollowupDone(id) }
-  function openEdit(fu) { setEditingFU(fu); setShowModal(true) }
+  function openEdit(fu) { setEditingFU(fu) }
   function openReschedule(fu) { setRescheduleTarget(fu) }
   function openCancel(fu) { setCancelTarget(fu) }
 
@@ -1025,7 +1027,7 @@ export default function SalesFollowups() {
               <Calendar size={13} /> Calendar
             </button>
           </div>
-          <Button icon={<Plus size={14} />} onClick={() => { setEditingFU(null); setShowModal(true) }}>
+          <Button icon={<Plus size={14} />} onClick={() => { setEditingFU(null); setSearchParams({ action: 'new' }) }}>
             Set Follow-up
           </Button>
         </div>
@@ -1146,7 +1148,7 @@ export default function SalesFollowups() {
       {showModal && (
         <FollowupModal
           isOpen={showModal}
-          onClose={() => { setShowModal(false); setEditingFU(null) }}
+          onClose={() => { setEditingFU(null); setSearchParams({}) }}
           initial={editingFU}
           onSave={saveFU}
           staff={activeStaff}
