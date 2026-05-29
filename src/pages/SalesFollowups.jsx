@@ -929,8 +929,8 @@ export default function SalesFollowups() {
   const [followups, setFollowups] = useState(getFollowups())
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
   const [allUsers, setAllUsers]   = useState(getUsers)
-  const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'table' // 'table' | 'calendar' (kanban hidden)
   const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'table' // 'table' | 'calendar' (kanban hidden)
   const [editingFU, setEditingFU] = useState(null)
   const showModal = searchParams.get('action') === 'new' || editingFU !== null
   const [cancelTarget, setCancelTarget]       = useState(null)
