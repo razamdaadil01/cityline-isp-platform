@@ -1200,19 +1200,19 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-[13px] mb-2">
-        <button onClick={() => navigate('/sales')} className="text-gray-500 hover:underline transition-colors">
-          Sales Pipeline
-        </button>
-        <span className="text-gray-300">›</span>
-        <span className="text-gray-900 font-medium truncate">{leadDisplayName}</span>
-      </div>
-
       {/* ── Header card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
         <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
-        <div className="p-5 lg:p-6 xl:p-7 2xl:p-8">
+        {/* Breadcrumb */}
+        <div className="px-5 lg:px-6 xl:px-7 2xl:px-8 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
+          <button onClick={() => navigate('/sales')} className="text-gray-400 hover:underline transition-colors">
+            Sales Pipeline
+          </button>
+          <span className="text-gray-300">›</span>
+          <span className="text-gray-500 truncate">{leadDisplayName}</span>
+        </div>
+        <div className="border-t border-surface-border" />
+        <div className="p-5 lg:p-6 xl:p-7 2xl:p-8 pt-4">
           <div className="flex flex-wrap items-start gap-5">
 
             {/* Avatar */}
