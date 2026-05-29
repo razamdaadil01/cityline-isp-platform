@@ -1190,7 +1190,7 @@ export default function SalesLeadDetail() {
   }
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-5">
+    <div className="p-6 lg:p-6 xl:p-8 2xl:p-12 max-w-[1400px] xl:max-w-[1600px] 2xl:max-w-[1900px] mx-auto space-y-5">
 
       {/* Reopen toast */}
       {reopenToast && (
@@ -1209,7 +1209,7 @@ export default function SalesLeadDetail() {
       {/* ── Header card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
         <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
-        <div className="p-5 sm:p-6">
+        <div className="p-5 lg:p-6 xl:p-7 2xl:p-8">
           <div className="flex flex-wrap items-start gap-5">
 
             {/* Avatar */}
@@ -1322,7 +1322,7 @@ export default function SalesLeadDetail() {
             const Icon = tab.icon
             return (
               <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
-                className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-3.5 lg:px-3 xl:px-4 text-xs lg:text-xs xl:text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
                   ${activeTab === tab.key
                     ? 'border-brand-blue text-brand-blue'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
@@ -1333,14 +1333,14 @@ export default function SalesLeadDetail() {
           })}
         </div>
 
-        <div className="p-5 sm:p-6">
+        <div className="p-5 lg:p-6 xl:p-8 2xl:p-10">
 
           {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-3 gap-5">
 
-              {/* Left 60% */}
-              <div className="xl:col-span-3 space-y-4">
+              {/* Left 60% → lg:60% / xl:66% */}
+              <div className="lg:col-span-3 xl:col-span-2 space-y-4">
                 <Card>
                   <CardHeader title="Basic Details" />
                   <InfoRow label="Lead ID"      value={lead.id} highlight />
@@ -1389,7 +1389,8 @@ export default function SalesLeadDetail() {
               </div>
 
               {/* Right 40% */}
-              <div className="xl:col-span-2 space-y-4">
+              {/* Right 40% → lg:40% / xl:34% */}
+              <div className="lg:col-span-2 xl:col-span-1 space-y-4">
 
                 <Card>
                   <CardHeader title="Current Stage Info" />
@@ -1571,7 +1572,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── FOLLOW-UPS ───────────────────────────────────────────── */}
           {activeTab === 'followups' && (
-            <div>
+            <div className="max-w-[900px] mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-gray-700">All Follow-ups</h2>
                 <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
@@ -1614,7 +1615,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── COMMENTS ─────────────────────────────────────────────── */}
           {activeTab === 'comments' && (
-            <div>
+            <div className="max-w-[900px] mx-auto">
               <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
                 <textarea
                   ref={commentRef}
@@ -1704,7 +1705,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── STAGE HISTORY ────────────────────────────────────────── */}
           {activeTab === 'stageHistory' && (
-            <div>
+            <div className="max-w-[900px] mx-auto">
               <Card padding={false}>
                 <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
                   <div>
@@ -1769,7 +1770,7 @@ export default function SalesLeadDetail() {
                                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
                                         Captured Fields
                                       </p>
-                                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
                                         {filledFields.map(([key, val]) => (
                                           <div key={key} className="bg-white rounded-lg border border-surface-border p-3">
                                             <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
@@ -1804,7 +1805,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── ACTIVITY LOG ─────────────────────────────────────────── */}
           {activeTab === 'activity' && (
-            <div>
+            <div className="max-w-[900px] mx-auto">
               <Card padding={false}>
                 <div className="px-5 py-4 border-b border-surface-border">
                   <h3 className="text-sm font-semibold text-gray-800">Audit Trail</h3>
