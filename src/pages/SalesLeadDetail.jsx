@@ -1190,7 +1190,7 @@ export default function SalesLeadDetail() {
   }
 
   return (
-    <div className="p-6 lg:p-6 xl:p-8 2xl:p-12 max-w-[1400px] xl:max-w-[1600px] 2xl:max-w-[1900px] mx-auto space-y-5">
+    <div className="pt-2 pb-6 px-6 lg:px-6 xl:px-8 2xl:px-12 max-w-[1400px] xl:max-w-[1600px] 2xl:max-w-[1900px] mx-auto space-y-3">
 
       {/* Reopen toast */}
       {reopenToast && (
