@@ -1615,7 +1615,7 @@ export default function SalesLeadDetail() {
 
           {/* ─── COMMENTS ─────────────────────────────────────────────── */}
           {activeTab === 'comments' && (
-            <div className="max-w-[900px] mx-auto">
+            <div>
               <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
                 <textarea
                   ref={commentRef}
