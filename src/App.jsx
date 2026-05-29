@@ -53,8 +53,8 @@ export default function App() {
           <Route path="/sales" element={<Sales />} />
           <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/sales/followups" element={<SalesFollowups />} />
-          <Route path="/settings/sales/pipelines"    element={<SalesPipelines />} />
-          <Route path="/settings/sales/form-builder" element={<SalesFormBuilder />} />
+          <Route path="/settings/sales-configuration/pipelines"    element={<SalesPipelines />} />
+          <Route path="/settings/sales-configuration/form-builder" element={<SalesFormBuilder />} />
           <Route path="/inventory/hw-assignment"     element={<SalesHwAssignment />} />
           <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
@@ -71,10 +71,10 @@ export default function App() {
           <Route path="/network/servers" element={<NetworkServers />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/settings/roles" element={<RolesSettings />} />
-          <Route path="/settings/area-mapping" element={<AreaMapping />} />
-          <Route path="/settings/feasibility-requests" element={<FeasibilityRequests />} />
+          <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
+          <Route path="/settings/area-mapping/manage" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/feasibility-requests" element={<FeasibilityRequests />} />
+          <Route path="/settings/:tab" element={<Settings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/resellers" element={<Resellers />} />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
@@ -15,14 +15,14 @@ import { setSalesPermission } from '../data/salesPermissionStore'
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'general',       label: 'General',               icon: Building2      },
-  { id: 'billing',       label: 'Billing',               icon: Receipt        },
-  { id: 'notifications', label: 'Notifications',         icon: Bell           },
-  { id: 'jaze',          label: 'Jaze Servers',          icon: Server         },
-  { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen       },
-  { id: 'sales-config',  label: 'Sales Configuration',   icon: Layers         },
-  { id: 'roles',         label: 'Roles & Permissions',   icon: Shield         },
-  { id: 'area-mapping',  label: 'Area Mapping',          icon: MapPin         },
+  { id: 'general',             label: 'General',               icon: Building2 },
+  { id: 'billing',             label: 'Billing',               icon: Receipt   },
+  { id: 'notifications',       label: 'Notifications',         icon: Bell      },
+  { id: 'jaze-servers',        label: 'Jaze Servers',          icon: Server    },
+  { id: 'zoho-books',          label: 'Zoho Books',            icon: BookOpen  },
+  { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
+  { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
+  { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -582,7 +582,7 @@ function AreaMappingTab() {
 
       <div className="grid grid-cols-2 gap-4">
         <button
-          onClick={() => navigate('/settings/area-mapping')}
+          onClick={() => navigate('/settings/area-mapping/manage')}
           className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
         >
           <div className="flex items-center gap-3">
@@ -598,7 +598,7 @@ function AreaMappingTab() {
         </button>
 
         <button
-          onClick={() => navigate('/settings/feasibility-requests')}
+          onClick={() => navigate('/settings/area-mapping/feasibility-requests')}
           className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-orange/40 hover:bg-orange-50/30 transition-all group text-left"
         >
           <div className="flex items-center gap-3">
@@ -640,7 +640,7 @@ function SalesConfigTab() {
 
       <div className="grid grid-cols-2 gap-4">
         <button
-          onClick={() => navigate('/settings/sales/pipelines')}
+          onClick={() => navigate('/settings/sales-configuration/pipelines')}
           className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
         >
           <div className="flex items-center gap-3">
@@ -656,7 +656,7 @@ function SalesConfigTab() {
         </button>
 
         <button
-          onClick={() => navigate('/settings/sales/form-builder')}
+          onClick={() => navigate('/settings/sales-configuration/form-builder')}
           className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
         >
           <div className="flex items-center gap-3">
@@ -678,7 +678,9 @@ function SalesConfigTab() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('general')
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  const activeTab = tab ?? 'general'
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -692,7 +694,7 @@ export default function Settings() {
         <div className="w-52 shrink-0">
           <nav className="space-y-1">
             {TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => setActiveTab(id)}
+              <button key={id} onClick={() => navigate(`/settings/${id}`)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
@@ -706,14 +708,14 @@ export default function Settings() {
 
         {/* Content panel */}
         <div className="flex-1 bg-white rounded-xl shadow-card border border-surface-border p-6">
-          {activeTab === 'general'       && <GeneralTab />}
-          {activeTab === 'billing'       && <BillingTab />}
-          {activeTab === 'notifications' && <NotificationsTab />}
-          {activeTab === 'jaze'          && <JazeServersTab />}
-          {activeTab === 'zoho'          && <ZohoBooksTab />}
-          {activeTab === 'sales-config'  && <SalesConfigTab />}
-          {activeTab === 'roles'         && <RolesTab />}
-          {activeTab === 'area-mapping'  && <AreaMappingTab />}
+          {activeTab === 'general'             && <GeneralTab />}
+          {activeTab === 'billing'             && <BillingTab />}
+          {activeTab === 'notifications'       && <NotificationsTab />}
+          {activeTab === 'jaze-servers'        && <JazeServersTab />}
+          {activeTab === 'zoho-books'          && <ZohoBooksTab />}
+          {activeTab === 'sales-configuration' && <SalesConfigTab />}
+          {activeTab === 'roles'               && <RolesTab />}
+          {activeTab === 'area-mapping'        && <AreaMappingTab />}
         </div>
       </div>
     </div>
