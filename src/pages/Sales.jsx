@@ -1173,9 +1173,10 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const isIV              = targetStage === 'Installation Visit'
   const needsFeasConfirm  = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired
   const stageFields       = (!isWon && !isIV && !needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
-  const requiredFields    = stageFields.filter(f => f.required)
+  const visibleFields     = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
+  const requiredFields    = visibleFields.filter(f => f.required)
   const requiredFilled    = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
-  const filledCount       = stageFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
+  const filledCount       = visibleFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
   const followUpAllowed   = targetSC?.followUpAllowed !== false
   const ivValid           = !isIV || (ivForm.date && ivForm.time && ivForm.engineerId)
 
@@ -1282,12 +1283,12 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
                 Stage Fields — {targetStage}
               </p>
               <span className="text-[11px] text-gray-500 font-medium bg-white border border-surface-border rounded-full px-2 py-0.5">
-                {filledCount}/{stageFields.length} filled
+                {filledCount}/{visibleFields.length} filled
                 {requiredFields.length > 0 && ` · ${requiredFields.length} required`}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {stageFields.map(f => {
+              {visibleFields.map(f => {
                 const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
                 return (
                   <div key={f.id} className={isWide ? 'col-span-2' : ''}>

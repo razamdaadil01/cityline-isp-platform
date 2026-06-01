@@ -238,6 +238,9 @@ export default function SalesNewLead() {
   const firstStageFields = firstStage
     ? getStageFields(firstStage.id).filter(f => f.active !== false)
     : []
+  const visibleStageFields = firstStageFields.filter(f =>
+    !f.conditionalOn || stageFieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value
+  )
 
   function validate() {
     const e = {}
@@ -267,7 +270,7 @@ export default function SalesNewLead() {
     }
 
     const se = {}
-    firstStageFields.filter(f => f.required).forEach(f => {
+    visibleStageFields.filter(f => f.required).forEach(f => {
       if (!isFieldFilled(f, stageFieldVals[f.id])) se[f.id] = `${f.label} is required`
     })
     setStageErrors(se)
@@ -805,15 +808,15 @@ export default function SalesNewLead() {
                   <span className="text-brand-blue">{firstStage?.name}</span>
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Configured in Pipeline Builder · {firstStageFields.filter(f => f.required).length} required
+                  Configured in Pipeline Builder · {visibleStageFields.filter(f => f.required).length} required
                 </p>
               </div>
               <span className="text-[11px] text-gray-500 font-medium bg-surface rounded-full px-2.5 py-1 border border-surface-border">
-                {firstStageFields.filter(f => isFieldFilled(f, stageFieldVals[f.id])).length}/{firstStageFields.length} filled
+                {visibleStageFields.filter(f => isFieldFilled(f, stageFieldVals[f.id])).length}/{visibleStageFields.length} filled
               </span>
             </div>
             <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              {firstStageFields.map(f => {
+              {visibleStageFields.map(f => {
                 const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
                 return (
                   <div key={f.id} className={isWide ? 'col-span-2' : ''}>
