@@ -88,6 +88,10 @@ const STAGE_STYLES = {
 // Maps the hardcoded pipeline keys to pipelineStore IDs for stage config lookup
 const PIPELINE_STORE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
 
+// URL slug ↔ pipeline key
+const PIPELINE_SLUG      = { B2C: 'residential', B2B: 'corporate', Custom: 'custom' }
+const PIPELINE_FROM_SLUG = { residential: 'B2C', corporate: 'B2B', custom: 'Custom' }
+
 function getStageConfig(pipelineKey, stageName, plStore) {
   const pid = PIPELINE_STORE_MAP[pipelineKey]
   if (!pid) return null
@@ -1428,7 +1432,7 @@ export default function Sales() {
   const [leads, setLeads]               = useState(getLeads)
   const [plStore, setPlStore]           = useState(getPipelines)
   const [searchParams, setSearchParams] = useSearchParams()
-  const activePipeline = searchParams.get('pipeline') ?? 'B2C'
+  const activePipeline = PIPELINE_FROM_SLUG[searchParams.get('pipeline')] ?? 'B2C'
   const viewMode       = searchParams.get('view') === 'kanban' ? 'kanban' : 'table'
   const [draggingId, setDraggingId]     = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
@@ -1791,7 +1795,7 @@ export default function Sales() {
                   })).map(opt => (
                     <button
                       key={opt.key}
-                      onClick={() => { setSearchParams(p => { const n = new URLSearchParams(p); n.set('pipeline', opt.key); return n }); setSearch(''); setPipelineDropdownOpen(false) }}
+                      onClick={() => { setSearchParams(p => { const n = new URLSearchParams(p); n.set('pipeline', PIPELINE_SLUG[opt.key] ?? opt.key); return n }); setSearch(''); setPipelineDropdownOpen(false) }}
                       className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors ${
                         activePipeline === opt.key
                           ? 'bg-purple-50 text-purple-700'
