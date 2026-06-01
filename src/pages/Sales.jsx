@@ -54,6 +54,14 @@ const PIPELINES = {
     tabCount:  'bg-white/25 text-white',
     tabIdle:   'text-gray-600 hover:text-brand-orange',
   },
+  Enterprise: {
+    label: 'Enterprise',
+    labelFull: 'Enterprise Pipeline',
+    stages: ['New Inquiry Filed', 'Discussion', 'Follow-up', 'Proposal', 'Won', 'Lost'],
+    tabActive: 'bg-sky-600 text-white',
+    tabCount:  'bg-white/25 text-white',
+    tabIdle:   'text-gray-600 hover:text-sky-600',
+  },
 }
 
 // Visual style for every stage name used across all pipelines
@@ -83,14 +91,18 @@ const STAGE_STYLES = {
   'Testing':               { colorBar: 'bg-cyan-400',    chip: 'bg-cyan-100 text-cyan-600',      colBg: 'bg-cyan-50/40',    border: 'border-cyan-100'    },
   // Custom specific
   'Quotation':             { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
+  // Enterprise specific
+  'New Inquiry Filed':     { colorBar: 'bg-blue-600',    chip: 'bg-blue-100 text-blue-800',      colBg: 'bg-blue-50/60',    border: 'border-blue-200'    },
+  'Discussion':            { colorBar: 'bg-purple-500',  chip: 'bg-purple-100 text-purple-700',  colBg: 'bg-purple-50/60',  border: 'border-purple-200'  },
+  'Proposal':              { colorBar: 'bg-teal-500',    chip: 'bg-teal-100 text-teal-700',      colBg: 'bg-teal-50/60',    border: 'border-teal-200'    },
 }
 
 // Maps the hardcoded pipeline keys to pipelineStore IDs for stage config lookup
-const PIPELINE_STORE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
+const PIPELINE_STORE_MAP = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
 
 // URL slug ↔ pipeline key
-const PIPELINE_SLUG      = { B2C: 'residential', B2B: 'corporate', Custom: 'custom' }
-const PIPELINE_FROM_SLUG = { residential: 'B2C', corporate: 'B2B', custom: 'Custom' }
+const PIPELINE_SLUG      = { B2C: 'residential', B2B: 'corporate', Custom: 'custom', Enterprise: 'enterprise' }
+const PIPELINE_FROM_SLUG = { residential: 'B2C', corporate: 'B2B', custom: 'Custom', enterprise: 'Enterprise' }
 
 function getStageConfig(pipelineKey, stageName, plStore) {
   const pid = PIPELINE_STORE_MAP[pipelineKey]
@@ -597,8 +609,8 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-gray-900 truncate">{lead.name}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{lead.area}</p>
+          <p className="font-semibold text-sm text-gray-900 truncate">{lead.companyName || lead.name}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{lead.companyName ? lead.name : lead.area}</p>
         </div>
         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0 ${lead.assignedColor}`}>
           {lead.assignedInitials}

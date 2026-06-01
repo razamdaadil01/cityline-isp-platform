@@ -30,6 +30,19 @@ const INIT_PIPELINES = [
       { id: 'b8',  name: 'Lost',                 color: 'bg-red-500',     required: false, type: 'Standard',           active: true, statusType: 'Lost', followUpAllowed: false },
     ],
   },
+  {
+    id: 'PL-003', name: 'Enterprise', activeLeads: 4,
+    description: 'Pipeline for enterprise and large-scale customers',
+    isDefault: true, active: true,
+    stages: [
+      { id: 'e1', name: 'New Inquiry Filed', color: 'bg-blue-600',    required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
+      { id: 'e2', name: 'Discussion',        color: 'bg-purple-500',  required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
+      { id: 'e3', name: 'Follow-up',         color: 'bg-amber-500',   required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
+      { id: 'e4', name: 'Proposal',          color: 'bg-teal-500',    required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
+      { id: 'e5', name: 'Won',               color: 'bg-emerald-500', required: false, type: 'Standard', active: true, statusType: 'Won',  followUpAllowed: false },
+      { id: 'e6', name: 'Lost',              color: 'bg-red-500',     required: false, type: 'Standard', active: true, statusType: 'Lost', followUpAllowed: false },
+    ],
+  },
 ]
 
 let _pipelines = JSON.parse(JSON.stringify(INIT_PIPELINES))

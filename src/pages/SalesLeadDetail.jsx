@@ -20,9 +20,10 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
-  B2C: { label: 'Residential', labelFull: 'Residential', color: '#0A8DCD', stages: ['New Inquiry','Follow-up','Feasibility','Installation Visit','Won','Lost'] },
-  B2B: { label: 'Corporate',   labelFull: 'Corporate',   color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
-  Custom: { label: 'Custom',   labelFull: 'Custom Pipeline', color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
+  B2C:        { label: 'Residential', labelFull: 'Residential',       color: '#0A8DCD', stages: ['New Inquiry','Follow-up','Feasibility','Installation Visit','Won','Lost'] },
+  B2B:        { label: 'Corporate',   labelFull: 'Corporate',         color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
+  Custom:     { label: 'Custom',      labelFull: 'Custom Pipeline',   color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
+  Enterprise: { label: 'Enterprise',  labelFull: 'Enterprise Pipeline', color: '#0284C7', stages: ['New Inquiry Filed','Discussion','Follow-up','Proposal','Won','Lost'] },
 }
 
 const STAGE_STYLES = {
@@ -43,6 +44,10 @@ const STAGE_STYLES = {
   'Commercial Proposal':   { chip: 'bg-orange-100 text-orange-600',  dot: 'bg-orange-400'  },
   'Legal/Agreement':       { chip: 'bg-slate-100 text-slate-700',    dot: 'bg-slate-500'   },
   'Quotation':             { chip: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'   },
+  // Enterprise specific
+  'New Inquiry Filed':     { chip: 'bg-blue-100 text-blue-800',      dot: 'bg-blue-600'    },
+  'Discussion':            { chip: 'bg-purple-100 text-purple-700',  dot: 'bg-purple-500'  },
+  'Proposal':              { chip: 'bg-teal-100 text-teal-700',      dot: 'bg-teal-500'    },
 }
 
 const STAFF = [
@@ -55,7 +60,7 @@ const STAFF = [
 
 const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 
-const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
+const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
 
 function findStageId(pipelines, pipelineKey, stageName) {
   const pipeline = pipelines.find(p => p.id === (PIPELINE_MAP[pipelineKey] ?? ''))
@@ -1005,7 +1010,7 @@ export default function SalesLeadDetail() {
 
   const lead = leads.find(l => l.id === id)
 
-  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom', Enterprise: 'Enterprise' }
 
   // Installation visit data from stage history
   const installVisitEntry = lead?.stageHistory?.find(sh => sh.stage === 'Installation Visit')
@@ -1389,6 +1394,26 @@ export default function SalesLeadDetail() {
                   <InfoRow label="Alternate Number" value={lead.alternateMobile} />
                   <InfoRow label="Email Address"    value={lead.email} />
                 </Card>
+
+                {lead.pipeline === 'Enterprise' && (
+                  <Card>
+                    <CardHeader title="Company Information" />
+                    <InfoRow label="Company Name"    value={lead.companyName} />
+                    <InfoRow label="Contact Person"  value={lead.contactPerson} />
+                    <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-xs text-gray-500 shrink-0 w-36">GST Registered</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${lead.gstRegistered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {lead.gstRegistered ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    {lead.gstRegistered && (
+                      <>
+                        <InfoRow label="GST Number"      value={lead.gstNumber} highlight />
+                        <InfoRow label="Company Address" value={lead.companyAddress} />
+                      </>
+                    )}
+                  </Card>
+                )}
 
                 <Card>
                   <CardHeader title="Address Details" />
