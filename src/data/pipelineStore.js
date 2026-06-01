@@ -15,22 +15,6 @@ const INIT_PIPELINES = [
     ],
   },
   {
-    id: 'PL-002', name: 'Corporate', activeLeads: 5,
-    description: 'Standard pipeline for business customers',
-    isDefault: true, active: true,
-    stages: [
-      { id: 'b1',  name: 'New Inquiry',          color: 'bg-blue-500',    required: false, type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b1b', name: 'Meeting Scheduled',    color: 'bg-sky-500',     required: false, type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b2',  name: 'Requirement Analysis', color: 'bg-indigo-500',  required: true,  type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b3',  name: 'Technical Feasibility',color: 'bg-teal-500',    required: true,  type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b4',  name: 'Commercial Proposal',  color: 'bg-amber-500',   required: true,  type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b4b', name: 'Negotiation',          color: 'bg-orange-500',  required: false, type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b5',  name: 'Legal/Agreement',      color: 'bg-slate-500',   required: true,  type: 'Standard',           active: true, statusType: 'Open', followUpAllowed: true  },
-      { id: 'b7',  name: 'Won',                  color: 'bg-emerald-500', required: false, type: 'Standard',           active: true, statusType: 'Won',  followUpAllowed: false },
-      { id: 'b8',  name: 'Lost',                 color: 'bg-red-500',     required: false, type: 'Standard',           active: true, statusType: 'Lost', followUpAllowed: false },
-    ],
-  },
-  {
     id: 'PL-003', name: 'Enterprise', activeLeads: 4,
     description: 'Pipeline for enterprise and large-scale customers',
     isDefault: true, active: true,

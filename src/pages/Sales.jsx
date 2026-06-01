@@ -33,19 +33,6 @@ const PIPELINES = {
     tabCount:  'bg-white/25 text-white',
     tabIdle:   'text-gray-600 hover:text-brand-blue',
   },
-  B2B: {
-    label: 'Corporate',
-    labelFull: 'Corporate',
-    stages: [
-      'New Inquiry', 'Meeting Scheduled', 'Requirement Analysis',
-      'Technical Feasibility', 'Commercial Proposal', 'Negotiation',
-      'Legal/Agreement', 'Won', 'Lost',
-    ],
-    requiredStages: ['Technical Feasibility', 'Requirement Analysis', 'Commercial Proposal', 'Legal/Agreement'],
-    tabActive: 'bg-navy text-white',
-    tabCount:  'bg-white/25 text-white',
-    tabIdle:   'text-gray-600 hover:text-navy',
-  },
   Custom: {
     label: 'Custom',
     labelFull: 'Custom Pipeline',
@@ -76,12 +63,6 @@ const STAGE_STYLES = {
   'Negotiation':           { colorBar: 'bg-pink-500',    chip: 'bg-pink-100 text-pink-700',      colBg: 'bg-pink-50/60',    border: 'border-pink-200'    },
   'Won':                   { colorBar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700',colBg: 'bg-emerald-50/60', border: 'border-emerald-200' },
   'Lost':                  { colorBar: 'bg-red-400',     chip: 'bg-red-100 text-red-600',        colBg: 'bg-red-50/40',     border: 'border-red-200'     },
-  // B2B specific
-  'Meeting Scheduled':     { colorBar: 'bg-sky-500',     chip: 'bg-sky-100 text-sky-700',        colBg: 'bg-sky-50/60',     border: 'border-sky-200'     },
-  'Requirement Analysis':  { colorBar: 'bg-indigo-500',  chip: 'bg-indigo-100 text-indigo-700',  colBg: 'bg-indigo-50/60',  border: 'border-indigo-200'  },
-  'Technical Feasibility': { colorBar: 'bg-teal-500',    chip: 'bg-teal-100 text-teal-700',      colBg: 'bg-teal-50/60',    border: 'border-teal-200'    },
-  'Commercial Proposal':   { colorBar: 'bg-orange-400',  chip: 'bg-orange-100 text-orange-600',  colBg: 'bg-orange-50/40',  border: 'border-orange-100'  },
-  'Legal/Agreement':       { colorBar: 'bg-slate-500',   chip: 'bg-slate-100 text-slate-700',    colBg: 'bg-slate-50/60',   border: 'border-slate-200'   },
   // ILL specific
   'Inquiry':               { colorBar: 'bg-blue-400',    chip: 'bg-blue-100 text-blue-600',      colBg: 'bg-blue-50/40',    border: 'border-blue-100'    },
   'Feasibility Report':    { colorBar: 'bg-teal-400',    chip: 'bg-teal-100 text-teal-600',      colBg: 'bg-teal-50/40',    border: 'border-teal-100'    },
@@ -98,11 +79,11 @@ const STAGE_STYLES = {
 }
 
 // Maps the hardcoded pipeline keys to pipelineStore IDs for stage config lookup
-const PIPELINE_STORE_MAP = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
+const PIPELINE_STORE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
 
 // URL slug ↔ pipeline key
-const PIPELINE_SLUG      = { B2C: 'residential', B2B: 'corporate', Custom: 'custom', Enterprise: 'enterprise' }
-const PIPELINE_FROM_SLUG = { residential: 'B2C', corporate: 'B2B', custom: 'Custom', enterprise: 'Enterprise' }
+const PIPELINE_SLUG      = { B2C: 'residential', Custom: 'custom', Enterprise: 'enterprise' }
+const PIPELINE_FROM_SLUG = { residential: 'B2C', custom: 'Custom', enterprise: 'Enterprise' }
 
 function getStageConfig(pipelineKey, stageName, plStore) {
   const pid = PIPELINE_STORE_MAP[pipelineKey]
@@ -166,10 +147,6 @@ const INIT_LEADS = [
   { id: 'LD-210', pipeline: 'B2C',    name: 'Rekha Menon',     phone: '9871234560', email: '',                 area: 'HSR Layout',      source: 'Referral',     stage: 'Follow-up',           plan: '500 Mbps Ultra',  assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'WhatsApp sent',        followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
   { id: 'LD-212', pipeline: 'B2C',    name: 'Pooja Nair',      phone: '9432109876', email: '',                 area: 'Electronic City', source: 'Social Media', stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 5,  lastActivity: 'Missed call returned', followUp: '2026-05-07', priority: 'medium', ekycStatus: null,       hwAssigned: null },
   { id: 'LD-213', pipeline: 'B2C',    name: 'Mohan Das',       phone: '9345678901', email: 'mohan@email.com',  area: 'BTM Layout',      source: 'Walk-in',      stage: 'New Inquiry',         plan: '50 Mbps Starter', assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Walked in today',      followUp: '2026-05-09', priority: 'medium', ekycStatus: null,       hwAssigned: null },
-  // B2B — 3 leads
-  { id: 'LD-204', pipeline: 'B2B',    name: 'Meena Iyer',      phone: '9123887766', email: 'meena@email.com',  area: 'HSR Layout',      source: 'Social Media', stage: 'Commercial Proposal', plan: '500 Mbps Ultra',  assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 3,  lastActivity: 'Proposal reviewed',    followUp: '2026-05-07', priority: 'high',   ekycStatus: null,       hwAssigned: null },
-  { id: 'LD-207', pipeline: 'B2B',    name: 'Arun Pillai',     phone: '9087654321', email: '',                 area: 'Marathahalli',    source: 'Website',      stage: 'Hardware Assignment', plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 1,  lastActivity: 'HW pending assignment',followUp: '',           priority: 'medium', ekycStatus: 'Completed', hwAssigned: null },
-  { id: 'LD-214', pipeline: 'B2B',    name: 'Divya Krishnan',  phone: '9876001234', email: 'divya@email.com',  area: 'Koramangala',     source: 'Referral',     stage: 'Meeting Scheduled',  plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 1,  lastActivity: 'Meeting confirmed',    followUp: '2026-05-08', priority: 'high',   ekycStatus: null,       hwAssigned: null },
   // Custom — 1 lead
   { id: 'LD-209', pipeline: 'Custom', name: 'Vinod Kumar',     phone: '9988776655', email: 'vinod@email.com',  area: 'Indiranagar',     source: 'Cold Call',    stage: 'Quotation',           plan: '200 Mbps Pro',    assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Quotation sent',       followUp: '2026-05-08', priority: 'low',    ekycStatus: null,       hwAssigned: null },
 ]
@@ -778,9 +755,9 @@ function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModu
   }
 
   const PIPELINE_TAB_STYLE = {
-    B2C:    { active: 'bg-brand-blue text-white',   idle: 'text-gray-600 hover:bg-gray-100' },
-    B2B:    { active: 'bg-navy text-white',         idle: 'text-gray-600 hover:bg-gray-100' },
-    Custom: { active: 'bg-brand-orange text-white', idle: 'text-gray-600 hover:bg-gray-100' },
+    B2C:        { active: 'bg-brand-blue text-white',   idle: 'text-gray-600 hover:bg-gray-100' },
+    Custom:     { active: 'bg-brand-orange text-white', idle: 'text-gray-600 hover:bg-gray-100' },
+    Enterprise: { active: 'bg-sky-600 text-white',      idle: 'text-gray-600 hover:bg-gray-100' },
   }
 
   return (
@@ -1695,7 +1672,7 @@ export default function Sales() {
   ].filter(Boolean).length
 
   function buildExportRows(rows) {
-    const PIPELINE_LABEL_MAP = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+    const PIPELINE_LABEL_MAP = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
     return rows.map(l => ({
       'Lead ID':       l.id,
       'Lead Name':     l.name,
