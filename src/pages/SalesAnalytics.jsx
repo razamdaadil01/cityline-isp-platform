@@ -72,10 +72,10 @@ const FOLLOWUP_RATE = [
 ]
 
 const PIPELINE_DIST = [
-  { name: 'B2C',    value: 52, fill: BLUE   },
-  { name: 'B2B',    value: 22, fill: NAVY   },
-  { name: 'ILL',    value: 13, fill: '#7c3aed' },
-  { name: 'Custom', value: 10, fill: ORANGE },
+  { name: 'B2C',        value: 52, fill: BLUE       },
+  { name: 'Enterprise', value: 22, fill: '#0ea5e9'  },
+  { name: 'ILL',        value: 13, fill: '#7c3aed'  },
+  { name: 'Custom',     value: 10, fill: ORANGE     },
 ]
 
 const MY_STAGES = [

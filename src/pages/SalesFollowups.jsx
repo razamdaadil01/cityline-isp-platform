@@ -608,7 +608,7 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
                       {/* Pipeline */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {fu.pipeline ? (
-                          <Badge variant={fu.pipeline === 'Corporate' ? 'navy' : 'blue'} size="sm">
+                          <Badge variant="blue" size="sm">
                             {fu.pipeline}
                           </Badge>
                         ) : (
@@ -1222,7 +1222,7 @@ export default function SalesFollowups() {
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
                   <option value="">All Pipelines</option>
                   <option value="Residential">Residential</option>
-                  <option value="Corporate">Corporate</option>
+                  <option value="Enterprise">Enterprise</option>
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>

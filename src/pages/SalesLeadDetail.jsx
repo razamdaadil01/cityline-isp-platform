@@ -20,9 +20,8 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
-  B2C:        { label: 'Residential', labelFull: 'Residential',       color: '#0A8DCD', stages: ['New Inquiry','Follow-up','Feasibility','Installation Visit','Won','Lost'] },
-  B2B:        { label: 'Corporate',   labelFull: 'Corporate',         color: '#0F2744', stages: ['New Inquiry','Meeting Scheduled','Requirement Analysis','Technical Feasibility','Commercial Proposal','Negotiation','Legal/Agreement','Won','Lost'], requiredStages: ['Technical Feasibility','Requirement Analysis','Commercial Proposal','Legal/Agreement'] },
-  Custom:     { label: 'Custom',      labelFull: 'Custom Pipeline',   color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
+  B2C:        { label: 'Residential', labelFull: 'Residential',         color: '#0A8DCD', stages: ['New Inquiry','Follow-up','Feasibility','Installation Visit','Won','Lost'] },
+  Custom:     { label: 'Custom',      labelFull: 'Custom Pipeline',     color: '#E8541A', stages: ['New Inquiry','Contacted','Quotation','Won','Lost'] },
   Enterprise: { label: 'Enterprise',  labelFull: 'Enterprise Pipeline', color: '#0284C7', stages: ['New Inquiry Filed','Discussion','Follow-up','Proposal','Won','Lost'] },
 }
 
@@ -60,7 +59,7 @@ const STAFF = [
 
 const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 
-const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
+const PIPELINE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
 
 function findStageId(pipelines, pipelineKey, stageName) {
   const pipeline = pipelines.find(p => p.id === (PIPELINE_MAP[pipelineKey] ?? ''))
@@ -1011,7 +1010,7 @@ export default function SalesLeadDetail() {
 
   const lead = leads.find(l => l.id === id)
 
-  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom', Enterprise: 'Enterprise' }
+  const PIPELINE_LABEL = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
 
   // Installation visit data from stage history
   const installVisitEntry = lead?.stageHistory?.find(sh => sh.stage === 'Installation Visit')

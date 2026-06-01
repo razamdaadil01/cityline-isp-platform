@@ -22,10 +22,6 @@ const PIPELINES = {
     label: 'Residential', labelFull: 'Residential',
     stages: ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost'],
   },
-  B2B: {
-    label: 'Corporate', labelFull: 'Corporate',
-    stages: ['New Inquiry', 'Meeting Scheduled', 'Requirement Analysis', 'Technical Feasibility', 'Commercial Proposal', 'Negotiation', 'Legal/Agreement', 'Won', 'Lost'],
-  },
   Custom: {
     label: 'Custom', labelFull: 'Custom Pipeline',
     stages: ['New Inquiry', 'Contacted', 'Quotation', 'Won', 'Lost'],
@@ -75,12 +71,12 @@ const INIT_FORM = {
   companyName: '', gstRegistered: false, gstNumber: '', companyAddress: '',
 }
 
-const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
+const PIPELINE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
 
 // ── Duplicate Warning Banner ──────────────────────────────────────────────────
 
 function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
-  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom', Enterprise: 'Enterprise' }
+  const PIPELINE_LABEL = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
   return (
     <div className="shrink-0 flex items-center gap-4 px-6 py-3 bg-amber-50 border-b border-amber-300">
       <AlertTriangle size={18} className="text-amber-500 shrink-0" />
@@ -222,7 +218,7 @@ export default function SalesNewLead() {
     }
   }
 
-  const PIPELINE_STORE_IDS = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
+  const PIPELINE_STORE_IDS = { B2C: 'PL-001', Enterprise: 'PL-003' }
   const activePipelineKeys = Object.keys(PIPELINES).filter(key => {
     const pid = PIPELINE_STORE_IDS[key]
     if (!pid) return true
@@ -326,7 +322,7 @@ export default function SalesNewLead() {
         leadId,
         leadName: form.leadName || form.name,
         customer: form.name,
-        pipeline: { B2C: 'Residential', B2B: 'Corporate', Enterprise: 'Enterprise' }[form.pipeline] ?? 'Custom',
+        pipeline: { B2C: 'Residential', Enterprise: 'Enterprise' }[form.pipeline] ?? 'Custom',
         phone: form.phone,
         date: form.followUp,
         time: form.followUpTime,
