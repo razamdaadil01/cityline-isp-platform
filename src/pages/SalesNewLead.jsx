@@ -20,7 +20,7 @@ import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldI
 const PIPELINES = {
   B2C: {
     label: 'Residential', labelFull: 'Residential',
-    stages: ['New Inquiry', 'Contacted', 'Follow-up', 'Site Survey', 'Quotation Sent', 'Negotiation', 'Won', 'Lost'],
+    stages: ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost'],
   },
   B2B: {
     label: 'Corporate', labelFull: 'Corporate',

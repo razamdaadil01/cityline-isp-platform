@@ -28,10 +28,7 @@ const PIPELINES = {
   B2C: {
     label: 'Residential',
     labelFull: 'Residential',
-    stages: [
-      'New Inquiry', 'Contacted', 'Follow-up', 'Site Survey',
-      'Quotation Sent', 'Negotiation', 'Won', 'Lost',
-    ],
+    stages: ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost'],
     tabActive: 'bg-brand-blue text-white',
     tabCount:  'bg-white/25 text-white',
     tabIdle:   'text-gray-600 hover:text-brand-blue',
@@ -66,6 +63,8 @@ const STAGE_STYLES = {
   'Follow-up':             { colorBar: 'bg-purple-500',  chip: 'bg-purple-100 text-purple-700',  colBg: 'bg-purple-50/60',  border: 'border-purple-200'  },
   'Site Survey':           { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
   'Quotation Sent':        { colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',  colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
+  'Feasibility':           { colorBar: 'bg-amber-500',   chip: 'bg-amber-100 text-amber-700',    colBg: 'bg-amber-50/60',   border: 'border-amber-200'   },
+  'Installation Visit':    { colorBar: 'bg-orange-500',  chip: 'bg-orange-100 text-orange-700',  colBg: 'bg-orange-50/60',  border: 'border-orange-200'  },
   'Negotiation':           { colorBar: 'bg-pink-500',    chip: 'bg-pink-100 text-pink-700',      colBg: 'bg-pink-50/60',    border: 'border-pink-200'    },
   'Won':                   { colorBar: 'bg-emerald-500', chip: 'bg-emerald-100 text-emerald-700',colBg: 'bg-emerald-50/60', border: 'border-emerald-200' },
   'Lost':                  { colorBar: 'bg-red-400',     chip: 'bg-red-100 text-red-600',        colBg: 'bg-red-50/40',     border: 'border-red-200'     },
@@ -143,12 +142,12 @@ const SOURCES = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
 const INIT_LEADS = [
   // B2C — 9 leads
   { id: 'LD-201', pipeline: 'B2C',    name: 'Ramesh Nair',     phone: '9876001122', email: '',                 area: 'Koramangala',     source: 'Website',      stage: 'New Inquiry',         plan: '100 Mbps Home',   assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 2,  lastActivity: 'Form submitted',       followUp: '2026-05-08', priority: 'high',   ekycStatus: null,       hwAssigned: null },
-  { id: 'LD-202', pipeline: 'B2C',    name: 'Sunita Bose',     phone: '9765443322', email: 'sunita@email.com', area: 'Indiranagar',     source: 'Referral',     stage: 'Contacted',           plan: '200 Mbps Pro',    assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 1,  lastActivity: 'Called – Interested',  followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
-  { id: 'LD-203', pipeline: 'B2C',    name: 'Harish Kulkarni', phone: '9988001133', email: '',                 area: 'Whitefield',      source: 'Walk-in',      stage: 'Site Survey',         plan: '50 Mbps Starter', assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 4,  lastActivity: 'Survey scheduled',     followUp: '2026-05-10', priority: 'medium', ekycStatus: 'Sent',     hwAssigned: null },
+  { id: 'LD-202', pipeline: 'B2C',    name: 'Sunita Bose',     phone: '9765443322', email: 'sunita@email.com', area: 'Indiranagar',     source: 'Referral',     stage: 'Follow-up',           plan: '200 Mbps Pro',    assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 1,  lastActivity: 'Called – Interested',  followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-203', pipeline: 'B2C',    name: 'Harish Kulkarni', phone: '9988001133', email: '',                 area: 'Whitefield',      source: 'Walk-in',      stage: 'Feasibility',         plan: '50 Mbps Starter', assigned: 'Arjun Kumar',  assignedInitials: 'AK', assignedColor: 'bg-brand-blue',   daysInStage: 4,  lastActivity: 'Survey scheduled',     followUp: '2026-05-10', priority: 'medium', ekycStatus: 'Sent',     hwAssigned: null },
   { id: 'LD-205', pipeline: 'B2C',    name: 'Deepak Joshi',    phone: '9011556677', email: '',                 area: 'Electronic City', source: 'Cold Call',    stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 6,  lastActivity: 'No answer – retry',    followUp: '2026-05-07', priority: 'medium', ekycStatus: null,       hwAssigned: null },
-  { id: 'LD-206', pipeline: 'B2C',    name: 'Kavita Sharma',   phone: '9876543210', email: 'kavita@email.com', area: 'BTM Layout',      source: 'Referral',     stage: 'Quotation Sent',      plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'Quote emailed',        followUp: '2026-05-11', priority: 'medium', ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-206', pipeline: 'B2C',    name: 'Kavita Sharma',   phone: '9876543210', email: 'kavita@email.com', area: 'BTM Layout',      source: 'Referral',     stage: 'Follow-up',           plan: '200 Mbps Pro',    assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'Quote emailed',        followUp: '2026-05-11', priority: 'medium', ekycStatus: null,       hwAssigned: null },
   { id: 'LD-208', pipeline: 'B2C',    name: 'Lakshmi Devi',    phone: '9123456780', email: '',                 area: 'Koramangala',     source: 'Walk-in',      stage: 'Lost',                plan: '50 Mbps Starter', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 12, lastActivity: 'Not interested',       followUp: '',           priority: 'low',    ekycStatus: null,       hwAssigned: null },
-  { id: 'LD-210', pipeline: 'B2C',    name: 'Rekha Menon',     phone: '9871234560', email: '',                 area: 'HSR Layout',      source: 'Referral',     stage: 'Contacted',           plan: '500 Mbps Ultra',  assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'WhatsApp sent',        followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
+  { id: 'LD-210', pipeline: 'B2C',    name: 'Rekha Menon',     phone: '9871234560', email: '',                 area: 'HSR Layout',      source: 'Referral',     stage: 'Follow-up',           plan: '500 Mbps Ultra',  assigned: 'Anita Sharma', assignedInitials: 'AS', assignedColor: 'bg-brand-orange', daysInStage: 2,  lastActivity: 'WhatsApp sent',        followUp: '2026-05-09', priority: 'high',   ekycStatus: null,       hwAssigned: null },
   { id: 'LD-212', pipeline: 'B2C',    name: 'Pooja Nair',      phone: '9432109876', email: '',                 area: 'Electronic City', source: 'Social Media', stage: 'Follow-up',           plan: '100 Mbps Home',   assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500',   daysInStage: 5,  lastActivity: 'Missed call returned', followUp: '2026-05-07', priority: 'medium', ekycStatus: null,       hwAssigned: null },
   { id: 'LD-213', pipeline: 'B2C',    name: 'Mohan Das',       phone: '9345678901', email: 'mohan@email.com',  area: 'BTM Layout',      source: 'Walk-in',      stage: 'New Inquiry',         plan: '50 Mbps Starter', assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Walked in today',      followUp: '2026-05-09', priority: 'medium', ekycStatus: null,       hwAssigned: null },
   // B2B — 3 leads
@@ -1133,18 +1132,24 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 
 // ── Move Stage Modal ──────────────────────────────────────────────────────────
 
+const IV_FORM_INIT = { date: '', time: '', engineerId: '', hwRequired: false, hwRows: [{ name: '', qty: '' }], wireRequired: false, wireRows: [{ name: '', qty: '' }], notes: '' }
+
 function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initialStage = '' }) {
   const [targetStage, setTargetStage]         = useState(initialStage)
   const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
+  const [ivForm, setIvForm]                   = useState(IV_FORM_INIT)
+  const [ivOptOpen, setIvOptOpen]             = useState(false)
 
   useEffect(() => {
     setTargetStage(initialStage ?? '')
     setFieldVals({})
     setFollowupEnabled(false)
     setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
+    setIvForm(IV_FORM_INIT)
+    setIvOptOpen(false)
   }, [initialStage])
 
   const targetSC       = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
@@ -1154,6 +1159,8 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
   const filledCount    = stageFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
   const followUpAllowed = targetSC?.followUpAllowed !== false
+  const isIV           = targetStage === 'Installation Visit'
+  const ivValid        = !isIV || (ivForm.date && ivForm.time)
 
   function setField(id, val) { setFieldVals(p => ({ ...p, [id]: val })) }
 
@@ -1162,11 +1169,11 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   }
 
   function handleMove() {
-    if (!targetStage || !requiredFilled) return
+    if (!targetStage || !requiredFilled || !ivValid) return
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
-      onMove(targetStage, fieldVals, followupEnabled && followUpAllowed ? fuForm : null)
+      onMove(targetStage, { ...fieldVals, ...(isIV ? { _installationVisit: ivForm } : {}) }, followupEnabled && followUpAllowed ? fuForm : null)
     }, 500)
   }
 
@@ -1178,7 +1185,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           <Button
             icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
             onClick={handleMove}
-            disabled={!targetStage || loading || !requiredFilled}
+            disabled={!targetStage || loading || !requiredFilled || !ivValid}
           >
             {loading ? 'Moving…' : 'Move Stage'}
           </Button>
@@ -1195,7 +1202,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
             </div>
           </FormField>
           <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setIvForm(IV_FORM_INIT); setIvOptOpen(false) }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => <option key={s}>{s}</option>)}
             </Select>
@@ -1234,10 +1241,112 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
         )}
 
         {/* No fields notice */}
-        {targetStage && stageFields.length === 0 && (
+        {targetStage && stageFields.length === 0 && !isIV && (
           <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
             <CheckCircle size={14} className="text-emerald-500 shrink-0" />
             No additional fields required for this stage.
+          </div>
+        )}
+
+        {/* Installation Visit fields */}
+        {isIV && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
+              <CalendarDays size={13} /> Installation Details
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Installation Date" required>
+                <Input type="date" value={ivForm.date} onChange={e => setIvForm(p => ({ ...p, date: e.target.value }))} />
+              </FormField>
+              <FormField label="Installation Time" required>
+                <Input type="time" value={ivForm.time} onChange={e => setIvForm(p => ({ ...p, time: e.target.value }))} />
+              </FormField>
+            </div>
+            <button type="button" onClick={() => setIvOptOpen(p => !p)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-800 transition-colors">
+              <ChevronDown size={13} className={`transition-transform ${ivOptOpen ? 'rotate-180' : ''}`} />
+              {ivOptOpen ? 'Hide' : 'Show'} optional details
+            </button>
+            {ivOptOpen && (
+              <div className="space-y-4 pt-2 border-t border-orange-200">
+                <FormField label="Assign Engineer">
+                  <Select value={ivForm.engineerId} onChange={e => setIvForm(p => ({ ...p, engineerId: e.target.value }))}>
+                    <option value="">Select engineer…</option>
+                    {ENGINEERS.map(eng => <option key={eng.id} value={eng.id}>{eng.name} — {eng.dept}</option>)}
+                  </Select>
+                </FormField>
+
+                {/* Hardware Required */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Hardware Required</span>
+                    <button type="button" onClick={() => setIvForm(p => ({ ...p, hwRequired: !p.hwRequired }))}
+                      className={`w-9 h-5 rounded-full transition-colors relative ${ivForm.hwRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${ivForm.hwRequired ? 'left-4' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  {ivForm.hwRequired && (
+                    <div className="space-y-2">
+                      {ivForm.hwRows.map((row, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <Input className="flex-1" placeholder="Item name" value={row.name}
+                            onChange={e => setIvForm(p => ({ ...p, hwRows: p.hwRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r) }))} />
+                          <Input className="w-20" type="number" placeholder="Qty" min="1" value={row.qty}
+                            onChange={e => setIvForm(p => ({ ...p, hwRows: p.hwRows.map((r, j) => j === i ? { ...r, qty: e.target.value } : r) }))} />
+                          {ivForm.hwRows.length > 1 && (
+                            <button type="button" onClick={() => setIvForm(p => ({ ...p, hwRows: p.hwRows.filter((_, j) => j !== i) }))}
+                              className="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600 rounded transition-colors">
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setIvForm(p => ({ ...p, hwRows: [...p.hwRows, { name: '', qty: '' }] }))}
+                        className="text-xs font-semibold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1 mt-1">
+                        <Plus size={12} /> Add row
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Wire Required */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Wire Required</span>
+                    <button type="button" onClick={() => setIvForm(p => ({ ...p, wireRequired: !p.wireRequired }))}
+                      className={`w-9 h-5 rounded-full transition-colors relative ${ivForm.wireRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${ivForm.wireRequired ? 'left-4' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  {ivForm.wireRequired && (
+                    <div className="space-y-2">
+                      {ivForm.wireRows.map((row, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <Input className="flex-1" placeholder="Wire type" value={row.name}
+                            onChange={e => setIvForm(p => ({ ...p, wireRows: p.wireRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r) }))} />
+                          <Input className="w-20" type="number" placeholder="Qty" min="1" value={row.qty}
+                            onChange={e => setIvForm(p => ({ ...p, wireRows: p.wireRows.map((r, j) => j === i ? { ...r, qty: e.target.value } : r) }))} />
+                          {ivForm.wireRows.length > 1 && (
+                            <button type="button" onClick={() => setIvForm(p => ({ ...p, wireRows: p.wireRows.filter((_, j) => j !== i) }))}
+                              className="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600 rounded transition-colors">
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setIvForm(p => ({ ...p, wireRows: [...p.wireRows, { name: '', qty: '' }] }))}
+                        className="text-xs font-semibold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1 mt-1">
+                        <Plus size={12} /> Add row
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <FormField label="Notes">
+                  <Textarea value={ivForm.notes} onChange={e => setIvForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Installation notes…" />
+                </FormField>
+              </div>
+            )}
           </div>
         )}
 
@@ -2101,11 +2210,13 @@ export default function Sales() {
         const msLead = leads.find(l => l.id === moveStageLeadId)
         if (!msLead) return null
         const pl2 = PIPELINES[msLead.pipeline] ?? PIPELINES.B2C
-        // Filter out inactive stages and current stage
+        // Filter out inactive stages, current stage, and Feasibility if not required
         const availableStages = pl2.stages.filter(s => {
           if (s === msLead.stage) return false
           const sc = getStageConfig(msLead.pipeline, s, plStore)
-          return sc?.active !== false
+          if (sc?.active === false) return false
+          if (msLead.pipeline === 'B2C' && s === 'Feasibility' && !msLead.feasibilityRequired) return false
+          return true
         })
         return (
           <MoveStageModal
