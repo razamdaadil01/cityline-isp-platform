@@ -8,8 +8,8 @@ import {
 } from '../data/areaMappingStore'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 
-const PIPELINE_COLORS = { B2C: '#0A8DCD', B2B: '#0F2744', Custom: '#E8541A' }
-const PIPELINE_LABELS = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom Pipeline' }
+const PIPELINE_COLORS = { B2C: '#0A8DCD', Enterprise: '#0ea5e9', Custom: '#E8541A' }
+const PIPELINE_LABELS = { B2C: 'Residential', Enterprise: 'Enterprise', Custom: 'Custom Pipeline' }
 
 const STAGE_CHIP = {
   'New Inquiry':           'bg-blue-100 text-blue-700',

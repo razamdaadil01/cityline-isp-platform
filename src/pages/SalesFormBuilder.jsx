@@ -34,7 +34,6 @@ const FIELD_TYPE_ICON = {
 
 const DEFAULT_MODULES = [
   { key: 'B2C', name: 'Residential Lead Form', sub: 'Residential pipeline', color: '#0A8DCD', badge: 'bg-blue-100 text-blue-700' },
-  { key: 'B2B', name: 'Corporate Lead Form',   sub: 'Corporate pipeline',   color: '#0F2744', badge: 'bg-navy/10 text-navy'      },
 ]
 
 function buildModulesList(pipelines) {
@@ -54,7 +53,6 @@ function initFieldsByKey(pipelines) {
   const m = getFormModules()
   const result = {
     B2C: m.B2C?.fields ?? [],
-    B2B: m.B2B?.fields ?? [],
   }
   pipelines.filter(p => !p.isDefault).forEach(p => {
     result[p.id] = m[p.id]?.fields ?? []
@@ -274,7 +272,7 @@ function FieldRow({ field, index, total, onMove, onUpdate, onRemove, cascadeInfo
 
 function initIncludeFollowUpByKey(pipelines) {
   const m = getFormModules()
-  const keys = ['B2C', 'B2B', ...pipelines.filter(p => !p.isDefault).map(p => p.id)]
+  const keys = ['B2C', ...pipelines.filter(p => !p.isDefault).map(p => p.id)]
   const out = {}
   keys.forEach(k => { out[k] = m[k]?.includeFollowUp !== false })
   return out
@@ -297,7 +295,7 @@ export default function SalesFormBuilder() {
         if (!(key in next)) next[key] = m[key]?.fields ?? []
       })
       Object.keys(next).forEach(key => {
-        if (key !== 'B2C' && key !== 'B2B' && !customKeys.has(key)) {
+        if (key !== 'B2C' && !customKeys.has(key)) {
           delete next[key]
         }
       })
@@ -307,7 +305,7 @@ export default function SalesFormBuilder() {
 
   useEffect(() => {
     const validKeys = new Set([
-      'B2C', 'B2B',
+      'B2C',
       ...pipelines.filter(p => !p.isDefault).map(p => p.id),
     ])
     if (!validKeys.has(selectedKey)) setSelectedKey('B2C')

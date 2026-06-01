@@ -58,7 +58,7 @@ const FIELD_TYPE_ICON_MAP = {
 }
 
 // Reverse map for pipeline type key → lead pipeline field value
-const PIPELINE_LEAD_KEY_MAP = { 'PL-001': 'B2C', 'PL-002': 'B2B' }
+const PIPELINE_LEAD_KEY_MAP = { 'PL-001': 'B2C' }
 
 const INIT_PIPELINE_FORM = { name: '', description: '' }
 
@@ -716,7 +716,7 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
   const [newStageName, setNewStageName] = useState('')
   const [stageDeleteTarget, setStageDeleteTarget] = useState(null)
 
-  const showRequired = pipeline?.type === 'B2B' || pipeline?.type === 'ILL'
+  const showRequired = pipeline?.type === 'ILL'
 
   function moveStage(fromIdx, toIdx) {
     setStages(prev => {
@@ -1144,7 +1144,7 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages, onToggleActive
               )
             })}
           </div>
-          {(pipeline.type === 'B2B' || pipeline.type === 'ILL') && (
+          {pipeline.type === 'ILL' && (
             <p className="text-[10px] text-gray-400 mt-2">* Required stages cannot be skipped</p>
           )}
         </div>
