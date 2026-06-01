@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Edit3, TrendingUp, Bell, MessageSquare,
@@ -6,9 +6,10 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint,
+  Fingerprint, Search,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
+import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
@@ -940,12 +941,247 @@ function EKycModal({ isOpen, onClose, phone, onConfirm }) {
   )
 }
 
+// ── Package components ────────────────────────────────────────────────────────
+
+const APPROVAL_CHIP = {
+  'Not Sent': 'bg-gray-100 text-gray-500',
+  'Pending':  'bg-amber-100 text-amber-700',
+  'Approved': 'bg-emerald-100 text-emerald-700',
+  'Rejected': 'bg-red-100 text-red-600',
+}
+const APPROVAL_LABEL = {
+  'Not Sent': 'Not Sent',
+  'Pending':  'Pending ⏳',
+  'Approved': 'Approved ✅',
+  'Rejected': 'Rejected ❌',
+}
+
+function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onChange, onSave, onSendApproval }) {
+  const displayPrice = editPrice && customPriceVal !== ''
+    ? (parseFloat(customPriceVal) || plan.price)
+    : (pkg.customPrice ?? plan.price)
+  const status = pkg.approvalStatus
+  const canSendApproval = !editPrice || customPriceVal.trim() !== ''
+
+  return (
+    <div className="bg-white border border-surface-border rounded-xl shadow-card overflow-hidden">
+      {/* Header */}
+      <div className="p-4 pb-3 border-b border-surface-border">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <p className="text-sm font-semibold text-gray-900 leading-snug">{plan.name}</p>
+          <button type="button" onClick={onChange}
+            className="flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium shrink-0 transition-colors">
+            <Edit3 size={11} /> Change
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
+          <Badge variant="gray" size="sm">{plan.billingType}</Badge>
+          <Badge variant="gray" size="sm">{plan.server}</Badge>
+          {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
+          {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-4 space-y-2.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Speed</span>
+          <span className="font-medium text-gray-800">{plan.speed}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-gray-500">Validity</span>
+          <span className="font-medium text-gray-800">{plan.validity ? `${plan.validity} days` : 'One-time'}</span>
+        </div>
+        {plan.ottBundle && (
+          <div className="flex items-center gap-1.5 text-xs text-purple-700 font-medium bg-purple-50 rounded-lg px-2.5 py-1.5">
+            <span>📺</span> OTT Bundle Included
+          </div>
+        )}
+
+        {/* Price + custom price toggle */}
+        <div className="pt-1.5 border-t border-gray-100 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Price</span>
+            <span className="font-bold text-gray-900">
+              ₹{displayPrice.toLocaleString('en-IN')}
+              {pkg.customPrice && !editPrice && (
+                <span className="ml-1 text-[10px] text-amber-600 font-normal">(custom)</span>
+              )}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">Use Custom Price</span>
+            <button type="button" onClick={onToggleEditPrice}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${editPrice ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${editPrice ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          {editPrice && (
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+              <input type="number" min="0" value={customPriceVal}
+                onChange={e => onCustomPriceChange(e.target.value)}
+                placeholder={String(plan.price)}
+                className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+            </div>
+          )}
+        </div>
+
+        {/* Approval status */}
+        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+          <span className="text-xs text-gray-500">Approval Status</span>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${APPROVAL_CHIP[status] ?? 'bg-gray-100 text-gray-500'}`}>
+            {APPROVAL_LABEL[status] ?? status}
+          </span>
+        </div>
+
+        {/* Action */}
+        <div className="pt-0.5">
+          {editPrice ? (
+            <button type="button" disabled={!canSendApproval} onClick={onSendApproval}
+              className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">
+              Save & Send for Approval
+            </button>
+          ) : (
+            <button type="button" onClick={onSave}
+              className="w-full py-2 text-sm font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+              Save
+            </button>
+          )}
+        </div>
+
+        {/* Approval details */}
+        {status !== 'Not Sent' && (
+          <div className="pt-2 border-t border-gray-100 space-y-1.5">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Approval Details</p>
+            {pkg.requestedBy && (
+              <div className="flex items-center justify-between text-xs gap-3">
+                <span className="text-gray-500 shrink-0">Requested by</span>
+                <span className="font-medium text-gray-700 text-right">{pkg.requestedBy}{pkg.requestedAt ? ` · ${pkg.requestedAt}` : ''}</span>
+              </div>
+            )}
+            {pkg.approver && (
+              <div className="flex items-center justify-between text-xs gap-3">
+                <span className="text-gray-500 shrink-0">Approver</span>
+                <span className="font-medium text-gray-700">{pkg.approver}</span>
+              </div>
+            )}
+            {pkg.resolvedBy && (
+              <div className="flex items-center justify-between text-xs gap-3">
+                <span className="text-gray-500 shrink-0">{status === 'Approved' ? 'Approved by' : 'Rejected by'}</span>
+                <span className="font-medium text-gray-700 text-right">{pkg.resolvedBy}{pkg.resolvedAt ? ` · ${pkg.resolvedAt}` : ''}</span>
+              </div>
+            )}
+            {pkg.notes && (
+              <div className="flex items-start justify-between text-xs gap-3">
+                <span className="text-gray-500 shrink-0">Notes</span>
+                <span className="font-medium text-gray-700 text-right">{pkg.notes}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
+  const [search, setSearch] = useState('')
+  const [filterService, setFilterService] = useState('')
+  const [filterBilling, setFilterBilling] = useState('')
+
+  useEffect(() => {
+    if (isOpen) { setSearch(''); setFilterService(''); setFilterBilling('') }
+  }, [isOpen])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return MOCK_PLANS.filter(p => {
+      if (p.status !== 'active') return false
+      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.serviceType.toLowerCase().includes(q)
+      const matchService = !filterService || p.serviceType === filterService
+      const matchBilling = !filterBilling || p.billingType === filterBilling
+      return matchSearch && matchService && matchBilling
+    })
+  }, [search, filterService, filterBilling])
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={title ?? 'Select Package'} size="xl">
+      {/* Filters */}
+      <div className="space-y-3 mb-4">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input type="text" placeholder="Search plans..." value={search} onChange={e => setSearch(e.target.value)}
+            className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400" />
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <select value={filterService} onChange={e => setFilterService(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+            <option value="">All Service Types</option>
+            {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+          </select>
+          <select value={filterBilling} onChange={e => setFilterBilling(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-700">
+            <option value="">All Billing Types</option>
+            {BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
+          </select>
+          <span className="text-xs text-gray-400 ml-auto">{filtered.length} plan{filtered.length !== 1 ? 's' : ''}</span>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <Package size={24} className="mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-400">No plans found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-0.5">
+          {filtered.map(plan => (
+            <div key={plan.id} className="bg-white border border-surface-border rounded-xl p-4 hover:border-brand-blue/40 hover:shadow-sm transition-all flex flex-col">
+              <div className="mb-2">
+                <p className="text-sm font-semibold text-gray-900 mb-1.5 leading-snug">{plan.name}</p>
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
+                  {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
+                  {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
+                </div>
+              </div>
+              <div className="space-y-1 mb-3 text-xs flex-1">
+                <div className="flex justify-between"><span className="text-gray-400">Speed</span><span className="font-medium text-gray-700">{plan.speed}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Validity</span><span className="font-medium text-gray-700">{plan.validity ? `${plan.validity} days` : 'One-time'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Billing</span><span className="font-medium text-gray-700">{plan.billingType}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Server</span><span className="font-medium text-gray-700">{plan.server}</span></div>
+              </div>
+              {plan.ottBundle && (
+                <div className="flex items-center gap-1 text-xs text-purple-700 bg-purple-50 rounded px-2 py-1 mb-3">
+                  <span>📺</span> OTT Bundle
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100">
+                <p className="text-base font-bold text-gray-900">₹{plan.price.toLocaleString('en-IN')}</p>
+                <button type="button" onClick={() => onSelect(plan)}
+                  className="px-3 py-1.5 text-xs font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  Select
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ── Tab routing ───────────────────────────────────────────────────────────────
+
 const TAB_PATH_TO_KEY = {
   'overview':      'overview',
   'followups':     'followups',
   'comments':      'comments',
   'stage-history': 'stageHistory',
   'activity-log':  'activity',
+  'package':       'package',
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -982,6 +1218,14 @@ export default function SalesLeadDetail() {
   const [activationData, setActivationData]       = useState(null)
   const [activationModalOpen, setActivationModalOpen]   = useState(false)
   const [activationSuccessOpen, setActivationSuccessOpen] = useState(false)
+
+  // Package tab state
+  const [pkgModalOpen, setPkgModalOpen]     = useState(false)
+  const [pkgModalFor, setPkgModalFor]       = useState(null) // null | 'bandwidth' | 'other'
+  const [bwEditPrice, setBwEditPrice]       = useState(false)
+  const [bwCustomPrice, setBwCustomPrice]   = useState('')
+  const [otherEditPrice, setOtherEditPrice] = useState(false)
+  const [otherCustomPrice, setOtherCustomPrice] = useState('')
 
   // eKYC state
   const [ekycStatus, setEkycStatus]       = useState('not_started')
@@ -1206,12 +1450,43 @@ export default function SalesLeadDetail() {
 
   const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))
 
+  function openPkgModal(slot) {
+    setPkgModalFor(slot)
+    setPkgModalOpen(true)
+  }
+
+  function handleSelectPkg(plan) {
+    if (lead.pipeline !== 'Enterprise') {
+      saveLead({ ...lead, selectedPackage: { packageId: plan.id } })
+    } else {
+      const newPkg = { packageId: plan.id, customPrice: null, approvalStatus: 'Not Sent', requestedBy: null, requestedAt: null, approver: null, resolvedBy: null, resolvedAt: null, notes: '' }
+      saveLead({ ...lead, [pkgModalFor === 'bandwidth' ? 'bandwidthPackage' : 'otherPackage']: newPkg })
+    }
+    setPkgModalOpen(false)
+  }
+
+  function handleSaveEnterprisePkg(slot, sendForApproval) {
+    const pkgKey = slot === 'bandwidth' ? 'bandwidthPackage' : 'otherPackage'
+    const editOn  = slot === 'bandwidth' ? bwEditPrice : otherEditPrice
+    const cpStr   = slot === 'bandwidth' ? bwCustomPrice : otherCustomPrice
+    const today   = new Date().toISOString().split('T')[0]
+    const updated = {
+      ...lead[pkgKey],
+      customPrice: editOn && cpStr !== '' ? parseFloat(cpStr) || null : null,
+      ...(sendForApproval ? { approvalStatus: 'Pending', requestedBy: lead.assigned, requestedAt: today, approver: 'Regional Manager', resolvedBy: null, resolvedAt: null, notes: '' } : {}),
+    }
+    saveLead({ ...lead, [pkgKey]: updated })
+    if (slot === 'bandwidth') { setBwEditPrice(false); setBwCustomPrice('') }
+    else { setOtherEditPrice(false); setOtherCustomPrice('') }
+  }
+
   const TABS = [
     { key: 'overview',     path: 'overview',      label: 'Overview',      icon: User },
     { key: 'followups',    path: 'followups',     label: 'Follow-ups',    icon: Bell },
     { key: 'comments',     path: 'comments',      label: 'Comments',      icon: MessageSquare },
     { key: 'stageHistory', path: 'stage-history', label: 'Stage History', icon: TrendingUp },
     { key: 'activity',     path: 'activity-log',  label: 'Activity Log',  icon: Activity },
+    { key: 'package',      path: 'package',       label: 'Package',       icon: Package },
   ]
 
   const FU_STATUS_STYLE = {
@@ -1887,8 +2162,170 @@ export default function SalesLeadDetail() {
               </Card>
             </div>
           )}
+
+          {/* ─── PACKAGE ──────────────────────────────────────────────── */}
+          {activeTab === 'package' && (
+            <div className="space-y-6">
+              {lead.pipeline !== 'Enterprise' ? (
+                /* Residential / Custom — single package slot */
+                <div>
+                  <div className="mb-5">
+                    <h3 className="text-sm font-semibold text-gray-800">Selected Package</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">Assign a service plan to this lead</p>
+                  </div>
+
+                  {!lead.selectedPackage ? (
+                    <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                      <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Package size={20} className="text-gray-400" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500 mb-1">No package selected yet</p>
+                      <p className="text-xs text-gray-400 mb-4">Select a service plan to assign to this lead</p>
+                      <Button size="sm" icon={<Plus size={13} />} onClick={() => openPkgModal(null)}>
+                        Select Package
+                      </Button>
+                    </div>
+                  ) : (() => {
+                    const plan = MOCK_PLANS.find(p => p.id === lead.selectedPackage.packageId)
+                    if (!plan) return null
+                    const priceLabel = { Monthly: '/month', Quarterly: '/quarter', Yearly: '/year' }[plan.billingType] ?? ''
+                    return (
+                      <div className="max-w-sm">
+                        <div className="bg-white border border-surface-border rounded-xl shadow-card overflow-hidden">
+                          <div className="p-4 pb-3 border-b border-surface-border">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <p className="text-sm font-semibold text-gray-900 leading-snug">{plan.name}</p>
+                              <button type="button" onClick={() => openPkgModal(null)}
+                                className="flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium shrink-0 transition-colors">
+                                <Edit3 size={11} /> Change
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
+                              <Badge variant="gray" size="sm">{plan.billingType}</Badge>
+                              <Badge variant="gray" size="sm">{plan.server}</Badge>
+                              {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
+                              {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
+                            </div>
+                          </div>
+                          <div className="p-4 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">Speed</span>
+                              <span className="font-medium text-gray-800">{plan.speed}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">Validity</span>
+                              <span className="font-medium text-gray-800">{plan.validity ? `${plan.validity} days` : 'One-time'}</span>
+                            </div>
+                            {plan.ottBundle && (
+                              <div className="flex items-center gap-1.5 text-xs text-purple-700 font-medium bg-purple-50 rounded-lg px-2.5 py-1.5">
+                                <span>📺</span> OTT Bundle Included
+                              </div>
+                            )}
+                          </div>
+                          <div className="px-4 py-3 bg-gray-50/70 border-t border-surface-border flex items-center justify-between rounded-b-xl">
+                            <div>
+                              <p className="text-[10px] text-gray-400">Price</p>
+                              <p className="text-base font-bold text-gray-900">
+                                ₹{plan.price.toLocaleString('en-IN')}
+                                {priceLabel && <span className="text-xs font-normal text-gray-400">{priceLabel}</span>}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                              <CheckCircle2 size={12} /> Saved
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : (
+                /* Enterprise — bandwidth + other */
+                <div className="space-y-8">
+                  {/* Bandwidth Package */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-800">Bandwidth Package</h3>
+                      {!lead.bandwidthPackage && (
+                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal('bandwidth')}>
+                          Add Bandwidth Package
+                        </Button>
+                      )}
+                    </div>
+                    {!lead.bandwidthPackage ? (
+                      <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                        <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm text-gray-400">No bandwidth package selected</p>
+                      </div>
+                    ) : (() => {
+                      const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
+                      if (!plan) return null
+                      return (
+                        <div className="max-w-md">
+                          <EnterprisePackageCard
+                            plan={plan} pkg={lead.bandwidthPackage}
+                            editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
+                            onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? plan.price)) }}
+                            onCustomPriceChange={setBwCustomPrice}
+                            onChange={() => openPkgModal('bandwidth')}
+                            onSave={() => handleSaveEnterprisePkg('bandwidth', false)}
+                            onSendApproval={() => handleSaveEnterprisePkg('bandwidth', true)}
+                          />
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  <div className="border-t border-surface-border" />
+
+                  {/* Other Package */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-800">Other Package</h3>
+                      {!lead.otherPackage && (
+                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal('other')}>
+                          Add Other Package
+                        </Button>
+                      )}
+                    </div>
+                    {!lead.otherPackage ? (
+                      <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                        <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm text-gray-400">No other package selected</p>
+                      </div>
+                    ) : (() => {
+                      const plan = MOCK_PLANS.find(p => p.id === lead.otherPackage.packageId)
+                      if (!plan) return null
+                      return (
+                        <div className="max-w-md">
+                          <EnterprisePackageCard
+                            plan={plan} pkg={lead.otherPackage}
+                            editPrice={otherEditPrice} customPriceVal={otherCustomPrice}
+                            onToggleEditPrice={() => { setOtherEditPrice(v => !v); setOtherCustomPrice(String(lead.otherPackage.customPrice ?? plan.price)) }}
+                            onCustomPriceChange={setOtherCustomPrice}
+                            onChange={() => openPkgModal('other')}
+                            onSave={() => handleSaveEnterprisePkg('other', false)}
+                            onSendApproval={() => handleSaveEnterprisePkg('other', true)}
+                          />
+                        </div>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── Package selection modal ─────────────────────────────────────── */}
+      <PackageSelectModal
+        isOpen={pkgModalOpen}
+        onClose={() => setPkgModalOpen(false)}
+        onSelect={handleSelectPkg}
+        title={pkgModalFor === 'bandwidth' ? 'Select Bandwidth Package' : pkgModalFor === 'other' ? 'Select Other Package' : 'Select Package'}
+      />
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       <MoveStageModal
