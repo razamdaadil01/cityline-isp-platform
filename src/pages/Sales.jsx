@@ -1365,8 +1365,8 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           </div>
         )}
 
-        {/* Follow-up toggle — hidden for stages where followUpAllowed is false */}
-        {targetStage && followUpAllowed && (
+        {/* Follow-up toggle — hidden for closing stages and Installation Visit */}
+        {targetStage && followUpAllowed && !isIV && (
           <div className="border border-surface-border rounded-xl overflow-hidden">
             <button type="button" onClick={() => setFollowupEnabled(p => !p)}
               className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
