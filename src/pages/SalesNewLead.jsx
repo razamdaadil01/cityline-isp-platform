@@ -30,6 +30,10 @@ const PIPELINES = {
     label: 'Custom', labelFull: 'Custom Pipeline',
     stages: ['New Inquiry', 'Contacted', 'Quotation', 'Won', 'Lost'],
   },
+  Enterprise: {
+    label: 'Enterprise', labelFull: 'Enterprise Pipeline',
+    stages: ['New Inquiry Filed', 'Discussion', 'Follow-up', 'Proposal', 'Won', 'Lost'],
+  },
 }
 
 const STAFF = [
@@ -67,14 +71,16 @@ const INIT_FORM = {
   feasibilityAddress: '', feasibilityLandmark: '',
   feasibilityRequirement: '', feasibilityRemarks: '',
   feasibilityConnectionType: 'FTTH', feasibilityBranch: '',
+  // Enterprise
+  companyName: '', gstRegistered: false, gstNumber: '', companyAddress: '',
 }
 
-const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002' }
+const PIPELINE_MAP = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
 
 // ── Duplicate Warning Banner ──────────────────────────────────────────────────
 
 function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
-  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom' }
+  const PIPELINE_LABEL = { B2C: 'Residential', B2B: 'Corporate', Custom: 'Custom', Enterprise: 'Enterprise' }
   return (
     <div className="shrink-0 flex items-center gap-4 px-6 py-3 bg-amber-50 border-b border-amber-300">
       <AlertTriangle size={18} className="text-amber-500 shrink-0" />
@@ -216,7 +222,7 @@ export default function SalesNewLead() {
     }
   }
 
-  const PIPELINE_STORE_IDS = { B2C: 'PL-001', B2B: 'PL-002' }
+  const PIPELINE_STORE_IDS = { B2C: 'PL-001', B2B: 'PL-002', Enterprise: 'PL-003' }
   const activePipelineKeys = Object.keys(PIPELINES).filter(key => {
     const pid = PIPELINE_STORE_IDS[key]
     if (!pid) return true
@@ -236,12 +242,20 @@ export default function SalesNewLead() {
   function validate() {
     const e = {}
     if (!form.leadName.trim())         e.leadName = 'Lead name is required'
-    if (!form.name.trim())             e.name     = 'Full name is required'
+    if (!form.name.trim())             e.name     = form.pipeline === 'Enterprise' ? 'Contact person is required' : 'Full name is required'
     if (!form.phone.match(/^\d{10}$/)) e.phone    = 'Enter a valid 10-digit number'
     if (form.alternatePhone && !form.alternatePhone.match(/^\d{10}$/))
                                        e.alternatePhone = 'Enter a valid 10-digit number'
     if (form.pincode && !form.pincode.match(/^\d{6}$/))
                                        e.pincode = 'Enter a valid 6-digit pincode'
+    if (form.pipeline === 'Enterprise') {
+      if (!form.companyName.trim())    e.companyName = 'Company name is required'
+      if (!form.source)                e.source      = 'Lead source is required'
+      if (form.gstRegistered) {
+        if (!form.gstNumber.trim())    e.gstNumber      = 'GST number is required'
+        if (!form.companyAddress.trim()) e.companyAddress = 'Company address is required'
+      }
+    }
 
     if (form.followUpEnabled) {
       if (!form.followUp)     e.followUp     = 'Follow-up date is required'
@@ -309,7 +323,7 @@ export default function SalesNewLead() {
         leadId,
         leadName: form.leadName || form.name,
         customer: form.name,
-        pipeline: form.pipeline === 'B2C' ? 'Residential' : form.pipeline === 'B2B' ? 'Corporate' : 'Custom',
+        pipeline: { B2C: 'Residential', B2B: 'Corporate', Enterprise: 'Enterprise' }[form.pipeline] ?? 'Custom',
         phone: form.phone,
         date: form.followUp,
         time: form.followUpTime,
@@ -328,6 +342,7 @@ export default function SalesNewLead() {
       ...form,
       id:               leadId,
       alternateMobile:  form.alternatePhone,
+      ...(form.pipeline === 'Enterprise' ? { contactPerson: form.name } : {}),
       stage:            selectedStageName,
       daysInStage:      0,
       lastActivity:     'Lead created',
@@ -415,11 +430,63 @@ export default function SalesNewLead() {
               </FormField>
             </div>
 
-            <FormField label="Full Name" required>
+            {/* Enterprise: Company Name + GST fields */}
+            {form.pipeline === 'Enterprise' && (
+              <>
+                <div className="col-span-2">
+                  <FormField label="Company Name" required>
+                    <Input
+                      value={form.companyName}
+                      onChange={e => { set('companyName', e.target.value); setErrors(p => ({ ...p, companyName: '' })) }}
+                      placeholder="e.g. Acme Technologies Pvt Ltd"
+                      className={errors.companyName ? 'border-red-400 focus:ring-red-400/30' : ''}
+                    />
+                    {errors.companyName && <p className="text-xs text-red-500 mt-1">{errors.companyName}</p>}
+                  </FormField>
+                </div>
+                <div className="col-span-2 flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-surface-border rounded-lg">
+                  <span className="text-sm font-medium text-gray-700">GST Registered <span className="text-red-400">*</span></span>
+                  <button
+                    type="button"
+                    onClick={() => { set('gstRegistered', !form.gstRegistered); setErrors(p => ({ ...p, gstNumber: '', companyAddress: '' })) }}
+                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${form.gstRegistered ? 'bg-brand-blue' : 'bg-gray-200'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${form.gstRegistered ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                {form.gstRegistered && (
+                  <>
+                    <FormField label="GST Number" required>
+                      <Input
+                        value={form.gstNumber}
+                        onChange={e => { set('gstNumber', e.target.value.toUpperCase()); setErrors(p => ({ ...p, gstNumber: '' })) }}
+                        placeholder="e.g. 29AABCT1332L1ZB"
+                        className={`font-mono ${errors.gstNumber ? 'border-red-400 focus:ring-red-400/30' : ''}`}
+                      />
+                      {errors.gstNumber && <p className="text-xs text-red-500 mt-1">{errors.gstNumber}</p>}
+                    </FormField>
+                    <div className="col-span-2">
+                      <FormField label="Company Address" required>
+                        <Textarea
+                          value={form.companyAddress}
+                          onChange={e => { set('companyAddress', e.target.value); setErrors(p => ({ ...p, companyAddress: '' })) }}
+                          placeholder="Registered company address"
+                          rows={2}
+                          className={errors.companyAddress ? 'border-red-400 focus:ring-red-400/30' : ''}
+                        />
+                        {errors.companyAddress && <p className="text-xs text-red-500 mt-1">{errors.companyAddress}</p>}
+                      </FormField>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            <FormField label={form.pipeline === 'Enterprise' ? 'Contact Person' : 'Full Name'} required>
               <Input
                 value={form.name}
                 onChange={e => { set('name', e.target.value); setErrors(p => ({ ...p, name: '' })) }}
-                placeholder="Ramesh Nair"
+                placeholder={form.pipeline === 'Enterprise' ? 'Primary contact name' : 'Ramesh Nair'}
                 className={errors.name ? 'border-red-400 focus:ring-red-400/30' : ''}
               />
               {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
