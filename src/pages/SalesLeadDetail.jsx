@@ -533,6 +533,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
+  const [feasibilityConfirmed, setFeasConfirmed] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -540,11 +541,13 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
       setFieldVals({})
       setFollowupEnabled(false)
       setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
+      setFeasConfirmed(false)
     }
   }, [isOpen, initialStage])
 
+  const needsFeasConfirm = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired && !feasibilityConfirmed
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
-  const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const stageFields    = (!needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const requiredFields = stageFields.filter(f => f.required)
   const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
   const filledCount    = stageFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
@@ -571,7 +574,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
-            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled}>
+            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled || needsFeasConfirm}>
             {loading ? 'Moving…' : 'Move Stage'}
           </Button>
         </>
@@ -588,7 +591,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
             </div>
           </FormField>
           <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setFeasConfirmed(false) }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
                 <option key={s} value={s}>
@@ -601,8 +604,33 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
           </FormField>
         </div>
 
+        {/* Feasibility confirmation warning */}
+        {needsFeasConfirm && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                <AlertTriangle size={16} className="text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Not marked as Feasibility Required</p>
+                <p className="text-sm text-amber-700 mt-1">This lead is not marked as Feasibility Required. Are you sure you want to move it to Feasibility?</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setTargetStage(''); setFeasConfirmed(false) }}
+                className="flex-1 py-2 text-sm font-semibold border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors">
+                Cancel Selection
+              </button>
+              <button type="button" onClick={() => setFeasConfirmed(true)}
+                className="flex-1 py-2 text-sm font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
+                Proceed Anyway
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Dynamic stage fields */}
-        {targetStage && stageFields.length > 0 && (
+        {!needsFeasConfirm && targetStage && stageFields.length > 0 && (
           <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-brand-blue uppercase tracking-wider">
@@ -633,7 +661,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
         )}
 
         {/* No fields notice */}
-        {targetStage && stageFields.length === 0 && (
+        {!needsFeasConfirm && targetStage && stageFields.length === 0 && (
           <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
             <CheckCircle size={14} className="text-emerald-500 shrink-0" />
             No additional fields required for this stage.
