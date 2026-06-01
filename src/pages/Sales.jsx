@@ -1146,8 +1146,6 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const [loading, setLoading]                 = useState(false)
   const [ivForm, setIvForm]                       = useState(IV_FORM_INIT)
   const [wonNote, setWonNote]                     = useState('')
-  const [feasibilityConfirmed, setFeasConfirmed]  = useState(false)
-
   useEffect(() => {
     setTargetStage(initialStage ?? '')
     setFieldVals({})
@@ -1155,14 +1153,13 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
     setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
     setIvForm(IV_FORM_INIT)
     setWonNote('')
-    setFeasConfirmed(false)
   }, [initialStage])
 
   const targetSC          = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
   const targetStageId     = targetSC?.id ?? null
   const isWon             = targetSC?.statusType === 'Won' || targetStage === 'Won'
   const isIV              = targetStage === 'Installation Visit'
-  const needsFeasConfirm  = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired && !feasibilityConfirmed
+  const needsFeasConfirm  = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired
   const stageFields       = (!isWon && !isIV && !needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const requiredFields    = stageFields.filter(f => f.required)
   const requiredFilled    = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
@@ -1214,7 +1211,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
             </div>
           </FormField>
           <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setIvForm(IV_FORM_INIT); setWonNote(''); setFeasConfirmed(false) }}>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setIvForm(IV_FORM_INIT); setWonNote('') }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
                 <option key={s} value={s}>
@@ -1246,28 +1243,22 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           </>
         )}
 
-        {/* Feasibility confirmation warning */}
+        {/* Feasibility hard block */}
         {needsFeasConfirm && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                <AlertTriangle size={16} className="text-amber-600" />
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                <XCircle size={16} className="text-red-600" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-amber-800">Not marked as Feasibility Required</p>
-                <p className="text-sm text-amber-700 mt-1">This lead is not marked as Feasibility Required. Are you sure you want to move it to Feasibility?</p>
+                <p className="text-sm font-semibold text-red-800">Cannot Move to Feasibility</p>
+                <p className="text-sm text-red-700 mt-1">This lead is not marked as Feasibility Required. You cannot move it to the Feasibility stage. To enable this stage, mark the lead as Feasibility Required first.</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => { setTargetStage(''); setFeasConfirmed(false) }}
-                className="flex-1 py-2 text-sm font-semibold border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors">
-                Cancel Selection
-              </button>
-              <button type="button" onClick={() => setFeasConfirmed(true)}
-                className="flex-1 py-2 text-sm font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
-                Proceed Anyway
-              </button>
-            </div>
+            <button type="button" onClick={() => setTargetStage('')}
+              className="w-full py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+              OK
+            </button>
           </div>
         )}
 
@@ -2236,34 +2227,17 @@ export default function Sales() {
         <Modal
           isOpen={!!dragFeasConfirm}
           onClose={() => setDragFeasConfirm(null)}
-          title="Move to Feasibility?"
+          title="Cannot Move to Feasibility"
           size="sm"
-          footer={
-            <>
-              <Button variant="secondary" onClick={() => setDragFeasConfirm(null)}>Cancel</Button>
-              <Button
-                onClick={() => {
-                  const lead = leads.find(l => l.id === dragFeasConfirm.leadId)
-                  if (lead) {
-                    saveLeadToStore({ ...lead, stage: dragFeasConfirm.targetStage, daysInStage: 0, lastActivity: `Moved to ${dragFeasConfirm.targetStage}` })
-                  }
-                  setDragFeasConfirm(null)
-                }}
-              >
-                Proceed Anyway
-              </Button>
-            </>
-          }
+          footer={<Button onClick={() => setDragFeasConfirm(null)}>OK</Button>}
         >
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                <AlertTriangle size={16} className="text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-amber-800">Not marked as Feasibility Required</p>
-                <p className="text-sm text-amber-700 mt-1">This lead is not marked as Feasibility Required. Are you sure you want to move it to Feasibility?</p>
-              </div>
+          <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+              <XCircle size={16} className="text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red-800">Not marked as Feasibility Required</p>
+              <p className="text-sm text-red-700 mt-1">This lead is not marked as Feasibility Required. You cannot move it to the Feasibility stage. To enable this stage, mark the lead as Feasibility Required first.</p>
             </div>
           </div>
         </Modal>

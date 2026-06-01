@@ -533,7 +533,6 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
-  const [feasibilityConfirmed, setFeasConfirmed] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -541,11 +540,10 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
       setFieldVals({})
       setFollowupEnabled(false)
       setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
-      setFeasConfirmed(false)
     }
   }, [isOpen, initialStage])
 
-  const needsFeasConfirm = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired && !feasibilityConfirmed
+  const needsFeasConfirm = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
   const stageFields    = (!needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const requiredFields = stageFields.filter(f => f.required)
@@ -591,7 +589,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
             </div>
           </FormField>
           <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setFeasConfirmed(false) }}>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
                 <option key={s} value={s}>
@@ -604,28 +602,22 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
           </FormField>
         </div>
 
-        {/* Feasibility confirmation warning */}
+        {/* Feasibility hard block */}
         {needsFeasConfirm && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
             <div className="flex items-start gap-3 mb-4">
-              <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                <AlertTriangle size={16} className="text-amber-600" />
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                <XCircle size={16} className="text-red-600" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-amber-800">Not marked as Feasibility Required</p>
-                <p className="text-sm text-amber-700 mt-1">This lead is not marked as Feasibility Required. Are you sure you want to move it to Feasibility?</p>
+                <p className="text-sm font-semibold text-red-800">Cannot Move to Feasibility</p>
+                <p className="text-sm text-red-700 mt-1">This lead is not marked as Feasibility Required. You cannot move it to the Feasibility stage. To enable this stage, mark the lead as Feasibility Required first.</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => { setTargetStage(''); setFeasConfirmed(false) }}
-                className="flex-1 py-2 text-sm font-semibold border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-100 transition-colors">
-                Cancel Selection
-              </button>
-              <button type="button" onClick={() => setFeasConfirmed(true)}
-                className="flex-1 py-2 text-sm font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
-                Proceed Anyway
-              </button>
-            </div>
+            <button type="button" onClick={() => setTargetStage('')}
+              className="w-full py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+              OK
+            </button>
           </div>
         )}
 
