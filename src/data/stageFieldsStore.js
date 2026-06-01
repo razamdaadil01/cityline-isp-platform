@@ -48,6 +48,13 @@ const INIT = {
     field('b4-f2', 'Offered Discount', 'Number',   false),
     field('b4-f3', 'Counter Offer',    'Number',   false),
   ],
+  e1: [
+    { id: 'e1-f1', label: 'Company Name',    type: 'Text',    required: true,  active: true, placeholder: 'e.g. Acme Technologies Pvt Ltd', help: '', options: [] },
+    { id: 'e1-f2', label: 'Contact Person',  type: 'Text',    required: true,  active: true, placeholder: 'Primary contact name',           help: '', options: [] },
+    { id: 'e1-f3', label: 'GST Registered',  type: 'Radio',   required: true,  active: true, placeholder: '',                               help: '', options: ['Yes', 'No'] },
+    { id: 'e1-f4', label: 'GST Number',      type: 'Text',    required: false, active: true, placeholder: 'e.g. 29AABCT1332L1ZB',           help: '', options: [], conditionalOn: { fieldId: 'e1-f3', value: 'Yes' } },
+    { id: 'e1-f5', label: 'Company Address', type: 'Textarea',required: false, active: true, placeholder: 'Registered company address',     help: '', options: [], conditionalOn: { fieldId: 'e1-f3', value: 'Yes' } },
+  ],
 }
 
 let _data = JSON.parse(JSON.stringify(INIT))
