@@ -6,7 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search,
+  Fingerprint, Search, FileText,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
@@ -1173,6 +1173,261 @@ function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
   )
 }
 
+// ── Quotation components ──────────────────────────────────────────────────────
+
+const QUOTATION_COMPANIES = [
+  'Technosoft Solutions Pvt Ltd',
+  'Bizoutlet India Ltd',
+  'RapidNet Enterprises',
+  'Cloudify Systems',
+]
+const QUOTATION_TEMPLATES = [
+  'Standard Quotation Template',
+  'Enterprise Quotation Template',
+  'Custom Quotation Template',
+]
+
+function QuotationPreviewModal({ isOpen, onClose, lead, formData, onSend }) {
+  const today = new Date().toISOString().split('T')[0]
+  const validTill = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const ref = String(Date.now()).slice(-6)
+
+  const pkgRows = [
+    lead?.bandwidthPackage ? { slot: 'Bandwidth', pkg: lead.bandwidthPackage } : null,
+    lead?.otherPackage     ? { slot: 'Other',     pkg: lead.otherPackage }     : null,
+  ].filter(Boolean)
+
+  const total = pkgRows.reduce((s, { pkg }) => {
+    const plan = MOCK_PLANS.find(p => p.id === pkg.packageId)
+    return s + (pkg.customPrice ?? plan?.price ?? 0)
+  }, 0)
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Quotation Preview" size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          <Button icon={<Send size={14} />} onClick={onSend}>Send Now</Button>
+        </>
+      }
+    >
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden text-sm">
+        {/* Letterhead bar */}
+        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <p className="text-base font-black text-navy tracking-tight">CITYLINE</p>
+            <p className="text-xs text-gray-400">Internet Service Provider</p>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold text-gray-800">QUOTATION</p>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">QT-{lead?.id}-{ref}</p>
+          </div>
+        </div>
+
+        {/* Meta */}
+        <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              <span className="text-gray-400 w-16 shrink-0">To</span>
+              <span className="font-semibold text-gray-800">{formData?.company || '—'}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-400 w-16 shrink-0">Lead ID</span>
+              <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{lead?.id}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-400 w-16 shrink-0">Contact</span>
+              <span className="text-gray-700">{lead?.name}</span>
+            </div>
+          </div>
+          <div className="text-right space-y-1.5">
+            <div>
+              <p className="text-gray-400 text-xs">Date</p>
+              <p className="font-semibold text-gray-800">{today}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Valid till</p>
+              <p className="font-semibold text-brand-blue">{validTill}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Package rows */}
+        <div className="px-6 py-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Package Details</p>
+          <div className="divide-y divide-gray-100">
+            {pkgRows.map(({ slot, pkg }) => {
+              const plan = MOCK_PLANS.find(p => p.id === pkg.packageId)
+              if (!plan) return null
+              const price = pkg.customPrice ?? plan.price
+              return (
+                <div key={slot} className="flex items-start justify-between py-2.5">
+                  <div>
+                    <p className="font-semibold text-gray-800">{plan.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{plan.serviceType} · {plan.speed} · {plan.billingType} · {slot} Package</p>
+                    {plan.ottBundle && <p className="text-xs text-purple-600 mt-0.5">📺 OTT Bundle Included</p>}
+                  </div>
+                  <p className="font-bold text-gray-900 shrink-0 ml-4">₹{price.toLocaleString('en-IN')}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Total */}
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <span className="font-semibold text-gray-600">Total</span>
+          <span className="text-xl font-black text-gray-900">₹{total.toLocaleString('en-IN')}</span>
+        </div>
+
+        {/* Notes + meta footer */}
+        {formData?.notes && (
+          <div className="px-6 py-3 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</p>
+            <p className="text-gray-600">{formData.notes}</p>
+          </div>
+        )}
+        <div className="px-6 py-2.5 border-t border-gray-100 bg-gray-50/60">
+          <p className="text-xs text-gray-400">
+            Template: {formData?.template} · Send to: {formData?.notifierEmail}
+          </p>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function SendQuotationModal({ isOpen, onClose, lead, onSend }) {
+  const [form, setForm] = useState({
+    company: '',
+    template: 'Enterprise Quotation Template',
+    notifierEmail: '',
+    notes: '',
+  })
+  const [errors, setErrors] = useState({})
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm({
+        company: lead?.companyName && QUOTATION_COMPANIES.includes(lead.companyName)
+          ? lead.companyName
+          : QUOTATION_COMPANIES[0],
+        template: 'Enterprise Quotation Template',
+        notifierEmail: lead?.email || '',
+        notes: '',
+      })
+      setErrors({})
+      setPreviewOpen(false)
+    }
+  }, [isOpen])
+
+  function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function validate() {
+    const e = {}
+    if (!form.company)                        e.company       = 'Company is required'
+    if (!form.template)                       e.template      = 'Template is required'
+    if (!form.notifierEmail.trim())           e.notifierEmail = 'Email is required'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.notifierEmail))
+                                              e.notifierEmail = 'Invalid email format'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const pkgRows = [
+    lead?.bandwidthPackage ? { slot: 'Bandwidth', pkg: lead.bandwidthPackage } : null,
+    lead?.otherPackage     ? { slot: 'Other',     pkg: lead.otherPackage }     : null,
+  ].filter(Boolean)
+
+  return (
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} title="Send Quotation" size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { if (validate()) setPreviewOpen(true) }}>
+              Preview Quotation
+            </Button>
+            <Button icon={<Send size={14} />} onClick={() => { if (validate()) onSend(form) }}>
+              Send Quotation
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 -mt-1 mb-1">Generate and send a quotation to the customer.</p>
+
+          {/* Company */}
+          <FormField label="Company" required error={errors.company}>
+            <Select value={form.company} onChange={e => setField('company', e.target.value)}>
+              {QUOTATION_COMPANIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </FormField>
+
+          {/* Template */}
+          <FormField label="Template" required error={errors.template}>
+            <Select value={form.template} onChange={e => setField('template', e.target.value)}>
+              {QUOTATION_TEMPLATES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </FormField>
+
+          {/* Notifier Email */}
+          <FormField label="Notifier Email" required error={errors.notifierEmail}>
+            <Input type="email" placeholder="recipient@company.com"
+              value={form.notifierEmail} onChange={e => setField('notifierEmail', e.target.value)} />
+          </FormField>
+
+          {/* Package Summary */}
+          {pkgRows.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Package Summary</p>
+              <div className="space-y-2">
+                {pkgRows.map(({ slot, pkg }) => {
+                  const plan = MOCK_PLANS.find(p => p.id === pkg.packageId)
+                  if (!plan) return null
+                  const price = pkg.customPrice ?? plan.price
+                  return (
+                    <div key={slot} className="flex items-center justify-between p-3 bg-gray-50 border border-surface-border rounded-lg">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{plan.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{plan.speed} · {slot} Package</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">₹{price.toLocaleString('en-IN')}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${APPROVAL_CHIP[pkg.approvalStatus] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {APPROVAL_LABEL[pkg.approvalStatus] ?? pkg.approvalStatus}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          <FormField label="Notes">
+            <Textarea placeholder="Additional notes for the quotation..." rows={3}
+              value={form.notes} onChange={e => setField('notes', e.target.value)} />
+          </FormField>
+        </div>
+      </Modal>
+
+      <QuotationPreviewModal
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        lead={lead}
+        formData={form}
+        onSend={() => { setPreviewOpen(false); onSend(form) }}
+      />
+    </>
+  )
+}
+
 // ── Tab routing ───────────────────────────────────────────────────────────────
 
 const TAB_PATH_TO_KEY = {
@@ -1218,6 +1473,10 @@ export default function SalesLeadDetail() {
   const [activationData, setActivationData]       = useState(null)
   const [activationModalOpen, setActivationModalOpen]   = useState(false)
   const [activationSuccessOpen, setActivationSuccessOpen] = useState(false)
+
+  // Quotation state
+  const [quotationOpen, setQuotationOpen]   = useState(false)
+  const [quotationToast, setQuotationToast] = useState(null)
 
   // Package tab state
   const [pkgModalOpen, setPkgModalOpen]     = useState(false)
@@ -1325,6 +1584,31 @@ export default function SalesLeadDetail() {
   const isOverdue = lead.followUp && lead.followUp < TODAY
   const staff = STAFF.find(s => s.name === lead.assigned)
   const leadDisplayName = lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`
+
+  // Quotation button state (Enterprise only)
+  const entPkgs         = lead.pipeline === 'Enterprise' ? [lead.bandwidthPackage, lead.otherPackage].filter(Boolean) : []
+  const editableEntPkgs = entPkgs.filter(p => p.customPrice !== null)
+  const quotDisabledReason = entPkgs.length === 0
+    ? 'Please select a package first'
+    : editableEntPkgs.some(p => p.approvalStatus === 'Rejected')
+      ? 'Package approval was rejected. Please update the package.'
+      : editableEntPkgs.some(p => p.approvalStatus === 'Pending')
+        ? 'Waiting for package approval'
+        : ''
+
+  function handleSendQuotation(formData) {
+    const today = new Date().toISOString().split('T')[0]
+    saveLead({
+      ...lead,
+      activityLog: [
+        { id: Date.now(), icon: '📄', text: `Quotation sent to ${formData.notifierEmail}`, user: lead.assigned, time: 'just now' },
+        ...(lead.activityLog ?? []),
+      ],
+    })
+    setQuotationOpen(false)
+    setQuotationToast(formData.notifierEmail)
+    setTimeout(() => setQuotationToast(null), 3500)
+  }
 
   function handleMoveStage(targetStage, fieldVals, fuData) {
     const filledCount = Object.values(fieldVals).filter(Boolean).length
@@ -1500,6 +1784,14 @@ export default function SalesLeadDetail() {
   return (
     <div className="pt-2 pb-6 px-6 lg:px-6 xl:px-8 2xl:px-12 max-w-[1400px] xl:max-w-[1600px] 2xl:max-w-[1900px] mx-auto space-y-3">
 
+      {/* Quotation sent toast */}
+      {quotationToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          Quotation sent successfully to {quotationToast}
+        </div>
+      )}
+
       {/* Reopen toast */}
       {reopenToast && (
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-brand-blue text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
@@ -1565,6 +1857,18 @@ export default function SalesLeadDetail() {
 
             {/* Action buttons */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+
+              {/* Send Quotation — Enterprise pipeline only */}
+              {lead.pipeline === 'Enterprise' && (
+                <span title={quotDisabledReason || undefined}>
+                  <Button size="sm" icon={<FileText size={14} />}
+                    onClick={() => setQuotationOpen(true)}
+                    disabled={!!quotDisabledReason}>
+                    Send Quotation
+                  </Button>
+                </span>
+              )}
+
               {/* Actions dropdown */}
               <div className="relative" ref={actionsRef}>
                 <Button variant="secondary" size="sm" iconRight={<ChevronDown size={13} />}
@@ -2325,6 +2629,14 @@ export default function SalesLeadDetail() {
         onClose={() => setPkgModalOpen(false)}
         onSelect={handleSelectPkg}
         title={pkgModalFor === 'bandwidth' ? 'Select Bandwidth Package' : pkgModalFor === 'other' ? 'Select Other Package' : 'Select Package'}
+      />
+
+      {/* ── Send Quotation modal ───────────────────────────────────────── */}
+      <SendQuotationModal
+        isOpen={quotationOpen}
+        onClose={() => setQuotationOpen(false)}
+        lead={lead}
+        onSend={handleSendQuotation}
       />
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
