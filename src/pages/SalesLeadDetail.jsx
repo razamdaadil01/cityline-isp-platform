@@ -527,11 +527,7 @@ function ActivationSuccessModal({ isOpen, onClose, data }) {
 
 function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage = '' }) {
   const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
-  const availableStages = pl.stages.filter(s => {
-    if (s === lead?.stage) return false
-    if (lead?.pipeline === 'B2C' && s === 'Feasibility' && !lead?.feasibilityRequired) return false
-    return true
-  })
+  const availableStages = pl.stages.filter(s => s !== lead?.stage)
   const [targetStage, setTargetStage]         = useState(initialStage)
   const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
@@ -594,7 +590,13 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
           <FormField label="Move to Stage" required>
             <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
               <option value="">Select target stage…</option>
-              {availableStages.map(s => <option key={s}>{s}</option>)}
+              {availableStages.map(s => (
+                <option key={s} value={s}>
+                  {s === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired
+                    ? `${s} — Not required for this lead`
+                    : s}
+                </option>
+              ))}
             </Select>
           </FormField>
         </div>

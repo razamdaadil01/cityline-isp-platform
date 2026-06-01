@@ -1213,7 +1213,13 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           <FormField label="Move to Stage" required>
             <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setIvForm(IV_FORM_INIT); setWonNote('') }}>
               <option value="">Select target stage…</option>
-              {availableStages.map(s => <option key={s}>{s}</option>)}
+              {availableStages.map(s => (
+                <option key={s} value={s}>
+                  {s === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired
+                    ? `${s} — Not required for this lead`
+                    : s}
+                </option>
+              ))}
             </Select>
           </FormField>
         </div>
@@ -2229,12 +2235,11 @@ export default function Sales() {
         const msLead = leads.find(l => l.id === moveStageLeadId)
         if (!msLead) return null
         const pl2 = PIPELINES[msLead.pipeline] ?? PIPELINES.B2C
-        // Filter out inactive stages, current stage, and Feasibility if not required
+        // Filter out inactive stages and current stage
         const availableStages = pl2.stages.filter(s => {
           if (s === msLead.stage) return false
           const sc = getStageConfig(msLead.pipeline, s, plStore)
           if (sc?.active === false) return false
-          if (msLead.pipeline === 'B2C' && s === 'Feasibility' && !msLead.feasibilityRequired) return false
           return true
         })
         return (
