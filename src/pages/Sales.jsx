@@ -19,6 +19,7 @@ import { getStageFields } from '../data/stageFieldsStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
+import CallModal from '../components/ui/CallModal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
 
@@ -569,7 +570,7 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
 
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
-function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, onView, userRole, followUpAllowed = true, isClosed = false }) {
+function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, onView, onCall, userRole, followUpAllowed = true, isClosed = false }) {
   const TODAY_STR = new Date().toISOString().split('T')[0]
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
@@ -594,7 +595,13 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
         </div>
       </div>
 
-      <p className="text-xs font-mono text-gray-600 mb-3">{lead.phone}</p>
+      <button
+        onClick={e => { e.stopPropagation(); onCall?.(lead) }}
+        className="flex items-center gap-1 text-xs font-mono text-gray-600 hover:text-emerald-600 mb-3 transition-colors group"
+      >
+        <Phone size={11} className="text-gray-400 group-hover:text-emerald-500" />
+        {lead.phone}
+      </button>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
         <Badge variant={SOURCE_VARIANT[lead.source] ?? 'gray'} size="sm">{lead.source}</Badge>
@@ -685,11 +692,11 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
       <div className="pt-2 border-t border-surface-border">
         <div className="flex items-center justify-around">
-          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+          <button onClick={e => { e.stopPropagation(); onCall?.(lead) }}
             title="Call"
-            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
+            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
             <Phone size={14} />
-          </a>
+          </button>
           <button onClick={e => { e.stopPropagation(); onEkyc(lead) }}
             title="eKYC"
             className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
@@ -1478,6 +1485,8 @@ export default function Sales() {
   const [showExportMenu, setShowExportMenu]     = useState(false)
   const [exportToast, setExportToast]           = useState('')
   const [pipelineDropdownOpen, setPipelineDropdownOpen] = useState(false)
+  const [callModal, setCallModal]               = useState({ open: false, name: '', phone: '' })
+  const [callToast, setCallToast]               = useState(null)
   const [drawerOpen, setDrawerOpen]             = useState(false)
   const exportMenuRef       = useRef(null)
   const pipelineDropdownRef = useRef(null)
@@ -1763,6 +1772,26 @@ export default function Sales() {
         </div>
       )}
 
+      {/* ── Call toast ──────────────────────────────────────────────────── */}
+      {callToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {callToast}
+        </div>
+      )}
+
+      <CallModal
+        isOpen={callModal.open}
+        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        customerName={callModal.name}
+        phoneNumber={callModal.phone}
+        onCallInitiated={({ number }) => {
+          setCallModal({ open: false, name: '', phone: '' })
+          setCallToast('Call initiated successfully')
+          setTimeout(() => setCallToast(null), 3000)
+        }}
+      />
+
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <div className="px-6 pt-6 pb-4 space-y-4 shrink-0">
 
@@ -2026,7 +2055,15 @@ export default function Sales() {
                         <td className="px-4 py-3 overflow-hidden" title={lead.name}>
                           <span className="block truncate text-xs text-gray-700">{lead.name}</span>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-gray-600">{lead.phone}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <button
+                            onClick={e => { e.stopPropagation(); setCallModal({ open: true, name: lead.name, phone: lead.phone }) }}
+                            className="flex items-center gap-1.5 font-mono text-xs text-gray-600 hover:text-emerald-600 transition-colors group"
+                          >
+                            <Phone size={11} className="text-gray-400 group-hover:text-emerald-500 shrink-0" />
+                            {lead.phone}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 overflow-hidden" title={lead.stage}>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${ss.chip}`}>
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ss.colorBar}`} />
@@ -2174,6 +2211,7 @@ export default function Sales() {
                         onFeasibility={l => setFeasibilityLead(l)}
                         onFollowup={l => setFollowupLead(l)}
                         onView={l => navigate(`/sales/leads/${l.id}`)}
+                        onCall={l => setCallModal({ open: true, name: l.name, phone: l.phone })}
                         onSendToInventory={sendToInventory}
                         userRole={userRole}
                         followUpAllowed={followUpAllowed}
