@@ -1138,7 +1138,7 @@ function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
           <p className="text-sm text-gray-400">No plans found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-0.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-0.5">
           {filtered.map(plan => (
             <div key={plan.id} className="bg-white border border-surface-border rounded-xl p-4 hover:border-brand-blue/40 hover:shadow-sm transition-all flex flex-col">
               <div className="mb-2">
