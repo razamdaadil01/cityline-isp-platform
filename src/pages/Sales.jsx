@@ -150,6 +150,8 @@ const INIT_LEADS = [
   { id: 'LD-213', pipeline: 'B2C',    name: 'Mohan Das',       phone: '9345678901', email: 'mohan@email.com',  area: 'BTM Layout',      source: 'Walk-in',      stage: 'New Inquiry',         plan: '50 Mbps Starter', assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Walked in today',      followUp: '2026-05-09', priority: 'medium', ekycStatus: null,       hwAssigned: null },
   // Custom — 1 lead
   { id: 'LD-209', pipeline: 'Custom', name: 'Vinod Kumar',     phone: '9988776655', email: 'vinod@email.com',  area: 'Indiranagar',     source: 'Cold Call',    stage: 'Quotation',           plan: '200 Mbps Pro',    assigned: 'Suresh Babu',  assignedInitials: 'SB', assignedColor: 'bg-emerald-500',  daysInStage: 0,  lastActivity: 'Quotation sent',       followUp: '2026-05-08', priority: 'low',    ekycStatus: null,       hwAssigned: null },
+  // Enterprise — 1 lead
+  { id: 'LD-401', pipeline: 'Enterprise', name: 'Vikram Enterprises', phone: '9900112233', email: '', area: 'Noida', source: 'Referral', stage: 'Proposal', plan: 'ILL 100 Mbps Monthly', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 2, lastActivity: 'Proposal sent', followUp: '2026-06-02', priority: 'high', ekycStatus: null, hwAssigned: null },
 ]
 
 const INIT_FORM = {
