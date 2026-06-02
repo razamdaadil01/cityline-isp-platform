@@ -249,7 +249,7 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── STATE TAB ── */}
         {(tab === 'State' && !isEdit) && (
-          <div className="space-y-3 max-w-lg">
+          <div className="space-y-3 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add State</p>
             <FormField label="State Name" required error={errors.name}>
               <Input
@@ -263,9 +263,9 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── DISTRICT TAB ── */}
         {(tab === 'District' && !isEdit) && (
-          <div className="space-y-3 max-w-lg">
+          <div className="space-y-3 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add District</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={df.state}
@@ -289,9 +289,9 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── AREA TAB ── */}
         {(tab === 'Area' && !isEdit) && (
-          <div className="space-y-3 max-w-lg">
+          <div className="space-y-3 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Area</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={af.state}
@@ -326,9 +326,9 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── LOCALITY TAB ── */}
         {(tab === 'Locality' && !isEdit) && (
-          <div className="space-y-3 max-w-lg">
+          <div className="space-y-3 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Locality</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={lf.state}
@@ -374,12 +374,12 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── SUB LOCALITY TAB ── */}
         {(tab === 'Sub Locality' || isEdit) && (
-          <div className="space-y-3 max-w-xl">
+          <div className="space-y-3 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {isEdit ? 'Edit Sub Locality' : 'Add Sub Locality'}
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={slForm.state}
@@ -451,11 +451,10 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
               </FormField>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <Toggle checked={slForm.active} onChange={v => setSlForm(f => ({ ...f, active: v }))} />
-              <span className="text-sm text-gray-700">
-                Active <span className="text-gray-400 font-normal">— Show this sub-locality in lead forms</span>
-              </span>
+              <span className="text-sm font-medium text-gray-700">Active</span>
+              <span className="text-sm text-gray-400">— Show this sub-locality in lead forms</span>
             </div>
           </div>
         )}
