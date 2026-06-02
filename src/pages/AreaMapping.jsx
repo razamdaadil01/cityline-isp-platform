@@ -90,7 +90,7 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete }) {
           : <span className="w-[13px] shrink-0" />
         }
         <MapPin size={12} className={`shrink-0 ${dotColor}`} />
-        <span className={`text-sm ${labelClass}`}>{label}</span>
+        <span className={`text-sm ${labelClass} truncate`}>{label}</span>
       </button>
 
       {open && children}
@@ -103,8 +103,8 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete }) {
         >
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span className="text-gray-300 text-xs shrink-0">•</span>
-            <span className="text-sm text-gray-700" title={item.subLocality}>{item.subLocality}</span>
-            <span className="text-xs text-gray-400 shrink-0 ml-1">→ {item.siteType} · {item.branchCode}</span>
+            <span className="text-sm text-gray-700 truncate" title={item.subLocality}>{item.subLocality}</span>
+            <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-1">→ {item.siteType} · {item.branchCode}</span>
           </div>
           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
             <button onClick={() => onEdit(item)}
@@ -245,15 +245,12 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-4">
 
         {/* ── STATE TAB ── */}
         {(tab === 'State' && !isEdit) && (
-          <div className="space-y-5 max-w-lg">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">Add State</h3>
-              <p className="text-xs text-gray-400 mt-0.5">New state will appear in the hierarchy and all dropdowns</p>
-            </div>
+          <div className="space-y-3 max-w-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add State</p>
             <FormField label="State Name" required error={errors.name}>
               <Input
                 value={sf.name}
@@ -266,12 +263,9 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── DISTRICT TAB ── */}
         {(tab === 'District' && !isEdit) && (
-          <div className="space-y-5 max-w-lg">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">Add District</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Select the parent state and enter the district name</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 max-w-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add District</p>
+            <div className="grid grid-cols-2 gap-3">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={df.state}
@@ -295,12 +289,9 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── AREA TAB ── */}
         {(tab === 'Area' && !isEdit) && (
-          <div className="space-y-5 max-w-lg">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">Add Area</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Select the parent state and district, then enter the area name</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 max-w-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Area</p>
+            <div className="grid grid-cols-2 gap-3">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={af.state}
@@ -335,12 +326,9 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── LOCALITY TAB ── */}
         {(tab === 'Locality' && !isEdit) && (
-          <div className="space-y-5 max-w-lg">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">Add Locality</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Select the parent hierarchy and enter the locality name</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 max-w-lg">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Locality</p>
+            <div className="grid grid-cols-2 gap-3">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={lf.state}
@@ -386,20 +374,12 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
         {/* ── SUB LOCALITY TAB ── */}
         {(tab === 'Sub Locality' || isEdit) && (
-          <div className="space-y-5 max-w-xl">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-800">
-                {isEdit ? 'Edit Sub Locality' : 'Add Sub Locality'}
-              </h3>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {isEdit
-                  ? 'Update the sub locality details below'
-                  : 'Select the full hierarchy path and fill in sub locality details'}
-              </p>
-            </div>
+          <div className="space-y-3 max-w-xl">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {isEdit ? 'Edit Sub Locality' : 'Add Sub Locality'}
+            </p>
 
-            {/* Row 1: State + District */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={slForm.state}
@@ -421,10 +401,6 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
                   {slDistricts.map(d => <option key={d}>{d}</option>)}
                 </Select>
               </FormField>
-            </div>
-
-            {/* Row 2: Area + Locality */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField label="Area" required error={errors.area}>
                 <Select
                   value={slForm.area}
@@ -447,10 +423,6 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
                   {slLocalities.map(l => <option key={l}>{l}</option>)}
                 </Select>
               </FormField>
-            </div>
-
-            {/* Row 3: Sub Locality Name + Site Type */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField label="Sub Locality Name" required error={errors.subLocality}>
                 <Input
                   value={slForm.subLocality}
@@ -464,10 +436,6 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
                   {SITE_TYPES.map(t => <option key={t}>{t}</option>)}
                 </Select>
               </FormField>
-            </div>
-
-            {/* Row 4: Branch Code + Feasibility */}
-            <div className="grid grid-cols-2 gap-4">
               <FormField label="Branch Code" required error={errors.branchCode}>
                 <Input
                   value={slForm.branchCode}
@@ -483,8 +451,7 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
               </FormField>
             </div>
 
-            {/* Row 5: Active toggle */}
-            <div className="flex items-center justify-between p-3.5 rounded-xl border border-surface-border bg-gray-50/50">
+            <div className="flex items-center justify-between px-3.5 py-3 rounded-lg border border-surface-border bg-gray-50/50">
               <div>
                 <p className="text-sm font-medium text-gray-700">Active</p>
                 <p className="text-xs text-gray-400 mt-0.5">Show this sub-locality in lead forms</p>
