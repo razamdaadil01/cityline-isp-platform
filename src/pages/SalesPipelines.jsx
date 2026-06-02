@@ -533,10 +533,11 @@ function StageFieldManagerModal({ isOpen, onClose, stage }) {
 
 // ── Stage Row (in pipeline editor) ───────────────────────────────────────────
 
-function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequired, onOpenFields }) {
+function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequired, onOpenFields, allStages }) {
   const [editing, setEditing] = useState(false)
   const dragRef = useRef(null)
   const [localName, setLocalName] = useState(stage.name)
+  const [statusWarning, setStatusWarning] = useState(null)
 
   const isActive = stage.active !== false
   const statusType = stage.statusType ?? 'Open'
@@ -653,16 +654,32 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
         </select>
 
         {/* Status Type */}
-        <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10px] text-gray-400">Status:</span>
-          <select
-            value={statusType}
-            onChange={e => onUpdate(stage.id, { statusType: e.target.value })}
-            className={`text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0 font-semibold ${STATUS_TYPE_COLORS[statusType]}`}
-            title="Status type"
-          >
-            {STATUS_TYPES.map(t => <option key={t}>{t}</option>)}
-          </select>
+        <div className="flex flex-col gap-0.5 shrink-0">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-gray-400">Status:</span>
+            <select
+              value={statusType}
+              onChange={e => {
+                const next = e.target.value
+                if ((next === 'Won' || next === 'Lost') && allStages) {
+                  const conflict = allStages.find(s => s.id !== stage.id && s.statusType === next)
+                  if (conflict) {
+                    setStatusWarning(`⚠️ Another stage is already set to ${next}. Only one ${next} stage is allowed per pipeline.`)
+                    setTimeout(() => setStatusWarning(null), 3000)
+                    return
+                  }
+                }
+                onUpdate(stage.id, { statusType: next })
+              }}
+              className={`text-xs border border-surface-border rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 shrink-0 font-semibold ${STATUS_TYPE_COLORS[statusType]}`}
+              title="Status type"
+            >
+              {STATUS_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          {statusWarning && (
+            <span className="text-xs text-amber-600 max-w-[220px] leading-tight">{statusWarning}</span>
+          )}
         </div>
 
         {/* Active toggle */}
@@ -715,6 +732,7 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
   const [stages, setStages] = useState(pipeline?.stages ?? [])
   const [newStageName, setNewStageName] = useState('')
   const [stageDeleteTarget, setStageDeleteTarget] = useState(null)
+  const [saveErrorToast, setSaveErrorToast] = useState(false)
 
   const showRequired = pipeline?.type === 'ILL'
 
@@ -771,7 +789,17 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => { onSave(stages); onClose() }}>Save Stages</Button>
+          <Button onClick={() => {
+            const wonCount = stages.filter(s => s.statusType === 'Won').length
+            const lostCount = stages.filter(s => s.statusType === 'Lost').length
+            if (wonCount > 1 || lostCount > 1) {
+              setSaveErrorToast(true)
+              setTimeout(() => setSaveErrorToast(false), 3500)
+              return
+            }
+            onSave(stages)
+            onClose()
+          }}>Save Stages</Button>
         </>
       }
     >
@@ -795,6 +823,7 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
               onRemove={handleRemoveStage}
               showRequired={showRequired}
               onOpenFields={onOpenFields}
+              allStages={stages}
             />
           ))}
           {stages.length === 0 && (
@@ -821,6 +850,12 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
         leadCount={stageDeleteTarget?.leadCount ?? 0}
         onConfirm={() => removeStage(stageDeleteTarget.stage.id)}
       />
+
+      {saveErrorToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-amber-500 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          ⚠️ Fix stage status conflicts before saving.
+        </div>
+      )}
     </Modal>
   )
 }
