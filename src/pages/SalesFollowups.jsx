@@ -8,6 +8,7 @@ import {
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
+import CallModal from '../components/ui/CallModal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getFollowups, saveFollowup, markFollowupDone, cancelFollowup, subscribeFollowups,
@@ -255,7 +256,7 @@ function RescheduleModal({ isOpen, onClose, followup, onSave }) {
 
 // ── Kanban Card ───────────────────────────────────────────────────────────────
 
-function KanbanCard({ fu, colId, onMarkDone, onEdit, onCancel, isDragging, onDragStart, onDragEnd }) {
+function KanbanCard({ fu, colId, onMarkDone, onEdit, onCancel, isDragging, onDragStart, onDragEnd, onCall }) {
   const [showMenu, setShowMenu] = useState(false)
   const menuRef = useRef(null)
   const isCompleted = fu.status === 'Done'
@@ -321,12 +322,12 @@ function KanbanCard({ fu, colId, onMarkDone, onEdit, onCancel, isDragging, onDra
       </div>
 
       {/* Phone */}
-      <a
-        href={`tel:${fu.phone}`}
-        className="flex items-center gap-1 text-xs text-gray-500 hover:text-brand-blue mb-2 transition-colors"
+      <button
+        onClick={e => { e.stopPropagation(); onCall?.({ name: fu.leadName, phone: fu.phone }) }}
+        className="flex items-center gap-1 text-xs text-gray-500 hover:text-emerald-600 mb-2 transition-colors group"
       >
-        <Phone size={11} /> {fu.phone}
-      </a>
+        <Phone size={11} className="group-hover:text-emerald-500" /> {fu.phone}
+      </button>
 
       {/* Stage + priority */}
       <div className="flex items-center gap-1.5 mb-2 flex-wrap">
@@ -729,7 +730,7 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
 
 // ── Calendar View ────────────────────────────────────────────────────────────
 
-function CalendarView({ followups, onEdit }) {
+function CalendarView({ followups, onEdit, onCall }) {
   const [year, setYear] = useState(2026)
   const [month, setMonth] = useState(4) // 0-indexed, May = 4
   const [selectedDate, setSelectedDate] = useState(null)
@@ -865,7 +866,13 @@ function CalendarView({ followups, onEdit }) {
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div>
                           <p className="font-semibold text-sm text-gray-900">{fu.leadName}</p>
-                          <p className="text-xs text-gray-400 font-mono">{fu.phone}</p>
+                          <button
+                            onClick={() => onCall?.({ name: fu.leadName, phone: fu.phone })}
+                            className="flex items-center gap-1 text-xs text-gray-400 font-mono hover:text-emerald-600 transition-colors group"
+                          >
+                            <Phone size={10} className="group-hover:text-emerald-500" />
+                            {fu.phone}
+                          </button>
                         </div>
                         <Badge variant={STATUS_BADGE[isOverdue ? 'Overdue' : fu.status] ?? 'gray'} size="sm">
                           {isOverdue && fu.status !== 'Done' ? 'Overdue' : fu.status}
@@ -876,12 +883,12 @@ function CalendarView({ followups, onEdit }) {
                       </p>
                       {fu.note && <p className="text-xs text-gray-500 italic mb-2">{fu.note}</p>}
                       <div className="flex gap-2">
-                        <a
-                          href={`tel:${fu.phone}`}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-brand-blue hover:bg-brand-blue/5 px-2 py-1 rounded-lg transition-colors"
+                        <button
+                          onClick={() => onCall?.({ name: fu.leadName, phone: fu.phone })}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded-lg transition-colors"
                         >
                           <Phone size={11} /> Call
-                        </a>
+                        </button>
                         <button
                           onClick={() => onEdit(fu)}
                           className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:bg-gray-100 px-2 py-1 rounded-lg transition-colors"
@@ -926,6 +933,8 @@ export default function SalesFollowups() {
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo]     = useState('')
+  const [callModal, setCallModal]           = useState({ open: false, name: '', phone: '' })
+  const [callToast, setCallToast]           = useState(null)
 
   useEffect(() => subscribeFollowups(setFollowups), [])
   useEffect(() => subscribeSalesPermission(setSalesPerm), [])
@@ -1120,7 +1129,7 @@ export default function SalesFollowups() {
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
       {view === 'calendar' ? (
-        <CalendarView followups={filtered} onEdit={openEdit} />
+        <CalendarView followups={filtered} onEdit={openEdit} onCall={({ name, phone }) => setCallModal({ open: true, name, phone })} />
       ) : (
         <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onEdit={openEdit} onCancel={openCancel} />
       )}
@@ -1154,6 +1163,24 @@ export default function SalesFollowups() {
           followup={rescheduleTarget}
           onSave={saveFU}
         />
+      )}
+
+      <CallModal
+        isOpen={callModal.open}
+        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        customerName={callModal.name}
+        phoneNumber={callModal.phone}
+        onCallInitiated={() => {
+          setCallModal({ open: false, name: '', phone: '' })
+          setCallToast('Call initiated successfully')
+          setTimeout(() => setCallToast(null), 3000)
+        }}
+      />
+      {callToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {callToast}
+        </div>
       )}
 
       {/* ── Filter Drawer ────────────────────────────────────────────────────── */}

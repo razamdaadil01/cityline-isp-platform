@@ -6,7 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText,
+  Fingerprint, Search, FileText, PhoneCall,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { getInstallations, subscribeInstallations } from '../data/installationsStore'
@@ -19,6 +19,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
+import CallModal from '../components/ui/CallModal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 const PIPELINES = {
@@ -1571,6 +1572,8 @@ export default function SalesLeadDetail() {
   const [fuToast, setFuToast] = useState(null)
   const [expandedRemarks, setExpandedRemarks] = useState(new Set())
   const [remarkInputs, setRemarkInputs] = useState({})
+  const [callModal, setCallModal] = useState({ open: false, name: '', phone: '' })
+  const [callToast, setCallToast] = useState(null)
 
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribeInstallations(setInstallations), [])
@@ -1810,6 +1813,19 @@ export default function SalesLeadDetail() {
     setTimeout(() => setFuToast(null), 3000)
   }
 
+  function handleCallInitiated({ number }) {
+    const entry = {
+      id: Date.now(),
+      icon: '📞',
+      text: `Call initiated to ${number}`,
+      user: lead.assigned ?? 'Arjun Kumar',
+      time: 'just now',
+    }
+    saveLead({ ...lead, lastActivity: `Call initiated to ${number}`, activityLog: [entry, ...(lead.activityLog ?? [])] })
+    setCallToast('Call initiated successfully')
+    setTimeout(() => setCallToast(null), 3000)
+  }
+
   function toggleRemarks(fuId) {
     setExpandedRemarks(prev => {
       const next = new Set(prev)
@@ -1977,7 +1993,16 @@ export default function SalesLeadDetail() {
 
               {/* Row 2: Phone | Email | Location | Created | Assigned | Pipeline */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-gray-500">
-                <span className="flex items-center gap-1.5"><Phone size={13} />{lead.phone}</span>
+                <button
+                  onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
+                  className="flex items-center gap-1.5 hover:text-brand-blue transition-colors group"
+                >
+                  <Phone size={13} />
+                  {lead.phone}
+                  <span className="hidden group-hover:inline-flex items-center gap-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                    Call
+                  </span>
+                </button>
                 {lead.email && <span className="flex items-center gap-1.5"><Mail size={13} />{lead.email}</span>}
                 {lead.area && <span className="flex items-center gap-1.5"><MapPin size={13} />{lead.area}</span>}
                 <span className="flex items-center gap-1.5"><CalendarDays size={13} />Created {lead.createdAt ?? 'N/A'}</span>
@@ -2107,8 +2132,34 @@ export default function SalesLeadDetail() {
                 <Card>
                   <CardHeader title="Customer Details" />
                   <InfoRow label="Customer Name"    value={lead.name} />
-                  <InfoRow label="Mobile Number"    value={lead.phone} highlight />
-                  <InfoRow label="Alternate Number" value={lead.alternateMobile} />
+                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 shrink-0 w-36">Mobile Number</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-brand-blue">{lead.phone || <span className="text-gray-300">—</span>}</span>
+                      {lead.phone && (
+                        <button
+                          onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                        >
+                          <PhoneCall size={9} /> Call
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 shrink-0 w-36">Alternate Number</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-800">{lead.alternateMobile || <span className="text-gray-300">—</span>}</span>
+                      {lead.alternateMobile && (
+                        <button
+                          onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.alternateMobile })}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                        >
+                          <PhoneCall size={9} /> Call
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <InfoRow label="Email Address"    value={lead.email} />
                 </Card>
 
@@ -2955,6 +3006,19 @@ export default function SalesLeadDetail() {
         onConfirm={handleReopen}
       />
       <EditFuModal isOpen={!!editingFu} onClose={() => setEditingFu(null)} fu={editingFu} onSave={handleEditFuSave} />
+      <CallModal
+        isOpen={callModal.open}
+        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        customerName={callModal.name}
+        phoneNumber={callModal.phone}
+        onCallInitiated={handleCallInitiated}
+      />
+      {callToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {callToast}
+        </div>
+      )}
     </div>
   )
 }
