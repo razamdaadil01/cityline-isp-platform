@@ -1492,6 +1492,10 @@ export default function SalesLeadDetail() {
   const [ekycStatus, setEkycStatus]       = useState('not_started')
   const [ekycVerifiedAt, setEkycVerifiedAt] = useState(null)
   const [ekycModalOpen, setEkycModalOpen] = useState(false)
+  const [editingFu, setEditingFu] = useState(null)
+  const [fuToast, setFuToast] = useState(null)
+  const [expandedRemarks, setExpandedRemarks] = useState(new Set())
+  const [remarkInputs, setRemarkInputs] = useState({})
 
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribeInstallations(setInstallations), [])
@@ -1532,9 +1536,20 @@ export default function SalesLeadDetail() {
     const base = getLeads().find(l => l.id === id)
     if (!base) return []
     return [
-      { id: 'FU-1', date: '2026-05-25', time: '10:00', note: 'Follow-up call to confirm installation slot', status: 'Upcoming', assignedTo: base.assigned, notifyTo: ['Arjun Kumar'] },
-      { id: 'FU-2', date: '2026-05-22', time: '11:30', note: 'Check feasibility status with field team', status: 'Due Today', assignedTo: base.assigned, notifyTo: [] },
-      { id: 'FU-3', date: '2026-05-18', time: '09:00', note: 'Called customer — will call again tomorrow', status: 'Completed', assignedTo: base.assigned, notifyTo: ['Preethi Nair'] },
+      { id: 'FU-1', date: '2026-05-25', time: '10:00', note: 'Follow-up call to confirm installation slot', status: 'Upcoming', assignedTo: base.assigned, notifyTo: ['Arjun Kumar'],
+        remarks: [
+          { id: 'R1-1', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue', text: 'Called customer — line busy', timeLabel: '2h ago' },
+          { id: 'R1-2', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue', text: 'Sent WhatsApp message', timeLabel: '1h ago' },
+        ],
+      },
+      { id: 'FU-2', date: '2026-05-22', time: '11:30', note: 'Check feasibility status with field team', status: 'Due Today', assignedTo: base.assigned, notifyTo: [],
+        remarks: [
+          { id: 'R2-1', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue', text: 'Customer confirmed for tomorrow', timeLabel: '3h ago' },
+        ],
+      },
+      { id: 'FU-3', date: '2026-05-18', time: '09:00', note: 'Called customer — will call again tomorrow', status: 'Completed', assignedTo: base.assigned, notifyTo: ['Preethi Nair'],
+        remarks: [],
+      },
     ]
   })
 
@@ -1713,6 +1728,42 @@ export default function SalesLeadDetail() {
     setFollowups(p => p.map(f => f.id === fuId ? { ...f, status: 'Cancelled' } : f))
   }
 
+  function handleEditFuSave(updated) {
+    setFollowups(p => p.map(f => f.id === updated.id ? updated : f))
+    setEditingFu(null)
+    setFuToast('Follow-up updated')
+    setTimeout(() => setFuToast(null), 3000)
+  }
+
+  function toggleRemarks(fuId) {
+    setExpandedRemarks(prev => {
+      const next = new Set(prev)
+      if (next.has(fuId)) next.delete(fuId)
+      else next.add(fuId)
+      return next
+    })
+  }
+
+  function addRemark(fuId) {
+    const text = remarkInputs[fuId]?.trim()
+    if (!text) return
+    setFollowups(prev => prev.map(f => {
+      if (f.id !== fuId) return f
+      return {
+        ...f,
+        remarks: [...(f.remarks ?? []), {
+          id: `R-${Date.now()}`,
+          author: 'Arjun Kumar',
+          initials: 'AK',
+          color: 'bg-brand-blue',
+          text,
+          timeLabel: 'just now',
+        }],
+      }
+    }))
+    setRemarkInputs(prev => ({ ...prev, [fuId]: '' }))
+  }
+
 
   function handleHardwareConfirm(hwFormData) {
     const parts = lead.name.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/)
@@ -1794,6 +1845,13 @@ export default function SalesLeadDetail() {
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle2 size={16} className="shrink-0" />
           Quotation sent successfully to {quotationToast}
+        </div>
+      )}
+      {/* Follow-up updated toast */}
+      {fuToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {fuToast}
         </div>
       )}
 
@@ -2267,31 +2325,87 @@ export default function SalesLeadDetail() {
                 <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
               </div>
               <div className="space-y-3">
-                {followups.map(fu => (
-                  <div key={fu.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <CalendarDays size={13} className="text-brand-blue shrink-0" />
-                          <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
-                        </div>
-                        {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
-                        <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                          <span>Assigned: {fu.assignedTo}</span>
-                          {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
+                {followups.map(fu => {
+                  const remarkCount = fu.remarks?.length ?? 0
+                  const isRemarksExpanded = expandedRemarks.has(fu.id)
+                  return (
+                    <div key={fu.id} className="bg-white rounded-xl border border-surface-border shadow-card">
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CalendarDays size={13} className="text-brand-blue shrink-0" />
+                              <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
+                            </div>
+                            {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
+                            <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                              <span>Assigned: {fu.assignedTo}</span>
+                              {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
+                            </div>
+                          </div>
+                          {!['Completed','Cancelled'].includes(fu.status) && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button size="xs" icon={<Edit3 size={10} />} variant="secondary" onClick={() => setEditingFu(fu)}>Edit</Button>
+                              <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
+                              <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                              <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
+                            </div>
+                          )}
                         </div>
                       </div>
-                      {!['Completed','Cancelled'].includes(fu.status) && (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
-                          <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
-                          <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
-                        </div>
-                      )}
+
+                      {/* Remarks */}
+                      <div className="border-t border-surface-border">
+                        <button
+                          onClick={() => toggleRemarks(fu.id)}
+                          className="w-full flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <ChevronRight size={12} className={`transition-transform duration-150 ${isRemarksExpanded ? 'rotate-90' : ''}`} />
+                          Remarks{remarkCount > 0 ? ` (${remarkCount})` : ''}
+                        </button>
+                        {isRemarksExpanded && (
+                          <div className="px-4 pb-4 space-y-2">
+                            {remarkCount === 0 && (
+                              <p className="text-xs text-gray-400 py-1">No remarks yet.</p>
+                            )}
+                            {fu.remarks?.map(r => (
+                              <div key={r.id} className="flex items-start gap-2.5 bg-gray-50 rounded-lg p-2.5">
+                                <div className={`w-6 h-6 rounded-full ${r.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                                  {r.initials}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className="text-xs font-semibold text-gray-700">{r.author}</span>
+                                    <span className="text-[10px] text-gray-400">{r.timeLabel}</span>
+                                  </div>
+                                  <p className="text-xs text-gray-600">{r.text}</p>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="flex gap-2 pt-1">
+                              <input
+                                type="text"
+                                value={remarkInputs[fu.id] ?? ''}
+                                onChange={e => setRemarkInputs(prev => ({ ...prev, [fu.id]: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter') addRemark(fu.id) }}
+                                placeholder="Add a remark..."
+                                className="flex-1 text-xs px-3 py-1.5 border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+                              />
+                              <button
+                                onClick={() => addRemark(fu.id)}
+                                disabled={!remarkInputs[fu.id]?.trim()}
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-blue rounded-lg hover:bg-brand-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {followups.length === 0 && (
                   <div className="text-center py-12 text-gray-400">
                     <Bell size={32} className="mx-auto mb-3 opacity-30" />
