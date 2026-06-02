@@ -9,6 +9,7 @@ import {
   Fingerprint, Search, FileText,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
+import { getInstallations, subscribeInstallations } from '../data/installationsStore'
 import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
@@ -1444,7 +1445,8 @@ const TAB_PATH_TO_KEY = {
 export default function SalesLeadDetail() {
   const { id, tab: tabParam } = useParams()
   const navigate = useNavigate()
-  const [leads, setLeads]           = useState(getLeads)
+  const [leads, setLeads]             = useState(getLeads)
+  const [installations, setInstallations] = useState(getInstallations)
   const [pipelines, setPipelines]   = useState(getPipelines)
   const activeTab = TAB_PATH_TO_KEY[tabParam] ?? 'overview'
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -1492,6 +1494,7 @@ export default function SalesLeadDetail() {
   const [ekycModalOpen, setEkycModalOpen] = useState(false)
 
   useEffect(() => subscribeLeads(setLeads), [])
+  useEffect(() => subscribeInstallations(setInstallations), [])
   useEffect(() => subscribePipelines(setPipelines), [])
 
   // Live installation timer
@@ -1520,6 +1523,8 @@ export default function SalesLeadDetail() {
   const installDate   = installVisitEntry?.fields?.['s5d-f1'] ?? '—'
   const installTime   = installVisitEntry?.fields?.['s5d-f2'] ?? '—'
   const engineerName  = installVisitEntry?.fields?.['s5d-f3'] ?? 'Ravi Technician (ENG-001)'
+
+  const linkedInstallation = lead ? installations.find(i => i.leadId === lead.id) : null
 
 
   // Mock follow-ups for this lead
@@ -2039,6 +2044,55 @@ export default function SalesLeadDetail() {
                   <InfoRow label="Days in Stage"
                     value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
                 </Card>
+
+                {/* Installation Card — when lead is in Installation Visit stage */}
+                {lead.stage === 'Installation Visit' && linkedInstallation && (
+                  <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
+                        <Wrench size={14} className="text-orange-600" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Installation</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                        <span className="text-xs text-gray-500 shrink-0">ID</span>
+                        <a
+                          href={`/installations/${linkedInstallation.id}`}
+                          className="text-xs font-semibold text-brand-blue hover:underline"
+                          onClick={e => { e.preventDefault(); navigate(`/installations/${linkedInstallation.id}`) }}
+                        >
+                          {linkedInstallation.id}
+                        </a>
+                      </div>
+                      <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                        <span className="text-xs text-gray-500 shrink-0">Slot</span>
+                        <span className="text-xs font-medium text-gray-800 text-right">
+                          {linkedInstallation.slotDate} · {linkedInstallation.slotTime}
+                        </span>
+                      </div>
+                      <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                        <span className="text-xs text-gray-500 shrink-0">Engineer</span>
+                        <span className="text-xs font-medium text-gray-800 text-right">
+                          {linkedInstallation.engineerName ?? '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <span className="text-xs text-gray-500">Status</span>
+                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${{
+                          'Pending':     'bg-gray-100 text-gray-500',
+                          'Assigned':    'bg-blue-100 text-blue-700',
+                          'Scheduled':   'bg-purple-100 text-purple-700',
+                          'In Progress': 'bg-amber-100 text-amber-700',
+                          'Completed':   'bg-emerald-100 text-emerald-700',
+                          'Cancelled':   'bg-red-100 text-red-600',
+                        }[linkedInstallation.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {linkedInstallation.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Installation Actions — only in Installation Visit stage */}
                 {false && lead.stage === 'Installation Visit' && (
