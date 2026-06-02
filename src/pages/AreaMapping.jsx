@@ -451,12 +451,11 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
               </FormField>
             </div>
 
-            <div className="flex items-center justify-between px-3.5 py-3 rounded-lg border border-surface-border bg-gray-50/50">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Active</p>
-                <p className="text-xs text-gray-400 mt-0.5">Show this sub-locality in lead forms</p>
-              </div>
+            <div className="flex items-center gap-2.5">
               <Toggle checked={slForm.active} onChange={v => setSlForm(f => ({ ...f, active: v }))} />
+              <span className="text-sm text-gray-700">
+                Active <span className="text-gray-400 font-normal">— Show this sub-locality in lead forms</span>
+              </span>
             </div>
           </div>
         )}
