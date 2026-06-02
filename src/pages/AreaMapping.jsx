@@ -11,6 +11,8 @@ import {
   getAreas, saveArea, deleteArea, subscribeAreas, subscribeHierarchy,
   getStates, getDistricts, getAreasList, getLocalities,
   saveStateName, saveDistrictName, saveAreaName, saveLocalityName,
+  updateStateName, updateDistrictName, updateAreaName, updateLocalityName,
+  deleteStateName, deleteDistrictName, deleteAreaName, deleteLocalityName,
 } from '../data/areaMappingStore'
 
 const SITE_TYPES = ['FTTH', 'Sector', 'Village']
@@ -49,6 +51,10 @@ function buildTree(areas) {
   return tree
 }
 
+function truncLabel(label) {
+  return label.length > 25 ? label.slice(0, 22) + '…' : label
+}
+
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
 function Toggle({ checked, onChange }) {
@@ -65,9 +71,9 @@ function Toggle({ checked, onChange }) {
 
 // ── Tree Node ─────────────────────────────────────────────────────────────────
 
-function TreeNode({ label, level = 0, children, items, onEdit, onDelete }) {
+function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditItem, onDeleteItem }) {
   const [open, setOpen] = useState(true)
-  const hasChildren = (children && Object.keys(children?.props?.children ?? {}).length > 0) || items?.length > 0 || children
+  const hasChildren = (Array.isArray(children) ? children.length > 0 : !!children) || items?.length > 0
   const indent = level * 14
   const dotColor = level === 0 ? 'text-brand-blue' : level === 1 ? 'text-navy' : 'text-brand-orange'
   const labelClass = level === 0
@@ -77,43 +83,72 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete }) {
 
   return (
     <div>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 w-full text-left py-1.5 px-2 rounded-lg hover:bg-gray-100 transition-colors"
-        style={{ paddingLeft: `${8 + indent}px` }}
-        title={label}
+      {/* Node header — group div so edit/delete icons appear on hover */}
+      <div
+        className="group flex items-center w-full rounded-lg hover:bg-gray-100 transition-colors"
+        style={{ paddingLeft: `${8 + indent}px`, paddingRight: '4px' }}
       >
-        {children || items?.length
-          ? open
-            ? <ChevronDown size={13} className="text-gray-400 shrink-0" />
-            : <ChevronRight size={13} className="text-gray-400 shrink-0" />
-          : <span className="w-[13px] shrink-0" />
-        }
-        <MapPin size={12} className={`shrink-0 ${dotColor}`} />
-        <span className={`text-sm ${labelClass} truncate`}>{label}</span>
-      </button>
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex-1 flex items-center gap-1.5 text-left py-1.5 min-w-0 pr-1"
+        >
+          {hasChildren
+            ? open
+              ? <ChevronDown size={13} className="text-gray-400 shrink-0" />
+              : <ChevronRight size={13} className="text-gray-400 shrink-0" />
+            : <span className="w-[13px] shrink-0" />
+          }
+          <MapPin size={12} className={`shrink-0 ${dotColor}`} />
+          <span className={`text-sm ${labelClass}`} title={label}>{truncLabel(label)}</span>
+        </button>
+        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
+          <button
+            onClick={e => { e.stopPropagation(); onEdit?.() }}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
+            title="Edit"
+          >
+            <Edit2 size={13} />
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onDelete?.() }}
+            className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            title="Delete"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
 
       {open && children}
 
+      {/* Sub-locality leaf items */}
       {open && items?.map(item => (
         <div
           key={item.id}
-          className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gray-50 group"
-          style={{ paddingLeft: `${8 + indent + 14}px` }}
+          className="group flex items-center rounded-lg hover:bg-gray-50 transition-colors"
+          style={{ paddingLeft: `${8 + indent + 14}px`, paddingRight: '4px' }}
         >
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="flex-1 flex items-center gap-1.5 py-1.5 min-w-0 pr-1">
             <span className="text-gray-300 text-xs shrink-0">•</span>
-            <span className="text-sm text-gray-700 truncate" title={item.subLocality}>{item.subLocality}</span>
+            <span className="text-sm text-gray-700" title={item.subLocality}>
+              {truncLabel(item.subLocality)}
+            </span>
             <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-1">→ {item.siteType} · {item.branchCode}</span>
           </div>
-          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
-            <button onClick={() => onEdit(item)}
-              className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600">
-              <Edit2 size={11} />
+          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
+            <button
+              onClick={() => onEditItem?.(item)}
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
+              title="Edit"
+            >
+              <Edit2 size={13} />
             </button>
-            <button onClick={() => onDelete(item.id)}
-              className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
-              <Trash2 size={11} />
+            <button
+              onClick={() => onDeleteItem?.(item.id, item.subLocality)}
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
@@ -124,15 +159,32 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete }) {
 
 // ── Area Form ─────────────────────────────────────────────────────────────────
 
-function AreaForm({ initial, onSave, onCancel, onToast }) {
-  const isEdit = !!initial
-  const [tab, setTab] = useState('Sub Locality')
+function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast }) {
+  const isEdit  = !!initial
+  const isHEdit = !!hierarchyEdit
 
-  // Per-tab form state
-  const [sf, setSf] = useState({ name: '' })
-  const [df, setDf] = useState({ state: '', name: '' })
-  const [af, setAf] = useState({ state: '', district: '', name: '' })
-  const [lf, setLf] = useState({ state: '', district: '', area: '', name: '' })
+  const [tab, setTab] = useState(isHEdit ? hierarchyEdit.type : 'Sub Locality')
+
+  const [sf, setSf] = useState(
+    isHEdit && hierarchyEdit.type === 'State'
+      ? { name: hierarchyEdit.name }
+      : { name: '' }
+  )
+  const [df, setDf] = useState(
+    isHEdit && hierarchyEdit.type === 'District'
+      ? { state: hierarchyEdit.state, name: hierarchyEdit.name }
+      : { state: '', name: '' }
+  )
+  const [af, setAf] = useState(
+    isHEdit && hierarchyEdit.type === 'Area'
+      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, name: hierarchyEdit.name }
+      : { state: '', district: '', name: '' }
+  )
+  const [lf, setLf] = useState(
+    isHEdit && hierarchyEdit.type === 'Locality'
+      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name }
+      : { state: '', district: '', area: '', name: '' }
+  )
   const [slForm, setSlForm] = useState(isEdit ? {
     id:          initial.id,
     state:       initial.state,
@@ -148,30 +200,32 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
   const [errors, setErrors] = useState({})
 
-  // Derived dropdowns — recomputed on every render (store getters are synchronous)
-  const allStates      = getStates()
-  const dfDistricts    = df.state ? getDistricts(df.state) : []
-  const afDistricts    = af.state ? getDistricts(af.state) : []
-  const afAreas        = af.state && af.district ? getAreasList(af.state, af.district) : []
-  const lfDistricts    = lf.state ? getDistricts(lf.state) : []
-  const lfAreas        = lf.state && lf.district ? getAreasList(lf.state, lf.district) : []
-  const slDistricts    = slForm.state ? getDistricts(slForm.state) : []
-  const slAreas        = slForm.state && slForm.district ? getAreasList(slForm.state, slForm.district) : []
-  const slLocalities   = slForm.state && slForm.district && slForm.area ? getLocalities(slForm.state, slForm.district, slForm.area) : []
+  // Derived dropdowns
+  const allStates    = getStates()
+  const dfDistricts  = df.state ? getDistricts(df.state) : []
+  const afDistricts  = af.state ? getDistricts(af.state) : []
+  const lfDistricts  = lf.state ? getDistricts(lf.state) : []
+  const lfAreas      = lf.state && lf.district ? getAreasList(lf.state, lf.district) : []
+  const slDistricts  = slForm.state ? getDistricts(slForm.state) : []
+  const slAreas      = slForm.state && slForm.district ? getAreasList(slForm.state, slForm.district) : []
+  const slLocalities = slForm.state && slForm.district && slForm.area ? getLocalities(slForm.state, slForm.district, slForm.area) : []
 
-  function changeTab(t) {
-    setTab(t)
-    setErrors({})
-  }
+  function changeTab(t) { setTab(t); setErrors({}) }
 
-  // ── Save handlers ──
+  // ── Save / Update handlers ────────────────────────────────────────────────
 
   function handleSaveState() {
     if (!sf.name.trim()) { setErrors({ name: 'State name is required' }); return }
-    saveStateName(sf.name.trim())
-    setSf({ name: '' })
-    setErrors({})
-    onToast('State added successfully')
+    if (isHEdit) {
+      updateStateName(hierarchyEdit.name, sf.name.trim())
+      onToast('State updated successfully')
+      onCancel()
+    } else {
+      saveStateName(sf.name.trim())
+      setSf({ name: '' })
+      setErrors({})
+      onToast('State added successfully')
+    }
   }
 
   function handleSaveDistrict() {
@@ -179,10 +233,16 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
     if (!df.state) e.state = 'Required'
     if (!df.name.trim()) e.name = 'Required'
     if (Object.keys(e).length) { setErrors(e); return }
-    saveDistrictName(df.state, df.name.trim())
-    setDf({ state: '', name: '' })
-    setErrors({})
-    onToast('District added successfully')
+    if (isHEdit) {
+      updateDistrictName(hierarchyEdit.state, hierarchyEdit.name, df.name.trim())
+      onToast('District updated successfully')
+      onCancel()
+    } else {
+      saveDistrictName(df.state, df.name.trim())
+      setDf({ state: '', name: '' })
+      setErrors({})
+      onToast('District added successfully')
+    }
   }
 
   function handleSaveArea() {
@@ -191,10 +251,16 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
     if (!af.district) e.district = 'Required'
     if (!af.name.trim()) e.name = 'Required'
     if (Object.keys(e).length) { setErrors(e); return }
-    saveAreaName(af.state, af.district, af.name.trim())
-    setAf({ state: '', district: '', name: '' })
-    setErrors({})
-    onToast('Area added successfully')
+    if (isHEdit) {
+      updateAreaName(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.name, af.name.trim())
+      onToast('Area updated successfully')
+      onCancel()
+    } else {
+      saveAreaName(af.state, af.district, af.name.trim())
+      setAf({ state: '', district: '', name: '' })
+      setErrors({})
+      onToast('Area added successfully')
+    }
   }
 
   function handleSaveLocality() {
@@ -204,10 +270,16 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
     if (!lf.area) e.area = 'Required'
     if (!lf.name.trim()) e.name = 'Required'
     if (Object.keys(e).length) { setErrors(e); return }
-    saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim())
-    setLf({ state: '', district: '', area: '', name: '' })
-    setErrors({})
-    onToast('Locality added successfully')
+    if (isHEdit) {
+      updateLocalityName(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, hierarchyEdit.name, lf.name.trim())
+      onToast('Locality updated successfully')
+      onCancel()
+    } else {
+      saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim())
+      setLf({ state: '', district: '', area: '', name: '' })
+      setErrors({})
+      onToast('Locality added successfully')
+    }
   }
 
   function handleSaveSubLocality() {
@@ -222,12 +294,19 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
     onSave(slForm)
   }
 
-  // Render
+  const saveHandler =
+    tab === 'State'      ? handleSaveState
+    : tab === 'District' ? handleSaveDistrict
+    : tab === 'Area'     ? handleSaveArea
+    : tab === 'Locality' ? handleSaveLocality
+    : handleSaveSubLocality
+
+  const isAnyEdit = isEdit || isHEdit
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tabs */}
-      {!isEdit && (
+      {/* Tabs — only for add-new flow */}
+      {!isAnyEdit && (
         <div className="flex border-b border-surface-border px-5 pt-5 gap-0.5 shrink-0">
           {FORM_TABS.map(t => (
             <button
@@ -247,10 +326,12 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
 
       <div className="flex-1 overflow-y-auto p-4">
 
-        {/* ── STATE TAB ── */}
-        {(tab === 'State' && !isEdit) && (
+        {/* ── STATE ── */}
+        {tab === 'State' && (
           <div className="space-y-3 w-full">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add State</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {isHEdit ? 'Edit State' : 'Add State'}
+            </p>
             <FormField label="State Name" required error={errors.name}>
               <Input
                 value={sf.name}
@@ -261,16 +342,19 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
           </div>
         )}
 
-        {/* ── DISTRICT TAB ── */}
-        {(tab === 'District' && !isEdit) && (
+        {/* ── DISTRICT ── */}
+        {tab === 'District' && (
           <div className="space-y-3 w-full">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add District</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {isHEdit ? 'Edit District' : 'Add District'}
+            </p>
             <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={df.state}
                   onChange={e => { setDf(f => ({ ...f, state: e.target.value, name: '' })); setErrors({}) }}
                   error={errors.state}
+                  disabled={isHEdit}
                 >
                   <option value="">Select state…</option>
                   {allStates.map(s => <option key={s}>{s}</option>)}
@@ -287,16 +371,19 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
           </div>
         )}
 
-        {/* ── AREA TAB ── */}
-        {(tab === 'Area' && !isEdit) && (
+        {/* ── AREA ── */}
+        {tab === 'Area' && (
           <div className="space-y-3 w-full">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Area</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {isHEdit ? 'Edit Area' : 'Add Area'}
+            </p>
             <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={af.state}
                   onChange={e => { setAf(f => ({ ...f, state: e.target.value, district: '', name: '' })); setErrors({}) }}
                   error={errors.state}
+                  disabled={isHEdit}
                 >
                   <option value="">Select state…</option>
                   {allStates.map(s => <option key={s}>{s}</option>)}
@@ -306,7 +393,7 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
                 <Select
                   value={af.district}
                   onChange={e => { setAf(f => ({ ...f, district: e.target.value, name: '' })); setErrors({}) }}
-                  disabled={!af.state}
+                  disabled={isHEdit || !af.state}
                   error={errors.district}
                 >
                   <option value="">Select district…</option>
@@ -324,16 +411,19 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
           </div>
         )}
 
-        {/* ── LOCALITY TAB ── */}
-        {(tab === 'Locality' && !isEdit) && (
+        {/* ── LOCALITY ── */}
+        {tab === 'Locality' && (
           <div className="space-y-3 w-full">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Locality</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {isHEdit ? 'Edit Locality' : 'Add Locality'}
+            </p>
             <div className="grid grid-cols-2 gap-4 w-full">
               <FormField label="State" required error={errors.state}>
                 <Select
                   value={lf.state}
                   onChange={e => { setLf(f => ({ ...f, state: e.target.value, district: '', area: '', name: '' })); setErrors({}) }}
                   error={errors.state}
+                  disabled={isHEdit}
                 >
                   <option value="">Select state…</option>
                   {allStates.map(s => <option key={s}>{s}</option>)}
@@ -343,7 +433,7 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
                 <Select
                   value={lf.district}
                   onChange={e => { setLf(f => ({ ...f, district: e.target.value, area: '', name: '' })); setErrors({}) }}
-                  disabled={!lf.state}
+                  disabled={isHEdit || !lf.state}
                   error={errors.district}
                 >
                   <option value="">Select district…</option>
@@ -354,7 +444,7 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
                 <Select
                   value={lf.area}
                   onChange={e => { setLf(f => ({ ...f, area: e.target.value, name: '' })); setErrors({}) }}
-                  disabled={!lf.district}
+                  disabled={isHEdit || !lf.district}
                   error={errors.area}
                 >
                   <option value="">Select area…</option>
@@ -372,7 +462,7 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
           </div>
         )}
 
-        {/* ── SUB LOCALITY TAB ── */}
+        {/* ── SUB LOCALITY ── */}
         {(tab === 'Sub Locality' || isEdit) && (
           <div className="space-y-3 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -466,18 +556,8 @@ function AreaForm({ initial, onSave, onCancel, onToast }) {
       {/* Footer */}
       <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-white flex items-center justify-end gap-3">
         <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button
-          size="sm"
-          icon={<Save size={13} />}
-          onClick={
-            tab === 'State'       ? handleSaveState
-            : tab === 'District'  ? handleSaveDistrict
-            : tab === 'Area'      ? handleSaveArea
-            : tab === 'Locality'  ? handleSaveLocality
-            : handleSaveSubLocality
-          }
-        >
-          Save
+        <Button size="sm" icon={<Save size={13} />} onClick={saveHandler}>
+          {isAnyEdit ? 'Update' : 'Save'}
         </Button>
       </div>
     </div>
@@ -490,9 +570,12 @@ export default function AreaMapping() {
   const navigate = useNavigate()
   const [areas, setAreas]   = useState(getAreas)
   const [, setTick]         = useState(0)
-  const [showForm, setShowForm] = useState(false)
-  const [editItem, setEditItem] = useState(null)
-  const [deleteId, setDeleteId] = useState(null)
+  const [showForm, setShowForm]           = useState(false)
+  const [editItem, setEditItem]           = useState(null)
+  const [hierarchyEditItem, setHierarchyEditItem] = useState(null)
+  const [deleteId, setDeleteId]           = useState(null)
+  const [deleteItemName, setDeleteItemName] = useState('')
+  const [hierarchyDeleteItem, setHierarchyDeleteItem] = useState(null)
   const [toast, setToast]   = useState(null)
 
   useEffect(() => subscribeAreas(setAreas), [])
@@ -505,30 +588,60 @@ export default function AreaMapping() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  function handleSave(form) {
-    const cleaned = { ...form }
-    saveArea(cleaned)
+  function closeForm() {
     setShowForm(false)
     setEditItem(null)
+    setHierarchyEditItem(null)
+  }
+
+  function handleSave(form) {
+    saveArea(form)
+    closeForm()
     showToast(form.id ? 'Sub locality updated' : 'Sub locality added successfully')
   }
 
   function handleEdit(item) {
     setEditItem(item)
+    setHierarchyEditItem(null)
     setShowForm(true)
   }
 
-  function handleDelete(id) {
+  function handleDelete(id, name) {
     setDeleteId(id)
+    setDeleteItemName(name || 'this entry')
   }
 
   function confirmDelete() {
     deleteArea(deleteId)
     setDeleteId(null)
+    setDeleteItemName('')
     showToast('Entry deleted')
   }
 
+  function handleHierarchyEdit(item) {
+    setHierarchyEditItem(item)
+    setEditItem(null)
+    setShowForm(true)
+  }
+
+  function handleHierarchyDelete(item) {
+    setHierarchyDeleteItem(item)
+  }
+
+  function confirmHierarchyDelete() {
+    const { type, name, state, district, area } = hierarchyDeleteItem
+    if (type === 'State')         deleteStateName(name)
+    else if (type === 'District') deleteDistrictName(state, name)
+    else if (type === 'Area')     deleteAreaName(state, district, name)
+    else if (type === 'Locality') deleteLocalityName(state, district, area, name)
+    setHierarchyDeleteItem(null)
+    showToast(`${type} deleted`)
+  }
+
   const feasVariant = { Feasible: 'green', 'Not Feasible': 'red', Pending: 'yellow' }
+
+  const formKey = editItem?.id
+    ?? (hierarchyEditItem ? `${hierarchyEditItem.type}-${hierarchyEditItem.name}` : 'new')
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
@@ -547,7 +660,10 @@ export default function AreaMapping() {
               <p className="text-sm text-gray-500 mt-0.5">Manage service areas, localities and feasibility settings</p>
             </div>
           </div>
-          <Button icon={<Plus size={14} />} onClick={() => { setEditItem(null); setShowForm(true) }}>
+          <Button
+            icon={<Plus size={14} />}
+            onClick={() => { setEditItem(null); setHierarchyEditItem(null); setShowForm(true) }}
+          >
             Add Entry
           </Button>
         </div>
@@ -557,7 +673,7 @@ export default function AreaMapping() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Left: Hierarchy tree */}
-        <div className="w-80 shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
+        <div className="w-80 min-w-[280px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Hierarchy</p>
           {Object.keys(tree).length === 0 ? (
             <div className="text-center py-12 text-gray-400">
@@ -566,19 +682,39 @@ export default function AreaMapping() {
             </div>
           ) : (
             Object.entries(tree).map(([state, districts]) => (
-              <TreeNode key={state} label={state} level={0}>
+              <TreeNode
+                key={state}
+                label={state}
+                level={0}
+                onEdit={() => handleHierarchyEdit({ type: 'State', name: state })}
+                onDelete={() => handleHierarchyDelete({ type: 'State', name: state })}
+              >
                 {Object.entries(districts).map(([district, areasMap]) => (
-                  <TreeNode key={district} label={district} level={1}>
+                  <TreeNode
+                    key={district}
+                    label={district}
+                    level={1}
+                    onEdit={() => handleHierarchyEdit({ type: 'District', state, name: district })}
+                    onDelete={() => handleHierarchyDelete({ type: 'District', state, name: district })}
+                  >
                     {Object.entries(areasMap).map(([area, localitiesMap]) => (
-                      <TreeNode key={area} label={area} level={2}>
+                      <TreeNode
+                        key={area}
+                        label={area}
+                        level={2}
+                        onEdit={() => handleHierarchyEdit({ type: 'Area', state, district, name: area })}
+                        onDelete={() => handleHierarchyDelete({ type: 'Area', state, district, name: area })}
+                      >
                         {Object.entries(localitiesMap).map(([locality, subItems]) => (
                           <TreeNode
                             key={locality}
                             label={locality}
                             level={3}
                             items={subItems}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
+                            onEdit={() => handleHierarchyEdit({ type: 'Locality', state, district, area, name: locality })}
+                            onDelete={() => handleHierarchyDelete({ type: 'Locality', state, district, area, name: locality })}
+                            onEditItem={handleEdit}
+                            onDeleteItem={handleDelete}
                           />
                         ))}
                       </TreeNode>
@@ -594,9 +730,11 @@ export default function AreaMapping() {
         <div className="flex-1 overflow-hidden flex flex-col">
           {showForm ? (
             <AreaForm
+              key={formKey}
               initial={editItem}
+              hierarchyEdit={hierarchyEditItem}
               onSave={handleSave}
-              onCancel={() => { setShowForm(false); setEditItem(null) }}
+              onCancel={closeForm}
               onToast={showToast}
             />
           ) : (
@@ -604,9 +742,9 @@ export default function AreaMapping() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {[
-                  { label: 'Total Sub Localities', value: areas.length,                                           color: 'text-brand-blue'   },
-                  { label: 'Feasible',              value: areas.filter(a => a.feasibility === 'Feasible').length, color: 'text-emerald-600'  },
-                  { label: 'Pending Feasibility',   value: areas.filter(a => a.feasibility === 'Pending').length,  color: 'text-amber-600'    },
+                  { label: 'Total Sub Localities', value: areas.length,                                            color: 'text-brand-blue'  },
+                  { label: 'Feasible',              value: areas.filter(a => a.feasibility === 'Feasible').length, color: 'text-emerald-600' },
+                  { label: 'Pending Feasibility',   value: areas.filter(a => a.feasibility === 'Pending').length,  color: 'text-amber-600'   },
                 ].map(s => (
                   <div key={s.label} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
                     <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -641,12 +779,16 @@ export default function AreaMapping() {
                         <Badge variant="blue" size="sm">{a.siteType}</Badge>
                         <Badge variant={feasVariant[a.feasibility] || 'gray'} size="sm">{a.feasibility}</Badge>
                         <div className="flex gap-1">
-                          <button onClick={() => handleEdit(a)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                          <button
+                            onClick={() => handleEdit(a)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                          >
                             <Edit2 size={13} />
                           </button>
-                          <button onClick={() => handleDelete(a.id)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                          <button
+                            onClick={() => handleDelete(a.id, a.subLocality)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                          >
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -660,7 +802,7 @@ export default function AreaMapping() {
         </div>
       </div>
 
-      {/* Delete confirm */}
+      {/* Sub-locality delete confirm */}
       <Modal
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
@@ -673,7 +815,31 @@ export default function AreaMapping() {
           </>
         }
       >
-        <p className="text-sm text-gray-600">Are you sure you want to delete this sub locality entry? This action cannot be undone.</p>
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete{' '}
+          <span className="font-medium text-gray-800">{deleteItemName}</span>?{' '}
+          This action cannot be undone.
+        </p>
+      </Modal>
+
+      {/* Hierarchy delete confirm */}
+      <Modal
+        isOpen={!!hierarchyDeleteItem}
+        onClose={() => setHierarchyDeleteItem(null)}
+        title={`Delete ${hierarchyDeleteItem?.type ?? ''}`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setHierarchyDeleteItem(null)}>Cancel</Button>
+            <Button variant="danger" size="sm" onClick={confirmHierarchyDelete}>Delete</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete{' '}
+          <span className="font-medium text-gray-800">{hierarchyDeleteItem?.name}</span>?{' '}
+          This will also remove all child entries.
+        </p>
       </Modal>
 
       {/* Success toast */}

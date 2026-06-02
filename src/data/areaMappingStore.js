@@ -148,3 +148,71 @@ export function lookupSubLocality(state, district, area, locality, subLocality) 
     a.locality === locality && a.subLocality === subLocality
   ) || null
 }
+
+// ── Hierarchy updaters — rename with cascade ────────────────────────────────
+
+export function updateStateName(oldName, newName) {
+  if (!newName.trim() || oldName === newName) return
+  _stubs.states    = _stubs.states.map(s => s === oldName ? newName : s)
+  _stubs.districts = _stubs.districts.map(d => d.state === oldName ? { ...d, state: newName } : d)
+  _stubs.areas     = _stubs.areas.map(a => a.state === oldName ? { ...a, state: newName } : a)
+  _stubs.localities= _stubs.localities.map(l => l.state === oldName ? { ...l, state: newName } : l)
+  _areas           = _areas.map(a => a.state === oldName ? { ...a, state: newName } : a)
+  notifyAll()
+}
+
+export function updateDistrictName(state, oldName, newName) {
+  if (!newName.trim() || oldName === newName) return
+  _stubs.districts = _stubs.districts.map(d => d.state === state && d.name === oldName ? { ...d, name: newName } : d)
+  _stubs.areas     = _stubs.areas.map(a => a.state === state && a.district === oldName ? { ...a, district: newName } : a)
+  _stubs.localities= _stubs.localities.map(l => l.state === state && l.district === oldName ? { ...l, district: newName } : l)
+  _areas           = _areas.map(a => a.state === state && a.district === oldName ? { ...a, district: newName } : a)
+  notifyAll()
+}
+
+export function updateAreaName(state, district, oldName, newName) {
+  if (!newName.trim() || oldName === newName) return
+  _stubs.areas     = _stubs.areas.map(a => a.state === state && a.district === district && a.name === oldName ? { ...a, name: newName } : a)
+  _stubs.localities= _stubs.localities.map(l => l.state === state && l.district === district && l.area === oldName ? { ...l, area: newName } : l)
+  _areas           = _areas.map(a => a.state === state && a.district === district && a.area === oldName ? { ...a, area: newName } : a)
+  notifyAll()
+}
+
+export function updateLocalityName(state, district, area, oldName, newName) {
+  if (!newName.trim() || oldName === newName) return
+  _stubs.localities= _stubs.localities.map(l => l.state === state && l.district === district && l.area === area && l.name === oldName ? { ...l, name: newName } : l)
+  _areas           = _areas.map(a => a.state === state && a.district === district && a.area === area && a.locality === oldName ? { ...a, locality: newName } : a)
+  notifyAll()
+}
+
+// ── Hierarchy deleters — remove with full cascade ───────────────────────────
+
+export function deleteStateName(name) {
+  _stubs.states    = _stubs.states.filter(s => s !== name)
+  _stubs.districts = _stubs.districts.filter(d => d.state !== name)
+  _stubs.areas     = _stubs.areas.filter(a => a.state !== name)
+  _stubs.localities= _stubs.localities.filter(l => l.state !== name)
+  _areas           = _areas.filter(a => a.state !== name)
+  notifyAll()
+}
+
+export function deleteDistrictName(state, name) {
+  _stubs.districts = _stubs.districts.filter(d => !(d.state === state && d.name === name))
+  _stubs.areas     = _stubs.areas.filter(a => !(a.state === state && a.district === name))
+  _stubs.localities= _stubs.localities.filter(l => !(l.state === state && l.district === name))
+  _areas           = _areas.filter(a => !(a.state === state && a.district === name))
+  notifyAll()
+}
+
+export function deleteAreaName(state, district, name) {
+  _stubs.areas     = _stubs.areas.filter(a => !(a.state === state && a.district === district && a.name === name))
+  _stubs.localities= _stubs.localities.filter(l => !(l.state === state && l.district === district && l.area === name))
+  _areas           = _areas.filter(a => !(a.state === state && a.district === district && a.area === name))
+  notifyAll()
+}
+
+export function deleteLocalityName(state, district, area, name) {
+  _stubs.localities= _stubs.localities.filter(l => !(l.state === state && l.district === district && l.area === area && l.name === name))
+  _areas           = _areas.filter(a => !(a.state === state && a.district === district && a.area === area && a.locality === name))
+  notifyAll()
+}
