@@ -35,6 +35,8 @@ import Notifications from './pages/Notifications'
 import AreaMapping from './pages/AreaMapping'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import UserManagement from './pages/UserManagement'
+import Installations from './pages/Installations'
+import InstallationDetail from './pages/InstallationDetail'
 
 function LeadDetailRedirect() {
   const { id } = useParams()
@@ -62,6 +64,8 @@ export default function App() {
           <Route path="/sales/leads/:id/edit" element={<SalesEditLead />} />
           <Route path="/sales/leads/:id" element={<LeadDetailRedirect />} />
           <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
+          <Route path="/installations" element={<Installations />} />
+          <Route path="/installations/:id" element={<InstallationDetail />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />

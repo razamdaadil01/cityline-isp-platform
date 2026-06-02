@@ -25,6 +25,7 @@ import {
   BarChart2,
   MapPin,
   ClipboardCheck,
+  Wrench,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
       { label: 'Analytics',    icon: BarChart2,  to: '/sales/analytics'    },
     ],
   },
+  { label: 'Installations',    icon: Wrench,          to: '/installations'             },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
   { label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support'                   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
