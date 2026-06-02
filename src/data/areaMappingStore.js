@@ -39,7 +39,21 @@ const INIT_DATA = [
 ]
 
 let _areas = [...INIT_DATA]
-const _listeners = []
+
+// Hierarchy stubs — intermediate level entries without sub-localities yet
+let _stubs = {
+  states:     [],  // string[]
+  districts:  [],  // { state, name }[]
+  areas:      [],  // { state, district, name }[]
+  localities: [],  // { state, district, area, name }[]
+}
+
+const _areaListeners = new Set()
+const _hierarchyListeners = new Set()
+
+function notify()          { _areaListeners.forEach(fn => fn([..._areas])) }
+function notifyHierarchy() { _hierarchyListeners.forEach(fn => fn()) }
+function notifyAll()       { notify(); notifyHierarchy() }
 
 export function getAreas() { return _areas }
 
@@ -49,33 +63,77 @@ export function saveArea(area) {
   } else {
     _areas = [..._areas, { ...area, id: `AM-${Date.now()}` }]
   }
-  _listeners.forEach(fn => fn([..._areas]))
+  notify()
 }
 
 export function deleteArea(id) {
   _areas = _areas.filter(a => a.id !== id)
-  _listeners.forEach(fn => fn([..._areas]))
+  notify()
 }
 
 export function subscribeAreas(fn) {
-  _listeners.push(fn)
-  return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
+  _areaListeners.add(fn)
+  return () => _areaListeners.delete(fn)
 }
 
+export function subscribeHierarchy(fn) {
+  _hierarchyListeners.add(fn)
+  return () => _hierarchyListeners.delete(fn)
+}
+
+// ── Hierarchy stub savers ────────────────────────────────────────────────────
+
+export function saveStateName(name) {
+  if (!_stubs.states.includes(name)) {
+    _stubs.states = [..._stubs.states, name]
+    notifyHierarchy()
+  }
+}
+
+export function saveDistrictName(state, name) {
+  if (!_stubs.districts.find(d => d.state === state && d.name === name)) {
+    _stubs.districts = [..._stubs.districts, { state, name }]
+    notifyHierarchy()
+  }
+}
+
+export function saveAreaName(state, district, name) {
+  if (!_stubs.areas.find(a => a.state === state && a.district === district && a.name === name)) {
+    _stubs.areas = [..._stubs.areas, { state, district, name }]
+    notifyHierarchy()
+  }
+}
+
+export function saveLocalityName(state, district, area, name) {
+  if (!_stubs.localities.find(l => l.state === state && l.district === district && l.area === area && l.name === name)) {
+    _stubs.localities = [..._stubs.localities, { state, district, area, name }]
+    notifyHierarchy()
+  }
+}
+
+// ── Getters — merge sub-locality records + hierarchy stubs ──────────────────
+
 export function getStates() {
-  return [...new Set(_areas.map(a => a.state))].sort()
+  const fromAreas = _areas.map(a => a.state)
+  return [...new Set([...fromAreas, ..._stubs.states])].sort()
 }
 
 export function getDistricts(state) {
-  return [...new Set(_areas.filter(a => a.state === state).map(a => a.district))].sort()
+  const fromAreas = _areas.filter(a => a.state === state).map(a => a.district)
+  const fromStubs = _stubs.districts.filter(d => d.state === state).map(d => d.name)
+  return [...new Set([...fromAreas, ...fromStubs])].sort()
 }
 
 export function getAreasList(state, district) {
-  return [...new Set(_areas.filter(a => a.state === state && a.district === district).map(a => a.area))].sort()
+  const fromAreas = _areas.filter(a => a.state === state && a.district === district).map(a => a.area)
+  const fromStubs = _stubs.areas.filter(a => a.state === state && a.district === district).map(a => a.name)
+  return [...new Set([...fromAreas, ...fromStubs])].sort()
 }
 
 export function getLocalities(state, district, area) {
-  return [...new Set(_areas.filter(a => a.state === state && a.district === district && a.area === area).map(a => a.locality))].sort()
+  const fromAreas = _areas.filter(a => a.state === state && a.district === district && a.area === area).map(a => a.locality)
+  const fromStubs = _stubs.localities.filter(l => l.state === state && l.district === district && l.area === area).map(l => l.name)
+  return [...new Set([...fromAreas, ...fromStubs])].sort()
 }
 
 export function getSubLocalities(state, district, area, locality) {
