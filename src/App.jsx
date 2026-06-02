@@ -9,7 +9,7 @@ import SalesToday from './pages/SalesToday'
 import SalesFollowups from './pages/SalesFollowups'
 import SalesPipelines from './pages/SalesPipelines'
 import SalesHwAssignment from './pages/SalesHwAssignment'
-import SalesFormBuilder from './pages/SalesFormBuilder'
+import SalesStageFields from './pages/SalesStageFields'
 import SalesProposals from './pages/SalesProposals'
 import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
@@ -56,7 +56,7 @@ export default function App() {
           <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/sales/followups" element={<SalesFollowups />} />
           <Route path="/settings/sales-configuration/pipelines"    element={<SalesPipelines />} />
-          <Route path="/settings/sales-configuration/form-builder" element={<SalesFormBuilder />} />
+          <Route path="/settings/sales-configuration/stage-fields" element={<SalesStageFields />} />
           <Route path="/inventory/hw-assignment"     element={<SalesHwAssignment />} />
           <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/sales/analytics" element={<SalesAnalytics />} />

@@ -656,7 +656,7 @@ function SalesConfigTab() {
         </button>
 
         <button
-          onClick={() => navigate('/settings/sales-configuration/form-builder')}
+          onClick={() => navigate('/settings/sales-configuration/stage-fields')}
           className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
         >
           <div className="flex items-center gap-3">
@@ -664,8 +664,8 @@ function SalesConfigTab() {
               <FileText size={18} className="text-brand-blue" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-800">Form Builder</p>
-              <p className="text-xs text-gray-400 mt-0.5">Customize lead capture fields for each pipeline</p>
+              <p className="text-sm font-semibold text-gray-800">Stage Fields</p>
+              <p className="text-xs text-gray-400 mt-0.5">Fields configured for each pipeline stage</p>
             </div>
           </div>
           <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
