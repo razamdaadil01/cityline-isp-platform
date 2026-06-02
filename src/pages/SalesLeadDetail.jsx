@@ -958,7 +958,9 @@ const APPROVAL_LABEL = {
   'Rejected': 'Rejected ❌',
 }
 
-function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onChange, onSave, onSendApproval }) {
+const APPROVER_OPTIONS = ['Regional Manager', 'Zonal Manager', 'Director', 'Admin']
+
+function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onChange, onSave, onSendApproval, approverVal, onApproverChange }) {
   const displayPrice = editPrice && customPriceVal !== ''
     ? (parseFloat(customPriceVal) || plan.price)
     : (pkg.customPrice ?? plan.price)
@@ -1038,6 +1040,27 @@ function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleE
           </span>
         </div>
 
+        {/* Approver selector (editable before send, read-only after) */}
+        {status === 'Not Sent' ? (
+          <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+            <span className="text-xs text-gray-500 shrink-0">Approver</span>
+            <select
+              value={approverVal}
+              onChange={e => onApproverChange(e.target.value)}
+              className="text-xs border border-surface-border rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-brand-blue/30 font-medium text-gray-700"
+            >
+              {APPROVER_OPTIONS.map(a => <option key={a}>{a}</option>)}
+            </select>
+          </div>
+        ) : (
+          pkg.approver && (
+            <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+              <span className="text-xs text-gray-500 shrink-0">Approver</span>
+              <span className="text-xs font-medium text-gray-700">{pkg.approver}</span>
+            </div>
+          )
+        )}
+
         {/* Action */}
         <div className="pt-0.5">
           {editPrice ? (
@@ -1063,12 +1086,6 @@ function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleE
                 <span className="font-medium text-gray-700 text-right">{pkg.requestedBy}{pkg.requestedAt ? ` · ${pkg.requestedAt}` : ''}</span>
               </div>
             )}
-            {pkg.approver && (
-              <div className="flex items-center justify-between text-xs gap-3">
-                <span className="text-gray-500 shrink-0">Approver</span>
-                <span className="font-medium text-gray-700">{pkg.approver}</span>
-              </div>
-            )}
             {pkg.resolvedBy && (
               <div className="flex items-center justify-between text-xs gap-3">
                 <span className="text-gray-500 shrink-0">{status === 'Approved' ? 'Approved by' : 'Rejected by'}</span>
@@ -1079,6 +1096,12 @@ function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleE
               <div className="flex items-start justify-between text-xs gap-3">
                 <span className="text-gray-500 shrink-0">Notes</span>
                 <span className="font-medium text-gray-700 text-right">{pkg.notes}</span>
+              </div>
+            )}
+            {status === 'Rejected' && pkg.rejectionReason && (
+              <div className="mt-1 rounded-lg bg-red-50 border border-red-200 px-3 py-2 space-y-0.5">
+                <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">Rejection Reason</p>
+                <p className="text-xs text-red-700 font-medium">{pkg.rejectionReason}</p>
               </div>
             )}
           </div>
@@ -1563,6 +1586,8 @@ export default function SalesLeadDetail() {
   const [bwCustomPrice, setBwCustomPrice]   = useState('')
   const [otherEditPrice, setOtherEditPrice] = useState(false)
   const [otherCustomPrice, setOtherCustomPrice] = useState('')
+  const [bwApprover, setBwApprover]         = useState('Regional Manager')
+  const [otherApprover, setOtherApprover]   = useState('Regional Manager')
 
   // eKYC state
   const [ekycStatus, setEkycStatus]       = useState('not_started')
@@ -1904,7 +1929,7 @@ export default function SalesLeadDetail() {
     const updated = {
       ...lead[pkgKey],
       customPrice: editOn && cpStr !== '' ? parseFloat(cpStr) || null : null,
-      ...(sendForApproval ? { approvalStatus: 'Pending', requestedBy: lead.assigned, requestedAt: today, approver: 'Regional Manager', resolvedBy: null, resolvedAt: null, notes: '' } : {}),
+      ...(sendForApproval ? { approvalStatus: 'Pending', requestedBy: lead.assigned, requestedAt: today, approver: slot === 'bandwidth' ? bwApprover : otherApprover, resolvedBy: null, resolvedAt: null, notes: '' } : {}),
     }
     saveLead({ ...lead, [pkgKey]: updated })
     if (slot === 'bandwidth') { setBwEditPrice(false); setBwCustomPrice('') }
@@ -2869,6 +2894,8 @@ export default function SalesLeadDetail() {
                             onChange={() => openPkgModal('bandwidth')}
                             onSave={() => handleSaveEnterprisePkg('bandwidth', false)}
                             onSendApproval={() => handleSaveEnterprisePkg('bandwidth', true)}
+                            approverVal={bwApprover}
+                            onApproverChange={setBwApprover}
                           />
                         </div>
                       )
@@ -2905,11 +2932,45 @@ export default function SalesLeadDetail() {
                             onChange={() => openPkgModal('other')}
                             onSave={() => handleSaveEnterprisePkg('other', false)}
                             onSendApproval={() => handleSaveEnterprisePkg('other', true)}
+                            approverVal={otherApprover}
+                            onApproverChange={setOtherApprover}
                           />
                         </div>
                       )
                     })()}
                   </div>
+
+                  {/* Generate Quotation button */}
+                  {(() => {
+                    const pkgs = [lead.bandwidthPackage, lead.otherPackage].filter(Boolean)
+                    if (pkgs.length === 0) return null
+                    const pendingPkg = pkgs.find(p => p.approvalStatus === 'Pending' || p.approvalStatus === 'Rejected')
+                    const allApproved = pkgs.every(p => p.approvalStatus === 'Approved')
+                    const pendingPlan = pendingPkg ? MOCK_PLANS.find(p => p.id === pendingPkg.packageId) : null
+                    const tooltipText = pendingPkg
+                      ? `Approval pending for ${pendingPlan?.name ?? 'package'}`
+                      : ''
+                    return (
+                      <div className="pt-2 border-t border-surface-border">
+                        <button
+                          type="button"
+                          disabled={!allApproved}
+                          title={tooltipText}
+                          onClick={() => setQuotationOpen(true)}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                            allApproved
+                              ? 'bg-brand-blue text-white hover:bg-blue-700'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <span>📄</span> Generate Quotation
+                        </button>
+                        {!allApproved && tooltipText && (
+                          <p className="mt-1.5 text-xs text-amber-600">{tooltipText}</p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </div>
