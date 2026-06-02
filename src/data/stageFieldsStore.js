@@ -8,7 +8,6 @@ const INIT = {
   s1: [
     field('s1-f1', 'Lead Source',     'Dropdown', false, ['Walk-in', 'Website', 'Referral', 'Cold Call', 'Social Media', 'Other']),
     field('s1-f2', 'Interested Plan', 'Dropdown', false, PLANS),
-    field('s1-f3', 'Notes',           'Textarea', false),
   ],
   s2: [
     field('s2-f1', 'Contact Method', 'Dropdown', true,  ['Call', 'WhatsApp', 'Email', 'Visit']),

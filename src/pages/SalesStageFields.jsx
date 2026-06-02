@@ -20,20 +20,20 @@ const STAGE_DOT = {
 function RequiredBadge({ field }) {
   if (field.conditionalOn) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+      <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-700">
         Conditional
       </span>
     )
   }
   if (field.required) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+      <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-red-100 text-red-600">
         Required
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+    <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-500">
       Optional
     </span>
   )
@@ -41,17 +41,17 @@ function RequiredBadge({ field }) {
 
 function TypeChip({ type }) {
   const colors = {
-    'Text':     'bg-blue-50 text-blue-700',
+    'Text':     'bg-purple-50 text-purple-700',
     'Textarea': 'bg-indigo-50 text-indigo-700',
-    'Dropdown': 'bg-purple-50 text-purple-700',
-    'Radio':    'bg-purple-50 text-purple-700',
+    'Dropdown': 'bg-blue-50 text-blue-700',
+    'Radio':    'bg-blue-50 text-blue-700',
     'Date':     'bg-teal-50 text-teal-700',
     'Time':     'bg-teal-50 text-teal-700',
     'Number':   'bg-orange-50 text-orange-700',
-    'Toggle':   'bg-emerald-50 text-emerald-700',
+    'Toggle':   'bg-orange-50 text-orange-700',
   }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${colors[type] ?? 'bg-gray-50 text-gray-600'}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${colors[type] ?? 'bg-gray-50 text-gray-600'}`}>
       {type}
     </span>
   )
