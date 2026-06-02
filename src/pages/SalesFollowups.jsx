@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import {
   Calendar, List, Plus, Clock, Phone, MessageSquare,
   ChevronLeft, ChevronRight, AlertCircle, CheckCircle2,
@@ -133,12 +133,6 @@ function FollowupModal({ isOpen, onClose, initial, onSave, staff = [] }) {
         <FormField label="Time">
           <Input type="time" value={form.time} onChange={e => set('time', e.target.value)} />
         </FormField>
-        <FormField label="Stage">
-          <Select value={form.stage} onChange={e => set('stage', e.target.value)}>
-            <option value="">Select Stage</option>
-            {STAGES.map(s => <option key={s}>{s}</option>)}
-          </Select>
-        </FormField>
         <FormField label="Assigned To">
           <Select value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}>
             <option value="">Select Rep</option>
@@ -152,7 +146,6 @@ function FollowupModal({ isOpen, onClose, initial, onSave, staff = [] }) {
             <option value="low">Low</option>
           </Select>
         </FormField>
-        <div />
         <div className="col-span-2">
           <FormField label="Note">
             <Textarea value={form.note} onChange={e => set('note', e.target.value)} placeholder="Context or reminder for this follow-up…" rows={3} />
@@ -561,7 +554,7 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-              {['FU ID', 'Lead Name', 'Customer', 'Pipeline', 'Stage', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
+              {['FU ID', 'Lead Name', 'Customer', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
                 <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -569,7 +562,7 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
           <tbody className="divide-y divide-surface-border">
             {followups.length === 0 ? (
               <tr>
-                <td colSpan={11} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
+                <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
               </tr>
             ) : (
               followups.map(fu => {
@@ -595,32 +588,23 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
 
                       {/* Lead Name */}
                       <td className="px-4 py-3">
-                        <span className={`font-semibold text-gray-900 text-sm ${isDone || isCancelled ? 'line-through text-gray-400' : ''}`}>
-                          {fu.leadName}
-                        </span>
+                        {fu.leadId ? (
+                          <Link
+                            to={`/sales/leads/${fu.leadId}/overview`}
+                            className={`font-semibold text-sm text-brand-blue hover:underline ${isDone || isCancelled ? 'line-through text-gray-400' : ''}`}
+                          >
+                            {fu.leadName}
+                          </Link>
+                        ) : (
+                          <span className={`font-semibold text-gray-900 text-sm ${isDone || isCancelled ? 'line-through text-gray-400' : ''}`}>
+                            {fu.leadName}
+                          </span>
+                        )}
                       </td>
 
                       {/* Customer */}
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                         {fu.customer || '—'}
-                      </td>
-
-                      {/* Pipeline */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {fu.pipeline ? (
-                          <Badge variant="blue" size="sm">
-                            {fu.pipeline}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
-                      </td>
-
-                      {/* Stage */}
-                      <td className="px-4 py-3">
-                        <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                          {fu.stage}
-                        </span>
                       </td>
 
                       {/* Date */}

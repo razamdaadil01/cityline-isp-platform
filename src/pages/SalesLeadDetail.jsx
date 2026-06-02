@@ -1440,6 +1440,81 @@ const TAB_PATH_TO_KEY = {
   'package':       'package',
 }
 
+// ── EditFuModal ────────────────────────────────────────────────────────────────
+
+function EditFuModal({ isOpen, onClose, fu, onSave }) {
+  const [form, setForm] = useState({ date: '', time: '', note: '', notifyTo: [] })
+
+  useEffect(() => {
+    if (isOpen && fu) {
+      setForm({ date: fu.date, time: fu.time, note: fu.note ?? '', notifyTo: fu.notifyTo ?? [] })
+    }
+  }, [isOpen, fu])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function toggleNotify(name) {
+    setForm(p => ({
+      ...p,
+      notifyTo: p.notifyTo.includes(name) ? p.notifyTo.filter(n => n !== name) : [...p.notifyTo, name],
+    }))
+  }
+
+  const isInPast = form.date && form.date < TODAY
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Follow-up" size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!form.date || !form.time || isInPast}
+            onClick={() => onSave({ ...fu, date: form.date, time: form.time, note: form.note, notifyTo: form.notifyTo })}
+          >
+            Save Changes
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Follow-up Date" required>
+            <Input type="date" min={TODAY} value={form.date} onChange={e => set('date', e.target.value)} />
+          </FormField>
+          <FormField label="Follow-up Time" required>
+            <Input type="time" value={form.time} onChange={e => set('time', e.target.value)} />
+          </FormField>
+        </div>
+        {isInPast && (
+          <p className="text-xs text-red-500 -mt-2">Date cannot be in the past.</p>
+        )}
+        <FormField label="Note">
+          <Textarea rows={3} placeholder="Context or reminder…" value={form.note} onChange={e => set('note', e.target.value)} />
+        </FormField>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Notify To</p>
+          <div className="flex flex-wrap gap-2">
+            {STAFF.map(s => (
+              <button key={s.name} type="button" onClick={() => toggleNotify(s.name)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
+                  form.notifyTo.includes(s.name)
+                    ? 'border-brand-blue bg-brand-blue/10 text-brand-blue'
+                    : 'border-surface-border bg-white text-gray-600 hover:border-brand-blue/40'
+                }`}>
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>
+                  {s.initials}
+                </div>
+                {s.name}
+                {form.notifyTo.includes(s.name) && <CheckCircle2 size={12} />}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
@@ -2879,6 +2954,7 @@ export default function SalesLeadDetail() {
         firstStage={pl.stages[0]}
         onConfirm={handleReopen}
       />
+      <EditFuModal isOpen={!!editingFu} onClose={() => setEditingFu(null)} fu={editingFu} onSave={handleEditFuSave} />
     </div>
   )
 }
