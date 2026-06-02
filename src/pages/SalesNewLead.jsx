@@ -295,6 +295,8 @@ export default function SalesNewLead() {
   // Fix 2: show feasibility banner when sub locality is not in mapping
   const showFeasibilityBanner = isOther
 
+  const submitBlocked = showFeasibilityBanner && !form.feasibilityRequired
+
   function handleCreate() {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
@@ -634,8 +636,8 @@ export default function SalesNewLead() {
                 <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
                   <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-amber-800">Selected area is not fully mapped.</p>
-                    <p className="text-xs text-amber-700 mt-0.5">Mark as feasibility required?</p>
+                    <p className="text-sm font-semibold text-amber-800">This area is not fully mapped.</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Feasibility check is required before creating this lead.</p>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer shrink-0 mt-0.5">
                     <input
@@ -651,9 +653,18 @@ export default function SalesNewLead() {
                       }}
                       className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-400/30"
                     />
-                    <span className="text-sm font-semibold text-amber-800">Feasibility Required</span>
+                    <span className="text-sm font-semibold text-amber-800">
+                      Feasibility Required <span className="text-red-500">*</span>
+                    </span>
                   </label>
                 </div>
+
+                {!form.feasibilityRequired && (
+                  <p className="text-xs text-amber-700 flex items-center gap-1.5">
+                    <AlertTriangle size={11} className="text-amber-500 shrink-0" />
+                    Feasibility check is required for this area. Please mark it as Feasibility Required to proceed.
+                  </p>
+                )}
 
                 {form.feasibilityRequired && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
@@ -946,7 +957,9 @@ export default function SalesNewLead() {
         </p>
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={() => navigate('/sales')}>Cancel</Button>
-          <Button onClick={handleCreate}>Create Lead</Button>
+          <span title={submitBlocked ? 'Complete feasibility details to create this lead' : undefined}>
+            <Button onClick={handleCreate} disabled={submitBlocked}>Create Lead</Button>
+          </span>
         </div>
       </div>
 
