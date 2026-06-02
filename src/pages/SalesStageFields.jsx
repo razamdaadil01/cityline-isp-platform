@@ -20,20 +20,20 @@ const STAGE_DOT = {
 function RequiredBadge({ field }) {
   if (field.conditionalOn) {
     return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-700">
+      <span className="inline-block whitespace-nowrap px-2.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
         Conditional
       </span>
     )
   }
   if (field.required) {
     return (
-      <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-red-100 text-red-600">
+      <span className="inline-block whitespace-nowrap px-2.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
         Required
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-500">
+    <span className="inline-block whitespace-nowrap px-2.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
       Optional
     </span>
   )
@@ -41,17 +41,17 @@ function RequiredBadge({ field }) {
 
 function TypeChip({ type }) {
   const colors = {
-    'Text':     'bg-purple-50 text-purple-700',
-    'Textarea': 'bg-indigo-50 text-indigo-700',
-    'Dropdown': 'bg-blue-50 text-blue-700',
-    'Radio':    'bg-blue-50 text-blue-700',
-    'Date':     'bg-teal-50 text-teal-700',
-    'Time':     'bg-teal-50 text-teal-700',
-    'Number':   'bg-orange-50 text-orange-700',
-    'Toggle':   'bg-orange-50 text-orange-700',
+    'Text':     'bg-purple-100 text-purple-700',
+    'Textarea': 'bg-indigo-100 text-indigo-700',
+    'Dropdown': 'bg-blue-100 text-blue-700',
+    'Radio':    'bg-blue-100 text-blue-700',
+    'Date':     'bg-teal-100 text-teal-700',
+    'Time':     'bg-teal-100 text-teal-700',
+    'Number':   'bg-orange-100 text-orange-700',
+    'Toggle':   'bg-orange-100 text-orange-700',
   }
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${colors[type] ?? 'bg-gray-50 text-gray-600'}`}>
+    <span className={`inline-block whitespace-nowrap px-2.5 py-0.5 rounded text-xs font-medium ${colors[type] ?? 'bg-gray-100 text-gray-600'}`}>
       {type}
     </span>
   )
