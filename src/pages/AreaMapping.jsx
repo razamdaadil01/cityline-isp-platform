@@ -99,7 +99,7 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
             : <span className="w-[13px] shrink-0" />
           }
           <MapPin size={12} className={`shrink-0 ${dotColor}`} />
-          <span className={`text-sm ${labelClass}`} title={label}>{truncLabel(label)}</span>
+          <span className={`text-sm ${labelClass} whitespace-nowrap`} title={label}>{truncLabel(label)}</span>
         </button>
         <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
           <button
@@ -130,7 +130,7 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
         >
           <div className="flex-1 flex items-center gap-1.5 py-1.5 min-w-0 pr-1">
             <span className="text-gray-300 text-xs shrink-0">•</span>
-            <span className="text-sm text-gray-700" title={item.subLocality}>
+            <span className="text-sm text-gray-700 whitespace-nowrap" title={item.subLocality}>
               {truncLabel(item.subLocality)}
             </span>
             <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-1">→ {item.siteType} · {item.branchCode}</span>
@@ -543,10 +543,8 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast }) {
 
             <div className="flex items-center gap-2.5">
               <Toggle checked={slForm.active} onChange={v => setSlForm(f => ({ ...f, active: v }))} />
-              <span className="text-sm text-gray-700">
-                <span className="font-medium">Active</span>
-                {' — '}
-                <span className="text-gray-400 font-normal">Show this sub-locality in lead forms</span>
+              <span className="text-sm font-medium text-gray-700">
+                Active <span className="font-normal text-gray-400">— Show this sub-locality in lead forms</span>
               </span>
             </div>
           </div>
@@ -673,7 +671,7 @@ export default function AreaMapping() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Left: Hierarchy tree */}
-        <div className="w-80 min-w-[280px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
+        <div className="w-[360px] min-w-[320px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Hierarchy</p>
           {Object.keys(tree).length === 0 ? (
             <div className="text-center py-12 text-gray-400">
