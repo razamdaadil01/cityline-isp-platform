@@ -76,7 +76,12 @@ export default function App() {
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
-          <Route path="/settings/area-mapping/manage" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/manage"       element={<Navigate to="/settings/area-mapping/state" replace />} />
+          <Route path="/settings/area-mapping/state"        element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/district"     element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/area"         element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/locality"     element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/sub-locality" element={<AreaMapping />} />
           <Route path="/settings/area-mapping/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/settings/:tab" element={<Settings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />

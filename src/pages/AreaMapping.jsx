@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, Plus, ChevronRight, ChevronDown, Edit2, Trash2, Save, MapPin, CheckCircle2,
 } from 'lucide-react'
@@ -18,6 +18,21 @@ import {
 const SITE_TYPES = ['FTTH', 'Sector', 'Village']
 const FEASIBILITY_OPTIONS = ['Feasible', 'Not Feasible', 'Pending']
 const FORM_TABS = ['State', 'District', 'Area', 'Locality', 'Sub Locality']
+
+const PATH_TO_TAB = {
+  '/settings/area-mapping/state':        'State',
+  '/settings/area-mapping/district':     'District',
+  '/settings/area-mapping/area':         'Area',
+  '/settings/area-mapping/locality':     'Locality',
+  '/settings/area-mapping/sub-locality': 'Sub Locality',
+}
+const TAB_TO_PATH = {
+  'State':        '/settings/area-mapping/state',
+  'District':     '/settings/area-mapping/district',
+  'Area':         '/settings/area-mapping/area',
+  'Locality':     '/settings/area-mapping/locality',
+  'Sub Locality': '/settings/area-mapping/sub-locality',
+}
 
 const SUB_FORM_INIT = {
   state: '', district: '', area: '', locality: '', subLocality: '',
@@ -159,11 +174,11 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
 
 // ── Area Form ─────────────────────────────────────────────────────────────────
 
-function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast }) {
+function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTab, onTabChange }) {
   const isEdit  = !!initial
   const isHEdit = !!hierarchyEdit
 
-  const [tab, setTab] = useState(isHEdit ? hierarchyEdit.type : 'Sub Locality')
+  const [tab, setTab] = useState(isHEdit ? hierarchyEdit.type : (initialTab ?? 'Sub Locality'))
 
   const [sf, setSf] = useState(
     isHEdit && hierarchyEdit.type === 'State'
@@ -210,7 +225,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast }) {
   const slAreas      = slForm.state && slForm.district ? getAreasList(slForm.state, slForm.district) : []
   const slLocalities = slForm.state && slForm.district && slForm.area ? getLocalities(slForm.state, slForm.district, slForm.area) : []
 
-  function changeTab(t) { setTab(t); setErrors({}) }
+  function changeTab(t) { setTab(t); setErrors({}); onTabChange?.(t) }
 
   // ── Save / Update handlers ────────────────────────────────────────────────
 
@@ -565,7 +580,10 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AreaMapping() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const activeUrlTab = PATH_TO_TAB[location.pathname] ?? null
+
   const [areas, setAreas]   = useState(getAreas)
   const [, setTick]         = useState(0)
   const [showForm, setShowForm]           = useState(false)
@@ -587,7 +605,7 @@ export default function AreaMapping() {
   }
 
   function closeForm() {
-    setShowForm(false)
+    if (!activeUrlTab) setShowForm(false)
     setEditItem(null)
     setHierarchyEditItem(null)
   }
@@ -726,7 +744,7 @@ export default function AreaMapping() {
 
         {/* Right: Form or summary */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {showForm ? (
+          {(showForm || activeUrlTab) ? (
             <AreaForm
               key={formKey}
               initial={editItem}
@@ -734,6 +752,8 @@ export default function AreaMapping() {
               onSave={handleSave}
               onCancel={closeForm}
               onToast={showToast}
+              initialTab={(!editItem && !hierarchyEditItem && activeUrlTab) ? activeUrlTab : undefined}
+              onTabChange={(!editItem && !hierarchyEditItem && activeUrlTab) ? t => navigate(TAB_TO_PATH[t]) : undefined}
             />
           ) : (
             <div className="flex-1 overflow-y-auto p-6">
