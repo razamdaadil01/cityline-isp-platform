@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Edit3, Trash2, GripVertical, ChevronDown, ChevronUp,
   Layers, Settings2, HardDrive, AlertCircle, Check, FolderOpen,
@@ -59,6 +60,10 @@ const FIELD_TYPE_ICON_MAP = {
 
 // Reverse map for pipeline type key → lead pipeline field value
 const PIPELINE_LEAD_KEY_MAP = { 'PL-001': 'B2C' }
+
+// Query-param slug ↔ pipeline id (for ?edit= param)
+const PIPELINE_EDIT_SLUG = { 'PL-001': 'residential', 'PL-003': 'enterprise' }
+const SLUG_TO_ID         = { residential: 'PL-001', enterprise: 'PL-003' }
 
 const INIT_PIPELINE_FORM = { name: '', description: '' }
 
@@ -1191,16 +1196,29 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages, onToggleActive
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SalesPipelines() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [pipelines, setPipelines] = useState(getPipelines)
   const [leads, setLeads]         = useState(getLeads)
-  const [showCreate, setShowCreate]             = useState(false)
   const [editingPipeline, setEditingPipeline]   = useState(null)
-  const [stageEditorPipeline, setStageEditorPipeline] = useState(null)
   const [deletingPipeline, setDeletingPipeline] = useState(null)
   const [fieldManagerStage, setFieldManagerStage] = useState(null)
 
   useEffect(() => subscribePipelines(setPipelines), [])
   useEffect(() => subscribeLeads(setLeads), [])
+
+  // Derive modal visibility from URL params
+  const action      = searchParams.get('action')   // 'create'
+  const editSlug    = searchParams.get('edit')      // 'residential' | 'enterprise' | pipeline-id
+  const viewParam   = searchParams.get('view')      // 'stages'
+
+  const showCreate         = action === 'create'
+  const stageEditorId      = viewParam === 'stages' && editSlug ? (SLUG_TO_ID[editSlug] ?? editSlug) : null
+  const stageEditorPipeline = stageEditorId ? (pipelines.find(p => p.id === stageEditorId) ?? null) : null
+
+  // URL helpers
+  function openCreate()           { setSearchParams({ action: 'create' }) }
+  function openStages(pipeline)   { setSearchParams({ edit: PIPELINE_EDIT_SLUG[pipeline.id] ?? pipeline.id, view: 'stages' }) }
+  function closeModal()           { setSearchParams({}) }
 
   const defaultPipelines = pipelines.filter(p => p.isDefault)
   const customPipelines = pipelines.filter(p => !p.isDefault)
@@ -1220,7 +1238,7 @@ export default function SalesPipelines() {
 
   function handleSaveStages(stages) {
     updatePipeline(stageEditorPipeline.id, { stages })
-    setStageEditorPipeline(null)
+    closeModal()
   }
 
   function handleDelete() {
@@ -1256,7 +1274,7 @@ export default function SalesPipelines() {
             pipeline={pipeline}
             onEdit={setEditingPipeline}
             onDelete={handleOpenDelete}
-            onEditStages={() => setStageEditorPipeline(pipeline)}
+            onEditStages={() => openStages(pipeline)}
             onToggleActive={v => handleToggleActive(pipeline.id, v)}
           />
         ))}
@@ -1271,7 +1289,7 @@ export default function SalesPipelines() {
               <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{customPipelines.length}</span>
             )}
           </div>
-          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>
+          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={openCreate}>
             Create Pipeline
           </Button>
         </div>
@@ -1289,7 +1307,7 @@ export default function SalesPipelines() {
               pipeline={pipeline}
               onEdit={setEditingPipeline}
               onDelete={handleOpenDelete}
-              onEditStages={() => setStageEditorPipeline(pipeline)}
+              onEditStages={() => openStages(pipeline)}
               onToggleActive={v => handleToggleActive(pipeline.id, v)}
             />
           ))
@@ -1299,7 +1317,7 @@ export default function SalesPipelines() {
       {/* Modals */}
       <CreatePipelineModal
         isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
+        onClose={closeModal}
         onCreate={handleCreate}
       />
 
@@ -1315,7 +1333,7 @@ export default function SalesPipelines() {
       {stageEditorPipeline && (
         <PipelineEditorModal
           isOpen={!!stageEditorPipeline}
-          onClose={() => setStageEditorPipeline(null)}
+          onClose={closeModal}
           pipeline={stageEditorPipeline}
           onSave={handleSaveStages}
           onOpenFields={setFieldManagerStage}
