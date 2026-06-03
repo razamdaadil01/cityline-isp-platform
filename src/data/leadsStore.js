@@ -26,6 +26,7 @@ const INIT_LEADS = [
 ]
 
 let _leads = [...INIT_LEADS]
+console.log('LEADS LOADED:', _leads.length, _leads.map(l => l.id))
 const _listeners = []
 
 export function getLeads() {
