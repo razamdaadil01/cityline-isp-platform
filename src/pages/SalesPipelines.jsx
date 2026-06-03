@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
 import {
   Plus, Edit3, Trash2, GripVertical, ChevronDown, ChevronUp,
   Layers, Settings2, HardDrive, AlertCircle, Check, FolderOpen,
@@ -60,13 +59,6 @@ const FIELD_TYPE_ICON_MAP = {
 
 // Reverse map for pipeline type key → lead pipeline field value
 const PIPELINE_LEAD_KEY_MAP = { 'PL-001': 'B2C' }
-
-// URL slug maps for pipeline stage pages
-const PIPELINE_SLUG_MAP    = { 'PL-001': 'residential', 'PL-003': 'enterprise' }
-const SLUG_TO_PIPELINE_ID  = { residential: 'PL-001', enterprise: 'PL-003' }
-const PIPELINE_LIST_URL    = '/settings/sales-configuration/pipelines'
-
-const PIPELINE_TYPE_OPTIONS = ['Residential', 'Enterprise', 'Custom']
 
 const INIT_PIPELINE_FORM = { name: '', description: '' }
 
@@ -1199,10 +1191,11 @@ function PipelineCard({ pipeline, onEdit, onDelete, onEditStages, onToggleActive
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SalesPipelines() {
-  const navigate = useNavigate()
   const [pipelines, setPipelines] = useState(getPipelines)
   const [leads, setLeads]         = useState(getLeads)
-  const [editingPipeline, setEditingPipeline] = useState(null)
+  const [showCreate, setShowCreate]             = useState(false)
+  const [editingPipeline, setEditingPipeline]   = useState(null)
+  const [stageEditorPipeline, setStageEditorPipeline] = useState(null)
   const [deletingPipeline, setDeletingPipeline] = useState(null)
   const [fieldManagerStage, setFieldManagerStage] = useState(null)
 
@@ -1218,9 +1211,16 @@ export default function SalesPipelines() {
     return leads.filter(l => l.pipeline === pipelineId).length
   }
 
+  function handleCreate(pipeline) { addPipeline(pipeline) }
+
   function handleSaveEdit(patch) {
     updatePipeline(editingPipeline.id, patch)
     setEditingPipeline(null)
+  }
+
+  function handleSaveStages(stages) {
+    updatePipeline(stageEditorPipeline.id, { stages })
+    setStageEditorPipeline(null)
   }
 
   function handleDelete() {
@@ -1256,7 +1256,7 @@ export default function SalesPipelines() {
             pipeline={pipeline}
             onEdit={setEditingPipeline}
             onDelete={handleOpenDelete}
-            onEditStages={() => navigate(`${PIPELINE_LIST_URL}/${PIPELINE_SLUG_MAP[pipeline.id] ?? pipeline.id}/stages`)}
+            onEditStages={() => setStageEditorPipeline(pipeline)}
             onToggleActive={v => handleToggleActive(pipeline.id, v)}
           />
         ))}
@@ -1271,7 +1271,7 @@ export default function SalesPipelines() {
               <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{customPipelines.length}</span>
             )}
           </div>
-          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => navigate(`${PIPELINE_LIST_URL}/create`)}>
+          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setShowCreate(true)}>
             Create Pipeline
           </Button>
         </div>
@@ -1289,7 +1289,7 @@ export default function SalesPipelines() {
               pipeline={pipeline}
               onEdit={setEditingPipeline}
               onDelete={handleOpenDelete}
-              onEditStages={() => navigate(`${PIPELINE_LIST_URL}/${PIPELINE_SLUG_MAP[pipeline.id] ?? pipeline.id}/stages`)}
+              onEditStages={() => setStageEditorPipeline(pipeline)}
               onToggleActive={v => handleToggleActive(pipeline.id, v)}
             />
           ))
@@ -1297,12 +1297,29 @@ export default function SalesPipelines() {
       </div>
 
       {/* Modals */}
+      <CreatePipelineModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreate={handleCreate}
+      />
+
       {editingPipeline && (
         <EditPipelineModal
           isOpen={!!editingPipeline}
           onClose={() => setEditingPipeline(null)}
           pipeline={editingPipeline}
           onSave={handleSaveEdit}
+        />
+      )}
+
+      {stageEditorPipeline && (
+        <PipelineEditorModal
+          isOpen={!!stageEditorPipeline}
+          onClose={() => setStageEditorPipeline(null)}
+          pipeline={stageEditorPipeline}
+          onSave={handleSaveStages}
+          onOpenFields={setFieldManagerStage}
+          leads={leads}
         />
       )}
 
@@ -1316,276 +1333,12 @@ export default function SalesPipelines() {
         />
       )}
 
-    </div>
-  )
-}
-
-// ── Create Pipeline Page ──────────────────────────────────────────────────────
-
-export function SalesPipelineCreate() {
-  const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', description: '', pipelineType: 'Custom', active: true })
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  function handleCreate() {
-    if (!form.name.trim()) return
-    const t = Date.now()
-    addPipeline({
-      id:           `PL-${t}`,
-      name:         form.name.trim(),
-      description:  form.description,
-      pipelineType: form.pipelineType,
-      activeLeads:  0,
-      isDefault:    false,
-      active:       form.active,
-      stages: [
-        { id: `${t}-1`, name: 'New Inquiry', color: 'bg-blue-500',    required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
-        { id: `${t}-2`, name: 'In Progress', color: 'bg-amber-500',   required: false, type: 'Standard', active: true, statusType: 'Open', followUpAllowed: true  },
-        { id: `${t}-3`, name: 'Won',         color: 'bg-emerald-500', required: false, type: 'Standard', active: true, statusType: 'Won',  followUpAllowed: false },
-        { id: `${t}-4`, name: 'Lost',        color: 'bg-red-500',     required: false, type: 'Standard', active: true, statusType: 'Lost', followUpAllowed: false },
-      ],
-    })
-    navigate(PIPELINE_LIST_URL)
-  }
-
-  return (
-    <div className="p-6 max-w-2xl">
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate(PIPELINE_LIST_URL)}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-blue transition-colors"
-        >
-          <ChevronDown size={14} className="rotate-90" />
-          Back
-        </button>
-        <div className="h-5 w-px bg-gray-200" />
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Create New Pipeline</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Set up a new sales pipeline for your team</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-surface-border p-6 space-y-5">
-        <FormField label="Pipeline Name" required>
-          <Input
-            value={form.name}
-            onChange={e => set('name', e.target.value)}
-            placeholder="e.g. SMB Enterprise 2026"
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
-          />
-        </FormField>
-
-        <FormField label="Description">
-          <Textarea
-            value={form.description}
-            onChange={e => set('description', e.target.value)}
-            placeholder="Describe when this pipeline is used…"
-            rows={3}
-          />
-        </FormField>
-
-        <FormField label="Pipeline Type" required>
-          <Select value={form.pipelineType} onChange={e => set('pipelineType', e.target.value)}>
-            {PIPELINE_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
-          </Select>
-        </FormField>
-
-        <div className="flex items-center justify-between pt-1">
-          <div>
-            <p className="text-sm font-medium text-gray-700">Active</p>
-            <p className="text-xs text-gray-400">Make this pipeline available to the sales team</p>
-          </div>
-          <Toggle value={form.active} onChange={v => set('active', v)} />
-        </div>
-
-        <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 border border-surface-border">
-          A default set of stages (New Inquiry, In Progress, Won, Lost) will be created. You can customise them after creation.
-        </p>
-
-        <div className="flex justify-end gap-3 pt-2 border-t border-surface-border">
-          <Button variant="secondary" onClick={() => navigate(PIPELINE_LIST_URL)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!form.name.trim()}>
-            Create Pipeline
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Edit Pipeline Stages Page ─────────────────────────────────────────────────
-
-export function SalesPipelineStages() {
-  const { pipelineId } = useParams()
-  const navigate       = useNavigate()
-  const [pipelines, setPipelines] = useState(getPipelines)
-  const [leads, setLeads]         = useState(getLeads)
-  const [fieldManagerStage, setFieldManagerStage] = useState(null)
-  const [stageDeleteTarget, setStageDeleteTarget] = useState(null)
-  const [saveErrorToast, setSaveErrorToast]       = useState(false)
-  const [newStageName, setNewStageName]           = useState('')
-
-  useEffect(() => subscribePipelines(setPipelines), [])
-  useEffect(() => subscribeLeads(setLeads), [])
-
-  const resolvedId = SLUG_TO_PIPELINE_ID[pipelineId] ?? pipelineId
-  const pipeline   = pipelines.find(p => p.id === resolvedId)
-
-  const [stages, setStages] = useState(() => pipeline?.stages ?? [])
-
-  useEffect(() => {
-    if (pipeline) setStages(pipeline.stages)
-  }, [resolvedId])
-
-  if (!pipeline) {
-    return (
-      <div className="p-6 text-center text-sm text-gray-500">
-        Pipeline not found.{' '}
-        <button onClick={() => navigate(PIPELINE_LIST_URL)} className="text-brand-blue hover:underline">
-          Go back
-        </button>
-      </div>
-    )
-  }
-
-  const showRequired = pipeline.type === 'ILL'
-
-  function moveStage(fromIdx, toIdx) {
-    setStages(prev => {
-      const arr = [...prev]
-      const [item] = arr.splice(fromIdx, 1)
-      arr.splice(toIdx, 0, item)
-      return arr
-    })
-  }
-
-  function updateStage(id, patch) {
-    setStages(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s))
-  }
-
-  function handleRemoveStage(id) {
-    const stage = stages.find(s => s.id === id)
-    if (!stage) return
-    const pipelineKey = PIPELINE_LEAD_KEY_MAP[pipeline.id] ?? pipeline.type ?? pipeline.id
-    const leadCount   = leads.filter(l => l.pipeline === pipelineKey && l.stage === stage.name).length
-    setStageDeleteTarget({ stage, leadCount })
-  }
-
-  function removeStage(id) {
-    setStages(prev => prev.filter(s => s.id !== id))
-    setStageDeleteTarget(null)
-  }
-
-  function addStage() {
-    if (!newStageName.trim()) return
-    setStages(prev => [...prev, {
-      id:              `stage-${Date.now()}`,
-      name:            newStageName.trim(),
-      color:           'bg-blue-500',
-      required:        false,
-      type:            'Standard',
-      active:          true,
-      statusType:      'Open',
-      followUpAllowed: true,
-    }])
-    setNewStageName('')
-  }
-
-  function handleSave() {
-    const wonCount  = stages.filter(s => s.statusType === 'Won').length
-    const lostCount = stages.filter(s => s.statusType === 'Lost').length
-    if (wonCount > 1 || lostCount > 1) {
-      setSaveErrorToast(true)
-      setTimeout(() => setSaveErrorToast(false), 3500)
-      return
-    }
-    updatePipeline(pipeline.id, { stages })
-    navigate(PIPELINE_LIST_URL)
-  }
-
-  return (
-    <div className="p-6 max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate(PIPELINE_LIST_URL)}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-blue transition-colors"
-        >
-          <ChevronDown size={14} className="rotate-90" />
-          Back
-        </button>
-        <div className="h-5 w-px bg-gray-200" />
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Edit Stages — {pipeline.name}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Configure stages for this pipeline</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-surface-border p-5 space-y-4">
-        <p className="text-xs text-gray-500">
-          Reorder stages using the arrow buttons. Click a stage name to rename it inline.
-          Configure status type, active state, and follow-up allowance per stage.
-          Click <strong>Fields</strong> to configure data collected at each stage.
-          {showRequired && ' Toggle Required for mandatory stages.'}
-        </p>
-
-        <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-          {stages.map((stage, idx) => (
-            <StageRow
-              key={stage.id}
-              stage={stage}
-              index={idx}
-              total={stages.length}
-              onMove={moveStage}
-              onUpdate={updateStage}
-              onRemove={handleRemoveStage}
-              showRequired={showRequired}
-              onOpenFields={setFieldManagerStage}
-              allStages={stages}
-            />
-          ))}
-          {stages.length === 0 && (
-            <div className="text-center py-8 text-sm text-gray-400">No stages yet. Add one below.</div>
-          )}
-        </div>
-
-        <div className="flex gap-2 pt-2 border-t border-surface-border">
-          <input
-            value={newStageName}
-            onChange={e => setNewStageName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addStage()}
-            placeholder="New stage name…"
-            className="flex-1 text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-          />
-          <Button size="sm" icon={<Plus size={14} />} onClick={addStage}>Add Stage</Button>
-        </div>
-
-        <div className="flex justify-end gap-3 pt-2 border-t border-surface-border">
-          <Button variant="secondary" onClick={() => navigate(PIPELINE_LIST_URL)}>Cancel</Button>
-          <Button onClick={handleSave}>Save Stages</Button>
-        </div>
-      </div>
-
-      <StageDeleteModal
-        isOpen={!!stageDeleteTarget}
-        onClose={() => setStageDeleteTarget(null)}
-        stage={stageDeleteTarget?.stage}
-        leadCount={stageDeleteTarget?.leadCount ?? 0}
-        onConfirm={() => removeStage(stageDeleteTarget.stage.id)}
-      />
-
       {fieldManagerStage && (
         <StageFieldManagerModal
           isOpen={!!fieldManagerStage}
           onClose={() => setFieldManagerStage(null)}
           stage={fieldManagerStage}
         />
-      )}
-
-      {saveErrorToast && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-amber-500 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
-          ⚠️ Fix stage status conflicts before saving.
-        </div>
       )}
     </div>
   )
