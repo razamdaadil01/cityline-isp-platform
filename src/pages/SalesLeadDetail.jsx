@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Edit3, TrendingUp, Bell, MessageSquare,
   Activity, Plus, CheckCircle2, XCircle, CalendarDays,
@@ -1551,8 +1551,18 @@ export default function SalesLeadDetail() {
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsPos, setActionsPos]   = useState({ top: 0, right: 0 })
   const actionsRef = useRef(null)
-  const [moveStageOpen, setMoveStageOpen]     = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const moveStageOpen    = searchParams.get('action') === 'move-stage'
   const [moveStageInitial, setMoveStageInitial] = useState('')
+
+  function openMoveStage(initial = '') {
+    setMoveStageInitial(initial)
+    setSearchParams({ action: 'move-stage' })
+  }
+  function closeMoveStage() {
+    setMoveStageInitial('')
+    setSearchParams({})
+  }
   const [wonConversionLead, setWonConversionLead] = useState(null)
   const [wonSuccessData, setWonSuccessData]   = useState(null)
   const [followupOpen, setFollowupOpen]       = useState(false)
@@ -2078,7 +2088,7 @@ export default function SalesLeadDetail() {
                       <Edit3 size={14} className="text-gray-400" /> Edit Lead
                     </button>
                     <button
-                      onClick={() => { setMoveStageOpen(true); setActionsOpen(false) }}
+                      onClick={() => { openMoveStage(); setActionsOpen(false) }}
                       className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                       <TrendingUp size={14} className="text-gray-400" /> Move Stage
                     </button>
@@ -2095,11 +2105,11 @@ export default function SalesLeadDetail() {
               {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
                 <>
                   <Button size="sm" icon={<CheckCircle2 size={14} />}
-                    onClick={() => { setMoveStageInitial('Won'); setMoveStageOpen(true) }}>
+                    onClick={() => openMoveStage('Won')}>
                     Mark as Won
                   </Button>
                   <Button variant="danger" size="sm" icon={<XCircle size={14} />}
-                    onClick={() => { setMoveStageInitial('Lost'); setMoveStageOpen(true) }}>
+                    onClick={() => openMoveStage('Lost')}>
                     Mark as Lost
                   </Button>
                 </>
@@ -2997,7 +3007,7 @@ export default function SalesLeadDetail() {
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       <MoveStageModal
         isOpen={moveStageOpen}
-        onClose={() => { setMoveStageOpen(false); setMoveStageInitial('') }}
+        onClose={closeMoveStage}
         lead={lead}
         pipelines={pipelines}
         initialStage={moveStageInitial}
