@@ -532,7 +532,7 @@ function ActivationSuccessModal({ isOpen, onClose, data }) {
 
 // ── MoveStageModal ─────────────────────────────────────────────────────────────
 
-function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage = '' }) {
+function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage = '', onStageChange }) {
   const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
   const availableStages = pl.stages.filter(s => s !== lead?.stage)
   const [targetStage, setTargetStage]         = useState(initialStage)
@@ -597,7 +597,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
             </div>
           </FormField>
           <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); onStageChange?.(e.target.value) }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
                 <option key={s} value={s}>
@@ -1552,16 +1552,28 @@ export default function SalesLeadDetail() {
   const [actionsPos, setActionsPos]   = useState({ top: 0, right: 0 })
   const actionsRef = useRef(null)
   const [searchParams, setSearchParams] = useSearchParams()
-  const moveStageOpen    = searchParams.get('action') === 'move-stage'
-  const [moveStageInitial, setMoveStageInitial] = useState('')
+  const moveStageOpen = searchParams.get('action') === 'move-stage'
+  const stageSlug     = searchParams.get('stage') ?? ''
+
+  function stageToSlug(s) { return s.toLowerCase().replace(/\s+/g, '-') }
+  function slugToStage(slug, lead) {
+    if (!slug || !lead) return ''
+    const pl = PIPELINES[lead.pipeline] ?? PIPELINES.B2C
+    return pl.stages.find(s => stageToSlug(s) === slug) ?? ''
+  }
+  const moveStageInitial = moveStageOpen ? slugToStage(stageSlug, lead) : ''
 
   function openMoveStage(initial = '') {
-    setMoveStageInitial(initial)
-    setSearchParams({ action: 'move-stage' })
+    const params = { action: 'move-stage' }
+    if (initial) params.stage = stageToSlug(initial)
+    setSearchParams(params)
   }
-  function closeMoveStage() {
-    setMoveStageInitial('')
-    setSearchParams({})
+  function closeMoveStage() { setSearchParams({}) }
+  function handleMoveStageSelect(stage) {
+    setSearchParams(stage
+      ? { action: 'move-stage', stage: stageToSlug(stage) }
+      : { action: 'move-stage' }
+    )
   }
   const [wonConversionLead, setWonConversionLead] = useState(null)
   const [wonSuccessData, setWonSuccessData]   = useState(null)
@@ -3012,6 +3024,7 @@ export default function SalesLeadDetail() {
         pipelines={pipelines}
         initialStage={moveStageInitial}
         onSave={handleMoveStage}
+        onStageChange={handleMoveStageSelect}
       />
       <SetFollowupModal
         isOpen={followupOpen}
