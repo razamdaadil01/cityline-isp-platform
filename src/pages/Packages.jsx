@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Zap, Calendar, LayoutGrid, List, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, Zap, Calendar, LayoutGrid, List, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, BILLING_TYPES } from '../data/packagesStore'
@@ -226,36 +226,33 @@ function InfoRow({ icon, label, value }) {
 
 /* ── Table view ───────────────────────────────────────────── */
 
-const TH_CLS = 'px-4 py-3 text-left text-xs font-semibold text-white/90 uppercase tracking-wider whitespace-nowrap'
-const TD_CLS = 'px-4 py-3 text-sm text-gray-700 whitespace-nowrap'
-
 function PlansTable({ plans, onStatusToggle }) {
   return (
     <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px]">
+        <table className="text-sm table-fixed w-full" style={{ minWidth: 1100 }}>
           <thead>
-            <tr className="bg-navy">
-              <th className={TH_CLS}>Plan Name</th>
-              <th className={TH_CLS}>Service Type</th>
-              <th className={TH_CLS}>Pipeline</th>
-              <th className={TH_CLS}>Billing Type</th>
-              <th className={TH_CLS}>Speed</th>
-              <th className={TH_CLS}>Validity</th>
-              <th className={TH_CLS}>Price</th>
-              <th className={TH_CLS}>Status</th>
-              <th className={TH_CLS}>OTT</th>
-              <th className={`${TH_CLS} text-right`}>Actions</th>
+            <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
+              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Plan ID</th>
+              <th className="px-4 py-3 text-left" style={{ width: 200 }}>Plan Name</th>
+              <th className="px-4 py-3 text-left" style={{ width: 120 }}>Service Type</th>
+              <th className="px-4 py-3 text-left" style={{ width: 120 }}>Pipeline</th>
+              <th className="px-4 py-3 text-left" style={{ width: 110 }}>Billing</th>
+              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Speed</th>
+              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Price</th>
+              <th className="px-4 py-3 text-left" style={{ width: 80 }}>OTT</th>
+              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Status</th>
+              <th className="px-4 py-3 text-left" style={{ width: 70 }}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
-            {plans.map((plan, i) => (
-              <TableRow
-                key={plan.id}
-                plan={plan}
-                striped={i % 2 === 1}
-                onStatusToggle={onStatusToggle}
-              />
+            {plans.length === 0 && (
+              <tr>
+                <td colSpan={10} className="py-12 text-center text-gray-400 text-sm">No plans found</td>
+              </tr>
+            )}
+            {plans.map(plan => (
+              <TableRow key={plan.id} plan={plan} onStatusToggle={onStatusToggle} />
             ))}
           </tbody>
         </table>
@@ -264,56 +261,88 @@ function PlansTable({ plans, onStatusToggle }) {
   )
 }
 
-function TableRow({ plan, striped, onStatusToggle }) {
+function TableRow({ plan, onStatusToggle }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
   const isActive = plan.status === 'active'
+  const planId = `PKG-${String(plan.id).padStart(3, '0')}`
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function handle(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [menuOpen])
 
   return (
-    <tr className={striped ? 'bg-gray-50/60' : 'bg-white'}>
-      <td className={`${TD_CLS} font-medium text-gray-900 max-w-[200px] truncate`}>{plan.name}</td>
-      <td className={TD_CLS}>
-        <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="px-4 py-3 overflow-hidden">
+        <span className="block truncate font-mono text-xs text-gray-500 font-semibold">{planId}</span>
       </td>
-      <td className={TD_CLS}>
+      <td className="px-4 py-3 overflow-hidden">
+        <span className="block truncate font-semibold text-brand-blue text-xs cursor-pointer hover:underline">
+          {plan.name}
+        </span>
+      </td>
+      <td className="px-4 py-3 overflow-hidden">
+        <span className="block truncate text-xs text-gray-700">{plan.serviceType}</span>
+      </td>
+      <td className="px-4 py-3 overflow-hidden">
         {plan.pipeline === 'Residential' && <Badge variant="blue" size="sm">Residential</Badge>}
         {plan.pipeline === 'Enterprise' && <Badge variant="purple" size="sm">Enterprise</Badge>}
-        {!plan.pipeline && <span className="text-gray-300">—</span>}
+        {!plan.pipeline && <span className="text-gray-300 text-xs">—</span>}
       </td>
-      <td className={TD_CLS}>{plan.billingType}</td>
-      <td className={TD_CLS}>{plan.speed || <span className="text-gray-300">—</span>}</td>
-      <td className={TD_CLS}>{plan.validity ? `${plan.validity} days` : 'One-time'}</td>
-      <td className={`${TD_CLS} font-semibold text-gray-900`}>₹{plan.price.toLocaleString('en-IN')}</td>
-      <td className={TD_CLS}>
+      <td className="px-4 py-3 overflow-hidden">
+        <span className="block truncate text-xs text-gray-700">{plan.billingType}</span>
+      </td>
+      <td className="px-4 py-3 overflow-hidden">
+        <span className="block truncate text-xs text-gray-700">{plan.speed || <span className="text-gray-300">—</span>}</span>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        <span className="text-xs font-semibold text-gray-900">₹{plan.price.toLocaleString('en-IN')}</span>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        {plan.ottBundle
+          ? <span className="text-xs text-emerald-700">✅ Included</span>
+          : <span className="text-gray-300 text-xs">—</span>}
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
         <Badge variant={isActive ? 'green' : 'gray'} size="sm" dot>
           {isActive ? 'Active' : 'Inactive'}
         </Badge>
       </td>
-      <td className={TD_CLS}>
-        {plan.ottBundle
-          ? <Badge variant="purple" size="sm">Included</Badge>
-          : <span className="text-gray-300">—</span>
-        }
-      </td>
-      <td className={`${TD_CLS} text-right`}>
-        <div className="flex items-center justify-end gap-1">
+      <td className="px-4 py-3 whitespace-nowrap">
+        <div className="relative" ref={menuRef}>
           <button
-            title="Edit"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-brand-blue transition-colors"
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <Pencil size={13} />
+            <MoreVertical size={14} />
           </button>
-          <button
-            onClick={() => onStatusToggle(plan.id)}
-            title={isActive ? 'Deactivate' : 'Activate'}
-            className={`relative inline-flex h-4 w-8 shrink-0 items-center rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}
-          >
-            <span className={`block h-3 w-3 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
-          </button>
-          <button
-            title="Delete"
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-          >
-            <Trash2 size={13} />
-          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-8 z-20 w-40 bg-white rounded-xl shadow-lg border border-surface-border py-1">
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Pencil size={13} className="text-gray-400" /> Edit
+              </button>
+              <button
+                onClick={() => { onStatusToggle(plan.id); setMenuOpen(false) }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <span className={`w-3 h-3 rounded-full ${isActive ? 'bg-gray-400' : 'bg-emerald-500'}`} />
+                {isActive ? 'Deactivate' : 'Activate'}
+              </button>
+              <div className="my-1 border-t border-surface-border" />
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
+          )}
         </div>
       </td>
     </tr>
