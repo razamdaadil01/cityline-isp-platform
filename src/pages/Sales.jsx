@@ -1293,14 +1293,6 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           </div>
         )}
 
-        {/* No fields notice */}
-        {!isWon && !isIV && !needsFeasConfirm && targetStage && stageFields.length === 0 && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
-            No additional fields required for this stage.
-          </div>
-        )}
-
         {/* Installation Visit fields */}
         {isIV && (
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-4">
