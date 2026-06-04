@@ -11,7 +11,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import {
   getAreas, saveArea, deleteArea, subscribeAreas, subscribeHierarchy,
-  getStates, getDistricts, getAreasList, getLocalities,
+  getStates, getDistricts, getAreasList, getLocalities, getLocalityInfo,
   saveStateName, saveDistrictName, saveAreaName, saveLocalityName,
   updateStateName, updateDistrictName, updateAreaName, updateLocalityName,
   deleteStateName, deleteDistrictName, deleteAreaName, deleteLocalityName,
@@ -489,7 +489,8 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
   const lfAreas      = lf.state && lf.district ? getAreasList(lf.state, lf.district) : []
   const slDistricts  = slForm.state ? getDistricts(slForm.state) : []
   const slAreas      = slForm.state && slForm.district ? getAreasList(slForm.state, slForm.district) : []
-  const slLocalities = slForm.state && slForm.district && slForm.area ? getLocalities(slForm.state, slForm.district, slForm.area) : []
+  const slLocalities  = slForm.state && slForm.district && slForm.area ? getLocalities(slForm.state, slForm.district, slForm.area) : []
+  const slLocalityInfo = slForm.locality ? getLocalityInfo(slForm.state, slForm.district, slForm.area, slForm.locality) : null
 
   function changeTab(t) { setTab(t); setErrors({}); onTabChange?.(t) }
 
@@ -557,7 +558,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       onToast('Locality updated successfully')
       onCancel()
     } else {
-      saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim())
+      saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim(), lf.siteType, lf.branchCode)
       setLf({ state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '' })
       setErrors({})
       onToast('Locality added successfully')
@@ -816,6 +817,22 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                 />
               </FormField>
             </div>
+
+            {slLocalityInfo && (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Locality Info</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Site Type</p>
+                    <p className="text-sm font-medium text-gray-800">{slLocalityInfo.siteType || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Branch Code</p>
+                    <p className="text-sm font-medium text-gray-800">{slLocalityInfo.branchCode || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-2.5">
               <Toggle checked={slForm.active} onChange={v => setSlForm(f => ({ ...f, active: v }))} />
