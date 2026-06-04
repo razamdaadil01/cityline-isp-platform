@@ -5,16 +5,23 @@ function field(id, label, type, required, options = []) {
 const PLANS = ['50 Mbps', '100 Mbps', '200 Mbps', '500 Mbps', '1 Gbps']
 
 const INIT = {
-  s1: [
-    field('s1-f1', 'Lead Source',     'Dropdown', false, ['Walk-in', 'Website', 'Referral', 'Cold Call', 'Social Media', 'Other']),
-    field('s1-f2', 'Interested Plan', 'Dropdown', false, PLANS),
-  ],
+  s1: [],
   s2: [
     field('s2-f1', 'Contact Method', 'Dropdown', true,  ['Call', 'WhatsApp', 'Email', 'Visit']),
     field('s2-f2', 'Interested',     'Dropdown', true,  ['Yes', 'No', 'Maybe']),
     field('s2-f3', 'Contact Notes',  'Textarea', false),
   ],
-  s4: [],
+  s3: [],
+  s4: [
+    field('s4-f1', 'Enter Locality Name',       'Text',     true),
+    field('s4-f2', 'Enter Sub Locality Name',   'Text',     false),
+    field('s4-f3', 'Complete Address',          'Textarea', true),
+    field('s4-f4', 'Landmark',                  'Text',     false),
+    field('s4-f5', 'Expected Connection Type',  'Dropdown', false, ['FTTH', 'Sector', 'Village']),
+    field('s4-f6', 'Customer Requirement',      'Textarea', false),
+    field('s4-f7', 'Assigned Branch',           'Dropdown', false, ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']),
+    field('s4-f8', 'Remarks',                   'Textarea', false),
+  ],
   s5: [
     field('s5-f1', 'Quotation Amount',     'Number',   true),
     field('s5-f2', 'Plan Offered',         'Dropdown', true,  PLANS),
@@ -49,11 +56,17 @@ const INIT = {
   ],
 }
 
+const INIT_META = {
+  s4: { showFeasibilityBanner: true },
+}
+
 let _data = JSON.parse(JSON.stringify(INIT))
+let _meta = JSON.parse(JSON.stringify(INIT_META))
 const _subs = new Set()
 
 function notify() { _subs.forEach(fn => fn()) }
 
 export function getStageFields(stageId)         { return _data[stageId] ?? [] }
 export function setStageFields(stageId, fields) { _data = { ..._data, [stageId]: fields }; notify() }
+export function getStageMeta(stageId)           { return _meta[stageId] ?? {} }
 export function subscribeStageFields(fn)        { _subs.add(fn); return () => _subs.delete(fn) }
