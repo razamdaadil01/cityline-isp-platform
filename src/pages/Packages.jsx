@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Zap, Calendar, Server } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-import Modal from '../components/ui/Modal'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
+import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
 
 const SERVERS = [
   'Jaze-01', 'Jaze-02', 'Jaze-03', 'Jaze-04', 'Jaze-05',
@@ -13,57 +12,15 @@ const SERVERS = [
   'Mikrotik-01', 'Mikrotik-02',
 ]
 
-const VALIDITY_DEFAULTS = {
-  'One Time': 0,
-  'Monthly': 30,
-  'Quarterly': 90,
-  'Half Yearly': 180,
-  'Yearly': 365,
-  '1+1': 60,
-  '3+1': 120,
-  '6+1': 210,
-  '12+1': 395,
-  '12+2': 420,
-  'Diwali Dhamaka': 30,
-}
-
-const PLAN_BILLING_TYPES = ['Monthly', 'Quarterly', 'Half Yearly', 'Yearly', 'One Time']
-
-const EMPTY_MMP_ROW = { name: '', billingType: 'Monthly', price: '' }
-
-const EMPTY_FORM = {
-  serviceType: 'Plan',
-  // Plan-only
-  pipeline: '',
-  bandwidthPackageId: '',
-  // Always
-  packageType: 'Public',
-  multipleMonthPricing: false,
-  // Multiple Month Pricing fields
-  mmpGroupName: '',
-  mmpRows: [{ ...EMPTY_MMP_ROW }, { ...EMPTY_MMP_ROW }],
-  mmpNoOfRecharge: '1',
-  // Single pricing
-  billingType: 'Monthly',
-  price: '',
-  name: '',
-  packageInfo: '',
-  sortOrder: '',
-  speed: '',
-  packageAvailable: 'Yes',
-  offerPackage: 'No',
-  bundleOTT: false,
-  doNotIncludeInCalc: false,
-}
-
 export default function Packages() {
-  const [plans, setPlans] = useState(MOCK_PLANS)
+  const navigate = useNavigate()
+  const [plans, setPlans] = useState(getPlans)
   const [search, setSearch] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterBilling, setFilterBilling] = useState('')
   const [filterServer, setFilterServer] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
+
+  useEffect(() => subscribePlans(setPlans), [])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -76,35 +33,9 @@ export default function Packages() {
     })
   }, [plans, search, filterService, filterBilling, filterServer])
 
-  function setField(key, val) {
-    setForm(f => {
-      const next = { ...f, [key]: val }
-      if (key === 'billingType') {
-        next.validity = String(VALIDITY_DEFAULTS[val] ?? 30)
-      }
-      return next
-    })
-  }
-
   function handleStatusToggle(id) {
-    setPlans(prev => prev.map(p =>
-      p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p
-    ))
-  }
-
-  function handleSubmit() {
-    const newPlan = {
-      ...form,
-      id: Date.now(),
-      price: Number(form.price),
-      sortOrder: form.sortOrder ? Number(form.sortOrder) : null,
-      offer: form.offerPackage === 'Yes',
-      ottBundle: form.bundleOTT,
-      status: 'active',
-    }
-    setPlans(prev => [newPlan, ...prev])
-    setShowModal(false)
-    setForm(EMPTY_FORM)
+    const plan = plans.find(p => p.id === id)
+    if (plan) updatePlanStatus(id, plan.status === 'active' ? 'inactive' : 'active')
   }
 
   function clearFilters() {
@@ -124,7 +55,7 @@ export default function Packages() {
           <h1 className="text-xl font-bold text-gray-900">Package & Plan List</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage service plans, pricing, and billing configurations</p>
         </div>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowModal(true)}>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/packages/add')}>
           Add Plan
         </Button>
       </div>
@@ -207,320 +138,6 @@ export default function Packages() {
         </div>
       )}
 
-      {/* Add Plan Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => { setShowModal(false); setForm(EMPTY_FORM) }}
-        title="Add New Plan"
-        size="lg"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => { setShowModal(false); setForm(EMPTY_FORM) }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={
-                !form.name.trim() ||
-                (!form.multipleMonthPricing && !form.price) ||
-                (form.multipleMonthPricing && (!form.mmpGroupName.trim() || form.mmpRows.some(r => !r.name.trim() || !r.price)))
-              }
-            >
-              Save Plan
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-6">
-
-          {/* ── Section 1: Basic Info ─────────────────────────── */}
-          <div>
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Basic Info</p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-
-              <FormField label="Service Type" required>
-                <Select value={form.serviceType} onChange={e => setField('serviceType', e.target.value)}>
-                  <option value="Plan">Plan</option>
-                  <option value="Other Package">Other Package</option>
-                </Select>
-              </FormField>
-
-              {form.serviceType === 'Plan' ? (
-                <FormField label="Pipeline" required>
-                  <Select value={form.pipeline} onChange={e => setField('pipeline', e.target.value)}>
-                    <option value="">Select pipeline…</option>
-                    <option value="Residential">Residential</option>
-                    <option value="Enterprise">Enterprise</option>
-                  </Select>
-                </FormField>
-              ) : (
-                <div />
-              )}
-
-              {/* Package Type radio + Multiple Month Pricing checkbox */}
-              <FormField label="Package Type" required>
-                <div className="flex items-center gap-5 py-1.5">
-                  {['Public', 'Private'].map(opt => (
-                    <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="radio"
-                        name="packageType"
-                        value={opt}
-                        checked={form.packageType === opt}
-                        onChange={() => setField('packageType', opt)}
-                        className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                      />
-                      <span className="text-sm text-gray-700">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </FormField>
-
-              <div className="flex items-center gap-3 pt-6">
-                <input
-                  type="checkbox"
-                  id="multipleMonth"
-                  checked={form.multipleMonthPricing}
-                  onChange={e => setField('multipleMonthPricing', e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                />
-                <label htmlFor="multipleMonth" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-                  Multiple Month Pricing
-                </label>
-              </div>
-
-              {form.serviceType === 'Plan' && (
-                <div className="col-span-2">
-                  <FormField label="Bandwidth Package ID">
-                    <Input
-                      placeholder="e.g. PKG-001"
-                      value={form.bandwidthPackageId}
-                      onChange={e => setField('bandwidthPackageId', e.target.value)}
-                    />
-                  </FormField>
-                </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* ── Section 2: Package Details ────────────────────── */}
-          <div className="border-t border-surface-border pt-5">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Package Details</p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-
-              <div className="col-span-2">
-                <FormField label="Package Name" required>
-                  <Input
-                    placeholder="e.g. 100 Mbps Monthly FTTH"
-                    value={form.name}
-                    onChange={e => setField('name', e.target.value)}
-                  />
-                </FormField>
-              </div>
-
-              {/* Billing Type + Price — only when NOT multiple month pricing */}
-              {!form.multipleMonthPricing && (
-                <>
-                  <FormField label="Billing Type" required>
-                    <Select value={form.billingType} onChange={e => setField('billingType', e.target.value)}>
-                      {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-                    </Select>
-                  </FormField>
-                  <FormField label="Price (₹)" required>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={form.price}
-                      onChange={e => setField('price', e.target.value)}
-                    />
-                  </FormField>
-                </>
-              )}
-
-              {/* Multiple Month Pricing expanded block */}
-              {form.multipleMonthPricing && (
-                <div className="col-span-2 space-y-3">
-                  {/* Group Name */}
-                  <FormField label="Group Name" required>
-                    <Input
-                      placeholder="Group Name"
-                      value={form.mmpGroupName}
-                      onChange={e => setField('mmpGroupName', e.target.value)}
-                    />
-                  </FormField>
-
-                  {/* Dynamic rows */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500">Pricing Rows <span className="text-red-400">*</span></p>
-                    {form.mmpRows.map((row, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <Input
-                          placeholder="Name"
-                          value={row.name}
-                          onChange={e => {
-                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r)
-                            setField('mmpRows', rows)
-                          }}
-                          className="flex-1 min-w-0"
-                        />
-                        <Select
-                          value={row.billingType}
-                          onChange={e => {
-                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, billingType: e.target.value } : r)
-                            setField('mmpRows', rows)
-                          }}
-                          className="w-36 shrink-0"
-                        >
-                          {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-                        </Select>
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder="₹ Price"
-                          value={row.price}
-                          onChange={e => {
-                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, price: e.target.value } : r)
-                            setField('mmpRows', rows)
-                          }}
-                          className="w-24 shrink-0"
-                        />
-                        <button
-                          type="button"
-                          title="Add row"
-                          onClick={() => setField('mmpRows', [...form.mmpRows, { ...EMPTY_MMP_ROW }])}
-                          className="w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shrink-0 transition-colors font-bold text-base leading-none"
-                        >+</button>
-                        <button
-                          type="button"
-                          title="Remove row"
-                          onClick={() => {
-                            if (form.mmpRows.length > 1) setField('mmpRows', form.mmpRows.filter((_, j) => j !== i))
-                          }}
-                          disabled={form.mmpRows.length === 1}
-                          className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white flex items-center justify-center shrink-0 transition-colors font-bold text-base leading-none"
-                        >−</button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* No Of Recharge */}
-                  <FormField label="No Of Recharge" required>
-                    <Select value={form.mmpNoOfRecharge} onChange={e => setField('mmpNoOfRecharge', e.target.value)}>
-                      {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(n => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </Select>
-                  </FormField>
-                </div>
-              )}
-
-              <FormField label="Sort Order">
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.sortOrder}
-                  onChange={e => setField('sortOrder', e.target.value)}
-                />
-              </FormField>
-
-              <FormField label="Speed">
-                <Input
-                  placeholder="e.g. 100 Mbps"
-                  value={form.speed}
-                  onChange={e => setField('speed', e.target.value)}
-                />
-              </FormField>
-
-              <div className="col-span-2">
-                <FormField label="Package Info">
-                  <Textarea
-                    rows={2}
-                    placeholder="Comment"
-                    value={form.packageInfo}
-                    onChange={e => setField('packageInfo', e.target.value)}
-                  />
-                </FormField>
-              </div>
-
-            </div>
-          </div>
-
-          {/* ── Section 3: Settings ───────────────────────────── */}
-          <div className="border-t border-surface-border pt-5">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Settings</p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-
-              <FormField label="Package available" required>
-                <div className="flex items-center gap-5 py-1">
-                  {['Yes', 'No'].map(opt => (
-                    <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="radio"
-                        name="packageAvailable"
-                        value={opt}
-                        checked={form.packageAvailable === opt}
-                        onChange={() => setField('packageAvailable', opt)}
-                        className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                      />
-                      <span className="text-sm text-gray-700">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-                {form.packageAvailable === 'No' && (
-                  <p className="text-xs text-amber-600 mt-1.5">This package not available for new account</p>
-                )}
-              </FormField>
-
-              <FormField label="Offer Package" required>
-                <div className="flex items-center gap-5 py-1">
-                  {['Yes', 'No'].map(opt => (
-                    <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="radio"
-                        name="offerPackage"
-                        value={opt}
-                        checked={form.offerPackage === opt}
-                        onChange={() => setField('offerPackage', opt)}
-                        className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                      />
-                      <span className="text-sm text-gray-700">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-                {form.offerPackage === 'Yes' && (
-                  <p className="text-xs text-amber-600 mt-1.5">This package will applicable only once</p>
-                )}
-              </FormField>
-
-              <div className="col-span-2 flex flex-col gap-3 pt-1">
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.bundleOTT}
-                    onChange={e => setField('bundleOTT', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Bundle with OTT</span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.doNotIncludeInCalc}
-                    onChange={e => setField('doNotIncludeInCalc', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Do not include package amount in calculation</span>
-                </label>
-              </div>
-
-            </div>
-          </div>
-
-        </div>
-      </Modal>
     </div>
   )
 }
