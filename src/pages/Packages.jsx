@@ -226,29 +226,48 @@ function InfoRow({ icon, label, value }) {
 
 /* ── Table view ───────────────────────────────────────────── */
 
+const SERVER_TYPE_COLORS = {
+  CNPL_B2C: 'bg-navy text-white',
+  CNPL_B2B: 'bg-brand-blue text-white',
+  CNPL_WHI: 'bg-purple-700 text-white',
+}
+
+function fmtDate(d) {
+  if (!d) return '—'
+  const [y, m, day] = d.split('-')
+  return `${day}-${m}-${y}`
+}
+
+function fmtPrice(n) {
+  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 function PlansTable({ plans, onStatusToggle }) {
+  const TH = 'px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap'
   return (
     <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="text-sm table-fixed w-full" style={{ minWidth: 1100 }}>
+        <table className="text-sm w-full" style={{ minWidth: 1400 }}>
           <thead>
-            <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Plan ID</th>
-              <th className="px-4 py-3 text-left" style={{ width: 200 }}>Plan Name</th>
-              <th className="px-4 py-3 text-left" style={{ width: 120 }}>Service Type</th>
-              <th className="px-4 py-3 text-left" style={{ width: 120 }}>Pipeline</th>
-              <th className="px-4 py-3 text-left" style={{ width: 110 }}>Billing</th>
-              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Speed</th>
-              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Price</th>
-              <th className="px-4 py-3 text-left" style={{ width: 80 }}>OTT</th>
-              <th className="px-4 py-3 text-left" style={{ width: 90 }}>Status</th>
-              <th className="px-4 py-3 text-left" style={{ width: 70 }}>Actions</th>
+            <tr className="border-b border-surface-border bg-gray-50">
+              <th className={TH}>Package Type</th>
+              <th className={TH}>Package Name</th>
+              <th className={TH}>Sub Plan Name</th>
+              <th className={TH}>B/W Package ID</th>
+              <th className={TH}>Server Type</th>
+              <th className={TH}>Price</th>
+              <th className={TH}>Validity</th>
+              <th className={TH}>Sort Order</th>
+              <th className={TH}>No. of Recharge</th>
+              <th className={TH}>Date</th>
+              <th className={TH}>Added</th>
+              <th className={TH}>Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
             {plans.length === 0 && (
               <tr>
-                <td colSpan={10} className="py-12 text-center text-gray-400 text-sm">No plans found</td>
+                <td colSpan={12} className="py-12 text-center text-gray-400 text-sm">No plans found</td>
               </tr>
             )}
             {plans.map(plan => (
@@ -265,7 +284,9 @@ function TableRow({ plan, onStatusToggle }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const isActive = plan.status === 'active'
-  const planId = `PKG-${String(plan.id).padStart(3, '0')}`
+
+  const pkgType = plan.ottBundle ? 'Plan+OTT' : plan.serviceType === 'Other Package' ? 'Other Package' : 'Plan'
+  const serverColor = SERVER_TYPE_COLORS[plan.serverType] || 'bg-gray-700 text-white'
 
   useEffect(() => {
     if (!menuOpen) return
@@ -275,43 +296,45 @@ function TableRow({ plan, onStatusToggle }) {
   }, [menuOpen])
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors">
-      <td className="px-4 py-3 overflow-hidden">
-        <span className="block truncate font-mono text-xs text-gray-500 font-semibold">{planId}</span>
+    <tr className={`hover:bg-gray-50 transition-colors ${!isActive ? 'opacity-60' : ''}`}>
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="text-xs text-gray-700">{pkgType}</span>
       </td>
-      <td className="px-4 py-3 overflow-hidden">
-        <span className="block truncate font-semibold text-brand-blue text-xs cursor-pointer hover:underline">
+      <td className="px-3 py-2.5 max-w-[180px]">
+        <button className="block truncate text-xs font-semibold text-brand-blue hover:underline text-left w-full">
           {plan.name}
-        </span>
+        </button>
       </td>
-      <td className="px-4 py-3 overflow-hidden">
-        <span className="block truncate text-xs text-gray-700">{plan.serviceType}</span>
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="text-xs text-gray-600">{plan.subPlanName || <span className="text-gray-300">—</span>}</span>
       </td>
-      <td className="px-4 py-3 overflow-hidden">
-        {plan.pipeline === 'Residential' && <Badge variant="blue" size="sm">Residential</Badge>}
-        {plan.pipeline === 'Enterprise' && <Badge variant="purple" size="sm">Enterprise</Badge>}
-        {!plan.pipeline && <span className="text-gray-300 text-xs">—</span>}
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="font-mono text-xs text-gray-600">{plan.bwPackageId || '0'}</span>
       </td>
-      <td className="px-4 py-3 overflow-hidden">
-        <span className="block truncate text-xs text-gray-700">{plan.billingType}</span>
-      </td>
-      <td className="px-4 py-3 overflow-hidden">
-        <span className="block truncate text-xs text-gray-700">{plan.speed || <span className="text-gray-300">—</span>}</span>
-      </td>
-      <td className="px-4 py-3 whitespace-nowrap">
-        <span className="text-xs font-semibold text-gray-900">₹{plan.price.toLocaleString('en-IN')}</span>
-      </td>
-      <td className="px-4 py-3 whitespace-nowrap">
-        {plan.ottBundle
-          ? <span className="text-xs text-emerald-700">✅ Included</span>
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        {plan.serverType
+          ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${serverColor}`}>{plan.serverType}</span>
           : <span className="text-gray-300 text-xs">—</span>}
       </td>
-      <td className="px-4 py-3 whitespace-nowrap">
-        <Badge variant={isActive ? 'green' : 'gray'} size="sm" dot>
-          {isActive ? 'Active' : 'Inactive'}
-        </Badge>
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="text-xs font-semibold text-gray-900">{fmtPrice(plan.price)}</span>
       </td>
-      <td className="px-4 py-3 whitespace-nowrap">
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="text-xs text-gray-700">{plan.validity ? `${plan.validity} days` : 'One Time'}</span>
+      </td>
+      <td className="px-3 py-2.5 whitespace-nowrap text-center">
+        <span className="text-xs text-gray-700">{plan.sortOrder ?? '—'}</span>
+      </td>
+      <td className="px-3 py-2.5 whitespace-nowrap text-center">
+        <span className="text-xs text-gray-700">{plan.noOfRecharge ?? 1}</span>
+      </td>
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="text-xs text-gray-600">{fmtDate(plan.createdAt)}</span>
+      </td>
+      <td className="px-3 py-2.5 whitespace-nowrap">
+        <span className="text-xs text-gray-600">{plan.addedBy || 'Admin'}</span>
+      </td>
+      <td className="px-3 py-2.5 whitespace-nowrap">
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(v => !v)}
