@@ -29,6 +29,8 @@ const VALIDITY_DEFAULTS = {
 
 const PLAN_BILLING_TYPES = ['Monthly', 'Quarterly', 'Half Yearly', 'Yearly', 'One Time']
 
+const EMPTY_MMP_ROW = { name: '', billingType: 'Monthly', price: '' }
+
 const EMPTY_FORM = {
   serviceType: 'Plan',
   // Plan-only
@@ -37,9 +39,14 @@ const EMPTY_FORM = {
   // Always
   packageType: 'Public',
   multipleMonthPricing: false,
-  name: '',
+  // Multiple Month Pricing fields
+  mmpGroupName: '',
+  mmpRows: [{ ...EMPTY_MMP_ROW }, { ...EMPTY_MMP_ROW }],
+  mmpNoOfRecharge: '1',
+  // Single pricing
   billingType: 'Monthly',
   price: '',
+  name: '',
   packageInfo: '',
   sortOrder: '',
   speed: '',
@@ -213,7 +220,11 @@ export default function Packages() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!form.name.trim() || !form.price}
+              disabled={
+                !form.name.trim() ||
+                (!form.multipleMonthPricing && !form.price) ||
+                (form.multipleMonthPricing && (!form.mmpGroupName.trim() || form.mmpRows.some(r => !r.name.trim() || !r.price)))
+              }
             >
               Save Plan
             </Button>
@@ -308,21 +319,102 @@ export default function Packages() {
                 </FormField>
               </div>
 
-              <FormField label="Billing Type" required>
-                <Select value={form.billingType} onChange={e => setField('billingType', e.target.value)}>
-                  {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-                </Select>
-              </FormField>
+              {/* Billing Type + Price — only when NOT multiple month pricing */}
+              {!form.multipleMonthPricing && (
+                <>
+                  <FormField label="Billing Type" required>
+                    <Select value={form.billingType} onChange={e => setField('billingType', e.target.value)}>
+                      {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Price (₹)" required>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={form.price}
+                      onChange={e => setField('price', e.target.value)}
+                    />
+                  </FormField>
+                </>
+              )}
 
-              <FormField label="Price (₹)" required>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.price}
-                  onChange={e => setField('price', e.target.value)}
-                />
-              </FormField>
+              {/* Multiple Month Pricing expanded block */}
+              {form.multipleMonthPricing && (
+                <div className="col-span-2 space-y-3">
+                  {/* Group Name */}
+                  <FormField label="Group Name" required>
+                    <Input
+                      placeholder="Group Name"
+                      value={form.mmpGroupName}
+                      onChange={e => setField('mmpGroupName', e.target.value)}
+                    />
+                  </FormField>
+
+                  {/* Dynamic rows */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-gray-500">Pricing Rows <span className="text-red-400">*</span></p>
+                    {form.mmpRows.map((row, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Input
+                          placeholder="Name"
+                          value={row.name}
+                          onChange={e => {
+                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r)
+                            setField('mmpRows', rows)
+                          }}
+                          className="flex-1 min-w-0"
+                        />
+                        <Select
+                          value={row.billingType}
+                          onChange={e => {
+                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, billingType: e.target.value } : r)
+                            setField('mmpRows', rows)
+                          }}
+                          className="w-36 shrink-0"
+                        >
+                          {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
+                        </Select>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="₹ Price"
+                          value={row.price}
+                          onChange={e => {
+                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, price: e.target.value } : r)
+                            setField('mmpRows', rows)
+                          }}
+                          className="w-24 shrink-0"
+                        />
+                        <button
+                          type="button"
+                          title="Add row"
+                          onClick={() => setField('mmpRows', [...form.mmpRows, { ...EMPTY_MMP_ROW }])}
+                          className="w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shrink-0 transition-colors font-bold text-base leading-none"
+                        >+</button>
+                        <button
+                          type="button"
+                          title="Remove row"
+                          onClick={() => {
+                            if (form.mmpRows.length > 1) setField('mmpRows', form.mmpRows.filter((_, j) => j !== i))
+                          }}
+                          disabled={form.mmpRows.length === 1}
+                          className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white flex items-center justify-center shrink-0 transition-colors font-bold text-base leading-none"
+                        >−</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* No Of Recharge */}
+                  <FormField label="No Of Recharge" required>
+                    <Select value={form.mmpNoOfRecharge} onChange={e => setField('mmpNoOfRecharge', e.target.value)}>
+                      {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+              )}
 
               <FormField label="Sort Order">
                 <Input
