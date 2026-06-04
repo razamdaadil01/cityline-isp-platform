@@ -50,7 +50,7 @@ const INIT_FORM = {
   startingStage: PIPELINES.B2C.stages[0],
   leadName: '',
   name: '', phone: '', alternatePhone: '', email: '',
-  addressLine: '', city: '', pincode: '',
+  addressLine: '', pincode: '',
   state: '', district: '', area: '', locality: '', subLocality: '',
   source: '', plan: '', assigned: '',
   notes: '',
@@ -545,14 +545,6 @@ export default function SalesNewLead() {
               </FormField>
             </div>
 
-            <FormField label="City">
-              <Input
-                value={form.city}
-                onChange={e => set('city', e.target.value)}
-                placeholder="e.g. Bangalore"
-              />
-            </FormField>
-
             <FormField label="Pincode">
               <Input
                 value={form.pincode}
@@ -806,7 +798,7 @@ export default function SalesNewLead() {
         </div>
 
         {/* Stage Fields card — dynamic fields for first stage */}
-        {firstStageFields.length > 0 && (
+        {firstStageFields.length > 0 && selectedStageName !== 'New Inquiry' && (
           <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -849,7 +841,7 @@ export default function SalesNewLead() {
           </div>
         )}
 
-        {firstStageFields.length === 0 && activePipeline && (
+        {firstStageFields.length === 0 && activePipeline && selectedStageName !== 'New Inquiry' && (
           <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
             <CheckCircle size={14} className="text-emerald-500 shrink-0" />
             No additional fields configured for <strong className="ml-1">{firstStage?.name ?? pl.stages[0]}</strong>
