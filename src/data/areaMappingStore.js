@@ -104,9 +104,9 @@ export function saveAreaName(state, district, name) {
   }
 }
 
-export function saveLocalityName(state, district, area, name) {
+export function saveLocalityName(state, district, area, name, siteType = '', branchCode = '') {
   if (!_stubs.localities.find(l => l.state === state && l.district === district && l.area === area && l.name === name)) {
-    _stubs.localities = [..._stubs.localities, { state, district, area, name }]
+    _stubs.localities = [..._stubs.localities, { state, district, area, name, siteType, branchCode }]
     notifyHierarchy()
   }
 }
@@ -134,6 +134,18 @@ export function getLocalities(state, district, area) {
   const fromAreas = _areas.filter(a => a.state === state && a.district === district && a.area === area).map(a => a.locality)
   const fromStubs = _stubs.localities.filter(l => l.state === state && l.district === district && l.area === area).map(l => l.name)
   return [...new Set([...fromAreas, ...fromStubs])].sort()
+}
+
+export function getLocalityInfo(state, district, area, locality) {
+  const fromArea = _areas.find(a =>
+    a.state === state && a.district === district && a.area === area && a.locality === locality
+  )
+  if (fromArea) return { siteType: fromArea.siteType, branchCode: fromArea.branchCode }
+  const fromStub = _stubs.localities.find(l =>
+    l.state === state && l.district === district && l.area === area && l.name === locality
+  )
+  if (fromStub?.siteType || fromStub?.branchCode) return { siteType: fromStub.siteType || '', branchCode: fromStub.branchCode || '' }
+  return null
 }
 
 export function getSubLocalities(state, district, area, locality) {
