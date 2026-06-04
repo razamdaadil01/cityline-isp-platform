@@ -156,13 +156,23 @@ export default function AddNewPlan() {
             <div className="grid grid-cols-2 gap-x-6 gap-y-5">
 
               <div className="col-span-2">
-                <FormField label="Package Name" required>
-                  <Input
-                    placeholder="e.g. 100 Mbps Monthly FTTH"
-                    value={form.name}
-                    onChange={e => setField('name', e.target.value)}
-                  />
-                </FormField>
+                {!form.multipleMonthPricing ? (
+                  <FormField label="Package Name" required>
+                    <Input
+                      placeholder="e.g. 100 Mbps Monthly FTTH"
+                      value={form.name}
+                      onChange={e => setField('name', e.target.value)}
+                    />
+                  </FormField>
+                ) : (
+                  <FormField label="Group Name" required>
+                    <Input
+                      placeholder="Group Name"
+                      value={form.mmpGroupName}
+                      onChange={e => setField('mmpGroupName', e.target.value)}
+                    />
+                  </FormField>
+                )}
               </div>
 
               {!form.multipleMonthPricing && (
@@ -186,14 +196,6 @@ export default function AddNewPlan() {
 
               {form.multipleMonthPricing && (
                 <div className="col-span-2 space-y-4">
-                  <FormField label="Group Name" required>
-                    <Input
-                      placeholder="Group Name"
-                      value={form.mmpGroupName}
-                      onChange={e => setField('mmpGroupName', e.target.value)}
-                    />
-                  </FormField>
-
                   <div className="space-y-2">
                     <div className="grid grid-cols-[1fr_1.5fr_1fr_auto] gap-2 mb-1">
                       <p className="text-xs font-medium text-gray-500">Name <span className="text-red-400">*</span></p>
