@@ -21,6 +21,7 @@ import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
 import Packages from './pages/Packages'
 import AddNewPlan from './pages/AddNewPlan'
+import PackageDetail from './pages/PackageDetail'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import Inventory from './pages/Inventory'
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/packages" element={<Packages />} />
           <Route path="/packages/add" element={<AddNewPlan />} />
+          <Route path="/packages/:id" element={<PackageDetail />} />
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
           <Route path="/inventory" element={<Inventory />} />
