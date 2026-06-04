@@ -250,7 +250,7 @@ function PlansTable({ plans, onStatusToggle }) {
         <table className="text-sm w-full" style={{ minWidth: 1400 }}>
           <thead>
             <tr className="border-b border-surface-border bg-gray-50">
-              <th className={TH}>Package Type</th>
+              <th className={`${TH} pl-6`}>Package Type</th>
               <th className={TH}>Package Name</th>
               <th className={TH}>Sub Plan Name</th>
               <th className={TH}>B/W Package ID</th>
@@ -297,7 +297,7 @@ function TableRow({ plan, onStatusToggle }) {
 
   return (
     <tr className={`hover:bg-gray-50 transition-colors ${!isActive ? 'opacity-60' : ''}`}>
-      <td className="px-3 py-2.5 whitespace-nowrap">
+      <td className="pl-6 pr-3 py-2.5 whitespace-nowrap">
         <span className="text-xs text-gray-700">{pkgType}</span>
       </td>
       <td className="px-3 py-2.5 max-w-[180px]">
