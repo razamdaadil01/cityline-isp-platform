@@ -27,6 +27,8 @@ const EMPTY_FORM = {
   packageAvailable: 'Yes',
   offerPackage: 'No',
   bundleOTT: false,
+  ottType: '',
+  ottPackage: '',
   doNotIncludeInCalc: false,
 }
 
@@ -353,6 +355,28 @@ export default function AddNewPlan() {
                   />
                   <span className="text-sm font-medium text-gray-700">Bundle with OTT</span>
                 </label>
+
+                {form.bundleOTT && (
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-5 pl-7">
+                    <FormField label="Select OTT Type" required>
+                      <Select value={form.ottType} onChange={e => setField('ottType', e.target.value)}>
+                        <option value="">Select OTT Type...</option>
+                        {['Hotstar', 'Netflix', 'Amazon Prime', 'Sony Liv', 'Zee5', 'JioCinema'].map(o => (
+                          <option key={o}>{o}</option>
+                        ))}
+                      </Select>
+                    </FormField>
+                    <FormField label="Select Package" required>
+                      <Select value={form.ottPackage} onChange={e => setField('ottPackage', e.target.value)}>
+                        <option value="">Select Package...</option>
+                        {['Basic OTT Pack', 'Standard OTT Pack', 'Premium OTT Pack'].map(o => (
+                          <option key={o}>{o}</option>
+                        ))}
+                      </Select>
+                    </FormField>
+                  </div>
+                )}
+
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input
                     type="checkbox"
