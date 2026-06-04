@@ -660,14 +660,6 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
           </div>
         )}
 
-        {/* No fields notice */}
-        {!needsFeasConfirm && targetStage && stageFields.length === 0 && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
-            No additional fields required for this stage.
-          </div>
-        )}
-
         {/* Follow-up toggle */}
         <div className="border border-surface-border rounded-xl overflow-hidden">
           <button type="button" onClick={() => setFollowupEnabled(p => !p)}
