@@ -662,7 +662,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
         )}
 
         {/* Dynamic stage fields */}
-        {!needsFeasConfirm && targetStage && stageFields.length > 0 && (
+        {!needsFeasConfirm && targetStage && targetStage !== 'New Inquiry' && stageFields.length > 0 && (
           <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-brand-blue uppercase tracking-wider">

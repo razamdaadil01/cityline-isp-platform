@@ -1294,7 +1294,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
         )}
 
         {/* Dynamic stage fields */}
-        {!isWon && !isIV && !needsFeasConfirm && targetStage && stageFields.length > 0 && (
+        {!isWon && !isIV && !needsFeasConfirm && targetStage && targetStage !== 'New Inquiry' && stageFields.length > 0 && (
           <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-brand-blue uppercase tracking-wider">
