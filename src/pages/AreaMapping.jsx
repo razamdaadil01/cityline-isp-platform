@@ -463,8 +463,8 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
   )
   const [lf, setLf] = useState(
     isHEdit && hierarchyEdit.type === 'Locality'
-      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name }
-      : { state: '', district: '', area: '', name: '' }
+      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name, siteType: 'FTTH', branchCode: '' }
+      : { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '' }
   )
   const [slForm, setSlForm] = useState(isEdit ? {
     id:          initial.id,
@@ -550,6 +550,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
     if (!lf.district) e.district = 'Required'
     if (!lf.area) e.area = 'Required'
     if (!lf.name.trim()) e.name = 'Required'
+    if (!lf.branchCode.trim()) e.branchCode = 'Required'
     if (Object.keys(e).length) { setErrors(e); return }
     if (isHEdit) {
       updateLocalityName(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, hierarchyEdit.name, lf.name.trim())
@@ -557,7 +558,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       onCancel()
     } else {
       saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim())
-      setLf({ state: '', district: '', area: '', name: '' })
+      setLf({ state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '' })
       setErrors({})
       onToast('Locality added successfully')
     }
@@ -570,7 +571,6 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
     if (!slForm.area.trim())        e.area        = 'Required'
     if (!slForm.locality.trim())    e.locality    = 'Required'
     if (!slForm.subLocality.trim()) e.subLocality = 'Required'
-    if (!slForm.branchCode.trim())  e.branchCode  = 'Required'
     if (Object.keys(e).length) { setErrors(e); return }
     onSave(slForm)
   }
@@ -739,6 +739,19 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   placeholder="e.g. Sector 62"
                 />
               </FormField>
+              <FormField label="Site Type">
+                <Select value={lf.siteType} onChange={e => setLf(f => ({ ...f, siteType: e.target.value }))}>
+                  {SITE_TYPES.map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Branch Code" required error={errors.branchCode}>
+                <Input
+                  value={lf.branchCode}
+                  onChange={e => { setLf(f => ({ ...f, branchCode: e.target.value })); setErrors(er => ({ ...er, branchCode: '' })) }}
+                  placeholder="e.g. CNPL-001"
+                  error={errors.branchCode}
+                />
+              </FormField>
             </div>
           </div>
         )}
@@ -801,24 +814,6 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   placeholder="e.g. Tower A"
                   error={errors.subLocality}
                 />
-              </FormField>
-              <FormField label="Site Type">
-                <Select value={slForm.siteType} onChange={e => setSlForm(f => ({ ...f, siteType: e.target.value }))}>
-                  {SITE_TYPES.map(t => <option key={t}>{t}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Branch Code" required error={errors.branchCode}>
-                <Input
-                  value={slForm.branchCode}
-                  onChange={e => { setSlForm(f => ({ ...f, branchCode: e.target.value })); setErrors(er => ({ ...er, branchCode: '' })) }}
-                  placeholder="e.g. CNPL-001"
-                  error={errors.branchCode}
-                />
-              </FormField>
-              <FormField label="Feasibility Status">
-                <Select value={slForm.feasibility} onChange={e => setSlForm(f => ({ ...f, feasibility: e.target.value }))}>
-                  {FEASIBILITY_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                </Select>
               </FormField>
             </div>
 
