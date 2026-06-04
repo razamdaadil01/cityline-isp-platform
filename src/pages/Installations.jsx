@@ -3,15 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import {
   CalendarDays, UserX, Loader2, CheckCircle2, Search, Filter, X,
   MoreVertical, CalendarClock, UserCog, Eye, Wrench, XCircle,
-  Plus, Trash2, ChevronDown,
 } from 'lucide-react'
 import {
-  getInstallations, saveInstallation, subscribeInstallations, FIELD_ENGINEERS,
+  getInstallations, subscribeInstallations, FIELD_ENGINEERS,
 } from '../data/installationsStore'
 import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
-import Modal from '../components/ui/Modal'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -56,209 +52,6 @@ function matchesTab(tab, inst) {
   return true
 }
 
-// ── Sub-modals ────────────────────────────────────────────────────────────────
-
-function EditSlotModal({ isOpen, onClose, inst, onSave }) {
-  const [form, setForm] = useState({ date: '', time: '', notes: '' })
-  useEffect(() => {
-    if (isOpen && inst) setForm({ date: inst.slotDate, time: inst.slotTime, notes: inst.notes ?? '' })
-  }, [isOpen, inst])
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Update Installation Slot"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button disabled={!form.date || !form.time}
-            onClick={() => onSave({ ...inst, slotDate: form.date, slotTime: form.time, notes: form.notes })}>
-            Update Slot
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <FormField label="Installation Date" required>
-          <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-        </FormField>
-        <FormField label="Installation Time" required>
-          <Input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
-        </FormField>
-        <FormField label="Notes">
-          <Textarea rows={3} placeholder="Any slot-specific notes..." value={form.notes}
-            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-        </FormField>
-      </div>
-    </Modal>
-  )
-}
-
-function AssignEngineerModal({ isOpen, onClose, inst, onSave }) {
-  const [engineerId, setEngineerId] = useState('')
-  const [notes, setNotes] = useState('')
-  useEffect(() => {
-    if (isOpen && inst) { setEngineerId(inst.engineerId ?? ''); setNotes('') }
-  }, [isOpen, inst])
-
-  const engineer = FIELD_ENGINEERS.find(e => e.id === engineerId)
-
-  function handleSave() {
-    const today = new Date().toISOString().split('T')[0]
-    onSave({
-      ...inst,
-      engineerId: engineer?.id ?? null,
-      engineerName: engineer?.name ?? null,
-      status: inst.status === 'Pending' && engineer ? 'Assigned' : inst.status,
-      timeline: [
-        ...inst.timeline,
-        ...(engineer ? [{ status: 'Assigned', date: today, by: engineer.name }] : []),
-      ],
-    })
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Engineer"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button disabled={!engineerId} onClick={handleSave}>Assign</Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <FormField label="Engineer" required>
-          <Select value={engineerId} onChange={e => setEngineerId(e.target.value)}>
-            <option value="">Select engineer...</option>
-            {FIELD_ENGINEERS.map(e => (
-              <option key={e.id} value={e.id}>{e.name}</option>
-            ))}
-          </Select>
-        </FormField>
-        {engineer && (
-          <div className="flex items-center gap-3 p-3 bg-gray-50 border border-surface-border rounded-xl">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold ${engineer.color}`}>
-              {engineer.initials}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-800">{engineer.name}</p>
-              <p className="text-xs text-gray-400">Field Engineer</p>
-            </div>
-          </div>
-        )}
-        <FormField label="Notes">
-          <Textarea rows={2} placeholder="Optional notes..." value={notes}
-            onChange={e => setNotes(e.target.value)} />
-        </FormField>
-      </div>
-    </Modal>
-  )
-}
-
-function HardwareRequirementsModal({ isOpen, onClose, inst, onSave }) {
-  const [hwRequired, setHwRequired] = useState(false)
-  const [hardware, setHardware]     = useState([])
-  const [wireRequired, setWireRequired] = useState(false)
-  const [wires, setWires]           = useState([])
-
-  useEffect(() => {
-    if (isOpen && inst) {
-      setHwRequired(inst.hardwareRequired ?? false)
-      setHardware(inst.hardware?.length ? inst.hardware.map(h => ({ ...h })) : [{ name: '', qty: 1 }])
-      setWireRequired(inst.wireRequired ?? false)
-      setWires(inst.wires?.length ? inst.wires.map(w => ({ ...w })) : [{ name: '', qty: 1 }])
-    }
-  }, [isOpen, inst])
-
-  function updateHw(i, field, val) { setHardware(prev => prev.map((h, j) => j === i ? { ...h, [field]: val } : h)) }
-  function removeHw(i)             { setHardware(prev => prev.filter((_, j) => j !== i)) }
-  function updateWire(i, field, val) { setWires(prev => prev.map((w, j) => j === i ? { ...w, [field]: val } : w)) }
-  function removeWire(i)           { setWires(prev => prev.filter((_, j) => j !== i)) }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Hardware & Wire Requirements" size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSave({
-            ...inst,
-            hardwareRequired: hwRequired,
-            hardware: hwRequired ? hardware.filter(h => h.name.trim()) : [],
-            wireRequired,
-            wires: wireRequired ? wires.filter(w => w.name.trim()) : [],
-          })}>
-            Save Requirements
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-6">
-        {/* Hardware */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Hardware Required</p>
-            <button type="button" onClick={() => setHwRequired(v => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${hwRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}>
-              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${hwRequired ? 'translate-x-4' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
-          {hwRequired && (
-            <div className="space-y-2">
-              {hardware.map((hw, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <Input placeholder="Hardware name..." value={hw.name} className="flex-1"
-                    onChange={e => updateHw(i, 'name', e.target.value)} />
-                  <Input type="number" min="1" value={hw.qty} className="w-20"
-                    onChange={e => updateHw(i, 'qty', parseInt(e.target.value) || 1)} />
-                  <button type="button" onClick={() => removeHw(i)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-              <button type="button" onClick={() => setHardware(h => [...h, { name: '', qty: 1 }])}
-                className="flex items-center gap-1.5 text-xs text-brand-blue hover:text-blue-700 font-medium transition-colors">
-                <Plus size={13} /> Add Hardware
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-surface-border" />
-
-        {/* Wires */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700">Wire Required</p>
-            <button type="button" onClick={() => setWireRequired(v => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${wireRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}>
-              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${wireRequired ? 'translate-x-4' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
-          {wireRequired && (
-            <div className="space-y-2">
-              {wires.map((w, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <Input placeholder="Wire name..." value={w.name} className="flex-1"
-                    onChange={e => updateWire(i, 'name', e.target.value)} />
-                  <Input type="number" min="1" value={w.qty} className="w-20"
-                    onChange={e => updateWire(i, 'qty', parseInt(e.target.value) || 1)} />
-                  <button type="button" onClick={() => removeWire(i)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-              <button type="button" onClick={() => setWires(w => [...w, { name: '', qty: 1 }])}
-                className="flex items-center gap-1.5 text-xs text-brand-blue hover:text-blue-700 font-medium transition-colors">
-                <Plus size={13} /> Add Wire
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Installations() {
@@ -270,10 +63,7 @@ export default function Installations() {
   const [filterEngineer, setFilterEngineer] = useState('')
   const [filterStatus,  setFilterStatus]  = useState('')
   const [filterArea,    setFilterArea]    = useState('')
-  const [menuOpenId,    setMenuOpenId]    = useState(null)
-  const [editSlotInst,  setEditSlotInst]  = useState(null)
-  const [assignEngInst, setAssignEngInst] = useState(null)
-  const [hwInst,        setHwInst]        = useState(null)
+  const [menuOpenId, setMenuOpenId] = useState(null)
   const menuRef = useRef(null)
 
   useEffect(() => subscribeInstallations(setInstallations), [])
@@ -318,22 +108,9 @@ export default function Installations() {
     return installations.filter(i => i.status === 'Completed' && i.slotDate >= weekStart).length
   })()
 
-  function saveInst(updated) {
-    saveInstallation(updated)
-    setEditSlotInst(null)
-    setAssignEngInst(null)
-    setHwInst(null)
+  function goAction(instId, actionParam) {
     setMenuOpenId(null)
-  }
-
-  function handleCancel(inst) {
-    const today = new Date().toISOString().split('T')[0]
-    saveInstallation({
-      ...inst,
-      status: 'Cancelled',
-      timeline: [...inst.timeline, { status: 'Cancelled', date: today, by: 'Admin' }],
-    })
-    setMenuOpenId(null)
+    navigate(`/installations/${instId}?action=${actionParam}`)
   }
 
   function slotClass(inst) {
@@ -533,7 +310,7 @@ export default function Installations() {
                       {/* HARDWARE */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {hwCount > 0 ? (
-                          <button onClick={() => setHwInst(inst)}
+                          <button onClick={() => navigate(`/installations/${inst.id}?action=add-hardware`)}
                             className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
                             {hwCount} item{hwCount !== 1 ? 's' : ''}
                           </button>
@@ -559,11 +336,11 @@ export default function Installations() {
                           {menuOpenId === inst.id && (
                             <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden">
                               {[
-                                { icon: CalendarClock, label: 'Edit Slot',                  onClick: () => { setEditSlotInst(inst); setMenuOpenId(null) } },
-                                { icon: UserCog,       label: 'Assign Engineer',            onClick: () => { setAssignEngInst(inst); setMenuOpenId(null) } },
-                                { icon: Eye,           label: 'View Lead',                  onClick: () => { if (inst.leadId) navigate(`/sales/leads/${inst.leadId}/overview`); setMenuOpenId(null) }, disabled: !inst.leadId },
-                                { icon: Wrench,        label: 'Add Hardware Requirements',  onClick: () => { setHwInst(inst); setMenuOpenId(null) } },
-                                { icon: XCircle,       label: 'Mark Cancelled',             onClick: () => handleCancel(inst), danger: true, disabled: inst.status === 'Cancelled' || inst.status === 'Completed' },
+                                { icon: CalendarClock, label: 'Edit Slot',                  onClick: () => goAction(inst.id, 'edit-slot') },
+                                { icon: UserCog,       label: 'Assign Engineer',            onClick: () => goAction(inst.id, 'assign-engineer') },
+                                { icon: Eye,           label: 'View Lead',                  onClick: () => { setMenuOpenId(null); if (inst.leadId) navigate(`/sales/leads/${inst.leadId}/overview`) }, disabled: !inst.leadId },
+                                { icon: Wrench,        label: 'Add Hardware Requirements',  onClick: () => goAction(inst.id, 'add-hardware') },
+                                { icon: XCircle,       label: 'Mark Cancelled',             onClick: () => goAction(inst.id, 'cancel'), danger: true, disabled: inst.status === 'Cancelled' || inst.status === 'Completed' },
                               ].map(item => (
                                 <button key={item.label} onClick={item.disabled ? undefined : item.onClick}
                                   disabled={item.disabled}
@@ -588,10 +365,6 @@ export default function Installations() {
         )}
       </div>
 
-      {/* Modals */}
-      <EditSlotModal        isOpen={!!editSlotInst}  onClose={() => setEditSlotInst(null)}  inst={editSlotInst}  onSave={saveInst} />
-      <AssignEngineerModal  isOpen={!!assignEngInst} onClose={() => setAssignEngInst(null)} inst={assignEngInst} onSave={saveInst} />
-      <HardwareRequirementsModal isOpen={!!hwInst}   onClose={() => setHwInst(null)}        inst={hwInst}        onSave={saveInst} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, CalendarDays, User, MapPin, Package, Wrench,
   Phone, ChevronRight, Edit2, Plus, Trash2, CheckCircle2,
@@ -266,14 +266,20 @@ function HardwareModal({ isOpen, onClose, inst, onSave }) {
 export default function InstallationDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [installations, setInstallations] = useState(getInstallations)
-
-  const [editSlotOpen, setEditSlotOpen] = useState(false)
-  const [assignOpen, setAssignOpen]     = useState(false)
-  const [hwOpen, setHwOpen]             = useState(false)
-  const [noteText, setNoteText]         = useState('')
+  const [noteText, setNoteText] = useState('')
 
   useEffect(() => subscribeInstallations(setInstallations), [])
+
+  const action = searchParams.get('action')
+  const editSlotOpen  = action === 'edit-slot'
+  const assignOpen    = action === 'assign-engineer'
+  const hwOpen        = action === 'add-hardware'
+  const cancelOpen    = action === 'cancel'
+
+  function openAction(a) { setSearchParams({ action: a }) }
+  function closeAction()  { setSearchParams({}) }
 
   const inst = installations.find(i => i.id === id)
 
@@ -290,9 +296,16 @@ export default function InstallationDetail() {
 
   function handleSave(updated) {
     saveInstallation(updated)
-    setEditSlotOpen(false)
-    setAssignOpen(false)
-    setHwOpen(false)
+    closeAction()
+  }
+
+  function handleCancel() {
+    saveInstallation({
+      ...inst,
+      status: 'Cancelled',
+      timeline: [...inst.timeline, { status: 'Cancelled', date: TODAY, by: 'Admin' }],
+    })
+    closeAction()
   }
 
   function handleAddNote() {
@@ -333,12 +346,12 @@ export default function InstallationDetail() {
         </div>
         <div className="flex items-center gap-2">
           {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-            <Button variant="secondary" size="sm" icon={<Wrench size={14} />} onClick={() => setHwOpen(true)}>
+            <Button variant="secondary" size="sm" icon={<Wrench size={14} />} onClick={() => openAction('add-hardware')}>
               Hardware
             </Button>
           )}
           {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-            <Button size="sm" icon={<Edit2 size={14} />} onClick={() => setEditSlotOpen(true)}>
+            <Button size="sm" icon={<Edit2 size={14} />} onClick={() => openAction('edit-slot')}>
               Edit Slot
             </Button>
           )}
@@ -401,7 +414,7 @@ export default function InstallationDetail() {
                 <h2 className="text-sm font-semibold text-gray-900">Hardware & Wire Requirements</h2>
               </div>
               {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                <button onClick={() => setHwOpen(true)}
+                <button onClick={() => openAction('add-hardware')}
                   className="text-xs text-brand-blue hover:underline font-medium flex items-center gap-1">
                   <Edit2 size={12} /> Edit
                 </button>
@@ -485,7 +498,7 @@ export default function InstallationDetail() {
                 <h2 className="text-sm font-semibold text-gray-900">Installation Slot</h2>
               </div>
               {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                <button onClick={() => setEditSlotOpen(true)}
+                <button onClick={() => openAction('edit-slot')}
                   className="text-xs text-brand-blue hover:underline font-medium flex items-center gap-1">
                   <Edit2 size={12} /> Edit
                 </button>
@@ -508,7 +521,7 @@ export default function InstallationDetail() {
                 <h2 className="text-sm font-semibold text-gray-900">Assigned Engineer</h2>
               </div>
               {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                <button onClick={() => setAssignOpen(true)}
+                <button onClick={() => openAction('assign-engineer')}
                   className="text-xs text-brand-blue hover:underline font-medium flex items-center gap-1">
                   <Edit2 size={12} /> {inst.engineerId ? 'Reassign' : 'Assign'}
                 </button>
@@ -531,7 +544,7 @@ export default function InstallationDetail() {
                 </div>
                 <p className="text-sm text-gray-500">No engineer assigned</p>
                 {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                  <button onClick={() => setAssignOpen(true)}
+                  <button onClick={() => openAction('assign-engineer')}
                     className="mt-2 text-xs text-brand-blue hover:underline font-medium">
                     Assign now
                   </button>
@@ -595,9 +608,30 @@ export default function InstallationDetail() {
       </div>
 
       {/* Modals */}
-      <EditSlotModal isOpen={editSlotOpen} onClose={() => setEditSlotOpen(false)} inst={inst} onSave={handleSave} />
-      <AssignEngineerModal isOpen={assignOpen} onClose={() => setAssignOpen(false)} inst={inst} onSave={handleSave} />
-      <HardwareModal isOpen={hwOpen} onClose={() => setHwOpen(false)} inst={inst} onSave={handleSave} />
+      <EditSlotModal isOpen={editSlotOpen} onClose={closeAction} inst={inst} onSave={handleSave} />
+      <AssignEngineerModal isOpen={assignOpen} onClose={closeAction} inst={inst} onSave={handleSave} />
+      <HardwareModal isOpen={hwOpen} onClose={closeAction} inst={inst} onSave={handleSave} />
+      <Modal isOpen={cancelOpen} onClose={closeAction} title="Mark as Cancelled"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeAction}>Keep Installation</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white border-red-600" onClick={handleCancel}>
+              Confirm Cancellation
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to cancel this installation for <span className="font-semibold">{inst.customerName}</span>?
+          </p>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-red-700 font-medium">{inst.id} · {inst.area}, {inst.city}</p>
+            <p className="text-xs text-red-600 mt-1">Slot: {inst.slotDate} at {inst.slotTime}</p>
+          </div>
+          <p className="text-xs text-gray-400">This action cannot be undone.</p>
+        </div>
+      </Modal>
     </div>
   )
 }
