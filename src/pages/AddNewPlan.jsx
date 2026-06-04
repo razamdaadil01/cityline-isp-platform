@@ -77,7 +77,7 @@ export default function AddNewPlan() {
       </div>
 
       {/* Form Card */}
-      <div className="max-w-4xl bg-white rounded-xl shadow-card border border-surface-border p-8">
+      <div className="w-full bg-white rounded-xl shadow-card border border-surface-border p-8">
         <div className="space-y-8">
 
           {/* ── Section 1: Basic Info ─────────────────────────── */}
