@@ -15,7 +15,7 @@ import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
-import { getStageFields } from '../data/stageFieldsStore'
+import { getStageFields, getStageMeta } from '../data/stageFieldsStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -1135,43 +1135,32 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 
 // ── Move Stage Modal ──────────────────────────────────────────────────────────
 
-const IV_FORM_INIT = { date: '', time: '', engineerId: '', hwRequired: false, hwRows: [{ name: '', qty: '' }], wireRequired: false, wireRows: [{ name: '', qty: '' }], notes: '' }
-const FEAS_FORM_INIT = { localityName: '', subLocalityName: '', address: '', landmark: '', connectionType: 'FTTH', requirement: '', branch: '', remarks: '' }
-const BRANCHES_LIST = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
-const CONNECTION_TYPES_LIST = ['FTTH', 'Sector', 'Village']
-
 function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initialStage = '' }) {
   const [targetStage, setTargetStage]         = useState(initialStage)
   const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
-  const [ivForm, setIvForm]                       = useState(IV_FORM_INIT)
-  const [wonNote, setWonNote]                     = useState('')
-  const [feasForm, setFeasForm]                   = useState(FEAS_FORM_INIT)
+  const [wonNote, setWonNote]                 = useState('')
   useEffect(() => {
     setTargetStage(initialStage ?? '')
     setFieldVals({})
     setFollowupEnabled(false)
     setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
-    setIvForm(IV_FORM_INIT)
     setWonNote('')
-    setFeasForm(FEAS_FORM_INIT)
   }, [initialStage])
 
   const targetSC          = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
   const targetStageId     = targetSC?.id ?? null
   const isWon             = targetSC?.statusType === 'Won' || targetStage === 'Won'
-  const isIV              = targetStage === 'Installation Visit'
   const needsFeasConfirm  = false
-  const isFeasDetails     = targetStage === 'Feasibility' && lead.pipeline === 'B2C'
-  const stageFields       = (!isWon && !isIV && targetStage !== 'Feasibility' && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const stageMeta         = targetStageId ? getStageMeta(targetStageId) : {}
+  const stageFields       = (!isWon && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const visibleFields     = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
   const requiredFields    = visibleFields.filter(f => f.required)
   const requiredFilled    = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
   const filledCount       = visibleFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
   const followUpAllowed   = targetSC?.followUpAllowed !== false
-  const ivValid           = !isIV || (ivForm.date && ivForm.time)
 
   function setField(id, val) { setFieldVals(p => ({ ...p, [id]: val })) }
 
@@ -1180,13 +1169,13 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   }
 
   function handleMove() {
-    if (!targetStage || !requiredFilled || !ivValid) return
+    if (!targetStage || !requiredFilled) return
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
       onMove(
         targetStage,
-        { ...fieldVals, ...(isIV ? { _installationVisit: ivForm } : {}), ...(isWon && wonNote ? { _wonNote: wonNote } : {}) },
+        { ...fieldVals, ...(isWon && wonNote ? { _wonNote: wonNote } : {}) },
         followupEnabled && followUpAllowed ? fuForm : null
       )
     }, 500)
@@ -1200,7 +1189,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           <Button
             icon={loading ? <Loader2 size={14} className="animate-spin" /> : (isWon ? <CheckCircle2 size={14} /> : <TrendingUp size={14} />)}
             onClick={handleMove}
-            disabled={!targetStage || loading || !requiredFilled || !ivValid}
+            disabled={!targetStage || loading || !requiredFilled}
           >
             {loading ? (isWon ? 'Converting…' : 'Moving…') : (isWon ? 'Mark as Won' : 'Move Stage')}
           </Button>
@@ -1217,7 +1206,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
             </div>
           </FormField>
           <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setIvForm(IV_FORM_INIT); setWonNote('') }}>
+            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setWonNote('') }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -1245,56 +1234,8 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           </>
         )}
 
-        {/* Feasibility Details */}
-        {isFeasDetails && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
-            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Enter Locality Name" required>
-                <Input value={feasForm.localityName} onChange={e => setFeasForm(p => ({ ...p, localityName: e.target.value }))} placeholder="Locality name" />
-              </FormField>
-              <FormField label="Enter Sub Locality Name">
-                <Input value={feasForm.subLocalityName} onChange={e => setFeasForm(p => ({ ...p, subLocalityName: e.target.value }))} placeholder="Sub locality name" />
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Complete Address" required>
-                  <Textarea value={feasForm.address} onChange={e => setFeasForm(p => ({ ...p, address: e.target.value }))} placeholder="Full address" rows={2} />
-                </FormField>
-              </div>
-              <FormField label="Landmark">
-                <Input value={feasForm.landmark} onChange={e => setFeasForm(p => ({ ...p, landmark: e.target.value }))} placeholder="Nearby landmark" />
-              </FormField>
-              <FormField label="Expected Connection Type">
-                <Select value={feasForm.connectionType} onChange={e => setFeasForm(p => ({ ...p, connectionType: e.target.value }))}>
-                  {CONNECTION_TYPES_LIST.map(t => <option key={t}>{t}</option>)}
-                </Select>
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Customer Requirement">
-                  <Textarea value={feasForm.requirement} onChange={e => setFeasForm(p => ({ ...p, requirement: e.target.value }))} placeholder="Describe connectivity needs" rows={2} />
-                </FormField>
-              </div>
-              <FormField label="Assigned Branch">
-                <Select value={feasForm.branch} onChange={e => setFeasForm(p => ({ ...p, branch: e.target.value }))}>
-                  <option value="">Select branch…</option>
-                  {BRANCHES_LIST.map(b => <option key={b}>{b}</option>)}
-                </Select>
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Remarks">
-                  <Textarea value={feasForm.remarks} onChange={e => setFeasForm(p => ({ ...p, remarks: e.target.value }))} placeholder="Any Remarks" rows={2} />
-                </FormField>
-              </div>
-              <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
-                <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
-                <span className="text-xs font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">Pending</span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Dynamic stage fields */}
-        {!isWon && !isIV && !needsFeasConfirm && targetStage && targetStage !== 'New Inquiry' && stageFields.length > 0 && (
+        {!isWon && !needsFeasConfirm && targetStage && targetStage !== 'New Inquiry' && stageFields.length > 0 && (
           <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-brand-blue uppercase tracking-wider">
@@ -1321,28 +1262,17 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
                 )
               })}
             </div>
+            {stageMeta.showFeasibilityBanner && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg mt-3">
+                <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
+                <span className="text-xs font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">Pending</span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Installation Visit fields */}
-        {isIV && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-4">
-            <p className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
-              <CalendarDays size={13} /> Installation Details
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <FormField label="Installation Date" required>
-                <Input type="date" value={ivForm.date} onChange={e => setIvForm(p => ({ ...p, date: e.target.value }))} />
-              </FormField>
-              <FormField label="Installation Time" required>
-                <Input type="time" value={ivForm.time} onChange={e => setIvForm(p => ({ ...p, time: e.target.value }))} />
-              </FormField>
-            </div>
-          </div>
-        )}
-
-        {/* Follow-up toggle — hidden for closing stages and Installation Visit */}
-        {targetStage && followUpAllowed && !isIV && (
+        {/* Follow-up toggle — hidden for closing stages */}
+        {targetStage && followUpAllowed && (
           <div className="border border-surface-border rounded-xl overflow-hidden">
             <button type="button" onClick={() => setFollowupEnabled(p => !p)}
               className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">

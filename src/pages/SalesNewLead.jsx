@@ -12,7 +12,7 @@ import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getFormModules } from '../data/customFormStore'
-import { getStageFields, subscribeStageFields } from '../data/stageFieldsStore'
+import { getStageFields, getStageMeta, subscribeStageFields } from '../data/stageFieldsStore'
 import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
 
 // ── Shared constants (mirrors Sales.jsx) ────────────────────────────────────
@@ -798,7 +798,7 @@ export default function SalesNewLead() {
         </div>
 
         {/* Stage Fields card — dynamic fields for first stage */}
-        {firstStageFields.length > 0 && selectedStageName !== 'New Inquiry' && selectedStageName !== 'Feasibility' && selectedStageName !== 'Installation Visit' && (
+        {firstStageFields.length > 0 && selectedStageName !== 'New Inquiry' && (
           <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -838,95 +838,12 @@ export default function SalesNewLead() {
                 )
               })}
             </div>
-          </div>
-        )}
-
-
-        {/* Feasibility Details — shown when Starting Stage is Feasibility */}
-        {selectedStageName === 'Feasibility' && (
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-            <p className="text-sm font-bold text-gray-700 mb-4">Feasibility Details</p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              <FormField label="Enter Locality Name" required>
-                <Input value={form.feasibilityLocalityName}
-                  onChange={e => set('feasibilityLocalityName', e.target.value)}
-                  placeholder="Locality name" />
-              </FormField>
-              <FormField label="Enter Sub Locality Name">
-                <Input value={form.feasibilitySubLocalityName}
-                  onChange={e => set('feasibilitySubLocalityName', e.target.value)}
-                  placeholder="Sub locality name" />
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Complete Address" required>
-                  <Textarea value={form.feasibilityAddress}
-                    onChange={e => set('feasibilityAddress', e.target.value)}
-                    placeholder="Full address" rows={2} />
-                </FormField>
-              </div>
-              <FormField label="Landmark">
-                <Input value={form.feasibilityLandmark}
-                  onChange={e => set('feasibilityLandmark', e.target.value)}
-                  placeholder="Nearby landmark" />
-              </FormField>
-              <FormField label="Expected Connection Type">
-                <Select value={form.feasibilityConnectionType}
-                  onChange={e => set('feasibilityConnectionType', e.target.value)}>
-                  {CONNECTION_TYPES.map(t => <option key={t}>{t}</option>)}
-                </Select>
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Customer Requirement">
-                  <Textarea value={form.feasibilityRequirement}
-                    onChange={e => set('feasibilityRequirement', e.target.value)}
-                    placeholder="Describe connectivity needs" rows={2} />
-                </FormField>
-              </div>
-              <FormField label="Assigned Branch">
-                <Select value={form.feasibilityBranch}
-                  onChange={e => set('feasibilityBranch', e.target.value)}>
-                  <option value="">Select branch…</option>
-                  {BRANCHES.map(b => <option key={b}>{b}</option>)}
-                </Select>
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Remarks">
-                  <Textarea value={form.feasibilityRemarks}
-                    onChange={e => set('feasibilityRemarks', e.target.value)}
-                    placeholder="Any Remarks" rows={2} />
-                </FormField>
-              </div>
-              <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
+            {firstStage && getStageMeta(firstStage.id).showFeasibilityBanner && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg mt-4">
                 <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
                 <Badge variant="yellow" size="sm">Pending</Badge>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Installation Visit Details — shown when Starting Stage is Installation Visit */}
-        {selectedStageName === 'Installation Visit' && (
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-            <p className="text-sm font-bold text-orange-700 uppercase tracking-wide mb-4 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
-              Installation Details
-            </p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              <FormField label="Installation Date" required>
-                <Input
-                  type="date"
-                  value={form.installationDate ?? ''}
-                  onChange={e => set('installationDate', e.target.value)}
-                />
-              </FormField>
-              <FormField label="Installation Time" required>
-                <Input
-                  type="time"
-                  value={form.installationTime ?? ''}
-                  onChange={e => set('installationTime', e.target.value)}
-                />
-              </FormField>
-            </div>
+            )}
           </div>
         )}
 
