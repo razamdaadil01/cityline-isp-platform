@@ -1171,7 +1171,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const requiredFilled    = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
   const filledCount       = visibleFields.filter(f => isFieldFilled(f, fieldVals[f.id])).length
   const followUpAllowed   = targetSC?.followUpAllowed !== false
-  const ivValid           = !isIV || (ivForm.date && ivForm.time && ivForm.engineerId)
+  const ivValid           = !isIV || (ivForm.date && ivForm.time)
 
   function setField(id, val) { setFieldVals(p => ({ ...p, [id]: val })) }
 
@@ -1338,82 +1338,6 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
                 <Input type="time" value={ivForm.time} onChange={e => setIvForm(p => ({ ...p, time: e.target.value }))} />
               </FormField>
             </div>
-            <FormField label="Engineer Assigned" required>
-              <Select value={ivForm.engineerId} onChange={e => setIvForm(p => ({ ...p, engineerId: e.target.value }))}>
-                <option value="">Select engineer…</option>
-                {ENGINEERS.map(eng => <option key={eng.id} value={eng.id}>{eng.name} — {eng.dept}</option>)}
-              </Select>
-            </FormField>
-
-            {/* Hardware Required */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Hardware Required</span>
-                <button type="button" onClick={() => setIvForm(p => ({ ...p, hwRequired: !p.hwRequired }))}
-                  className={`w-9 h-5 rounded-full transition-colors relative ${ivForm.hwRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${ivForm.hwRequired ? 'left-4' : 'left-0.5'}`} />
-                </button>
-              </div>
-              {ivForm.hwRequired && (
-                <div className="space-y-2">
-                  {ivForm.hwRows.map((row, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <Input className="flex-1" placeholder="Hardware name" value={row.name}
-                        onChange={e => setIvForm(p => ({ ...p, hwRows: p.hwRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r) }))} />
-                      <Input className="w-20" type="number" placeholder="Qty" min="1" value={row.qty}
-                        onChange={e => setIvForm(p => ({ ...p, hwRows: p.hwRows.map((r, j) => j === i ? { ...r, qty: e.target.value } : r) }))} />
-                      {ivForm.hwRows.length > 1 && (
-                        <button type="button" onClick={() => setIvForm(p => ({ ...p, hwRows: p.hwRows.filter((_, j) => j !== i) }))}
-                          className="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600 rounded transition-colors">
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setIvForm(p => ({ ...p, hwRows: [...p.hwRows, { name: '', qty: '' }] }))}
-                    className="text-xs font-semibold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1 mt-1">
-                    <Plus size={12} /> Add Hardware
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Wire Required */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Wire Required</span>
-                <button type="button" onClick={() => setIvForm(p => ({ ...p, wireRequired: !p.wireRequired }))}
-                  className={`w-9 h-5 rounded-full transition-colors relative ${ivForm.wireRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${ivForm.wireRequired ? 'left-4' : 'left-0.5'}`} />
-                </button>
-              </div>
-              {ivForm.wireRequired && (
-                <div className="space-y-2">
-                  {ivForm.wireRows.map((row, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <Input className="flex-1" placeholder="Wire type" value={row.name}
-                        onChange={e => setIvForm(p => ({ ...p, wireRows: p.wireRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r) }))} />
-                      <Input className="w-20" type="number" placeholder="Qty" min="1" value={row.qty}
-                        onChange={e => setIvForm(p => ({ ...p, wireRows: p.wireRows.map((r, j) => j === i ? { ...r, qty: e.target.value } : r) }))} />
-                      {ivForm.wireRows.length > 1 && (
-                        <button type="button" onClick={() => setIvForm(p => ({ ...p, wireRows: p.wireRows.filter((_, j) => j !== i) }))}
-                          className="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600 rounded transition-colors">
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setIvForm(p => ({ ...p, wireRows: [...p.wireRows, { name: '', qty: '' }] }))}
-                    className="text-xs font-semibold text-brand-blue hover:text-brand-blue/80 flex items-center gap-1 mt-1">
-                    <Plus size={12} /> Add Wire
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <FormField label="Installation Notes">
-              <Textarea value={ivForm.notes} onChange={e => setIvForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Installation notes…" />
-            </FormField>
           </div>
         )}
 
