@@ -580,10 +580,10 @@ function AreaMappingTab() {
         <p className="text-xs text-gray-500 mt-1">Manage service areas, localities and feasibility settings for lead address selection</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div>
         <button
           onClick={() => navigate('/settings/area-mapping/manage')}
-          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
+          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left w-full max-w-sm"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
@@ -596,22 +596,6 @@ function AreaMappingTab() {
           </div>
           <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
         </button>
-
-        <button
-          onClick={() => navigate('/settings/area-mapping/feasibility-requests')}
-          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-orange/40 hover:bg-orange-50/30 transition-all group text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-orange/10 rounded-xl flex items-center justify-center shrink-0">
-              <ClipboardCheck size={18} className="text-brand-orange" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Feasibility Requests</p>
-              <p className="text-xs text-gray-400 mt-0.5">Review and update pending feasibility checks</p>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-orange transition-colors" />
-        </button>
       </div>
 
       <div className="rounded-xl border border-surface-border bg-gray-50/50 p-4">
@@ -620,7 +604,7 @@ function AreaMappingTab() {
           <li>Add states, districts, areas, localities and sub-localities in <strong className="text-gray-700">Manage Area Mapping</strong>.</li>
           <li>When a lead is created, the address dropdowns are powered by this mapping.</li>
           <li>If a sub-locality isn&apos;t in the mapping, the agent can flag it as <strong className="text-gray-700">Feasibility Required</strong>.</li>
-          <li>Admin reviews and updates those requests in <strong className="text-gray-700">Feasibility Requests</strong>.</li>
+          <li>Feasibility requests can be reviewed under <strong className="text-gray-700">Sales &amp; Leads → Feasibility Requests</strong>.</li>
         </ol>
       </div>
     </div>
