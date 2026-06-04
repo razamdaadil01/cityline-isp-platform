@@ -31,7 +31,6 @@ const PLAN_BILLING_TYPES = ['Monthly', 'Quarterly', 'Half Yearly', 'Yearly', 'On
 
 const EMPTY_FORM = {
   serviceType: 'Plan',
-  server: '',
   // Plan-only
   pipeline: '',
   bandwidthPackageId: '',
@@ -214,205 +213,218 @@ export default function Packages() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!form.name.trim() || !form.price || !form.server}
+              disabled={!form.name.trim() || !form.price}
             >
               Save Plan
             </Button>
           </>
         }
       >
-        <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+        <div className="space-y-6">
 
-          {/* Row 1: Service Type + Server */}
-          <FormField label="Service Type" required>
-            <Select value={form.serviceType} onChange={e => setField('serviceType', e.target.value)}>
-              <option value="Plan">Plan</option>
-              <option value="Other Package">Other Package</option>
-            </Select>
-          </FormField>
+          {/* ── Section 1: Basic Info ─────────────────────────── */}
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Basic Info</p>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
 
-          <FormField label="Select Server" required>
-            <Select value={form.server} onChange={e => setField('server', e.target.value)}>
-              <option value="">Select server…</option>
-              {SERVERS.map(s => <option key={s}>{s}</option>)}
-            </Select>
-          </FormField>
-
-          {/* Plan-only rows */}
-          {form.serviceType === 'Plan' && (
-            <>
-              <FormField label="Pipeline" required>
-                <Select value={form.pipeline} onChange={e => setField('pipeline', e.target.value)}>
-                  <option value="">Select pipeline…</option>
-                  <option value="Residential">Residential</option>
-                  <option value="Enterprise">Enterprise</option>
+              <FormField label="Service Type" required>
+                <Select value={form.serviceType} onChange={e => setField('serviceType', e.target.value)}>
+                  <option value="Plan">Plan</option>
+                  <option value="Other Package">Other Package</option>
                 </Select>
               </FormField>
-              <FormField label="Bandwidth Package ID">
+
+              {form.serviceType === 'Plan' ? (
+                <FormField label="Pipeline" required>
+                  <Select value={form.pipeline} onChange={e => setField('pipeline', e.target.value)}>
+                    <option value="">Select pipeline…</option>
+                    <option value="Residential">Residential</option>
+                    <option value="Enterprise">Enterprise</option>
+                  </Select>
+                </FormField>
+              ) : (
+                <div />
+              )}
+
+              {/* Package Type radio + Multiple Month Pricing checkbox */}
+              <FormField label="Package Type" required>
+                <div className="flex items-center gap-5 py-1.5">
+                  {['Public', 'Private'].map(opt => (
+                    <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="radio"
+                        name="packageType"
+                        value={opt}
+                        checked={form.packageType === opt}
+                        onChange={() => setField('packageType', opt)}
+                        className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                      />
+                      <span className="text-sm text-gray-700">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </FormField>
+
+              <div className="flex items-center gap-3 pt-6">
+                <input
+                  type="checkbox"
+                  id="multipleMonth"
+                  checked={form.multipleMonthPricing}
+                  onChange={e => setField('multipleMonthPricing', e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                />
+                <label htmlFor="multipleMonth" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                  Multiple Month Pricing
+                </label>
+              </div>
+
+              {form.serviceType === 'Plan' && (
+                <div className="col-span-2">
+                  <FormField label="Bandwidth Package ID">
+                    <Input
+                      placeholder="e.g. PKG-001"
+                      value={form.bandwidthPackageId}
+                      onChange={e => setField('bandwidthPackageId', e.target.value)}
+                    />
+                  </FormField>
+                </div>
+              )}
+
+            </div>
+          </div>
+
+          {/* ── Section 2: Package Details ────────────────────── */}
+          <div className="border-t border-surface-border pt-5">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Package Details</p>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+
+              <div className="col-span-2">
+                <FormField label="Package Name" required>
+                  <Input
+                    placeholder="e.g. 100 Mbps Monthly FTTH"
+                    value={form.name}
+                    onChange={e => setField('name', e.target.value)}
+                  />
+                </FormField>
+              </div>
+
+              <FormField label="Billing Type" required>
+                <Select value={form.billingType} onChange={e => setField('billingType', e.target.value)}>
+                  {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
+                </Select>
+              </FormField>
+
+              <FormField label="Price (₹)" required>
                 <Input
-                  placeholder="e.g. PKG-001"
-                  value={form.bandwidthPackageId}
-                  onChange={e => setField('bandwidthPackageId', e.target.value)}
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={form.price}
+                  onChange={e => setField('price', e.target.value)}
                 />
               </FormField>
-            </>
-          )}
 
-          {/* Package Type (radio) + Multiple Month Pricing (checkbox) */}
-          <FormField label="Package Type" required>
-            <div className="flex items-center gap-5 py-1.5">
-              {['Public', 'Private'].map(opt => (
-                <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="radio"
-                    name="packageType"
-                    value={opt}
-                    checked={form.packageType === opt}
-                    onChange={() => setField('packageType', opt)}
-                    className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              <FormField label="Sort Order">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={form.sortOrder}
+                  onChange={e => setField('sortOrder', e.target.value)}
+                />
+              </FormField>
+
+              <FormField label="Speed">
+                <Input
+                  placeholder="e.g. 100 Mbps"
+                  value={form.speed}
+                  onChange={e => setField('speed', e.target.value)}
+                />
+              </FormField>
+
+              <div className="col-span-2">
+                <FormField label="Package Info">
+                  <Textarea
+                    rows={2}
+                    placeholder="Comment"
+                    value={form.packageInfo}
+                    onChange={e => setField('packageInfo', e.target.value)}
                   />
-                  <span className="text-sm text-gray-700">{opt}</span>
-                </label>
-              ))}
-            </div>
-          </FormField>
+                </FormField>
+              </div>
 
-          <div className="flex items-center gap-3 pt-6">
-            <input
-              type="checkbox"
-              id="multipleMonth"
-              checked={form.multipleMonthPricing}
-              onChange={e => setField('multipleMonthPricing', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-            />
-            <label htmlFor="multipleMonth" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
-              Multiple Month Pricing
-            </label>
+            </div>
           </div>
 
-          {/* Package Name (full width) */}
-          <div className="col-span-2">
-            <FormField label="Package Name" required>
-              <Input
-                placeholder="e.g. 100 Mbps Monthly FTTH"
-                value={form.name}
-                onChange={e => setField('name', e.target.value)}
-              />
-            </FormField>
-          </div>
+          {/* ── Section 3: Settings ───────────────────────────── */}
+          <div className="border-t border-surface-border pt-5">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-3">Settings</p>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
 
-          {/* Billing Type + Price */}
-          <FormField label="Billing Type" required>
-            <Select value={form.billingType} onChange={e => setField('billingType', e.target.value)}>
-              {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-            </Select>
-          </FormField>
+              <FormField label="Package available" required>
+                <div className="flex items-center gap-5 py-1">
+                  {['Yes', 'No'].map(opt => (
+                    <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="radio"
+                        name="packageAvailable"
+                        value={opt}
+                        checked={form.packageAvailable === opt}
+                        onChange={() => setField('packageAvailable', opt)}
+                        className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                      />
+                      <span className="text-sm text-gray-700">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                {form.packageAvailable === 'No' && (
+                  <p className="text-xs text-amber-600 mt-1.5">This package not available for new account</p>
+                )}
+              </FormField>
 
-          <FormField label="Price (₹)" required>
-            <Input
-              type="number"
-              min="0"
-              placeholder="0"
-              value={form.price}
-              onChange={e => setField('price', e.target.value)}
-            />
-          </FormField>
+              <FormField label="Offer Package" required>
+                <div className="flex items-center gap-5 py-1">
+                  {['Yes', 'No'].map(opt => (
+                    <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="radio"
+                        name="offerPackage"
+                        value={opt}
+                        checked={form.offerPackage === opt}
+                        onChange={() => setField('offerPackage', opt)}
+                        className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                      />
+                      <span className="text-sm text-gray-700">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+                {form.offerPackage === 'Yes' && (
+                  <p className="text-xs text-amber-600 mt-1.5">This package will applicable only once</p>
+                )}
+              </FormField>
 
-          {/* Package Info (full width) */}
-          <div className="col-span-2">
-            <FormField label="Package Info">
-              <Textarea
-                rows={2}
-                placeholder="Comment"
-                value={form.packageInfo}
-                onChange={e => setField('packageInfo', e.target.value)}
-              />
-            </FormField>
-          </div>
-
-          {/* Sort Order + Speed */}
-          <FormField label="Sort Order">
-            <Input
-              type="number"
-              min="0"
-              placeholder="0"
-              value={form.sortOrder}
-              onChange={e => setField('sortOrder', e.target.value)}
-            />
-          </FormField>
-
-          <FormField label="Speed">
-            <Input
-              placeholder="e.g. 100 Mbps"
-              value={form.speed}
-              onChange={e => setField('speed', e.target.value)}
-            />
-          </FormField>
-
-          {/* Package Available (radio) */}
-          <FormField label="Package available" required>
-            <div className="flex items-center gap-5 py-1">
-              {['Yes', 'No'].map(opt => (
-                <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
+              <div className="col-span-2 flex flex-col gap-3 pt-1">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input
-                    type="radio"
-                    name="packageAvailable"
-                    value={opt}
-                    checked={form.packageAvailable === opt}
-                    onChange={() => setField('packageAvailable', opt)}
-                    className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                    type="checkbox"
+                    checked={form.bundleOTT}
+                    onChange={e => setField('bundleOTT', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
                   />
-                  <span className="text-sm text-gray-700">{opt}</span>
+                  <span className="text-sm font-medium text-gray-700">Bundle with OTT</span>
                 </label>
-              ))}
-            </div>
-            {form.packageAvailable === 'No' && (
-              <p className="text-xs text-amber-600 mt-1.5">This package not available for new account</p>
-            )}
-          </FormField>
-
-          {/* Offer Package (radio) */}
-          <FormField label="Offer Package" required>
-            <div className="flex items-center gap-5 py-1">
-              {['Yes', 'No'].map(opt => (
-                <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input
-                    type="radio"
-                    name="offerPackage"
-                    value={opt}
-                    checked={form.offerPackage === opt}
-                    onChange={() => setField('offerPackage', opt)}
-                    className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                    type="checkbox"
+                    checked={form.doNotIncludeInCalc}
+                    onChange={e => setField('doNotIncludeInCalc', e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
                   />
-                  <span className="text-sm text-gray-700">{opt}</span>
+                  <span className="text-sm font-medium text-gray-700">Do not include package amount in calculation</span>
                 </label>
-              ))}
-            </div>
-            {form.offerPackage === 'Yes' && (
-              <p className="text-xs text-amber-600 mt-1.5">This package will applicable only once</p>
-            )}
-          </FormField>
+              </div>
 
-          {/* Checkboxes row */}
-          <div className="col-span-2 border-t border-surface-border pt-4 flex flex-col gap-3">
-            <label className="flex items-center gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={form.bundleOTT}
-                onChange={e => setField('bundleOTT', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-              />
-              <span className="text-sm font-medium text-gray-700">Bundle with OTT</span>
-            </label>
-            <label className="flex items-center gap-3 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={form.doNotIncludeInCalc}
-                onChange={e => setField('doNotIncludeInCalc', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-              />
-              <span className="text-sm font-medium text-gray-700">Do not include package amount in calculation</span>
-            </label>
+            </div>
           </div>
 
         </div>
