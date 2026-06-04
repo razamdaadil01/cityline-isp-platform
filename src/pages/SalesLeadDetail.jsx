@@ -532,6 +532,10 @@ function ActivationSuccessModal({ isOpen, onClose, data }) {
 
 // ── MoveStageModal ─────────────────────────────────────────────────────────────
 
+const FEAS_FORM_INIT_LD = { localityName: '', subLocalityName: '', address: '', landmark: '', connectionType: 'FTTH', requirement: '', branch: '', remarks: '' }
+const BRANCHES_LIST_LD  = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
+const CONNECTION_TYPES_LIST_LD = ['FTTH', 'Sector', 'Village']
+
 function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage = '' }) {
   const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
   const availableStages = pl.stages.filter(s => s !== lead?.stage)
@@ -540,17 +544,20 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
+  const [feasForm, setFeasForm]               = useState(FEAS_FORM_INIT_LD)
 
   useEffect(() => {
     if (isOpen) {
       setTargetStage(initialStage ?? '')
       setFieldVals({})
       setFollowupEnabled(false)
+      setFeasForm(FEAS_FORM_INIT_LD)
       setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
     }
   }, [isOpen, initialStage])
 
   const needsFeasConfirm = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired
+  const isFeasDetails    = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && lead?.feasibilityRequired
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
   const stageFields    = (!needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const visibleFields  = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
@@ -626,6 +633,54 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
               className="w-full py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
               OK
             </button>
+          </div>
+        )}
+
+        {/* Feasibility Details */}
+        {isFeasDetails && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Enter Locality Name">
+                <Input value={feasForm.localityName} onChange={e => setFeasForm(p => ({ ...p, localityName: e.target.value }))} placeholder="Locality name" />
+              </FormField>
+              <FormField label="Enter Sub Locality Name">
+                <Input value={feasForm.subLocalityName} onChange={e => setFeasForm(p => ({ ...p, subLocalityName: e.target.value }))} placeholder="Sub locality name" />
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Complete Address">
+                  <Textarea value={feasForm.address} onChange={e => setFeasForm(p => ({ ...p, address: e.target.value }))} placeholder="Full address" rows={2} />
+                </FormField>
+              </div>
+              <FormField label="Landmark">
+                <Input value={feasForm.landmark} onChange={e => setFeasForm(p => ({ ...p, landmark: e.target.value }))} placeholder="Nearby landmark" />
+              </FormField>
+              <FormField label="Expected Connection Type">
+                <Select value={feasForm.connectionType} onChange={e => setFeasForm(p => ({ ...p, connectionType: e.target.value }))}>
+                  {CONNECTION_TYPES_LIST_LD.map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Customer Requirement">
+                  <Textarea value={feasForm.requirement} onChange={e => setFeasForm(p => ({ ...p, requirement: e.target.value }))} placeholder="Describe connectivity needs" rows={2} />
+                </FormField>
+              </div>
+              <FormField label="Assigned Branch">
+                <Select value={feasForm.branch} onChange={e => setFeasForm(p => ({ ...p, branch: e.target.value }))}>
+                  <option value="">Select branch…</option>
+                  {BRANCHES_LIST_LD.map(b => <option key={b}>{b}</option>)}
+                </Select>
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Remarks">
+                  <Textarea value={feasForm.remarks} onChange={e => setFeasForm(p => ({ ...p, remarks: e.target.value }))} placeholder="Any Remarks" rows={2} />
+                </FormField>
+              </div>
+              <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
+                <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
+                <span className="text-xs font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">Pending</span>
+              </div>
+            </div>
           </div>
         )}
 

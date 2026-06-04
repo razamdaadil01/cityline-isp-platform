@@ -1136,6 +1136,9 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 // ── Move Stage Modal ──────────────────────────────────────────────────────────
 
 const IV_FORM_INIT = { date: '', time: '', engineerId: '', hwRequired: false, hwRows: [{ name: '', qty: '' }], wireRequired: false, wireRows: [{ name: '', qty: '' }], notes: '' }
+const FEAS_FORM_INIT = { localityName: '', subLocalityName: '', address: '', landmark: '', connectionType: 'FTTH', requirement: '', branch: '', remarks: '' }
+const BRANCHES_LIST = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
+const CONNECTION_TYPES_LIST = ['FTTH', 'Sector', 'Village']
 
 function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initialStage = '' }) {
   const [targetStage, setTargetStage]         = useState(initialStage)
@@ -1145,6 +1148,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const [loading, setLoading]                 = useState(false)
   const [ivForm, setIvForm]                       = useState(IV_FORM_INIT)
   const [wonNote, setWonNote]                     = useState('')
+  const [feasForm, setFeasForm]                   = useState(FEAS_FORM_INIT)
   useEffect(() => {
     setTargetStage(initialStage ?? '')
     setFieldVals({})
@@ -1152,6 +1156,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
     setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
     setIvForm(IV_FORM_INIT)
     setWonNote('')
+    setFeasForm(FEAS_FORM_INIT)
   }, [initialStage])
 
   const targetSC          = targetStage ? getStageConfig(lead.pipeline, targetStage, plStore) : null
@@ -1159,6 +1164,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const isWon             = targetSC?.statusType === 'Won' || targetStage === 'Won'
   const isIV              = targetStage === 'Installation Visit'
   const needsFeasConfirm  = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired
+  const isFeasDetails     = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && lead.feasibilityRequired
   const stageFields       = (!isWon && !isIV && !needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const visibleFields     = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
   const requiredFields    = visibleFields.filter(f => f.required)
@@ -1259,6 +1265,54 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
               className="w-full py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
               OK
             </button>
+          </div>
+        )}
+
+        {/* Feasibility Details */}
+        {isFeasDetails && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Enter Locality Name">
+                <Input value={feasForm.localityName} onChange={e => setFeasForm(p => ({ ...p, localityName: e.target.value }))} placeholder="Locality name" />
+              </FormField>
+              <FormField label="Enter Sub Locality Name">
+                <Input value={feasForm.subLocalityName} onChange={e => setFeasForm(p => ({ ...p, subLocalityName: e.target.value }))} placeholder="Sub locality name" />
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Complete Address">
+                  <Textarea value={feasForm.address} onChange={e => setFeasForm(p => ({ ...p, address: e.target.value }))} placeholder="Full address" rows={2} />
+                </FormField>
+              </div>
+              <FormField label="Landmark">
+                <Input value={feasForm.landmark} onChange={e => setFeasForm(p => ({ ...p, landmark: e.target.value }))} placeholder="Nearby landmark" />
+              </FormField>
+              <FormField label="Expected Connection Type">
+                <Select value={feasForm.connectionType} onChange={e => setFeasForm(p => ({ ...p, connectionType: e.target.value }))}>
+                  {CONNECTION_TYPES_LIST.map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Customer Requirement">
+                  <Textarea value={feasForm.requirement} onChange={e => setFeasForm(p => ({ ...p, requirement: e.target.value }))} placeholder="Describe connectivity needs" rows={2} />
+                </FormField>
+              </div>
+              <FormField label="Assigned Branch">
+                <Select value={feasForm.branch} onChange={e => setFeasForm(p => ({ ...p, branch: e.target.value }))}>
+                  <option value="">Select branch…</option>
+                  {BRANCHES_LIST.map(b => <option key={b}>{b}</option>)}
+                </Select>
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Remarks">
+                  <Textarea value={feasForm.remarks} onChange={e => setFeasForm(p => ({ ...p, remarks: e.target.value }))} placeholder="Any Remarks" rows={2} />
+                </FormField>
+              </div>
+              <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
+                <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
+                <span className="text-xs font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">Pending</span>
+              </div>
+            </div>
           </div>
         )}
 
