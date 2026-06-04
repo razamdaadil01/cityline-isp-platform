@@ -14,12 +14,7 @@ const INIT = {
     field('s2-f2', 'Interested',     'Dropdown', true,  ['Yes', 'No', 'Maybe']),
     field('s2-f3', 'Contact Notes',  'Textarea', false),
   ],
-  s4: [
-    field('s4-f1', 'Feasibility Status',    'Dropdown', true,  ['Feasible', 'Not Feasible', 'Pending']),
-    field('s4-f2', 'Nearest Fiber Node',    'Text',     false),
-    field('s4-f3', 'Distance from Network', 'Number',   false),
-    field('s4-f4', 'Survey Notes',          'Textarea', false),
-  ],
+  s4: [],
   s5: [
     field('s5-f1', 'Quotation Amount',     'Number',   true),
     field('s5-f2', 'Plan Offered',         'Dropdown', true,  PLANS),
