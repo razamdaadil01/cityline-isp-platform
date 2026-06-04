@@ -545,6 +545,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
   const [loading, setLoading]                 = useState(false)
   const [feasForm, setFeasForm]               = useState(FEAS_FORM_INIT_LD)
+  const [ivForm, setIvForm]                   = useState({ date: '', time: '' })
 
   useEffect(() => {
     if (isOpen) {
@@ -552,14 +553,17 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
       setFieldVals({})
       setFollowupEnabled(false)
       setFeasForm(FEAS_FORM_INIT_LD)
+      setIvForm({ date: '', time: '' })
       setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
     }
   }, [isOpen, initialStage])
 
   const needsFeasConfirm = false
   const isFeasDetails    = targetStage === 'Feasibility' && lead?.pipeline === 'B2C'
+  const isIV             = targetStage === 'Installation Visit'
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
-  const stageFields    = (targetStage !== 'Feasibility' && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const stageFields    = (targetStage !== 'Feasibility' && !isIV && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const ivValid        = !isIV || (ivForm.date && ivForm.time)
   const visibleFields  = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
   const requiredFields = visibleFields.filter(f => f.required)
   const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
@@ -587,7 +591,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
-            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled}>
+            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled || !ivValid}>
             {loading ? 'Moving…' : 'Move Stage'}
           </Button>
         </>
@@ -657,6 +661,23 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
                 <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
                 <span className="text-xs font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full">Pending</span>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Installation Visit Details */}
+        {isIV && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" /> Installation Details
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Installation Date" required>
+                <Input type="date" value={ivForm.date} onChange={e => setIvForm(p => ({ ...p, date: e.target.value }))} />
+              </FormField>
+              <FormField label="Installation Time" required>
+                <Input type="time" value={ivForm.time} onChange={e => setIvForm(p => ({ ...p, time: e.target.value }))} />
+              </FormField>
             </div>
           </div>
         )}

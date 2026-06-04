@@ -798,7 +798,7 @@ export default function SalesNewLead() {
         </div>
 
         {/* Stage Fields card — dynamic fields for first stage */}
-        {firstStageFields.length > 0 && selectedStageName !== 'New Inquiry' && selectedStageName !== 'Feasibility' && (
+        {firstStageFields.length > 0 && selectedStageName !== 'New Inquiry' && selectedStageName !== 'Feasibility' && selectedStageName !== 'Installation Visit' && (
           <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -900,6 +900,32 @@ export default function SalesNewLead() {
                 <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
                 <Badge variant="yellow" size="sm">Pending</Badge>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Installation Visit Details — shown when Starting Stage is Installation Visit */}
+        {selectedStageName === 'Installation Visit' && (
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <p className="text-sm font-bold text-orange-700 uppercase tracking-wide mb-4 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+              Installation Details
+            </p>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+              <FormField label="Installation Date" required>
+                <Input
+                  type="date"
+                  value={form.installationDate ?? ''}
+                  onChange={e => set('installationDate', e.target.value)}
+                />
+              </FormField>
+              <FormField label="Installation Time" required>
+                <Input
+                  type="time"
+                  value={form.installationTime ?? ''}
+                  onChange={e => set('installationTime', e.target.value)}
+                />
+              </FormField>
             </div>
           </div>
         )}
