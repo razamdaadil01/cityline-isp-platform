@@ -195,52 +195,62 @@ export default function AddNewPlan() {
                   </FormField>
 
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500">Pricing Rows <span className="text-red-400">*</span></p>
+                    <div className="grid grid-cols-[1fr_1.5fr_1fr_auto] gap-2 mb-1">
+                      <p className="text-xs font-medium text-gray-500">Name <span className="text-red-400">*</span></p>
+                      <p className="text-xs font-medium text-gray-500">Billing Type <span className="text-red-400">*</span></p>
+                      <p className="text-xs font-medium text-gray-500">Price <span className="text-red-400">*</span></p>
+                      <div />
+                    </div>
                     {form.mmpRows.map((row, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <Input
+                      <div key={i} className="grid grid-cols-[1fr_1.5fr_1fr_auto] gap-2 items-center">
+                        <input
+                          type="text"
                           placeholder="Name"
                           value={row.name}
                           onChange={e => {
                             const rows = form.mmpRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r)
                             setField('mmpRows', rows)
                           }}
-                          className="flex-1 min-w-0"
+                          className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
                         />
-                        <Select
+                        <select
                           value={row.billingType}
                           onChange={e => {
                             const rows = form.mmpRows.map((r, j) => j === i ? { ...r, billingType: e.target.value } : r)
                             setField('mmpRows', rows)
                           }}
-                          className="w-40 shrink-0"
+                          className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700"
                         >
                           {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-                        </Select>
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder="₹ Price"
-                          value={row.price}
-                          onChange={e => {
-                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, price: e.target.value } : r)
-                            setField('mmpRows', rows)
-                          }}
-                          className="w-28 shrink-0"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setField('mmpRows', [...form.mmpRows, { ...EMPTY_MMP_ROW }])}
-                          className="w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shrink-0 transition-colors font-bold text-base leading-none"
-                        >+</button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (form.mmpRows.length > 1) setField('mmpRows', form.mmpRows.filter((_, j) => j !== i))
-                          }}
-                          disabled={form.mmpRows.length === 1}
-                          className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white flex items-center justify-center shrink-0 transition-colors font-bold text-base leading-none"
-                        >−</button>
+                        </select>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="0"
+                            value={row.price}
+                            onChange={e => {
+                              const rows = form.mmpRows.map((r, j) => j === i ? { ...r, price: e.target.value } : r)
+                              setField('mmpRows', rows)
+                            }}
+                            className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setField('mmpRows', [...form.mmpRows, { ...EMPTY_MMP_ROW }])}
+                            className="w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-colors font-bold text-base leading-none"
+                          >+</button>
+                          {form.mmpRows.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setField('mmpRows', form.mmpRows.filter((_, j) => j !== i))}
+                              className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors font-bold text-base leading-none"
+                            >−</button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
