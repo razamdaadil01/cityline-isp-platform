@@ -361,7 +361,7 @@ export default function AddNewPlan() {
                     <FormField label="Select OTT Type" required>
                       <Select value={form.ottType} onChange={e => setField('ottType', e.target.value)}>
                         <option value="">Select OTT Type...</option>
-                        {['Hotstar', 'Netflix', 'Amazon Prime', 'Sony Liv', 'Zee5', 'JioCinema'].map(o => (
+                        {['Play Box'].map(o => (
                           <option key={o}>{o}</option>
                         ))}
                       </Select>
@@ -369,7 +369,17 @@ export default function AddNewPlan() {
                     <FormField label="Select Package" required>
                       <Select value={form.ottPackage} onChange={e => setField('ottPackage', e.target.value)}>
                         <option value="">Select Package...</option>
-                        {['Basic OTT Pack', 'Standard OTT Pack', 'Premium OTT Pack'].map(o => (
+                        {[
+                          'Cityline TV Gold Half Yearly',
+                          'Cityline TV Gold Yearly',
+                          'Cityline TV Gold Monthly',
+                          'Cityline TV Gold Quarterly',
+                          'Cityline_Plus (Y)',
+                          'Cityline TV Platinum Monthly',
+                          'Cityline TV Platinum Half Yearly',
+                          'Cityline TV Platinum Quarterly',
+                          'Cityline TV Platinum Yearly',
+                        ].map(o => (
                           <option key={o}>{o}</option>
                         ))}
                       </Select>
