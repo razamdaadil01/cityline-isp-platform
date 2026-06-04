@@ -42,7 +42,7 @@ const STAFF = [
 const SOURCES         = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
 const PLANS           = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 const CONNECTION_TYPES = ['FTTH', 'Sector', 'Village']
-const BRANCHES        = ['CNPL-001', 'CNPL-002', 'CNPL-003', 'CNPL-010', 'CNPL-011']
+const BRANCHES        = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
 const NOTIFY_USERS    = STAFF.map(s => s.name)
 
 const INIT_FORM = {
@@ -663,7 +663,7 @@ export default function SalesNewLead() {
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
                     <div className="grid grid-cols-2 gap-4">
 
-                      <FormField label="Enter Locality Name">
+                      <FormField label="Enter Locality Name" required>
                         <Input value={form.feasibilityLocalityName}
                           onChange={e => set('feasibilityLocalityName', e.target.value)}
                           placeholder={form.locality || 'Locality name'} />
@@ -676,7 +676,7 @@ export default function SalesNewLead() {
                       </FormField>
 
                       <div className="col-span-2">
-                        <FormField label="Complete Address">
+                        <FormField label="Complete Address" required>
                           <Textarea value={form.feasibilityAddress}
                             onChange={e => set('feasibilityAddress', e.target.value)}
                             placeholder="Full address" rows={2} />
@@ -716,7 +716,7 @@ export default function SalesNewLead() {
                         <FormField label="Remarks">
                           <Textarea value={form.feasibilityRemarks}
                             onChange={e => set('feasibilityRemarks', e.target.value)}
-                            placeholder="Any remarks" rows={2} />
+                            placeholder="Any Remarks" rows={2} />
                         </FormField>
                       </div>
 

@@ -1273,14 +1273,14 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
             <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Enter Locality Name">
+              <FormField label="Enter Locality Name" required>
                 <Input value={feasForm.localityName} onChange={e => setFeasForm(p => ({ ...p, localityName: e.target.value }))} placeholder="Locality name" />
               </FormField>
               <FormField label="Enter Sub Locality Name">
                 <Input value={feasForm.subLocalityName} onChange={e => setFeasForm(p => ({ ...p, subLocalityName: e.target.value }))} placeholder="Sub locality name" />
               </FormField>
               <div className="col-span-2">
-                <FormField label="Complete Address">
+                <FormField label="Complete Address" required>
                   <Textarea value={feasForm.address} onChange={e => setFeasForm(p => ({ ...p, address: e.target.value }))} placeholder="Full address" rows={2} />
                 </FormField>
               </div>
