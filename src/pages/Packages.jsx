@@ -8,6 +8,8 @@ import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, BILLING_TYPE
 const PAGE_SERVICE_TYPES = ['Plan', 'Other Package']
 const PIPELINES = ['Residential', 'Enterprise']
 
+const TABLE_PAGE_SIZE_OPTIONS = [10, 25, 50]
+
 export default function Packages() {
   const navigate = useNavigate()
   const [plans, setPlans] = useState(getPlans)
@@ -16,6 +18,8 @@ export default function Packages() {
   const [filterService, setFilterService] = useState('')
   const [filterPipeline, setFilterPipeline] = useState('')
   const [filterBilling, setFilterBilling] = useState('')
+  const [tablePage, setTablePage] = useState(1)
+  const [tablePageSize, setTablePageSize] = useState(10)
 
   useEffect(() => subscribePlans(setPlans), [])
 
@@ -40,6 +44,7 @@ export default function Packages() {
     setFilterService('')
     setFilterPipeline('')
     setFilterBilling('')
+    setTablePage(1)
   }
 
   const hasFilters = search || filterService || filterPipeline || filterBilling
@@ -154,7 +159,14 @@ export default function Packages() {
           ))}
         </div>
       ) : (
-        <PlansTable plans={filtered} onStatusToggle={handleStatusToggle} />
+        <PlansTable
+          plans={filtered}
+          onStatusToggle={handleStatusToggle}
+          tablePage={tablePage}
+          setTablePage={setTablePage}
+          tablePageSize={tablePageSize}
+          setTablePageSize={v => { setTablePageSize(v); setTablePage(1) }}
+        />
       )}
     </div>
   )
@@ -242,8 +254,13 @@ function fmtPrice(n) {
   return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function PlansTable({ plans, onStatusToggle }) {
+function PlansTable({ plans, onStatusToggle, tablePage, setTablePage, tablePageSize, setTablePageSize }) {
   const TH = 'px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap'
+  const totalPages = Math.max(1, Math.ceil(plans.length / tablePageSize))
+  const pagePlans = plans.slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize)
+  const from = plans.length === 0 ? 0 : (tablePage - 1) * tablePageSize + 1
+  const to = Math.min(tablePage * tablePageSize, plans.length)
+
   return (
     <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
       <div className="overflow-x-auto">
@@ -265,22 +282,65 @@ function PlansTable({ plans, onStatusToggle }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
-            {plans.length === 0 && (
+            {pagePlans.length === 0 && (
               <tr>
                 <td colSpan={12} className="py-12 text-center text-gray-400 text-sm">No plans found</td>
               </tr>
             )}
-            {plans.map(plan => (
+            {pagePlans.map(plan => (
               <TableRow key={plan.id} plan={plan} onStatusToggle={onStatusToggle} />
             ))}
           </tbody>
         </table>
+      </div>
+      {/* Pagination */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500">
+            Showing {from}–{to} of {plans.length} plan{plans.length !== 1 ? 's' : ''}
+          </span>
+          <select
+            value={tablePageSize}
+            onChange={e => setTablePageSize(Number(e.target.value))}
+            className="text-xs border border-surface-border rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+          >
+            {TABLE_PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s} / page</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setTablePage(p => Math.max(1, p - 1))}
+            disabled={tablePage === 1}
+            className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors"
+          >
+            Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button
+              key={p}
+              onClick={() => setTablePage(p)}
+              className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                p === tablePage ? 'bg-brand-blue text-white' : 'border border-surface-border hover:bg-white text-gray-600'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+          <button
+            onClick={() => setTablePage(p => Math.min(totalPages, p + 1))}
+            disabled={tablePage === totalPages}
+            className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
 function TableRow({ plan, onStatusToggle }) {
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const isActive = plan.status === 'active'
@@ -301,7 +361,10 @@ function TableRow({ plan, onStatusToggle }) {
         <span className="text-xs text-gray-700">{pkgType}</span>
       </td>
       <td className="px-3 py-2.5 max-w-[180px]">
-        <button className="block truncate text-xs font-semibold text-brand-blue hover:underline text-left w-full">
+        <button
+          onClick={() => navigate(`/packages/${plan.id}`)}
+          className="block truncate text-xs font-semibold text-brand-blue hover:underline text-left w-full"
+        >
           {plan.name}
         </button>
       </td>
