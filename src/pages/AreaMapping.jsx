@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useLocation, Navigate } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  ArrowLeft, Plus, ChevronRight, ChevronDown, Edit2, Trash2, Save, MapPin, CheckCircle2,
+  ArrowLeft, ChevronRight, ChevronDown, Edit2, Trash2, Save, MapPin, CheckCircle2,
+  Upload, Download, FileSpreadsheet, AlertTriangle, X, CheckCircle, XCircle,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -169,6 +171,270 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
         </div>
       ))}
     </div>
+  )
+}
+
+// ── Bulk Upload Modal ─────────────────────────────────────────────────────────
+
+const TEMPLATE_COLS  = ['State', 'District', 'Area', 'Locality', 'Sub Locality', 'Site Type', 'Branch Code', 'Feasibility Status']
+const VALID_SITE_TYPES    = ['FTTH', 'Sector', 'Village']
+const VALID_FEASIBILITY   = ['Feasible', 'Not Feasible']
+const TEMPLATE_SAMPLE_ROWS = [
+  ['Karnataka', 'Bangalore Urban', 'Koramangala', 'Koramangala 4th Block', 'Jakkasandra', 'FTTH',    'CNPL-KOR-01', 'Feasible'],
+  ['Karnataka', 'Bangalore Urban', 'Indiranagar',  '12th Main',            'CMH Road',   'FTTH',    'CNPL-IND-01', 'Feasible'],
+  ['Uttar Pradesh', 'Gautam Buddha Nagar', 'Sector 62', 'Block A', 'A-12', 'Sector', 'CNPL-NOI-01', 'Not Feasible'],
+]
+
+function validateRow(row, existingAreas) {
+  const errors = []
+  const warnings = []
+  const [state, district, area, locality, subLocality, siteType, branchCode, feasibility] = row
+
+  if (!state?.trim())       errors.push('State required')
+  if (!district?.trim())    errors.push('District required')
+  if (!area?.trim())        errors.push('Area required')
+  if (!locality?.trim())    errors.push('Locality required')
+  if (!subLocality?.trim()) errors.push('Sub Locality required')
+  if (!branchCode?.trim())  errors.push('Branch Code required')
+  if (siteType && !VALID_SITE_TYPES.includes(siteType))
+    errors.push(`Site Type must be ${VALID_SITE_TYPES.join('/')}`)
+  if (feasibility && !VALID_FEASIBILITY.includes(feasibility))
+    errors.push(`Feasibility must be ${VALID_FEASIBILITY.join('/')}`)
+
+  if (!errors.length) {
+    const isDup = existingAreas.some(a =>
+      a.state?.toLowerCase() === state?.toLowerCase().trim() &&
+      a.district?.toLowerCase() === district?.toLowerCase().trim() &&
+      a.area?.toLowerCase() === area?.toLowerCase().trim() &&
+      a.locality?.toLowerCase() === locality?.toLowerCase().trim() &&
+      a.subLocality?.toLowerCase() === subLocality?.toLowerCase().trim()
+    )
+    if (isDup) warnings.push('Duplicate entry')
+  }
+
+  return { errors, warnings }
+}
+
+function BulkUploadModal({ isOpen, onClose, onSuccess }) {
+  const [file, setFile]         = useState(null)
+  const [rows, setRows]         = useState([])
+  const [validated, setValidated] = useState([])
+  const [dragging, setDragging] = useState(false)
+  const fileRef                 = useRef(null)
+  const existingAreas           = getAreas()
+
+  useEffect(() => {
+    if (!isOpen) { setFile(null); setRows([]); setValidated([]) }
+  }, [isOpen])
+
+  function downloadTemplate() {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_COLS, ...TEMPLATE_SAMPLE_ROWS])
+    ws['!cols'] = TEMPLATE_COLS.map(() => ({ wch: 22 }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Area Mapping')
+    XLSX.writeFile(wb, 'area-mapping-template.xlsx')
+  }
+
+  function processFile(f) {
+    if (!f) return
+    const ext = f.name.split('.').pop().toLowerCase()
+    if (!['xlsx', 'csv'].includes(ext)) return
+    setFile(f)
+    const reader = new FileReader()
+    reader.onload = e => {
+      const wb   = XLSX.read(e.target.result, { type: 'array' })
+      const ws   = wb.Sheets[wb.SheetNames[0]]
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+      const dataRows = data.slice(1).filter(r => r.some(c => String(c).trim()))
+      setRows(dataRows)
+      setValidated(dataRows.map(r => validateRow(r.map(c => String(c)), existingAreas)))
+    }
+    reader.readAsArrayBuffer(f)
+  }
+
+  const onDrop = useCallback(e => {
+    e.preventDefault(); setDragging(false)
+    processFile(e.dataTransfer.files[0])
+  }, [])
+
+  const validCount   = validated.filter(v => !v.errors.length && !v.warnings.length).length
+  const warnCount    = validated.filter(v => !v.errors.length && v.warnings.length).length
+  const invalidCount = validated.filter(v => v.errors.length).length
+  const uploadableCount = validCount + warnCount
+
+  function handleUpload() {
+    rows.forEach((row, i) => {
+      if (validated[i]?.errors.length) return
+      const [state, district, area, locality, subLocality, siteType, branchCode, feasibility] = row.map(c => String(c).trim())
+      saveStateName(state)
+      saveDistrictName(state, district)
+      saveAreaName(state, district, area)
+      saveLocalityName(state, district, area, locality)
+      saveArea({ state, district, area, locality, subLocality, siteType: siteType || 'FTTH', branchCode, feasibility: feasibility || 'Feasible', active: true })
+    })
+    onSuccess(uploadableCount)
+    onClose()
+  }
+
+  const previewRows = rows.slice(0, 5)
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Bulk Upload Area Data" size="xl"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            icon={<Upload size={14} />}
+            onClick={handleUpload}
+            disabled={!file || uploadableCount === 0}
+          >
+            Upload {uploadableCount > 0 ? `(${uploadableCount} rows)` : ''}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+
+        {/* Step 1 — Template */}
+        <div className="rounded-xl border border-surface-border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</span>
+            <p className="text-sm font-semibold text-gray-800">Download Template</p>
+          </div>
+          <p className="text-xs text-gray-500 pl-7">
+            Download the Excel template with required columns and sample data.
+          </p>
+          <div className="pl-7">
+            <button
+              onClick={downloadTemplate}
+              className="inline-flex items-center gap-2 text-xs font-medium text-brand-blue border border-brand-blue/30 bg-brand-blue/5 hover:bg-brand-blue/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Download size={13} />
+              Download Template (.xlsx)
+            </button>
+          </div>
+          <div className="pl-7 flex flex-wrap gap-1.5">
+            {TEMPLATE_COLS.map(c => (
+              <span key={c} className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">{c}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Step 2 — Upload */}
+        <div className="rounded-xl border border-surface-border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
+            <p className="text-sm font-semibold text-gray-800">Upload File</p>
+          </div>
+          <div
+            className={`pl-7`}
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+          >
+            <div
+              onClick={() => fileRef.current?.click()}
+              className={`cursor-pointer border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 transition-colors ${
+                dragging ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:border-brand-blue/40 hover:bg-gray-50'
+              }`}
+            >
+              <FileSpreadsheet size={28} className={dragging ? 'text-brand-blue' : 'text-gray-300'} />
+              {file ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={14} className="text-emerald-500" />
+                  <span className="text-sm font-medium text-gray-700">{file.name}</span>
+                  <button
+                    onClick={e => { e.stopPropagation(); setFile(null); setRows([]); setValidated([]) }}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500">Drag & drop or <span className="text-brand-blue font-medium">click to upload</span></p>
+                  <p className="text-xs text-gray-400">Accepts .xlsx and .csv files</p>
+                </>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden"
+              onChange={e => processFile(e.target.files[0])} />
+          </div>
+        </div>
+
+        {/* Step 3 — Preview */}
+        {rows.length > 0 && (
+          <div className="rounded-xl border border-surface-border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-brand-blue text-white text-[10px] font-bold flex items-center justify-center shrink-0">3</span>
+              <p className="text-sm font-semibold text-gray-800">Preview & Validate</p>
+            </div>
+
+            {/* Stats */}
+            <div className="pl-7 flex flex-wrap gap-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                <CheckCircle size={12} /> Valid rows: {validCount}
+              </div>
+              {warnCount > 0 && (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                  <AlertTriangle size={12} /> Warnings: {warnCount}
+                </div>
+              )}
+              {invalidCount > 0 && (
+                <div className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">
+                  <XCircle size={12} /> Invalid: {invalidCount}
+                </div>
+              )}
+              <span className="text-xs text-gray-400 self-center">Showing first {Math.min(5, rows.length)} of {rows.length} rows</span>
+            </div>
+
+            {/* Preview table */}
+            <div className="pl-7 overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left px-2 py-1.5 text-gray-500 font-semibold border border-surface-border w-6">#</th>
+                    {TEMPLATE_COLS.map(c => (
+                      <th key={c} className="text-left px-2 py-1.5 text-gray-500 font-semibold border border-surface-border whitespace-nowrap">{c}</th>
+                    ))}
+                    <th className="text-left px-2 py-1.5 text-gray-500 font-semibold border border-surface-border">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, i) => {
+                    const v = validated[i]
+                    const rowClass = v?.errors.length ? 'bg-red-50' : v?.warnings.length ? 'bg-amber-50' : 'bg-white'
+                    return (
+                      <tr key={i} className={rowClass}>
+                        <td className="px-2 py-1.5 border border-surface-border text-gray-400">{i + 1}</td>
+                        {TEMPLATE_COLS.map((_, ci) => (
+                          <td key={ci} className="px-2 py-1.5 border border-surface-border text-gray-700 max-w-[100px] truncate">
+                            {row[ci] ?? ''}
+                          </td>
+                        ))}
+                        <td className="px-2 py-1.5 border border-surface-border">
+                          {v?.errors.length ? (
+                            <span className="text-red-600 font-medium" title={v.errors.join(', ')}>
+                              ❌ {v.errors[0]}
+                            </span>
+                          ) : v?.warnings.length ? (
+                            <span className="text-amber-600 font-medium" title={v.warnings.join(', ')}>
+                              ⚠️ {v.warnings[0]}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-600 font-medium">✅ Valid</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }
 
@@ -593,6 +859,7 @@ export default function AreaMapping() {
   const [deleteItemName, setDeleteItemName] = useState('')
   const [hierarchyDeleteItem, setHierarchyDeleteItem] = useState(null)
   const [toast, setToast]   = useState(null)
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
 
   useEffect(() => subscribeAreas(setAreas), [])
   useEffect(() => subscribeHierarchy(() => setTick(t => t + 1)), [])
@@ -677,10 +944,11 @@ export default function AreaMapping() {
             </div>
           </div>
           <Button
-            icon={<Plus size={14} />}
-            onClick={() => { setEditItem(null); setHierarchyEditItem(null); setShowForm(true) }}
+            variant="secondary"
+            icon={<Upload size={14} />}
+            onClick={() => setBulkUploadOpen(true)}
           >
-            Add Entry
+            Bulk Upload
           </Button>
         </div>
       </div>
@@ -783,7 +1051,7 @@ export default function AreaMapping() {
                 {areas.length === 0 ? (
                   <div className="text-center py-12 text-gray-400">
                     <MapPin size={28} className="mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No sub localities yet. Click "Add Entry" to get started.</p>
+                    <p className="text-sm">No sub localities yet. Use "Bulk Upload" to get started.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-surface-border">
@@ -859,6 +1127,13 @@ export default function AreaMapping() {
           This will also remove all child entries.
         </p>
       </Modal>
+
+      {/* Bulk Upload */}
+      <BulkUploadModal
+        isOpen={bulkUploadOpen}
+        onClose={() => setBulkUploadOpen(false)}
+        onSuccess={count => { showToast(`${count} entries added successfully`); setBulkUploadOpen(false) }}
+      />
 
       {/* Success toast */}
       {toast && (
