@@ -1,24 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Zap, Calendar, Server } from 'lucide-react'
+import { Plus, Search, Zap, Calendar } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
+import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, BILLING_TYPES } from '../data/packagesStore'
 
-const SERVERS = [
-  'Jaze-01', 'Jaze-02', 'Jaze-03', 'Jaze-04', 'Jaze-05',
-  'Jaze-06', 'Jaze-07', 'Jaze-08', 'Jaze-09', 'Jaze-10',
-  'IPACCAT-01', 'IPACCAT-02', 'IPACCAT-03', 'IPACCAT-04',
-  'Mikrotik-01', 'Mikrotik-02',
-]
+const PAGE_SERVICE_TYPES = ['Plan', 'Other Package']
+const PIPELINES = ['Residential', 'Enterprise']
 
 export default function Packages() {
   const navigate = useNavigate()
   const [plans, setPlans] = useState(getPlans)
   const [search, setSearch] = useState('')
   const [filterService, setFilterService] = useState('')
+  const [filterPipeline, setFilterPipeline] = useState('')
   const [filterBilling, setFilterBilling] = useState('')
-  const [filterServer, setFilterServer] = useState('')
 
   useEffect(() => subscribePlans(setPlans), [])
 
@@ -27,11 +23,11 @@ export default function Packages() {
     return plans.filter(p => {
       const matchSearch = !q || p.name.toLowerCase().includes(q) || p.serviceType.toLowerCase().includes(q)
       const matchService = !filterService || p.serviceType === filterService
+      const matchPipeline = !filterPipeline || p.pipeline === filterPipeline
       const matchBilling = !filterBilling || p.billingType === filterBilling
-      const matchServer = !filterServer || p.server === filterServer
-      return matchSearch && matchService && matchBilling && matchServer
+      return matchSearch && matchService && matchPipeline && matchBilling
     })
-  }, [plans, search, filterService, filterBilling, filterServer])
+  }, [plans, search, filterService, filterPipeline, filterBilling])
 
   function handleStatusToggle(id) {
     const plan = plans.find(p => p.id === id)
@@ -41,11 +37,11 @@ export default function Packages() {
   function clearFilters() {
     setSearch('')
     setFilterService('')
+    setFilterPipeline('')
     setFilterBilling('')
-    setFilterServer('')
   }
 
-  const hasFilters = search || filterService || filterBilling || filterServer
+  const hasFilters = search || filterService || filterPipeline || filterBilling
 
   return (
     <div className="p-6 space-y-6 max-w-[1600px]">
@@ -61,12 +57,13 @@ export default function Packages() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
-          { label: 'Total Plans', value: plans.length, cls: 'text-gray-900' },
-          { label: 'Active', value: plans.filter(p => p.status === 'active').length, cls: 'text-emerald-600' },
-          { label: 'Inactive', value: plans.filter(p => p.status === 'inactive').length, cls: 'text-gray-400' },
-          { label: 'Offer Plans', value: plans.filter(p => p.offer).length, cls: 'text-brand-orange' },
+          { label: 'Total Plans',   value: plans.length,                                              cls: 'text-gray-900' },
+          { label: 'Active',        value: plans.filter(p => p.status === 'active').length,           cls: 'text-emerald-600' },
+          { label: 'Inactive',      value: plans.filter(p => p.status === 'inactive').length,         cls: 'text-gray-400' },
+          { label: 'Offer Plans',   value: plans.filter(p => p.offer).length,                         cls: 'text-brand-orange' },
+          { label: 'Other Plans',   value: plans.filter(p => p.serviceType === 'Other Package').length, cls: 'text-purple-600' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
             <p className="text-xs text-gray-500 font-medium">{s.label}</p>
@@ -94,7 +91,15 @@ export default function Packages() {
             className="px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700"
           >
             <option value="">All Service Types</option>
-            {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+            {PAGE_SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
+          </select>
+          <select
+            value={filterPipeline}
+            onChange={e => setFilterPipeline(e.target.value)}
+            className="px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700"
+          >
+            <option value="">All Pipelines</option>
+            {PIPELINES.map(p => <option key={p}>{p}</option>)}
           </select>
           <select
             value={filterBilling}
@@ -103,14 +108,6 @@ export default function Packages() {
           >
             <option value="">All Billing Types</option>
             {BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-          </select>
-          <select
-            value={filterServer}
-            onChange={e => setFilterServer(e.target.value)}
-            className="px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700"
-          >
-            <option value="">All Servers</option>
-            {SERVERS.map(s => <option key={s}>{s}</option>)}
           </select>
           {hasFilters && (
             <button
@@ -173,6 +170,8 @@ function PlanCard({ plan, onStatusToggle }) {
           <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">
             {plan.serviceType}
           </Badge>
+          {plan.pipeline === 'Residential' && <Badge variant="blue" size="sm">Residential</Badge>}
+          {plan.pipeline === 'Enterprise' && <Badge variant="purple" size="sm">Enterprise</Badge>}
           {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
           {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
         </div>
@@ -190,11 +189,6 @@ function PlanCard({ plan, onStatusToggle }) {
           icon={<span className="text-xs">🔄</span>}
           label="Billing"
           value={plan.billingType}
-        />
-        <InfoRow
-          icon={<Server size={12} className="text-gray-400" />}
-          label="Server"
-          value={plan.server}
         />
         {plan.ottBundle && (
           <div className="flex items-center gap-1.5 text-xs text-purple-700 font-medium bg-purple-50 rounded-lg px-2.5 py-1.5">
@@ -225,30 +219,6 @@ function InfoRow({ icon, label, value }) {
         {label}
       </span>
       <span className="text-xs font-medium text-gray-700 text-right">{value}</span>
-    </div>
-  )
-}
-
-function ToggleRow({ label, hint, checked, onChange }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{hint}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onChange}
-        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-          checked ? 'bg-brand-blue' : 'bg-gray-300'
-        }`}
-      >
-        <span
-          className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-            checked ? 'translate-x-4' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
     </div>
   )
 }
