@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { savePlan } from '../data/packagesStore'
@@ -60,15 +59,13 @@ export default function AddNewPlan() {
 
   return (
     <div className="p-6 max-w-[1600px]">
-      {/* Page Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={() => navigate('/packages')}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Back to Packages
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-[12px] mb-4">
+        <button onClick={() => navigate('/packages')} className="text-gray-400 hover:underline transition-colors">
+          Packages
         </button>
+        <span className="text-gray-300">›</span>
+        <span className="text-gray-500">Add New Plan</span>
       </div>
 
       <div className="mb-6">
