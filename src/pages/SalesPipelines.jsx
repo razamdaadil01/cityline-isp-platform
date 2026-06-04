@@ -538,7 +538,8 @@ function StageFieldManagerModal({ isOpen, onClose, stage }) {
 
 // ── Stage Row (in pipeline editor) ───────────────────────────────────────────
 
-function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequired, onOpenFields, allStages }) {
+function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequired, onOpenFields, allStages,
+  dragging, dragOver, onDragStart, onDragOver, onDrop, onDragEnd }) {
   const [editing, setEditing] = useState(false)
   const dragRef = useRef(null)
   const [localName, setLocalName] = useState(stage.name)
@@ -562,15 +563,25 @@ function StageRow({ stage, index, total, onMove, onUpdate, onRemove, showRequire
   return (
     <div
       ref={dragRef}
-      className={`flex flex-col gap-1.5 border rounded-lg px-3 py-2.5 group transition-colors ${
-        isActive
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`flex flex-col gap-1.5 border rounded-lg px-3 py-2.5 group transition-colors select-none
+        ${dragging ? 'opacity-40 scale-[0.98]' : ''}
+        ${dragOver === 'above' ? 'border-t-2 border-t-brand-blue border-x-brand-blue/30 border-b-surface-border' : ''}
+        ${dragOver === 'below' ? 'border-b-2 border-b-brand-blue border-x-brand-blue/30 border-t-surface-border' : ''}
+        ${!dragging && !dragOver && (isActive
           ? 'bg-white border-surface-border hover:border-brand-blue/40'
           : 'bg-gray-50 border-gray-200 opacity-70'
-      }`}
+        )}
+        ${dragging ? (isActive ? 'bg-white border-surface-border' : 'bg-gray-50 border-gray-200') : ''}
+      `}
     >
       {/* Row 1: Move, color, name, HW badge, type controls, delete */}
       <div className="flex items-center gap-2">
-        <div className="flex flex-col items-center gap-0.5 cursor-grab text-gray-300 hover:text-gray-500 shrink-0">
+        <div className={`flex flex-col items-center gap-0.5 ${dragging ? 'cursor-grabbing' : 'cursor-grab'} text-gray-300 hover:text-gray-500 shrink-0`}>
           <button
             disabled={index === 0}
             onClick={() => onMove(index, index - 1)}
@@ -738,6 +749,8 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
   const [newStageName, setNewStageName] = useState('')
   const [stageDeleteTarget, setStageDeleteTarget] = useState(null)
   const [saveErrorToast, setSaveErrorToast] = useState(false)
+  const dragIndexRef = useRef(null)
+  const [dragState, setDragState] = useState({ dragging: null, dropOver: null, dropSide: null })
 
   const showRequired = pipeline?.type === 'ILL'
 
@@ -748,6 +761,39 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
       arr.splice(toIdx, 0, item)
       return arr
     })
+  }
+
+  function makeDragHandlers(index) {
+    return {
+      onDragStart: e => {
+        dragIndexRef.current = index
+        e.dataTransfer.effectAllowed = 'move'
+        setDragState({ dragging: index, dropOver: null, dropSide: null })
+      },
+      onDragOver: e => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        const rect = e.currentTarget.getBoundingClientRect()
+        const side = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
+        setDragState(s => ({ ...s, dropOver: index, dropSide: side }))
+      },
+      onDrop: e => {
+        e.preventDefault()
+        const from = dragIndexRef.current
+        if (from === null || from === index) { setDragState({ dragging: null, dropOver: null, dropSide: null }); return }
+        const rect = e.currentTarget.getBoundingClientRect()
+        const side = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
+        let to = side === 'above' ? index : index + 1
+        if (from < to) to -= 1
+        moveStage(from, to)
+        dragIndexRef.current = null
+        setDragState({ dragging: null, dropOver: null, dropSide: null })
+      },
+      onDragEnd: () => {
+        dragIndexRef.current = null
+        setDragState({ dragging: null, dropOver: null, dropSide: null })
+      },
+    }
   }
 
   function updateStage(id, patch) {
@@ -817,20 +863,26 @@ function PipelineEditorModal({ isOpen, onClose, pipeline, onSave, onOpenFields, 
         </p>
 
         <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-          {stages.map((stage, idx) => (
-            <StageRow
-              key={stage.id}
-              stage={stage}
-              index={idx}
-              total={stages.length}
-              onMove={moveStage}
-              onUpdate={updateStage}
-              onRemove={handleRemoveStage}
-              showRequired={showRequired}
-              onOpenFields={onOpenFields}
-              allStages={stages}
-            />
-          ))}
+          {stages.map((stage, idx) => {
+            const dh = makeDragHandlers(idx)
+            return (
+              <StageRow
+                key={stage.id}
+                stage={stage}
+                index={idx}
+                total={stages.length}
+                onMove={moveStage}
+                onUpdate={updateStage}
+                onRemove={handleRemoveStage}
+                showRequired={showRequired}
+                onOpenFields={onOpenFields}
+                allStages={stages}
+                dragging={dragState.dragging === idx}
+                dragOver={dragState.dropOver === idx ? dragState.dropSide : null}
+                {...dh}
+              />
+            )
+          })}
           {stages.length === 0 && (
             <div className="text-center py-8 text-sm text-gray-400">No stages yet. Add one below.</div>
           )}
