@@ -556,10 +556,10 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
     }
   }, [isOpen, initialStage])
 
-  const needsFeasConfirm = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired
-  const isFeasDetails    = targetStage === 'Feasibility' && lead?.pipeline === 'B2C' && lead?.feasibilityRequired
+  const needsFeasConfirm = false
+  const isFeasDetails    = targetStage === 'Feasibility' && lead?.pipeline === 'B2C'
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
-  const stageFields    = (!needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const stageFields    = (targetStage !== 'Feasibility' && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const visibleFields  = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
   const requiredFields = visibleFields.filter(f => f.required)
   const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
@@ -587,7 +587,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
-            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled || needsFeasConfirm}>
+            onClick={handleMove} disabled={!targetStage || loading || !requiredFilled}>
             {loading ? 'Moving…' : 'Move Stage'}
           </Button>
         </>
@@ -607,34 +607,11 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
             <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
-                <option key={s} value={s}>
-                  {s === 'Feasibility' && lead?.pipeline === 'B2C' && !lead?.feasibilityRequired
-                    ? `${s} — Not required for this lead`
-                    : s}
-                </option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </Select>
           </FormField>
         </div>
-
-        {/* Feasibility hard block */}
-        {needsFeasConfirm && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                <XCircle size={16} className="text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-red-800">Cannot Move to Feasibility</p>
-                <p className="text-sm text-red-700 mt-1">This lead is not marked as Feasibility Required. You cannot move it to the Feasibility stage. To enable this stage, mark the lead as Feasibility Required first.</p>
-              </div>
-            </div>
-            <button type="button" onClick={() => setTargetStage('')}
-              className="w-full py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-              OK
-            </button>
-          </div>
-        )}
 
         {/* Feasibility Details */}
         {isFeasDetails && (
@@ -1811,6 +1788,7 @@ export default function SalesLeadDetail() {
       stage: targetStage,
       daysInStage: 0,
       lastActivity: `Moved to ${targetStage}`,
+      ...(targetStage === 'Feasibility' ? { feasibilityRequired: true } : {}),
       stageHistory: updatedHistory,
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
     }

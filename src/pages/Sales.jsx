@@ -1163,9 +1163,9 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const targetStageId     = targetSC?.id ?? null
   const isWon             = targetSC?.statusType === 'Won' || targetStage === 'Won'
   const isIV              = targetStage === 'Installation Visit'
-  const needsFeasConfirm  = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired
-  const isFeasDetails     = targetStage === 'Feasibility' && lead.pipeline === 'B2C' && lead.feasibilityRequired
-  const stageFields       = (!isWon && !isIV && !needsFeasConfirm && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const needsFeasConfirm  = false
+  const isFeasDetails     = targetStage === 'Feasibility' && lead.pipeline === 'B2C'
+  const stageFields       = (!isWon && !isIV && targetStage !== 'Feasibility' && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const visibleFields     = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
   const requiredFields    = visibleFields.filter(f => f.required)
   const requiredFilled    = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
@@ -1200,7 +1200,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
           <Button
             icon={loading ? <Loader2 size={14} className="animate-spin" /> : (isWon ? <CheckCircle2 size={14} /> : <TrendingUp size={14} />)}
             onClick={handleMove}
-            disabled={!targetStage || loading || !requiredFilled || !ivValid || needsFeasConfirm}
+            disabled={!targetStage || loading || !requiredFilled || !ivValid}
           >
             {loading ? (isWon ? 'Converting…' : 'Moving…') : (isWon ? 'Mark as Won' : 'Move Stage')}
           </Button>
@@ -1220,11 +1220,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
             <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setIvForm(IV_FORM_INIT); setWonNote('') }}>
               <option value="">Select target stage…</option>
               {availableStages.map(s => (
-                <option key={s} value={s}>
-                  {s === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired
-                    ? `${s} — Not required for this lead`
-                    : s}
-                </option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </Select>
           </FormField>
@@ -1247,25 +1243,6 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
                 placeholder="Add a note about this conversion (optional)…" />
             </FormField>
           </>
-        )}
-
-        {/* Feasibility hard block */}
-        {needsFeasConfirm && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                <XCircle size={16} className="text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-red-800">Cannot Move to Feasibility</p>
-                <p className="text-sm text-red-700 mt-1">This lead is not marked as Feasibility Required. You cannot move it to the Feasibility stage. To enable this stage, mark the lead as Feasibility Required first.</p>
-              </div>
-            </div>
-            <button type="button" onClick={() => setTargetStage('')}
-              className="w-full py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-              OK
-            </button>
-          </div>
         )}
 
         {/* Feasibility Details */}
@@ -1521,7 +1498,6 @@ export default function Sales() {
   const [inventoryToast, setInventoryToast]       = useState(false)
   const [moveStageLeadId, setMoveStageLeadId]     = useState(null)
   const [moveStageInitial, setMoveStageInitial]   = useState('')
-  const [dragFeasConfirm, setDragFeasConfirm]     = useState(null) // { leadId, targetStage }
   const [tableStageFilter, setTableStageFilter]   = useState('')
   const [tableUserFilter, setTableUserFilter]     = useState('')
   const [tableStatusFilter, setTableStatusFilter] = useState('')
@@ -1640,9 +1616,10 @@ export default function Sales() {
           }
         }
 
-        // Intercept Feasibility drops when not marked as required — confirm first
-        if (targetStage === 'Feasibility' && lead.pipeline === 'B2C' && !lead.feasibilityRequired) {
-          setDragFeasConfirm({ leadId: lead.id, targetStage })
+        // Intercept Feasibility drops — route through MoveStageModal for field capture
+        if (targetStage === 'Feasibility' && lead.pipeline === 'B2C') {
+          setMoveStageLeadId(lead.id)
+          setMoveStageInitial(targetStage)
           setDraggingId(null)
           setDragOverStage(null)
           return
@@ -2300,25 +2277,6 @@ export default function Sales() {
           stageName={requiredStageWarning.stageName}
         />
       )}
-      {dragFeasConfirm && (
-        <Modal
-          isOpen={!!dragFeasConfirm}
-          onClose={() => setDragFeasConfirm(null)}
-          title="Cannot Move to Feasibility"
-          size="sm"
-          footer={<Button onClick={() => setDragFeasConfirm(null)}>OK</Button>}
-        >
-          <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
-            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-              <XCircle size={16} className="text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-red-800">Not marked as Feasibility Required</p>
-              <p className="text-sm text-red-700 mt-1">This lead is not marked as Feasibility Required. You cannot move it to the Feasibility stage. To enable this stage, mark the lead as Feasibility Required first.</p>
-            </div>
-          </div>
-        </Modal>
-      )}
       {wonConversionLead && (
         <WonConversionModal
           isOpen={!!wonConversionLead}
@@ -2381,6 +2339,7 @@ export default function Sales() {
                 stage: targetStage,
                 daysInStage: 0,
                 lastActivity: `Moved to ${targetStage}`,
+                ...(targetStage === 'Feasibility' ? { feasibilityRequired: true } : {}),
                 ...(fieldVals && Object.keys(fieldVals).length > 0
                   ? { stageFields: { ...(msLead.stageFields ?? {}), [targetStage]: fieldVals } }
                   : {}),
