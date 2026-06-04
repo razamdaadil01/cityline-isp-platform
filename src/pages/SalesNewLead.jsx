@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, X, MapPin, CheckCircle, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
+import { ArrowLeft, X, MapPin, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -841,12 +841,6 @@ export default function SalesNewLead() {
           </div>
         )}
 
-        {firstStageFields.length === 0 && activePipeline && selectedStageName !== 'New Inquiry' && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-            <CheckCircle size={14} className="text-emerald-500 shrink-0" />
-            No additional fields configured for <strong className="ml-1">{firstStage?.name ?? pl.stages[0]}</strong>
-          </div>
-        )}
 
         {/* Set Follow-up section */}
         {showFollowUp && <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
