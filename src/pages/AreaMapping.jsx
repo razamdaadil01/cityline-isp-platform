@@ -176,32 +176,28 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
 
 // ── Bulk Upload Modal ─────────────────────────────────────────────────────────
 
-const TEMPLATE_COLS  = ['State', 'District', 'Area', 'Locality', 'Sub Locality', 'Site Type', 'Branch Code', 'Feasibility Status']
+const TEMPLATE_COLS  = ['State', 'District', 'Area', 'Locality', 'Site Type', 'Branch Code', 'Sub Locality']
 const VALID_SITE_TYPES    = ['FTTH', 'Sector', 'Village']
-const VALID_FEASIBILITY   = ['Feasible', 'Not Feasible']
 const TEMPLATE_SAMPLE_ROWS = [
-  ['Karnataka', 'Bangalore Urban', 'Koramangala', 'Koramangala 4th Block', 'Jakkasandra', 'FTTH',    'CNPL-KOR-01', 'Feasible'],
-  ['Karnataka', 'Bangalore Urban', 'Indiranagar',  '12th Main',            'CMH Road',   'FTTH',    'CNPL-IND-01', 'Feasible'],
-  ['Uttar Pradesh', 'Gautam Buddha Nagar', 'Sector 62', 'Block A', 'A-12', 'Sector', 'CNPL-NOI-01', 'Not Feasible'],
+  ['Karnataka', 'Bangalore Urban', 'Koramangala', 'Koramangala 4th Block', 'FTTH',   'CNPL-KOR-01', 'Jakkasandra'],
+  ['Karnataka', 'Bangalore Urban', 'Indiranagar',  '12th Main',            'FTTH',   'CNPL-IND-01', 'CMH Road'  ],
+  ['Uttar Pradesh', 'Gautam Buddha Nagar', 'Sector 62', 'Block A',         'Sector', 'CNPL-NOI-01', ''          ],
 ]
 
 function validateRow(row, existingAreas) {
   const errors = []
   const warnings = []
-  const [state, district, area, locality, subLocality, siteType, branchCode, feasibility] = row
+  const [state, district, area, locality, siteType, branchCode, subLocality] = row
 
-  if (!state?.trim())       errors.push('State required')
-  if (!district?.trim())    errors.push('District required')
-  if (!area?.trim())        errors.push('Area required')
-  if (!locality?.trim())    errors.push('Locality required')
-  if (!subLocality?.trim()) errors.push('Sub Locality required')
-  if (!branchCode?.trim())  errors.push('Branch Code required')
+  if (!state?.trim())      errors.push('State required')
+  if (!district?.trim())   errors.push('District required')
+  if (!area?.trim())       errors.push('Area required')
+  if (!locality?.trim())   errors.push('Locality required')
+  if (!branchCode?.trim()) errors.push('Branch Code required')
   if (siteType && !VALID_SITE_TYPES.includes(siteType))
     errors.push(`Site Type must be ${VALID_SITE_TYPES.join('/')}`)
-  if (feasibility && !VALID_FEASIBILITY.includes(feasibility))
-    errors.push(`Feasibility must be ${VALID_FEASIBILITY.join('/')}`)
 
-  if (!errors.length) {
+  if (!errors.length && subLocality?.trim()) {
     const isDup = existingAreas.some(a =>
       a.state?.toLowerCase() === state?.toLowerCase().trim() &&
       a.district?.toLowerCase() === district?.toLowerCase().trim() &&
@@ -265,12 +261,14 @@ function BulkUploadModal({ isOpen, onClose, onSuccess }) {
   function handleUpload() {
     rows.forEach((row, i) => {
       if (validated[i]?.errors.length) return
-      const [state, district, area, locality, subLocality, siteType, branchCode, feasibility] = row.map(c => String(c).trim())
+      const [state, district, area, locality, siteType, branchCode, subLocality] = row.map(c => String(c).trim())
       saveStateName(state)
       saveDistrictName(state, district)
       saveAreaName(state, district, area)
-      saveLocalityName(state, district, area, locality)
-      saveArea({ state, district, area, locality, subLocality, siteType: siteType || 'FTTH', branchCode, feasibility: feasibility || 'Feasible', active: true })
+      saveLocalityName(state, district, area, locality, siteType || 'FTTH', branchCode)
+      if (subLocality) {
+        saveArea({ state, district, area, locality, subLocality, siteType: siteType || 'FTTH', branchCode, feasibility: 'Feasible', active: true })
+      }
     })
     onSuccess(uploadableCount)
     onClose()
