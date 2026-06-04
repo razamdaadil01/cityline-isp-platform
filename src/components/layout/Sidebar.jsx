@@ -34,9 +34,10 @@ const NAV_ITEMS = [
   {
     label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,
     children: [
-      { label: 'Follow-ups',   icon: PhoneCall,  to: '/sales/followups'    },
-      { label: 'Proposals',    icon: FileCheck,  to: '/sales/proposals'    },
-      { label: 'Analytics',    icon: BarChart2,  to: '/sales/analytics'    },
+      { label: 'Follow-ups',            icon: PhoneCall,      to: '/sales/followups'              },
+      { label: 'Feasibility Requests',  icon: ClipboardCheck, to: '/sales/feasibility-requests'   },
+      { label: 'Proposals',             icon: FileCheck,      to: '/sales/proposals'              },
+      { label: 'Analytics',             icon: BarChart2,      to: '/sales/analytics'              },
     ],
   },
   { label: 'Installations',    icon: Wrench,          to: '/installations'             },
