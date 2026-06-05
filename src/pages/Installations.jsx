@@ -423,7 +423,7 @@ export default function Installations() {
               <table className="w-full" style={{ minWidth: 1400 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {['Lead ID','Customer Name','Mobile','Area','Locality',
+                    {['Inst ID','Lead ID','Customer Name','Mobile','Area','Locality',
                       'Assigned Team','Assigned Engineer','Installation Slot','Installation Date',
                       'Status','Branch','Created By','Actions'].map((h, i) => (
                       <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-6' : ''}`}>
@@ -436,11 +436,19 @@ export default function Installations() {
                   {paged.map(inst => (
                     <tr key={inst.id} className="hover:bg-gray-50/60 transition-colors">
 
-                      {/* LEAD ID */}
+                      {/* INST ID */}
                       <td className="pl-6 pr-4 py-3 whitespace-nowrap">
+                        <button onClick={() => navigate(`/installations/${inst.id}`)}
+                          className="font-mono text-xs font-semibold text-brand-blue hover:underline">
+                          {inst.id}
+                        </button>
+                      </td>
+
+                      {/* LEAD ID */}
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {inst.leadId
                           ? <button onClick={() => navigate(`/sales/leads/${inst.leadId}/overview`)}
-                              className="font-mono text-xs font-semibold text-blue-600 hover:underline cursor-pointer">
+                              className="font-mono text-xs font-semibold text-gray-600 hover:text-brand-blue hover:underline">
                               {inst.leadId}
                             </button>
                           : <span className="text-gray-300 text-xs">—</span>}
