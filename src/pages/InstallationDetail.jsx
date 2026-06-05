@@ -1,29 +1,51 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CalendarDays, User, MapPin, Package, Wrench,
-  Phone, ChevronRight, Edit2, Plus, Trash2, CheckCircle2,
+  ChevronRight, Plus, Trash2, CheckCircle2, Users, Truck,
+  RefreshCw, XCircle, Play, AlertTriangle, Clock, FileText,
 } from 'lucide-react'
 import {
-  getInstallations, saveInstallation, subscribeInstallations, FIELD_ENGINEERS,
+  getInstallations, saveInstallation, subscribeInstallations,
+  updateInstallationStatus, FIELD_ENGINEERS, INSTALLATION_TEAMS,
 } from '../data/installationsStore'
 import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+
+/* ── Constants ─────────────────────────────────────────────────── */
 
 const TODAY = new Date().toISOString().split('T')[0]
 
 const STATUS_CHIP = {
-  'Pending':     'bg-gray-100 text-gray-500',
-  'Assigned':    'bg-blue-100 text-blue-700',
-  'Scheduled':   'bg-purple-100 text-purple-700',
-  'In Progress': 'bg-amber-100 text-amber-700',
-  'Completed':   'bg-emerald-100 text-emerald-700',
-  'Cancelled':   'bg-red-100 text-red-600',
+  'Scheduled':                  'bg-blue-100 text-blue-700',
+  'Assigned':                   'bg-purple-100 text-purple-700',
+  'Hardware Collection Pending':'bg-amber-100 text-amber-700',
+  'Dispatched':                 'bg-orange-100 text-orange-700',
+  'In Progress':                'bg-amber-100 text-amber-700',
+  'Completed':                  'bg-emerald-100 text-emerald-700',
+  'Rescheduled':                'bg-yellow-100 text-yellow-700',
+  'Cancelled':                  'bg-red-100 text-red-600',
 }
 
-const TIMELINE_STATUSES = ['Pending', 'Assigned', 'Scheduled', 'In Progress', 'Completed']
+const TIMELINE_STAGES = [
+  'Scheduled',
+  'Assigned',
+  'Hardware Collection Pending',
+  'Dispatched',
+  'In Progress',
+  'Completed',
+]
+
+const RESCHEDULE_REASONS = [
+  'Customer Not Available',
+  'Engineer Unavailable',
+  'Hardware Not Ready',
+  'Weather Conditions',
+  'Other',
+]
+
+/* ── Helpers ────────────────────────────────────────────────────── */
 
 function formatDate(d) {
   if (!d) return '—'
@@ -38,46 +60,126 @@ function formatSlotDate(d) {
   return dt.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// ── InfoRow ───────────────────────────────────────────────────────────────────
+/* ── Sub-components ─────────────────────────────────────────────── */
+
+function SectionCard({ title, icon: Icon, iconBg, iconColor, children, action }) {
+  return (
+    <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className={`w-7 h-7 ${iconBg} rounded-lg flex items-center justify-center`}>
+            <Icon size={14} className={iconColor} />
+          </div>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  )
+}
 
 function InfoRow({ label, value, children }) {
   return (
     <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-500 shrink-0 w-36">{label}</span>
+      <span className="text-xs text-gray-500 shrink-0 w-40">{label}</span>
       <span className="text-xs font-medium text-gray-800 text-right flex-1">{children ?? value ?? '—'}</span>
     </div>
   )
 }
 
-// ── EditSlotModal ─────────────────────────────────────────────────────────────
+/* ── Assign Team Modal ──────────────────────────────────────────── */
 
-function EditSlotModal({ isOpen, onClose, inst, onSave }) {
-  const [form, setForm] = useState({ date: '', time: '', notes: '' })
+function AssignTeamModal({ isOpen, onClose, inst, onSave }) {
+  const [form, setForm] = useState({ team: '', engineers: [], date: '', slot: 'Morning', notes: '' })
+
   useEffect(() => {
-    if (isOpen && inst) setForm({ date: inst.slotDate, time: inst.slotTime, notes: inst.notes ?? '' })
+    if (isOpen && inst) {
+      setForm({
+        team:      inst.assignedTeam || '',
+        engineers: inst.engineerName ? inst.engineerName.split(', ').filter(Boolean) : [],
+        date:      inst.slotDate || '',
+        slot:      inst.slot || 'Morning',
+        notes:     '',
+      })
+    }
   }, [isOpen, inst])
 
+  function toggleEng(name) {
+    setForm(f => ({
+      ...f,
+      engineers: f.engineers.includes(name) ? f.engineers.filter(e => e !== name) : [...f.engineers, name],
+    }))
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Update Installation Slot"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button disabled={!form.date || !form.time}
-            onClick={() => onSave({ ...inst, slotDate: form.date, slotTime: form.time, notes: form.notes })}>
-            Update Slot
-          </Button>
-        </>
-      }
+    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Team — ${inst?.id}`} size="sm"
+      footer={<>
+        <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm"
+          disabled={!form.team || form.engineers.length === 0 || !form.date}
+          onClick={() => onSave({
+            ...inst,
+            assignedTeam: form.team,
+            engineerName: form.engineers.join(', '),
+            slotDate:     form.date,
+            slot:         form.slot,
+            status:       inst.status === 'Scheduled' ? 'Assigned' : inst.status,
+            timeline: [...(inst.timeline || []), {
+              status: inst.status === 'Scheduled' ? 'Assigned' : inst.status,
+              date: TODAY, by: 'Admin',
+              note: `Assigned to ${form.team} — ${form.engineers.join(', ')}`,
+            }],
+          })}>
+          Assign Team
+        </Button>
+      </>}
     >
       <div className="space-y-4">
+        <FormField label="Installation Team" required>
+          <Select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))}>
+            <option value="">Select team…</option>
+            {INSTALLATION_TEAMS.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">Engineers <span className="text-red-500">*</span></p>
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+            {FIELD_ENGINEERS.map(eng => (
+              <label key={eng.id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox"
+                  checked={form.engineers.includes(eng.name)}
+                  onChange={() => toggleEng(eng.name)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                />
+                <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                  {eng.initials}
+                </div>
+                <span className="text-sm text-gray-700">{eng.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
         <FormField label="Installation Date" required>
           <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
         </FormField>
-        <FormField label="Installation Time" required>
-          <Input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
-        </FormField>
-        <FormField label="Notes">
-          <Textarea rows={3} placeholder="Any slot-specific notes..."
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">Installation Slot</p>
+          <div className="flex gap-4">
+            {['Morning','Afternoon','Evening'].map(s => (
+              <label key={s} className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="detail-assign-slot" value={s}
+                  checked={form.slot === s}
+                  onChange={() => setForm(f => ({ ...f, slot: s }))}
+                  className="w-4 h-4 text-brand-blue focus:ring-brand-blue/30"
+                />
+                <span className="text-sm text-gray-700">{s}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <FormField label="Internal Notes">
+          <Textarea rows={2} placeholder="Notes for the team…"
             value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         </FormField>
       </div>
@@ -85,174 +187,175 @@ function EditSlotModal({ isOpen, onClose, inst, onSave }) {
   )
 }
 
-// ── AssignEngineerModal ───────────────────────────────────────────────────────
+/* ── Reschedule Modal ───────────────────────────────────────────── */
 
-function AssignEngineerModal({ isOpen, onClose, inst, onSave }) {
-  const [engineerId, setEngineerId] = useState('')
-  const [notes, setNotes] = useState('')
+function RescheduleModal({ isOpen, onClose, inst, onSave }) {
+  const [form, setForm] = useState({ date: '', slot: 'Morning', reason: '', remarks: '' })
+
   useEffect(() => {
-    if (isOpen && inst) { setEngineerId(inst.engineerId ?? ''); setNotes('') }
+    if (isOpen && inst) setForm({ date: inst.slotDate || '', slot: inst.slot || 'Morning', reason: '', remarks: '' })
   }, [isOpen, inst])
 
-  const eng = FIELD_ENGINEERS.find(e => e.id === engineerId)
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={inst?.engineerId ? 'Reassign Engineer' : 'Assign Engineer'}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button disabled={!engineerId} onClick={() => {
-            const e = FIELD_ENGINEERS.find(x => x.id === engineerId)
-            const updated = {
-              ...inst,
-              engineerId: e.id,
-              engineerName: e.name,
-              status: inst.status === 'Pending' ? 'Assigned' : inst.status,
-              timeline: [
-                ...inst.timeline,
-                { status: inst.status === 'Pending' ? 'Assigned' : inst.status, date: TODAY, by: e.name },
-              ],
+    <Modal isOpen={isOpen} onClose={onClose} title={`Reschedule — ${inst?.id}`} size="sm"
+      footer={<>
+        <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" disabled={!form.date || !form.reason}
+          onClick={() => {
+            const histEntry = {
+              originalDate: inst.slotDate, originalSlot: inst.slot || '—',
+              newDate: form.date, newSlot: form.slot,
+              reason: form.reason, remarks: form.remarks,
+              by: 'Admin', when: TODAY,
             }
-            onSave(updated)
+            onSave({
+              ...inst,
+              slotDate: form.date, slot: form.slot,
+              status: 'Rescheduled',
+              rescheduleReason: form.reason,
+              rescheduleRemarks: form.remarks,
+              rescheduleHistory: [...(inst.rescheduleHistory || []), histEntry],
+              timeline: [...(inst.timeline || []), {
+                status: 'Rescheduled', date: TODAY, by: 'Admin',
+                note: `Rescheduled to ${form.date} (${form.slot}) — ${form.reason}`,
+              }],
+            })
           }}>
-            {inst?.engineerId ? 'Reassign' : 'Assign'}
-          </Button>
-        </>
-      }
+          Reschedule
+        </Button>
+      </>}
     >
       <div className="space-y-4">
-        <FormField label="Field Engineer" required>
-          <Select value={engineerId} onChange={e => setEngineerId(e.target.value)}>
-            <option value="">Select engineer…</option>
-            {FIELD_ENGINEERS.map(e => (
-              <option key={e.id} value={e.id}>{e.name}</option>
+        <FormField label="New Installation Date" required>
+          <Input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+        </FormField>
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">New Slot</p>
+          <div className="flex gap-4">
+            {['Morning','Afternoon','Evening'].map(s => (
+              <label key={s} className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="resched-detail-slot" value={s}
+                  checked={form.slot === s}
+                  onChange={() => setForm(f => ({ ...f, slot: s }))}
+                  className="w-4 h-4 text-brand-blue focus:ring-brand-blue/30"
+                />
+                <span className="text-sm text-gray-700">{s}</span>
+              </label>
             ))}
+          </div>
+        </div>
+        <FormField label="Reschedule Reason" required>
+          <Select value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}>
+            <option value="">Select reason…</option>
+            {RESCHEDULE_REASONS.map(r => <option key={r}>{r}</option>)}
           </Select>
         </FormField>
-        {eng && (
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-surface-border">
-            <div className={`w-9 h-9 rounded-full ${eng.color} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-              {eng.initials}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">{eng.name}</p>
-              <p className="text-xs text-gray-500">Field Engineer</p>
-            </div>
-          </div>
-        )}
-        <FormField label="Notes">
-          <Textarea rows={2} placeholder="Optional assignment notes..."
-            value={notes} onChange={e => setNotes(e.target.value)} />
+        <FormField label="Remarks">
+          <Textarea rows={2} placeholder="Additional remarks…"
+            value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
         </FormField>
       </div>
     </Modal>
   )
 }
 
-// ── HardwareModal ─────────────────────────────────────────────────────────────
+/* ── Hardware Modal ─────────────────────────────────────────────── */
 
 function HardwareModal({ isOpen, onClose, inst, onSave }) {
-  const [hwRequired, setHwRequired] = useState(false)
   const [hardware, setHardware] = useState([])
-  const [wireRequired, setWireRequired] = useState(false)
-  const [wires, setWires] = useState([])
+  const [wires,    setWires]    = useState([])
 
   useEffect(() => {
     if (isOpen && inst) {
-      setHwRequired(inst.hardwareRequired ?? false)
-      setHardware(inst.hardware?.map(h => ({ ...h })) ?? [])
-      setWireRequired(inst.wireRequired ?? false)
+      setHardware(inst.hardware?.map(h => ({ ...h })) ?? [{ name: '', qty: 1, unit: 'pcs' }])
       setWires(inst.wires?.map(w => ({ ...w })) ?? [])
     }
   }, [isOpen, inst])
 
-  function addItem(setter) { setter(prev => [...prev, { name: '', qty: 1 }]) }
-  function removeItem(setter, idx) { setter(prev => prev.filter((_, i) => i !== idx)) }
-  function updateItem(setter, idx, field, val) {
-    setter(prev => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item))
-  }
+  function addHw()  { setHardware(p => [...p, { name: '', qty: 1, unit: 'pcs' }]) }
+  function addWire(){ setWires(p => [...p, { name: '', qty: 1, unit: 'm' }]) }
+  function updHw(i, k, v)   { setHardware(p => p.map((h, j) => j === i ? { ...h, [k]: v } : h)) }
+  function updWire(i, k, v) { setWires(p => p.map((w, j) => j === i ? { ...w, [k]: v } : w)) }
+  function remHw(i)   { setHardware(p => p.filter((_, j) => j !== i)) }
+  function remWire(i) { setWires(p => p.filter((_, j) => j !== i)) }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Hardware & Wire Requirements" size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSave({
-            ...inst,
-            hardwareRequired: hwRequired,
-            hardware: hwRequired ? hardware.filter(h => h.name.trim()) : [],
-            wireRequired,
-            wires: wireRequired ? wires.filter(w => w.name.trim()) : [],
-          })}>
-            Save Requirements
-          </Button>
-        </>
-      }
+    <Modal isOpen={isOpen} onClose={onClose} title="Hardware Requirements" size="lg"
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={() => onSave({
+          ...inst,
+          hardwareRequired: hardware.filter(h => h.name.trim()).length > 0,
+          hardware: hardware.filter(h => h.name.trim()),
+          wireRequired: wires.filter(w => w.name.trim()).length > 0,
+          wires: wires.filter(w => w.name.trim()),
+        })}>Save Requirements</Button>
+      </>}
     >
       <div className="space-y-5">
-        {/* Hardware */}
         <div>
-          <div className="flex items-center gap-3 mb-3">
-            <label className="text-sm font-medium text-gray-700">Hardware Required</label>
-            <button type="button"
-              onClick={() => setHwRequired(v => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${hwRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}
-            >
-              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${hwRequired ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Hardware Items</p>
+            <button onClick={addHw} className="flex items-center gap-1 text-xs text-brand-blue font-medium hover:underline">
+              <Plus size={11} /> Add Item
             </button>
           </div>
-          {hwRequired && (
+          {hardware.length === 0 ? (
+            <p className="text-xs text-gray-400 py-3 text-center">No hardware items. Click "Add Item".</p>
+          ) : (
             <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_70px_80px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                <span>Item Name</span><span>Qty</span><span>Unit</span><span />
+              </div>
               {hardware.map((h, i) => (
-                <div key={i} className="flex gap-2 items-center">
+                <div key={i} className="grid grid-cols-[1fr_70px_80px_28px] gap-2 items-center">
                   <input value={h.name} placeholder="Item name"
-                    onChange={e => updateItem(setHardware, i, 'name', e.target.value)}
-                    className="flex-1 px-3 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+                    onChange={e => updHw(i, 'name', e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
                   <input type="number" min="1" value={h.qty}
-                    onChange={e => updateItem(setHardware, i, 'qty', Number(e.target.value))}
-                    className="w-16 px-2 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none text-center" />
-                  <button onClick={() => removeItem(setHardware, i)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
+                    onChange={e => updHw(i, 'qty', Number(e.target.value))}
+                    className="px-2 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none text-center" />
+                  <input value={h.unit || 'pcs'} placeholder="pcs"
+                    onChange={e => updHw(i, 'unit', e.target.value)}
+                    className="px-2 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none" />
+                  <button onClick={() => remHw(i)} className="text-gray-300 hover:text-red-500 transition-colors flex items-center justify-center">
+                    <Trash2 size={13} />
                   </button>
                 </div>
               ))}
-              <button onClick={() => addItem(setHardware)}
-                className="flex items-center gap-1.5 text-xs text-brand-blue hover:text-brand-blue/80 font-medium mt-1">
-                <Plus size={12} /> Add Item
-              </button>
             </div>
           )}
         </div>
-
         <div className="border-t border-surface-border pt-4">
-          <div className="flex items-center gap-3 mb-3">
-            <label className="text-sm font-medium text-gray-700">Wire/Cable Required</label>
-            <button type="button"
-              onClick={() => setWireRequired(v => !v)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${wireRequired ? 'bg-brand-blue' : 'bg-gray-300'}`}
-            >
-              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${wireRequired ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Wire / Cable</p>
+            <button onClick={addWire} className="flex items-center gap-1 text-xs text-brand-blue font-medium hover:underline">
+              <Plus size={11} /> Add Wire
             </button>
           </div>
-          {wireRequired && (
+          {wires.length === 0 ? (
+            <p className="text-xs text-gray-400 py-3 text-center">No wire items added.</p>
+          ) : (
             <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_70px_80px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                <span>Cable Name</span><span>Qty</span><span>Unit</span><span />
+              </div>
               {wires.map((w, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input value={w.name} placeholder="Cable/wire name"
-                    onChange={e => updateItem(setWires, i, 'name', e.target.value)}
-                    className="flex-1 px-3 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+                <div key={i} className="grid grid-cols-[1fr_70px_80px_28px] gap-2 items-center">
+                  <input value={w.name} placeholder="Cable name"
+                    onChange={e => updWire(i, 'name', e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
                   <input type="number" min="1" value={w.qty}
-                    onChange={e => updateItem(setWires, i, 'qty', Number(e.target.value))}
-                    className="w-16 px-2 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none text-center" />
-                  <button onClick={() => removeItem(setWires, i)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
+                    onChange={e => updWire(i, 'qty', Number(e.target.value))}
+                    className="px-2 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none text-center" />
+                  <input value={w.unit || 'm'} placeholder="m"
+                    onChange={e => updWire(i, 'unit', e.target.value)}
+                    className="px-2 py-1.5 text-sm border border-surface-border rounded-lg focus:outline-none" />
+                  <button onClick={() => remWire(i)} className="text-gray-300 hover:text-red-500 transition-colors flex items-center justify-center">
+                    <Trash2 size={13} />
                   </button>
                 </div>
               ))}
-              <button onClick={() => addItem(setWires)}
-                className="flex items-center gap-1.5 text-xs text-brand-blue hover:text-brand-blue/80 font-medium mt-1">
-                <Plus size={12} /> Add Item
-              </button>
             </div>
           )}
         </div>
@@ -261,25 +364,25 @@ function HardwareModal({ isOpen, onClose, inst, onSave }) {
   )
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+/* ── Main Component ─────────────────────────────────────────────── */
 
 export default function InstallationDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [installations, setInstallations] = useState(getInstallations)
   const [noteText, setNoteText] = useState('')
 
+  /* Modal open state */
+  const [assignOpen,    setAssignOpen]    = useState(false)
+  const [reschedOpen,   setReschedOpen]   = useState(false)
+  const [hwOpen,        setHwOpen]        = useState(false)
+  const [completeOpen,  setCompleteOpen]  = useState(false)
+  const [failOpen,      setFailOpen]      = useState(false)
+  const [cancelOpen,    setCancelOpen]    = useState(false)
+  const [dispatchOpen,  setDispatchOpen]  = useState(false)
+  const [progressOpen,  setProgressOpen]  = useState(false)
+
   useEffect(() => subscribeInstallations(setInstallations), [])
-
-  const action = searchParams.get('action')
-  const editSlotOpen  = action === 'edit-slot'
-  const assignOpen    = action === 'assign-engineer'
-  const hwOpen        = action === 'add-hardware'
-  const cancelOpen    = action === 'cancel'
-
-  function openAction(a) { setSearchParams({ action: a }) }
-  function closeAction()  { setSearchParams({}) }
 
   const inst = installations.find(i => i.id === id)
 
@@ -294,68 +397,141 @@ export default function InstallationDetail() {
     )
   }
 
-  function handleSave(updated) {
-    saveInstallation(updated)
-    closeAction()
-  }
+  /* ── Save helpers ──────────────────────────────────────────────── */
 
-  function handleCancel() {
-    saveInstallation({
-      ...inst,
-      status: 'Cancelled',
-      timeline: [...inst.timeline, { status: 'Cancelled', date: TODAY, by: 'Admin' }],
-    })
-    closeAction()
+  function save(updated) { saveInstallation(updated) }
+
+  function doStatus(status, extra = {}) {
+    updateInstallationStatus(inst.id, status, extra)
   }
 
   function handleAddNote() {
     if (!noteText.trim()) return
-    saveInstallation({
-      ...inst,
-      notes: inst.notes ? `${inst.notes}\n${noteText.trim()}` : noteText.trim(),
-    })
+    saveInstallation({ ...inst, notes: inst.notes ? `${inst.notes}\n${noteText.trim()}` : noteText.trim() })
     setNoteText('')
   }
 
-  const eng = FIELD_ENGINEERS.find(e => e.id === inst.engineerId)
-  const totalHwItems = (inst.hardware?.length ?? 0) + (inst.wires?.length ?? 0)
+  /* ── Derived ───────────────────────────────────────────────────── */
 
-  const completedStatuses = new Set(inst.timeline.map(t => t.status))
-  const currentStatusIndex = TIMELINE_STATUSES.indexOf(inst.status)
+  const status = inst.status
+  const isDone = status === 'Completed' || status === 'Cancelled' || status === 'Failed'
+  const allHwItems = [...(inst.hardware || []), ...(inst.wires || [])]
+  const hasTeam = !!(inst.assignedTeam || inst.engineerName)
+  const reschedHistory = inst.rescheduleHistory || []
+  const hasSingleReschedule = !reschedHistory.length && inst.rescheduleReason
+
+  /* Build reschedule history display from both legacy field and new array */
+  const reschedRows = reschedHistory.length > 0
+    ? reschedHistory
+    : hasSingleReschedule
+      ? [{ originalDate: '—', originalSlot: '—', newDate: inst.slotDate, newSlot: inst.slot || '—',
+           reason: inst.rescheduleReason, remarks: inst.rescheduleRemarks || '', by: 'Admin', when: '—' }]
+      : []
+
+  /* ── Status action buttons ─────────────────────────────────────── */
+
+  const actionBtnCls = (variant) => {
+    const base = 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors'
+    if (variant === 'blue')    return `${base} bg-blue-50 text-brand-blue border-brand-blue/30 hover:bg-blue-100`
+    if (variant === 'amber')   return `${base} bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100`
+    if (variant === 'orange')  return `${base} bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100`
+    if (variant === 'green')   return `${base} bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100`
+    if (variant === 'red')     return `${base} bg-red-50 text-red-600 border-red-200 hover:bg-red-100`
+    if (variant === 'yellow')  return `${base} bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100`
+    return `${base} bg-white text-gray-600 border-surface-border hover:bg-gray-50`
+  }
+
+  let actionButtons = null
+  if (status === 'Scheduled' || status === 'Assigned' || status === 'Rescheduled') {
+    actionButtons = (
+      <>
+        <button onClick={() => setAssignOpen(true)} className={actionBtnCls('blue')}>
+          <Users size={13} /> Assign Team
+        </button>
+        <button onClick={() => setReschedOpen(true)} className={actionBtnCls('yellow')}>
+          <RefreshCw size={13} /> Reschedule
+        </button>
+        <button onClick={() => setHwOpen(true)} className={actionBtnCls('default')}>
+          <Package size={13} /> Add Hardware
+        </button>
+      </>
+    )
+  } else if (status === 'Hardware Collection Pending') {
+    actionButtons = (
+      <>
+        <button onClick={() => setDispatchOpen(true)} className={actionBtnCls('orange')}>
+          <Truck size={13} /> Move to Dispatch
+        </button>
+        <button onClick={() => setReschedOpen(true)} className={actionBtnCls('yellow')}>
+          <RefreshCw size={13} /> Reschedule
+        </button>
+      </>
+    )
+  } else if (status === 'Dispatched') {
+    actionButtons = (
+      <>
+        <button onClick={() => setProgressOpen(true)} className={actionBtnCls('amber')}>
+          <Play size={13} /> Mark In Progress
+        </button>
+        <button onClick={() => setReschedOpen(true)} className={actionBtnCls('yellow')}>
+          <RefreshCw size={13} /> Reschedule
+        </button>
+      </>
+    )
+  } else if (status === 'In Progress') {
+    actionButtons = (
+      <>
+        <button onClick={() => setCompleteOpen(true)} className={actionBtnCls('green')}>
+          <CheckCircle2 size={13} /> Mark Completed
+        </button>
+        <button onClick={() => setFailOpen(true)} className={actionBtnCls('red')}>
+          <XCircle size={13} /> Mark Failed
+        </button>
+      </>
+    )
+  }
+
+  /* ── Timeline helpers ──────────────────────────────────────────── */
+
+  const timelineMap = {}
+  ;(inst.timeline || []).forEach(t => {
+    if (!timelineMap[t.status]) timelineMap[t.status] = t
+  })
+
+  const stageIndex    = TIMELINE_STAGES.indexOf(status)
+  const isCompleted   = status === 'Completed'
+  const isCancelled   = status === 'Cancelled' || status === 'Failed'
 
   return (
     <div className="p-6 max-w-[1400px] space-y-5">
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/installations')}
-            className="w-8 h-8 rounded-lg border border-surface-border flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
-          >
+          <button onClick={() => navigate('/installations')}
+            className="w-8 h-8 rounded-lg border border-surface-border flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
             <ArrowLeft size={16} />
           </button>
           <div>
+            <div className="flex items-center gap-1.5 text-[12px] mb-0.5">
+              <button onClick={() => navigate('/installations')} className="text-gray-400 hover:underline">Installations</button>
+              <span className="text-gray-300">›</span>
+              <span className="text-gray-500">{inst.id}</span>
+            </div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold text-gray-900">{inst.id}</h1>
-              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${STATUS_CHIP[inst.status]}`}>
-                {inst.status}
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${STATUS_CHIP[status] ?? 'bg-gray-100 text-gray-500'}`}>
+                {status}
               </span>
             </div>
             <p className="text-sm text-gray-500 mt-0.5">{inst.customerName} · {inst.area}, {inst.city}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-            <Button variant="secondary" size="sm" icon={<Wrench size={14} />} onClick={() => openAction('add-hardware')}>
-              Hardware
-            </Button>
-          )}
-          {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-            <Button size="sm" icon={<Edit2 size={14} />} onClick={() => openAction('edit-slot')}>
-              Edit Slot
-            </Button>
-          )}
-        </div>
+        {actionButtons && (
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {actionButtons}
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -365,271 +541,361 @@ export default function InstallationDetail() {
         <div className="lg:col-span-2 space-y-4">
 
           {/* Customer Details */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 bg-brand-blue/10 rounded-lg flex items-center justify-center">
-                <User size={14} className="text-brand-blue" />
-              </div>
-              <h2 className="text-sm font-semibold text-gray-900">Customer Details</h2>
-            </div>
+          <SectionCard title="Customer Details" icon={User} iconBg="bg-brand-blue/10" iconColor="text-brand-blue">
             <InfoRow label="Customer Name" value={inst.customerName} />
             <InfoRow label="Phone">
-              <a href={`tel:${inst.customerPhone}`} className="text-brand-blue hover:underline font-medium">
-                {inst.customerPhone}
-              </a>
+              <a href={`tel:${inst.customerPhone}`} className="text-brand-blue hover:underline font-medium">{inst.customerPhone}</a>
             </InfoRow>
             <InfoRow label="Plan" value={inst.plan} />
+            <InfoRow label="Priority">
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                inst.priority === 'High'   ? 'bg-red-100 text-red-600' :
+                inst.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                                             'bg-gray-100 text-gray-500'}`}>
+                {inst.priority || '—'}
+              </span>
+            </InfoRow>
+            <InfoRow label="Branch" value={inst.branch} />
             <InfoRow label="Created On" value={formatDate(inst.createdAt)} />
+            <InfoRow label="Created By" value={inst.createdBy} />
             {inst.leadId && (
               <InfoRow label="Lead ID">
                 <Link to={`/sales/leads/${inst.leadId}/overview`}
-                  className="text-brand-blue hover:underline font-medium flex items-center gap-1">
+                  className="text-brand-blue hover:underline font-medium flex items-center justify-end gap-1">
                   {inst.leadId} <ChevronRight size={12} />
                 </Link>
               </InfoRow>
             )}
-          </div>
+          </SectionCard>
 
           {/* Address Details */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 bg-emerald-50 rounded-lg flex items-center justify-center">
-                <MapPin size={14} className="text-emerald-600" />
-              </div>
-              <h2 className="text-sm font-semibold text-gray-900">Address Details</h2>
-            </div>
-            <InfoRow label="Address" value={inst.address} />
-            <InfoRow label="Area" value={inst.area} />
-            <InfoRow label="City" value={inst.city} />
-            <InfoRow label="Pincode" value={inst.pincode} />
-          </div>
+          <SectionCard title="Address Details" icon={MapPin} iconBg="bg-emerald-50" iconColor="text-emerald-600">
+            <InfoRow label="Address"  value={inst.address} />
+            <InfoRow label="Locality" value={inst.locality} />
+            <InfoRow label="Area"     value={inst.area} />
+            <InfoRow label="City"     value={inst.city} />
+            <InfoRow label="Pincode"  value={inst.pincode} />
+          </SectionCard>
 
-          {/* Hardware & Wire Requirements */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center">
-                  <Package size={14} className="text-amber-600" />
-                </div>
-                <h2 className="text-sm font-semibold text-gray-900">Hardware & Wire Requirements</h2>
-              </div>
-              {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                <button onClick={() => openAction('add-hardware')}
-                  className="text-xs text-brand-blue hover:underline font-medium flex items-center gap-1">
-                  <Edit2 size={12} /> Edit
+          {/* Team Details (if assigned) */}
+          {hasTeam && (
+            <SectionCard title="Team Details" icon={Users} iconBg="bg-purple-50" iconColor="text-purple-600"
+              action={
+                !isDone && (
+                  <button onClick={() => setAssignOpen(true)}
+                    className="text-xs text-brand-blue hover:underline font-medium">
+                    Reassign
+                  </button>
+                )
+              }
+            >
+              <InfoRow label="Installation Team"   value={inst.assignedTeam} />
+              <InfoRow label="Assigned Engineer(s)" value={inst.engineerName} />
+              <InfoRow label="Installation Date"   value={formatSlotDate(inst.slotDate)} />
+              <InfoRow label="Installation Slot">
+                {inst.slot && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    inst.slot === 'Morning'   ? 'bg-yellow-50 text-yellow-700' :
+                    inst.slot === 'Afternoon' ? 'bg-orange-50 text-orange-600' :
+                                                'bg-indigo-50 text-indigo-600'}`}>
+                    {inst.slot}
+                  </span>
+                )}
+              </InfoRow>
+              {inst.timeline?.filter(t => t.status === 'Assigned').slice(-1).map((t, i) => (
+                <InfoRow key={i} label="Assigned By" value={`${t.by} · ${formatDate(t.date)}`} />
+              ))}
+            </SectionCard>
+          )}
+
+          {/* Hardware Requirements */}
+          <SectionCard title="Hardware Requirements" icon={Package} iconBg="bg-amber-50" iconColor="text-amber-600"
+            action={
+              !isDone && (
+                <button onClick={() => setHwOpen(true)}
+                  className="flex items-center gap-1 text-xs text-brand-blue hover:underline font-medium">
+                  <Plus size={11} /> Add Hardware
                 </button>
-              )}
-            </div>
-
-            {totalHwItems === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">No hardware requirements added</p>
+              )
+            }
+          >
+            {allHwItems.length === 0 ? (
+              <div className="text-center py-5">
+                <Package size={20} className="mx-auto text-gray-200 mb-2" />
+                <p className="text-xs text-gray-400">No hardware requirements added</p>
+                {!isDone && (
+                  <button onClick={() => setHwOpen(true)}
+                    className="mt-2 text-xs text-brand-blue hover:underline font-medium">
+                    + Add hardware
+                  </button>
+                )}
+              </div>
             ) : (
-              <div className="space-y-3">
-                {inst.hardwareRequired && inst.hardware.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Hardware</p>
-                    <div className="space-y-1.5">
-                      {inst.hardware.map((h, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                          <span className="text-sm text-gray-700">{h.name}</span>
-                          <span className="text-xs font-semibold bg-white border border-surface-border px-2 py-0.5 rounded-full text-gray-600">×{h.qty}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {inst.wireRequired && inst.wires.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Wire / Cable</p>
-                    <div className="space-y-1.5">
-                      {inst.wires.map((w, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                          <span className="text-sm text-gray-700">{w.name}</span>
-                          <span className="text-xs font-semibold bg-white border border-surface-border px-2 py-0.5 rounded-full text-gray-600">×{w.qty}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              <div className="border border-surface-border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-surface-border text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                      <th className="px-3 py-2 text-left">Item Name</th>
+                      <th className="px-3 py-2 text-center">Qty</th>
+                      <th className="px-3 py-2 text-left">Unit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {allHwItems.map((h, i) => (
+                      <tr key={i} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-2 text-xs text-gray-800 font-medium">{h.name}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600 text-center">{h.qty}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500">{h.unit || 'pcs'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </div>
+          </SectionCard>
+
+          {/* Reschedule History (only if rescheduled at least once) */}
+          {reschedRows.length > 0 && (
+            <SectionCard title="Reschedule History" icon={RefreshCw} iconBg="bg-yellow-50" iconColor="text-yellow-600">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-surface-border bg-gray-50 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                      {['Original Date','Original Slot','New Date','New Slot','Reason','By','When'].map(h => (
+                        <th key={h} className="px-3 py-2 text-left whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {reschedRows.map((r, i) => (
+                      <tr key={i} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.originalDate || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.originalSlot || '—'}</td>
+                        <td className="px-3 py-2 text-gray-800 font-medium whitespace-nowrap">{r.newDate || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{r.newSlot || '—'}</td>
+                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{r.reason || '—'}</td>
+                        <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{r.by || '—'}</td>
+                        <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{r.when || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
 
           {/* Notes */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 bg-purple-50 rounded-lg flex items-center justify-center">
-                <Edit2 size={14} className="text-purple-600" />
-              </div>
-              <h2 className="text-sm font-semibold text-gray-900">Notes</h2>
-            </div>
+          <SectionCard title="Notes" icon={FileText} iconBg="bg-purple-50" iconColor="text-purple-600">
             {inst.notes ? (
               <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">{inst.notes}</p>
             ) : (
               <p className="text-xs text-gray-400 mb-3">No notes added yet.</p>
             )}
-            {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
+            {!isDone && (
               <div className="flex gap-2">
-                <textarea
-                  value={noteText}
-                  onChange={e => setNoteText(e.target.value)}
-                  placeholder="Add a note…"
-                  rows={2}
-                  className="flex-1 px-3 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none"
-                />
-                <Button size="sm" onClick={handleAddNote} disabled={!noteText.trim()}>
-                  Add
-                </Button>
+                <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
+                  placeholder="Add a note…" rows={2}
+                  className="flex-1 px-3 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none" />
+                <Button size="sm" onClick={handleAddNote} disabled={!noteText.trim()}>Add</Button>
               </div>
             )}
-          </div>
+          </SectionCard>
         </div>
 
         {/* ── Right Column ── */}
         <div className="space-y-4">
 
-          {/* Installation Slot */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <CalendarDays size={14} className="text-brand-blue" />
-                </div>
-                <h2 className="text-sm font-semibold text-gray-900">Installation Slot</h2>
-              </div>
-              {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                <button onClick={() => openAction('edit-slot')}
-                  className="text-xs text-brand-blue hover:underline font-medium flex items-center gap-1">
-                  <Edit2 size={12} /> Edit
-                </button>
-              )}
-            </div>
+          {/* Installation Slot summary */}
+          <SectionCard title="Installation Slot" icon={CalendarDays} iconBg="bg-blue-50" iconColor="text-brand-blue">
             <div className="bg-brand-blue/5 rounded-xl p-4 border border-brand-blue/20 text-center">
-              <p className="text-xs text-brand-blue/70 font-medium uppercase tracking-wide mb-1">Scheduled</p>
+              <p className="text-xs text-brand-blue/70 font-medium uppercase tracking-wide mb-1">
+                {inst.slot || 'Scheduled'}
+              </p>
               <p className="text-base font-bold text-gray-900">{formatSlotDate(inst.slotDate)}</p>
-              <p className="text-lg font-bold text-brand-blue mt-1">{inst.slotTime}</p>
+              {inst.slotTime && <p className="text-lg font-bold text-brand-blue mt-1">{inst.slotTime}</p>}
             </div>
-          </div>
+          </SectionCard>
 
-          {/* Assigned Engineer */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center">
-                  <User size={14} className="text-teal-600" />
-                </div>
-                <h2 className="text-sm font-semibold text-gray-900">Assigned Engineer</h2>
-              </div>
-              {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                <button onClick={() => openAction('assign-engineer')}
-                  className="text-xs text-brand-blue hover:underline font-medium flex items-center gap-1">
-                  <Edit2 size={12} /> {inst.engineerId ? 'Reassign' : 'Assign'}
-                </button>
-              )}
-            </div>
-            {eng ? (
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-surface-border">
-                <div className={`w-10 h-10 rounded-full ${eng.color} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
-                  {eng.initials}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{eng.name}</p>
-                  <p className="text-xs text-gray-500">Field Engineer</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center py-4 text-center">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                  <User size={18} className="text-gray-400" />
-                </div>
-                <p className="text-sm text-gray-500">No engineer assigned</p>
-                {inst.status !== 'Completed' && inst.status !== 'Cancelled' && (
-                  <button onClick={() => openAction('assign-engineer')}
-                    className="mt-2 text-xs text-brand-blue hover:underline font-medium">
-                    Assign now
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Status Timeline */}
-          <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 bg-indigo-50 rounded-lg flex items-center justify-center">
-                <CheckCircle2 size={14} className="text-indigo-600" />
-              </div>
-              <h2 className="text-sm font-semibold text-gray-900">Status Timeline</h2>
-            </div>
+          {/* Status Timeline — 7 stages */}
+          <SectionCard title="Status Timeline" icon={CheckCircle2} iconBg="bg-indigo-50" iconColor="text-indigo-600">
             <div className="relative">
-              <div className="absolute left-[13px] top-0 bottom-0 w-px bg-gray-100" />
-              <div className="space-y-4">
-                {TIMELINE_STATUSES.map((status, idx) => {
-                  const entry = inst.timeline.find(t => t.status === status)
-                  const isDone = completedStatuses.has(status)
-                  const isCurrent = inst.status === status
+              {/* Vertical connector line */}
+              <div className="absolute left-[13px] top-3 bottom-3 w-px bg-gray-100 z-0" />
+              <div className="space-y-1">
+                {TIMELINE_STAGES.map((stage, idx) => {
+                  const entry = timelineMap[stage]
+                  const isPast    = isCompleted ? true : !isCancelled && idx < stageIndex
+                  const isCurrent = !isCancelled && stage === status
+                  const isFuture  = !isPast && !isCurrent
 
                   return (
-                    <div key={status} className="flex items-start gap-3 relative">
-                      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 z-10 ${
-                        isDone
-                          ? isCurrent
-                            ? 'border-brand-blue bg-brand-blue'
-                            : 'border-emerald-500 bg-emerald-500'
-                          : 'border-gray-200 bg-white'
+                    <div key={stage} className="flex items-start gap-3 relative py-1.5">
+                      {/* Dot */}
+                      <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 z-10 transition-all ${
+                        isCurrent
+                          ? 'border-brand-blue bg-brand-blue shadow-md shadow-brand-blue/30'
+                          : isPast
+                            ? 'border-emerald-500 bg-emerald-500'
+                            : 'border-gray-200 bg-white'
                       }`}>
-                        {isDone
-                          ? <CheckCircle2 size={14} className="text-white" />
-                          : <span className="w-2 h-2 rounded-full bg-gray-200" />
+                        {isPast && !isCurrent
+                          ? <CheckCircle2 size={13} className="text-white" />
+                          : isCurrent
+                            ? <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                            : <span className="w-2 h-2 rounded-full bg-gray-200" />
                         }
                       </div>
+
+                      {/* Label + meta */}
                       <div className="flex-1 min-w-0 pt-0.5">
-                        <p className={`text-sm font-medium ${isDone ? 'text-gray-900' : 'text-gray-400'}`}>
-                          {status}
+                        <p className={`text-sm font-medium ${
+                          isCurrent ? 'text-brand-blue' : isPast ? 'text-gray-900' : 'text-gray-400'
+                        }`}>
+                          {stage}
                         </p>
                         {entry && (
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {formatDate(entry.date)} · {entry.by}
+                          <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
+                            {formatDate(entry.date)}{entry.by ? ` · ${entry.by}` : ''}
+                            {entry.note ? <span className="block text-gray-300 truncate">{entry.note}</span> : null}
                           </p>
                         )}
                       </div>
-                      {isCurrent && inst.status !== 'Completed' && (
-                        <span className="text-[10px] font-semibold text-brand-blue bg-blue-50 px-2 py-0.5 rounded-full shrink-0 mt-0.5">
-                          Current
+
+                      {isCurrent && (
+                        <span className="text-[9px] font-bold text-brand-blue bg-blue-50 border border-brand-blue/20 px-2 py-0.5 rounded-full shrink-0 mt-0.5">
+                          CURRENT
                         </span>
                       )}
                     </div>
                   )
                 })}
+
+                {/* Cancelled / Failed terminal state */}
+                {isCancelled && (
+                  <div className="flex items-start gap-3 relative py-1.5">
+                    <div className="w-7 h-7 rounded-full border-2 border-red-400 bg-red-400 flex items-center justify-center shrink-0 z-10">
+                      <XCircle size={13} className="text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <p className="text-sm font-medium text-red-600">{status}</p>
+                      {timelineMap[status] && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {formatDate(timelineMap[status].date)} · {timelineMap[status].by}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full shrink-0 mt-0.5">
+                      {status.toUpperCase()}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          </SectionCard>
         </div>
       </div>
 
-      {/* Modals */}
-      <EditSlotModal isOpen={editSlotOpen} onClose={closeAction} inst={inst} onSave={handleSave} />
-      <AssignEngineerModal isOpen={assignOpen} onClose={closeAction} inst={inst} onSave={handleSave} />
-      <HardwareModal isOpen={hwOpen} onClose={closeAction} inst={inst} onSave={handleSave} />
-      <Modal isOpen={cancelOpen} onClose={closeAction} title="Mark as Cancelled"
-        footer={
-          <>
-            <Button variant="secondary" onClick={closeAction}>Keep Installation</Button>
-            <Button className="bg-red-600 hover:bg-red-700 text-white border-red-600" onClick={handleCancel}>
-              Confirm Cancellation
-            </Button>
-          </>
-        }
+      {/* ── Modals ───────────────────────────────────────────────── */}
+
+      <AssignTeamModal isOpen={assignOpen} onClose={() => setAssignOpen(false)}
+        inst={inst} onSave={updated => { save(updated); setAssignOpen(false) }} />
+
+      <RescheduleModal isOpen={reschedOpen} onClose={() => setReschedOpen(false)}
+        inst={inst} onSave={updated => { save(updated); setReschedOpen(false) }} />
+
+      <HardwareModal isOpen={hwOpen} onClose={() => setHwOpen(false)}
+        inst={inst} onSave={updated => { save(updated); setHwOpen(false) }} />
+
+      {/* Move to Dispatch */}
+      <Modal isOpen={dispatchOpen} onClose={() => setDispatchOpen(false)} title="Move to Dispatch" size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setDispatchOpen(false)}>Cancel</Button>
+          <Button size="sm" className="bg-orange-600 hover:bg-orange-700"
+            onClick={() => { doStatus('Dispatched', { _note: 'Hardware collected — team dispatched' }); setDispatchOpen(false) }}>
+            <Truck size={13} className="mr-1" /> Confirm — Dispatch
+          </Button>
+        </>}
       >
         <div className="space-y-3">
-          <p className="text-sm text-gray-700">
-            Are you sure you want to cancel this installation for <span className="font-semibold">{inst.customerName}</span>?
-          </p>
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-            <p className="text-xs text-red-700 font-medium">{inst.id} · {inst.area}, {inst.city}</p>
-            <p className="text-xs text-red-600 mt-1">Slot: {inst.slotDate} at {inst.slotTime}</p>
+          <p className="text-sm text-gray-700">Mark hardware collected and dispatch team for <span className="font-semibold">{inst.id}</span>?</p>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-orange-700 font-medium">{inst.customerName}</p>
+            <p className="text-xs text-orange-600 mt-0.5">{inst.area} · {inst.assignedTeam || 'No team'}</p>
           </div>
-          <p className="text-xs text-gray-400">This action cannot be undone.</p>
+          <p className="text-xs text-gray-400">Status will update to "Dispatched".</p>
+        </div>
+      </Modal>
+
+      {/* Mark In Progress */}
+      <Modal isOpen={progressOpen} onClose={() => setProgressOpen(false)} title="Mark In Progress" size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setProgressOpen(false)}>Cancel</Button>
+          <Button size="sm" className="bg-amber-600 hover:bg-amber-700"
+            onClick={() => { doStatus('In Progress', { _note: 'Installation in progress' }); setProgressOpen(false) }}>
+            <Play size={13} className="mr-1" /> Mark In Progress
+          </Button>
+        </>}
+      >
+        <p className="text-sm text-gray-700">Mark <span className="font-semibold">{inst.id}</span> as In Progress?</p>
+      </Modal>
+
+      {/* Mark Completed */}
+      <Modal isOpen={completeOpen} onClose={() => setCompleteOpen(false)} title="Mark as Completed" size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setCompleteOpen(false)}>Cancel</Button>
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => { doStatus('Completed', { _note: 'Installation completed successfully' }); setCompleteOpen(false) }}>
+            <CheckCircle2 size={13} className="mr-1" /> Mark Completed
+          </Button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">Mark <span className="font-semibold">{inst.id}</span> for <span className="font-semibold">{inst.customerName}</span> as completed?</p>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-emerald-700 font-medium">{inst.area} · {inst.plan}</p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Mark Failed */}
+      <Modal isOpen={failOpen} onClose={() => setFailOpen(false)} title="Mark as Failed" size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setFailOpen(false)}>Cancel</Button>
+          <Button size="sm" className="bg-red-600 hover:bg-red-700"
+            onClick={() => { doStatus('Failed', { _note: 'Installation failed' }); setFailOpen(false) }}>
+            <XCircle size={13} className="mr-1" /> Mark Failed
+          </Button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">Mark <span className="font-semibold">{inst.id}</span> as Failed?</p>
+          <div className="flex items-start gap-2 text-xs text-gray-400">
+            <AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-400" />
+            This will mark the installation as failed. Customer follow-up may be required.
+          </div>
+        </div>
+      </Modal>
+
+      {/* Mark Cancelled */}
+      <Modal isOpen={cancelOpen} onClose={() => setCancelOpen(false)} title="Mark as Cancelled" size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setCancelOpen(false)}>Keep Installation</Button>
+          <Button size="sm" className="bg-red-600 hover:bg-red-700"
+            onClick={() => { doStatus('Cancelled', { _note: 'Installation cancelled' }); setCancelOpen(false) }}>
+            Confirm Cancellation
+          </Button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">Cancel the installation for <span className="font-semibold">{inst.customerName}</span>?</p>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-red-700 font-medium">{inst.id} · {inst.area}</p>
+            <p className="text-xs text-red-600 mt-0.5">Slot: {inst.slotDate} — {inst.slot}</p>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-gray-400">
+            <AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-400" />
+            This action cannot be undone.
+          </div>
         </div>
       </Modal>
     </div>
