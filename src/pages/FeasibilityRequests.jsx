@@ -60,6 +60,10 @@ export default function FeasibilityRequests() {
   // Search (stays in main page)
   const [search, setSearch] = useState('')
 
+  // Pagination
+  const [page,     setPage]     = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
   // Applied filters
   const [filterStatuses,  setFilterStatuses]  = useState([])
   const [filterEngineer,  setFilterEngineer]  = useState('')
@@ -82,6 +86,7 @@ export default function FeasibilityRequests() {
     setFilterStatuses(draft.statuses); setFilterEngineer(draft.engineer)
     setFilterPriority(draft.priority); setFilterBranch(draft.branch)
     setFilterDateFrom(draft.dateFrom); setFilterDateTo(draft.dateTo)
+    setPage(1)
     setDrawerOpen(false)
   }
   function resetDrawer() { setDraft(EMPTY_DRAFT) }
@@ -199,6 +204,10 @@ export default function FeasibilityRequests() {
     return true
   })
 
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
+  const safePage   = Math.min(page, totalPages)
+  const paged      = visible.slice((safePage - 1) * pageSize, safePage * pageSize)
+
   const menuReq = requests.find(r => r.id === menuId) ?? null
 
   return (
@@ -290,7 +299,7 @@ export default function FeasibilityRequests() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {visible.map(r => (
+                  {paged.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
                       <td className="pl-6 pr-4 py-3 whitespace-nowrap">
                         <button onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
@@ -364,6 +373,42 @@ export default function FeasibilityRequests() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination footer */}
+          {visible.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Show</span>
+                <select value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                  {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <span className="text-xs text-gray-500">per page</span>
+              </div>
+              <span className="text-xs text-gray-500">
+                Showing {visible.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, visible.length)} of {visible.length} request{visible.length !== 1 ? 's' : ''}
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                  className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+                  Prev
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                      p === safePage ? 'bg-brand-blue text-white' : 'border border-surface-border hover:bg-white text-gray-600'
+                    }`}>
+                    {p}
+                  </button>
+                ))}
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                  className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
