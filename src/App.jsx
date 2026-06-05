@@ -36,6 +36,7 @@ import NotificationSettings from './pages/NotificationSettings'
 import Notifications from './pages/Notifications'
 import AreaMapping from './pages/AreaMapping'
 import FeasibilityRequests from './pages/FeasibilityRequests'
+import FeasibilityDetail from './pages/FeasibilityDetail'
 import UserManagement from './pages/UserManagement'
 import Installations from './pages/Installations'
 import InstallationDetail from './pages/InstallationDetail'
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/sales/followups" element={<SalesFollowups />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
+          <Route path="/sales/feasibility-requests/:id" element={<FeasibilityDetail />} />
           <Route path="/settings/sales-configuration/pipelines"    element={<SalesPipelines />} />
           <Route path="/settings/sales-configuration/stage-fields" element={<SalesStageFields />} />
           <Route path="/inventory/hw-assignment"     element={<SalesHwAssignment />} />
