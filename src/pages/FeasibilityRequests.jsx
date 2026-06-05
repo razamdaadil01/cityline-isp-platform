@@ -277,7 +277,10 @@ export default function FeasibilityRequests() {
                   {visible.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
                       <td className="pl-6 pr-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs font-semibold text-brand-blue">{r.id}</span>
+                        <button onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
+                          className="font-mono text-xs font-semibold text-brand-blue hover:underline transition-colors">
+                          {r.id}
+                        </button>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <button onClick={() => navigate(`/sales/leads/${r.leadId}/overview`)}
@@ -357,7 +360,7 @@ export default function FeasibilityRequests() {
           style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
           className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
         >
-          <button onClick={() => setMenuId(null)}
+          <button onClick={() => { navigate(`/sales/feasibility-requests/${menuReq.id}`); setMenuId(null) }}
             className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
             <Search size={13} className="text-gray-400 shrink-0" /> View Details
           </button>
