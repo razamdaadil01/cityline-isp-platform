@@ -585,86 +585,109 @@ export default function Installations() {
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-          className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-52"
+          className="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]"
         >
           {/* View Details */}
           <button onClick={() => { navigate(`/installations/${menuInst.id}`); setMenuId(null) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
-            <Eye size={13} className="text-gray-400 shrink-0" /> View Details
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <Eye className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">View Details</span>
           </button>
 
           {/* View Lead */}
           <button
             onClick={() => { if (menuInst.leadId) navigate(`/sales/leads/${menuInst.leadId}/overview`); setMenuId(null) }}
             disabled={!menuInst.leadId}
-            className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${menuInst.leadId ? 'text-gray-700' : 'text-gray-300 cursor-not-allowed'}`}>
-            <List size={13} className="shrink-0" /> View Lead
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${menuInst.leadId ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+            <List className={`w-4 h-4 flex-shrink-0 ${menuInst.leadId ? 'text-gray-500' : 'text-gray-400'}`} />
+            <span className={`text-sm ${menuInst.leadId ? 'text-gray-700' : 'text-gray-400'}`}>View Lead</span>
           </button>
+
+          <div className="my-1 border-t border-gray-100" />
 
           {/* Assign Team */}
           <button onClick={() => startAssign(menuInst)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-brand-blue hover:bg-blue-50">
-            <Users size={13} className="shrink-0" /> Assign Team
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <Users className="w-4 h-4 text-brand-blue flex-shrink-0" />
+            <span className="text-sm text-gray-700">Assign Team</span>
           </button>
 
           {/* Edit Slot / Reschedule */}
           <button onClick={() => startReschedule(menuInst)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
-            <RefreshCw size={13} className="text-gray-400 shrink-0" /> Edit Slot / Reschedule
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <RefreshCw className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">Edit Slot / Reschedule</span>
           </button>
 
           {/* Add Hardware */}
           <button onClick={() => { navigate(`/installations/${menuInst.id}?action=add-hardware`); setMenuId(null) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
-            <Wrench size={13} className="text-gray-400 shrink-0" /> Add Hardware Requirements
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <Wrench className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">Add Hardware Requirements</span>
           </button>
-
-          <div className="my-1 border-t border-surface-border" />
 
           {/* Move to Hardware Collection */}
           <button
             onClick={() => { setHwCollectInst(menuInst); setMenuId(null) }}
             disabled={['Completed','Cancelled','Hardware Collection Pending','Dispatched'].includes(menuInst.status)}
-            className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${
               ['Completed','Cancelled','Hardware Collection Pending','Dispatched'].includes(menuInst.status)
-                ? 'text-gray-300 cursor-not-allowed'
-                : 'text-amber-700 hover:bg-amber-50'}`}>
-            <Package size={13} className="shrink-0" /> Move to Hardware Collection
+                ? 'cursor-not-allowed'
+                : 'cursor-pointer'}`}>
+            <Package className={`w-4 h-4 flex-shrink-0 ${
+              ['Completed','Cancelled','Hardware Collection Pending','Dispatched'].includes(menuInst.status)
+                ? 'text-gray-400' : 'text-gray-500'}`} />
+            <span className={`text-sm ${
+              ['Completed','Cancelled','Hardware Collection Pending','Dispatched'].includes(menuInst.status)
+                ? 'text-gray-400' : 'text-gray-700'}`}>
+              Move to Hardware Collection
+            </span>
           </button>
 
           {/* Move to Dispatch */}
           <button
             onClick={() => { setDispatchInst(menuInst); setMenuId(null) }}
             disabled={menuInst.status !== 'Hardware Collection Pending'}
-            className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${
-              menuInst.status !== 'Hardware Collection Pending'
-                ? 'text-gray-300 cursor-not-allowed'
-                : 'text-orange-600 hover:bg-orange-50'}`}>
-            <Truck size={13} className="shrink-0" /> Move to Dispatch
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${
+              menuInst.status !== 'Hardware Collection Pending' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+            <Truck className={`w-4 h-4 flex-shrink-0 ${
+              menuInst.status !== 'Hardware Collection Pending' ? 'text-gray-400' : 'text-gray-500'}`} />
+            <span className={`text-sm ${
+              menuInst.status !== 'Hardware Collection Pending' ? 'text-gray-400' : 'text-gray-700'}`}>
+              Move to Dispatch
+            </span>
           </button>
 
-          <div className="my-1 border-t border-surface-border" />
+          <div className="my-1 border-t border-gray-100" />
 
           {/* Mark Completed */}
           <button
             onClick={() => { setCompleteInst(menuInst); setMenuId(null) }}
             disabled={['Completed','Cancelled'].includes(menuInst.status)}
-            className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${
-              ['Completed','Cancelled'].includes(menuInst.status)
-                ? 'text-gray-300 cursor-not-allowed'
-                : 'text-emerald-700 hover:bg-emerald-50'}`}>
-            <CheckCircle2 size={13} className="shrink-0" /> Mark Completed
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${
+              ['Completed','Cancelled'].includes(menuInst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+            <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${
+              ['Completed','Cancelled'].includes(menuInst.status) ? 'text-gray-400' : 'text-emerald-500'}`} />
+            <span className={`text-sm ${
+              ['Completed','Cancelled'].includes(menuInst.status) ? 'text-gray-400' : 'text-gray-700'}`}>
+              Mark Completed
+            </span>
           </button>
+
+          <div className="my-1 border-t border-gray-100" />
 
           {/* Mark Cancelled */}
           <button
             onClick={() => { setCancelInst(menuInst); setMenuId(null) }}
             disabled={['Completed','Cancelled'].includes(menuInst.status)}
-            className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${
-              ['Completed','Cancelled'].includes(menuInst.status)
-                ? 'text-gray-300 cursor-not-allowed'
-                : 'text-red-600 hover:bg-red-50'}`}>
-            <XCircle size={13} className="shrink-0" /> Mark Cancelled
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${
+              ['Completed','Cancelled'].includes(menuInst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+            <XCircle className={`w-4 h-4 flex-shrink-0 ${
+              ['Completed','Cancelled'].includes(menuInst.status) ? 'text-gray-400' : 'text-red-500'}`} />
+            <span className={`text-sm ${
+              ['Completed','Cancelled'].includes(menuInst.status) ? 'text-gray-400' : 'text-gray-700'}`}>
+              Mark Cancelled
+            </span>
           </button>
         </div>
       )}

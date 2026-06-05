@@ -419,28 +419,34 @@ export default function FeasibilityRequests() {
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-          className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
+          className="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]"
         >
           <button onClick={() => { navigate(`/sales/feasibility-requests/${menuReq.id}`); setMenuId(null) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-            <Search size={13} className="text-gray-400 shrink-0" /> View Details
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">View Details</span>
           </button>
           <button onClick={() => { navigate(`/sales/leads/${menuReq.leadId}/overview`); setMenuId(null) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-            <List size={13} className="text-gray-400 shrink-0" /> View Lead
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <List className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">View Lead</span>
           </button>
           <button onClick={() => startAssign(menuReq)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-            <UserCheck size={13} className="text-brand-blue shrink-0" /> Assign Engineer
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <UserCheck className="w-4 h-4 text-brand-blue flex-shrink-0" />
+            <span className="text-sm text-gray-700">Assign Engineer</span>
           </button>
-          <div className="my-1 border-t border-surface-border" />
+          <div className="my-1 border-t border-gray-100" />
           <button onClick={() => startApprove(menuReq)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 transition-colors">
-            <CheckCircle2 size={13} className="shrink-0" /> Approve
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">Approve</span>
           </button>
+          <div className="my-1 border-t border-gray-100" />
           <button onClick={() => startReject(menuReq)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
-            <XCircle size={13} className="shrink-0" /> Reject
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">Reject</span>
           </button>
         </div>
       )}
