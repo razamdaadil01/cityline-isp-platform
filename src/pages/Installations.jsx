@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   CalendarDays, Users, Package, Truck, CheckCircle2, RefreshCw,
   XCircle, Search, MoreVertical, UserCheck, Clock, Wrench,
-  Eye, List, ArrowRight, AlertTriangle,
+  Eye, List, ArrowRight, AlertTriangle, SlidersHorizontal, X,
 } from 'lucide-react'
 import {
   getInstallations, subscribeInstallations, updateInstallationStatus,
@@ -39,8 +39,6 @@ const STATUS_CHIP = {
   'In Progress':                'bg-amber-100 text-amber-700',
 }
 
-const SLOT_LABEL = { Morning: '🌅 Morning', Afternoon: '☀️ Afternoon', Evening: '🌆 Evening' }
-
 const TABS = [
   { key: 'all',       label: 'All'           },
   { key: 'morning',   label: 'Morning Slot'  },
@@ -52,8 +50,6 @@ function matchesTab(tab, inst) {
   if (tab === 'all') return true
   return inst.slot?.toLowerCase() === tab
 }
-
-const selectCls = 'px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700'
 
 /* ── Toast ──────────────────────────────────────────────────────── */
 function Toast({ msg, onDone }) {
@@ -74,16 +70,80 @@ export default function Installations() {
   const [installations, setInstallations] = useState(getInstallations)
   const [activeTab,     setActiveTab]     = useState('all')
 
-  /* Filters */
-  const [search,          setSearch]          = useState('')
+  /* Search */
+  const [search, setSearch] = useState('')
+
+  /* Applied filters (what the table actually uses) */
   const [filterDateFrom,  setFilterDateFrom]  = useState('')
   const [filterDateTo,    setFilterDateTo]    = useState('')
-  const [filterStatus,    setFilterStatus]    = useState('')
+  const [filterStatuses,  setFilterStatuses]  = useState([])   // multi-select
   const [filterTeam,      setFilterTeam]      = useState('')
   const [filterEngineer,  setFilterEngineer]  = useState('')
   const [filterSlot,      setFilterSlot]      = useState('')
   const [filterPriority,  setFilterPriority]  = useState('')
   const [filterBranch,    setFilterBranch]    = useState('')
+
+  /* Drawer state */
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  /* Draft filters (edited inside drawer, applied on "Apply") */
+  const EMPTY_DRAFT = {
+    dateFrom: '', dateTo: '', statuses: [], slot: '', team: '', engineer: '', priority: '', branch: '',
+  }
+  const [draft, setDraft] = useState(EMPTY_DRAFT)
+
+  function openDrawer() {
+    setDraft({
+      dateFrom:  filterDateFrom,
+      dateTo:    filterDateTo,
+      statuses:  filterStatuses,
+      slot:      filterSlot,
+      team:      filterTeam,
+      engineer:  filterEngineer,
+      priority:  filterPriority,
+      branch:    filterBranch,
+    })
+    setDrawerOpen(true)
+  }
+
+  function applyDrawer() {
+    setFilterDateFrom(draft.dateFrom)
+    setFilterDateTo(draft.dateTo)
+    setFilterStatuses(draft.statuses)
+    setFilterSlot(draft.slot)
+    setFilterTeam(draft.team)
+    setFilterEngineer(draft.engineer)
+    setFilterPriority(draft.priority)
+    setFilterBranch(draft.branch)
+    setDrawerOpen(false)
+  }
+
+  function resetDrawer() {
+    setDraft(EMPTY_DRAFT)
+  }
+
+  function clearAllFilters() {
+    setFilterDateFrom(''); setFilterDateTo(''); setFilterStatuses([])
+    setFilterTeam(''); setFilterEngineer(''); setFilterSlot('')
+    setFilterPriority(''); setFilterBranch('')
+  }
+
+  function toggleDraftStatus(s) {
+    setDraft(d => ({
+      ...d,
+      statuses: d.statuses.includes(s) ? d.statuses.filter(x => x !== s) : [...d.statuses, s],
+    }))
+  }
+
+  const activeFilterCount = [
+    filterDateFrom || filterDateTo,
+    filterStatuses.length > 0,
+    filterTeam,
+    filterEngineer,
+    filterSlot,
+    filterPriority,
+    filterBranch,
+  ].filter(Boolean).length
 
   /* Menu */
   const [menuId,  setMenuId]  = useState(null)
@@ -150,7 +210,7 @@ export default function Installations() {
                !inst.area.toLowerCase().includes(q)) return false
       if (filterDateFrom && inst.slotDate < filterDateFrom) return false
       if (filterDateTo   && inst.slotDate > filterDateTo)   return false
-      if (filterStatus   && inst.status !== filterStatus)   return false
+      if (filterStatuses.length > 0 && !filterStatuses.includes(inst.status)) return false
       if (filterTeam     && inst.assignedTeam !== filterTeam) return false
       if (filterEngineer && inst.engineerName !== filterEngineer) return false
       if (filterSlot     && inst.slot !== filterSlot)       return false
@@ -159,16 +219,9 @@ export default function Installations() {
       return true
     })
   }, [installations, activeTab, search, filterDateFrom, filterDateTo,
-      filterStatus, filterTeam, filterEngineer, filterSlot, filterPriority, filterBranch])
+      filterStatuses, filterTeam, filterEngineer, filterSlot, filterPriority, filterBranch])
 
-  const hasFilters = search || filterDateFrom || filterDateTo || filterStatus ||
-    filterTeam || filterEngineer || filterSlot || filterPriority || filterBranch
-
-  function clearFilters() {
-    setSearch(''); setFilterDateFrom(''); setFilterDateTo('')
-    setFilterStatus(''); setFilterTeam(''); setFilterEngineer('')
-    setFilterSlot(''); setFilterPriority(''); setFilterBranch('')
-  }
+  const hasFilters = activeFilterCount > 0
 
   const menuInst = installations.find(i => i.id === menuId) ?? null
 
@@ -313,10 +366,9 @@ export default function Installations() {
             ))}
           </div>
 
-          {/* Filters */}
-          <div className="px-4 py-3 border-b border-surface-border space-y-3">
-            {/* Search */}
-            <div className="relative">
+          {/* Search + Filter button */}
+          <div className="px-4 py-3 border-b border-surface-border flex items-center gap-3">
+            <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
                 value={search} onChange={e => setSearch(e.target.value)}
@@ -324,54 +376,30 @@ export default function Installations() {
                 className="w-full pl-9 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white placeholder-gray-400 text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
               />
             </div>
-            {/* Filter row */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)}
-                className={`${selectCls} text-gray-500`} title="Date from" />
-              <span className="text-gray-400 text-xs">to</span>
-              <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)}
-                className={`${selectCls} text-gray-500`} title="Date to" />
-
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className={selectCls}>
-                <option value="">All Statuses</option>
-                {ALL_STATUSES.map(s => <option key={s}>{s}</option>)}
-              </select>
-
-              <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)} className={selectCls}>
-                <option value="">All Teams</option>
-                {INSTALLATION_TEAMS.map(t => <option key={t}>{t}</option>)}
-              </select>
-
-              <select value={filterEngineer} onChange={e => setFilterEngineer(e.target.value)} className={selectCls}>
-                <option value="">All Engineers</option>
-                {FIELD_ENGINEERS.map(e => <option key={e.id}>{e.name}</option>)}
-              </select>
-
-              <select value={filterSlot} onChange={e => setFilterSlot(e.target.value)} className={selectCls}>
-                <option value="">All Slots</option>
-                {['Morning','Afternoon','Evening'].map(s => <option key={s}>{s}</option>)}
-              </select>
-
-              <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} className={selectCls}>
-                <option value="">All Priorities</option>
-                {['High','Medium','Low'].map(p => <option key={p}>{p}</option>)}
-              </select>
-
-              <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} className={selectCls}>
-                <option value="">All Branches</option>
-                {INST_BRANCHES.map(b => <option key={b}>{b}</option>)}
-              </select>
-
-              {hasFilters && (
-                <button onClick={clearFilters}
-                  className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-surface-border rounded-lg hover:bg-gray-50 transition-colors">
-                  Clear
-                </button>
+            <button
+              onClick={openDrawer}
+              className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors shrink-0 ${
+                activeFilterCount > 0
+                  ? 'bg-brand-blue text-white border-brand-blue hover:bg-brand-blue/90'
+                  : 'bg-white text-gray-600 border-surface-border hover:bg-gray-50'
+              }`}>
+              <SlidersHorizontal size={14} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  {activeFilterCount}
+                </span>
               )}
-              <span className="text-xs text-gray-400 ml-auto shrink-0">
-                {visible.length} installation{visible.length !== 1 ? 's' : ''}
-              </span>
-            </div>
+            </button>
+            {hasFilters && (
+              <button onClick={clearAllFilters}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors shrink-0">
+                Clear all
+              </button>
+            )}
+            <span className="text-xs text-gray-400 shrink-0">
+              {visible.length} installation{visible.length !== 1 ? 's' : ''}
+            </span>
           </div>
 
           {/* Table */}
@@ -832,6 +860,147 @@ export default function Installations() {
           </div>
         </div>
       </Modal>
+
+      {/* ── Filter Drawer ─────────────────────────────────────────── */}
+      {drawerOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/30 z-[1000]"
+            onClick={() => setDrawerOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="fixed top-0 right-0 h-full w-80 bg-white z-[1001] shadow-2xl flex flex-col">
+            {/* Drawer header */}
+            <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
+              <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
+              <button onClick={() => setDrawerOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Drawer body — scrollable */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+
+              {/* Section 1 — Date Range */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Date Range</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">From</label>
+                    <input type="date" value={draft.dateFrom}
+                      onChange={e => setDraft(d => ({ ...d, dateFrom: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">To</label>
+                    <input type="date" value={draft.dateTo}
+                      onChange={e => setDraft(d => ({ ...d, dateTo: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2 — Status (multi-select checkboxes) */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Status</p>
+                <div className="space-y-2">
+                  {ALL_STATUSES.map(s => (
+                    <label key={s} className="flex items-center gap-3 cursor-pointer group">
+                      <input type="checkbox"
+                        checked={draft.statuses.includes(s)}
+                        onChange={() => toggleDraftStatus(s)}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                      />
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_CHIP[s] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {s}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 3 — Installation Slot */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Installation Slot</p>
+                <div className="space-y-2">
+                  {[{ val: '', label: 'All Slots' }, { val: 'Morning', label: 'Morning' }, { val: 'Afternoon', label: 'Afternoon' }, { val: 'Evening', label: 'Evening' }].map(opt => (
+                    <label key={opt.val} className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="drawer-slot" value={opt.val}
+                        checked={draft.slot === opt.val}
+                        onChange={() => setDraft(d => ({ ...d, slot: opt.val }))}
+                        className="w-4 h-4 text-brand-blue focus:ring-brand-blue/30"
+                      />
+                      <span className="text-sm text-gray-700">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 4 — Assigned Team */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Assigned Team</p>
+                <select value={draft.team} onChange={e => setDraft(d => ({ ...d, team: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700">
+                  <option value="">All Teams</option>
+                  {INSTALLATION_TEAMS.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* Section 5 — Assigned Engineer */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Assigned Engineer</p>
+                <select value={draft.engineer} onChange={e => setDraft(d => ({ ...d, engineer: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700">
+                  <option value="">All Engineers</option>
+                  {FIELD_ENGINEERS.map(e => <option key={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+
+              {/* Section 6 — Priority */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Priority</p>
+                <div className="space-y-2">
+                  {[{ val: '', label: 'All' }, { val: 'High', label: 'High' }, { val: 'Medium', label: 'Medium' }, { val: 'Low', label: 'Low' }].map(opt => (
+                    <label key={opt.val} className="flex items-center gap-3 cursor-pointer">
+                      <input type="radio" name="drawer-priority" value={opt.val}
+                        checked={draft.priority === opt.val}
+                        onChange={() => setDraft(d => ({ ...d, priority: opt.val }))}
+                        className="w-4 h-4 text-brand-blue focus:ring-brand-blue/30"
+                      />
+                      <span className="text-sm text-gray-700">{opt.label || 'All'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 7 — Branch */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Branch</p>
+                <select value={draft.branch} onChange={e => setDraft(d => ({ ...d, branch: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700">
+                  <option value="">All Branches</option>
+                  {INST_BRANCHES.map(b => <option key={b}>{b}</option>)}
+                </select>
+              </div>
+
+            </div>
+
+            {/* Drawer footer — sticky */}
+            <div className="px-5 py-4 border-t border-surface-border flex items-center gap-3 shrink-0 bg-white">
+              <button onClick={resetDrawer}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 border border-surface-border rounded-lg hover:bg-gray-50 transition-colors">
+                Reset Filters
+              </button>
+              <button onClick={applyDrawer}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-blue rounded-lg hover:bg-brand-blue/90 transition-colors">
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {toast && <Toast msg={toast} onDone={() => setToast('')} />}
     </div>
