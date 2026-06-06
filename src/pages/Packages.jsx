@@ -200,12 +200,14 @@ function CardDetailRow({ label, value }) {
 }
 
 function PlanCard({ plan, onStatusToggle }) {
+  const navigate = useNavigate()
   const isActive = plan.status === 'active'
   const serverColor = SERVER_TYPE_COLORS_CARD[plan.serverType] || 'bg-gray-600 text-white'
 
   return (
     <div
-      className={`bg-white rounded-xl shadow-card border border-surface-border flex flex-col transition-all duration-200 hover:shadow-card-hover ${
+      onClick={() => navigate(`/packages/${plan.id}`)}
+      className={`bg-white rounded-xl shadow-card border border-surface-border flex flex-col transition-all duration-200 hover:shadow-lg hover:border-brand-blue/30 cursor-pointer ${
         !isActive ? 'opacity-65' : ''
       }`}
     >
@@ -214,7 +216,7 @@ function PlanCard({ plan, onStatusToggle }) {
         <div className="flex items-start justify-between gap-2 mb-2.5">
           <p className="text-sm font-bold text-gray-900 leading-snug flex-1">{plan.name}</p>
           <button
-            onClick={() => onStatusToggle(plan.id)}
+            onClick={e => { e.stopPropagation(); onStatusToggle(plan.id) }}
             title={isActive ? 'Deactivate' : 'Activate'}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
               isActive ? 'bg-emerald-500' : 'bg-gray-300'
