@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Zap, Calendar, LayoutGrid, List, MoreVertical, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, LayoutGrid, List, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, BILLING_TYPES } from '../data/packagesStore'
@@ -153,7 +153,7 @@ export default function Packages() {
           <p className="text-sm mt-1">Try adjusting your filters or add a new plan</p>
         </div>
       ) : view === 'card' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(plan => (
             <PlanCard key={plan.id} plan={plan} onStatusToggle={handleStatusToggle} />
           ))}
@@ -174,8 +174,34 @@ export default function Packages() {
 
 /* ── Card view ────────────────────────────────────────────── */
 
+const SERVER_TYPE_COLORS_CARD = {
+  CNPL_B2C: 'bg-navy text-white',
+  CNPL_B2B: 'bg-brand-blue text-white',
+  CNPL_WHI: 'bg-purple-700 text-white',
+}
+
+function fmtDateCard(d) {
+  if (!d) return '—'
+  const [y, m, day] = d.split('-')
+  return `${day}-${m}-${y}`
+}
+
+function fmtPriceCard(n) {
+  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function CardDetailRow({ label, value }) {
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</span>
+      <span className="text-xs font-medium text-gray-800 truncate">{value || '—'}</span>
+    </div>
+  )
+}
+
 function PlanCard({ plan, onStatusToggle }) {
   const isActive = plan.status === 'active'
+  const serverColor = SERVER_TYPE_COLORS_CARD[plan.serverType] || 'bg-gray-600 text-white'
 
   return (
     <div
@@ -183,9 +209,10 @@ function PlanCard({ plan, onStatusToggle }) {
         !isActive ? 'opacity-65' : ''
       }`}
     >
+      {/* Header */}
       <div className="p-4 pb-3 border-b border-surface-border">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <p className="text-sm font-semibold text-gray-900 leading-snug flex-1">{plan.name}</p>
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <p className="text-sm font-bold text-gray-900 leading-snug flex-1">{plan.name}</p>
           <button
             onClick={() => onStatusToggle(plan.id)}
             title={isActive ? 'Deactivate' : 'Activate'}
@@ -196,42 +223,55 @@ function PlanCard({ plan, onStatusToggle }) {
             <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
           </button>
         </div>
+        {/* Badges */}
         <div className="flex flex-wrap gap-1.5">
           <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
           {plan.pipeline === 'Residential' && <Badge variant="blue" size="sm">Residential</Badge>}
           {plan.pipeline === 'Enterprise' && <Badge variant="purple" size="sm">Enterprise</Badge>}
           {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
           {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
+          {plan.ottBundle && <Badge variant="purple" size="sm">OTT Bundle</Badge>}
         </div>
       </div>
-      <div className="p-4 flex-1 space-y-2.5">
-        <InfoRow icon={<Zap size={12} className="text-brand-blue" />} label="Speed" value={plan.speed} />
-        <InfoRow icon={<Calendar size={12} className="text-gray-400" />} label="Validity" value={plan.validity ? `${plan.validity} days` : 'One-time'} />
-        <InfoRow icon={<span className="text-xs">🔄</span>} label="Billing" value={plan.billingType} />
-        {plan.ottBundle && (
-          <div className="flex items-center gap-1.5 text-xs text-purple-700 font-medium bg-purple-50 rounded-lg px-2.5 py-1.5">
-            <span>📺</span> OTT Bundle Included
-          </div>
-        )}
-      </div>
-      <div className="px-4 py-3 bg-gray-50/70 rounded-b-xl border-t border-surface-border flex items-center justify-between">
-        <div>
-          <p className="text-xs text-gray-500 mb-0.5">Price</p>
-          <p className="text-lg font-bold text-gray-900">₹{plan.price.toLocaleString('en-IN')}</p>
-        </div>
-        <Badge variant={isActive ? 'green' : 'gray'} size="sm" dot>
-          {isActive ? 'Active' : 'Inactive'}
-        </Badge>
-      </div>
-    </div>
-  )
-}
 
-function InfoRow({ icon, label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="flex items-center gap-1.5 text-xs text-gray-500">{icon}{label}</span>
-      <span className="text-xs font-medium text-gray-700 text-right">{value}</span>
+      {/* Details grid */}
+      <div className="p-4 flex-1">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <CardDetailRow label="Speed"           value={plan.speed} />
+          <CardDetailRow label="Validity"        value={plan.validity ? `${plan.validity} days` : 'One-time'} />
+          <CardDetailRow label="Billing Type"    value={plan.billingType} />
+          <CardDetailRow label="Price"           value={fmtPriceCard(plan.price)} />
+          <CardDetailRow label="Sort Order"      value={plan.sortOrder ?? '—'} />
+          <CardDetailRow label="No. of Recharge" value={plan.noOfRecharge ?? 1} />
+          <CardDetailRow label="B/W Package ID"  value={plan.bwPackageId || '0'} />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Server Type</span>
+            {plan.serverType
+              ? <span className={`inline-flex items-center self-start px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${serverColor}`}>{plan.serverType}</span>
+              : <span className="text-xs font-medium text-gray-800">—</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 bg-gray-50/70 rounded-b-xl border-t border-surface-border">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-lg font-bold text-gray-900">{fmtPriceCard(plan.price)}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              {plan.createdAt && (
+                <span className="text-[10px] text-gray-400">{fmtDateCard(plan.createdAt)}</span>
+              )}
+              {plan.addedBy && (
+                <span className="text-[10px] text-gray-400">· {plan.addedBy}</span>
+              )}
+            </div>
+          </div>
+          <Badge variant={isActive ? 'green' : 'gray'} size="sm" dot>
+            {isActive ? 'Active' : 'Inactive'}
+          </Badge>
+        </div>
+      </div>
     </div>
   )
 }
