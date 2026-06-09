@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, Clock, FileText, Image, Upload,
+  Phone, Mail, Calendar, Clock, FileText, Image, Upload, Wrench,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -326,6 +326,69 @@ export default function FeasibilityDetail() {
                   : <p className="text-sm font-medium text-gray-800">—</p>}
               </div>
             </div>
+          </Card>
+
+          {/* Section 2b — Hardware Requirements */}
+          <Card title="Hardware Requirements" icon={Wrench}>
+            {(!req.hwItems?.length && !req.wireItems?.length) ? (
+              <p className="text-sm text-gray-400 text-center py-4">No hardware requirements added yet</p>
+            ) : (
+              <div className="space-y-6">
+                {/* Hardware Items table */}
+                {req.hwItems?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Hardware Items</p>
+                    <div className="overflow-hidden rounded-lg border border-surface-border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-surface-border">
+                            <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Item Name</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">QTY</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">Unit</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-border">
+                          {req.hwItems.map((row, i) => (
+                            <tr key={row.id ?? i} className="hover:bg-gray-50/60">
+                              <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">{row.name || '—'}</td>
+                              <td className="px-4 py-2.5 text-sm text-gray-700 text-center">{row.qty || '—'}</td>
+                              <td className="px-4 py-2.5 text-sm text-gray-500 text-center">{row.unit || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Wire / Cable table */}
+                {req.wireItems?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Wire / Cable</p>
+                    <div className="overflow-hidden rounded-lg border border-surface-border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-surface-border">
+                            <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cable Name</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">QTY</th>
+                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">Unit</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-border">
+                          {req.wireItems.map((row, i) => (
+                            <tr key={row.id ?? i} className="hover:bg-gray-50/60">
+                              <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">{row.name || '—'}</td>
+                              <td className="px-4 py-2.5 text-sm text-gray-700 text-center">{row.qty || '—'}</td>
+                              <td className="px-4 py-2.5 text-sm text-gray-500 text-center">{row.unit || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           {/* Section 3 — Feasibility Details */}

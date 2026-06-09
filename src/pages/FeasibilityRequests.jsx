@@ -8,7 +8,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
-import { getFeasibilityRequests, updateFeasibilityStatus, subscribeFeasibility } from '../data/feasibilityStore'
+import { getFeasibilityRequests, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest } from '../data/feasibilityStore'
 
 /* ── Constants ───────────────────────────────────────────────── */
 
@@ -171,6 +171,8 @@ export default function FeasibilityRequests() {
   }
 
   function handleSaveHw() {
+    const req = requests.find(r => r.id === hwReqId)
+    if (req) saveFeasibilityRequest({ ...req, hwItems, wireItems })
     setToast('Hardware requirements saved')
     setHwReqId(null)
   }
