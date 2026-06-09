@@ -24,7 +24,7 @@ const INIT_INSTALLATIONS = [
     plan: '100 Mbps Monthly (FTTH)',
     slotDate: '2026-06-05', slotTime: '10:00', slot: 'Morning',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar, Preethi Nair, Suresh Babu',
     branch: 'CNPL-010', createdBy: 'Ravi Patel', priority: 'High',
     status: 'Scheduled',
     hardwareRequired: true,
