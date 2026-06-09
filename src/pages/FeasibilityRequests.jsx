@@ -325,7 +325,7 @@ export default function FeasibilityRequests() {
               <table className="w-full" style={{ minWidth: 1500 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {['Req ID','Lead ID','Customer Name','Mobile','Village','Area','Locality','Sub Locality',
+                    {['Req ID','Lead ID','Customer Name','Mobile','Connection Type','Area','Locality','Sub Locality',
                       'Feasibility Reason','Assigned Engineer','Fiber Req (M)','Priority','Status','Created Date','Branch','Actions']
                       .map((h, i) => (
                         <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-6' : ''}`}>{h}</th>
@@ -354,7 +354,7 @@ export default function FeasibilityRequests() {
                         <span className="font-mono text-xs text-gray-600">{r.mobile || '—'}</span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700">{r.village || '—'}</span>
+                        <span className="text-xs text-gray-700">{r.connectionType || '—'}</span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs text-gray-700">{r.area}</span>
