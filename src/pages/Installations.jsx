@@ -734,7 +734,7 @@ export default function Installations() {
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setAssignInst(null)}>Cancel</Button>
           <Button size="sm" onClick={handleAssign} disabled={assignForm.engineers.length === 0}>
-            {hwToggle ? 'Assign & Save Requirements' : 'Assign Team'}
+            {hwToggle ? 'Move to Hardware Collection' : 'Assign Team'}
           </Button>
         </>}
       >
