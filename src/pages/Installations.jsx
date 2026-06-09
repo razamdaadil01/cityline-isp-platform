@@ -501,27 +501,25 @@ export default function Installations() {
                             ? inst.engineerName.split(', ').filter(Boolean)
                             : []
                           if (names.length === 0) return <span className="text-gray-300 text-xs">—</span>
-                          const visible = names.slice(0, 2)
-                          const rest    = names.length - 2
+                          const visible = names.slice(0, 3)
+                          const rest    = names.length - 3
                           return (
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-col gap-1">
                               {visible.map(name => {
-                                const eng = FIELD_ENGINEERS.find(e => e.name === name)
+                                const eng      = FIELD_ENGINEERS.find(e => e.name === name)
                                 const initials = eng?.initials ?? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
                                 const color    = eng?.color ?? 'bg-gray-400'
                                 return (
-                                  <div key={name} className="relative group">
-                                    <div className={`w-7 h-7 rounded-full ${color} flex items-center justify-center text-white text-[9px] font-bold shrink-0 cursor-default`}>
+                                  <div key={name} className="flex items-center gap-1.5">
+                                    <div className={`w-6 h-6 rounded-full ${color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
                                       {initials}
                                     </div>
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                                      {name}
-                                    </div>
+                                    <span className="text-xs text-gray-800 font-medium">{name}</span>
                                   </div>
                                 )
                               })}
                               {rest > 0 && (
-                                <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">+{rest}</span>
+                                <span className="text-[10px] text-gray-400 pl-0.5">+{rest} more</span>
                               )}
                             </div>
                           )
