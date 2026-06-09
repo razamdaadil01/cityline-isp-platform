@@ -444,7 +444,7 @@ export default function Installations() {
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                     {['Inst ID','Lead ID','Customer Name','Mobile','Area','Locality',
-                      'Assigned Team','Assigned Engineer','Installation Slot','Installation Date',
+                      'Assigned Engineer','Installation Slot','Installation Date',
                       'Status','Branch','Created By','Actions'].map((h, i) => (
                       <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-6' : ''}`}>
                         {h}
@@ -494,18 +494,38 @@ export default function Installations() {
                         <span className="text-xs text-gray-600">{inst.locality || '—'}</span>
                       </td>
 
-                      {/* ASSIGNED TEAM */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {inst.assignedTeam
-                          ? <span className="text-xs font-medium bg-navy/10 text-navy px-2 py-0.5 rounded-full">{inst.assignedTeam}</span>
-                          : <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Unassigned</span>}
-                      </td>
-
                       {/* ASSIGNED ENGINEER */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {inst.engineerName
-                          ? <span className="text-xs text-gray-800 font-medium">{inst.engineerName}</span>
-                          : <span className="text-gray-300 text-xs">—</span>}
+                        {(() => {
+                          const names = inst.engineerName
+                            ? inst.engineerName.split(', ').filter(Boolean)
+                            : []
+                          if (names.length === 0) return <span className="text-gray-300 text-xs">—</span>
+                          const visible = names.slice(0, 2)
+                          const rest    = names.length - 2
+                          return (
+                            <div className="flex items-center gap-1">
+                              {visible.map(name => {
+                                const eng = FIELD_ENGINEERS.find(e => e.name === name)
+                                const initials = eng?.initials ?? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                                const color    = eng?.color ?? 'bg-gray-400'
+                                return (
+                                  <div key={name} className="relative group">
+                                    <div className={`w-7 h-7 rounded-full ${color} flex items-center justify-center text-white text-[9px] font-bold shrink-0 cursor-default`}>
+                                      {initials}
+                                    </div>
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                                      {name}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                              {rest > 0 && (
+                                <span className="text-[10px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">+{rest}</span>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </td>
 
                       {/* INSTALLATION SLOT */}
