@@ -302,14 +302,30 @@ export default function FeasibilityDetail() {
 
           {/* Section 2 — Location Details */}
           <Card title="Location Details" icon={MapPin}>
-            <InfoGrid>
-              <InfoRow label="Village / Society" value={req.village} />
-              <InfoRow label="Area"              value={req.area} />
-              <InfoRow label="Locality"          value={req.localityName} />
-              <InfoRow label="Sub Locality"      value={req.subLocalityName} />
-              <InfoRow label="Landmark"          value={req.landmark} />
-              <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
-            </InfoGrid>
+            <div className="space-y-5">
+              <InfoGrid>
+                <InfoRow label="Village / Society" value={req.village} />
+                <InfoRow label="Area"              value={req.area} />
+                <InfoRow label="Locality"          value={req.localityName} />
+                <InfoRow label="Sub Locality"      value={req.subLocalityName} />
+                <InfoRow label="Landmark"          value={req.landmark} />
+                <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
+                <InfoRow label="Connection Type"   value={req.connectionType} />
+                <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
+              </InfoGrid>
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
+                {req.completeAddress
+                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
+                  : <p className="text-sm font-medium text-gray-800">—</p>}
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement</p>
+                {(req.customerRequirementNotes || req.customerRequirement)
+                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.customerRequirementNotes || req.customerRequirement}</p>
+                  : <p className="text-sm font-medium text-gray-800">—</p>}
+              </div>
+            </div>
           </Card>
 
           {/* Section 3 — Feasibility Details */}
