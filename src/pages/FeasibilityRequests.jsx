@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   List, Clock, CheckCircle2, XCircle, Loader2,
-  Search, MoreVertical, X, UserCheck, SlidersHorizontal,
+  Search, MoreVertical, X, UserCheck, SlidersHorizontal, Wrench, Plus, Trash2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -22,7 +22,7 @@ const STATUS_VARIANT = {
   Rejected:     'red',
 }
 
-const ENGINEERS = ['Arjun Kumar', 'Preethi Nair', 'Anita Sharma', 'Suresh Babu']
+const ENGINEERS = ['Arjun Kumar', 'Preethi Nair', 'Anita Sharma', 'Suresh Babu', 'Ravi Menon']
 
 const BRANCHES = [
   'CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005',
@@ -39,6 +39,12 @@ const REJECTION_REASONS = [
 
 const PRIORITY_VARIANT = { High: 'red', Medium: 'yellow', Low: 'gray' }
 
+const HW_ITEM_SUGGESTIONS   = ['ONT Device', 'Drop Wire', 'Splitter', 'ONU', 'Patch Cord', 'Other']
+const WIRE_ITEM_SUGGESTIONS  = ['Ethernet Cat6', 'Fiber Cable', 'Drop Wire', 'Other']
+
+function newHwRow(name = '', qty = '', unit = 'pcs') { return { id: Date.now() + Math.random(), name, qty, unit } }
+function newWireRow(name = '', qty = '', unit = 'm')  { return { id: Date.now() + Math.random(), name, qty, unit } }
+
 /* ── Toast ───────────────────────────────────────────────────── */
 function Toast({ msg, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t) }, [onDone])
@@ -53,6 +59,7 @@ function Toast({ msg, onDone }) {
 /* ── Main component ──────────────────────────────────────────── */
 export default function FeasibilityRequests() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const menuRef  = useRef(null)
 
   const [requests, setRequests] = useState(getFeasibilityRequests())
@@ -111,8 +118,8 @@ export default function FeasibilityRequests() {
   const [approveReq, setApproveReq] = useState(null)
   const [rejectReq,  setRejectReq]  = useState(null)
 
-  // Assign form
-  const [assignForm, setAssignForm] = useState({ engineer: '', date: '', priority: 'Medium', notes: '' })
+  // Assign form — engineers is now an array
+  const [assignForm, setAssignForm] = useState({ engineers: [], date: '', priority: 'Medium', notes: '' })
 
   // Approve form
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
@@ -120,8 +127,23 @@ export default function FeasibilityRequests() {
   // Reject form
   const [rejectForm, setRejectForm] = useState({ reason: '', remarks: '' })
 
+  // Hardware requirements modal
+  const [hwReqId,   setHwReqId]   = useState(null)
+  const [hwItems,   setHwItems]   = useState([])
+  const [wireItems, setWireItems] = useState([])
+
   // Toast
   const [toast, setToast] = useState('')
+
+  // Handle URL param to open hardware modal
+  useEffect(() => {
+    const action = searchParams.get('action')
+    const id     = searchParams.get('id')
+    if (action === 'add-hardware' && id) {
+      openHwModal(id)
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => subscribeFeasibility(setRequests), [])
 
@@ -140,17 +162,54 @@ export default function FeasibilityRequests() {
   }
 
   function startAssign(req) {
-    setAssignForm({ engineer: req.assignedEngineer || '', date: '', priority: req.priority || 'Medium', notes: '' })
+    const existing = req.assignedEngineer ? req.assignedEngineer.split(', ').filter(Boolean) : []
+    setAssignForm({ engineers: existing, date: '', priority: req.priority || 'Medium', notes: '' })
     setAssignReq(req); setMenuId(null)
+  }
+
+  function toggleAssignEngineer(name) {
+    setAssignForm(f => ({
+      ...f,
+      engineers: f.engineers.includes(name) ? f.engineers.filter(e => e !== name) : [...f.engineers, name],
+    }))
   }
 
   function handleAssign() {
     updateFeasibilityStatus(assignReq.id, 'Assigned', {
-      assignedEngineer: assignForm.engineer,
+      assignedEngineer: assignForm.engineers.join(', '),
       priority: assignForm.priority,
     })
     setAssignReq(null)
+    setToast('Engineer(s) assigned successfully')
   }
+
+  function openHwModal(id) {
+    setHwReqId(id)
+    setHwItems([
+      newHwRow('ONT Device', '1', 'pcs'),
+      newHwRow('Drop Wire',  '50', 'm'),
+    ])
+    setWireItems([
+      newWireRow('Ethernet Cat6', '20', 'm'),
+    ])
+  }
+
+  function startHwRequirements(req) {
+    openHwModal(req.id)
+    setMenuId(null)
+  }
+
+  function handleSaveHw() {
+    setToast('Hardware requirements saved')
+    setHwReqId(null)
+  }
+
+  function addHwItem()   { setHwItems(r   => [...r,   newHwRow()])   }
+  function addWireItem() { setWireItems(r => [...r, newWireRow()]) }
+  function removeHwItem(id)   { setHwItems(r   => r.filter(x => x.id !== id)) }
+  function removeWireItem(id) { setWireItems(r => r.filter(x => x.id !== id)) }
+  function updateHwItem(id, field, val)   { setHwItems(r   => r.map(x => x.id === id ? { ...x, [field]: val } : x)) }
+  function updateWireItem(id, field, val) { setWireItems(r => r.map(x => x.id === id ? { ...x, [field]: val } : x)) }
 
   function startApprove(req) {
     setApproveForm({ comment: '', fiberEstimate: req.fiberRequired || '', hardware: '', installNotes: '' })
@@ -436,6 +495,11 @@ export default function FeasibilityRequests() {
             <UserCheck className="w-4 h-4 text-brand-blue flex-shrink-0" />
             <span className="text-sm text-gray-700">Assign Engineer</span>
           </button>
+          <button onClick={() => startHwRequirements(menuReq)}
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <Wrench className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">Add Hardware Requirements</span>
+          </button>
           <div className="my-1 border-t border-gray-100" />
           <button onClick={() => startApprove(menuReq)}
             className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
@@ -459,16 +523,37 @@ export default function FeasibilityRequests() {
         size="sm"
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setAssignReq(null)}>Cancel</Button>
-          <Button size="sm" onClick={handleAssign} disabled={!assignForm.engineer}>Assign Engineer</Button>
+          <Button size="sm" onClick={handleAssign} disabled={assignForm.engineers.length === 0}>Assign Engineer</Button>
         </>}
       >
         <div className="space-y-4">
-          <FormField label="Engineer Name" required>
-            <Select value={assignForm.engineer} onChange={e => setAssignForm(f => ({ ...f, engineer: e.target.value }))}>
-              <option value="">Select engineer…</option>
-              {ENGINEERS.map(eng => <option key={eng}>{eng}</option>)}
-            </Select>
-          </FormField>
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-2">Engineers <span className="text-red-500">*</span></p>
+            <div className="flex flex-wrap gap-2">
+              {ENGINEERS.map(eng => {
+                const selected = assignForm.engineers.includes(eng)
+                return (
+                  <button
+                    key={eng}
+                    type="button"
+                    onClick={() => toggleAssignEngineer(eng)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      selected
+                        ? 'bg-brand-blue text-white border-brand-blue'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-brand-blue hover:text-brand-blue'
+                    }`}
+                  >
+                    {eng}
+                  </button>
+                )
+              })}
+            </div>
+            {assignForm.engineers.length > 0 && (
+              <p className="text-[11px] text-brand-blue mt-1.5">
+                {assignForm.engineers.length} selected: {assignForm.engineers.join(', ')}
+              </p>
+            )}
+          </div>
           <FormField label="Assignment Date">
             <Input type="date" value={assignForm.date} onChange={e => setAssignForm(f => ({ ...f, date: e.target.value }))} />
           </FormField>
@@ -478,7 +563,7 @@ export default function FeasibilityRequests() {
             </Select>
           </FormField>
           <FormField label="Internal Notes">
-            <Textarea rows={3} placeholder="Any notes for the engineer…"
+            <Textarea rows={3} placeholder="Any notes for the engineers…"
               value={assignForm.notes} onChange={e => setAssignForm(f => ({ ...f, notes: e.target.value }))} />
           </FormField>
         </div>
@@ -545,6 +630,122 @@ export default function FeasibilityRequests() {
             <Textarea rows={3} placeholder="Additional remarks…"
               value={rejectForm.remarks} onChange={e => setRejectForm(f => ({ ...f, remarks: e.target.value }))} />
           </FormField>
+        </div>
+      </Modal>
+
+      {/* ── Hardware Requirements Modal ──────────────────────────── */}
+      <Modal
+        isOpen={!!hwReqId}
+        onClose={() => setHwReqId(null)}
+        title={`Hardware Requirements — ${hwReqId}`}
+        size="md"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setHwReqId(null)}>Cancel</Button>
+          <Button size="sm" onClick={handleSaveHw}>Save Requirements</Button>
+        </>}
+      >
+        <div className="space-y-6">
+          {/* Section 1 — Hardware Items */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Hardware Items</p>
+              <button type="button" onClick={addHwItem}
+                className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                <Plus size={12} /> Add Item
+              </button>
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_72px_72px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                <span>Item Name</span><span>QTY</span><span>Unit</span><span />
+              </div>
+              {hwItems.map(row => (
+                <div key={row.id} className="grid grid-cols-[1fr_72px_72px_28px] gap-2 items-center">
+                  <input
+                    value={row.name}
+                    onChange={e => updateHwItem(row.id, 'name', e.target.value)}
+                    placeholder="e.g. ONT Device"
+                    list="hw-suggestions"
+                    className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800"
+                  />
+                  <input
+                    type="number" min="0"
+                    value={row.qty}
+                    onChange={e => updateHwItem(row.id, 'qty', e.target.value)}
+                    placeholder="0"
+                    className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800 text-center"
+                  />
+                  <input
+                    value={row.unit}
+                    onChange={e => updateHwItem(row.id, 'unit', e.target.value)}
+                    placeholder="pcs"
+                    className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800 text-center"
+                  />
+                  <button type="button" onClick={() => removeHwItem(row.id)}
+                    className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+              {hwItems.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-3 border-2 border-dashed border-gray-200 rounded-lg">No items added</p>
+              )}
+            </div>
+            <datalist id="hw-suggestions">
+              {HW_ITEM_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+            </datalist>
+          </div>
+
+          <div className="border-t border-surface-border" />
+
+          {/* Section 2 — Wire / Cable */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Wire / Cable</p>
+              <button type="button" onClick={addWireItem}
+                className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                <Plus size={12} /> Add Wire
+              </button>
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_72px_72px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                <span>Cable Name</span><span>QTY</span><span>Unit</span><span />
+              </div>
+              {wireItems.map(row => (
+                <div key={row.id} className="grid grid-cols-[1fr_72px_72px_28px] gap-2 items-center">
+                  <input
+                    value={row.name}
+                    onChange={e => updateWireItem(row.id, 'name', e.target.value)}
+                    placeholder="e.g. Ethernet Cat6"
+                    list="wire-suggestions"
+                    className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800"
+                  />
+                  <input
+                    type="number" min="0"
+                    value={row.qty}
+                    onChange={e => updateWireItem(row.id, 'qty', e.target.value)}
+                    placeholder="0"
+                    className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800 text-center"
+                  />
+                  <input
+                    value={row.unit}
+                    onChange={e => updateWireItem(row.id, 'unit', e.target.value)}
+                    placeholder="m"
+                    className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800 text-center"
+                  />
+                  <button type="button" onClick={() => removeWireItem(row.id)}
+                    className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+              {wireItems.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-3 border-2 border-dashed border-gray-200 rounded-lg">No wires added</p>
+              )}
+            </div>
+            <datalist id="wire-suggestions">
+              {WIRE_ITEM_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+            </datalist>
+          </div>
         </div>
       </Modal>
 
