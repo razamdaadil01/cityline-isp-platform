@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   List, Clock, CheckCircle2, XCircle, Loader2,
-  Search, MoreVertical, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench,
+  Search, MoreVertical, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench, Edit2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -132,6 +132,31 @@ export default function FeasibilityRequests() {
 
   // Reject form
   const [rejectForm, setRejectForm] = useState({ reason: '', remarks: '' })
+
+  // Edit modal
+  const [editReq,  setEditReq]  = useState(null)
+  const [editForm, setEditForm] = useState({})
+
+  function startEdit(req) {
+    setEditForm({
+      localityName:             req.localityName             || '',
+      subLocalityName:          req.subLocalityName          || '',
+      completeAddress:          req.completeAddress          || '',
+      landmark:                 req.landmark                 || '',
+      connectionType:           req.connectionType           || '',
+      customerRequirementNotes: req.customerRequirementNotes || '',
+      assignedBranch:           req.assignedBranch           || '',
+      fiberRequired:            req.fiberRequired             || '',
+      priority:                 req.priority                 || 'Medium',
+    })
+    setEditReq(req); setMenuId(null)
+  }
+
+  function handleSaveEdit() {
+    saveFeasibilityRequest({ ...editReq, ...editForm })
+    setEditReq(null)
+    setToast('Changes saved successfully')
+  }
 
   // Hardware requirements (separate modal)
   const [hwReqId,   setHwReqId]   = useState(null)
@@ -466,6 +491,11 @@ export default function FeasibilityRequests() {
           style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
           className="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]"
         >
+          <button onClick={() => startEdit(menuReq)}
+            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+            <Edit2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <span className="text-sm text-gray-700">Edit</span>
+          </button>
           <button onClick={() => { navigate(`/sales/feasibility-requests/${menuReq.id}`); setMenuId(null) }}
             className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
             <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
@@ -500,6 +530,60 @@ export default function FeasibilityRequests() {
           </button>
         </div>
       )}
+
+      {/* Edit modal */}
+      <Modal
+        isOpen={!!editReq}
+        onClose={() => setEditReq(null)}
+        title={`Edit — ${editReq?.id}`}
+        size="md"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setEditReq(null)}>Cancel</Button>
+          <Button size="sm" onClick={handleSaveEdit}>Save Changes</Button>
+        </>}
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Locality Name">
+            <Input value={editForm.localityName} onChange={e => setEditForm(f => ({ ...f, localityName: e.target.value }))} placeholder="Enter locality name" />
+          </FormField>
+          <FormField label="Sub Locality Name">
+            <Input value={editForm.subLocalityName} onChange={e => setEditForm(f => ({ ...f, subLocalityName: e.target.value }))} placeholder="Enter sub locality name" />
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Complete Address">
+              <Textarea rows={2} value={editForm.completeAddress} onChange={e => setEditForm(f => ({ ...f, completeAddress: e.target.value }))} placeholder="Full address…" />
+            </FormField>
+          </div>
+          <FormField label="Landmark">
+            <Input value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} placeholder="Nearby landmark" />
+          </FormField>
+          <FormField label="Expected Connection Type">
+            <Select value={editForm.connectionType} onChange={e => setEditForm(f => ({ ...f, connectionType: e.target.value }))}>
+              <option value="">Select…</option>
+              {['FTTH', 'Sector', 'Village'].map(t => <option key={t}>{t}</option>)}
+            </Select>
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Customer Requirement">
+              <Textarea rows={2} value={editForm.customerRequirementNotes} onChange={e => setEditForm(f => ({ ...f, customerRequirementNotes: e.target.value }))} placeholder="Customer's requirements…" />
+            </FormField>
+          </div>
+          <FormField label="Assigned Branch">
+            <Select value={editForm.assignedBranch} onChange={e => setEditForm(f => ({ ...f, assignedBranch: e.target.value }))}>
+              <option value="">Select…</option>
+              {['CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005','CNPL-006','CNPL-007','CNPL-008','CNPL-009','CNPL-010','CNPL-011'].map(b => <option key={b}>{b}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Fiber Req (M)">
+            <Input type="number" min="0" value={editForm.fiberRequired} onChange={e => setEditForm(f => ({ ...f, fiberRequired: e.target.value }))} placeholder="e.g. 250" />
+          </FormField>
+          <FormField label="Priority" required>
+            <Select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}>
+              {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
+            </Select>
+          </FormField>
+        </div>
+      </Modal>
 
       {/* Assign Engineer modal */}
       <Modal
