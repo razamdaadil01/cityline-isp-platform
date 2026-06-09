@@ -22,7 +22,13 @@ const STATUS_VARIANT = {
   Rejected:     'red',
 }
 
-const ENGINEERS = ['Arjun Kumar', 'Preethi Nair', 'Anita Sharma', 'Suresh Babu', 'Ravi Menon']
+const ENGINEERS = [
+  { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'  },
+  { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500'  },
+  { name: 'Anita Sharma',  initials: 'AS', color: 'bg-teal-500'    },
+  { name: 'Suresh Babu',   initials: 'SB', color: 'bg-emerald-600' },
+  { name: 'Ravi Menon',    initials: 'RM', color: 'bg-orange-500'  },
+]
 
 const BRANCHES = [
   'CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005',
@@ -496,26 +502,25 @@ export default function FeasibilityRequests() {
           {/* Section 1 — Engineers */}
           <div>
             <p className="text-xs font-medium text-gray-700 mb-2">Engineers <span className="text-red-500">*</span></p>
-            <div className="flex flex-wrap gap-2">
+            <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[280px] overflow-y-auto">
               {ENGINEERS.map(eng => {
-                const selected = assignForm.engineers.includes(eng)
+                const selected = assignForm.engineers.includes(eng.name)
                 return (
-                  <button key={eng} type="button" onClick={() => toggleAssignEngineer(eng)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      selected
-                        ? 'bg-brand-blue text-white border-brand-blue'
-                        : 'bg-white text-gray-600 border-gray-300 hover:border-brand-blue hover:text-brand-blue'
-                    }`}>
-                    {eng}
-                  </button>
+                  <label key={eng.name}
+                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                    <input type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleAssignEngineer(eng.name)}
+                      className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                    />
+                    <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                      {eng.initials}
+                    </div>
+                    <span className="text-sm text-gray-700">{eng.name}</span>
+                  </label>
                 )
               })}
             </div>
-            {assignForm.engineers.length > 0 && (
-              <p className="text-[11px] text-brand-blue mt-1.5">
-                {assignForm.engineers.length} selected: {assignForm.engineers.join(', ')}
-              </p>
-            )}
           </div>
 
           {/* Section 2 — Date */}
@@ -751,7 +756,7 @@ export default function FeasibilityRequests() {
                   onChange={e => setDraft(d => ({ ...d, engineer: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700">
                   <option value="">All Engineers</option>
-                  {ENGINEERS.map(e => <option key={e}>{e}</option>)}
+                  {ENGINEERS.map(e => <option key={e.name}>{e.name}</option>)}
                 </select>
               </div>
 
