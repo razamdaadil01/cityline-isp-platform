@@ -9,6 +9,7 @@ import {
   Fingerprint, Search, FileText, PhoneCall,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
+import { saveFeasibilityRequest, getFeasibilityRequests } from '../data/feasibilityStore'
 import { getInstallations, subscribeInstallations } from '../data/installationsStore'
 import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
 import { saveFollowup } from '../data/followupStore'
@@ -1828,6 +1829,26 @@ export default function SalesLeadDetail() {
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
     }
     saveLead(updatedLead)
+    if (targetStage === 'Feasibility') {
+      const existing = getFeasibilityRequests().find(r => r.leadId === lead.id)
+      saveFeasibilityRequest({
+        ...(existing ?? {}),
+        leadId:                   lead.id,
+        customerName:             lead.name,
+        mobile:                   lead.phone,
+        area:                     lead.area ?? '',
+        pipeline:                 lead.pipeline ?? '',
+        stage:                    targetStage,
+        feasibilityStatus:        existing?.feasibilityStatus ?? 'Pending',
+        localityName:             fieldVals['s4-f1'] || existing?.localityName || '',
+        subLocalityName:          fieldVals['s4-f2'] || existing?.subLocalityName || '',
+        completeAddress:          fieldVals['s4-f3'] || existing?.completeAddress || '',
+        landmark:                 fieldVals['s4-f4'] || existing?.landmark || '',
+        connectionType:           fieldVals['s4-f5'] || existing?.connectionType || '',
+        customerRequirementNotes: fieldVals['s4-f6'] || existing?.customerRequirementNotes || '',
+        assignedBranch:           fieldVals['s4-f7'] || existing?.assignedBranch || '',
+      })
+    }
     if (fuData?.date) {
       saveFollowup({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage, assignedTo: lead.assigned, notifyTo: fuData.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
     }
