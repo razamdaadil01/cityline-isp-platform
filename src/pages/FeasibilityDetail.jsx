@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, Clock, FileText, Image, Upload, Wrench,
+  Phone, Mail, Calendar, Clock, FileText, Image, Upload, Wrench, Edit2,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import {
-  getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility,
+  getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -145,6 +145,8 @@ export default function FeasibilityDetail() {
   }, [id])
 
   // Modals
+  const [showEdit,    setShowEdit]    = useState(false)
+  const [editForm,    setEditForm]    = useState({})
   const [showAssign,  setShowAssign]  = useState(false)
   const [showApprove, setShowApprove] = useState(false)
   const [showReject,  setShowReject]  = useState(false)
@@ -154,6 +156,27 @@ export default function FeasibilityDetail() {
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
 
   const [toast, setToast] = useState('')
+
+  function openEdit() {
+    setEditForm({
+      localityName:             req.localityName             || '',
+      subLocalityName:          req.subLocalityName          || '',
+      completeAddress:          req.completeAddress          || '',
+      landmark:                 req.landmark                 || '',
+      connectionType:           req.connectionType           || '',
+      customerRequirementNotes: req.customerRequirementNotes || '',
+      assignedBranch:           req.assignedBranch           || '',
+      fiberRequired:            req.fiberRequired             || '',
+      priority:                 req.priority                 || 'Medium',
+    })
+    setShowEdit(true)
+  }
+
+  function handleSaveEdit() {
+    saveFeasibilityRequest({ ...req, ...editForm })
+    setShowEdit(false)
+    setToast('Changes saved successfully')
+  }
 
   function openAssign() {
     setAssignForm({ engineer: req.assignedEngineer || '', date: req.assignmentDate || '', priority: req.priority || 'Medium', notes: req.assignmentNotes || '' })
@@ -260,6 +283,10 @@ export default function FeasibilityDetail() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 ml-2 shrink-0">
+          <button onClick={openEdit}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+            <Edit2 size={13} /> Edit
+          </button>
           {!isApproved && !isRejected && (
             <button onClick={openAssign}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-brand-blue/30 bg-blue-50 text-brand-blue hover:bg-blue-100 transition-colors">
@@ -545,6 +572,60 @@ export default function FeasibilityDetail() {
           </Card>
         </div>
       </div>
+
+      {/* ── Edit Modal ───────────────────────────────────────────── */}
+      <Modal
+        isOpen={showEdit}
+        onClose={() => setShowEdit(false)}
+        title={`Edit — ${req.id}`}
+        size="md"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setShowEdit(false)}>Cancel</Button>
+          <Button size="sm" onClick={handleSaveEdit}>Save Changes</Button>
+        </>}
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Locality Name">
+            <Input value={editForm.localityName} onChange={e => setEditForm(f => ({ ...f, localityName: e.target.value }))} placeholder="Enter locality name" />
+          </FormField>
+          <FormField label="Sub Locality Name">
+            <Input value={editForm.subLocalityName} onChange={e => setEditForm(f => ({ ...f, subLocalityName: e.target.value }))} placeholder="Enter sub locality name" />
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Complete Address">
+              <Textarea rows={2} value={editForm.completeAddress} onChange={e => setEditForm(f => ({ ...f, completeAddress: e.target.value }))} placeholder="Full address…" />
+            </FormField>
+          </div>
+          <FormField label="Landmark">
+            <Input value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} placeholder="Nearby landmark" />
+          </FormField>
+          <FormField label="Expected Connection Type">
+            <Select value={editForm.connectionType} onChange={e => setEditForm(f => ({ ...f, connectionType: e.target.value }))}>
+              <option value="">Select…</option>
+              {['FTTH', 'Sector', 'Village'].map(t => <option key={t}>{t}</option>)}
+            </Select>
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Customer Requirement">
+              <Textarea rows={2} value={editForm.customerRequirementNotes} onChange={e => setEditForm(f => ({ ...f, customerRequirementNotes: e.target.value }))} placeholder="Customer's requirements…" />
+            </FormField>
+          </div>
+          <FormField label="Assigned Branch">
+            <Select value={editForm.assignedBranch} onChange={e => setEditForm(f => ({ ...f, assignedBranch: e.target.value }))}>
+              <option value="">Select…</option>
+              {['CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005','CNPL-006','CNPL-007','CNPL-008','CNPL-009','CNPL-010','CNPL-011'].map(b => <option key={b}>{b}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Fiber Req (M)">
+            <Input type="number" min="0" value={editForm.fiberRequired} onChange={e => setEditForm(f => ({ ...f, fiberRequired: e.target.value }))} placeholder="e.g. 250" />
+          </FormField>
+          <FormField label="Priority" required>
+            <Select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}>
+              {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
+            </Select>
+          </FormField>
+        </div>
+      </Modal>
 
       {/* ── Assign Engineer Modal ─────────────────────────────────── */}
       <Modal
