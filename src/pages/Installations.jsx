@@ -640,11 +640,6 @@ export default function Installations() {
           </button>
 
           {/* Add Hardware */}
-          <button onClick={() => { navigate(`/installations/${menuInst.id}?action=add-hardware`); setMenuId(null) }}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <Wrench className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">Add Hardware Requirements</span>
-          </button>
 
           {/* Move to Hardware Collection */}
           <button
