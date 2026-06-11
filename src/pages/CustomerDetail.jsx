@@ -5,7 +5,7 @@ import {
   Ticket, MessageSquare, Ban, AlertTriangle, FileText, Download,
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
-  LayoutGrid, List,
+  LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -216,7 +216,7 @@ const KYC_STATUS = {
   uploaded: { icon: CheckCircle, color: 'text-brand-blue',  label: 'Uploaded' },
 }
 
-const TABS = ['Profile', 'Package Details', 'Finance', 'Tickets', 'Inventory', 'Network Map', 'Activity Logs']
+const TABS = ['Profile', 'Package Details', 'Finance', 'Tickets', 'Inventory', 'Network Map', 'TR-069', 'Activity Logs']
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
@@ -854,6 +854,194 @@ function NetworkMapTab({ customer }) {
   )
 }
 
+// ── Tab: TR-069 ──────────────────────────────────────────────────────────────
+
+const TR069_DEVICE = {
+  model: 'TP-Link Archer C6',
+  firmware: '3.20.1 Build 210601',
+  hardware: 'TR069_v1',
+  serial: 'TPL2024WR0091',
+  mac: 'D4:AD:BD:00:11:22',
+  lastSeen: '11 Jun 2026, 10:42 AM',
+  status: 'Connected',
+  uptime: '9h 14m',
+}
+
+const TR069_WAN = {
+  ip: '10.14.22.45',
+  gateway: '10.14.0.1',
+  dnsPrimary: '8.8.8.8',
+  dnsSecondary: '8.8.4.4',
+  connectionType: 'PPPoE',
+  status: 'Connected',
+}
+
+const TR069_LAN = {
+  ip: '192.168.0.1',
+  subnet: '255.255.255.0',
+  dhcp: 'Enabled',
+  connectedDevices: 4,
+  wifi24: 'Enabled',
+  wifi5: 'Enabled',
+}
+
+function TR069Tab() {
+  const [toast, setToast] = useState(null)
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const actions = [
+    {
+      label: 'Reboot Device',
+      icon: <RotateCcw size={14} />,
+      style: 'bg-amber-500 hover:bg-amber-600 text-white',
+      confirm: 'Reboot command sent to device.',
+    },
+    {
+      label: 'Re-push PPPoE Config',
+      icon: <RefreshCw size={14} />,
+      style: 'bg-brand-blue hover:bg-blue-700 text-white',
+      confirm: 'PPPoE config re-pushed successfully.',
+    },
+    {
+      label: 'Factory Reset',
+      icon: <AlertOctagon size={14} />,
+      style: 'bg-red-500 hover:bg-red-600 text-white',
+      confirm: 'Factory reset command sent. Device will reboot.',
+    },
+    {
+      label: 'Fetch Live Stats',
+      icon: <Zap size={14} />,
+      style: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+      confirm: 'Live stats fetched successfully.',
+    },
+  ]
+
+  return (
+    <div className="space-y-5">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-fade-in">
+          <CheckCircle size={15} className="text-emerald-400 shrink-0" />
+          {toast}
+        </div>
+      )}
+
+      {/* Section 1 — Device Info */}
+      <div className="rounded-xl overflow-hidden border border-navy/30">
+        <div className="bg-navy px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Cpu size={15} className="text-brand-blue" />
+            <span className="text-sm font-semibold text-white">TR-069 Device Status</span>
+          </div>
+          <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+            Connected
+          </span>
+        </div>
+        <div className="bg-[#0c1f38] px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+          {[
+            ['Device Model',        TR069_DEVICE.model],
+            ['Firmware Version',    TR069_DEVICE.firmware],
+            ['Hardware Version',    TR069_DEVICE.hardware],
+            ['Serial Number',       TR069_DEVICE.serial],
+            ['MAC Address',         TR069_DEVICE.mac],
+            ['Last Seen',           TR069_DEVICE.lastSeen],
+            ['Connection Status',   null],
+            ['Uptime',              TR069_DEVICE.uptime],
+          ].map(([label, val]) => (
+            <div key={label}>
+              <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
+              {label === 'Connection Status' ? (
+                <span className="flex items-center gap-1.5 mt-0.5 text-sm text-emerald-400 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                  {TR069_DEVICE.status}
+                </span>
+              ) : (
+                <p className="text-sm text-white font-mono mt-0.5">{val}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Section 2 — WAN / LAN */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* WAN */}
+        <Card>
+          <CardHeader title="WAN Status" />
+          <div className="space-y-3">
+            {[
+              ['WAN IP',          TR069_WAN.ip],
+              ['Gateway',         TR069_WAN.gateway],
+              ['DNS Primary',     TR069_WAN.dnsPrimary],
+              ['DNS Secondary',   TR069_WAN.dnsSecondary],
+              ['Connection Type', TR069_WAN.connectionType],
+              ['Status',          null],
+            ].map(([label, val]) => (
+              <div key={label} className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
+                <span className="text-xs text-gray-400">{label}</span>
+                {label === 'Status' ? (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    {TR069_WAN.status}
+                  </span>
+                ) : (
+                  <span className="text-xs font-mono font-semibold text-gray-800">{val}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* LAN */}
+        <Card>
+          <CardHeader title="LAN Status" />
+          <div className="space-y-3">
+            {[
+              ['LAN IP',             TR069_LAN.ip],
+              ['Subnet Mask',        TR069_LAN.subnet],
+              ['DHCP Status',        TR069_LAN.dhcp],
+              ['Connected Devices',  String(TR069_LAN.connectedDevices)],
+              ['WiFi 2.4GHz',        TR069_LAN.wifi24],
+              ['WiFi 5GHz',          TR069_LAN.wifi5],
+            ].map(([label, val]) => (
+              <div key={label} className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
+                <span className="text-xs text-gray-400">{label}</span>
+                <span className={`text-xs font-semibold ${
+                  val === 'Enabled' ? 'text-emerald-600' :
+                  label === 'Connected Devices' ? 'text-brand-blue' :
+                  'text-gray-800'
+                } font-mono`}>{val}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Section 3 — Remote Actions */}
+      <Card>
+        <CardHeader title="Remote Actions" subtitle="Commands sent directly to the CPE via TR-069" />
+        <div className="flex flex-wrap gap-3">
+          {actions.map(action => (
+            <button
+              key={action.label}
+              onClick={() => showToast(action.confirm)}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${action.style}`}
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ── Tab: Activity Logs ───────────────────────────────────────────────────────
 
 function ActivityTab() {
@@ -1003,6 +1191,7 @@ export default function CustomerDetail() {
           {activeTab === 'Tickets'         && <TicketsTab />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
+          {activeTab === 'TR-069'          && <TR069Tab />}
           {activeTab === 'Activity Logs'   && <ActivityTab />}
         </div>
       </div>
