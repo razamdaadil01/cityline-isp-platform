@@ -51,12 +51,12 @@ function genUsage30d() {
 }
 
 const CUSTOMER_DATA = {
-  'CL-1001': { name: 'Rajan Mehta',   plan: 'FTTH 100Mbps', ip: '10.1.1.101', olt: 'OLT-AW-01', status: 'online',  server: 'JAZE-MUM-01' },
-  'CL-1002': { name: 'Priya Sharma',  plan: 'FTTB 50Mbps',  ip: '10.1.2.15',  olt: 'OLT-BE-02', status: 'online',  server: 'JAZE-MUM-02' },
-  'CL-1005': { name: 'Vikram Singh',  plan: 'P2P 1Gbps',    ip: '10.2.0.88',  olt: 'OLT-MC-03', status: 'online',  server: 'JAZE-MUM-01' },
-  'CL-1007': { name: 'Deepa Nair',    plan: 'FTTH 200Mbps', ip: '10.3.1.44',  olt: 'OLT-JU-01', status: 'online',  server: 'JAZE-MUM-02' },
-  'CL-1010': { name: 'Arun Kapoor',   plan: 'ILL 10Mbps',   ip: '10.4.0.9',   olt: 'OLT-MC-03', status: 'idle',    server: 'JAZE-MUM-01' },
-  'CL-1003': { name: 'Suresh Kumar',  plan: 'Wireless 25Mbps',ip:'10.5.1.22', olt: 'OLT-GG-01', status: 'offline', server: 'JAZE-MUM-01' },
+  'RES-2026-0001': { name: 'Rajan Mehta',   plan: 'FTTH 100Mbps', ip: '10.1.1.101', olt: 'OLT-AW-01', status: 'online',  server: 'JAZE-MUM-01' },
+  'RES-2026-0002': { name: 'Priya Sharma',  plan: 'FTTB 50Mbps',  ip: '10.1.2.15',  olt: 'OLT-BE-02', status: 'online',  server: 'JAZE-MUM-02' },
+  'ENT-2026-0001': { name: 'Vikram Singh',  plan: 'P2P 1Gbps',    ip: '10.2.0.88',  olt: 'OLT-MC-03', status: 'online',  server: 'JAZE-MUM-01' },
+  'RES-2026-0006': { name: 'Deepa Nair',    plan: 'FTTH 200Mbps', ip: '10.3.1.44',  olt: 'OLT-JU-01', status: 'online',  server: 'JAZE-MUM-02' },
+  'RES-2026-0009': { name: 'Arun Kapoor',   plan: 'ILL 10Mbps',   ip: '10.4.0.9',   olt: 'OLT-MC-03', status: 'idle',    server: 'JAZE-MUM-01' },
+  'RES-2026-0003': { name: 'Suresh Kumar',  plan: 'Wireless 25Mbps',ip:'10.5.1.22', olt: 'OLT-GG-01', status: 'offline', server: 'JAZE-MUM-01' },
 }
 
 const NETWORK_WIDE = {
@@ -67,9 +67,15 @@ const NETWORK_WIDE = {
   avgLatency:    '12ms',
 }
 
+const TOP_CONSUMER_IDS = [
+  'RES-2026-0001','RES-2026-0004','RES-2026-0006','RES-2026-0009','RES-2026-0012',
+  'RES-2026-0015','RES-2026-0018','RES-2026-0021','RES-2026-0024','RES-2026-0027',
+  'RES-2026-0030','CL-1034','CL-1037','CL-1040','CL-1043',
+  'CL-1046','CL-1049','CL-1052','CL-1055','CL-1058',
+]
 const TOP_CONSUMERS = Array.from({ length: 20 }, (_, i) => ({
   rank:     i + 1,
-  id:       `CL-${1001 + i * 3}`,
+  id:       TOP_CONSUMER_IDS[i],
   name:     ['Chandra Sekhar','Vikram Singh','Harish Pillai','Jayashree Kulkarni','DigiLink Office','Sanjay Verma','OmniConnect HQ','Rajan Mehta','Deepa Nair','Priya Sharma','Kavitha Rao','Arun Kapoor','Meera Gupta','Rohit Bose','Sunita Joshi','Vandana Mishra','Sunil Kadam','Dinesh Naik','Nalitha Kumar','Prakash Yadav'][i],
   plan:     ['P2P 10Gbps','P2P 1Gbps','FTTH 1Gbps','FTTH 500Mbps','Business BB','FTTH 500Mbps','Enterprise','FTTH 100Mbps','FTTH 200Mbps','FTTB 50Mbps','FTTH 100Mbps','ILL 10Mbps','FTTH 200Mbps','FTTH 100Mbps','FTTH 40Mbps','FTTH 40Mbps','FTTB 100Mbps','P2P 100Mbps','FTTH 100Mbps','Wireless 25Mbps'][i],
   download: +(Math.random() * 800 + 100 - i * 35).toFixed(1),
@@ -230,7 +236,7 @@ export default function BandwidthMonitoring() {
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setNotFound(false) }}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder="Enter Customer ID (e.g. CL-1001)…"
+              placeholder="Enter Customer ID (e.g. RES-2026-0001)…"
               className="pl-9 pr-8 py-2 text-sm w-full bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
             />
             {searchQuery && (
