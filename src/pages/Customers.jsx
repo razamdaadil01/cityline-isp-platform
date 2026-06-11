@@ -105,14 +105,14 @@ export default function Customers() {
 
   const [search,          setSearch]          = useState('')
   const [statusTab,       setStatusTab]       = useState('All')
+  const [selected,        setSelected]        = useState(new Set())
+  const [page,            setPage]            = useState(1)
+
+  // Applied filters (drive the table)
   const [filterService,   setFilterService]   = useState('')
   const [filterZone,      setFilterZone]      = useState('')
   const [filterArea,      setFilterArea]      = useState('')
   const [filterNetwork,   setFilterNetwork]   = useState('')
-  const [showFilters,     setShowFilters]     = useState(false)
-  const [selected,        setSelected]        = useState(new Set())
-  const [page,            setPage]            = useState(1)
-  // new filters
   const [filterLocality,  setFilterLocality]  = useState('')
   const [filterBranch,    setFilterBranch]    = useState('')
   const [filterSales,     setFilterSales]     = useState('')
@@ -128,6 +128,47 @@ export default function Customers() {
   const [filterExpTo,     setFilterExpTo]     = useState('')
   const [filterDueFrom,   setFilterDueFrom]   = useState('')
   const [filterDueTo,     setFilterDueTo]     = useState('')
+
+  // Drawer state (draft — only applied on "Apply Filters")
+  const EMPTY_DRAFT = {
+    service: '', zone: '', area: '', network: '', locality: '', branch: '',
+    sales: '', engineer: '', partner: '', custType: '', pipeline: '',
+    online: '', plan: '', regFrom: '', regTo: '', expFrom: '', expTo: '',
+    dueFrom: '', dueTo: '',
+  }
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [draft,      setDraft]      = useState(EMPTY_DRAFT)
+
+  function openDrawer() {
+    setDraft({
+      service: filterService, zone: filterZone, area: filterArea, network: filterNetwork,
+      locality: filterLocality, branch: filterBranch, sales: filterSales,
+      engineer: filterEngineer, partner: filterPartner, custType: filterCustType,
+      pipeline: filterPipeline, online: filterOnline, plan: filterPlan,
+      regFrom: filterRegFrom, regTo: filterRegTo, expFrom: filterExpFrom,
+      expTo: filterExpTo, dueFrom: filterDueFrom, dueTo: filterDueTo,
+    })
+    setDrawerOpen(true)
+  }
+
+  function applyDrawer() {
+    setFilterService(draft.service);   setFilterZone(draft.zone);
+    setFilterArea(draft.area);         setFilterNetwork(draft.network);
+    setFilterLocality(draft.locality); setFilterBranch(draft.branch);
+    setFilterSales(draft.sales);       setFilterEngineer(draft.engineer);
+    setFilterPartner(draft.partner);   setFilterCustType(draft.custType);
+    setFilterPipeline(draft.pipeline); setFilterOnline(draft.online);
+    setFilterPlan(draft.plan);         setFilterRegFrom(draft.regFrom);
+    setFilterRegTo(draft.regTo);       setFilterExpFrom(draft.expFrom);
+    setFilterExpTo(draft.expTo);       setFilterDueFrom(draft.dueFrom);
+    setFilterDueTo(draft.dueTo);
+    setPage(1)
+    setDrawerOpen(false)
+  }
+
+  function resetDrawer() { setDraft(EMPTY_DRAFT) }
+
+  function d(key, val) { setDraft(prev => ({ ...prev, [key]: val })) }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -170,12 +211,13 @@ export default function Customers() {
     })
   }
 
-  function clearFilters() {
+  function clearAllFilters() {
     setFilterService(''); setFilterZone(''); setFilterArea(''); setFilterNetwork('')
     setFilterLocality(''); setFilterBranch(''); setFilterSales(''); setFilterEngineer('')
     setFilterPartner(''); setFilterCustType(''); setFilterPipeline(''); setFilterOnline('')
     setFilterPlan(''); setFilterRegFrom(''); setFilterRegTo('')
     setFilterExpFrom(''); setFilterExpTo(''); setFilterDueFrom(''); setFilterDueTo('')
+    setPage(1)
   }
 
   const activeFiltersCount = [
@@ -234,20 +276,24 @@ export default function Customers() {
           )}
         </div>
 
-        {/* Filters toggle */}
+        {/* Filters button → opens drawer */}
         <button
-          onClick={() => setShowFilters(v => !v)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors font-medium ${showFilters || activeFiltersCount > 0 ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-gray-700 border-surface-border hover:bg-gray-50'}`}
+          onClick={openDrawer}
+          className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors shrink-0 ${
+            activeFiltersCount > 0
+              ? 'bg-brand-blue text-white border-brand-blue hover:bg-brand-blue/90'
+              : 'bg-white text-gray-700 border-surface-border hover:bg-gray-50'
+          }`}
         >
           <Filter size={13} />
           Filters
           {activeFiltersCount > 0 && (
-            <span className="bg-white/30 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center font-bold">{activeFiltersCount}</span>
+            <span className="bg-white/25 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center font-bold leading-none">{activeFiltersCount}</span>
           )}
         </button>
 
         {activeFiltersCount > 0 && (
-          <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-red-500 flex items-center gap-1">
+          <button onClick={clearAllFilters} className="text-xs text-gray-500 hover:text-red-500 flex items-center gap-1">
             <X size={12} /> Clear filters
           </button>
         )}
@@ -269,125 +315,174 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* ── Filter panel ── */}
-      {showFilters && (
-        <div className="bg-white rounded-xl border border-surface-border shadow-card divide-y divide-surface-border">
+      {/* ── Filter Drawer ── */}
+      {drawerOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-[1000]" onClick={() => setDrawerOpen(false)} />
+          <div className="fixed top-0 right-0 h-full w-80 bg-white z-[1001] shadow-2xl flex flex-col">
 
-          {/* Temporal */}
-          <div className="p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Temporal</p>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 whitespace-nowrap">Reg. Date</span>
-                <input type="date" value={filterRegFrom} onChange={e => { setFilterRegFrom(e.target.value); setPage(1) }}
-                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-                <span className="text-xs text-gray-400">–</span>
-                <input type="date" value={filterRegTo} onChange={e => { setFilterRegTo(e.target.value); setPage(1) }}
-                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 whitespace-nowrap">Expiry Date</span>
-                <input type="date" value={filterExpFrom} onChange={e => { setFilterExpFrom(e.target.value); setPage(1) }}
-                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-                <span className="text-xs text-gray-400">–</span>
-                <input type="date" value={filterExpTo} onChange={e => { setFilterExpTo(e.target.value); setPage(1) }}
-                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 whitespace-nowrap">Due Date</span>
-                <input type="date" value={filterDueFrom} onChange={e => { setFilterDueFrom(e.target.value); setPage(1) }}
-                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-                <span className="text-xs text-gray-400">–</span>
-                <input type="date" value={filterDueTo} onChange={e => { setFilterDueTo(e.target.value); setPage(1) }}
-                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-              </div>
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
+              <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
+              <button onClick={() => setDrawerOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X size={15} />
+              </button>
             </div>
-          </div>
 
-          {/* Geographic */}
-          <div className="p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Geographic</p>
-            <div className="flex flex-wrap gap-3">
-              <FilterSelect label="Area"     value={filterArea}     onChange={v => { setFilterArea(v);     setPage(1) }} options={AREAS} />
-              <FilterSelect label="Locality" value={filterLocality} onChange={v => { setFilterLocality(v); setPage(1) }} options={LOCALITIES} />
-              <FilterSelect label="Branch"   value={filterBranch}   onChange={v => { setFilterBranch(v);   setPage(1) }} options={BRANCHES} />
-              <FilterSelect label="Zone"     value={filterZone}     onChange={v => { setFilterZone(v);     setPage(1) }} options={ZONES} />
-              <FilterSelect label="Network/OLT" value={filterNetwork} onChange={v => { setFilterNetwork(v); setPage(1) }} options={NETWORKS} />
-            </div>
-          </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
 
-          {/* Sales / Team */}
-          <div className="p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales / Team</p>
-            <div className="flex flex-wrap gap-3">
-              <FilterSelect label="Sales Person"       value={filterSales}    onChange={v => { setFilterSales(v);    setPage(1) }} options={SALES_PERSONS} />
-              <FilterSelect label="Assigned Engineer"  value={filterEngineer} onChange={v => { setFilterEngineer(v); setPage(1) }} options={ENGINEERS} />
-              <FilterSelect label="Partner / Franchise"value={filterPartner}  onChange={v => { setFilterPartner(v);  setPage(1) }} options={PARTNERS} />
-            </div>
-          </div>
+              {/* Section 1 — Temporal */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Temporal</p>
+                {[
+                  ['Registration Date', 'regFrom', 'regTo'],
+                  ['Expiry Date',       'expFrom', 'expTo'],
+                  ['Due Date',          'dueFrom', 'dueTo'],
+                ].map(([label, fromKey, toKey]) => (
+                  <div key={label} className="space-y-1">
+                    <p className="text-xs text-gray-600 font-medium">{label}</p>
+                    <div className="flex items-center gap-2">
+                      <input type="date" value={draft[fromKey]} onChange={e => d(fromKey, e.target.value)}
+                        className="flex-1 text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 min-w-0" />
+                      <span className="text-xs text-gray-400 shrink-0">–</span>
+                      <input type="date" value={draft[toKey]} onChange={e => d(toKey, e.target.value)}
+                        className="flex-1 text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 min-w-0" />
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-          {/* Status / Type */}
-          <div className="p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status / Type</p>
-            <div className="flex flex-wrap gap-6">
-              <div className="space-y-1.5">
-                <p className="text-xs text-gray-500 font-medium">Customer Type</p>
-                <div className="flex gap-3">
-                  {['', 'Individual', 'Corporate'].map(v => (
-                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" name="custType" value={v} checked={filterCustType === v}
-                        onChange={() => { setFilterCustType(v); setPage(1) }}
-                        className="accent-brand-blue" />
-                      <span className="text-xs text-gray-700">{v || 'All'}</span>
-                    </label>
-                  ))}
+              {/* Section 2 — Geographic */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Geographic</p>
+                {[
+                  ['Area',        'area',     AREAS],
+                  ['Locality',    'locality', LOCALITIES],
+                  ['Branch',      'branch',   BRANCHES],
+                  ['Zone',        'zone',     ZONES],
+                ].map(([label, key, opts]) => (
+                  <div key={label} className="space-y-1">
+                    <p className="text-xs text-gray-600 font-medium">{label}</p>
+                    <div className="relative">
+                      <select value={draft[key]} onChange={e => d(key, e.target.value)}
+                        className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                        <option value="">All</option>
+                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Section 3 — Sales / Team */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales / Team</p>
+                {[
+                  ['Sales Person',        'sales',    SALES_PERSONS],
+                  ['Assigned Engineer',   'engineer', ENGINEERS],
+                  ['Partner / Franchise', 'partner',  PARTNERS],
+                ].map(([label, key, opts]) => (
+                  <div key={label} className="space-y-1">
+                    <p className="text-xs text-gray-600 font-medium">{label}</p>
+                    <div className="relative">
+                      <select value={draft[key]} onChange={e => d(key, e.target.value)}
+                        className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                        <option value="">All</option>
+                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Section 4 — Status / Type */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status / Type</p>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-600 font-medium">Customer Type</p>
+                  <div className="flex gap-4">
+                    {['', 'Individual', 'Corporate'].map(v => (
+                      <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="draft-custType" value={v} checked={draft.custType === v}
+                          onChange={() => d('custType', v)} className="accent-brand-blue" />
+                        <span className="text-xs text-gray-700">{v || 'All'}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-600 font-medium">Pipeline</p>
+                  <div className="flex gap-4">
+                    {['', 'Residential', 'Enterprise'].map(v => (
+                      <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="draft-pipeline" value={v} checked={draft.pipeline === v}
+                          onChange={() => d('pipeline', v)} className="accent-brand-blue" />
+                        <span className="text-xs text-gray-700">{v || 'All'}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-600 font-medium">Service Type</p>
+                  <div className="relative">
+                    <select value={draft.service} onChange={e => d('service', e.target.value)}
+                      className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                      <option value="">All</option>
+                      {ALL_SERVICES.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <p className="text-xs text-gray-500 font-medium">Pipeline</p>
-                <div className="flex gap-3">
-                  {['', 'Residential', 'Enterprise'].map(v => (
-                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" name="pipeline" value={v} checked={filterPipeline === v}
-                        onChange={() => { setFilterPipeline(v); setPage(1) }}
-                        className="accent-brand-blue" />
-                      <span className="text-xs text-gray-700">{v || 'All'}</span>
-                    </label>
-                  ))}
+
+              {/* Section 5 — Technical */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Technical</p>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-600 font-medium">Online / Offline</p>
+                  <div className="flex gap-4">
+                    {['', 'Online', 'Offline'].map(v => (
+                      <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="draft-online" value={v} checked={draft.online === v}
+                          onChange={() => d('online', v)} className="accent-brand-blue" />
+                        <span className="text-xs text-gray-700">{v || 'All'}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-600 font-medium">Package Name</p>
+                  <div className="relative">
+                    <select value={draft.plan} onChange={e => d('plan', e.target.value)}
+                      className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                      <option value="">All</option>
+                      {PLANS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <p className="text-xs text-gray-500 font-medium">Service Type</p>
-                <FilterSelect label="Service Type" value={filterService} onChange={v => { setFilterService(v); setPage(1) }} options={ALL_SERVICES} />
-              </div>
-            </div>
-          </div>
 
-          {/* Technical */}
-          <div className="p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Technical</p>
-            <div className="flex flex-wrap gap-6">
-              <div className="space-y-1.5">
-                <p className="text-xs text-gray-500 font-medium">Online / Offline Status</p>
-                <div className="flex gap-3">
-                  {['', 'Online', 'Offline'].map(v => (
-                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" name="online" value={v} checked={filterOnline === v}
-                        onChange={() => { setFilterOnline(v); setPage(1) }}
-                        className="accent-brand-blue" />
-                      <span className="text-xs text-gray-700">{v || 'All'}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <p className="text-xs text-gray-500 font-medium">Package Name</p>
-                <FilterSelect label="Package Name" value={filterPlan} onChange={v => { setFilterPlan(v); setPage(1) }} options={PLANS} />
-              </div>
             </div>
-          </div>
 
-        </div>
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-surface-border flex items-center gap-3 shrink-0 bg-white">
+              <button onClick={resetDrawer}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 border border-surface-border rounded-lg hover:bg-gray-50 transition-colors">
+                Reset Filters
+              </button>
+              <button onClick={applyDrawer}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-blue rounded-lg hover:bg-brand-blue/90 transition-colors">
+                Apply Filters
+              </button>
+            </div>
+
+          </div>
+        </>
       )}
 
       {/* ── Table ── */}
