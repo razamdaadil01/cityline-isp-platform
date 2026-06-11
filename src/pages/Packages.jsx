@@ -240,7 +240,7 @@ function PlanCard({ plan, onStatusToggle }) {
       <div className="p-4 flex-1">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           <CardDetailRow label="Speed"           value={plan.speed} />
-          <CardDetailRow label="Validity"        value={plan.validity ? `${plan.validity} days` : 'One-time'} />
+          <CardDetailRow label="Tenure"          value={plan.validity ? `${plan.validity} days` : 'One-time'} />
           <CardDetailRow label="Billing Type"    value={plan.billingType} />
           <CardDetailRow label="Price"           value={fmtPriceCard(plan.price)} />
           <CardDetailRow label="Sort Order"      value={plan.sortOrder ?? '—'} />
@@ -315,7 +315,7 @@ function PlansTable({ plans, onStatusToggle, tablePage, setTablePage, tablePageS
               <th className={TH}>B/W Package ID</th>
               <th className={TH}>Server Type</th>
               <th className={TH}>Price</th>
-              <th className={TH}>Validity</th>
+              <th className={TH}>Tenure</th>
               <th className={TH}>Sort Order</th>
               <th className={TH}>No. of Recharge</th>
               <th className={TH}>Date</th>
