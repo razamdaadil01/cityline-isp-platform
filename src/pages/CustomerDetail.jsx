@@ -4,7 +4,8 @@ import {
   ArrowLeft, Wifi, WifiOff, Phone, Mail, MapPin, Eye, EyeOff,
   Ticket, MessageSquare, Ban, AlertTriangle, FileText, Download,
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
-  ChevronRight, Edit2, Plus, Signal, Network, Server, Copy
+  ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
+  LayoutGrid, List,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -121,19 +122,19 @@ function makeCustomerFromBase(id) {
 const PACKAGES = [
   {
     type: 'Broadband', icon: Wifi, iconBg: 'bg-brand-blue/10', iconColor: 'text-brand-blue',
-    plan: 'FTTH 100Mbps', speed: '100 / 100 Mbps', validity: 30, daysUsed: 22,
+    plan: 'FTTH 100Mbps', speed: '100 / 100 Mbps', validity: 30, daysUsed: 22, amount: 899,
     startDate: '01 May 2026', endDate: '31 May 2026', jazePkgId: 'JPKG-BB-100-M',
     status: 'active',
   },
   {
     type: 'Landline', icon: Phone, iconBg: 'bg-navy/10', iconColor: 'text-navy',
-    plan: 'Unlimited Local + STD', speed: '—', validity: 30, daysUsed: 22,
+    plan: 'Unlimited Local + STD', speed: '—', validity: 30, daysUsed: 22, amount: 299,
     startDate: '01 May 2026', endDate: '31 May 2026', jazePkgId: 'JPKG-LL-UNL-M',
     status: 'active',
   },
   {
     type: 'OTT', icon: Activity, iconBg: 'bg-purple-100', iconColor: 'text-purple-700',
-    plan: 'OTT Premium (Netflix + Prime)', speed: '4K Streaming', validity: 30, daysUsed: 22,
+    plan: 'OTT Premium (Netflix + Prime)', speed: '4K Streaming', validity: 30, daysUsed: 22, amount: 199,
     startDate: '01 May 2026', endDate: '31 May 2026', jazePkgId: 'JPKG-OTT-PREM-M',
     status: 'active',
   },
@@ -404,79 +405,177 @@ function ProfileTab({ customer, notes, setNotes }) {
 // ── Tab: Package Details ─────────────────────────────────────────────────────
 
 function PackagesTab() {
+  const [view, setView] = useState('card')
+
   return (
     <div className="space-y-4">
+      {/* Toolbar */}
       <div className="flex justify-between items-center">
         <p className="text-sm text-gray-500">{PACKAGES.length} active subscription{PACKAGES.length !== 1 ? 's' : ''}</p>
-        <Button size="sm" icon={<Plus size={13} />}>Add Service</Button>
+        <div className="flex items-center gap-2">
+          {/* Card / Table toggle */}
+          <div className="flex items-center border border-surface-border rounded-lg overflow-hidden">
+            <button
+              onClick={() => setView('card')}
+              className={`p-2 transition-colors ${view === 'card' ? 'bg-brand-blue text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              onClick={() => setView('table')}
+              className={`p-2 transition-colors ${view === 'table' ? 'bg-brand-blue text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+            >
+              <List size={14} />
+            </button>
+          </div>
+          <Button size="sm" icon={<Plus size={13} />}>Add Service</Button>
+        </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {PACKAGES.map(pkg => {
-          const Icon = pkg.icon
-          const pct = Math.round((pkg.daysUsed / pkg.validity) * 100)
-          const daysLeft = pkg.validity - pkg.daysUsed
-          return (
-            <Card key={pkg.type} className="flex flex-col">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl ${pkg.iconBg} ${pkg.iconColor} flex items-center justify-center`}>
-                    <Icon size={18} />
+
+      {/* ── Card View ── */}
+      {view === 'card' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {PACKAGES.map(pkg => {
+            const Icon = pkg.icon
+            const pct = Math.round((pkg.daysUsed / pkg.validity) * 100)
+            const daysLeft = pkg.validity - pkg.daysUsed
+            return (
+              <Card key={pkg.type} className="flex flex-col">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl ${pkg.iconBg} ${pkg.iconColor} flex items-center justify-center`}>
+                      <Icon size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{pkg.type}</p>
+                      <p className="text-sm font-bold text-gray-900">{pkg.plan}</p>
+                    </div>
+                  </div>
+                  <Badge variant="green" size="sm" dot>Active</Badge>
+                </div>
+                <div className="space-y-3 flex-1">
+                  {pkg.speed !== '—' && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Speed</span>
+                      <span className="font-semibold text-gray-800">{pkg.speed}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Tenure</span>
+                    <span className="font-semibold text-gray-800">{pkg.validity} days</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Amount</span>
+                    <span className="font-semibold text-gray-800">₹{pkg.amount.toLocaleString('en-IN')}</span>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{pkg.type}</p>
-                    <p className="text-sm font-bold text-gray-900">{pkg.plan}</p>
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-gray-500">{pkg.daysUsed} days used</span>
+                      <span className={`font-semibold ${daysLeft <= 5 ? 'text-red-500' : daysLeft <= 10 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                        {daysLeft} days left
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${pct >= 90 ? 'bg-red-400' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2 bg-surface rounded-lg border border-surface-border">
+                      <p className="text-gray-400">Start</p>
+                      <p className="font-medium text-gray-700">{pkg.startDate}</p>
+                    </div>
+                    <div className="p-2 bg-surface rounded-lg border border-surface-border">
+                      <p className="text-gray-400">End</p>
+                      <p className="font-medium text-gray-700">{pkg.endDate}</p>
+                    </div>
+                  </div>
+                  <div className="p-2 bg-surface rounded-lg border border-surface-border text-xs">
+                    <span className="text-gray-400">Jaze B/W Package ID: </span>
+                    <span className="font-mono font-semibold text-navy">{pkg.jazePkgId}</span>
                   </div>
                 </div>
-                <Badge variant="green" size="sm" dot>Active</Badge>
-              </div>
-              <div className="space-y-3 flex-1">
-                {pkg.speed !== '—' && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Speed</span>
-                    <span className="font-semibold text-gray-800">{pkg.speed}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Validity</span>
-                  <span className="font-semibold text-gray-800">{pkg.validity} days</span>
+                <div className="flex gap-2 mt-4 pt-4 border-t border-surface-border">
+                  <Button variant="secondary" size="xs" className="flex-1">Renew</Button>
+                  <Button variant="ghost"     size="xs" className="flex-1">Modify</Button>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
-                    <span className="text-gray-500">{pkg.daysUsed} days used</span>
-                    <span className={`font-semibold ${daysLeft <= 5 ? 'text-red-500' : daysLeft <= 10 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                      {daysLeft} days left
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${pct >= 90 ? 'bg-red-400' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-500'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2 bg-surface rounded-lg border border-surface-border">
-                    <p className="text-gray-400">Start</p>
-                    <p className="font-medium text-gray-700">{pkg.startDate}</p>
-                  </div>
-                  <div className="p-2 bg-surface rounded-lg border border-surface-border">
-                    <p className="text-gray-400">End</p>
-                    <p className="font-medium text-gray-700">{pkg.endDate}</p>
-                  </div>
-                </div>
-                <div className="p-2 bg-surface rounded-lg border border-surface-border text-xs">
-                  <span className="text-gray-400">Jaze B/W Package ID: </span>
-                  <span className="font-mono font-semibold text-navy">{pkg.jazePkgId}</span>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-4 pt-4 border-t border-surface-border">
-                <Button variant="secondary" size="xs" className="flex-1">Renew</Button>
-                <Button variant="ghost"     size="xs" className="flex-1">Modify</Button>
-              </div>
-            </Card>
-          )
-        })}
-      </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Table View ── */}
+      {view === 'table' && (
+        <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-surface-border text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                  {['Service','Package Name','Bandwidth / Speed','Tenure','Amount','Start Date','End Date','Status','Actions'].map((h, i) => (
+                    <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-5' : ''}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {PACKAGES.map(pkg => {
+                  const Icon = pkg.icon
+                  return (
+                    <tr key={pkg.type} className="hover:bg-gray-50/60 transition-colors">
+                      {/* Service */}
+                      <td className="pl-5 pr-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-lg ${pkg.iconBg} ${pkg.iconColor} flex items-center justify-center shrink-0`}>
+                            <Icon size={14} />
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700">{pkg.type}</span>
+                        </div>
+                      </td>
+                      {/* Package Name */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs font-medium text-gray-800">{pkg.plan}</span>
+                      </td>
+                      {/* Bandwidth / Speed */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-600">{pkg.speed}</span>
+                      </td>
+                      {/* Tenure */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-700">{pkg.validity} days</span>
+                      </td>
+                      {/* Amount */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs font-semibold text-gray-800">₹{pkg.amount.toLocaleString('en-IN')}</span>
+                      </td>
+                      {/* Start Date */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-600">{pkg.startDate}</span>
+                      </td>
+                      {/* End Date */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-600">{pkg.endDate}</span>
+                      </td>
+                      {/* Status */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Badge variant="green" size="sm" dot>Active</Badge>
+                      </td>
+                      {/* Actions */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="xs">Renew</Button>
+                          <Button variant="ghost" size="xs">Modify</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
