@@ -15,8 +15,8 @@ import { CUSTOMERS as BASE_CUSTOMERS } from '../data/customersData'
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
 const MOCK_CUSTOMERS = {
-  'CL-1001': {
-    id: 'CL-1001',
+  'RES-2026-0001': {
+    id: 'RES-2026-0001',
     name: 'Rajan Mehta',
     phone: '98765 43210',
     altPhone: '22 2678 9012',

@@ -25,9 +25,9 @@ const ACTION_CFG = {
 }
 
 const DETAILS_MAP = {
-  'Customers-Create':   ['Added new customer Rajan Mehta (CL-1031)', 'Created account for Priya Sharma', 'New residential customer onboarded'],
-  'Customers-Edit':     ['Updated plan for CL-1005 to FTTH 200Mbps', 'Changed contact number for CL-1012', 'Modified expiry date for CL-1023'],
-  'Customers-Delete':   ['Deleted inactive account CL-1016', 'Removed duplicate entry CL-1004'],
+  'Customers-Create':   ['Added new customer Rajan Mehta (RES-2026-0030)', 'Created account for Priya Sharma', 'New residential customer onboarded'],
+  'Customers-Edit':     ['Updated plan for ENT-2026-0001 to FTTH 200Mbps', 'Changed contact number for RES-2026-0011', 'Modified expiry date for RES-2026-0022'],
+  'Customers-Delete':   ['Deleted inactive account RES-2026-0015', 'Removed duplicate entry RES-2026-0004'],
   'Billing-Create':     ['Invoice INV-2026-0451 generated', 'Receipt issued for payment ₹999'],
   'Billing-Edit':       ['Updated invoice INV-2026-0440 due date', 'Corrected amount on INV-2026-0388'],
   'Resellers-Create':   ['Added reseller: Raj Networks (RS-001)', 'New reseller DigiLink onboarded'],
@@ -37,7 +37,7 @@ const DETAILS_MAP = {
   'Packages-Delete':    ['Deprecated package Wireless 10Mbps'],
   'Network-Edit':       ['Updated OLT-AW-01 configuration', 'Changed port mapping on JAZE-MUM-01'],
   'Settings-Edit':      ['Modified SMTP settings', 'Updated SMS gateway credentials', 'Changed system timezone to Asia/Kolkata'],
-  'Support-Create':     ['Ticket TK-2026-0189 opened by Sunita Joshi', 'New escalation created for CL-1007'],
+  'Support-Create':     ['Ticket TK-2026-0189 opened by Sunita Joshi', 'New escalation created for RES-2026-0006'],
   'Support-Edit':       ['Ticket TK-2026-0180 status changed to Resolved', 'Assigned ticket to support team'],
   'Auth-Login':         ['Successful login from Chrome / Windows', 'Login from new device detected'],
   'Auth-Logout':        ['User session ended normally'],
