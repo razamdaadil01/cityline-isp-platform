@@ -216,7 +216,7 @@ const KYC_STATUS = {
   uploaded: { icon: CheckCircle, color: 'text-brand-blue',  label: 'Uploaded' },
 }
 
-const TABS = ['Profile', 'Package Details', 'Finance', 'Tickets', 'Inventory', 'Network Map', 'TR-069', 'Activity Logs']
+const TABS = ['Profile', 'Package Details', 'Finance', 'Tickets', 'Inventory', 'Network Map', 'TR-069', 'Recordings', 'Activity Logs']
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
@@ -1042,6 +1042,125 @@ function TR069Tab() {
   )
 }
 
+// ── Tab: Recordings ──────────────────────────────────────────────────────────
+
+const RECORDINGS = [
+  { date: '10 Jun 2026', type: 'Inbound',  duration: '3m 42s', agent: 'Salim Khan',     status: 'Completed' },
+  { date: '05 Jun 2026', type: 'Outbound', duration: '1m 15s', agent: 'Pradeep Kumar',  status: 'Completed' },
+  { date: '01 Jun 2026', type: 'Inbound',  duration: '5m 20s', agent: 'Salim Khan',     status: 'Completed' },
+  { date: '25 May 2026', type: 'Outbound', duration: '0m 45s', agent: 'Neha Gupta',     status: 'Missed'    },
+  { date: '18 May 2026', type: 'Inbound',  duration: '2m 10s', agent: 'Pradeep Kumar',  status: 'Completed' },
+]
+
+const CALL_TYPE_STYLE = {
+  Inbound:  'bg-brand-blue/10 text-brand-blue',
+  Outbound: 'bg-purple-100 text-purple-700',
+  Missed:   'bg-red-100 text-red-600',
+}
+
+function RecordingsTab() {
+  const [filter, setFilter] = useState('All Calls')
+
+  const filtered = filter === 'All Calls'
+    ? RECORDINGS
+    : RECORDINGS.filter(r => r.type === filter || (filter === 'Inbound' && r.type === 'Inbound') || (filter === 'Outbound' && r.type === 'Outbound'))
+
+  return (
+    <div className="space-y-4">
+      {/* Header row */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800">Call Recordings</h3>
+          <p className="text-xs text-gray-400 mt-0.5">IVR call recordings via Tata Smartflo</p>
+        </div>
+        <select
+          value={filter}
+          onChange={e => setFilter(e.target.value)}
+          className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+        >
+          <option>All Calls</option>
+          <option>Inbound</option>
+          <option>Outbound</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-surface-border text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                {['Call Date', 'Call Type', 'Duration', 'Agent', 'Status', 'Actions'].map((h, i) => (
+                  <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-5' : ''}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {filtered.map((rec, i) => {
+                const canPlay = rec.status !== 'Missed'
+                return (
+                  <tr key={i} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="pl-5 pr-4 py-3 text-xs text-gray-600 whitespace-nowrap">{rec.date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${CALL_TYPE_STYLE[rec.type]}`}>
+                        {rec.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap font-mono">{rec.duration}</td>
+                    <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{rec.agent}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge
+                        variant={rec.status === 'Completed' ? 'green' : 'red'}
+                        size="sm"
+                        dot
+                      >
+                        {rec.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={!canPlay}
+                          title={canPlay ? 'Play recording' : 'No recording available'}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors
+                            ${canPlay
+                              ? 'border-brand-blue/40 text-brand-blue hover:bg-blue-50'
+                              : 'border-gray-200 text-gray-300 cursor-not-allowed'
+                            }`}
+                        >
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,1 9,5 2,9"/></svg>
+                          Play
+                        </button>
+                        <button
+                          disabled={!canPlay}
+                          title={canPlay ? 'Download recording' : 'No recording available'}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors
+                            ${canPlay
+                              ? 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                              : 'border-gray-200 text-gray-300 cursor-not-allowed'
+                            }`}
+                        >
+                          <Download size={11} />
+                          Download
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Footer note */}
+      <p className="text-xs text-gray-400 text-center">
+        Recordings are stored for 90 days.&nbsp;&nbsp;Powered by Tata Smartflo IVR.
+      </p>
+    </div>
+  )
+}
+
 // ── Tab: Activity Logs ───────────────────────────────────────────────────────
 
 function ActivityTab() {
@@ -1192,6 +1311,7 @@ export default function CustomerDetail() {
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
           {activeTab === 'TR-069'          && <TR069Tab />}
+          {activeTab === 'Recordings'      && <RecordingsTab />}
           {activeTab === 'Activity Logs'   && <ActivityTab />}
         </div>
       </div>
