@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   UserPlus, Download, Filter, ChevronLeft, ChevronRight,
-  Search, X, ChevronDown, Users, MoreHorizontal, Eye, Edit2,
+  Search, X, ChevronDown, Users, MoreVertical, Eye, Edit2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -535,7 +535,7 @@ export default function Customers() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Zone</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[100px]">Expiry</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">Status</th>
-                <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
+                <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
@@ -593,7 +593,7 @@ export default function Customers() {
                           menuId === c.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
                         }`}
                       >
-                        <MoreHorizontal size={15} />
+                        <MoreVertical size={15} />
                       </button>
                     </td>
                   </tr>
