@@ -1209,19 +1209,19 @@ export default function CustomerDetail() {
   return (
     <div className="p-6 max-w-[1400px] space-y-5">
 
-      {/* ── Back nav ── */}
-      <div className="flex items-center gap-1.5 text-[12px]">
-        <button onClick={() => navigate('/customers')} className="text-gray-400 hover:underline transition-colors">
-          Customers
-        </button>
-        <span className="text-gray-300">›</span>
-        <span className="text-gray-500 truncate">{customer.id}</span>
-      </div>
-
       {/* ── Header card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
         {/* Navy accent strip */}
         <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+        {/* Breadcrumb */}
+        <div className="px-5 lg:px-6 xl:px-7 2xl:px-8 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
+          <button onClick={() => navigate('/customers')} className="text-gray-400 hover:underline transition-colors">
+            Customers
+          </button>
+          <span className="text-gray-300">›</span>
+          <span className="text-gray-500 truncate">{customer.id}</span>
+        </div>
+        <div className="border-t border-surface-border" />
         <div className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start gap-5">
             {/* Avatar */}
