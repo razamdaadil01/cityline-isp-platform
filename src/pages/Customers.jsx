@@ -58,10 +58,16 @@ const CUSTOMERS = [
   { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '96100 01234', services: ['Broadband','OTT','Business BB'],    plan: 'FTTH 500Mbps',     zone: 'Powai',        area: 'Powai',     network: 'OLT-PW-01', expiry: '2026-08-20', status: 'active' },
 ]
 
-const ZONES    = [...new Set(CUSTOMERS.map(c => c.zone))].sort()
-const AREAS    = [...new Set(CUSTOMERS.map(c => c.area))].sort()
-const NETWORKS = [...new Set(CUSTOMERS.map(c => c.network))].sort()
+const ZONES      = [...new Set(CUSTOMERS.map(c => c.zone))].sort()
+const AREAS      = [...new Set(CUSTOMERS.map(c => c.area))].sort()
+const NETWORKS   = [...new Set(CUSTOMERS.map(c => c.network))].sort()
 const ALL_SERVICES = ['Broadband','Landline','OTT','ILL','Intercom','Business BB']
+const PLANS      = [...new Set(CUSTOMERS.map(c => c.plan))].sort()
+const LOCALITIES = ['Lokhandwala','Versova','MIDC','Juhu Scheme','Malad Link Road','Powai Lake Road','BKC Road','Nariman Point','Lower Parel West']
+const BRANCHES   = ['Andheri Branch','Bandra Branch','Borivali Branch','Thane Branch','Powai Branch','South Mumbai Branch']
+const SALES_PERSONS = ['Pradeep Kumar','Salim Khan','Neha Gupta','Rajesh Patel','Ananya Mehta']
+const ENGINEERS  = ['Arjun Kumar','Preethi Nair','Suresh Babu','Kiran Desai','Vinod Sharma']
+const PARTNERS   = ['CityLink Franchise - Andheri','NetPoint Partners - Bandra','Speedy Net - Thane','ConnectPro - Powai']
 
 const PAGE_SIZE = 25
 const STATUS_TABS = ['All','Active','Suspended','Inactive','Expired']
@@ -97,28 +103,50 @@ function FilterSelect({ label, value, onChange, options }) {
 export default function Customers() {
   const navigate = useNavigate()
 
-  const [search,       setSearch]       = useState('')
-  const [statusTab,    setStatusTab]    = useState('All')
-  const [filterService,setFilterService]= useState('')
-  const [filterZone,   setFilterZone]   = useState('')
-  const [filterArea,   setFilterArea]   = useState('')
-  const [filterNetwork,setFilterNetwork]= useState('')
-  const [showFilters,  setShowFilters]  = useState(false)
-  const [selected,     setSelected]     = useState(new Set())
-  const [page,         setPage]         = useState(1)
+  const [search,          setSearch]          = useState('')
+  const [statusTab,       setStatusTab]       = useState('All')
+  const [filterService,   setFilterService]   = useState('')
+  const [filterZone,      setFilterZone]      = useState('')
+  const [filterArea,      setFilterArea]      = useState('')
+  const [filterNetwork,   setFilterNetwork]   = useState('')
+  const [showFilters,     setShowFilters]     = useState(false)
+  const [selected,        setSelected]        = useState(new Set())
+  const [page,            setPage]            = useState(1)
+  // new filters
+  const [filterLocality,  setFilterLocality]  = useState('')
+  const [filterBranch,    setFilterBranch]    = useState('')
+  const [filterSales,     setFilterSales]     = useState('')
+  const [filterEngineer,  setFilterEngineer]  = useState('')
+  const [filterPartner,   setFilterPartner]   = useState('')
+  const [filterCustType,  setFilterCustType]  = useState('')
+  const [filterPipeline,  setFilterPipeline]  = useState('')
+  const [filterOnline,    setFilterOnline]    = useState('')
+  const [filterPlan,      setFilterPlan]      = useState('')
+  const [filterRegFrom,   setFilterRegFrom]   = useState('')
+  const [filterRegTo,     setFilterRegTo]     = useState('')
+  const [filterExpFrom,   setFilterExpFrom]   = useState('')
+  const [filterExpTo,     setFilterExpTo]     = useState('')
+  const [filterDueFrom,   setFilterDueFrom]   = useState('')
+  const [filterDueTo,     setFilterDueTo]     = useState('')
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return CUSTOMERS.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !c.id.toLowerCase().includes(q)) return false
       if (statusTab !== 'All' && c.status !== statusTab.toLowerCase()) return false
-      if (filterService && !c.services.includes(filterService)) return false
-      if (filterZone    && c.zone    !== filterZone)             return false
-      if (filterArea    && c.area    !== filterArea)             return false
-      if (filterNetwork && c.network !== filterNetwork)         return false
+      if (filterService  && !c.services.includes(filterService)) return false
+      if (filterZone     && c.zone    !== filterZone)             return false
+      if (filterArea     && c.area    !== filterArea)             return false
+      if (filterNetwork  && c.network !== filterNetwork)          return false
+      if (filterPlan     && c.plan    !== filterPlan)             return false
+      if (filterExpFrom  && c.expiry  <  filterExpFrom)           return false
+      if (filterExpTo    && c.expiry  >  filterExpTo)             return false
+      if (filterPipeline && filterPipeline === 'Residential' && !c.id.startsWith('RES')) return false
+      if (filterPipeline && filterPipeline === 'Enterprise'  && !c.id.startsWith('ENT')) return false
       return true
     })
-  }, [search, statusTab, filterService, filterZone, filterArea, filterNetwork])
+  }, [search, statusTab, filterService, filterZone, filterArea, filterNetwork,
+      filterPlan, filterExpFrom, filterExpTo, filterPipeline])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -144,9 +172,18 @@ export default function Customers() {
 
   function clearFilters() {
     setFilterService(''); setFilterZone(''); setFilterArea(''); setFilterNetwork('')
+    setFilterLocality(''); setFilterBranch(''); setFilterSales(''); setFilterEngineer('')
+    setFilterPartner(''); setFilterCustType(''); setFilterPipeline(''); setFilterOnline('')
+    setFilterPlan(''); setFilterRegFrom(''); setFilterRegTo('')
+    setFilterExpFrom(''); setFilterExpTo(''); setFilterDueFrom(''); setFilterDueTo('')
   }
 
-  const activeFiltersCount = [filterService, filterZone, filterArea, filterNetwork].filter(Boolean).length
+  const activeFiltersCount = [
+    filterService, filterZone, filterArea, filterNetwork,
+    filterLocality, filterBranch, filterSales, filterEngineer, filterPartner,
+    filterCustType, filterPipeline, filterOnline, filterPlan,
+    filterRegFrom, filterRegTo, filterExpFrom, filterExpTo, filterDueFrom, filterDueTo,
+  ].filter(Boolean).length
 
   const statusCounts = useMemo(() => {
     const base = { All: CUSTOMERS.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0 }
@@ -187,7 +224,7 @@ export default function Customers() {
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Search name, phone, customer ID…"
+            placeholder="Search name, phone, customer ID, MAC, serial…"
             className="pl-9 pr-8 py-1.5 text-sm w-72 bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
           />
           {search && (
@@ -232,13 +269,124 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* ── Filter dropdowns ── */}
+      {/* ── Filter panel ── */}
       {showFilters && (
-        <div className="flex flex-wrap gap-3 p-4 bg-white rounded-xl border border-surface-border shadow-card">
-          <FilterSelect label="Service Type" value={filterService} onChange={v => { setFilterService(v); setPage(1) }} options={ALL_SERVICES} />
-          <FilterSelect label="Zone"         value={filterZone}    onChange={v => { setFilterZone(v);    setPage(1) }} options={ZONES} />
-          <FilterSelect label="Area"         value={filterArea}    onChange={v => { setFilterArea(v);    setPage(1) }} options={AREAS} />
-          <FilterSelect label="Network/OLT"  value={filterNetwork} onChange={v => { setFilterNetwork(v);setPage(1) }} options={NETWORKS} />
+        <div className="bg-white rounded-xl border border-surface-border shadow-card divide-y divide-surface-border">
+
+          {/* Temporal */}
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Temporal</p>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 whitespace-nowrap">Reg. Date</span>
+                <input type="date" value={filterRegFrom} onChange={e => { setFilterRegFrom(e.target.value); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+                <span className="text-xs text-gray-400">–</span>
+                <input type="date" value={filterRegTo} onChange={e => { setFilterRegTo(e.target.value); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 whitespace-nowrap">Expiry Date</span>
+                <input type="date" value={filterExpFrom} onChange={e => { setFilterExpFrom(e.target.value); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+                <span className="text-xs text-gray-400">–</span>
+                <input type="date" value={filterExpTo} onChange={e => { setFilterExpTo(e.target.value); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 whitespace-nowrap">Due Date</span>
+                <input type="date" value={filterDueFrom} onChange={e => { setFilterDueFrom(e.target.value); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+                <span className="text-xs text-gray-400">–</span>
+                <input type="date" value={filterDueTo} onChange={e => { setFilterDueTo(e.target.value); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+              </div>
+            </div>
+          </div>
+
+          {/* Geographic */}
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Geographic</p>
+            <div className="flex flex-wrap gap-3">
+              <FilterSelect label="Area"     value={filterArea}     onChange={v => { setFilterArea(v);     setPage(1) }} options={AREAS} />
+              <FilterSelect label="Locality" value={filterLocality} onChange={v => { setFilterLocality(v); setPage(1) }} options={LOCALITIES} />
+              <FilterSelect label="Branch"   value={filterBranch}   onChange={v => { setFilterBranch(v);   setPage(1) }} options={BRANCHES} />
+              <FilterSelect label="Zone"     value={filterZone}     onChange={v => { setFilterZone(v);     setPage(1) }} options={ZONES} />
+              <FilterSelect label="Network/OLT" value={filterNetwork} onChange={v => { setFilterNetwork(v); setPage(1) }} options={NETWORKS} />
+            </div>
+          </div>
+
+          {/* Sales / Team */}
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales / Team</p>
+            <div className="flex flex-wrap gap-3">
+              <FilterSelect label="Sales Person"       value={filterSales}    onChange={v => { setFilterSales(v);    setPage(1) }} options={SALES_PERSONS} />
+              <FilterSelect label="Assigned Engineer"  value={filterEngineer} onChange={v => { setFilterEngineer(v); setPage(1) }} options={ENGINEERS} />
+              <FilterSelect label="Partner / Franchise"value={filterPartner}  onChange={v => { setFilterPartner(v);  setPage(1) }} options={PARTNERS} />
+            </div>
+          </div>
+
+          {/* Status / Type */}
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status / Type</p>
+            <div className="flex flex-wrap gap-6">
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 font-medium">Customer Type</p>
+                <div className="flex gap-3">
+                  {['', 'Individual', 'Corporate'].map(v => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="custType" value={v} checked={filterCustType === v}
+                        onChange={() => { setFilterCustType(v); setPage(1) }}
+                        className="accent-brand-blue" />
+                      <span className="text-xs text-gray-700">{v || 'All'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 font-medium">Pipeline</p>
+                <div className="flex gap-3">
+                  {['', 'Residential', 'Enterprise'].map(v => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pipeline" value={v} checked={filterPipeline === v}
+                        onChange={() => { setFilterPipeline(v); setPage(1) }}
+                        className="accent-brand-blue" />
+                      <span className="text-xs text-gray-700">{v || 'All'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 font-medium">Service Type</p>
+                <FilterSelect label="Service Type" value={filterService} onChange={v => { setFilterService(v); setPage(1) }} options={ALL_SERVICES} />
+              </div>
+            </div>
+          </div>
+
+          {/* Technical */}
+          <div className="p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Technical</p>
+            <div className="flex flex-wrap gap-6">
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 font-medium">Online / Offline Status</p>
+                <div className="flex gap-3">
+                  {['', 'Online', 'Offline'].map(v => (
+                    <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="online" value={v} checked={filterOnline === v}
+                        onChange={() => { setFilterOnline(v); setPage(1) }}
+                        className="accent-brand-blue" />
+                      <span className="text-xs text-gray-700">{v || 'All'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-gray-500 font-medium">Package Name</p>
+                <FilterSelect label="Package Name" value={filterPlan} onChange={v => { setFilterPlan(v); setPage(1) }} options={PLANS} />
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
 
