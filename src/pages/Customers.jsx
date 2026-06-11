@@ -316,174 +316,185 @@ export default function Customers() {
       </div>
 
       {/* ── Filter Drawer ── */}
-      {drawerOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-[1000]" onClick={() => setDrawerOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-80 bg-white z-[1001] shadow-2xl flex flex-col">
+      <div
+        className={`fixed inset-0 z-50 transition-opacity duration-300 ${drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      >
+        <div className="absolute inset-0 bg-black/30" onClick={() => setDrawerOpen(false)} />
 
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
-              <h2 className="text-sm font-semibold text-gray-900">Filters</h2>
-              <button onClick={() => setDrawerOpen(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-                <X size={15} />
-              </button>
+        <div
+          className={`absolute right-0 top-0 h-full w-80 bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${
+            drawerOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border shrink-0">
+            <div className="flex items-center gap-2">
+              <Filter size={15} className="text-purple-600" />
+              <h2 className="text-sm font-bold text-gray-900">Filters</h2>
+              {activeFiltersCount > 0 && (
+                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full">
+                  {activeFiltersCount} active
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setDrawerOpen(false)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+            {/* Section 1 — Temporal */}
+            {[
+              ['Registration Date', 'regFrom', 'regTo'],
+              ['Expiry Date',       'expFrom', 'expTo'],
+              ['Due Date',          'dueFrom', 'dueTo'],
+            ].map(([label, fromKey, toKey]) => (
+              <div key={label}>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</label>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">From</p>
+                    <input type="date" value={draft[fromKey]} onChange={e => d(fromKey, e.target.value)}
+                      className="w-full text-sm border border-surface-border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-1">To</p>
+                    <input type="date" value={draft[toKey]} onChange={e => d(toKey, e.target.value)}
+                      className="w-full text-sm border border-surface-border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700" />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Section 2 — Geographic */}
+            {[
+              ['Area',     'area',     AREAS],
+              ['Locality', 'locality', LOCALITIES],
+              ['Branch',   'branch',   BRANCHES],
+              ['Zone',     'zone',     ZONES],
+            ].map(([label, key, opts]) => (
+              <div key={label}>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</label>
+                <div className="relative">
+                  <select value={draft[key]} onChange={e => d(key, e.target.value)}
+                    className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                    <option value="">All</option>
+                    {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            ))}
+
+            {/* Section 3 — Sales / Team */}
+            {[
+              ['Sales Person',        'sales',    SALES_PERSONS],
+              ['Assigned Engineer',   'engineer', ENGINEERS],
+              ['Partner / Franchise', 'partner',  PARTNERS],
+            ].map(([label, key, opts]) => (
+              <div key={label}>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</label>
+                <div className="relative">
+                  <select value={draft[key]} onChange={e => d(key, e.target.value)}
+                    className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                    <option value="">All</option>
+                    {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            ))}
+
+            {/* Section 4 — Status / Type */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Customer Type</label>
+              <div className="flex gap-4">
+                {['', 'Individual', 'Corporate'].map(v => (
+                  <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="draft-custType" value={v} checked={draft.custType === v}
+                      onChange={() => d('custType', v)} className="accent-purple-600" />
+                    <span className="text-sm text-gray-700">{v || 'All'}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
-
-              {/* Section 1 — Temporal */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Temporal</p>
-                {[
-                  ['Registration Date', 'regFrom', 'regTo'],
-                  ['Expiry Date',       'expFrom', 'expTo'],
-                  ['Due Date',          'dueFrom', 'dueTo'],
-                ].map(([label, fromKey, toKey]) => (
-                  <div key={label} className="space-y-1">
-                    <p className="text-xs text-gray-600 font-medium">{label}</p>
-                    <div className="flex items-center gap-2">
-                      <input type="date" value={draft[fromKey]} onChange={e => d(fromKey, e.target.value)}
-                        className="flex-1 text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 min-w-0" />
-                      <span className="text-xs text-gray-400 shrink-0">–</span>
-                      <input type="date" value={draft[toKey]} onChange={e => d(toKey, e.target.value)}
-                        className="flex-1 text-xs border border-surface-border rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 min-w-0" />
-                    </div>
-                  </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pipeline</label>
+              <div className="flex gap-4">
+                {['', 'Residential', 'Enterprise'].map(v => (
+                  <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="draft-pipeline" value={v} checked={draft.pipeline === v}
+                      onChange={() => d('pipeline', v)} className="accent-purple-600" />
+                    <span className="text-sm text-gray-700">{v || 'All'}</span>
+                  </label>
                 ))}
               </div>
-
-              {/* Section 2 — Geographic */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Geographic</p>
-                {[
-                  ['Area',        'area',     AREAS],
-                  ['Locality',    'locality', LOCALITIES],
-                  ['Branch',      'branch',   BRANCHES],
-                  ['Zone',        'zone',     ZONES],
-                ].map(([label, key, opts]) => (
-                  <div key={label} className="space-y-1">
-                    <p className="text-xs text-gray-600 font-medium">{label}</p>
-                    <div className="relative">
-                      <select value={draft[key]} onChange={e => d(key, e.target.value)}
-                        className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
-                        <option value="">All</option>
-                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                      <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Section 3 — Sales / Team */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales / Team</p>
-                {[
-                  ['Sales Person',        'sales',    SALES_PERSONS],
-                  ['Assigned Engineer',   'engineer', ENGINEERS],
-                  ['Partner / Franchise', 'partner',  PARTNERS],
-                ].map(([label, key, opts]) => (
-                  <div key={label} className="space-y-1">
-                    <p className="text-xs text-gray-600 font-medium">{label}</p>
-                    <div className="relative">
-                      <select value={draft[key]} onChange={e => d(key, e.target.value)}
-                        className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
-                        <option value="">All</option>
-                        {opts.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                      <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Section 4 — Status / Type */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status / Type</p>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-600 font-medium">Customer Type</p>
-                  <div className="flex gap-4">
-                    {['', 'Individual', 'Corporate'].map(v => (
-                      <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" name="draft-custType" value={v} checked={draft.custType === v}
-                          onChange={() => d('custType', v)} className="accent-brand-blue" />
-                        <span className="text-xs text-gray-700">{v || 'All'}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-600 font-medium">Pipeline</p>
-                  <div className="flex gap-4">
-                    {['', 'Residential', 'Enterprise'].map(v => (
-                      <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" name="draft-pipeline" value={v} checked={draft.pipeline === v}
-                          onChange={() => d('pipeline', v)} className="accent-brand-blue" />
-                        <span className="text-xs text-gray-700">{v || 'All'}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-600 font-medium">Service Type</p>
-                  <div className="relative">
-                    <select value={draft.service} onChange={e => d('service', e.target.value)}
-                      className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
-                      <option value="">All</option>
-                      {ALL_SERVICES.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 5 — Technical */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Technical</p>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-600 font-medium">Online / Offline</p>
-                  <div className="flex gap-4">
-                    {['', 'Online', 'Offline'].map(v => (
-                      <label key={v} className="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" name="draft-online" value={v} checked={draft.online === v}
-                          onChange={() => d('online', v)} className="accent-brand-blue" />
-                        <span className="text-xs text-gray-700">{v || 'All'}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-600 font-medium">Package Name</p>
-                  <div className="relative">
-                    <select value={draft.plan} onChange={e => d('plan', e.target.value)}
-                      className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm bg-white border border-surface-border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
-                      <option value="">All</option>
-                      {PLANS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                    <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-surface-border flex items-center gap-3 shrink-0 bg-white">
-              <button onClick={resetDrawer}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 border border-surface-border rounded-lg hover:bg-gray-50 transition-colors">
-                Reset Filters
-              </button>
-              <button onClick={applyDrawer}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-blue rounded-lg hover:bg-brand-blue/90 transition-colors">
-                Apply Filters
-              </button>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Service Type</label>
+              <div className="relative">
+                <select value={draft.service} onChange={e => d('service', e.target.value)}
+                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                  <option value="">All</option>
+                  {ALL_SERVICES.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Section 5 — Technical */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Online / Offline</label>
+              <div className="flex gap-4">
+                {['', 'Online', 'Offline'].map(v => (
+                  <label key={v} className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="draft-online" value={v} checked={draft.online === v}
+                      onChange={() => d('online', v)} className="accent-purple-600" />
+                    <span className="text-sm text-gray-700">{v || 'All'}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Package Name</label>
+              <div className="relative">
+                <select value={draft.plan} onChange={e => d('plan', e.target.value)}
+                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                  <option value="">All</option>
+                  {PLANS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
             </div>
 
           </div>
-        </>
-      )}
+
+          {/* Sticky footer */}
+          <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-gray-50 flex items-center gap-3">
+            <button
+              onClick={resetDrawer}
+              className="flex-1 py-2.5 text-sm font-semibold text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-xl transition-colors bg-white"
+            >
+              Clear All Filters
+            </button>
+            <button
+              onClick={applyDrawer}
+              className="flex-1 py-2.5 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-colors shadow-sm"
+            >
+              Apply Filters
+            </button>
+          </div>
+
+        </div>
+      </div>
 
       {/* ── Table ── */}
       <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
