@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   UserPlus, Download, Filter, ChevronLeft, ChevronRight,
-  Search, X, ChevronDown, Users
+  Search, X, ChevronDown, Users, MoreHorizontal, Eye, Edit2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -107,6 +107,23 @@ export default function Customers() {
   const [statusTab,       setStatusTab]       = useState('All')
   const [selected,        setSelected]        = useState(new Set())
   const [page,            setPage]            = useState(1)
+  const [menuId,          setMenuId]          = useState(null)
+  const [menuPos,         setMenuPos]         = useState({ top: 0, right: 0 })
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuId) return
+    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [menuId])
+
+  function openMenu(e, id) {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    setMenuId(id)
+  }
 
   // Applied filters (drive the table)
   const [filterService,   setFilterService]   = useState('')
@@ -502,7 +519,7 @@ export default function Customers() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
-                <th className="px-4 py-3 w-10">
+                <th className="px-4 py-3 w-10 shrink-0">
                   <input
                     type="checkbox"
                     checked={allOnPage}
@@ -510,15 +527,15 @@ export default function Customers() {
                     className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Customer ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Services</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Plan</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Zone</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Expiry</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[148px]">Customer ID</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[200px]">Services</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Plan</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Zone</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[100px]">Expiry</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">Status</th>
+                <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
@@ -569,18 +586,15 @@ export default function Customers() {
                     <td className="px-4 py-3">
                       <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex gap-1 justify-end">
-                        <button
-                          onClick={() => navigate(`/customers/${c.id}`)}
-                          className="px-2.5 py-1 text-xs font-medium text-brand-blue hover:bg-brand-blue/10 rounded transition-colors"
-                        >
-                          View
-                        </button>
-                        <button className="px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded transition-colors">
-                          Edit
-                        </button>
-                      </div>
+                    <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={e => openMenu(e, c.id)}
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${
+                          menuId === c.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
                     </td>
                   </tr>
                 )
@@ -632,6 +646,28 @@ export default function Customers() {
           </div>
         </div>
       </div>
+
+      {/* ── 3-dot dropdown portal ── */}
+      {menuId && (
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+          className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
+        >
+          <button
+            onClick={() => { navigate(`/customers/${menuId}`); setMenuId(null) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Eye size={13} className="text-brand-blue shrink-0" /> View Details
+          </button>
+          <button
+            onClick={() => setMenuId(null)}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit Profile
+          </button>
+        </div>
+      )}
     </div>
   )
 }
