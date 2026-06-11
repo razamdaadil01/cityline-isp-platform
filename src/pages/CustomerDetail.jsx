@@ -1210,12 +1210,16 @@ export default function CustomerDetail() {
     <div className="p-6 max-w-[1400px] space-y-5">
 
       {/* ── Back nav ── */}
-      <button
-        onClick={() => navigate('/customers')}
-        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-blue transition-colors"
-      >
-        <ArrowLeft size={15} /> Back to Customers
-      </button>
+      <nav className="flex items-center gap-1.5 text-sm">
+        <button
+          onClick={() => navigate('/customers')}
+          className="text-gray-400 hover:text-brand-blue transition-colors font-medium"
+        >
+          Customers
+        </button>
+        <span className="text-gray-300">/</span>
+        <span className="text-gray-500">{customer.id}</span>
+      </nav>
 
       {/* ── Header card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
