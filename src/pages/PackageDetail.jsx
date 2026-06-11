@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Edit2 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import { getPlans, subscribePlans, updatePlanStatus } from '../data/packagesStore'
 
@@ -96,6 +96,12 @@ export default function PackageDetail() {
         <Badge variant={isActive ? 'green' : 'gray'} dot>
           {isActive ? 'Active' : 'Inactive'}
         </Badge>
+        <button
+          onClick={() => navigate(`/packages/${id}/edit`)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-brand-blue/40 text-brand-blue hover:bg-blue-50 transition-colors shrink-0"
+        >
+          <Edit2 size={13} /> Edit Plan
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -125,7 +131,7 @@ export default function PackageDetail() {
           <Card title="Pricing">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
               <InfoRow label="Price" value={fmtPrice(plan.price)} />
-              <InfoRow label="Validity" value={plan.validity ? `${plan.validity} days` : 'One Time'} />
+              <InfoRow label="Tenure" value={plan.validity ? `${plan.validity} days` : 'One Time'} />
               <InfoRow label="Billing Type" value={plan.billingType} />
               <InfoRow label="No. of Recharge" value={plan.noOfRecharge ?? 1} />
               <InfoRow label="Multiple Month Pricing" value={plan.multipleMonthPricing ? 'Yes' : 'No'} />
