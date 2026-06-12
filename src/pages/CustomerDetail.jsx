@@ -511,10 +511,7 @@ function PackagesTab() {
                       <p className="font-medium text-gray-700">{pkg.endDate}</p>
                     </div>
                   </div>
-                  <div className="p-2 bg-surface rounded-lg border border-surface-border text-xs">
-                    <span className="text-gray-400">Jaze B/W Package ID: </span>
-                    <span className="font-mono font-semibold text-navy">{pkg.jazePkgId}</span>
-                  </div>
+
                 </div>
                 <div className="flex gap-2 mt-4 pt-4 border-t border-surface-border">
                   <Button variant="secondary" size="xs" className="flex-1">Renew</Button>
