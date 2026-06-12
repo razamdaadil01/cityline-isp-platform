@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, LayoutGrid, List, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -12,8 +12,9 @@ const TABLE_PAGE_SIZE_OPTIONS = [10, 25, 50]
 
 export default function Packages() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [plans, setPlans] = useState(getPlans)
-  const [view, setView] = useState('card')
+  const view = searchParams.get('view') === 'table' ? 'table' : 'card'
   const [search, setSearch] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterPipeline, setFilterPipeline] = useState('')
@@ -63,7 +64,7 @@ export default function Packages() {
           {/* View toggle */}
           <div className="flex items-center rounded-lg border border-surface-border overflow-hidden">
             <button
-              onClick={() => setView('card')}
+              onClick={() => setSearchParams({ view: 'card' })}
               title="Card view"
               className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${
                 view === 'card'
@@ -75,7 +76,7 @@ export default function Packages() {
               <span>Card</span>
             </button>
             <button
-              onClick={() => setView('table')}
+              onClick={() => setSearchParams({ view: 'table' })}
               title="Table view"
               className={`flex items-center gap-1.5 px-3 py-2 text-sm border-l border-surface-border transition-colors ${
                 view === 'table'
