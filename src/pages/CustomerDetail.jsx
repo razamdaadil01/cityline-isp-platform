@@ -418,7 +418,7 @@ function ProfileTab({ customer, notes, setNotes }) {
 // ── Tab: Package Details ─────────────────────────────────────────────────────
 
 function PackagesTab() {
-  const [view, setView] = useState('card')
+  const [view, setView] = useState('table')
   const [pkgMenu, setPkgMenu] = useState(null)
   const pkgMenuRef = useRef(null)
 
@@ -468,10 +468,7 @@ function PackagesTab() {
                     <div className={`w-10 h-10 rounded-xl ${pkg.iconBg} ${pkg.iconColor} flex items-center justify-center`}>
                       <Icon size={18} />
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{pkg.type}</p>
-                      <p className="text-sm font-bold text-gray-900">{pkg.plan}</p>
-                    </div>
+                    <p className="text-sm font-bold text-gray-900">{pkg.plan}</p>
                   </div>
                   <Badge variant="green" size="sm" dot>Active</Badge>
                 </div>
