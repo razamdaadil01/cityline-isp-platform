@@ -55,6 +55,7 @@ export default function App() {
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/new" element={<AddCustomer />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
+          <Route path="/customers/:id/:tab" element={<CustomerDetail />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/sales/followups" element={<SalesFollowups />} />

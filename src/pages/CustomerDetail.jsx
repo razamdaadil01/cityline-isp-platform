@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Wifi, WifiOff, Phone, Mail, MapPin, Eye, EyeOff,
@@ -217,6 +217,19 @@ const KYC_STATUS = {
 }
 
 const TABS = ['Profile', 'Package Details', 'Finance', 'Tickets', 'Inventory', 'Network Map', 'TR-069', 'Recordings', 'Activity Logs']
+
+const TAB_SLUGS = {
+  'Profile':         'profile',
+  'Package Details': 'packages',
+  'Finance':         'finance',
+  'Tickets':         'tickets',
+  'Inventory':       'inventory',
+  'Network Map':     'network-map',
+  'TR-069':          'tr-069',
+  'Recordings':      'recordings',
+  'Activity Logs':   'activity-logs',
+}
+const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) => [v, k]))
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
@@ -1196,13 +1209,21 @@ function ActivityTab() {
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function CustomerDetail() {
-  const { id } = useParams()
+  const { id, tab } = useParams()
   const navigate = useNavigate()
 
   const customer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
 
-  const [activeTab, setActiveTab] = useState('Profile')
-  const [notes, setNotes]         = useState(customer.notes)
+  const activeTab = SLUG_TO_TAB[tab] ?? 'Profile'
+  const [notes, setNotes] = useState(customer.notes)
+
+  useEffect(() => {
+    if (!tab) navigate(`/customers/${id}/profile`, { replace: true })
+  }, [id, tab, navigate])
+
+  function setActiveTab(tabName) {
+    navigate(`/customers/${id}/${TAB_SLUGS[tabName]}`)
+  }
 
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
 
