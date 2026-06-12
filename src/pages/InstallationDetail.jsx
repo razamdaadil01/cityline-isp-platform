@@ -503,7 +503,7 @@ export default function InstallationDetail() {
   const isCancelled   = status === 'Cancelled' || status === 'Failed'
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-5">
+    <div className="p-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">

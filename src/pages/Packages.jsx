@@ -52,7 +52,7 @@ export default function Packages() {
   const selectCls = 'px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700'
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px]">
+    <div className="p-6 space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -402,7 +402,7 @@ function TableRow({ plan, onStatusToggle }) {
       <td className="pl-6 pr-3 py-2.5 whitespace-nowrap">
         <span className="text-xs text-gray-700">{pkgType}</span>
       </td>
-      <td className="px-3 py-2.5 max-w-[180px]">
+      <td className="px-3 py-2.5">
         <button
           onClick={() => navigate(`/packages/${plan.id}`)}
           className="block truncate text-xs font-semibold text-brand-blue hover:underline text-left w-full"

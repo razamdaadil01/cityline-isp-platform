@@ -141,7 +141,7 @@ export default function AuditLog() {
   }, [])
 
   return (
-    <div className="p-6 space-y-5 max-w-[1600px]">
+    <div className="p-6 space-y-5">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
@@ -273,7 +273,7 @@ export default function AuditLog() {
                       <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xs font-bold shrink-0">
                         {log.user.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-xs text-gray-600 truncate max-w-[140px]">{log.user}</span>
+                      <span className="text-xs text-gray-600 truncate">{log.user}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3"><ActionBadge action={log.action} /></td>

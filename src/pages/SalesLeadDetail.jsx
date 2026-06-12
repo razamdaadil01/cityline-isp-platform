@@ -2060,7 +2060,7 @@ export default function SalesLeadDetail() {
   }
 
   return (
-    <div className="pt-2 pb-6 px-6 lg:px-6 xl:px-8 2xl:px-12 max-w-[1400px] xl:max-w-[1600px] 2xl:max-w-[1900px] mx-auto space-y-3">
+    <div className="pt-2 pb-6 px-6 lg:px-6 xl:px-8 2xl:px-12 space-y-3">
 
       {/* Quotation sent toast */}
       {quotationToast && (

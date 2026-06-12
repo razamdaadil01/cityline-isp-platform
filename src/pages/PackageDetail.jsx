@@ -73,7 +73,7 @@ export default function PackageDetail() {
   const serverColor = SERVER_TYPE_COLORS[plan.serverType] || 'bg-gray-700 text-white'
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px]">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
