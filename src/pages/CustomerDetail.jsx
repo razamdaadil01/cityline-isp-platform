@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Wifi, WifiOff, Phone, Mail, MapPin, Eye, EyeOff,
   Ticket, MessageSquare, Ban, AlertTriangle, FileText, Download,
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
-  LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw,
+  LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -419,6 +419,15 @@ function ProfileTab({ customer, notes, setNotes }) {
 
 function PackagesTab() {
   const [view, setView] = useState('card')
+  const [pkgMenu, setPkgMenu] = useState(null)
+  const pkgMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!pkgMenu) return
+    function handle(e) { if (pkgMenuRef.current && !pkgMenuRef.current.contains(e.target)) setPkgMenu(null) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [pkgMenu])
 
   return (
     <div className="space-y-4">
@@ -527,7 +536,7 @@ function PackagesTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-surface-border text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                  {['Service','Package Name','Bandwidth / Speed','Tenure','Amount','Start Date','End Date','Status','Actions'].map((h, i) => (
+                  {['Package Name','Bandwidth / Speed','Tenure','Amount','Start Date','End Date','Status','Actions'].map((h, i) => (
                     <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-5' : ''}`}>{h}</th>
                   ))}
                 </tr>
@@ -537,17 +546,8 @@ function PackagesTab() {
                   const Icon = pkg.icon
                   return (
                     <tr key={pkg.type} className="hover:bg-gray-50/60 transition-colors">
-                      {/* Service */}
-                      <td className="pl-5 pr-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-7 h-7 rounded-lg ${pkg.iconBg} ${pkg.iconColor} flex items-center justify-center shrink-0`}>
-                            <Icon size={14} />
-                          </div>
-                          <span className="text-xs font-semibold text-gray-700">{pkg.type}</span>
-                        </div>
-                      </td>
                       {/* Package Name */}
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="pl-5 pr-4 py-3 whitespace-nowrap">
                         <span className="text-xs font-medium text-gray-800">{pkg.plan}</span>
                       </td>
                       {/* Bandwidth / Speed */}
@@ -575,11 +575,26 @@ function PackagesTab() {
                         <Badge variant="green" size="sm" dot>Active</Badge>
                       </td>
                       {/* Actions */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Button variant="secondary" size="xs">Renew</Button>
-                          <Button variant="ghost" size="xs">Modify</Button>
-                        </div>
+                      <td className="px-4 py-3 whitespace-nowrap relative">
+                        <button
+                          onClick={e => { e.stopPropagation(); setPkgMenu(pkgMenu === pkg.type ? null : pkg.type) }}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${pkgMenu === pkg.type ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+                        {pkgMenu === pkg.type && (
+                          <div
+                            ref={pkgMenuRef}
+                            className="absolute right-4 top-10 z-20 bg-white rounded-xl border border-surface-border shadow-xl py-1 w-36"
+                          >
+                            <button onClick={() => setPkgMenu(null)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                              Renew
+                            </button>
+                            <button onClick={() => setPkgMenu(null)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                              Modify
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )
