@@ -220,7 +220,7 @@ function PermissionMatrix({ permissions, onChange }) {
                   <th key={action} className="px-4 py-3 text-center w-20">
                     <button
                       onClick={() => toggleColumn(action)}
-                      className="flex flex-col items-center gap-1 mx-auto group"
+                      className="flex flex-col items-center gap-1 group"
                       title={`Toggle all ${action}`}
                     >
                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide group-hover:text-brand-blue transition-colors">
@@ -291,7 +291,7 @@ function PermissionMatrix({ permissions, onChange }) {
                       <td key={action} className="px-4 py-3 text-center">
                         <button
                           onClick={() => toggleCell(module, action)}
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center mx-auto transition-all ${
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
                             checked
                               ? 'bg-brand-blue border-brand-blue'
                               : 'border-gray-300 hover:border-brand-blue/60 hover:bg-brand-blue/5'
@@ -560,7 +560,7 @@ export default function RolesSettings() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+    <div className="p-6">
       {/* Page Header */}
       <div className="flex items-center gap-2 text-sm text-gray-400 mb-6">
         <span>Settings</span>

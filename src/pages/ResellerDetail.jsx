@@ -134,7 +134,7 @@ export default function ResellerDetail() {
   const statusCfg = STATUS_CFG[reseller.status] ?? STATUS_CFG.inactive
 
   return (
-    <div className="p-6 space-y-5 max-w-[1400px]">
+    <div className="p-6 space-y-5">
 
       {/* ── Header ── */}
       <div className="flex items-center gap-4">

@@ -94,7 +94,7 @@ export default function NetworkServers() {
   const totalCustomers = servers.reduce((acc, s) => acc + s.customers, 0)
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px]">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

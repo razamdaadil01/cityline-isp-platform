@@ -187,7 +187,7 @@ export default function TicketDetail() {
   }
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-5">
+    <div className="p-6 space-y-5">
       {/* Top bar */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">

@@ -206,7 +206,7 @@ function RevenueTooltip({ active, payload, label }) {
 
 export default function Dashboard() {
   return (
-    <div className="p-6 space-y-6 max-w-[1600px]">
+    <div className="p-6 space-y-6">
 
       {/* Page heading */}
       <div className="flex items-center justify-between">

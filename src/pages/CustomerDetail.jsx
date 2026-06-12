@@ -795,7 +795,7 @@ function NetworkMapTab({ customer }) {
                   <Icon size={22} />
                 </div>
                 <p className="text-xs font-semibold text-gray-800 leading-tight">{node.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5 max-w-[100px] leading-tight">{node.sub}</p>
+                <p className="text-xs text-gray-400 mt-0.5 leading-tight">{node.sub}</p>
                 {node.active && (
                   <span className="mt-1.5 inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" /> Online
@@ -1207,7 +1207,7 @@ export default function CustomerDetail() {
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
 
   return (
-    <div className="p-6 max-w-[1400px] space-y-5">
+    <div className="p-6 space-y-5">
 
       {/* ── Header card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">

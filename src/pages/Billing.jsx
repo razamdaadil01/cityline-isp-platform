@@ -295,7 +295,7 @@ export default function Billing() {
   const statusTabs = ['All', 'Paid', 'Pending', 'Overdue']
 
   return (
-    <div className="p-6 space-y-5 max-w-[1600px]">
+    <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

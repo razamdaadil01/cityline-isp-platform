@@ -206,7 +206,7 @@ export default function BandwidthMonitoring() {
   const currentUp   = chartData[chartData.length - 1]?.upload   ?? 0
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px]">
+    <div className="p-6 space-y-6">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
@@ -374,7 +374,7 @@ export default function BandwidthMonitoring() {
                       </span>
                     </td>
                     <td className="py-1.5">
-                      <p className="font-medium text-gray-800 truncate max-w-[130px]">{c.name}</p>
+                      <p className="font-medium text-gray-800 truncate">{c.name}</p>
                       <p className="text-gray-400 font-mono">{c.id}</p>
                     </td>
                     <td className="py-1.5 text-gray-500 font-mono">{c.olt}</td>
