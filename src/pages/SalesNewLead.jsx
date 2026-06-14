@@ -46,6 +46,9 @@ const BRANCHES        = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', '
 const NOTIFY_USERS    = STAFF.map(s => s.name)
 
 const INIT_FORM = {
+  custServiceType: 'Residential',
+  custType: 'Cityline',
+  zone: '',
   pipeline: 'B2C',
   startingStage: PIPELINES.B2C.stages[0],
   leadName: '',
@@ -71,7 +74,13 @@ const INIT_FORM = {
   companyName: '', gstRegistered: false, gstNumber: '', companyAddress: '',
 }
 
-const PIPELINE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
+const ZONES_BY_CUST_TYPE = {
+  Cityline: ['Andheri West', 'Versova', 'Goregaon', 'MIDC Andheri'],
+  Partner:  ['Bandra East'],
+}
+
+const CUST_SERVICE_TO_PIPELINE = { Residential: 'B2C', Enterprise: 'Enterprise' }
+
 
 // ── Duplicate Warning Banner ──────────────────────────────────────────────────
 
@@ -195,8 +204,21 @@ export default function SalesNewLead() {
   useEffect(() => subscribeStageFields(() => setSfTick(n => n + 1)), [])
 
   function set(f, v) {
-    setForm(p => ({ ...p, [f]: v }))
-    if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
+    setForm(p => {
+      const next = { ...p, [f]: v }
+      if (f === 'custServiceType') {
+        const key = CUST_SERVICE_TO_PIPELINE[v] ?? 'B2C'
+        next.pipeline = key
+        next.startingStage = PIPELINES[key].stages[0]
+        setStageFieldVals({})
+        setStageErrors({})
+      }
+      if (f === 'custType') {
+        next.zone = ''
+      }
+      if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
+      return next
+    })
   }
 
   function findDuplicate(phoneNum) {
@@ -240,6 +262,7 @@ export default function SalesNewLead() {
 
   function validate() {
     const e = {}
+    if (!form.zone)                    e.zone     = 'Zone is required'
     if (!form.leadName.trim())         e.leadName = 'Lead name is required'
     if (!form.name.trim())             e.name     = form.pipeline === 'Enterprise' ? 'Contact person is required' : 'Full name is required'
     if (!form.phone.match(/^\d{10}$/)) e.phone    = 'Enter a valid 10-digit number'
@@ -413,6 +436,47 @@ export default function SalesNewLead() {
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+
+        {/* ── Service & Zone card ─────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+          <p className="text-sm font-bold text-gray-700 mb-4">Service Configuration</p>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+
+            <FormField label="Customer Service Type" required>
+              <Select value={form.custServiceType} onChange={e => set('custServiceType', e.target.value)}>
+                <option value="Residential">Residential</option>
+                <option value="Enterprise">Enterprise</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Customer Type" required>
+              <Select value={form.custType} onChange={e => set('custType', e.target.value)}>
+                <option value="Cityline">Cityline</option>
+                <option value="Partner">Partner</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Zone" required>
+              <Select value={form.zone} onChange={e => { set('zone', e.target.value); setErrors(p => ({ ...p, zone: '' })) }}
+                className={errors.zone ? 'border-red-400 focus:ring-red-400/30' : ''}>
+                <option value="">Select zone…</option>
+                {(ZONES_BY_CUST_TYPE[form.custType] ?? []).map(z => (
+                  <option key={z} value={z}>{z}</option>
+                ))}
+              </Select>
+              {errors.zone && <p className="text-xs text-red-500 mt-1">{errors.zone}</p>}
+            </FormField>
+
+            <FormField label="Starting Stage">
+              <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
+                <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
+                <span className="text-sm font-medium text-gray-700">New Inquiry</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Lead will start at New Inquiry stage</p>
+            </FormField>
+
+          </div>
+        </div>
 
         {/* Lead details card */}
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
@@ -756,45 +820,6 @@ export default function SalesNewLead() {
             </div>
 
           </div>
-        </div>
-
-        {/* Pipeline selector */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <div className="grid grid-cols-2 gap-5">
-            <FormField label="Pipeline" required>
-              <Select
-                value={form.pipeline}
-                onChange={e => {
-                  const key = e.target.value
-                  setForm(p => ({ ...p, pipeline: key, startingStage: PIPELINES[key]?.stages[0] ?? '' }))
-                  setStageFieldVals({})
-                  setStageErrors({})
-                }}
-              >
-                {activePipelineKeys.map(key => (
-                  <option key={key} value={key}>{PIPELINES[key].label}</option>
-                ))}
-              </Select>
-            </FormField>
-
-            <FormField label="Starting Stage" required hint="Lead will start at this stage">
-              <Select
-                value={selectedStageName}
-                onChange={e => set('startingStage', e.target.value)}
-              >
-                {pl.stages.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </Select>
-            </FormField>
-          </div>
-          <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
-            <span className="font-semibold text-gray-600">{pl.labelFull}</span>
-            <span>·</span>
-            <span>{pl.stages.length} stages</span>
-            <span>·</span>
-            <span>starts at <strong className="text-gray-600">{selectedStageName}</strong></span>
-          </p>
         </div>
 
         {/* Stage Fields card — dynamic fields for first stage */}
