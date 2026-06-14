@@ -20,9 +20,14 @@ const MOCK_CUSTOMERS = {
     name: 'Rajan Mehta',
     phone: '98765 43210',
     altPhone: '22 2678 9012',
+    telephone: '022-26789012',
     email: 'rajan.mehta@gmail.com',
     dob: '15 Mar 1982',
     gender: 'Male',
+    sonOf: 'Mohan Mehta',
+    gstNo: '27AABCM1234D1Z5',
+    panCard: 'AABCM1234D',
+    customerType: 'Individual',
     status: 'active',
     online: true,
     services: ['Broadband', 'Landline', 'OTT'],
@@ -37,12 +42,46 @@ const MOCK_CUSTOMERS = {
       street: 'Four Bungalows Road',
       building: 'Sai Darshan CHS, Flat 302',
       zone: 'Andheri West',
+      olt: 'OLT-AW-02',
+      splitter: 'SPL-14-B',
+      port: 'Port 06',
+      billingState: 'Maharashtra',
+      billingCity: 'Mumbai',
+      billingPincode: '400053',
+      billingLandmark: 'Near D-Mart',
+      billingAddress: 'Sai Darshan CHS, Flat 302, Four Bungalows Road',
+      installState: 'Maharashtra',
+      installCity: 'Mumbai',
+      installPincode: '400053',
+      installLandmark: 'Near D-Mart',
+      installAddress: 'Sai Darshan CHS, Flat 302, Four Bungalows Road',
+    },
+    connection: {
+      type: 'FTTH',
+      serverType: 'CNPL_B2C',
+      ipacctId: '704341139412544',
+      nasInterface: 'BNG:ANDHERIWEST:166:1031',
+      url: 'https://portal.citylinenetworks.in/u/rajan_mehta_cl1001',
+      sbtNo: 'SBT-2023-0014',
+      circuitId: 'CKT-AW-14-0302',
+      vcNo: 'VC-AW-0301',
+      macId: 'A4:C3:F0:11:22:33',
+      serialNo: 'ONU-AW14-20230110',
+      aEnd: 'Andheri West OLT',
+      bEnd: 'Customer Premises',
+      prorataBilling: 'No',
     },
     payment: {
       mode: 'NEFT / Bank Transfer',
       advanceDeposit: 2000,
       creditLimit: 5000,
       billingCycle: '1st of every month',
+      installationAmount: 1000,
+      securityDeposit: 1000,
+      installHardware: 'ONU + Router',
+      invoiceDueDays: 7,
+      refundTerms: '30 days after termination',
+      refundSecurity: 'Yes',
     },
     radius: {
       jazeUserId: 'rajan_mehta_cl1001',
@@ -53,11 +92,26 @@ const MOCK_CUSTOMERS = {
       ipAddress: '10.14.22.45',
       macAddress: 'A4:C3:F0:11:22:33',
     },
+    sales: {
+      executive: 'Pradeep Kumar',
+      areaSalesManager: 'Vikram Patil',
+      billingAccountManager: 'Anita Sharma',
+      installationBy: 'Suresh Babu',
+      registrationDate: '10-01-2023 10:35 AM',
+      dueDays: 1,
+      leadSource: 'Referral',
+      remark: 'Customer referred by existing subscriber CL-0892. Prefers SMS reminders.',
+    },
     kyc: {
       aadhaar: 'verified',
       pan: 'verified',
       photo: 'uploaded',
       agreementSigned: true,
+      idProofType: 'Aadhaar Card',
+      addressProofType: 'Utility Bill',
+      signatureUploaded: true,
+      docVerified: true,
+      docComment: 'All documents verified on 12-01-2023 by Admin.',
     },
     notes: 'Customer prefers SMS reminders 3 days before renewal. Known contact - referred by CL-0892.',
   },
@@ -233,65 +287,186 @@ const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) =>
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
+function InfoField({ label, value, mono }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className={`text-sm text-gray-800 font-medium mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? '—'}</p>
+    </div>
+  )
+}
+
+function ProfileSection({ title, action, children }) {
+  return (
+    <Card>
+      <CardHeader title={title} action={action ?? <Button variant="ghost" size="xs" icon={<Edit2 size={12} />}>Edit</Button>} />
+      {children}
+    </Card>
+  )
+}
+
 function ProfileTab({ customer, notes, setNotes }) {
   const [showPass, setShowPass] = useState(false)
+  const conn = customer.connection ?? {}
+  const sales = customer.sales ?? {}
+  const kyc = customer.kyc ?? {}
+  const pay = customer.payment ?? {}
+
+  const editBtn = <Button variant="ghost" size="xs" icon={<Edit2 size={12} />}>Edit</Button>
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
-      {/* Left col */}
+      {/* ── Left / Main col ── */}
       <div className="xl:col-span-2 space-y-5">
 
-        {/* Personal details */}
-        <Card>
-          <CardHeader title="Personal Details" action={<Button variant="ghost" size="xs" icon={<Edit2 size={12} />}>Edit</Button>} />
+        {/* SECTION 1 — Personal Details */}
+        <ProfileSection title="Personal Details">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            {[
-              ['Full Name',   customer.name],
-              ['Phone',       customer.phone],
-              ['Alt. Phone',  customer.altPhone],
-              ['Email',       customer.email],
-              ['Date of Birth', customer.dob],
-              ['Gender',      customer.gender],
-              ['Account Manager', customer.accountManager],
-              ['Customer Since',  customer.createdOn],
-            ].map(([label, val]) => (
-              <div key={label}>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
-                <p className="text-sm text-gray-800 font-medium mt-0.5">{val}</p>
+            <InfoField label="Full Name"       value={customer.name} />
+            <InfoField label="S/o (Son of)"    value={customer.sonOf} />
+            <InfoField label="Date of Birth"   value={customer.dob} />
+            <InfoField label="Gender"          value={customer.gender} />
+            <InfoField label="Customer Type"   value={customer.customerType} />
+            <InfoField label="GST No."         value={customer.gstNo} mono />
+            <InfoField label="PAN Card"        value={customer.panCard} mono />
+            <InfoField label="Customer Since"  value={customer.createdOn} />
+          </div>
+        </ProfileSection>
+
+        {/* SECTION 2 — Contact Details */}
+        <ProfileSection title="Contact Details">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+            <InfoField label="Mobile (Primary)"  value={customer.phone} />
+            <InfoField label="Alternate Mobile"  value={customer.altPhone} />
+            <InfoField label="Telephone"         value={customer.telephone} />
+            <InfoField label="Email"             value={customer.email} />
+          </div>
+        </ProfileSection>
+
+        {/* SECTION 3 — Connection Details */}
+        <ProfileSection title="Connection Details">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+            <InfoField label="Connection Type" value={conn.type} />
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1.5">Service Opted</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(customer.services ?? []).map(s => (
+                  <span key={s} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-blue/10 text-brand-blue border border-brand-blue/20">{s}</span>
+                ))}
               </div>
-            ))}
+            </div>
+            <InfoField label="Server Type"   value={conn.serverType} mono />
+            <InfoField label="IPACCT ID"     value={conn.ipacctId} mono />
+            <InfoField label="Jaze User ID"  value={customer.radius.jazeUserId} mono />
+            <InfoField label="NAS/Interface" value={conn.nasInterface} mono />
+            <div className="col-span-full">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">PPPoE Password</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-mono text-gray-800">{showPass ? customer.radius.pppoePassword : '••••••••'}</span>
+                <button onClick={() => setShowPass(v => !v)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+                <button onClick={() => navigator.clipboard?.writeText(customer.radius.pppoePassword)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <Copy size={13} />
+                </button>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">URL</p>
+              {conn.url
+                ? <a href={conn.url} target="_blank" rel="noreferrer" className="text-sm text-brand-blue hover:underline font-medium">View URL</a>
+                : <p className="text-sm text-gray-800">—</p>}
+            </div>
+            <InfoField label="SBT No."     value={conn.sbtNo} mono />
+            <InfoField label="Circuit ID"  value={conn.circuitId} mono />
+            <InfoField label="VC No."      value={conn.vcNo} mono />
+            <InfoField label="MAC ID"      value={conn.macId} mono />
+            <InfoField label="Serial No."  value={conn.serialNo} mono />
+            <InfoField label="A End"       value={conn.aEnd} />
+            <InfoField label="B End"       value={conn.bEnd} />
+            <InfoField label="Prorata Billing" value={conn.prorataBilling} />
           </div>
-        </Card>
+        </ProfileSection>
 
-        {/* 6-level address */}
-        <Card>
-          <CardHeader title="Service Address" subtitle="6-level hierarchy" action={<Button variant="ghost" size="xs" icon={<Edit2 size={12} />}>Edit</Button>} />
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            {[
-              ['Area',     customer.address.area],
-              ['Sub-Area', customer.address.subArea],
-              ['Box',      customer.address.box],
-              ['Street',   customer.address.street],
-              ['Building', customer.address.building],
-              ['Zone',     customer.address.zone],
-            ].map(([level, val], i, arr) => (
-              <span key={level} className="flex items-center gap-2">
-                <span className="flex flex-col">
-                  <span className="text-xs text-gray-400">{level}</span>
-                  <span className="text-sm font-medium text-gray-800">{val}</span>
-                </span>
-                {i < arr.length - 1 && <ChevronRight size={14} className="text-gray-300 shrink-0" />}
+        {/* SECTION 4 — Address Details */}
+        <ProfileSection title="Address Details">
+          {/* Billing Address */}
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Billing Address</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
+            <InfoField label="State"    value={customer.address.billingState} />
+            <InfoField label="City"     value={customer.address.billingCity} />
+            <InfoField label="Pincode"  value={customer.address.billingPincode} mono />
+            <InfoField label="Landmark" value={customer.address.billingLandmark} />
+            <div className="col-span-2">
+              <InfoField label="Address" value={customer.address.billingAddress} />
+            </div>
+          </div>
+          <div className="border-t border-surface-border my-4" />
+          {/* Installation Address */}
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Installation Address</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
+            <InfoField label="State"    value={customer.address.installState} />
+            <InfoField label="City"     value={customer.address.installCity} />
+            <InfoField label="Pincode"  value={customer.address.installPincode} mono />
+            <InfoField label="Landmark" value={customer.address.installLandmark} />
+            <div className="col-span-2">
+              <InfoField label="Address" value={customer.address.installAddress} />
+            </div>
+          </div>
+          <div className="border-t border-surface-border my-4" />
+          {/* Area Address */}
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area Address</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+            <InfoField label="Area"     value={customer.address.area} />
+            <InfoField label="Sub Area" value={customer.address.subArea} />
+            <InfoField label="Box"      value={customer.address.box} mono />
+            <InfoField label="Street"   value={customer.address.street} />
+            <InfoField label="OLT"      value={customer.address.olt} mono />
+            <InfoField label="Splitter" value={customer.address.splitter} mono />
+            <InfoField label="Port"     value={customer.address.port} />
+            <InfoField label="Building" value={customer.address.building} />
+            <InfoField label="Zone"     value={customer.address.zone} />
+          </div>
+        </ProfileSection>
+
+        {/* SECTION 5 — Sales & Account Info */}
+        <ProfileSection title="Sales & Account Info">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+            <InfoField label="Sales Executive"         value={sales.executive} />
+            <InfoField label="Area Sales Manager"      value={sales.areaSalesManager} />
+            <InfoField label="Billing Account Manager" value={sales.billingAccountManager} />
+            <InfoField label="Installation By"         value={sales.installationBy} />
+            <InfoField label="Registration Date/Time"  value={sales.registrationDate} />
+            <InfoField label="Due Days"                value={sales.dueDays != null ? `${sales.dueDays} day${sales.dueDays !== 1 ? 's' : ''}` : '—'} />
+            <InfoField label="Lead Source"             value={sales.leadSource} />
+            <div className="col-span-full">
+              <InfoField label="Remark" value={sales.remark} />
+            </div>
+          </div>
+        </ProfileSection>
+
+        {/* SECTION 6 — Payment Details */}
+        <ProfileSection title="Payment Details">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+            <InfoField label="Installation Amount"   value={pay.installationAmount != null ? `₹${pay.installationAmount.toLocaleString('en-IN')}` : '—'} />
+            <InfoField label="Security Deposit"      value={pay.securityDeposit != null ? `₹${pay.securityDeposit.toLocaleString('en-IN')}` : '—'} />
+            <InfoField label="Install Hardware"      value={pay.installHardware} />
+            <InfoField label="Invoice Due Days"      value={pay.invoiceDueDays != null ? `${pay.invoiceDueDays} days` : '—'} />
+            <InfoField label="Refund Terms"          value={pay.refundTerms} />
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Refund Security</p>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pay.refundSecurity === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                {pay.refundSecurity ?? '—'}
               </span>
-            ))}
+            </div>
+            <InfoField label="Payment Mode"    value={pay.mode} />
+            <InfoField label="Advance Deposit" value={pay.advanceDeposit != null ? `₹${pay.advanceDeposit.toLocaleString('en-IN')}` : '—'} />
+            <InfoField label="Billing Cycle"   value={pay.billingCycle} />
           </div>
-          <div className="flex items-start gap-2 p-3 bg-surface rounded-lg border border-surface-border text-sm text-gray-600">
-            <MapPin size={14} className="text-gray-400 mt-0.5 shrink-0" />
-            <span>{customer.address.building}, {customer.address.street}, {customer.address.subArea}, {customer.address.area}, {customer.address.zone}</span>
-          </div>
-        </Card>
+        </ProfileSection>
 
-        {/* RADIUS / Jaze config */}
+        {/* RADIUS / Jaze config (kept) */}
         <div className="rounded-xl overflow-hidden border border-navy/30">
           <div className="bg-navy px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -302,86 +477,88 @@ function ProfileTab({ customer, notes, setNotes }) {
           </div>
           <div className="bg-[#0c1f38] px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
             {[
-              ['Jaze User ID',    customer.radius.jazeUserId],
-              ['PPPoE Username',  customer.radius.pppoeUsername],
-              ['NAS',            customer.radius.nas],
-              ['Interface',      customer.radius.interface],
-              ['IP Address',     customer.radius.ipAddress],
-              ['MAC Address',    customer.radius.macAddress],
+              ['Jaze User ID',   customer.radius.jazeUserId],
+              ['PPPoE Username', customer.radius.pppoeUsername],
+              ['NAS',           customer.radius.nas],
+              ['Interface',     customer.radius.interface],
+              ['IP Address',    customer.radius.ipAddress],
+              ['MAC Address',   customer.radius.macAddress],
             ].map(([label, val]) => (
               <div key={label}>
                 <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
                 <p className="text-sm text-white font-mono mt-0.5">{val}</p>
               </div>
             ))}
-            {/* PPPoE password with show/hide */}
-            <div className="col-span-full">
-              <p className="text-xs text-gray-400 font-medium tracking-wide mb-0.5">PPPoE Password</p>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-white font-mono">
-                  {showPass ? customer.radius.pppoePassword : '••••••••••••'}
-                </span>
-                <button
-                  onClick={() => setShowPass(v => !v)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-                <button
-                  onClick={() => navigator.clipboard?.writeText(customer.radius.pppoePassword)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <Copy size={13} />
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Payment & deposit */}
-        <Card>
-          <CardHeader title="Payment & Deposit Info" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              ['Payment Mode',   customer.payment.mode],
-              ['Advance Deposit','₹' + customer.payment.advanceDeposit.toLocaleString('en-IN')],
-              ['Credit Limit',  '₹' + customer.payment.creditLimit.toLocaleString('en-IN')],
-              ['Billing Cycle',  customer.payment.billingCycle],
-            ].map(([label, val]) => (
-              <div key={label} className="p-3 bg-surface rounded-lg border border-surface-border">
-                <p className="text-xs text-gray-400 mb-1">{label}</p>
-                <p className="text-sm font-semibold text-gray-800">{val}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
       </div>
 
-      {/* Right col */}
+      {/* ── Right col ── */}
       <div className="space-y-5">
 
-        {/* KYC documents */}
+        {/* SECTION 7 — Documents (expanded KYC) */}
         <Card>
-          <CardHeader title="KYC Documents" />
+          <CardHeader title="KYC Documents" action={editBtn} />
           <div className="space-y-3">
-            {[
-              ['Aadhaar Card',      customer.kyc.aadhaar],
-              ['PAN Card',          customer.kyc.pan],
-              ['Customer Photo',    customer.kyc.photo],
-              ['Agreement Signed',  customer.kyc.agreementSigned ? 'verified' : 'pending'],
-            ].map(([doc, status]) => {
-              const cfg = KYC_STATUS[status] ?? KYC_STATUS.pending
-              const Icon = cfg.icon
-              return (
-                <div key={doc} className="flex items-center justify-between py-2 border-b border-surface-border last:border-0">
-                  <span className="text-sm text-gray-700">{doc}</span>
-                  <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}>
-                    <Icon size={13} />
-                    {cfg.label}
-                  </span>
+            {/* ID Proof */}
+            <div className="py-2 border-b border-surface-border">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm text-gray-700">ID Proof — {kyc.idProofType ?? 'Aadhaar Card'}</span>
+                <div className="flex gap-1.5">
+                  <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">Front</button>
+                  <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">Back</button>
                 </div>
-              )
-            })}
+              </div>
+              {(() => { const cfg = KYC_STATUS[customer.kyc.aadhaar] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+                <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={12} />{cfg.label}</span>
+              ) })()}
+            </div>
+            {/* Address Proof */}
+            <div className="py-2 border-b border-surface-border">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm text-gray-700">Address Proof — {kyc.addressProofType ?? 'Utility Bill'}</span>
+                <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">View</button>
+              </div>
+              {(() => { const cfg = KYC_STATUS[customer.kyc.pan] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+                <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={12} />{cfg.label}</span>
+              ) })()}
+            </div>
+            {/* Photo */}
+            <div className="flex items-center justify-between py-2 border-b border-surface-border">
+              <span className="text-sm text-gray-700">Customer Photo</span>
+              {(() => { const cfg = KYC_STATUS[customer.kyc.photo] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+                <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
+              ) })()}
+            </div>
+            {/* Signature */}
+            <div className="flex items-center justify-between py-2 border-b border-surface-border">
+              <span className="text-sm text-gray-700">Signature</span>
+              {(() => { const cfg = KYC_STATUS[kyc.signatureUploaded ? 'uploaded' : 'pending'] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+                <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
+              ) })()}
+            </div>
+            {/* Agreement */}
+            <div className="flex items-center justify-between py-2 border-b border-surface-border">
+              <span className="text-sm text-gray-700">Agreement Signed</span>
+              {(() => { const cfg = KYC_STATUS[customer.kyc.agreementSigned ? 'verified' : 'pending']; const Icon = cfg.icon; return (
+                <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
+              ) })()}
+            </div>
+            {/* Doc Verified */}
+            <div className="flex items-center justify-between py-2 border-b border-surface-border">
+              <span className="text-sm text-gray-700">Doc Verified</span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${kyc.docVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                {kyc.docVerified ? 'Yes' : 'No'}
+              </span>
+            </div>
+            {/* Comment */}
+            {kyc.docComment && (
+              <div className="pt-1">
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Comment</p>
+                <p className="text-xs text-gray-600">{kyc.docComment}</p>
+              </div>
+            )}
           </div>
         </Card>
 
