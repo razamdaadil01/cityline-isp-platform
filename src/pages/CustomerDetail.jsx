@@ -1218,97 +1218,106 @@ function PackagesTab() {
 // ── Tab: Finance ─────────────────────────────────────────────────────────────
 
 function FinanceTab({ customer }) {
-  const totalPaid = INVOICES.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0)
+  const [subTab, setSubTab] = useState('Invoices')
+
+  const SUB_TABS = ['Invoices', 'Account Ledger']
+
   return (
     <div className="space-y-5">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Paid (YTD)', value: `₹${totalPaid.toLocaleString('en-IN')}`, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
-          { label: 'Outstanding Dues', value: `₹${customer.outstandingDues.toLocaleString('en-IN')}`, color: 'text-red-600', bg: 'bg-red-50 border-red-100' },
-          { label: 'Advance Deposit',  value: `₹${customer.payment.advanceDeposit.toLocaleString('en-IN')}`, color: 'text-brand-blue', bg: 'bg-brand-blue/5 border-brand-blue/10' },
-          { label: 'Credit Limit',    value: `₹${customer.payment.creditLimit.toLocaleString('en-IN')}`, color: 'text-navy', bg: 'bg-navy/5 border-navy/10' },
-        ].map(c => (
-          <div key={c.label} className={`rounded-xl p-4 border ${c.bg}`}>
-            <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-            <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
+      {/* Sub-tab bar */}
+      <div className="flex border-b border-surface-border gap-6">
+        {SUB_TABS.map(t => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            className={`pb-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
+              subTab === t
+                ? 'text-brand-blue border-b-2 border-brand-blue'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t}
+          </button>
         ))}
       </div>
 
       {/* Invoices */}
-      <Card padding={false}>
-        <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-800">Invoices</h3>
-          <Button variant="secondary" size="xs" icon={<Download size={12} />}>Export</Button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50/60 border-b border-surface-border">
-                {['Invoice No', 'Package', 'Date', 'Amount', 'Status', ''].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {INVOICES.map(inv => (
-                <tr key={inv.no} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{inv.no}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{inv.pkg}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{inv.date}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-800">₹{inv.amount.toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={inv.status === 'paid' ? 'green' : 'yellow'} size="sm" dot>
-                      {inv.status === 'paid' ? 'Paid' : 'Pending'}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button className="text-xs text-brand-blue hover:underline flex items-center gap-1 ml-auto">
-                      <FileText size={12} /> PDF
-                    </button>
-                  </td>
+      {subTab === 'Invoices' && (
+        <Card padding={false}>
+          <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Invoices</h3>
+            <Button variant="secondary" size="xs" icon={<Download size={12} />}>Export</Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 border-b border-surface-border">
+                  {['Invoice No', 'Package', 'Date', 'Amount', 'Status', 'PDF'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {INVOICES.map(inv => (
+                  <tr key={inv.no} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{inv.no}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{inv.pkg}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{inv.date}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">₹{inv.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={inv.status === 'paid' ? 'green' : 'yellow'} size="sm" dot>
+                        {inv.status === 'paid' ? 'Paid' : 'Pending'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button className="text-xs text-brand-blue hover:underline flex items-center gap-1">
+                        <FileText size={12} /> PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
-      {/* Ledger */}
-      <Card padding={false}>
-        <div className="px-5 py-4 border-b border-surface-border">
-          <h3 className="text-sm font-semibold text-gray-800">Account Ledger</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50/60 border-b border-surface-border">
-                {['Date', 'Description', 'Type', 'Amount', 'Balance'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {LEDGER.map((entry, i) => (
-                <tr key={i} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{entry.date}</td>
-                  <td className="px-4 py-3 text-gray-700 text-sm">{entry.description}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold ${entry.type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {entry.type === 'credit' ? '▲' : '▼'} {entry.type}
-                    </span>
-                  </td>
-                  <td className={`px-4 py-3 font-semibold text-sm ${entry.type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {entry.type === 'credit' ? '+' : '-'}₹{entry.amount.toLocaleString('en-IN')}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-gray-800 text-sm">₹{entry.balance.toLocaleString('en-IN')}</td>
+      {/* Account Ledger */}
+      {subTab === 'Account Ledger' && (
+        <Card padding={false}>
+          <div className="px-5 py-4 border-b border-surface-border">
+            <h3 className="text-sm font-semibold text-gray-800">Account Ledger</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 border-b border-surface-border">
+                  {['Date', 'Description', 'Type', 'Amount', 'Balance'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {LEDGER.map((entry, i) => (
+                  <tr key={i} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{entry.date}</td>
+                    <td className="px-4 py-3 text-gray-700 text-sm">{entry.description}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold ${entry.type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {entry.type === 'credit' ? '▲' : '▼'} {entry.type}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 font-semibold text-sm ${entry.type === 'credit' ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {entry.type === 'credit' ? '+' : '-'}₹{entry.amount.toLocaleString('en-IN')}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-gray-800 text-sm">₹{entry.balance.toLocaleString('en-IN')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
