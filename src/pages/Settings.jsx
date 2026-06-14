@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook, MapPin, ClipboardCheck, ChevronRight,
+  BookOpen, Webhook, MapPin, ClipboardCheck, ChevronRight, ChevronLeft,
   Layers, FileText, MoreVertical, Map,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -671,6 +671,8 @@ const INIT_ZONES = [
 const EMPTY_ZONE_FORM = { custType: 'Cityline', name: '', zoneId: '', url: '', username: '', password: '' }
 
 function ZoneTab() {
+  const PER_PAGE = 10
+
   const [zones, setZones]         = useState(INIT_ZONES)
   const [showAdd, setShowAdd]     = useState(false)
   const [menuId, setMenuId]       = useState(null)
@@ -679,6 +681,10 @@ function ZoneTab() {
   const [form, setForm]           = useState(EMPTY_ZONE_FORM)
   const [showPw, setShowPw]       = useState(false)
   const [revealId, setRevealId]   = useState(null)
+  const [page, setPage]           = useState(1)
+
+  const totalPages  = Math.max(1, Math.ceil(zones.length / PER_PAGE))
+  const paginated   = zones.slice((page - 1) * PER_PAGE, page * PER_PAGE)
 
   const zf = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -708,6 +714,7 @@ function ZoneTab() {
     setShowAdd(false)
     setForm(EMPTY_ZONE_FORM)
     setShowPw(false)
+    setPage(Math.ceil((zones.length + 1) / PER_PAGE))
   }
 
   return (
@@ -720,7 +727,8 @@ function ZoneTab() {
         <Button size="sm" icon={<Plus size={14} />} onClick={() => { setForm(EMPTY_ZONE_FORM); setShowPw(false); setShowAdd(true) }}>Add Zone</Button>
       </div>
 
-      <div className="rounded-xl border border-surface-border overflow-x-auto">
+      <div className="rounded-xl border border-surface-border">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50/80 border-b border-surface-border">
@@ -730,7 +738,7 @@ function ZoneTab() {
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
-            {zones.map((z, i) => (
+            {paginated.map((z, i) => (
               <tr key={z.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="px-4 py-3 text-gray-500 text-xs">{i + 1}</td>
                 <td className="px-4 py-3">
@@ -769,6 +777,46 @@ function ZoneTab() {
             ))}
           </tbody>
         </table>
+        </div>
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50/40">
+          <p className="text-xs text-gray-500">
+            Showing {zones.length === 0 ? 0 : (page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, zones.length)} of {zones.length} zones
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+              <ChevronLeft size={14} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc, p, i, arr) => {
+                if (i > 0 && p - arr[i - 1] > 1) acc.push('…')
+                acc.push(p)
+                return acc
+              }, [])
+              .map((p, i) =>
+                p === '…' ? (
+                  <span key={`ellipsis-${i}`} className="w-7 h-7 flex items-center justify-center text-xs text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-7 h-7 flex items-center justify-center rounded text-xs font-medium transition-all ${p === page ? 'bg-brand-blue text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}>
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 3-dot dropdown */}
