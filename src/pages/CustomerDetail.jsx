@@ -1219,8 +1219,48 @@ function PackagesTab() {
 
 function FinanceTab({ customer }) {
   const [subTab, setSubTab] = useState('Invoices')
+  const [invPage, setInvPage] = useState(1)
+  const [ledPage, setLedPage] = useState(1)
+  const PER_PAGE = 5
 
   const SUB_TABS = ['Invoices', 'Account Ledger']
+
+  const invTotal = INVOICES.length
+  const invPages = Math.ceil(invTotal / PER_PAGE)
+  const invRows  = INVOICES.slice((invPage - 1) * PER_PAGE, invPage * PER_PAGE)
+
+  const ledTotal = LEDGER.length
+  const ledPages = Math.ceil(ledTotal / PER_PAGE)
+  const ledRows  = LEDGER.slice((ledPage - 1) * PER_PAGE, ledPage * PER_PAGE)
+
+  function Pagination({ page, total, pages, onPage, label }) {
+    const from = (page - 1) * PER_PAGE + 1
+    const to   = Math.min(page * PER_PAGE, total)
+    return (
+      <div className="px-5 py-3 border-t border-surface-border flex items-center justify-between">
+        <p className="text-xs text-gray-500">Showing {from}–{to} of {total} {label}</p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPage(page - 1)}
+            disabled={page === 1}
+            className="px-2.5 py-1 text-xs rounded border border-surface-border text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >Prev</button>
+          {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
+            <button
+              key={p}
+              onClick={() => onPage(p)}
+              className={`px-2.5 py-1 text-xs rounded border ${p === page ? 'bg-brand-blue text-white border-brand-blue' : 'border-surface-border text-gray-600 hover:bg-gray-50'}`}
+            >{p}</button>
+          ))}
+          <button
+            onClick={() => onPage(page + 1)}
+            disabled={page === pages}
+            className="px-2.5 py-1 text-xs rounded border border-surface-border text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >Next</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -1258,7 +1298,7 @@ function FinanceTab({ customer }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {INVOICES.map(inv => (
+                {invRows.map(inv => (
                   <tr key={inv.no} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{inv.no}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{inv.pkg}</td>
@@ -1279,6 +1319,7 @@ function FinanceTab({ customer }) {
               </tbody>
             </table>
           </div>
+          <Pagination page={invPage} total={invTotal} pages={invPages} onPage={setInvPage} label="invoices" />
         </Card>
       )}
 
@@ -1298,7 +1339,7 @@ function FinanceTab({ customer }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {LEDGER.map((entry, i) => (
+                {ledRows.map((entry, i) => (
                   <tr key={i} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{entry.date}</td>
                     <td className="px-4 py-3 text-gray-700 text-sm">{entry.description}</td>
@@ -1316,6 +1357,7 @@ function FinanceTab({ customer }) {
               </tbody>
             </table>
           </div>
+          <Pagination page={ledPage} total={ledTotal} pages={ledPages} onPage={setLedPage} label="entries" />
         </Card>
       )}
     </div>
