@@ -663,12 +663,12 @@ function SalesConfigTab() {
 // ── Zone Tab ──────────────────────────────────────────────────────────────────
 
 const INIT_ZONES = [
-  { id: 1, name: 'Andheri West', code: 'ZN-001', areaCount: 12, status: 'Active',   addedDate: '10/01/2025' },
-  { id: 2, name: 'Bandra East',  code: 'ZN-002', areaCount: 8,  status: 'Active',   addedDate: '15/02/2025' },
-  { id: 3, name: 'Versova',      code: 'ZN-003', areaCount: 5,  status: 'Active',   addedDate: '20/03/2025' },
-  { id: 4, name: 'MIDC Andheri', code: 'ZN-004', areaCount: 3,  status: 'Inactive', addedDate: '01/04/2025' },
-  { id: 5, name: 'Goregaon',     code: 'ZN-005', areaCount: 7,  status: 'Active',   addedDate: '25/05/2025' },
+  { id: 1, custType: 'Cityline', name: 'Andheri West', zoneId: 'ZN-001', url: 'https://ops.citylinenetworks.in/api/v1', username: 'citylinewest01',  password: 'Pass@1234',  addedDate: '10/01/2025' },
+  { id: 2, custType: 'Partner',  name: 'Bandra East',  zoneId: 'ZN-002', url: 'https://ops.citylinenetworks.in/api/v1', username: 'partnerbandra',   password: 'Bandra@567', addedDate: '15/02/2025' },
+  { id: 3, custType: 'Cityline', name: 'Versova',      zoneId: 'ZN-003', url: 'https://ops.citylinenetworks.in/api/v1', username: 'citylineversova', password: 'Vers@890',   addedDate: '20/03/2025' },
 ]
+
+const EMPTY_ZONE_FORM = { custType: 'Cityline', name: '', zoneId: '', url: '', username: '', password: '' }
 
 function ZoneTab() {
   const [zones, setZones]         = useState(INIT_ZONES)
@@ -676,7 +676,9 @@ function ZoneTab() {
   const [menuId, setMenuId]       = useState(null)
   const [menuPos, setMenuPos]     = useState({ top: 0, right: 0 })
   const menuRef                   = useRef(null)
-  const [form, setForm]           = useState({ name: '', code: '', description: '', status: 'Active' })
+  const [form, setForm]           = useState(EMPTY_ZONE_FORM)
+  const [showPw, setShowPw]       = useState(false)
+  const [revealId, setRevealId]   = useState(null)
 
   const zf = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -695,21 +697,17 @@ function ZoneTab() {
     return () => document.removeEventListener('mousedown', handler)
   }, [menuId])
 
-  function handleToggleStatus(id) {
-    setZones(z => z.map(x => x.id === id ? { ...x, status: x.status === 'Active' ? 'Inactive' : 'Active' } : x))
-    setMenuId(null)
-  }
-
   function handleRemove(id) {
     setZones(z => z.filter(x => x.id !== id))
     setMenuId(null)
   }
 
   function handleSave() {
-    const next = { ...form, id: Date.now(), areaCount: 0, addedDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '/') }
+    const next = { ...form, id: Date.now(), addedDate: new Date().toLocaleDateString('en-GB') }
     setZones(z => [...z, next])
     setShowAdd(false)
-    setForm({ name: '', code: '', description: '', status: 'Active' })
+    setForm(EMPTY_ZONE_FORM)
+    setShowPw(false)
   }
 
   return (
@@ -719,14 +717,14 @@ function ZoneTab() {
           <h2 className="text-base font-semibold text-gray-900">Zone Management</h2>
           <p className="text-xs text-gray-500 mt-0.5">Manage service zones for your network</p>
         </div>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>Add Zone</Button>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => { setForm(EMPTY_ZONE_FORM); setShowPw(false); setShowAdd(true) }}>Add Zone</Button>
       </div>
 
-      <div className="rounded-xl border border-surface-border overflow-hidden">
+      <div className="rounded-xl border border-surface-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50/80 border-b border-surface-border">
-              {['S.NO', 'ZONE NAME', 'ZONE CODE', 'AREA COUNT', 'STATUS', 'ADDED DATE', 'ACTIONS'].map(h => (
+              {['S.NO', 'CUSTOMER TYPE', 'ZONE NAME', 'ZONE ID', 'ZONE IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -735,18 +733,31 @@ function ZoneTab() {
             {zones.map((z, i) => (
               <tr key={z.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="px-4 py-3 text-gray-500 text-xs">{i + 1}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{z.name}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-600">{z.code}</td>
-                <td className="px-4 py-3 text-gray-700">{z.areaCount}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    z.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${z.status === 'Active' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                    {z.status}
-                  </span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    z.custType === 'Cityline' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                  }`}>{z.custType}</span>
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{z.addedDate}</td>
+                <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{z.name}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">{z.zoneId}</td>
+                <td className="px-4 py-3 text-xs text-gray-600 max-w-[200px] truncate">{z.url}</td>
+                <td className="px-4 py-3 text-xs text-gray-700 font-mono">{z.username}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-xs text-gray-600">
+                      {revealId === z.id ? z.password : '••••••••'}
+                    </span>
+                    <button
+                      onClick={() => setRevealId(revealId === z.id ? null : z.id)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors">
+                      {revealId === z.id
+                        ? <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        : <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      }
+                    </button>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{z.addedDate}</td>
                 <td className="px-4 py-3">
                   <button
                     onClick={e => openMenu(e, z.id)}
@@ -765,11 +776,11 @@ function ZoneTab() {
         <div
           ref={menuRef}
           style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 50 }}
-          className="w-44 bg-white rounded-xl shadow-lg border border-surface-border py-1 text-sm">
+          className="w-52 bg-white rounded-xl shadow-lg border border-surface-border py-1 text-sm">
           <button
-            onClick={() => handleToggleStatus(menuId)}
+            onClick={() => setMenuId(null)}
             className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700">
-            {zones.find(z => z.id === menuId)?.status === 'Active' ? 'Deactivate' : 'Activate'}
+            Active
           </button>
           <button
             onClick={() => setMenuId(null)}
@@ -780,6 +791,11 @@ function ZoneTab() {
             onClick={() => handleRemove(menuId)}
             className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-500">
             Remove
+          </button>
+          <button
+            onClick={() => setMenuId(null)}
+            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700">
+            Check Recharge Status
           </button>
         </div>
       )}
@@ -795,30 +811,42 @@ function ZoneTab() {
           <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Zone</Button>
         </>}>
         <div className="space-y-4">
+          <FormField label="Customer Type" required>
+            <Select value={form.custType} onChange={e => zf('custType', e.target.value)}>
+              <option value="Cityline">Cityline</option>
+              <option value="Partner">Partner</option>
+            </Select>
+          </FormField>
           <FormField label="Zone Name" required>
             <Input placeholder="e.g. Andheri West" value={form.name} onChange={e => zf('name', e.target.value)} />
           </FormField>
-          <FormField label="Zone Code" required>
-            <Input placeholder="e.g. ZN-006" value={form.code} onChange={e => zf('code', e.target.value)} />
+          <FormField label="Zone ID" required>
+            <Input placeholder="e.g. ZN-001" value={form.zoneId} onChange={e => zf('zoneId', e.target.value)} />
           </FormField>
-          <FormField label="Description">
-            <Textarea rows={3} placeholder="Optional description..." value={form.description} onChange={e => zf('description', e.target.value)} />
+          <FormField label="Zone IP/URL" required>
+            <Input placeholder="https://zone.citylinenetworks.in" value={form.url} onChange={e => zf('url', e.target.value)} />
           </FormField>
-          <FormField label="Status">
-            <div className="flex gap-4 pt-1">
-              {['Active', 'Inactive'].map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="zone-status"
-                    value={s}
-                    checked={form.status === s}
-                    onChange={() => zf('status', s)}
-                    className="accent-brand-blue"
-                  />
-                  <span className="text-sm text-gray-700">{s}</span>
-                </label>
-              ))}
+          <FormField label="Username" required>
+            <Input placeholder="username" value={form.username} onChange={e => zf('username', e.target.value)} />
+          </FormField>
+          <FormField label="Password" required>
+            <div className="relative">
+              <Input
+                type={showPw ? 'text' : 'password'}
+                placeholder="password"
+                value={form.password}
+                onChange={e => zf('password', e.target.value)}
+                className="pr-9"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(p => !p)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                {showPw
+                  ? <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  : <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                }
+              </button>
             </div>
           </FormField>
         </div>
