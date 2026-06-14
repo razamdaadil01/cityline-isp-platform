@@ -727,32 +727,43 @@ function ZoneTab() {
         <Button size="sm" icon={<Plus size={14} />} onClick={() => { setForm(EMPTY_ZONE_FORM); setShowPw(false); setShowAdd(true) }}>Add Zone</Button>
       </div>
 
-      <div className="rounded-xl border border-surface-border">
+      <div className="rounded-xl border border-surface-border min-w-0">
         <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="text-sm" style={{ tableLayout: 'fixed', width: '1020px' }}>
+          <colgroup>
+            <col style={{ width: 50 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 180 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 70 }} />
+          </colgroup>
           <thead>
             <tr className="bg-gray-50/80 border-b border-surface-border">
               {['S.NO', 'CUSTOMER TYPE', 'ZONE NAME', 'ZONE ID', 'ZONE IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
             {paginated.map((z, i) => (
               <tr key={z.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-4 py-3 text-gray-500 text-xs">{i + 1}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 text-gray-500 text-xs">{(page - 1) * PER_PAGE + i + 1}</td>
+                <td className="px-3 py-3">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                     z.custType === 'Cityline' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
                   }`}>{z.custType}</span>
                 </td>
-                <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{z.name}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-600">{z.zoneId}</td>
-                <td className="px-4 py-3 text-xs text-gray-600 max-w-[200px] truncate">{z.url}</td>
-                <td className="px-4 py-3 text-xs text-gray-700 font-mono">{z.username}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 font-medium text-gray-900 truncate">{z.name}</td>
+                <td className="px-3 py-3 font-mono text-xs text-gray-600 truncate">{z.zoneId}</td>
+                <td className="px-3 py-3 text-xs text-gray-600 truncate" title={z.url}>{z.url}</td>
+                <td className="px-3 py-3 text-xs text-gray-700 font-mono truncate">{z.username}</td>
+                <td className="px-3 py-3">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs text-gray-600">
+                    <span className="font-mono text-xs text-gray-600 truncate">
                       {revealId === z.id ? z.password : '••••••••'}
                     </span>
                     <button
@@ -765,8 +776,8 @@ function ZoneTab() {
                     </button>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{z.addedDate}</td>
-                <td className="px-4 py-3">
+                <td className="px-3 py-3 text-gray-500 text-xs">{z.addedDate}</td>
+                <td className="px-3 py-3">
                   <button
                     onClick={e => openMenu(e, z.id)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
