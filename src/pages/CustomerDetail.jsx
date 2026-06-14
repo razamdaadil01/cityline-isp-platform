@@ -879,10 +879,37 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
 
 // ── Tab: Package Details ─────────────────────────────────────────────────────
 
+const SERVICE_PACKAGES = {
+  Broadband:    [{ label: 'FTTH 100Mbps', amount: 899 }, { label: 'FTTH 200Mbps', amount: 1299 }, { label: 'FTTH 500Mbps', amount: 1799 }, { label: 'Wireless 25Mbps', amount: 499 }],
+  Landline:     [{ label: 'Unlimited Local + STD', amount: 299 }, { label: 'Local Only', amount: 149 }, { label: 'Premium Voice Bundle', amount: 399 }],
+  OTT:          [{ label: 'OTT Premium (Netflix + Prime)', amount: 199 }, { label: 'Basic OTT', amount: 99 }, { label: 'Sports Pack', amount: 149 }],
+  ILL:          [{ label: 'ILL 10Mbps', amount: 4999 }, { label: 'ILL 50Mbps', amount: 9999 }, { label: 'ILL 100Mbps', amount: 14999 }],
+  Intercom:     [{ label: 'Intercom Basic', amount: 199 }, { label: 'Intercom Unlimited', amount: 349 }],
+  'Business BB':[{ label: 'Business 100Mbps', amount: 1499 }, { label: 'Business 200Mbps', amount: 2499 }, { label: 'Business 500Mbps', amount: 3999 }],
+}
+
+const SERVICE_ICONS = { Broadband: Wifi, Landline: Phone, OTT: Activity, ILL: Activity, Intercom: Phone, 'Business BB': Wifi }
+const SERVICE_STYLES = {
+  Broadband:    { iconBg: 'bg-brand-blue/10', iconColor: 'text-brand-blue' },
+  Landline:     { iconBg: 'bg-navy/10',        iconColor: 'text-navy' },
+  OTT:          { iconBg: 'bg-purple-100',     iconColor: 'text-purple-700' },
+  ILL:          { iconBg: 'bg-orange-100',     iconColor: 'text-orange-600' },
+  Intercom:     { iconBg: 'bg-cyan-100',       iconColor: 'text-cyan-700' },
+  'Business BB':{ iconBg: 'bg-emerald-100',    iconColor: 'text-emerald-700' },
+}
+
+const TODAY = new Date().toISOString().slice(0, 10)
+
+const EMPTY_SVC_FORM = { serviceType: 'Broadband', packageLabel: '', amount: '', startDate: TODAY, notes: '' }
+
 function PackagesTab() {
   const [view, setView] = useState('table')
+  const [packages, setPackages] = useState(PACKAGES)
   const [pkgMenu, setPkgMenu] = useState(null)
   const pkgMenuRef = useRef(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [form, setForm] = useState(EMPTY_SVC_FORM)
+  const [toast, setToast] = useState(false)
 
   useEffect(() => {
     if (!pkgMenu) return
@@ -891,11 +918,66 @@ function PackagesTab() {
     return () => document.removeEventListener('mousedown', handle)
   }, [pkgMenu])
 
+  function sf(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function handleServiceTypeChange(val) {
+    const firstPkg = SERVICE_PACKAGES[val]?.[0]
+    setForm(f => ({ ...f, serviceType: val, packageLabel: firstPkg?.label ?? '', amount: firstPkg?.amount ?? '' }))
+  }
+
+  function handlePackageChange(label) {
+    const pkg = SERVICE_PACKAGES[form.serviceType]?.find(p => p.label === label)
+    setForm(f => ({ ...f, packageLabel: label, amount: pkg?.amount ?? '' }))
+  }
+
+  function handleAddService() {
+    const style = SERVICE_STYLES[form.serviceType] ?? SERVICE_STYLES.Broadband
+    const Icon  = SERVICE_ICONS[form.serviceType] ?? Wifi
+    const start = new Date(form.startDate)
+    const end   = new Date(start); end.setDate(end.getDate() + 30)
+    const fmt   = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    const newPkg = {
+      type: form.serviceType,
+      icon: Icon,
+      iconBg: style.iconBg,
+      iconColor: style.iconColor,
+      plan: form.packageLabel,
+      speed: '—',
+      validity: 30,
+      daysUsed: 0,
+      amount: Number(form.amount),
+      startDate: fmt(start),
+      endDate: fmt(end),
+      jazePkgId: `JPKG-${form.serviceType.toUpperCase().replace(/\s/g, '-')}-${Date.now()}`,
+      status: 'active',
+    }
+    setPackages(p => [...p, newPkg])
+    setShowAddModal(false)
+    setForm(EMPTY_SVC_FORM)
+    setToast(true)
+    setTimeout(() => setToast(false), 3000)
+  }
+
+  // initialise package select when modal opens
+  useEffect(() => {
+    if (showAddModal) {
+      const firstPkg = SERVICE_PACKAGES[EMPTY_SVC_FORM.serviceType]?.[0]
+      setForm({ ...EMPTY_SVC_FORM, packageLabel: firstPkg?.label ?? '', amount: firstPkg?.amount ?? '' })
+    }
+  }, [showAddModal])
+
   return (
     <div className="space-y-4">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg">
+          <CheckCircle size={15} /> Service added successfully
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">{PACKAGES.length} active subscription{PACKAGES.length !== 1 ? 's' : ''}</p>
+        <p className="text-sm text-gray-500">{packages.length} active subscription{packages.length !== 1 ? 's' : ''}</p>
         <div className="flex items-center gap-2">
           {/* Card / Table toggle */}
           <div className="flex items-center border border-surface-border rounded-lg overflow-hidden">
@@ -912,14 +994,14 @@ function PackagesTab() {
               <List size={14} />
             </button>
           </div>
-          <Button size="sm" icon={<Plus size={13} />}>Add Service</Button>
+          <Button size="sm" icon={<Plus size={13} />} onClick={() => setShowAddModal(true)}>Add Service</Button>
         </div>
       </div>
 
       {/* ── Card View ── */}
       {view === 'card' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {PACKAGES.map(pkg => {
+          {packages.map(pkg => {
             const Icon = pkg.icon
             const pct = Math.round((pkg.daysUsed / pkg.validity) * 100)
             const daysLeft = pkg.validity - pkg.daysUsed
@@ -998,7 +1080,7 @@ function PackagesTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {PACKAGES.map(pkg => {
+                {packages.map(pkg => {
                   const Icon = pkg.icon
                   return (
                     <tr key={pkg.type} className="hover:bg-gray-50/60 transition-colors">
@@ -1060,6 +1142,74 @@ function PackagesTab() {
           </div>
         </div>
       )}
+
+      {/* ── Add Service Modal ── */}
+      <Modal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Add New Service"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>Cancel</Button>
+          <Button size="sm" icon={<Plus size={14} />} onClick={handleAddService} disabled={!form.packageLabel}>
+            Add Service
+          </Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Service Type <span className="text-red-500">*</span></label>
+            <select
+              value={form.serviceType}
+              onChange={e => handleServiceTypeChange(e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+            >
+              {Object.keys(SERVICE_PACKAGES).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Package <span className="text-red-500">*</span></label>
+            <select
+              value={form.packageLabel}
+              onChange={e => handlePackageChange(e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+            >
+              {(SERVICE_PACKAGES[form.serviceType] ?? []).map(p => (
+                <option key={p.label} value={p.label}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date <span className="text-red-500">*</span></label>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={e => sf('startDate', e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+            <input
+              type="number"
+              value={form.amount}
+              onChange={e => sf('amount', e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+            <textarea
+              value={form.notes}
+              onChange={e => sf('notes', e.target.value)}
+              rows={3}
+              placeholder="Optional notes…"
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 resize-none"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
