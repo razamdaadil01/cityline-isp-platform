@@ -727,24 +727,13 @@ function ZoneTab() {
         <Button size="sm" icon={<Plus size={14} />} onClick={() => { setForm(EMPTY_ZONE_FORM); setShowPw(false); setShowAdd(true) }}>Add Zone</Button>
       </div>
 
-      <div className="rounded-xl border border-surface-border min-w-0">
-        <div className="overflow-x-auto">
-        <table className="text-sm" style={{ tableLayout: 'fixed', width: '1020px' }}>
-          <colgroup>
-            <col style={{ width: 50 }} />
-            <col style={{ width: 120 }} />
-            <col style={{ width: 130 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 180 }} />
-            <col style={{ width: 140 }} />
-            <col style={{ width: 130 }} />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 70 }} />
-          </colgroup>
+      <div className="rounded-xl border border-surface-border">
+        <div style={{ display: 'block', width: '100%', overflowX: 'auto' }}>
+        <table className="text-sm" style={{ minWidth: 900, width: '100%' }}>
           <thead>
             <tr className="bg-gray-50/80 border-b border-surface-border">
               {['S.NO', 'CUSTOMER TYPE', 'ZONE NAME', 'ZONE ID', 'ZONE IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
-                <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">{h}</th>
+                <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
@@ -946,7 +935,7 @@ export default function Settings() {
         </div>
 
         {/* Content panel */}
-        <div className="flex-1 bg-white rounded-xl shadow-card border border-surface-border p-6">
+        <div className="flex-1 min-w-0 bg-white rounded-xl shadow-card border border-surface-border p-6">
           {activeTab === 'general'             && <GeneralTab />}
           {activeTab === 'billing'             && <BillingTab />}
           {activeTab === 'notifications'       && <NotificationsTab />}
