@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
@@ -9,16 +9,19 @@ import SalesToday from './pages/SalesToday'
 import SalesFollowups from './pages/SalesFollowups'
 import SalesPipelines from './pages/SalesPipelines'
 import SalesHwAssignment from './pages/SalesHwAssignment'
-import SalesFormBuilder from './pages/SalesFormBuilder'
+import SalesStageFields from './pages/SalesStageFields'
 import SalesProposals from './pages/SalesProposals'
 import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
 import SalesLeadDetail from './pages/SalesLeadDetail'
+import SalesEditLead from './pages/SalesEditLead'
 import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
 import Packages from './pages/Packages'
+import AddNewPlan from './pages/AddNewPlan'
+import PackageDetail from './pages/PackageDetail'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import Inventory from './pages/Inventory'
@@ -30,24 +33,18 @@ import AuditLog from './pages/AuditLog'
 import BandwidthMonitoring from './pages/BandwidthMonitoring'
 import RolesSettings from './pages/RolesSettings'
 import NotificationSettings from './pages/NotificationSettings'
-import CPALayout from './pages/cpa/CPALayout'
-import CPADashboard from './pages/cpa/CPADashboard'
-import CPAAppointments from './pages/cpa/CPAAppointments'
-import CPAClients from './pages/cpa/CPAClients'
-import CPAClientDetail from './pages/cpa/CPAClientDetail'
-import CPADocuments from './pages/cpa/CPADocuments'
-import CPAInvoices from './pages/cpa/CPAInvoices'
-import CPAMessages from './pages/cpa/CPAMessages'
-import CPAReviews from './pages/cpa/CPAReviews'
-import CPAProfile from './pages/cpa/CPAProfile'
-import CPARegister from './pages/cpa/CPARegister'
+import Notifications from './pages/Notifications'
+import AreaMapping from './pages/AreaMapping'
+import FeasibilityRequests from './pages/FeasibilityRequests'
+import FeasibilityDetail from './pages/FeasibilityDetail'
+import UserManagement from './pages/UserManagement'
+import Installations from './pages/Installations'
+import InstallationDetail from './pages/InstallationDetail'
 
-const CPACalendarPlaceholder = () => (
-  <div className="p-6"><div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><p className="text-lg font-medium">Calendar View</p><p className="text-sm mt-1">Coming soon</p></div></div>
-)
-const CPASettingsPlaceholder = () => (
-  <div className="p-6"><div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400"><p className="text-lg font-medium">Settings</p><p className="text-sm mt-1">Coming soon</p></div></div>
-)
+function LeadDetailRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/sales/leads/${id}/overview`} replace />
+}
 
 export default function App() {
   return (
@@ -58,47 +55,50 @@ export default function App() {
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/new" element={<AddCustomer />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
+          <Route path="/customers/:id/:tab" element={<CustomerDetail />} />
           <Route path="/sales" element={<Sales />} />
           <Route path="/sales/today" element={<SalesToday />} />
           <Route path="/sales/followups" element={<SalesFollowups />} />
-          <Route path="/sales/pipelines" element={<SalesPipelines />} />
-          <Route path="/sales/hw-assignment" element={<SalesHwAssignment />} />
-          <Route path="/sales/form-builder" element={<SalesFormBuilder />} />
+          <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
+          <Route path="/sales/feasibility-requests/:id" element={<FeasibilityDetail />} />
+          <Route path="/settings/sales-configuration/pipelines"    element={<SalesPipelines />} />
+          <Route path="/settings/sales-configuration/stage-fields" element={<SalesStageFields />} />
+          <Route path="/inventory/hw-assignment"     element={<SalesHwAssignment />} />
           <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
-          <Route path="/sales/leads/:id" element={<SalesLeadDetail />} />
+          <Route path="/sales/leads/:id/edit" element={<SalesEditLead />} />
+          <Route path="/sales/leads/:id" element={<LeadDetailRedirect />} />
+          <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
+          <Route path="/installations" element={<Installations />} />
+          <Route path="/installations/:id" element={<InstallationDetail />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/packages" element={<Packages />} />
+          <Route path="/packages/add" element={<AddNewPlan />} />
+          <Route path="/packages/:id" element={<PackageDetail />} />
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/settings/roles" element={<RolesSettings />} />
+          <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
+          <Route path="/settings/area-mapping/manage"       element={<Navigate to="/settings/area-mapping/state" replace />} />
+          <Route path="/settings/area-mapping/state"        element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/district"     element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/area"         element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/locality"     element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/sub-locality" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/feasibility-requests" element={<FeasibilityRequests />} />
+          <Route path="/settings/:tab" element={<Settings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
-        </Route>
-        <Route path="/register/cpa" element={<CPARegister />} />
-        <Route element={<CPALayout />}>
-          <Route path="/cpa" element={<Navigate to="/cpa/dashboard" replace />} />
-          <Route path="/cpa/dashboard" element={<CPADashboard />} />
-          <Route path="/cpa/appointments" element={<CPAAppointments />} />
-          <Route path="/cpa/calendar" element={<CPACalendarPlaceholder />} />
-          <Route path="/cpa/clients" element={<CPAClients />} />
-          <Route path="/cpa/clients/:id" element={<CPAClientDetail />} />
-          <Route path="/cpa/documents" element={<CPADocuments />} />
-          <Route path="/cpa/invoices" element={<CPAInvoices />} />
-          <Route path="/cpa/messages" element={<CPAMessages />} />
-          <Route path="/cpa/reviews" element={<CPAReviews />} />
-          <Route path="/cpa/profile" element={<CPAProfile />} />
-          <Route path="/cpa/settings" element={<CPASettingsPlaceholder />} />
+          <Route path="/users" element={<UserManagement />} />
         </Route>
       </Routes>
     </BrowserRouter>
