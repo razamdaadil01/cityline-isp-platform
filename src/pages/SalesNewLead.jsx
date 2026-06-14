@@ -80,6 +80,7 @@ const ZONES_BY_CUST_TYPE = {
 }
 
 const CUST_SERVICE_TO_PIPELINE = { Residential: 'B2C', Enterprise: 'Enterprise' }
+const PIPELINE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
 
 
 // ── Duplicate Warning Banner ──────────────────────────────────────────────────
@@ -204,21 +205,19 @@ export default function SalesNewLead() {
   useEffect(() => subscribeStageFields(() => setSfTick(n => n + 1)), [])
 
   function set(f, v) {
-    setForm(p => {
-      const next = { ...p, [f]: v }
-      if (f === 'custServiceType') {
-        const key = CUST_SERVICE_TO_PIPELINE[v] ?? 'B2C'
-        next.pipeline = key
-        next.startingStage = PIPELINES[key].stages[0]
-        setStageFieldVals({})
-        setStageErrors({})
-      }
-      if (f === 'custType') {
-        next.zone = ''
-      }
-      if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
-      return next
-    })
+    if (f === 'custServiceType') {
+      const key = CUST_SERVICE_TO_PIPELINE[v] ?? 'B2C'
+      setForm(p => ({ ...p, [f]: v, pipeline: key, startingStage: PIPELINES[key].stages[0] }))
+      setStageFieldVals({})
+      setStageErrors({})
+      return
+    }
+    if (f === 'custType') {
+      setForm(p => ({ ...p, [f]: v, zone: '' }))
+      return
+    }
+    setForm(p => ({ ...p, [f]: v }))
+    if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
   }
 
   function findDuplicate(phoneNum) {
