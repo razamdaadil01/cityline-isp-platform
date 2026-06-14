@@ -347,9 +347,6 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const [cust, setCust] = useState(initCustomer)
   const [showPass, setShowPass] = useState(false)
 
-  // Per-section edit state: { editing, draft }
-  const mkEdit = (init) => { const [s, set] = useState({ editing: false, draft: null }); return [s, set] }
-
   const [p1, setP1] = useState({ editing: false, draft: null })
   const [p2, setP2] = useState({ editing: false, draft: null })
   const [p3, setP3] = useState({ editing: false, draft: null })
