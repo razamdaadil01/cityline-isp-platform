@@ -10,6 +10,7 @@ import {
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
 import { CUSTOMERS as BASE_CUSTOMERS } from '../data/customersData'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
