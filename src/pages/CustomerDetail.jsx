@@ -343,6 +343,15 @@ function EditActions({ onSave, onCancel }) {
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
+function InfoField({ label, value, mono }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className={`text-sm text-gray-800 font-medium mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? '—'}</p>
+    </div>
+  )
+}
+
 function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const [cust, setCust] = useState(initCustomer)
   const [showPass, setShowPass] = useState(false)
