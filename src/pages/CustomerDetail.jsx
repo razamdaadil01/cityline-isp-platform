@@ -285,34 +285,121 @@ const TAB_SLUGS = {
 }
 const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) => [v, k]))
 
-// ── Tab: Profile ─────────────────────────────────────────────────────────────
+// ── Inline edit helpers ──────────────────────────────────────────────────────
 
-function InfoField({ label, value, mono }) {
+const ALL_SERVICES = ['Broadband', 'Landline', 'OTT', 'ILL', 'Intercom', 'Business BB']
+
+function EF({ label, value, onChange, type = 'text', mono, wide }) {
   return (
-    <div>
-      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
-      <p className={`text-sm text-gray-800 font-medium mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? '—'}</p>
+    <div className={wide ? 'col-span-full' : ''}>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">{label}</p>
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className={`w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white ${mono ? 'font-mono' : ''}`}
+      />
     </div>
   )
 }
 
-function ProfileSection({ title, action, children }) {
+function ESelect({ label, value, onChange, options }) {
   return (
-    <Card>
-      <CardHeader title={title} action={action ?? <Button variant="ghost" size="xs" icon={<Edit2 size={12} />}>Edit</Button>} />
-      {children}
-    </Card>
+    <div>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">{label}</p>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className="w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+      >
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
   )
 }
 
-function ProfileTab({ customer, notes, setNotes }) {
-  const [showPass, setShowPass] = useState(false)
-  const conn = customer.connection ?? {}
-  const sales = customer.sales ?? {}
-  const kyc = customer.kyc ?? {}
-  const pay = customer.payment ?? {}
+function ETextarea({ label, value, onChange }) {
+  return (
+    <div className="col-span-full">
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">{label}</p>
+      <textarea
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        rows={2}
+        className="w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white resize-none"
+      />
+    </div>
+  )
+}
 
-  const editBtn = <Button variant="ghost" size="xs" icon={<Edit2 size={12} />}>Edit</Button>
+function EditActions({ onSave, onCancel }) {
+  return (
+    <div className="flex gap-2 mt-4 pt-3 border-t border-surface-border">
+      <button onClick={onSave} className="px-3 py-1.5 text-xs font-semibold bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90 transition-colors">Save</button>
+      <button onClick={onCancel} className="px-3 py-1.5 text-xs font-semibold border border-surface-border text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+    </div>
+  )
+}
+
+// ── Tab: Profile ─────────────────────────────────────────────────────────────
+
+function ProfileTab({ customer: initCustomer, notes, setNotes }) {
+  const [cust, setCust] = useState(initCustomer)
+  const [showPass, setShowPass] = useState(false)
+
+  // Per-section edit state: { editing, draft }
+  const mkEdit = (init) => { const [s, set] = useState({ editing: false, draft: null }); return [s, set] }
+
+  const [p1, setP1] = useState({ editing: false, draft: null })
+  const [p2, setP2] = useState({ editing: false, draft: null })
+  const [p3, setP3] = useState({ editing: false, draft: null })
+  const [p4, setP4] = useState({ editing: false, draft: null })
+  const [p5, setP5] = useState({ editing: false, draft: null })
+  const [p6, setP6] = useState({ editing: false, draft: null })
+  const [p7, setP7] = useState({ editing: false, draft: null })
+
+  function startEdit(setter, draft) { setter({ editing: true, draft }) }
+  function cancelEdit(setter) { setter({ editing: false, draft: null }) }
+
+  const conn  = cust.connection ?? {}
+  const sales = cust.sales ?? {}
+  const kyc   = cust.kyc ?? {}
+  const pay   = cust.payment ?? {}
+
+  /* ── Save helpers ── */
+  function saveP1() {
+    setCust(c => ({ ...c, ...p1.draft }))
+    cancelEdit(setP1)
+  }
+  function saveP2() {
+    setCust(c => ({ ...c, ...p2.draft }))
+    cancelEdit(setP2)
+  }
+  function saveP3() {
+    setCust(c => ({ ...c, connection: { ...c.connection, ...p3.draft.conn }, radius: { ...c.radius, ...p3.draft.radius }, services: p3.draft.services }))
+    cancelEdit(setP3)
+  }
+  function saveP4() {
+    setCust(c => ({ ...c, address: { ...c.address, ...p4.draft } }))
+    cancelEdit(setP4)
+  }
+  function saveP5() {
+    setCust(c => ({ ...c, sales: { ...c.sales, ...p5.draft } }))
+    cancelEdit(setP5)
+  }
+  function saveP6() {
+    setCust(c => ({ ...c, payment: { ...c.payment, ...p6.draft } }))
+    cancelEdit(setP6)
+  }
+  function saveP7() {
+    setCust(c => ({ ...c, kyc: { ...c.kyc, ...p7.draft } }))
+    cancelEdit(setP7)
+  }
+
+  /* ── Reusable edit button row ── */
+  function editBtn(onClick) {
+    return <Button variant="ghost" size="xs" icon={<Edit2 size={12} />} onClick={onClick}>Edit</Button>
+  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
@@ -321,152 +408,319 @@ function ProfileTab({ customer, notes, setNotes }) {
       <div className="xl:col-span-2 space-y-5">
 
         {/* SECTION 1 — Personal Details */}
-        <ProfileSection title="Personal Details">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            <InfoField label="Full Name"       value={customer.name} />
-            <InfoField label="S/o (Son of)"    value={customer.sonOf} />
-            <InfoField label="Date of Birth"   value={customer.dob} />
-            <InfoField label="Gender"          value={customer.gender} />
-            <InfoField label="Customer Type"   value={customer.customerType} />
-            <InfoField label="GST No."         value={customer.gstNo} mono />
-            <InfoField label="PAN Card"        value={customer.panCard} mono />
-            <InfoField label="Customer Since"  value={customer.createdOn} />
-          </div>
-        </ProfileSection>
+        <Card>
+          <CardHeader title="Personal Details" action={
+            !p1.editing
+              ? editBtn(() => startEdit(setP1, { name: cust.name, sonOf: cust.sonOf, dob: cust.dob, gender: cust.gender, customerType: cust.customerType, gstNo: cust.gstNo, panCard: cust.panCard, createdOn: cust.createdOn }))
+              : null
+          } />
+          {!p1.editing ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              <InfoField label="Full Name"      value={cust.name} />
+              <InfoField label="S/o (Son of)"   value={cust.sonOf} />
+              <InfoField label="Date of Birth"  value={cust.dob} />
+              <InfoField label="Gender"         value={cust.gender} />
+              <InfoField label="Customer Type"  value={cust.customerType} />
+              <InfoField label="GST No."        value={cust.gstNo} mono />
+              <InfoField label="PAN Card"       value={cust.panCard} mono />
+              <InfoField label="Customer Since" value={cust.createdOn} />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                <EF label="Full Name"     value={p1.draft.name}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, name: v } }))} />
+                <EF label="S/o (Son of)" value={p1.draft.sonOf}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, sonOf: v } }))} />
+                <EF label="Date of Birth" value={p1.draft.dob}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, dob: v } }))} />
+                <ESelect label="Gender"   value={p1.draft.gender}       onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gender: v } }))} options={['Male', 'Female', 'Other']} />
+                <ESelect label="Customer Type" value={p1.draft.customerType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, customerType: v } }))} options={['Individual', 'Corporate']} />
+                <EF label="GST No."       value={p1.draft.gstNo}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstNo: v } }))} mono />
+                <EF label="PAN Card"      value={p1.draft.panCard}      onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, panCard: v } }))} mono />
+                <EF label="Customer Since" value={p1.draft.createdOn}   onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, createdOn: v } }))} />
+              </div>
+              <EditActions onSave={saveP1} onCancel={() => cancelEdit(setP1)} />
+            </>
+          )}
+        </Card>
 
         {/* SECTION 2 — Contact Details */}
-        <ProfileSection title="Contact Details">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            <InfoField label="Mobile (Primary)"  value={customer.phone} />
-            <InfoField label="Alternate Mobile"  value={customer.altPhone} />
-            <InfoField label="Telephone"         value={customer.telephone} />
-            <InfoField label="Email"             value={customer.email} />
-          </div>
-        </ProfileSection>
+        <Card>
+          <CardHeader title="Contact Details" action={
+            !p2.editing
+              ? editBtn(() => startEdit(setP2, { phone: cust.phone, altPhone: cust.altPhone, telephone: cust.telephone, email: cust.email }))
+              : null
+          } />
+          {!p2.editing ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              <InfoField label="Mobile (Primary)"  value={cust.phone} />
+              <InfoField label="Alternate Mobile"  value={cust.altPhone} />
+              <InfoField label="Telephone"         value={cust.telephone} />
+              <InfoField label="Email"             value={cust.email} />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                <EF label="Mobile (Primary)"  value={p2.draft.phone}     onChange={v => setP2(s => ({ ...s, draft: { ...s.draft, phone: v } }))} />
+                <EF label="Alternate Mobile"  value={p2.draft.altPhone}  onChange={v => setP2(s => ({ ...s, draft: { ...s.draft, altPhone: v } }))} />
+                <EF label="Telephone"         value={p2.draft.telephone} onChange={v => setP2(s => ({ ...s, draft: { ...s.draft, telephone: v } }))} />
+                <EF label="Email"             value={p2.draft.email}     onChange={v => setP2(s => ({ ...s, draft: { ...s.draft, email: v } }))} type="email" />
+              </div>
+              <EditActions onSave={saveP2} onCancel={() => cancelEdit(setP2)} />
+            </>
+          )}
+        </Card>
 
         {/* SECTION 3 — Connection Details */}
-        <ProfileSection title="Connection Details">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            <InfoField label="Connection Type" value={conn.type} />
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1.5">Service Opted</p>
-              <div className="flex flex-wrap gap-1.5">
-                {(customer.services ?? []).map(s => (
-                  <span key={s} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-blue/10 text-brand-blue border border-brand-blue/20">{s}</span>
-                ))}
+        <Card>
+          <CardHeader title="Connection Details" action={
+            !p3.editing
+              ? editBtn(() => startEdit(setP3, {
+                  conn: { ...conn },
+                  radius: { jazeUserId: cust.radius.jazeUserId, pppoePassword: cust.radius.pppoePassword },
+                  services: [...(cust.services ?? [])],
+                }))
+              : null
+          } />
+          {!p3.editing ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              <InfoField label="Connection Type" value={conn.type} />
+              <div>
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1.5">Service Opted</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(cust.services ?? []).map(s => (
+                    <span key={s} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-blue/10 text-brand-blue border border-brand-blue/20">{s}</span>
+                  ))}
+                </div>
               </div>
-            </div>
-            <InfoField label="Server Type"   value={conn.serverType} mono />
-            <InfoField label="IPACCT ID"     value={conn.ipacctId} mono />
-            <InfoField label="Jaze User ID"  value={customer.radius.jazeUserId} mono />
-            <InfoField label="NAS/Interface" value={conn.nasInterface} mono />
-            <div className="col-span-full">
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">PPPoE Password</p>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-mono text-gray-800">{showPass ? customer.radius.pppoePassword : '••••••••'}</span>
-                <button onClick={() => setShowPass(v => !v)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                  {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-                <button onClick={() => navigator.clipboard?.writeText(customer.radius.pppoePassword)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                  <Copy size={13} />
-                </button>
+              <InfoField label="Server Type"   value={conn.serverType} mono />
+              <InfoField label="IPACCT ID"     value={conn.ipacctId} mono />
+              <InfoField label="Jaze User ID"  value={cust.radius.jazeUserId} mono />
+              <InfoField label="NAS/Interface" value={conn.nasInterface} mono />
+              <div className="col-span-full">
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">PPPoE Password</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-gray-800">{showPass ? cust.radius.pppoePassword : '••••••••'}</span>
+                  <button onClick={() => setShowPass(v => !v)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                  <button onClick={() => navigator.clipboard?.writeText(cust.radius.pppoePassword)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <Copy size={13} />
+                  </button>
+                </div>
               </div>
+              <div>
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">URL</p>
+                {conn.url ? <a href={conn.url} target="_blank" rel="noreferrer" className="text-sm text-brand-blue hover:underline font-medium">View URL</a> : <p className="text-sm text-gray-800">—</p>}
+              </div>
+              <InfoField label="SBT No."    value={conn.sbtNo} mono />
+              <InfoField label="Circuit ID" value={conn.circuitId} mono />
+              <InfoField label="VC No."     value={conn.vcNo} mono />
+              <InfoField label="MAC ID"     value={conn.macId} mono />
+              <InfoField label="Serial No." value={conn.serialNo} mono />
+              <InfoField label="A End"      value={conn.aEnd} />
+              <InfoField label="B End"      value={conn.bEnd} />
+              <InfoField label="Prorata Billing" value={conn.prorataBilling} />
             </div>
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">URL</p>
-              {conn.url
-                ? <a href={conn.url} target="_blank" rel="noreferrer" className="text-sm text-brand-blue hover:underline font-medium">View URL</a>
-                : <p className="text-sm text-gray-800">—</p>}
-            </div>
-            <InfoField label="SBT No."     value={conn.sbtNo} mono />
-            <InfoField label="Circuit ID"  value={conn.circuitId} mono />
-            <InfoField label="VC No."      value={conn.vcNo} mono />
-            <InfoField label="MAC ID"      value={conn.macId} mono />
-            <InfoField label="Serial No."  value={conn.serialNo} mono />
-            <InfoField label="A End"       value={conn.aEnd} />
-            <InfoField label="B End"       value={conn.bEnd} />
-            <InfoField label="Prorata Billing" value={conn.prorataBilling} />
-          </div>
-        </ProfileSection>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                <ESelect label="Connection Type" value={p3.draft.conn.type} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, type: v } } }))} options={['FTTH', 'Sector', 'Village']} />
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1.5">Service Opted</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_SERVICES.map(svc => (
+                      <label key={svc} className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={p3.draft.services.includes(svc)}
+                          onChange={e => setP3(s => ({
+                            ...s,
+                            draft: { ...s.draft, services: e.target.checked ? [...s.draft.services, svc] : s.draft.services.filter(x => x !== svc) }
+                          }))}
+                          className="w-3.5 h-3.5 accent-brand-blue"
+                        />
+                        <span className="text-xs text-gray-700">{svc}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <EF label="Server Type"   value={p3.draft.conn.serverType} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, serverType: v } } }))} mono />
+                <EF label="IPACCT ID"     value={p3.draft.conn.ipacctId}   onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, ipacctId: v } } }))} mono />
+                <EF label="Jaze User ID"  value={p3.draft.radius.jazeUserId} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, radius: { ...s.draft.radius, jazeUserId: v } } }))} mono />
+                <EF label="NAS/Interface" value={p3.draft.conn.nasInterface} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, nasInterface: v } } }))} mono />
+                <EF label="PPPoE Password" value={p3.draft.radius.pppoePassword} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, radius: { ...s.draft.radius, pppoePassword: v } } }))} mono type="password" />
+                <EF label="SBT No."    value={p3.draft.conn.sbtNo}     onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, sbtNo: v } } }))} mono />
+                <EF label="Circuit ID" value={p3.draft.conn.circuitId} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, circuitId: v } } }))} mono />
+                <EF label="VC No."     value={p3.draft.conn.vcNo}      onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, vcNo: v } } }))} mono />
+                <EF label="MAC ID"     value={p3.draft.conn.macId}     onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, macId: v } } }))} mono />
+                <EF label="Serial No." value={p3.draft.conn.serialNo}  onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, serialNo: v } } }))} mono />
+                <EF label="A End"      value={p3.draft.conn.aEnd}      onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, aEnd: v } } }))} />
+                <EF label="B End"      value={p3.draft.conn.bEnd}      onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, bEnd: v } } }))} />
+                <ESelect label="Prorata Billing" value={p3.draft.conn.prorataBilling} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, prorataBilling: v } } }))} options={['Yes', 'No']} />
+              </div>
+              <EditActions onSave={saveP3} onCancel={() => cancelEdit(setP3)} />
+            </>
+          )}
+        </Card>
 
         {/* SECTION 4 — Address Details */}
-        <ProfileSection title="Address Details">
-          {/* Billing Address */}
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Billing Address</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
-            <InfoField label="State"    value={customer.address.billingState} />
-            <InfoField label="City"     value={customer.address.billingCity} />
-            <InfoField label="Pincode"  value={customer.address.billingPincode} mono />
-            <InfoField label="Landmark" value={customer.address.billingLandmark} />
-            <div className="col-span-2">
-              <InfoField label="Address" value={customer.address.billingAddress} />
-            </div>
-          </div>
-          <div className="border-t border-surface-border my-4" />
-          {/* Installation Address */}
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Installation Address</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
-            <InfoField label="State"    value={customer.address.installState} />
-            <InfoField label="City"     value={customer.address.installCity} />
-            <InfoField label="Pincode"  value={customer.address.installPincode} mono />
-            <InfoField label="Landmark" value={customer.address.installLandmark} />
-            <div className="col-span-2">
-              <InfoField label="Address" value={customer.address.installAddress} />
-            </div>
-          </div>
-          <div className="border-t border-surface-border my-4" />
-          {/* Area Address */}
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area Address</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            <InfoField label="Area"     value={customer.address.area} />
-            <InfoField label="Sub Area" value={customer.address.subArea} />
-            <InfoField label="Box"      value={customer.address.box} mono />
-            <InfoField label="Street"   value={customer.address.street} />
-            <InfoField label="OLT"      value={customer.address.olt} mono />
-            <InfoField label="Splitter" value={customer.address.splitter} mono />
-            <InfoField label="Port"     value={customer.address.port} />
-            <InfoField label="Building" value={customer.address.building} />
-            <InfoField label="Zone"     value={customer.address.zone} />
-          </div>
-        </ProfileSection>
+        <Card>
+          <CardHeader title="Address Details" action={
+            !p4.editing
+              ? editBtn(() => startEdit(setP4, { ...cust.address }))
+              : null
+          } />
+          {!p4.editing ? (
+            <>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Billing Address</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
+                <InfoField label="State"    value={cust.address.billingState} />
+                <InfoField label="City"     value={cust.address.billingCity} />
+                <InfoField label="Pincode"  value={cust.address.billingPincode} mono />
+                <InfoField label="Landmark" value={cust.address.billingLandmark} />
+                <div className="col-span-2"><InfoField label="Address" value={cust.address.billingAddress} /></div>
+              </div>
+              <div className="border-t border-surface-border my-4" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Installation Address</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
+                <InfoField label="State"    value={cust.address.installState} />
+                <InfoField label="City"     value={cust.address.installCity} />
+                <InfoField label="Pincode"  value={cust.address.installPincode} mono />
+                <InfoField label="Landmark" value={cust.address.installLandmark} />
+                <div className="col-span-2"><InfoField label="Address" value={cust.address.installAddress} /></div>
+              </div>
+              <div className="border-t border-surface-border my-4" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area Address</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+                <InfoField label="Area"     value={cust.address.area} />
+                <InfoField label="Sub Area" value={cust.address.subArea} />
+                <InfoField label="Box"      value={cust.address.box} mono />
+                <InfoField label="Street"   value={cust.address.street} />
+                <InfoField label="OLT"      value={cust.address.olt} mono />
+                <InfoField label="Splitter" value={cust.address.splitter} mono />
+                <InfoField label="Port"     value={cust.address.port} />
+                <InfoField label="Building" value={cust.address.building} />
+                <InfoField label="Zone"     value={cust.address.zone} />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Billing Address</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4 mb-4">
+                <EF label="State"    value={p4.draft.billingState}    onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, billingState: v } }))} />
+                <EF label="City"     value={p4.draft.billingCity}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, billingCity: v } }))} />
+                <EF label="Pincode"  value={p4.draft.billingPincode}  onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, billingPincode: v } }))} mono />
+                <EF label="Landmark" value={p4.draft.billingLandmark} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, billingLandmark: v } }))} />
+                <div className="col-span-2">
+                  <EF label="Address" value={p4.draft.billingAddress} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, billingAddress: v } }))} />
+                </div>
+              </div>
+              <div className="border-t border-surface-border my-4" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Installation Address</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4 mb-4">
+                <EF label="State"    value={p4.draft.installState}    onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, installState: v } }))} />
+                <EF label="City"     value={p4.draft.installCity}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, installCity: v } }))} />
+                <EF label="Pincode"  value={p4.draft.installPincode}  onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, installPincode: v } }))} mono />
+                <EF label="Landmark" value={p4.draft.installLandmark} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, installLandmark: v } }))} />
+                <div className="col-span-2">
+                  <EF label="Address" value={p4.draft.installAddress} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, installAddress: v } }))} />
+                </div>
+              </div>
+              <div className="border-t border-surface-border my-4" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area Address</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                <EF label="Area"     value={p4.draft.area}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, area: v } }))} />
+                <EF label="Sub Area" value={p4.draft.subArea}  onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, subArea: v } }))} />
+                <EF label="Box"      value={p4.draft.box}      onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, box: v } }))} mono />
+                <EF label="Street"   value={p4.draft.street}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, street: v } }))} />
+                <EF label="OLT"      value={p4.draft.olt}      onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, olt: v } }))} mono />
+                <EF label="Splitter" value={p4.draft.splitter} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, splitter: v } }))} mono />
+                <EF label="Port"     value={p4.draft.port}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, port: v } }))} />
+                <EF label="Building" value={p4.draft.building} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, building: v } }))} />
+                <EF label="Zone"     value={p4.draft.zone}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, zone: v } }))} />
+              </div>
+              <EditActions onSave={saveP4} onCancel={() => cancelEdit(setP4)} />
+            </>
+          )}
+        </Card>
 
         {/* SECTION 5 — Sales & Account Info */}
-        <ProfileSection title="Sales & Account Info">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            <InfoField label="Sales Executive"         value={sales.executive} />
-            <InfoField label="Area Sales Manager"      value={sales.areaSalesManager} />
-            <InfoField label="Billing Account Manager" value={sales.billingAccountManager} />
-            <InfoField label="Installation By"         value={sales.installationBy} />
-            <InfoField label="Registration Date/Time"  value={sales.registrationDate} />
-            <InfoField label="Due Days"                value={sales.dueDays != null ? `${sales.dueDays} day${sales.dueDays !== 1 ? 's' : ''}` : '—'} />
-            <InfoField label="Lead Source"             value={sales.leadSource} />
-            <div className="col-span-full">
-              <InfoField label="Remark" value={sales.remark} />
+        <Card>
+          <CardHeader title="Sales & Account Info" action={
+            !p5.editing
+              ? editBtn(() => startEdit(setP5, { ...sales }))
+              : null
+          } />
+          {!p5.editing ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              <InfoField label="Sales Executive"         value={sales.executive} />
+              <InfoField label="Area Sales Manager"      value={sales.areaSalesManager} />
+              <InfoField label="Billing Account Manager" value={sales.billingAccountManager} />
+              <InfoField label="Installation By"         value={sales.installationBy} />
+              <InfoField label="Registration Date/Time"  value={sales.registrationDate} />
+              <InfoField label="Due Days"                value={sales.dueDays != null ? `${sales.dueDays} day${sales.dueDays !== 1 ? 's' : ''}` : '—'} />
+              <InfoField label="Lead Source"             value={sales.leadSource} />
+              <div className="col-span-full"><InfoField label="Remark" value={sales.remark} /></div>
             </div>
-          </div>
-        </ProfileSection>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                <EF label="Sales Executive"         value={p5.draft.executive}            onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, executive: v } }))} />
+                <EF label="Area Sales Manager"      value={p5.draft.areaSalesManager}     onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, areaSalesManager: v } }))} />
+                <EF label="Billing Account Manager" value={p5.draft.billingAccountManager} onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, billingAccountManager: v } }))} />
+                <EF label="Installation By"         value={p5.draft.installationBy}       onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, installationBy: v } }))} />
+                <EF label="Registration Date/Time"  value={p5.draft.registrationDate}     onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, registrationDate: v } }))} />
+                <EF label="Due Days"                value={p5.draft.dueDays}              onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, dueDays: v } }))} type="number" />
+                <EF label="Lead Source"             value={p5.draft.leadSource}           onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, leadSource: v } }))} />
+                <ETextarea label="Remark"           value={p5.draft.remark}               onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, remark: v } }))} />
+              </div>
+              <EditActions onSave={saveP5} onCancel={() => cancelEdit(setP5)} />
+            </>
+          )}
+        </Card>
 
         {/* SECTION 6 — Payment Details */}
-        <ProfileSection title="Payment Details">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            <InfoField label="Installation Amount"   value={pay.installationAmount != null ? `₹${pay.installationAmount.toLocaleString('en-IN')}` : '—'} />
-            <InfoField label="Security Deposit"      value={pay.securityDeposit != null ? `₹${pay.securityDeposit.toLocaleString('en-IN')}` : '—'} />
-            <InfoField label="Install Hardware"      value={pay.installHardware} />
-            <InfoField label="Invoice Due Days"      value={pay.invoiceDueDays != null ? `${pay.invoiceDueDays} days` : '—'} />
-            <InfoField label="Refund Terms"          value={pay.refundTerms} />
-            <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Refund Security</p>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pay.refundSecurity === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {pay.refundSecurity ?? '—'}
-              </span>
+        <Card>
+          <CardHeader title="Payment Details" action={
+            !p6.editing
+              ? editBtn(() => startEdit(setP6, { installationAmount: pay.installationAmount, securityDeposit: pay.securityDeposit, installHardware: pay.installHardware, invoiceDueDays: pay.invoiceDueDays, refundTerms: pay.refundTerms, refundSecurity: pay.refundSecurity, mode: pay.mode, advanceDeposit: pay.advanceDeposit, billingCycle: pay.billingCycle }))
+              : null
+          } />
+          {!p6.editing ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              <InfoField label="Installation Amount" value={pay.installationAmount != null ? `₹${pay.installationAmount.toLocaleString('en-IN')}` : '—'} />
+              <InfoField label="Security Deposit"    value={pay.securityDeposit != null ? `₹${pay.securityDeposit.toLocaleString('en-IN')}` : '—'} />
+              <InfoField label="Install Hardware"    value={pay.installHardware} />
+              <InfoField label="Invoice Due Days"    value={pay.invoiceDueDays != null ? `${pay.invoiceDueDays} days` : '—'} />
+              <InfoField label="Refund Terms"        value={pay.refundTerms} />
+              <div>
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Refund Security</p>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pay.refundSecurity === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {pay.refundSecurity ?? '—'}
+                </span>
+              </div>
+              <InfoField label="Payment Mode"    value={pay.mode} />
+              <InfoField label="Advance Deposit" value={pay.advanceDeposit != null ? `₹${pay.advanceDeposit.toLocaleString('en-IN')}` : '—'} />
+              <InfoField label="Billing Cycle"   value={pay.billingCycle} />
             </div>
-            <InfoField label="Payment Mode"    value={pay.mode} />
-            <InfoField label="Advance Deposit" value={pay.advanceDeposit != null ? `₹${pay.advanceDeposit.toLocaleString('en-IN')}` : '—'} />
-            <InfoField label="Billing Cycle"   value={pay.billingCycle} />
-          </div>
-        </ProfileSection>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                <EF label="Installation Amount" value={p6.draft.installationAmount} onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, installationAmount: Number(v) } }))} type="number" />
+                <EF label="Security Deposit"    value={p6.draft.securityDeposit}    onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, securityDeposit: Number(v) } }))} type="number" />
+                <EF label="Install Hardware"    value={p6.draft.installHardware}    onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, installHardware: v } }))} />
+                <EF label="Invoice Due Days"    value={p6.draft.invoiceDueDays}     onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, invoiceDueDays: Number(v) } }))} type="number" />
+                <EF label="Refund Terms"        value={p6.draft.refundTerms}        onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, refundTerms: v } }))} />
+                <ESelect label="Refund Security" value={p6.draft.refundSecurity}    onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, refundSecurity: v } }))} options={['Yes', 'No']} />
+                <EF label="Payment Mode"        value={p6.draft.mode}               onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, mode: v } }))} />
+                <EF label="Advance Deposit"     value={p6.draft.advanceDeposit}     onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, advanceDeposit: Number(v) } }))} type="number" />
+                <EF label="Billing Cycle"       value={p6.draft.billingCycle}       onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, billingCycle: v } }))} />
+              </div>
+              <EditActions onSave={saveP6} onCancel={() => cancelEdit(setP6)} />
+            </>
+          )}
+        </Card>
 
-        {/* RADIUS / Jaze config (kept) */}
+        {/* RADIUS / Jaze config (kept, read-only) */}
         <div className="rounded-xl overflow-hidden border border-navy/30">
           <div className="bg-navy px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -477,12 +731,12 @@ function ProfileTab({ customer, notes, setNotes }) {
           </div>
           <div className="bg-[#0c1f38] px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
             {[
-              ['Jaze User ID',   customer.radius.jazeUserId],
-              ['PPPoE Username', customer.radius.pppoeUsername],
-              ['NAS',           customer.radius.nas],
-              ['Interface',     customer.radius.interface],
-              ['IP Address',    customer.radius.ipAddress],
-              ['MAC Address',   customer.radius.macAddress],
+              ['Jaze User ID',   cust.radius.jazeUserId],
+              ['PPPoE Username', cust.radius.pppoeUsername],
+              ['NAS',           cust.radius.nas],
+              ['Interface',     cust.radius.interface],
+              ['IP Address',    cust.radius.ipAddress],
+              ['MAC Address',   cust.radius.macAddress],
             ].map(([label, val]) => (
               <div key={label}>
                 <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
@@ -497,9 +751,13 @@ function ProfileTab({ customer, notes, setNotes }) {
       {/* ── Right col ── */}
       <div className="space-y-5">
 
-        {/* SECTION 7 — Documents (expanded KYC) */}
+        {/* SECTION 7 — KYC Documents */}
         <Card>
-          <CardHeader title="KYC Documents" action={editBtn} />
+          <CardHeader title="KYC Documents" action={
+            !p7.editing
+              ? editBtn(() => startEdit(setP7, { docVerified: kyc.docVerified, docComment: kyc.docComment }))
+              : null
+          } />
           <div className="space-y-3">
             {/* ID Proof */}
             <div className="py-2 border-b border-surface-border">
@@ -510,7 +768,7 @@ function ProfileTab({ customer, notes, setNotes }) {
                   <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">Back</button>
                 </div>
               </div>
-              {(() => { const cfg = KYC_STATUS[customer.kyc.aadhaar] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+              {(() => { const cfg = KYC_STATUS[cust.kyc.aadhaar] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
                 <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={12} />{cfg.label}</span>
               ) })()}
             </div>
@@ -520,43 +778,64 @@ function ProfileTab({ customer, notes, setNotes }) {
                 <span className="text-sm text-gray-700">Address Proof — {kyc.addressProofType ?? 'Utility Bill'}</span>
                 <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">View</button>
               </div>
-              {(() => { const cfg = KYC_STATUS[customer.kyc.pan] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+              {(() => { const cfg = KYC_STATUS[cust.kyc.pan] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
                 <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={12} />{cfg.label}</span>
               ) })()}
             </div>
             {/* Photo */}
             <div className="flex items-center justify-between py-2 border-b border-surface-border">
               <span className="text-sm text-gray-700">Customer Photo</span>
-              {(() => { const cfg = KYC_STATUS[customer.kyc.photo] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+              {(() => { const cfg = KYC_STATUS[cust.kyc.photo] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
                 <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
               ) })()}
             </div>
             {/* Signature */}
             <div className="flex items-center justify-between py-2 border-b border-surface-border">
               <span className="text-sm text-gray-700">Signature</span>
-              {(() => { const cfg = KYC_STATUS[kyc.signatureUploaded ? 'uploaded' : 'pending'] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+              {(() => { const s = kyc.signatureUploaded ? 'uploaded' : 'pending'; const cfg = KYC_STATUS[s] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
                 <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
               ) })()}
             </div>
             {/* Agreement */}
             <div className="flex items-center justify-between py-2 border-b border-surface-border">
               <span className="text-sm text-gray-700">Agreement Signed</span>
-              {(() => { const cfg = KYC_STATUS[customer.kyc.agreementSigned ? 'verified' : 'pending']; const Icon = cfg.icon; return (
+              {(() => { const cfg = KYC_STATUS[cust.kyc.agreementSigned ? 'verified' : 'pending']; const Icon = cfg.icon; return (
                 <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
               ) })()}
             </div>
-            {/* Doc Verified */}
+            {/* Doc Verified — editable */}
             <div className="flex items-center justify-between py-2 border-b border-surface-border">
               <span className="text-sm text-gray-700">Doc Verified</span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${kyc.docVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                {kyc.docVerified ? 'Yes' : 'No'}
-              </span>
+              {!p7.editing ? (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${kyc.docVerified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {kyc.docVerified ? 'Yes' : 'No'}
+                </span>
+              ) : (
+                <button
+                  onClick={() => setP7(s => ({ ...s, draft: { ...s.draft, docVerified: !s.draft.docVerified } }))}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${p7.draft.docVerified ? 'bg-brand-blue' : 'bg-gray-200'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${p7.draft.docVerified ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
+              )}
             </div>
             {/* Comment */}
-            {kyc.docComment && (
-              <div className="pt-1">
+            {!p7.editing ? (
+              kyc.docComment && (
+                <div className="pt-1">
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Comment</p>
+                  <p className="text-xs text-gray-600">{kyc.docComment}</p>
+                </div>
+              )
+            ) : (
+              <div className="pt-2">
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Comment</p>
-                <p className="text-xs text-gray-600">{kyc.docComment}</p>
+                <textarea
+                  value={p7.draft.docComment ?? ''}
+                  onChange={e => setP7(s => ({ ...s, draft: { ...s.draft, docComment: e.target.value } }))}
+                  rows={3}
+                  className="w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 resize-none"
+                />
+                <EditActions onSave={saveP7} onCancel={() => cancelEdit(setP7)} />
               </div>
             )}
           </div>
