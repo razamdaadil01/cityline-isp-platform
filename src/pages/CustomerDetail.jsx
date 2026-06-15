@@ -1222,7 +1222,8 @@ const FINANCE_SUB_TABS = [
   { label: 'Account Ledger', slug: 'ledger'   },
 ]
 
-function FinanceTab({ customer, customerId, subTab: subTabParam }) {
+function FinanceTab({ customer }) {
+  const { id: customerId, subTab: subTabParam } = useParams()
   const navigate = useNavigate()
   const [invPage, setInvPage] = useState(1)
   const [ledPage, setLedPage] = useState(1)
@@ -2019,7 +2020,7 @@ export default function CustomerDetail() {
         <div className="p-5 sm:p-6">
           {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} />}
           {activeTab === 'Package Details' && <PackagesTab />}
-          {activeTab === 'Finance'         && <FinanceTab  customer={customer} customerId={id} subTab={subTab} />}
+          {activeTab === 'Finance'         && <FinanceTab  customer={customer} />}
           {activeTab === 'Tickets'         && <TicketsTab />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
