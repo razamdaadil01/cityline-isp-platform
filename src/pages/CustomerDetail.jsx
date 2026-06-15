@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, Wifi, WifiOff, Phone, Mail, MapPin, Eye, EyeOff,
   Ticket, MessageSquare, Ban, AlertTriangle, FileText, Download,
@@ -1217,13 +1217,26 @@ function PackagesTab() {
 
 // ── Tab: Finance ─────────────────────────────────────────────────────────────
 
-function FinanceTab({ customer }) {
-  const [subTab, setSubTab] = useState('Invoices')
+const FINANCE_SUB_TABS = [
+  { label: 'Invoices',       slug: 'invoices' },
+  { label: 'Account Ledger', slug: 'ledger'   },
+]
+
+function FinanceTab({ customer, customerId, subTab: subTabParam }) {
+  const navigate = useNavigate()
   const [invPage, setInvPage] = useState(1)
   const [ledPage, setLedPage] = useState(1)
   const PER_PAGE = 5
 
-  const SUB_TABS = ['Invoices', 'Account Ledger']
+  // Resolve active sub-tab from URL param; default to 'invoices'
+  const activeSlug = FINANCE_SUB_TABS.find(t => t.slug === subTabParam)?.slug ?? 'invoices'
+
+  // If URL has no subTab param at all, redirect to /invoices
+  if (!subTabParam) {
+    return <Navigate to={`/customers/${customerId}/finance/invoices`} replace />
+  }
+
+  const goTo = (slug) => navigate(`/customers/${customerId}/finance/${slug}`)
 
   const invTotal = INVOICES.length
   const invPages = Math.ceil(invTotal / PER_PAGE)
@@ -1266,23 +1279,23 @@ function FinanceTab({ customer }) {
     <div className="space-y-5">
       {/* Sub-tab bar */}
       <div className="flex border-b border-surface-border gap-6">
-        {SUB_TABS.map(t => (
+        {FINANCE_SUB_TABS.map(t => (
           <button
-            key={t}
-            onClick={() => setSubTab(t)}
+            key={t.slug}
+            onClick={() => goTo(t.slug)}
             className={`pb-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
-              subTab === t
+              activeSlug === t.slug
                 ? 'text-brand-blue border-b-2 border-brand-blue'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {t}
+            {t.label}
           </button>
         ))}
       </div>
 
       {/* Invoices */}
-      {subTab === 'Invoices' && (
+      {activeSlug === 'invoices' && (
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Invoices</h3>
@@ -1324,7 +1337,7 @@ function FinanceTab({ customer }) {
       )}
 
       {/* Account Ledger */}
-      {subTab === 'Account Ledger' && (
+      {activeSlug === 'ledger' && (
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-surface-border">
             <h3 className="text-sm font-semibold text-gray-800">Account Ledger</h3>
@@ -1882,7 +1895,7 @@ function ActivityTab() {
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function CustomerDetail() {
-  const { id, tab } = useParams()
+  const { id, tab, subTab } = useParams()
   const navigate = useNavigate()
 
   const customer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
@@ -1895,7 +1908,12 @@ export default function CustomerDetail() {
   }, [id, tab, navigate])
 
   function setActiveTab(tabName) {
-    navigate(`/customers/${id}/${TAB_SLUGS[tabName]}`)
+    const slug = TAB_SLUGS[tabName]
+    if (slug === 'finance') {
+      navigate(`/customers/${id}/finance/invoices`)
+    } else {
+      navigate(`/customers/${id}/${slug}`)
+    }
   }
 
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
@@ -2001,7 +2019,7 @@ export default function CustomerDetail() {
         <div className="p-5 sm:p-6">
           {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} />}
           {activeTab === 'Package Details' && <PackagesTab />}
-          {activeTab === 'Finance'         && <FinanceTab  customer={customer} />}
+          {activeTab === 'Finance'         && <FinanceTab  customer={customer} customerId={id} subTab={subTab} />}
           {activeTab === 'Tickets'         && <TicketsTab />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
