@@ -1,479 +1,506 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, LayoutGrid, List, MoreVertical, Pencil, Trash2 } from 'lucide-react'
-import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
-import { getPlans, subscribePlans, updatePlanStatus, SERVICE_BADGE, BILLING_TYPES } from '../data/packagesStore'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Package, CheckCircle, Wifi, Box, Plus, Search, Filter, MoreVertical, X, Info } from 'lucide-react'
+import {
+  MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES,
+  MOCK_TENURES, MOCK_BANDWIDTHS, MOCK_OTT,
+} from '../data/packagesStore'
 
-const PAGE_SERVICE_TYPES = ['Plan', 'Other Package']
-const PIPELINES = ['Residential', 'Enterprise']
+// ── Shared UI ────────────────────────────────────────────────────────────────
 
-const TABLE_PAGE_SIZE_OPTIONS = [10, 25, 50]
+const StatusBadge = ({ status }) => (
+  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{status}</span>
+)
 
-export default function Packages() {
-  const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [plans, setPlans] = useState(getPlans)
-  const view = searchParams.get('view') === 'table' ? 'table' : 'card'
-  const [search, setSearch] = useState('')
-  const [filterService, setFilterService] = useState('')
-  const [filterPipeline, setFilterPipeline] = useState('')
-  const [filterBilling, setFilterBilling] = useState('')
-  const [tablePage, setTablePage] = useState(1)
-  const [tablePageSize, setTablePageSize] = useState(10)
+const YN = ({ value, yesClass }) => (
+  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${value ? yesClass : 'bg-gray-100 text-gray-500'}`}>{value ? 'Yes' : 'No'}</span>
+)
 
-  useEffect(() => subscribePlans(setPlans), [])
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return plans.filter(p => {
-      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.serviceType.toLowerCase().includes(q)
-      const matchService = !filterService || p.serviceType === filterService
-      const matchPipeline = !filterPipeline || p.pipeline === filterPipeline
-      const matchBilling = !filterBilling || p.billingType === filterBilling
-      return matchSearch && matchService && matchPipeline && matchBilling
-    })
-  }, [plans, search, filterService, filterPipeline, filterBilling])
-
-  function handleStatusToggle(id) {
-    const plan = plans.find(p => p.id === id)
-    if (plan) updatePlanStatus(id, plan.status === 'active' ? 'inactive' : 'active')
-  }
-
-  function clearFilters() {
-    setSearch('')
-    setFilterService('')
-    setFilterPipeline('')
-    setFilterBilling('')
-    setTablePage(1)
-  }
-
-  const hasFilters = search || filterService || filterPipeline || filterBilling
-
-  const selectCls = 'px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700'
-
+function Modal({ open, onClose, title, children }) {
+  if (!open) return null
   return (
-    <div className="p-6 space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Package & Plan List</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage service plans, pricing, and billing configurations</p>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <h2 className="font-semibold text-gray-800">{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
         </div>
-        <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex items-center rounded-lg border border-surface-border overflow-hidden">
-            <button
-              onClick={() => setSearchParams({ view: 'card' })}
-              title="Card view"
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${
-                view === 'card'
-                  ? 'bg-navy text-white'
-                  : 'bg-white text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <LayoutGrid size={14} />
-              <span>Card</span>
-            </button>
-            <button
-              onClick={() => setSearchParams({ view: 'table' })}
-              title="Table view"
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border-l border-surface-border transition-colors ${
-                view === 'table'
-                  ? 'bg-navy text-white'
-                  : 'bg-white text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <List size={14} />
-              <span>Table</span>
-            </button>
-          </div>
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/packages/add')}>
-            Add Plan
-          </Button>
-        </div>
+        <div className="p-5">{children}</div>
       </div>
+    </div>
+  )
+}
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        {[
-          { label: 'Total Plans',  value: plans.length,                                               cls: 'text-gray-900' },
-          { label: 'Active',       value: plans.filter(p => p.status === 'active').length,            cls: 'text-emerald-600' },
-          { label: 'Inactive',     value: plans.filter(p => p.status === 'inactive').length,          cls: 'text-gray-400' },
-          { label: 'Offer Plans',  value: plans.filter(p => p.offer).length,                          cls: 'text-brand-orange' },
-          { label: 'Other Plans',  value: plans.filter(p => p.serviceType === 'Other Package').length, cls: 'text-purple-600' },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
-            <p className="text-xs text-gray-500 font-medium">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1.5 ${s.cls}`}>{s.value}</p>
+function Toggle({ value, onChange }) {
+  return (
+    <button onClick={() => onChange(!value)}
+      className={`w-10 h-6 rounded-full relative transition-colors ${value ? 'bg-[#0A8DCD]' : 'bg-gray-200'}`}>
+      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-5' : 'translate-x-1'}`} />
+    </button>
+  )
+}
+
+function ThreeDotMenu({ items }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(o => !o)} className="p-1 rounded hover:bg-gray-100">
+        <MoreVertical size={15} className="text-gray-500" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-6 z-20 bg-white rounded-lg shadow-lg border border-gray-200 py-1 w-44 text-sm">
+            {items.map(item => (
+              <button key={item.label} onClick={() => { item.onClick(); setOpen(false) }}
+                className={`w-full text-left px-4 py-2 hover:bg-gray-50 ${item.danger ? 'text-red-600' : 'text-gray-700'}`}>
+                {item.label}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
-
-      {/* Filters Bar */}
-      <div className="bg-white rounded-xl shadow-card border border-surface-border p-4">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search plans..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
-            />
-          </div>
-          <select value={filterService}  onChange={e => setFilterService(e.target.value)}  className={selectCls}>
-            <option value="">All Service Types</option>
-            {PAGE_SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
-          </select>
-          <select value={filterPipeline} onChange={e => setFilterPipeline(e.target.value)} className={selectCls}>
-            <option value="">All Pipelines</option>
-            {PIPELINES.map(p => <option key={p}>{p}</option>)}
-          </select>
-          <select value={filterBilling}  onChange={e => setFilterBilling(e.target.value)}  className={selectCls}>
-            <option value="">All Billing Types</option>
-            {BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-          </select>
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-surface-border rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Clear
-            </button>
-          )}
-          <span className="text-xs text-gray-400 ml-auto">{filtered.length} plan{filtered.length !== 1 ? 's' : ''}</span>
-        </div>
-      </div>
-
-      {/* Content */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-base font-medium">No plans found</p>
-          <p className="text-sm mt-1">Try adjusting your filters or add a new plan</p>
-        </div>
-      ) : view === 'card' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(plan => (
-            <PlanCard key={plan.id} plan={plan} onStatusToggle={handleStatusToggle} />
-          ))}
-        </div>
-      ) : (
-        <PlansTable
-          plans={filtered}
-          onStatusToggle={handleStatusToggle}
-          tablePage={tablePage}
-          setTablePage={setTablePage}
-          tablePageSize={tablePageSize}
-          setTablePageSize={v => { setTablePageSize(v); setTablePage(1) }}
-        />
+        </>
       )}
     </div>
   )
 }
 
-/* ── Card view ────────────────────────────────────────────── */
+const FLD = ({ label, children }) => (
+  <div>
+    <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+    {children}
+  </div>
+)
 
-const SERVER_TYPE_COLORS_CARD = {
-  CNPL_B2C: 'bg-navy text-white',
-  CNPL_B2B: 'bg-brand-blue text-white',
-  CNPL_WHI: 'bg-purple-700 text-white',
-}
+const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
 
-function fmtDateCard(d) {
-  if (!d) return '—'
-  const [y, m, day] = d.split('-')
-  return `${day}-${m}-${y}`
-}
+// ── Main Page ────────────────────────────────────────────────────────────────
 
-function fmtPriceCard(n) {
-  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
+const TABS = ['Bandwidth Packages', 'Other Packages', 'Tenure Management', 'Bandwidth Management', 'OTT Management']
 
-function CardDetailRow({ label, value }) {
-  return (
-    <div className="flex flex-col gap-0.5 min-w-0">
-      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{label}</span>
-      <span className="text-xs font-medium text-gray-800 truncate">{value || '—'}</span>
-    </div>
-  )
-}
-
-function PlanCard({ plan, onStatusToggle }) {
+export default function Packages() {
   const navigate = useNavigate()
-  const isActive = plan.status === 'active'
-  const serverColor = SERVER_TYPE_COLORS_CARD[plan.serverType] || 'bg-gray-600 text-white'
+  const [activeTab, setActiveTab] = useState('Bandwidth Packages')
+
+  // Bandwidth packages state
+  const [bwPkgs, setBwPkgs] = useState(MOCK_BW_PACKAGES)
+  const [bwSearch, setBwSearch] = useState('')
+  const [bwZone, setBwZone] = useState('All')
+
+  // Other packages state
+  const [othPkgs, setOthPkgs] = useState(MOCK_OTHER_PACKAGES)
+  const [othSearch, setOthSearch] = useState('')
+  const [othZone, setOthZone] = useState('All')
+
+  // Tenure state
+  const [tenures, setTenures] = useState(MOCK_TENURES)
+  const [tenureModal, setTenureModal] = useState(false)
+  const [tenureForm, setTenureForm] = useState({ name: '', months: '', description: '', status: true })
+
+  // Bandwidth state
+  const [bandwidths, setBandwidths] = useState(MOCK_BANDWIDTHS)
+  const [bwModal, setBwModal] = useState(false)
+  const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '', status: true })
+
+  // OTT state
+  const [otts, setOtts] = useState(MOCK_OTT)
+  const [ottModal, setOttModal] = useState(false)
+  const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', description: '', status: true })
+
+  const totalPkgs = bwPkgs.length + othPkgs.length
+  const activePkgs = bwPkgs.filter(p => p.status === 'Active').length + othPkgs.filter(p => p.status === 'Active').length
+
+  const filteredBw = bwPkgs.filter(p => {
+    const mz = bwZone === 'All' || p.zone === bwZone
+    const ms = !bwSearch || p.name.toLowerCase().includes(bwSearch.toLowerCase())
+    return mz && ms
+  })
+
+  const filteredOth = othPkgs.filter(p => {
+    const mz = othZone === 'All' || p.zone === othZone
+    const ms = !othSearch || p.name.toLowerCase().includes(othSearch.toLowerCase())
+    return mz && ms
+  })
+
+  const addTenure = () => {
+    if (!tenureForm.name || !tenureForm.months) return
+    setTenures(t => [...t, { id: Date.now(), ...tenureForm, months: Number(tenureForm.months), status: tenureForm.status ? 'Active' : 'Inactive' }])
+    setTenureModal(false)
+    setTenureForm({ name: '', months: '', description: '', status: true })
+  }
+
+  const addBw = () => {
+    if (!bwForm.speed) return
+    setBandwidths(b => [...b, { id: Date.now(), ...bwForm, speed: Number(bwForm.speed), status: bwForm.status ? 'Active' : 'Inactive' }])
+    setBwModal(false)
+    setBwForm({ speed: '', unit: 'Mbps', description: '', status: true })
+  }
+
+  const addOtt = () => {
+    if (!ottForm.name) return
+    setOtts(o => [...o, { id: Date.now(), ...ottForm, status: ottForm.status ? 'Active' : 'Inactive' }])
+    setOttModal(false)
+    setOttForm({ name: '', provider: 'Playbox', description: '', status: true })
+  }
 
   return (
-    <div
-      onClick={() => navigate(`/packages/${plan.id}`)}
-      className={`bg-white rounded-xl shadow-card border border-surface-border flex flex-col transition-all duration-200 hover:shadow-lg hover:border-brand-blue/30 cursor-pointer ${
-        !isActive ? 'opacity-65' : ''
-      }`}
-    >
+    <div className="p-6 space-y-5">
       {/* Header */}
-      <div className="p-4 pb-3 border-b border-surface-border">
-        <div className="flex items-start justify-between gap-2 mb-2.5">
-          <p className="text-sm font-bold text-gray-900 leading-snug flex-1">{plan.name}</p>
-          <button
-            onClick={e => { e.stopPropagation(); onStatusToggle(plan.id) }}
-            title={isActive ? 'Deactivate' : 'Activate'}
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-              isActive ? 'bg-emerald-500' : 'bg-gray-300'
-            }`}
-          >
-            <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
-          </button>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0F2744]">Package &amp; Plan Management</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage service plans and configurations</p>
         </div>
-        {/* Badges */}
-        <div className="flex flex-wrap gap-1.5">
-          <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
-          {plan.pipeline === 'Residential' && <Badge variant="blue" size="sm">Residential</Badge>}
-          {plan.pipeline === 'Enterprise' && <Badge variant="purple" size="sm">Enterprise</Badge>}
-          {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
-          {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
-          {plan.ottBundle && <Badge variant="purple" size="sm">OTT Bundle</Badge>}
-        </div>
-      </div>
-
-      {/* Details grid */}
-      <div className="p-4 flex-1">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <CardDetailRow label="Speed"           value={plan.speed} />
-          <CardDetailRow label="Tenure"          value={plan.validity ? `${plan.validity} days` : 'One-time'} />
-          <CardDetailRow label="Billing Type"    value={plan.billingType} />
-          <CardDetailRow label="Price"           value={fmtPriceCard(plan.price)} />
-          <CardDetailRow label="Sort Order"      value={plan.sortOrder ?? '—'} />
-          <CardDetailRow label="No. of Recharge" value={plan.noOfRecharge ?? 1} />
-          <CardDetailRow label="B/W Package ID"  value={plan.bwPackageId || '0'} />
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Server Type</span>
-            {plan.serverType
-              ? <span className={`inline-flex items-center self-start px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${serverColor}`}>{plan.serverType}</span>
-              : <span className="text-xs font-medium text-gray-800">—</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-3 bg-gray-50/70 rounded-b-xl border-t border-surface-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-lg font-bold text-gray-900">{fmtPriceCard(plan.price)}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              {plan.createdAt && (
-                <span className="text-[10px] text-gray-400">{fmtDateCard(plan.createdAt)}</span>
-              )}
-              {plan.addedBy && (
-                <span className="text-[10px] text-gray-400">· {plan.addedBy}</span>
-              )}
-            </div>
-          </div>
-          <Badge variant={isActive ? 'green' : 'gray'} size="sm" dot>
-            {isActive ? 'Active' : 'Inactive'}
-          </Badge>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── Table view ───────────────────────────────────────────── */
-
-const SERVER_TYPE_COLORS = {
-  CNPL_B2C: 'bg-navy text-white',
-  CNPL_B2B: 'bg-brand-blue text-white',
-  CNPL_WHI: 'bg-purple-700 text-white',
-}
-
-function fmtDate(d) {
-  if (!d) return '—'
-  const [y, m, day] = d.split('-')
-  return `${day}-${m}-${y}`
-}
-
-function fmtPrice(n) {
-  return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-function PlansTable({ plans, onStatusToggle, tablePage, setTablePage, tablePageSize, setTablePageSize }) {
-  const TH = 'px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap'
-  const totalPages = Math.max(1, Math.ceil(plans.length / tablePageSize))
-  const pagePlans = plans.slice((tablePage - 1) * tablePageSize, tablePage * tablePageSize)
-  const from = plans.length === 0 ? 0 : (tablePage - 1) * tablePageSize + 1
-  const to = Math.min(tablePage * tablePageSize, plans.length)
-
-  return (
-    <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="text-sm w-full" style={{ minWidth: 1400 }}>
-          <thead>
-            <tr className="border-b border-surface-border bg-gray-50">
-              <th className={`${TH} pl-6`}>Package Type</th>
-              <th className={TH}>Package Name</th>
-              <th className={TH}>Sub Plan Name</th>
-              <th className={TH}>B/W Package ID</th>
-              <th className={TH}>Server Type</th>
-              <th className={TH}>Price</th>
-              <th className={TH}>Tenure</th>
-              <th className={TH}>Sort Order</th>
-              <th className={TH}>No. of Recharge</th>
-              <th className={TH}>Date</th>
-              <th className={TH}>Added</th>
-              <th className={TH}>Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {pagePlans.length === 0 && (
-              <tr>
-                <td colSpan={12} className="py-12 text-center text-gray-400 text-sm">No plans found</td>
-              </tr>
-            )}
-            {pagePlans.map(plan => (
-              <TableRow key={plan.id} plan={plan} onStatusToggle={onStatusToggle} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500">
-            Showing {from}–{to} of {plans.length} plan{plans.length !== 1 ? 's' : ''}
-          </span>
-          <select
-            value={tablePageSize}
-            onChange={e => setTablePageSize(Number(e.target.value))}
-            className="text-xs border border-surface-border rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-          >
-            {TABLE_PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s} / page</option>)}
-          </select>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setTablePage(p => Math.max(1, p - 1))}
-            disabled={tablePage === 1}
-            className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors"
-          >
-            Prev
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-            <button
-              key={p}
-              onClick={() => setTablePage(p)}
-              className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
-                p === tablePage ? 'bg-brand-blue text-white' : 'border border-surface-border hover:bg-white text-gray-600'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            onClick={() => setTablePage(p => Math.min(totalPages, p + 1))}
-            disabled={tablePage === totalPages}
-            className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TableRow({ plan, onStatusToggle }) {
-  const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
-  const isActive = plan.status === 'active'
-
-  const pkgType = plan.ottBundle ? 'Plan+OTT' : plan.serviceType === 'Other Package' ? 'Other Package' : 'Plan'
-  const serverColor = SERVER_TYPE_COLORS[plan.serverType] || 'bg-gray-700 text-white'
-
-  useEffect(() => {
-    if (!menuOpen) return
-    function handle(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [menuOpen])
-
-  return (
-    <tr className={`hover:bg-gray-50 transition-colors ${!isActive ? 'opacity-60' : ''}`}>
-      <td className="pl-6 pr-3 py-2.5 whitespace-nowrap">
-        <span className="text-xs text-gray-700">{pkgType}</span>
-      </td>
-      <td className="px-3 py-2.5">
-        <button
-          onClick={() => navigate(`/packages/${plan.id}`)}
-          className="block truncate text-xs font-semibold text-brand-blue hover:underline text-left w-full"
-        >
-          {plan.name}
+        <button onClick={() => navigate('/packages/add')}
+          className="flex items-center gap-2 bg-[#E8541A] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors">
+          <Plus size={16} /> Add Package
         </button>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className="text-xs text-gray-600">{plan.subPlanName || <span className="text-gray-300">—</span>}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className="font-mono text-xs text-gray-600">{plan.bwPackageId || '0'}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        {plan.serverType
-          ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wide ${serverColor}`}>{plan.serverType}</span>
-          : <span className="text-gray-300 text-xs">—</span>}
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className="text-xs font-semibold text-gray-900">{fmtPrice(plan.price)}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className="text-xs text-gray-700">{plan.validity ? `${plan.validity} days` : 'One Time'}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap text-center">
-        <span className="text-xs text-gray-700">{plan.sortOrder ?? '—'}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap text-center">
-        <span className="text-xs text-gray-700">{plan.noOfRecharge ?? 1}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className="text-xs text-gray-600">{fmtDate(plan.createdAt)}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <span className="text-xs text-gray-600">{plan.addedBy || 'Admin'}</span>
-      </td>
-      <td className="px-3 py-2.5 whitespace-nowrap">
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(v => !v)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <MoreVertical size={14} />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-8 z-20 w-40 bg-white rounded-xl shadow-lg border border-surface-border py-1">
-              <button
-                onClick={() => setMenuOpen(false)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Pencil size={13} className="text-gray-400" /> Edit
-              </button>
-              <button
-                onClick={() => { onStatusToggle(plan.id); setMenuOpen(false) }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <span className={`w-3 h-3 rounded-full ${isActive ? 'bg-gray-400' : 'bg-emerald-500'}`} />
-                {isActive ? 'Deactivate' : 'Activate'}
-              </button>
-              <div className="my-1 border-t border-surface-border" />
-              <button
-                onClick={() => setMenuOpen(false)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <Trash2 size={13} /> Delete
-              </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Packages',     value: totalPkgs,      icon: Package,     bg: 'bg-blue-50',   ic: 'text-blue-600' },
+          { label: 'Active',             value: activePkgs,     icon: CheckCircle, bg: 'bg-green-50',  ic: 'text-green-600' },
+          { label: 'Bandwidth Packages', value: bwPkgs.length,  icon: Wifi,        bg: 'bg-indigo-50', ic: 'text-indigo-600' },
+          { label: 'Other Packages',     value: othPkgs.length, icon: Box,         bg: 'bg-orange-50', ic: 'text-orange-600' },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-4">
+            <span className={`p-2.5 rounded-xl ${s.bg}`}><s.icon size={18} className={s.ic} /></span>
+            <div>
+              <p className="text-2xl font-bold text-[#0F2744]">{s.value}</p>
+              <p className="text-xs text-gray-500">{s.label}</p>
             </div>
-          )}
+          </div>
+        ))}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl flex-wrap">
+        {TABS.map(t => (
+          <button key={t} onClick={() => setActiveTab(t)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              activeTab === t ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB 1: BANDWIDTH PACKAGES ── */}
+      {activeTab === 'Bandwidth Packages' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <select value={bwZone} onChange={e => setBwZone(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+              <option value="All">All Zones</option>
+              <option>Residential</option>
+              <option>Enterprise</option>
+            </select>
+            <div className="relative flex-1 max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={bwSearch} onChange={e => setBwSearch(e.target.value)}
+                placeholder="Search by name, Jaze ID..."
+                className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
+            </div>
+            <button className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              <Filter size={14} /> Filter
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {['Package Name','Zone','Bandwidth','Jaze ID','Tenure','Price','OTT','Editable','Landline','Offer','Status','Actions'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredBw.length === 0 ? (
+                    <tr><td colSpan={12} className="text-center py-10 text-gray-400">No packages found</td></tr>
+                  ) : filteredBw.map(pkg =>
+                    pkg.rows.map((row, ri) => (
+                      <tr key={`${pkg.id}-${ri}`} className="hover:bg-gray-50">
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">{pkg.name}</td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 text-gray-600 align-top border-r border-gray-100">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
+                        </td>}
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.bandwidth}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.jazeId}</td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.tenure}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">&#8377;{row.price.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{row.ott !== 'None' ? row.ott : <span className="text-gray-400">&mdash;</span>}</td>
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.editable} yesClass="bg-amber-100 text-amber-700" /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.landline} yesClass="bg-blue-100 text-blue-700" /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.offer} yesClass="bg-orange-100 text-orange-700" /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><StatusBadge status={pkg.status} /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top">
+                          <ThreeDotMenu items={[
+                            { label: 'Edit Package', onClick: () => {} },
+                            { label: pkg.status === 'Active' ? 'Deactivate' : 'Activate', onClick: () => setBwPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p)) },
+                            { label: 'Delete', danger: true, onClick: () => setBwPkgs(prev => prev.filter(p => p.id !== pkg.id)) },
+                          ]} />
+                        </td>}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </td>
-    </tr>
+      )}
+
+      {/* ── TAB 2: OTHER PACKAGES ── */}
+      {activeTab === 'Other Packages' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <select value={othZone} onChange={e => setOthZone(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+              <option value="All">All Zones</option>
+              <option>Residential</option>
+              <option>Enterprise</option>
+              <option>Both</option>
+            </select>
+            <div className="relative flex-1 max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={othSearch} onChange={e => setOthSearch(e.target.value)}
+                placeholder="Search packages..."
+                className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
+            </div>
+            <button className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              <Filter size={14} /> Filter
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    {['Package Name','Zone','Bind Package','Price','Separate Invoice','Status','Actions'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredOth.map(pkg => (
+                    <tr key={pkg.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-semibold text-[#0F2744]">{pkg.name}</td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {pkg.bindPackage
+                          ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{pkg.bindPackage}</span>
+                          : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Standalone</span>}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-gray-800">&#8377;{pkg.price.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3"><YN value={pkg.separateInvoice} yesClass="bg-orange-100 text-orange-700" /></td>
+                      <td className="px-4 py-3"><StatusBadge status={pkg.status} /></td>
+                      <td className="px-4 py-3">
+                        <ThreeDotMenu items={[
+                          { label: 'Edit Package', onClick: () => {} },
+                          { label: pkg.status === 'Active' ? 'Deactivate' : 'Activate', onClick: () => setOthPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p)) },
+                          { label: 'Delete', danger: true, onClick: () => setOthPkgs(prev => prev.filter(p => p.id !== pkg.id)) },
+                        ]} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: TENURE MANAGEMENT ── */}
+      {activeTab === 'Tenure Management' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-[#0F2744]">Tenure Management</h2>
+              <p className="text-sm text-gray-500">Define billing tenure options</p>
+            </div>
+            <button onClick={() => setTenureModal(true)}
+              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+              <Plus size={14} /> Add Tenure
+            </button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {['Tenure Name','Months','Description','Status','Actions'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {tenures.map(t => (
+                  <tr key={t.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{t.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.months}</td>
+                    <td className="px-4 py-3 text-gray-500">{t.description}</td>
+                    <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
+                    <td className="px-4 py-3">
+                      <ThreeDotMenu items={[
+                        { label: 'Edit', onClick: () => {} },
+                        { label: 'Delete', danger: true, onClick: () => setTenures(prev => prev.filter(x => x.id !== t.id)) },
+                      ]} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Modal open={tenureModal} onClose={() => setTenureModal(false)} title="Add Tenure">
+            <div className="space-y-4">
+              <FLD label="Tenure Name *"><input value={tenureForm.name} onChange={e => setTenureForm(f => ({...f, name: e.target.value}))} className={inp} placeholder="e.g. 12+1" /></FLD>
+              <FLD label="Total Months *"><input type="number" value={tenureForm.months} onChange={e => setTenureForm(f => ({...f, months: e.target.value}))} className={inp} placeholder="e.g. 13" /></FLD>
+              <FLD label="Description"><input value={tenureForm.description} onChange={e => setTenureForm(f => ({...f, description: e.target.value}))} className={inp} /></FLD>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Status Active</span>
+                <Toggle value={tenureForm.status} onChange={v => setTenureForm(f => ({...f, status: v}))} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setTenureModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                <button onClick={addTenure} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-blue-600">Add Tenure</button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      )}
+
+      {/* ── TAB 4: BANDWIDTH MANAGEMENT ── */}
+      {activeTab === 'Bandwidth Management' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-[#0F2744]">Bandwidth Management</h2>
+              <p className="text-sm text-gray-500">Define available bandwidth options</p>
+            </div>
+            <button onClick={() => setBwModal(true)}
+              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+              <Plus size={14} /> Add Bandwidth
+            </button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {['Bandwidth','Unit','Description','Status','Actions'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {bandwidths.map(b => (
+                  <tr key={b.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{b.speed} {b.unit}</td>
+                    <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{b.unit}</span></td>
+                    <td className="px-4 py-3 text-gray-500">{b.description}</td>
+                    <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
+                    <td className="px-4 py-3">
+                      <ThreeDotMenu items={[
+                        { label: 'Edit', onClick: () => {} },
+                        { label: 'Delete', danger: true, onClick: () => setBandwidths(prev => prev.filter(x => x.id !== b.id)) },
+                      ]} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Modal open={bwModal} onClose={() => setBwModal(false)} title="Add Bandwidth">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <FLD label="Speed *"><input type="number" value={bwForm.speed} onChange={e => setBwForm(f => ({...f, speed: e.target.value}))} className={inp} placeholder="e.g. 100" /></FLD>
+                <FLD label="Unit *">
+                  <select value={bwForm.unit} onChange={e => setBwForm(f => ({...f, unit: e.target.value}))} className={inp}>
+                    <option>Mbps</option><option>Gbps</option>
+                  </select>
+                </FLD>
+              </div>
+              <FLD label="Description"><input value={bwForm.description} onChange={e => setBwForm(f => ({...f, description: e.target.value}))} className={inp} /></FLD>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Status Active</span>
+                <Toggle value={bwForm.status} onChange={v => setBwForm(f => ({...f, status: v}))} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setBwModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                <button onClick={addBw} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-blue-600">Add Bandwidth</button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      )}
+
+      {/* ── TAB 5: OTT MANAGEMENT ── */}
+      {activeTab === 'OTT Management' && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <Info size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-blue-700">Playbox API integration will be configured by the backend team</p>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-[#0F2744]">OTT Management</h2>
+              <p className="text-sm text-gray-500">Manage OTT platform packages</p>
+            </div>
+            <button onClick={() => setOttModal(true)}
+              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
+              <Plus size={14} /> Add OTT Package
+            </button>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {['OTT Name','Provider','Description','Status','Actions'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {otts.map(o => (
+                  <tr key={o.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{o.name}</td>
+                    <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{o.provider}</span></td>
+                    <td className="px-4 py-3 text-gray-500">{o.description}</td>
+                    <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
+                    <td className="px-4 py-3">
+                      <ThreeDotMenu items={[
+                        { label: 'Edit', onClick: () => {} },
+                        { label: 'Delete', danger: true, onClick: () => setOtts(prev => prev.filter(x => x.id !== o.id)) },
+                      ]} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Modal open={ottModal} onClose={() => setOttModal(false)} title="Add OTT Package">
+            <div className="space-y-4">
+              <FLD label="OTT Package Name *"><input value={ottForm.name} onChange={e => setOttForm(f => ({...f, name: e.target.value}))} className={inp} placeholder="e.g. Cityline TV Premium" /></FLD>
+              <FLD label="Provider">
+                <select value={ottForm.provider} onChange={e => setOttForm(f => ({...f, provider: e.target.value}))} className={inp}>
+                  <option>Playbox</option><option>Other</option>
+                </select>
+              </FLD>
+              <FLD label="Description"><input value={ottForm.description} onChange={e => setOttForm(f => ({...f, description: e.target.value}))} className={inp} /></FLD>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Status Active</span>
+                <Toggle value={ottForm.status} onChange={v => setOttForm(f => ({...f, status: v}))} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setOttModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                <button onClick={addOtt} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-blue-600">Add OTT Package</button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      )}
+    </div>
   )
 }
