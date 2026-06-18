@@ -1,29 +1,26 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook, MapPin, ClipboardCheck, ChevronRight, ChevronLeft,
-  Layers, FileText, MoreVertical, Map,
+  BookOpen, Webhook, Phone, Globe,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { setSalesPermission } from '../data/salesPermissionStore'
+import { MOCK_LANDLINES, MOCK_STATIC_IPS } from '../data/packagesStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'general',             label: 'General',               icon: Building2 },
-  { id: 'billing',             label: 'Billing',               icon: Receipt   },
-  { id: 'notifications',       label: 'Notifications',         icon: Bell      },
-  { id: 'jaze-servers',        label: 'Jaze Servers',          icon: Server    },
-  { id: 'zoho-books',          label: 'Zoho Books',            icon: BookOpen  },
-  { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
-  { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
-  { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
-  { id: 'zone',               label: 'Zone',                  icon: Map       },
+  { id: 'general',       label: 'General',               icon: Building2 },
+  { id: 'billing',       label: 'Billing',               icon: Receipt   },
+  { id: 'notifications', label: 'Notifications',         icon: Bell      },
+  { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
+  { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen  },
+  { id: 'roles',            label: 'Roles & Permissions',   icon: Shield    },
+  { id: 'landline-numbers', label: 'Landline Numbers',      icon: Phone     },
+  { id: 'static-ip',        label: 'Static IP',             icon: Globe     },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -61,26 +58,15 @@ const ROLES = [
 const MODULES = ['Dashboard', 'Customers', 'Sales', 'Billing', 'Support', 'Network', 'Inventory', 'Reports', 'Settings']
 
 const PERMISSIONS = {
-  super_admin: { Dashboard: 'full', Customers: 'full', Sales: 'full',     Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'full' },
-  admin:       { Dashboard: 'full', Customers: 'full', Sales: 'full',     Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'view' },
-  billing:     { Dashboard: 'view', Customers: 'view', Sales: 'view_all', Billing: 'full', Support: 'none', Network: 'none', Inventory: 'view', Reports: 'view', Settings: 'none' },
-  support:     { Dashboard: 'view', Customers: 'view', Sales: 'none',     Billing: 'view', Support: 'full', Network: 'view', Inventory: 'view', Reports: 'none', Settings: 'none' },
-  engineer:    { Dashboard: 'view', Customers: 'view', Sales: 'view_my',  Billing: 'none', Support: 'view', Network: 'view', Inventory: 'full', Reports: 'none', Settings: 'none' },
-  readonly:    { Dashboard: 'view', Customers: 'view', Sales: 'view_all', Billing: 'view', Support: 'view', Network: 'view', Inventory: 'view', Reports: 'view', Settings: 'none' },
+  super_admin: { Dashboard: 'full', Customers: 'full', Sales: 'full', Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'full' },
+  admin:       { Dashboard: 'full', Customers: 'full', Sales: 'full', Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'view' },
+  billing:     { Dashboard: 'view', Customers: 'view', Sales: 'view', Billing: 'full', Support: 'none', Network: 'none', Inventory: 'view', Reports: 'view', Settings: 'none' },
+  support:     { Dashboard: 'view', Customers: 'view', Sales: 'none', Billing: 'view', Support: 'full', Network: 'view', Inventory: 'view', Reports: 'none', Settings: 'none' },
+  engineer:    { Dashboard: 'view', Customers: 'view', Sales: 'none', Billing: 'none', Support: 'view', Network: 'view', Inventory: 'full', Reports: 'none', Settings: 'none' },
+  readonly:    { Dashboard: 'view', Customers: 'view', Sales: 'view', Billing: 'view', Support: 'view', Network: 'view', Inventory: 'view', Reports: 'view', Settings: 'none' },
 }
-
-const STD_OPTIONS = [
-  { value: 'full', label: 'Full Access' },
-  { value: 'view', label: 'View Only'   },
-  { value: 'none', label: 'No Access'   },
-]
-
-const SALES_OPTIONS = [
-  { value: 'full',     label: 'Full Access'        },
-  { value: 'view_all', label: 'View All Leads'     },
-  { value: 'view_my',  label: 'View My Leads Only' },
-  { value: 'none',     label: 'No Access'          },
-]
+const PERM_VARIANT = { full: 'green', view: 'blue', none: 'gray' }
+const PERM_LABEL   = { full: 'Full',  view: 'View', none: '—'    }
 
 const NOTIF_EVENTS = [
   { id: 'new_customer',      label: 'New Customer Activation',   whatsapp: true,  sms: true  },
@@ -483,20 +469,8 @@ function ZohoBooksTab() {
 
 function RolesTab() {
   const [activeRole, setActiveRole] = useState('admin')
-  const [perms, setPerms]           = useState(() => JSON.parse(JSON.stringify(PERMISSIONS)))
-  const [saved, setSaved]           = useState(false)
 
   const role = ROLES.find(r => r.id === activeRole)
-
-  function handleSave() {
-    setSalesPermission(perms['admin']?.Sales ?? 'full')
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
-
-  function handleReset() {
-    setPerms(JSON.parse(JSON.stringify(PERMISSIONS)))
-  }
 
   return (
     <div className="space-y-5">
@@ -533,372 +507,34 @@ function RolesTab() {
           </div>
           <div className="divide-y divide-surface-border">
             {MODULES.map(mod => {
-              const perm    = perms[activeRole]?.[mod] ?? 'none'
-              const options = mod === 'Sales' ? SALES_OPTIONS : STD_OPTIONS
+              const perm = PERMISSIONS[activeRole]?.[mod] || 'none'
               return (
-                <div key={mod} className="flex items-center justify-between px-5 py-3">
+                <div key={mod} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50">
                   <span className="text-sm font-medium text-gray-700">{mod}</span>
-                  <select
-                    value={perm}
-                    onChange={e => setPerms(prev => ({
-                      ...prev,
-                      [activeRole]: { ...prev[activeRole], [mod]: e.target.value },
-                    }))}
-                    className="text-sm border border-surface-border rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition-colors"
-                  >
-                    {options.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
+                    <div className="flex gap-1">
+                      {['full', 'view', 'none'].map(p => (
+                        <button key={p}
+                          className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
+                            ${perm === p
+                              ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
+                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+                          {p === 'none' ? 'No Access' : p.charAt(0).toUpperCase() + p.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )
             })}
           </div>
           <div className="px-5 py-4 border-t border-surface-border flex justify-end gap-2">
-            <Button variant="secondary" size="sm" onClick={handleReset}>Reset</Button>
-            <Button
-              size="sm"
-              icon={saved ? <Check size={14} /> : <Save size={14} />}
-              onClick={handleSave}
-            >
-              {saved ? 'Saved!' : 'Save Permissions'}
-            </Button>
+            <Button variant="secondary" size="sm">Reset</Button>
+            <Button size="sm" icon={<Save size={14} />}>Save Permissions</Button>
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Area Mapping Tab ──────────────────────────────────────────────────────────
-
-function AreaMappingTab() {
-  const navigate = useNavigate()
-  return (
-    <div className="space-y-5">
-      <div className="pb-4 border-b border-surface-border">
-        <h2 className="text-base font-semibold text-gray-900">Area Mapping</h2>
-        <p className="text-xs text-gray-500 mt-1">Manage service areas, localities and feasibility settings for lead address selection</p>
-      </div>
-
-      <div>
-        <button
-          onClick={() => navigate('/settings/area-mapping/manage')}
-          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left w-full max-w-sm"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
-              <MapPin size={18} className="text-brand-blue" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Manage Area Mapping</p>
-              <p className="text-xs text-gray-400 mt-0.5">States, districts, areas, localities &amp; sub localities</p>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
-        </button>
-      </div>
-
-      <div className="rounded-xl border border-surface-border bg-gray-50/50 p-4">
-        <p className="text-xs font-semibold text-gray-500 mb-2">How it works</p>
-        <ol className="text-xs text-gray-500 space-y-1.5 list-decimal list-inside">
-          <li>Add states, districts, areas, localities and sub-localities in <strong className="text-gray-700">Manage Area Mapping</strong>.</li>
-          <li>When a lead is created, the address dropdowns are powered by this mapping.</li>
-          <li>If a sub-locality isn&apos;t in the mapping, the agent can flag it as <strong className="text-gray-700">Feasibility Required</strong>.</li>
-          <li>Feasibility requests can be reviewed under <strong className="text-gray-700">Sales &amp; Leads → Feasibility Requests</strong>.</li>
-        </ol>
-      </div>
-    </div>
-  )
-}
-
-// ── Sales Configuration Tab ───────────────────────────────────────────────────
-
-function SalesConfigTab() {
-  const navigate = useNavigate()
-  return (
-    <div className="space-y-5">
-      <div className="pb-4 border-b border-surface-border">
-        <h2 className="text-base font-semibold text-gray-900">Sales Configuration</h2>
-        <p className="text-xs text-gray-500 mt-1">Manage pipelines, stages and lead form fields</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <button
-          onClick={() => navigate('/settings/sales-configuration/pipelines')}
-          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
-              <Layers size={18} className="text-brand-blue" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Pipeline Builder</p>
-              <p className="text-xs text-gray-400 mt-0.5">Create and manage sales pipelines and stages</p>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
-        </button>
-
-        <button
-          onClick={() => navigate('/settings/sales-configuration/stage-fields')}
-          className="flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-blue-50/30 transition-all group text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center shrink-0">
-              <FileText size={18} className="text-brand-blue" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Stage Fields</p>
-              <p className="text-xs text-gray-400 mt-0.5">Fields configured for each pipeline stage</p>
-            </div>
-          </div>
-          <ChevronRight size={16} className="text-gray-300 group-hover:text-brand-blue transition-colors" />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Zone Tab ──────────────────────────────────────────────────────────────────
-
-const INIT_ZONES = [
-  { id: 1, custType: 'Cityline', name: 'Andheri West', zoneId: 'ZN-001', url: 'https://ops.citylinenetworks.in/api/v1', username: 'citylinewest01',  password: 'Pass@1234',  addedDate: '10/01/2025' },
-  { id: 2, custType: 'Partner',  name: 'Bandra East',  zoneId: 'ZN-002', url: 'https://ops.citylinenetworks.in/api/v1', username: 'partnerbandra',   password: 'Bandra@567', addedDate: '15/02/2025' },
-  { id: 3, custType: 'Cityline', name: 'Versova',      zoneId: 'ZN-003', url: 'https://ops.citylinenetworks.in/api/v1', username: 'citylineversova', password: 'Vers@890',   addedDate: '20/03/2025' },
-]
-
-const EMPTY_ZONE_FORM = { custType: 'Cityline', name: '', zoneId: '', url: '', username: '', password: '' }
-
-function ZoneTab() {
-  const PER_PAGE = 10
-
-  const [zones, setZones]         = useState(INIT_ZONES)
-  const [showAdd, setShowAdd]     = useState(false)
-  const [menuId, setMenuId]       = useState(null)
-  const [menuPos, setMenuPos]     = useState({ top: 0, right: 0 })
-  const menuRef                   = useRef(null)
-  const [form, setForm]           = useState(EMPTY_ZONE_FORM)
-  const [showPw, setShowPw]       = useState(false)
-  const [revealId, setRevealId]   = useState(null)
-  const [page, setPage]           = useState(1)
-
-  const totalPages  = Math.max(1, Math.ceil(zones.length / PER_PAGE))
-  const paginated   = zones.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-
-  const zf = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  function openMenu(e, id) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
-
-  useEffect(() => {
-    if (!menuId) return
-    function handler(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuId])
-
-  function handleRemove(id) {
-    setZones(z => z.filter(x => x.id !== id))
-    setMenuId(null)
-  }
-
-  function handleSave() {
-    const next = { ...form, id: Date.now(), addedDate: new Date().toLocaleDateString('en-GB') }
-    setZones(z => [...z, next])
-    setShowAdd(false)
-    setForm(EMPTY_ZONE_FORM)
-    setShowPw(false)
-    setPage(Math.ceil((zones.length + 1) / PER_PAGE))
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="pb-4 border-b border-surface-border flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Zone Management</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage service zones for your network</p>
-        </div>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => { setForm(EMPTY_ZONE_FORM); setShowPw(false); setShowAdd(true) }}>Add Zone</Button>
-      </div>
-
-      <div className="rounded-xl border border-surface-border">
-        <div style={{ display: 'block', width: '100%', overflowX: 'auto' }}>
-        <table className="text-sm" style={{ minWidth: 900, width: '100%' }}>
-          <thead>
-            <tr className="bg-gray-50/80 border-b border-surface-border">
-              {['S.NO', 'CUSTOMER TYPE', 'ZONE NAME', 'ZONE ID', 'ZONE IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
-                <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {paginated.map((z, i) => (
-              <tr key={z.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-3 py-3 text-gray-500 text-xs">{(page - 1) * PER_PAGE + i + 1}</td>
-                <td className="px-3 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    z.custType === 'Cityline' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                  }`}>{z.custType}</span>
-                </td>
-                <td className="px-3 py-3 font-medium text-gray-900 truncate">{z.name}</td>
-                <td className="px-3 py-3 font-mono text-xs text-gray-600 truncate">{z.zoneId}</td>
-                <td className="px-3 py-3 text-xs text-gray-600 truncate" title={z.url}>{z.url}</td>
-                <td className="px-3 py-3 text-xs text-gray-700 font-mono truncate">{z.username}</td>
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs text-gray-600 truncate">
-                      {revealId === z.id ? z.password : '••••••••'}
-                    </span>
-                    <button
-                      onClick={() => setRevealId(revealId === z.id ? null : z.id)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors">
-                      {revealId === z.id
-                        ? <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        : <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      }
-                    </button>
-                  </div>
-                </td>
-                <td className="px-3 py-3 text-gray-500 text-xs">{z.addedDate}</td>
-                <td className="px-3 py-3">
-                  <button
-                    onClick={e => openMenu(e, z.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
-                    <MoreVertical size={15} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50/40">
-          <p className="text-xs text-gray-500">
-            Showing {zones.length === 0 ? 0 : (page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, zones.length)} of {zones.length} zones
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-              <ChevronLeft size={14} />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .reduce((acc, p, i, arr) => {
-                if (i > 0 && p - arr[i - 1] > 1) acc.push('…')
-                acc.push(p)
-                return acc
-              }, [])
-              .map((p, i) =>
-                p === '…' ? (
-                  <span key={`ellipsis-${i}`} className="w-7 h-7 flex items-center justify-center text-xs text-gray-400">…</span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`w-7 h-7 flex items-center justify-center rounded text-xs font-medium transition-all ${p === page ? 'bg-brand-blue text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}>
-                    {p}
-                  </button>
-                )
-              )}
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 3-dot dropdown */}
-      {menuId && (
-        <div
-          ref={menuRef}
-          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 50 }}
-          className="w-52 bg-white rounded-xl shadow-lg border border-surface-border py-1 text-sm">
-          <button
-            onClick={() => setMenuId(null)}
-            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700">
-            Active
-          </button>
-          <button
-            onClick={() => setMenuId(null)}
-            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700">
-            Edit
-          </button>
-          <button
-            onClick={() => handleRemove(menuId)}
-            className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-500">
-            Remove
-          </button>
-          <button
-            onClick={() => setMenuId(null)}
-            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700">
-            Check Recharge Status
-          </button>
-        </div>
-      )}
-
-      {/* Add Zone Modal */}
-      <Modal
-        isOpen={showAdd}
-        onClose={() => setShowAdd(false)}
-        title="Add New Zone"
-        size="sm"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Zone</Button>
-        </>}>
-        <div className="space-y-4">
-          <FormField label="Customer Type" required>
-            <Select value={form.custType} onChange={e => zf('custType', e.target.value)}>
-              <option value="Cityline">Cityline</option>
-              <option value="Partner">Partner</option>
-            </Select>
-          </FormField>
-          <FormField label="Zone Name" required>
-            <Input placeholder="e.g. Andheri West" value={form.name} onChange={e => zf('name', e.target.value)} />
-          </FormField>
-          <FormField label="Zone ID" required>
-            <Input placeholder="e.g. ZN-001" value={form.zoneId} onChange={e => zf('zoneId', e.target.value)} />
-          </FormField>
-          <FormField label="Zone IP/URL" required>
-            <Input placeholder="https://zone.citylinenetworks.in" value={form.url} onChange={e => zf('url', e.target.value)} />
-          </FormField>
-          <FormField label="Username" required>
-            <Input placeholder="username" value={form.username} onChange={e => zf('username', e.target.value)} />
-          </FormField>
-          <FormField label="Password" required>
-            <div className="relative">
-              <Input
-                type={showPw ? 'text' : 'password'}
-                placeholder="password"
-                value={form.password}
-                onChange={e => zf('password', e.target.value)}
-                className="pr-9"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPw(p => !p)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                {showPw
-                  ? <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  : <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                }
-              </button>
-            </div>
-          </FormField>
-        </div>
-      </Modal>
     </div>
   )
 }
@@ -906,12 +542,17 @@ function ZoneTab() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const { tab } = useParams()
-  const navigate = useNavigate()
-  const activeTab = tab ?? 'general'
+  const [activeTab, setActiveTab] = useState('general')
+  const [landlines, setLandlines] = useState(MOCK_LANDLINES)
+  const [staticIps, setStaticIps] = useState(MOCK_STATIC_IPS)
+  const [addLandlineModal, setAddLandlineModal] = useState(false)
+  const [landlineForm, setLandlineForm] = useState({ number: '', status: 'Available', notes: '' })
+  const [addIpModal, setAddIpModal] = useState(false)
+  const [ipForm, setIpForm] = useState({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '', notes: '' })
+  const [bulkImportModal, setBulkImportModal] = useState(false)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-[1400px]">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Settings</h1>
         <p className="text-sm text-gray-500 mt-0.5">Platform configuration, integrations and access control</p>
@@ -922,7 +563,7 @@ export default function Settings() {
         <div className="w-52 shrink-0">
           <nav className="space-y-1">
             {TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => navigate(`/settings/${id}`)}
+              <button key={id} onClick={() => setActiveTab(id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
@@ -935,16 +576,231 @@ export default function Settings() {
         </div>
 
         {/* Content panel */}
-        <div className="flex-1 min-w-0 bg-white rounded-xl shadow-card border border-surface-border p-6">
-          {activeTab === 'general'             && <GeneralTab />}
-          {activeTab === 'billing'             && <BillingTab />}
-          {activeTab === 'notifications'       && <NotificationsTab />}
-          {activeTab === 'jaze-servers'        && <JazeServersTab />}
-          {activeTab === 'zoho-books'          && <ZohoBooksTab />}
-          {activeTab === 'sales-configuration' && <SalesConfigTab />}
-          {activeTab === 'roles'               && <RolesTab />}
-          {activeTab === 'area-mapping'        && <AreaMappingTab />}
-          {activeTab === 'zone'               && <ZoneTab />}
+        <div className="flex-1 bg-white rounded-xl shadow-card border border-surface-border p-6">
+          {activeTab === 'general'       && <GeneralTab />}
+          {activeTab === 'billing'       && <BillingTab />}
+          {activeTab === 'notifications' && <NotificationsTab />}
+          {activeTab === 'jaze'          && <JazeServersTab />}
+          {activeTab === 'zoho'          && <ZohoBooksTab />}
+          {activeTab === 'roles'         && <RolesTab />}
+          {activeTab === 'landline-numbers' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Landline Numbers</h2>
+                  <p className="text-sm text-gray-500">Manage landline number pool</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setBulkImportModal(true)} className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                    📥 Bulk Import
+                  </button>
+                  <button onClick={() => setAddLandlineModal(true)} className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600">
+                    + Add Number
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Total',     value: landlines.length,                                      color: 'text-gray-800' },
+                  { label: 'Available', value: landlines.filter(l => l.status === 'Available').length, color: 'text-green-600' },
+                  { label: 'Assigned',  value: landlines.filter(l => l.status === 'Assigned').length,  color: 'text-blue-600' },
+                ].map(s => (
+                  <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+                    <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50 border-b border-gray-200">
+                      {['Landline No','Status','Assigned To','Customer','Assigned Date','Actions'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {landlines.map(l => (
+                        <tr key={l.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-sm text-gray-800">{l.number}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              l.status === 'Available' ? 'bg-green-100 text-green-700' :
+                              l.status === 'Assigned'  ? 'bg-blue-100 text-blue-700' :
+                              l.status === 'Reserved'  ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                            }`}>{l.status}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{l.assignedTo || '—'}</td>
+                          <td className="px-4 py-3 text-gray-600">{l.customer || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500">{l.assignedDate || '—'}</td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => setLandlines(prev => prev.filter(x => x.id !== l.id))} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {addLandlineModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                      <h2 className="font-semibold text-gray-800">Add Landline Number</h2>
+                      <button onClick={() => setAddLandlineModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <div><label className="text-xs font-medium text-gray-500 mb-1 block">Landline Number *</label>
+                        <input value={landlineForm.number} onChange={e => setLandlineForm(f => ({...f, number: e.target.value}))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none" placeholder="+91-120-..." /></div>
+                      <div><label className="text-xs font-medium text-gray-500 mb-1 block">Status</label>
+                        <select value={landlineForm.status} onChange={e => setLandlineForm(f => ({...f, status: e.target.value}))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+                          <option>Available</option><option>Reserved</option>
+                        </select></div>
+                      <div className="flex gap-3 pt-2">
+                        <button onClick={() => setAddLandlineModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                        <button onClick={() => {
+                          if (!landlineForm.number) return
+                          setLandlines(prev => [...prev, { id: Date.now(), ...landlineForm, assignedTo: null, customer: null, assignedDate: null }])
+                          setAddLandlineModal(false)
+                          setLandlineForm({ number: '', status: 'Available', notes: '' })
+                        }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Number</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {bulkImportModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                      <h2 className="font-semibold text-gray-800">Bulk Import Numbers</h2>
+                      <button onClick={() => setBulkImportModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <button className="w-full border border-dashed border-gray-300 rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">📥 Download Excel Template</button>
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400">
+                        <p className="text-sm">Drop Excel file here or click to upload</p>
+                        <p className="text-xs mt-1">Supports .xlsx, .csv</p>
+                      </div>
+                      <button onClick={() => setBulkImportModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'static-ip' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Static IP Management</h2>
+                  <p className="text-sm text-gray-500">Manage static IP address pool</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setBulkImportModal(true)} className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">📥 Bulk Import</button>
+                  <button onClick={() => setAddIpModal(true)} className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600">+ Add IP</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Total',     value: staticIps.length,                                        color: 'text-gray-800' },
+                  { label: 'Available', value: staticIps.filter(ip => ip.status === 'Available').length, color: 'text-green-600' },
+                  { label: 'Assigned',  value: staticIps.filter(ip => ip.status === 'Assigned').length,  color: 'text-blue-600' },
+                ].map(s => (
+                  <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
+                    <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50 border-b border-gray-200">
+                      {['IP Address','Subnet','Gateway','Status','Assigned To','Customer','Actions'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {staticIps.map(ip => (
+                        <tr key={ip.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-mono text-sm text-gray-800">{ip.ip}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.subnet}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.gateway}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              ip.status === 'Available' ? 'bg-green-100 text-green-700' :
+                              ip.status === 'Assigned'  ? 'bg-blue-100 text-blue-700' :
+                              ip.status === 'Reserved'  ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                            }`}>{ip.status}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{ip.assignedTo || '—'}</td>
+                          <td className="px-4 py-3 text-gray-600">{ip.customer || '—'}</td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => setStaticIps(prev => prev.filter(x => x.id !== ip.id))} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {addIpModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                      <h2 className="font-semibold text-gray-800">Add Static IP</h2>
+                      <button onClick={() => setAddIpModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                    <div className="p-5 space-y-3">
+                      {[
+                        ['IP Address *',   'ip',      'e.g. 103.21.58.10'],
+                        ['Subnet Mask *',  'subnet',  'e.g. 255.255.255.0'],
+                        ['Gateway *',      'gateway', 'e.g. 103.21.58.1'],
+                        ['DNS Primary',    'dns1',    'e.g. 8.8.8.8'],
+                        ['DNS Secondary',  'dns2',    'e.g. 8.8.4.4'],
+                      ].map(([label, key, placeholder]) => (
+                        <div key={key}>
+                          <label className="text-xs font-medium text-gray-500 mb-1 block">{label}</label>
+                          <input value={ipForm[key]} onChange={e => setIpForm(f => ({...f, [key]: e.target.value}))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none" placeholder={placeholder} />
+                        </div>
+                      ))}
+                      <div className="flex gap-3 pt-2">
+                        <button onClick={() => setAddIpModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                        <button onClick={() => {
+                          if (!ipForm.ip) return
+                          setStaticIps(prev => [...prev, { id: Date.now(), ...ipForm, status: 'Available', assignedTo: null, customer: null }])
+                          setAddIpModal(false)
+                          setIpForm({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '', notes: '' })
+                        }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add IP</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {bulkImportModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                      <h2 className="font-semibold text-gray-800">Bulk Import IPs</h2>
+                      <button onClick={() => setBulkImportModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <button className="w-full border border-dashed border-gray-300 rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">📥 Download Excel Template</button>
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400">
+                        <p className="text-sm">Drop Excel file here or click to upload</p>
+                        <p className="text-xs mt-1">Supports .xlsx, .csv</p>
+                      </div>
+                      <button onClick={() => setBulkImportModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
