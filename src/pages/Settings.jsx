@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook, Phone, Globe,
+  BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map, Users,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -16,11 +16,15 @@ const TABS = [
   { id: 'general',       label: 'General',               icon: Building2 },
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
-  { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
-  { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen  },
-  { id: 'roles',            label: 'Roles & Permissions',   icon: Shield    },
-  { id: 'landline-numbers', label: 'Landline Numbers',      icon: Phone     },
-  { id: 'static-ip',        label: 'Static IP',             icon: Globe     },
+  { id: 'jaze',                label: 'Jaze Servers',          icon: Server    },
+  { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
+  { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
+  { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
+  { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
+  { id: 'zone',                label: 'Zone',                  icon: Map       },
+  { id: 'landline-numbers',    label: 'Landline Numbers',      icon: Phone     },
+  { id: 'static-ip',           label: 'Static IP',             icon: Globe     },
+  { id: 'user-management',     label: 'User Management',       icon: Users     },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
