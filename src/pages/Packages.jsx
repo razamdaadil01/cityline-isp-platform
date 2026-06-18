@@ -222,7 +222,9 @@ export default function Packages() {
                   ) : filteredBw.map(pkg =>
                     pkg.rows.map((row, ri) => (
                       <tr key={`${pkg.id}-${ri}`} className="hover:bg-gray-50">
-                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">{pkg.name}</td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">
+                          <button onClick={() => navigate(`/packages/${pkg.id}`)} className="hover:text-[#0A8DCD] hover:underline text-left">{pkg.name}</button>
+                        </td>}
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 text-gray-600 align-top border-r border-gray-100">
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
                         </td>}
@@ -237,7 +239,8 @@ export default function Packages() {
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><StatusBadge status={pkg.status} /></td>}
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top">
                           <ThreeDotMenu items={[
-                            { label: 'Edit Package', onClick: () => {} },
+                            { label: 'View Details', onClick: () => navigate(`/packages/${pkg.id}`) },
+                            { label: 'Edit Package', onClick: () => navigate(`/packages/${pkg.id}/edit`) },
                             { label: pkg.status === 'Active' ? 'Deactivate' : 'Activate', onClick: () => setBwPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p)) },
                             { label: 'Delete', danger: true, onClick: () => setBwPkgs(prev => prev.filter(p => p.id !== pkg.id)) },
                           ]} />
@@ -300,7 +303,8 @@ export default function Packages() {
                       <td className="px-4 py-3"><StatusBadge status={pkg.status} /></td>
                       <td className="px-4 py-3">
                         <ThreeDotMenu items={[
-                          { label: 'Edit Package', onClick: () => {} },
+                          { label: 'View Details', onClick: () => navigate(`/packages/${pkg.id}`) },
+                          { label: 'Edit Package', onClick: () => navigate(`/packages/${pkg.id}/edit`) },
                           { label: pkg.status === 'Active' ? 'Deactivate' : 'Activate', onClick: () => setOthPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p)) },
                           { label: 'Delete', danger: true, onClick: () => setOthPkgs(prev => prev.filter(p => p.id !== pkg.id)) },
                         ]} />
