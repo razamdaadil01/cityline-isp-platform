@@ -9,9 +9,7 @@ import {
 // ── Shared UI ────────────────────────────────────────────────────────────────
 
 const StatusBadge = ({ status }) => (
-  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-    {status === 'active' ? 'Active' : 'Inactive'}
-  </span>
+  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{status}</span>
 )
 
 const YN = ({ value, yesClass }) => (
@@ -91,24 +89,25 @@ export default function Packages() {
   // Other packages state
   const [othPkgs, setOthPkgs] = useState(MOCK_OTHER_PACKAGES)
   const [othSearch, setOthSearch] = useState('')
+  const [othZone, setOthZone] = useState('All')
 
   // Tenure state
   const [tenures, setTenures] = useState(MOCK_TENURES)
   const [tenureModal, setTenureModal] = useState(false)
-  const [tenureForm, setTenureForm] = useState({ name: '', months: '', discount: '', status: true })
+  const [tenureForm, setTenureForm] = useState({ name: '', months: '', description: '', status: true })
 
   // Bandwidth state
   const [bandwidths, setBandwidths] = useState(MOCK_BANDWIDTHS)
   const [bwModal, setBwModal] = useState(false)
-  const [bwForm, setBwForm] = useState({ name: '', download: '', upload: '', unit: 'Mbps', status: true })
+  const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '', status: true })
 
   // OTT state
   const [otts, setOtts] = useState(MOCK_OTT)
   const [ottModal, setOttModal] = useState(false)
-  const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', channels: '', price: '', status: true })
+  const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', description: '', status: true })
 
   const totalPkgs = bwPkgs.length + othPkgs.length
-  const activePkgs = bwPkgs.filter(p => p.status === 'active').length + othPkgs.filter(p => p.status === 'active').length
+  const activePkgs = bwPkgs.filter(p => p.status === 'Active').length + othPkgs.filter(p => p.status === 'Active').length
 
   const filteredBw = bwPkgs.filter(p => {
     const mz = bwZone === 'All' || p.zone === bwZone
@@ -116,44 +115,31 @@ export default function Packages() {
     return mz && ms
   })
 
-  const filteredOth = othPkgs.filter(p =>
-    !othSearch || p.name.toLowerCase().includes(othSearch.toLowerCase())
-  )
+  const filteredOth = othPkgs.filter(p => {
+    const mz = othZone === 'All' || p.zone === othZone
+    const ms = !othSearch || p.name.toLowerCase().includes(othSearch.toLowerCase())
+    return mz && ms
+  })
 
   const addTenure = () => {
     if (!tenureForm.name || !tenureForm.months) return
-    setTenures(t => [...t, { id: 't' + Date.now(), ...tenureForm, months: Number(tenureForm.months), discount: Number(tenureForm.discount || 0), status: tenureForm.status ? 'active' : 'inactive' }])
+    setTenures(t => [...t, { id: Date.now(), ...tenureForm, months: Number(tenureForm.months), status: tenureForm.status ? 'Active' : 'Inactive' }])
     setTenureModal(false)
-    setTenureForm({ name: '', months: '', discount: '', status: true })
+    setTenureForm({ name: '', months: '', description: '', status: true })
   }
 
   const addBw = () => {
-    if (!bwForm.name) return
-    setBandwidths(b => [...b, { id: 'bw' + Date.now(), ...bwForm, download: Number(bwForm.download), upload: Number(bwForm.upload), status: bwForm.status ? 'active' : 'inactive' }])
+    if (!bwForm.speed) return
+    setBandwidths(b => [...b, { id: Date.now(), ...bwForm, speed: Number(bwForm.speed), status: bwForm.status ? 'Active' : 'Inactive' }])
     setBwModal(false)
-    setBwForm({ name: '', download: '', upload: '', unit: 'Mbps', status: true })
+    setBwForm({ speed: '', unit: 'Mbps', description: '', status: true })
   }
 
   const addOtt = () => {
     if (!ottForm.name) return
-    setOtts(o => [...o, { id: 'ott' + Date.now(), ...ottForm, channels: Number(ottForm.channels || 0), price: Number(ottForm.price || 0), status: ottForm.status ? 'active' : 'inactive' }])
+    setOtts(o => [...o, { id: Date.now(), ...ottForm, status: ottForm.status ? 'Active' : 'Inactive' }])
     setOttModal(false)
-    setOttForm({ name: '', provider: 'Playbox', channels: '', price: '', status: true })
-  }
-
-  // Flatten bwpkg into rows for table rendering
-  function getBwRows(pkg) {
-    const rows = []
-    ;(pkg.bandwidths || []).forEach(bwEntry => {
-      ;(bwEntry.tenures || []).forEach(tEntry => {
-        rows.push({ bandwidth: bwEntry.bandwidth, tenure: tEntry.tenure, price: tEntry.price, mrp: tEntry.mrp })
-      })
-    })
-    // fallback for old rows-based data
-    if (rows.length === 0 && pkg.rows) {
-      pkg.rows.forEach(r => rows.push({ bandwidth: r.bandwidth, tenure: r.tenure, price: r.price, mrp: r.mrp }))
-    }
-    return rows
+    setOttForm({ name: '', provider: 'Playbox', description: '', status: true })
   }
 
   return (
@@ -208,13 +194,11 @@ export default function Packages() {
               <option value="All">All Zones</option>
               <option>Residential</option>
               <option>Enterprise</option>
-              <option>SME</option>
-              <option>Government</option>
             </select>
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={bwSearch} onChange={e => setBwSearch(e.target.value)}
-                placeholder="Search by name..."
+                placeholder="Search by name, Jaze ID..."
                 className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
             </div>
             <button className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
@@ -227,7 +211,7 @@ export default function Packages() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Package Name','Zone','Bandwidth','Tenure','Price','MRP','Subscribers','Landline','Static IP','OTT','Status','Actions'].map(h => (
+                    {['Package Name','Zone','Bandwidth','Jaze ID','Tenure','Price','OTT','Editable','Landline','Offer','Status','Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -235,33 +219,32 @@ export default function Packages() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredBw.length === 0 ? (
                     <tr><td colSpan={12} className="text-center py-10 text-gray-400">No packages found</td></tr>
-                  ) : filteredBw.map(pkg => {
-                    const rows = getBwRows(pkg)
-                    return rows.map((row, ri) => (
+                  ) : filteredBw.map(pkg =>
+                    pkg.rows.map((row, ri) => (
                       <tr key={`${pkg.id}-${ri}`} className="hover:bg-gray-50">
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">{pkg.name}</td>}
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 text-gray-600 align-top border-r border-gray-100">
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">{pkg.name}</td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 text-gray-600 align-top border-r border-gray-100">
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
                         </td>}
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.bandwidth}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.jazeId}</td>
                         <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.tenure}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">&#8377;{Number(row.price).toLocaleString('en-IN')}</td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{row.mrp ? <>&#8377;{Number(row.mrp).toLocaleString('en-IN')}</> : '—'}</td>
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 align-top text-gray-600">{pkg.subscribers ?? '—'}</td>}
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 align-top"><YN value={pkg.landlineEnabled || pkg.landline} yesClass="bg-blue-100 text-blue-700" /></td>}
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 align-top"><YN value={pkg.staticIpEnabled} yesClass="bg-purple-100 text-purple-700" /></td>}
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 align-top"><YN value={pkg.ottEnabled} yesClass="bg-orange-100 text-orange-700" /></td>}
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 align-top"><StatusBadge status={pkg.status} /></td>}
-                        {ri === 0 && <td rowSpan={rows.length} className="px-4 py-3 align-top">
+                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">&#8377;{row.price.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{row.ott !== 'None' ? row.ott : <span className="text-gray-400">&mdash;</span>}</td>
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.editable} yesClass="bg-amber-100 text-amber-700" /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.landline} yesClass="bg-blue-100 text-blue-700" /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.offer} yesClass="bg-orange-100 text-orange-700" /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><StatusBadge status={pkg.status} /></td>}
+                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top">
                           <ThreeDotMenu items={[
                             { label: 'Edit Package', onClick: () => {} },
-                            { label: pkg.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => setBwPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p)) },
+                            { label: pkg.status === 'Active' ? 'Deactivate' : 'Activate', onClick: () => setBwPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p)) },
                             { label: 'Delete', danger: true, onClick: () => setBwPkgs(prev => prev.filter(p => p.id !== pkg.id)) },
                           ]} />
                         </td>}
                       </tr>
                     ))
-                  })}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -273,6 +256,12 @@ export default function Packages() {
       {activeTab === 'Other Packages' && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
+            <select value={othZone} onChange={e => setOthZone(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+              <option value="All">All Zones</option>
+              <option>Residential</option>
+              <option>Enterprise</option>
+              <option>Both</option>
+            </select>
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={othSearch} onChange={e => setOthSearch(e.target.value)}
@@ -289,7 +278,7 @@ export default function Packages() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Package Name','Type','Price','Taxable','Bound Package','Status','Actions'].map(h => (
+                    {['Package Name','Zone','Bind Package','Price','Separate Invoice','Status','Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -299,22 +288,20 @@ export default function Packages() {
                     <tr key={pkg.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-semibold text-[#0F2744]">{pkg.name}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${pkg.type === 'one-time' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {pkg.type === 'one-time' ? 'One-time' : 'Recurring'}
-                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
                       </td>
-                      <td className="px-4 py-3 font-semibold text-gray-800">&#8377;{pkg.price.toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-3"><YN value={pkg.taxable} yesClass="bg-green-100 text-green-700" /></td>
                       <td className="px-4 py-3">
-                        {(pkg.boundPackage || pkg.bindPackage)
-                          ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{pkg.boundPackage || pkg.bindPackage}</span>
+                        {pkg.bindPackage
+                          ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{pkg.bindPackage}</span>
                           : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Standalone</span>}
                       </td>
+                      <td className="px-4 py-3 font-semibold text-gray-800">&#8377;{pkg.price.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3"><YN value={pkg.separateInvoice} yesClass="bg-orange-100 text-orange-700" /></td>
                       <td className="px-4 py-3"><StatusBadge status={pkg.status} /></td>
                       <td className="px-4 py-3">
                         <ThreeDotMenu items={[
                           { label: 'Edit Package', onClick: () => {} },
-                          { label: pkg.status === 'active' ? 'Deactivate' : 'Activate', onClick: () => setOthPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p)) },
+                          { label: pkg.status === 'Active' ? 'Deactivate' : 'Activate', onClick: () => setOthPkgs(prev => prev.map(p => p.id === pkg.id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p)) },
                           { label: 'Delete', danger: true, onClick: () => setOthPkgs(prev => prev.filter(p => p.id !== pkg.id)) },
                         ]} />
                       </td>
@@ -344,7 +331,7 @@ export default function Packages() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {['ID','Tenure Name','Months','Discount %','Status','Actions'].map(h => (
+                  {['Tenure Name','Months','Description','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -352,13 +339,10 @@ export default function Packages() {
               <tbody className="divide-y divide-gray-100">
                 {tenures.map(t => (
                   <tr key={t.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{t.id}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{t.name}</td>
                     <td className="px-4 py-3 text-gray-600">{t.months}</td>
-                    <td className="px-4 py-3 text-gray-600">{t.discount ?? 0}%</td>
-                    <td className="px-4 py-3">
-                      <Toggle value={t.status === 'active' || t.status === 'Active'} onChange={v => setTenures(prev => prev.map(x => x.id === t.id ? { ...x, status: v ? 'active' : 'inactive' } : x))} />
-                    </td>
+                    <td className="px-4 py-3 text-gray-500">{t.description}</td>
+                    <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
                     <td className="px-4 py-3">
                       <ThreeDotMenu items={[
                         { label: 'Edit', onClick: () => {} },
@@ -372,9 +356,9 @@ export default function Packages() {
           </div>
           <Modal open={tenureModal} onClose={() => setTenureModal(false)} title="Add Tenure">
             <div className="space-y-4">
-              <FLD label="Tenure Name *"><input value={tenureForm.name} onChange={e => setTenureForm(f => ({...f, name: e.target.value}))} className={inp} placeholder="e.g. 3 Months" /></FLD>
-              <FLD label="Total Months *"><input type="number" value={tenureForm.months} onChange={e => setTenureForm(f => ({...f, months: e.target.value}))} className={inp} placeholder="e.g. 3" /></FLD>
-              <FLD label="Discount %"><input type="number" value={tenureForm.discount} onChange={e => setTenureForm(f => ({...f, discount: e.target.value}))} className={inp} placeholder="e.g. 5" /></FLD>
+              <FLD label="Tenure Name *"><input value={tenureForm.name} onChange={e => setTenureForm(f => ({...f, name: e.target.value}))} className={inp} placeholder="e.g. 12+1" /></FLD>
+              <FLD label="Total Months *"><input type="number" value={tenureForm.months} onChange={e => setTenureForm(f => ({...f, months: e.target.value}))} className={inp} placeholder="e.g. 13" /></FLD>
+              <FLD label="Description"><input value={tenureForm.description} onChange={e => setTenureForm(f => ({...f, description: e.target.value}))} className={inp} /></FLD>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Status Active</span>
                 <Toggle value={tenureForm.status} onChange={v => setTenureForm(f => ({...f, status: v}))} />
@@ -405,7 +389,7 @@ export default function Packages() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {['Name','Download','Upload','Unit','Status','Actions'].map(h => (
+                  {['Bandwidth','Unit','Description','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -413,13 +397,10 @@ export default function Packages() {
               <tbody className="divide-y divide-gray-100">
                 {bandwidths.map(b => (
                   <tr key={b.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-800">{b.name || `${b.speed} ${b.unit}`}</td>
-                    <td className="px-4 py-3 text-gray-600">{b.download ?? b.speed} {b.unit}</td>
-                    <td className="px-4 py-3 text-gray-600">{b.upload ?? b.speed} {b.unit}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">{b.speed} {b.unit}</td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{b.unit}</span></td>
-                    <td className="px-4 py-3">
-                      <Toggle value={b.status === 'active' || b.status === 'Active'} onChange={v => setBandwidths(prev => prev.map(x => x.id === b.id ? { ...x, status: v ? 'active' : 'inactive' } : x))} />
-                    </td>
+                    <td className="px-4 py-3 text-gray-500">{b.description}</td>
+                    <td className="px-4 py-3"><StatusBadge status={b.status} /></td>
                     <td className="px-4 py-3">
                       <ThreeDotMenu items={[
                         { label: 'Edit', onClick: () => {} },
@@ -433,16 +414,15 @@ export default function Packages() {
           </div>
           <Modal open={bwModal} onClose={() => setBwModal(false)} title="Add Bandwidth">
             <div className="space-y-4">
-              <FLD label="Name *"><input value={bwForm.name} onChange={e => setBwForm(f => ({...f, name: e.target.value}))} className={inp} placeholder="e.g. 100 Mbps" /></FLD>
               <div className="grid grid-cols-2 gap-3">
-                <FLD label="Download *"><input type="number" value={bwForm.download} onChange={e => setBwForm(f => ({...f, download: e.target.value}))} className={inp} placeholder="e.g. 100" /></FLD>
-                <FLD label="Upload *"><input type="number" value={bwForm.upload} onChange={e => setBwForm(f => ({...f, upload: e.target.value}))} className={inp} placeholder="e.g. 100" /></FLD>
+                <FLD label="Speed *"><input type="number" value={bwForm.speed} onChange={e => setBwForm(f => ({...f, speed: e.target.value}))} className={inp} placeholder="e.g. 100" /></FLD>
+                <FLD label="Unit *">
+                  <select value={bwForm.unit} onChange={e => setBwForm(f => ({...f, unit: e.target.value}))} className={inp}>
+                    <option>Mbps</option><option>Gbps</option>
+                  </select>
+                </FLD>
               </div>
-              <FLD label="Unit *">
-                <select value={bwForm.unit} onChange={e => setBwForm(f => ({...f, unit: e.target.value}))} className={inp}>
-                  <option>Mbps</option><option>Gbps</option>
-                </select>
-              </FLD>
+              <FLD label="Description"><input value={bwForm.description} onChange={e => setBwForm(f => ({...f, description: e.target.value}))} className={inp} /></FLD>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Status Active</span>
                 <Toggle value={bwForm.status} onChange={v => setBwForm(f => ({...f, status: v}))} />
@@ -477,7 +457,7 @@ export default function Packages() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {['OTT Name','Provider','Channels','Price','Status','Actions'].map(h => (
+                  {['OTT Name','Provider','Description','Status','Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -487,11 +467,8 @@ export default function Packages() {
                   <tr key={o.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-800">{o.name}</td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{o.provider}</span></td>
-                    <td className="px-4 py-3 text-gray-600">{o.channels ?? '—'}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">{o.price != null ? <>&#8377;{o.price}</> : '—'}</td>
-                    <td className="px-4 py-3">
-                      <Toggle value={o.status === 'active' || o.status === 'Active'} onChange={v => setOtts(prev => prev.map(x => x.id === o.id ? { ...x, status: v ? 'active' : 'inactive' } : x))} />
-                    </td>
+                    <td className="px-4 py-3 text-gray-500">{o.description}</td>
+                    <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                     <td className="px-4 py-3">
                       <ThreeDotMenu items={[
                         { label: 'Edit', onClick: () => {} },
@@ -511,8 +488,7 @@ export default function Packages() {
                   <option>Playbox</option><option>Other</option>
                 </select>
               </FLD>
-              <FLD label="Channels"><input type="number" value={ottForm.channels} onChange={e => setOttForm(f => ({...f, channels: e.target.value}))} className={inp} placeholder="e.g. 200" /></FLD>
-              <FLD label="Price (₹)"><input type="number" value={ottForm.price} onChange={e => setOttForm(f => ({...f, price: e.target.value}))} className={inp} placeholder="e.g. 299" /></FLD>
+              <FLD label="Description"><input value={ottForm.description} onChange={e => setOttForm(f => ({...f, description: e.target.value}))} className={inp} /></FLD>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Status Active</span>
                 <Toggle value={ottForm.status} onChange={v => setOttForm(f => ({...f, status: v}))} />

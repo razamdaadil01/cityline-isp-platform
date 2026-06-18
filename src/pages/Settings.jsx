@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map, Users,
+  BookOpen, Webhook, Phone, Globe,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -16,15 +16,11 @@ const TABS = [
   { id: 'general',       label: 'General',               icon: Building2 },
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
-  { id: 'jaze',                label: 'Jaze Servers',          icon: Server    },
-  { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
-  { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
-  { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
-  { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
-  { id: 'zone',                label: 'Zone',                  icon: Map       },
-  { id: 'landline-numbers',    label: 'Landline Numbers',      icon: Phone     },
-  { id: 'static-ip',           label: 'Static IP',             icon: Globe     },
-  { id: 'user-management',     label: 'User Management',       icon: Users     },
+  { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
+  { id: 'zoho',          label: 'Zoho Books',            icon: BookOpen  },
+  { id: 'roles',            label: 'Roles & Permissions',   icon: Shield    },
+  { id: 'landline-numbers', label: 'Landline Numbers',      icon: Phone     },
+  { id: 'static-ip',        label: 'Static IP',             icon: Globe     },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -606,8 +602,8 @@ export default function Settings() {
               <div className="grid grid-cols-3 gap-4">
                 {[
                   { label: 'Total',     value: landlines.length,                                      color: 'text-gray-800' },
-                  { label: 'Available', value: landlines.filter(l => l.status === 'available' || l.status === 'Available').length, color: 'text-green-600' },
-                  { label: 'Assigned',  value: landlines.filter(l => l.status === 'assigned' || l.status === 'Assigned').length,  color: 'text-blue-600' },
+                  { label: 'Available', value: landlines.filter(l => l.status === 'Available').length, color: 'text-green-600' },
+                  { label: 'Assigned',  value: landlines.filter(l => l.status === 'Assigned').length,  color: 'text-blue-600' },
                 ].map(s => (
                   <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
                     <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -629,13 +625,13 @@ export default function Settings() {
                           <td className="px-4 py-3 font-mono text-sm text-gray-800">{l.number}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              l.status === 'available' || l.status === 'Available' ? 'bg-green-100 text-green-700' :
-                              l.status === 'assigned' || l.status === 'Assigned'  ? 'bg-blue-100 text-blue-700' :
-                              l.status === 'reserved' || l.status === 'Reserved'  ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                              l.status === 'Available' ? 'bg-green-100 text-green-700' :
+                              l.status === 'Assigned'  ? 'bg-blue-100 text-blue-700' :
+                              l.status === 'Reserved'  ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
                             }`}>{l.status}</span>
                           </td>
                           <td className="px-4 py-3 text-gray-600">{l.assignedTo || '—'}</td>
-                          <td className="px-4 py-3 text-gray-600">{l.customerId || l.customer || '—'}</td>
+                          <td className="px-4 py-3 text-gray-600">{l.customer || '—'}</td>
                           <td className="px-4 py-3 text-gray-500">{l.assignedDate || '—'}</td>
                           <td className="px-4 py-3">
                             <button onClick={() => setLandlines(prev => prev.filter(x => x.id !== l.id))} className="text-xs text-red-500 hover:text-red-700">Remove</button>
@@ -710,8 +706,8 @@ export default function Settings() {
               <div className="grid grid-cols-3 gap-4">
                 {[
                   { label: 'Total',     value: staticIps.length,                                        color: 'text-gray-800' },
-                  { label: 'Available', value: staticIps.filter(ip => ip.status === 'available' || ip.status === 'Available').length, color: 'text-green-600' },
-                  { label: 'Assigned',  value: staticIps.filter(ip => ip.status === 'assigned' || ip.status === 'Assigned').length,  color: 'text-blue-600' },
+                  { label: 'Available', value: staticIps.filter(ip => ip.status === 'Available').length, color: 'text-green-600' },
+                  { label: 'Assigned',  value: staticIps.filter(ip => ip.status === 'Assigned').length,  color: 'text-blue-600' },
                 ].map(s => (
                   <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm text-center">
                     <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -730,18 +726,18 @@ export default function Settings() {
                     <tbody className="divide-y divide-gray-100">
                       {staticIps.map(ip => (
                         <tr key={ip.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-mono text-sm text-gray-800">{ip.address || ip.ip}</td>
+                          <td className="px-4 py-3 font-mono text-sm text-gray-800">{ip.ip}</td>
                           <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.subnet}</td>
                           <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.gateway}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              ip.status === 'available' || ip.status === 'Available' ? 'bg-green-100 text-green-700' :
-                              ip.status === 'assigned' || ip.status === 'Assigned'  ? 'bg-blue-100 text-blue-700' :
-                              ip.status === 'reserved' || ip.status === 'Reserved'  ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                              ip.status === 'Available' ? 'bg-green-100 text-green-700' :
+                              ip.status === 'Assigned'  ? 'bg-blue-100 text-blue-700' :
+                              ip.status === 'Reserved'  ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
                             }`}>{ip.status}</span>
                           </td>
                           <td className="px-4 py-3 text-gray-600">{ip.assignedTo || '—'}</td>
-                          <td className="px-4 py-3 text-gray-600">{ip.customerId || ip.customer || '—'}</td>
+                          <td className="px-4 py-3 text-gray-600">{ip.customer || '—'}</td>
                           <td className="px-4 py-3">
                             <button onClick={() => setStaticIps(prev => prev.filter(x => x.id !== ip.id))} className="text-xs text-red-500 hover:text-red-700">Remove</button>
                           </td>
