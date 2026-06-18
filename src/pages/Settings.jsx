@@ -3,6 +3,7 @@ import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
+  MoreVertical, Eye, EyeOff, Download, Upload, X,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -542,6 +543,490 @@ function RolesTab() {
   )
 }
 
+// ── Sales Configuration mock data ────────────────────────────────────────────
+
+const INIT_LEAD_SOURCES = [
+  { id: 1, name: 'Walk-in',       active: true  },
+  { id: 2, name: 'Website',       active: true  },
+  { id: 3, name: 'Referral',      active: true  },
+  { id: 4, name: 'Social Media',  active: true  },
+  { id: 5, name: 'Cold Call',     active: false },
+  { id: 6, name: 'Partner',       active: true  },
+]
+
+const INIT_LEAD_STAGES = [
+  { id: 1, name: 'New Lead',           order: 1, color: '#6366f1' },
+  { id: 2, name: 'Contacted',          order: 2, color: '#0A8DCD' },
+  { id: 3, name: 'Site Survey',        order: 3, color: '#f59e0b' },
+  { id: 4, name: 'Proposal Sent',      order: 4, color: '#8b5cf6' },
+  { id: 5, name: 'Negotiation',        order: 5, color: '#ec4899' },
+  { id: 6, name: 'Won',               order: 6, color: '#22c55e' },
+  { id: 7, name: 'Lost',              order: 7, color: '#ef4444' },
+]
+
+function SalesConfigTab() {
+  const [sources, setSources] = useState(INIT_LEAD_SOURCES)
+  const [stages, setStages]   = useState(INIT_LEAD_STAGES)
+  const [addSourceModal, setAddSourceModal] = useState(false)
+  const [addStageModal,  setAddStageModal]  = useState(false)
+  const [newSource, setNewSource] = useState('')
+  const [newStage,  setNewStage]  = useState({ name: '', color: '#0A8DCD' })
+  const [pipeline, setPipeline] = useState({ name: 'Default Pipeline', autoAssign: true, notifyOnMove: true, wonStage: 'Won', lostStage: 'Lost' })
+
+  return (
+    <div className="space-y-6">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Sales Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">Manage lead sources, stages and pipeline settings</p>
+      </div>
+
+      {/* Lead Sources */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-800">Lead Sources</h3>
+          <button onClick={() => setAddSourceModal(true)}
+            className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+            <Plus size={13} /> Add Source
+          </button>
+        </div>
+        <div className="rounded-xl border border-surface-border overflow-hidden">
+          <div className="grid grid-cols-[1fr_auto_auto] bg-gray-50/80 border-b border-surface-border px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide gap-4">
+            <span>Source Name</span><span>Active</span><span>Actions</span>
+          </div>
+          <div className="divide-y divide-surface-border">
+            {sources.map(s => (
+              <div key={s.id} className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-3 gap-4 hover:bg-gray-50/50">
+                <span className="text-sm text-gray-700">{s.name}</span>
+                <Toggle checked={s.active} onChange={v => setSources(prev => prev.map(x => x.id === s.id ? { ...x, active: v } : x))} />
+                <button onClick={() => setSources(prev => prev.filter(x => x.id !== s.id))}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Lead Stages */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-800">Lead Stages</h3>
+          <button onClick={() => setAddStageModal(true)}
+            className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+            <Plus size={13} /> Add Stage
+          </button>
+        </div>
+        <div className="rounded-xl border border-surface-border overflow-hidden">
+          <div className="grid grid-cols-[auto_1fr_auto_auto] bg-gray-50/80 border-b border-surface-border px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide gap-4">
+            <span>#</span><span>Stage Name</span><span>Color</span><span>Actions</span>
+          </div>
+          <div className="divide-y divide-surface-border">
+            {stages.map(s => (
+              <div key={s.id} className="grid grid-cols-[auto_1fr_auto_auto] items-center px-4 py-3 gap-4 hover:bg-gray-50/50">
+                <span className="text-xs text-gray-400 w-5 text-center">{s.order}</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+                  <span className="text-sm text-gray-700">{s.name}</span>
+                </div>
+                <input type="color" value={s.color}
+                  onChange={e => setStages(prev => prev.map(x => x.id === s.id ? { ...x, color: e.target.value } : x))}
+                  className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent" />
+                <button onClick={() => setStages(prev => prev.filter(x => x.id !== s.id))}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Pipeline Settings */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-800 mb-3">Pipeline Settings</h3>
+        <div className="rounded-xl border border-surface-border p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Pipeline Name">
+              <Input value={pipeline.name} onChange={e => setPipeline(p => ({ ...p, name: e.target.value }))} />
+            </FormField>
+            <FormField label="Won Stage">
+              <Select value={pipeline.wonStage} onChange={e => setPipeline(p => ({ ...p, wonStage: e.target.value }))}>
+                {stages.map(s => <option key={s.id}>{s.name}</option>)}
+              </Select>
+            </FormField>
+          </div>
+          {[
+            { key: 'autoAssign',   label: 'Auto-assign leads to available agents',  desc: 'Round-robin assignment when lead is created' },
+            { key: 'notifyOnMove', label: 'Notify agent when lead moves stages',    desc: 'Push notification + email on stage change' },
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between p-3 rounded-lg border border-surface-border">
+              <div>
+                <p className="text-sm font-medium text-gray-800">{label}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+              </div>
+              <Toggle checked={pipeline[key]} onChange={v => setPipeline(p => ({ ...p, [key]: v }))} />
+            </div>
+          ))}
+          <div className="flex justify-end pt-2">
+            <Button size="sm" icon={<Save size={14} />}>Save Pipeline</Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Source Modal */}
+      {addSourceModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Add Lead Source</h2>
+              <button onClick={() => setAddSourceModal(false)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Source Name *</label>
+                <input value={newSource} onChange={e => setNewSource(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]"
+                  placeholder="e.g. WhatsApp" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setAddSourceModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button onClick={() => {
+                  if (!newSource.trim()) return
+                  setSources(prev => [...prev, { id: Date.now(), name: newSource.trim(), active: true }])
+                  setNewSource('')
+                  setAddSourceModal(false)
+                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Stage Modal */}
+      {addStageModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Add Lead Stage</h2>
+              <button onClick={() => setAddStageModal(false)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Stage Name *</label>
+                <input value={newStage.name} onChange={e => setNewStage(s => ({ ...s, name: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]"
+                  placeholder="e.g. Follow-up" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Color</label>
+                <input type="color" value={newStage.color} onChange={e => setNewStage(s => ({ ...s, color: e.target.value }))}
+                  className="w-10 h-10 rounded cursor-pointer border border-gray-200" />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setAddStageModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button onClick={() => {
+                  if (!newStage.name.trim()) return
+                  setStages(prev => [...prev, { id: Date.now(), name: newStage.name.trim(), color: newStage.color, order: prev.length + 1 }])
+                  setNewStage({ name: '', color: '#0A8DCD' })
+                  setAddStageModal(false)
+                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Area Mapping mock data ────────────────────────────────────────────────────
+
+const AREA_TABS = ['State', 'District', 'Area', 'Locality', 'Sub Locality']
+
+const INIT_AREA_DATA = {
+  State:        [{ id: 1, name: 'Maharashtra', code: 'MH' }, { id: 2, name: 'Karnataka', code: 'KA' }],
+  District:     [{ id: 1, name: 'Mumbai', state: 'Maharashtra' }, { id: 2, name: 'Thane', state: 'Maharashtra' }],
+  Area:         [{ id: 1, name: 'Andheri', district: 'Mumbai' }, { id: 2, name: 'Bandra', district: 'Mumbai' }, { id: 3, name: 'Kurla', district: 'Mumbai' }],
+  Locality:     [{ id: 1, name: 'Andheri West', area: 'Andheri' }, { id: 2, name: 'Andheri East', area: 'Andheri' }, { id: 3, name: 'Bandra West', area: 'Bandra' }],
+  'Sub Locality': [{ id: 1, name: 'Versova', locality: 'Andheri West' }, { id: 2, name: 'DN Nagar', locality: 'Andheri West' }],
+}
+
+function AreaMappingTab() {
+  const [areaTab, setAreaTab] = useState('State')
+  const [data, setData] = useState(INIT_AREA_DATA)
+  const [addModal, setAddModal] = useState(false)
+  const [bulkModal, setBulkModal] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [hoveredRow, setHoveredRow] = useState(null)
+
+  const rows = data[areaTab] || []
+  const colKeys = rows.length > 0 ? Object.keys(rows[0]).filter(k => k !== 'id') : []
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Area Mapping</h2>
+          <p className="text-xs text-gray-500 mt-1">Manage hierarchical area data for service zones</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setBulkModal(true)}
+            className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
+            <Upload size={13} /> Bulk Upload
+          </button>
+          <button onClick={() => { setNewName(''); setAddModal(true) }}
+            className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+            <Plus size={13} /> Add {areaTab}
+          </button>
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        {AREA_TABS.map(t => (
+          <button key={t} onClick={() => setAreaTab(t)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              areaTab === t ? 'bg-white text-[#0A8DCD] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-surface-border">
+              {colKeys.map(k => (
+                <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide capitalize">{k}</th>
+              ))}
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {rows.map(row => (
+              <tr key={row.id} className="hover:bg-gray-50/50 group"
+                onMouseEnter={() => setHoveredRow(row.id)}
+                onMouseLeave={() => setHoveredRow(null)}>
+                {colKeys.map(k => (
+                  <td key={k} className="px-4 py-3 text-gray-700">{row[k]}</td>
+                ))}
+                <td className="px-4 py-3">
+                  <div className={`flex gap-1 transition-opacity ${hoveredRow === row.id ? 'opacity-100' : 'opacity-0'}`}>
+                    <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-[#0A8DCD]">
+                      <Edit2 size={13} />
+                    </button>
+                    <button onClick={() => setData(d => ({ ...d, [areaTab]: d[areaTab].filter(x => x.id !== row.id) }))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={colKeys.length + 1} className="px-4 py-8 text-center text-sm text-gray-400">No {areaTab} entries yet</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add Modal */}
+      {addModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Add {areaTab}</h2>
+              <button onClick={() => setAddModal(false)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">{areaTab} Name *</label>
+                <input value={newName} onChange={e => setNewName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]"
+                  placeholder={`Enter ${areaTab} name`} />
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setAddModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button onClick={() => {
+                  if (!newName.trim()) return
+                  setData(d => ({ ...d, [areaTab]: [...d[areaTab], { id: Date.now(), name: newName.trim() }] }))
+                  setNewName('')
+                  setAddModal(false)
+                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {bulkModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Bulk Upload — {areaTab}</h2>
+              <button onClick={() => setBulkModal(false)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <button className="w-full flex items-center justify-center gap-2 border border-dashed border-[#0A8DCD] rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">
+                <Download size={14} /> Download Excel Template
+              </button>
+              <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:bg-gray-50">
+                <Upload size={24} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500">Drop Excel file here or click to upload</p>
+                <p className="text-xs text-gray-400 mt-1">Supports .xlsx, .csv</p>
+              </div>
+              <button onClick={() => setBulkModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Zone mock data ────────────────────────────────────────────────────────────
+
+const INIT_ZONES = [
+  { id: 1, customerType: 'Cityline', zoneName: 'Andheri West Zone', zoneId: 'AW-001', zoneUrl: 'https://jaze.cityline.in/aw', username: 'admin_aw', password: 'P@ssw0rd!1', addedDate: '2025-03-12' },
+  { id: 2, customerType: 'Partner',  zoneName: 'Bandra East Zone',  zoneId: 'BE-002', zoneUrl: 'https://jaze.cityline.in/be', username: 'admin_be', password: 'Secur3#Be2', addedDate: '2025-05-01' },
+  { id: 3, customerType: 'Cityline', zoneName: 'Versova Zone',      zoneId: 'VS-003', zoneUrl: 'https://jaze.cityline.in/vs', username: 'admin_vs', password: 'V3rs0va$3!', addedDate: '2026-01-08' },
+]
+
+function ZoneTab() {
+  const [zones, setZones] = useState(INIT_ZONES)
+  const [addModal, setAddModal] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(null)
+  const [shownPw, setShownPw] = useState({})
+  const [form, setForm] = useState({ customerType: 'Cityline', zoneName: '', zoneId: '', zoneUrl: '', username: '', password: '' })
+
+  const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Zone Management</h2>
+          <p className="text-xs text-gray-500 mt-1">Configure Jaze ISP zone connections</p>
+        </div>
+        <button onClick={() => { setForm({ customerType: 'Cityline', zoneName: '', zoneId: '', zoneUrl: '', username: '', password: '' }); setAddModal(true) }}
+          className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600">
+          <Plus size={15} /> Add Zone
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/80 border-b border-surface-border">
+                {['S.NO', 'CUSTOMER TYPE', 'ZONE NAME', 'ZONE ID', 'ZONE IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
+                  <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {zones.map((z, idx) => (
+                <tr key={z.id} className="hover:bg-gray-50/50 group">
+                  <td className="px-3 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                  <td className="px-3 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${z.customerType === 'Cityline' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                      {z.customerType}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 font-medium text-gray-800">{z.zoneName}</td>
+                  <td className="px-3 py-3 font-mono text-xs text-gray-600">{z.zoneId}</td>
+                  <td className="px-3 py-3 text-xs text-[#0A8DCD] max-w-[180px] truncate">{z.zoneUrl}</td>
+                  <td className="px-3 py-3 font-mono text-xs text-gray-600">{z.username}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs text-gray-600">
+                        {shownPw[z.id] ? z.password : '••••••••'}
+                      </span>
+                      <button onClick={() => setShownPw(p => ({ ...p, [z.id]: !p[z.id] }))}
+                        className="text-gray-400 hover:text-gray-600">
+                        {shownPw[z.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-xs text-gray-500">{z.addedDate}</td>
+                  <td className="px-3 py-3 relative">
+                    <button onClick={() => setMenuOpen(menuOpen === z.id ? null : z.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                      <MoreVertical size={15} />
+                    </button>
+                    {menuOpen === z.id && (
+                      <div className="absolute right-8 top-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44" onMouseLeave={() => setMenuOpen(null)}>
+                        {['Active', 'Edit', 'Remove', 'Check Recharge Status'].map(action => (
+                          <button key={action} onClick={() => { if (action === 'Remove') setZones(prev => prev.filter(x => x.id !== z.id)); setMenuOpen(null) }}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${action === 'Remove' ? 'text-red-500' : 'text-gray-700'}`}>
+                            {action}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {zones.length === 0 && (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">No zones configured yet</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Add Zone Modal */}
+      {addModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Add Zone</h2>
+              <button onClick={() => setAddModal(false)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Customer Type *</label>
+                <select value={form.customerType} onChange={e => setF('customerType', e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]">
+                  <option>Cityline</option>
+                  <option>Partner</option>
+                </select>
+              </div>
+              {[
+                ['Zone Name *',    'zoneName', 'e.g. Andheri West Zone'],
+                ['Zone ID *',      'zoneId',   'e.g. AW-001'],
+                ['Zone IP/URL *',  'zoneUrl',  'e.g. https://jaze.cityline.in/aw'],
+                ['Username *',     'username', 'e.g. admin_aw'],
+                ['Password *',     'password', 'Enter password'],
+              ].map(([label, key, ph]) => (
+                <div key={key}>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">{label}</label>
+                  <input
+                    type={key === 'password' ? 'password' : 'text'}
+                    value={form[key]} onChange={e => setF(key, e.target.value)}
+                    placeholder={ph}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]" />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setAddModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button onClick={() => {
+                  if (!form.zoneName || !form.zoneId) return
+                  setZones(prev => [...prev, { id: Date.now(), ...form, addedDate: new Date().toISOString().slice(0, 10) }])
+                  setAddModal(false)
+                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Zone</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -585,7 +1070,10 @@ export default function Settings() {
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
-          {activeTab === 'roles'         && <RolesTab />}
+          {activeTab === 'roles'                && <RolesTab />}
+          {activeTab === 'sales-configuration' && <SalesConfigTab />}
+          {activeTab === 'area-mapping'        && <AreaMappingTab />}
+          {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'landline-numbers' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
