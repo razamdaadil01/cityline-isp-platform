@@ -3,7 +3,7 @@ import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
-  MoreVertical, Eye, EyeOff, Download, Upload, X,
+  MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -23,8 +23,7 @@ const TABS = [
   { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
   { id: 'zone',                label: 'Zone',                  icon: Map       },
-  { id: 'landline-numbers',    label: 'Landline Numbers',      icon: Phone     },
-  { id: 'static-ip',        label: 'Static IP',             icon: Globe     },
+  { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -1027,17 +1026,536 @@ function ZoneTab() {
   )
 }
 
+// ── Master Configuration (Tenure, Bandwidth, OTT, Landline, Static IP) ───────
+
+const MASTER_SUB_TABS = ['Tenure', 'Bandwidth', 'OTT', 'Landline Numbers', 'Static IP']
+
+const INIT_MC_TENURES = [
+  { id: 1, name: '1 Month',     months: 1,  description: 'Monthly billing cycle',     status: 'Active' },
+  { id: 2, name: '3 Months',    months: 3,  description: 'Quarterly billing cycle',   status: 'Active' },
+  { id: 3, name: '6 Months',    months: 6,  description: 'Semi-annual billing cycle', status: 'Active' },
+  { id: 4, name: '1 Year',      months: 12, description: 'Annual billing cycle',      status: 'Active' },
+  { id: 5, name: '12+1 Month',  months: 13, description: 'Annual + 1 free month',     status: 'Active' },
+  { id: 6, name: '12+2 Months', months: 14, description: 'Annual + 2 free months',    status: 'Active' },
+]
+
+const INIT_MC_BANDWIDTHS = [
+  { id: 1, speed: 50,  unit: 'Mbps', description: '50 Mbps fiber',  status: 'Active' },
+  { id: 2, speed: 100, unit: 'Mbps', description: '100 Mbps fiber', status: 'Active' },
+  { id: 3, speed: 150, unit: 'Mbps', description: '150 Mbps fiber', status: 'Active' },
+  { id: 4, speed: 200, unit: 'Mbps', description: '200 Mbps fiber', status: 'Active' },
+  { id: 5, speed: 300, unit: 'Mbps', description: '300 Mbps fiber', status: 'Active' },
+  { id: 6, speed: 500, unit: 'Mbps', description: '500 Mbps fiber', status: 'Active' },
+  { id: 7, speed: 1,   unit: 'Gbps', description: '1 Gbps fiber',   status: 'Active' },
+]
+
+const INIT_MC_OTT = [
+  { id: 1, name: 'Cityline TV Gold',   provider: 'Playbox', description: 'Premium OTT bundle',  status: 'Active' },
+  { id: 2, name: 'Cityline TV Silver', provider: 'Playbox', description: 'Standard OTT bundle', status: 'Active' },
+  { id: 3, name: 'Cityline TV Basic',  provider: 'Playbox', description: 'Basic OTT bundle',    status: 'Active' },
+]
+
+const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
+
+function StatusPill({ status }) {
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+      {status}
+    </span>
+  )
+}
+
+function MasterConfigTab() {
+  const [sub, setSub] = useState('Tenure')
+
+  // Tenure state
+  const [tenures, setTenures] = useState(INIT_MC_TENURES)
+  const [tenureModal, setTenureModal] = useState(false)
+  const [tenureForm, setTenureForm] = useState({ name: '', months: '', description: '' })
+
+  // Bandwidth state
+  const [bandwidths, setBandwidths] = useState(INIT_MC_BANDWIDTHS)
+  const [bwModal, setBwModal] = useState(false)
+  const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '' })
+
+  // OTT state
+  const [otts, setOtts] = useState(INIT_MC_OTT)
+  const [ottModal, setOttModal] = useState(false)
+  const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', description: '' })
+
+  // Landline state
+  const [landlines, setLandlines] = useState(MOCK_LANDLINES)
+  const [landlineModal, setLandlineModal] = useState(false)
+  const [landlineBulkModal, setLandlineBulkModal] = useState(false)
+  const [landlineForm, setLandlineForm] = useState({ number: '', status: 'Available' })
+
+  // Static IP state
+  const [staticIps, setStaticIps] = useState(MOCK_STATIC_IPS)
+  const [ipModal, setIpModal] = useState(false)
+  const [ipBulkModal, setIpBulkModal] = useState(false)
+  const [ipForm, setIpForm] = useState({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Master Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">Manage tenures, bandwidths, OTT packages, landlines and static IPs</p>
+      </div>
+
+      {/* Sub-tab bar */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-wrap">
+        {MASTER_SUB_TABS.map(t => (
+          <button key={t} onClick={() => setSub(t)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              sub === t ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TENURE ── */}
+      {sub === 'Tenure' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Tenure Options</h3>
+            <button onClick={() => setTenureModal(true)}
+              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+              <Plus size={13} /> Add Tenure
+            </button>
+          </div>
+          <div className="rounded-xl border border-surface-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-gray-50/80 border-b border-surface-border">
+                {['Tenure Name','Months','Description','Status','Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody className="divide-y divide-surface-border">
+                {tenures.map(t => (
+                  <tr key={t.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{t.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.months}</td>
+                    <td className="px-4 py-3 text-gray-500">{t.description}</td>
+                    <td className="px-4 py-3"><StatusPill status={t.status} /></td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setTenures(prev => prev.filter(x => x.id !== t.id))}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {tenureModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Add Tenure</h2>
+                  <button onClick={() => setTenureModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[['Tenure Name *','name','e.g. 12+1'],['Total Months *','months','e.g. 13'],['Description','description','']].map(([lbl,k,ph]) => (
+                    <div key={k}>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">{lbl}</label>
+                      <input value={tenureForm[k]} onChange={e => setTenureForm(f => ({...f,[k]:e.target.value}))}
+                        type={k==='months'?'number':'text'} placeholder={ph} className={inp} />
+                    </div>
+                  ))}
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setTenureModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={() => {
+                      if (!tenureForm.name || !tenureForm.months) return
+                      setTenures(prev => [...prev, { id: Date.now(), name: tenureForm.name, months: Number(tenureForm.months), description: tenureForm.description, status: 'Active' }])
+                      setTenureForm({ name: '', months: '', description: '' })
+                      setTenureModal(false)
+                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── BANDWIDTH ── */}
+      {sub === 'Bandwidth' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Bandwidth Options</h3>
+            <button onClick={() => setBwModal(true)}
+              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+              <Plus size={13} /> Add Bandwidth
+            </button>
+          </div>
+          <div className="rounded-xl border border-surface-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-gray-50/80 border-b border-surface-border">
+                {['Speed','Unit','Description','Status','Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody className="divide-y divide-surface-border">
+                {bandwidths.map(b => (
+                  <tr key={b.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{b.speed} {b.unit}</td>
+                    <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{b.unit}</span></td>
+                    <td className="px-4 py-3 text-gray-500">{b.description}</td>
+                    <td className="px-4 py-3"><StatusPill status={b.status} /></td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setBandwidths(prev => prev.filter(x => x.id !== b.id))}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {bwModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Add Bandwidth</h2>
+                  <button onClick={() => setBwModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">Speed *</label>
+                      <input type="number" value={bwForm.speed} onChange={e => setBwForm(f=>({...f,speed:e.target.value}))} placeholder="e.g. 100" className={inp} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">Unit *</label>
+                      <select value={bwForm.unit} onChange={e => setBwForm(f=>({...f,unit:e.target.value}))} className={inp}>
+                        <option>Mbps</option><option>Gbps</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Description</label>
+                    <input value={bwForm.description} onChange={e => setBwForm(f=>({...f,description:e.target.value}))} className={inp} />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setBwModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={() => {
+                      if (!bwForm.speed) return
+                      setBandwidths(prev => [...prev, { id: Date.now(), speed: Number(bwForm.speed), unit: bwForm.unit, description: bwForm.description, status: 'Active' }])
+                      setBwForm({ speed: '', unit: 'Mbps', description: '' })
+                      setBwModal(false)
+                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── OTT ── */}
+      {sub === 'OTT' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">OTT Packages</h3>
+            <button onClick={() => setOttModal(true)}
+              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+              <Plus size={13} /> Add OTT Package
+            </button>
+          </div>
+          <div className="rounded-xl border border-surface-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-gray-50/80 border-b border-surface-border">
+                {['OTT Name','Provider','Description','Status','Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody className="divide-y divide-surface-border">
+                {otts.map(o => (
+                  <tr key={o.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-medium text-gray-800">{o.name}</td>
+                    <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{o.provider}</span></td>
+                    <td className="px-4 py-3 text-gray-500">{o.description}</td>
+                    <td className="px-4 py-3"><StatusPill status={o.status} /></td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setOtts(prev => prev.filter(x => x.id !== o.id))}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {ottModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Add OTT Package</h2>
+                  <button onClick={() => setOttModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">OTT Package Name *</label>
+                    <input value={ottForm.name} onChange={e => setOttForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Cityline TV Premium" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Provider</label>
+                    <select value={ottForm.provider} onChange={e => setOttForm(f=>({...f,provider:e.target.value}))} className={inp}>
+                      <option>Playbox</option><option>Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Description</label>
+                    <input value={ottForm.description} onChange={e => setOttForm(f=>({...f,description:e.target.value}))} className={inp} />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setOttModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={() => {
+                      if (!ottForm.name) return
+                      setOtts(prev => [...prev, { id: Date.now(), name: ottForm.name, provider: ottForm.provider, description: ottForm.description, status: 'Active' }])
+                      setOttForm({ name: '', provider: 'Playbox', description: '' })
+                      setOttModal(false)
+                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── LANDLINE NUMBERS ── */}
+      {sub === 'Landline Numbers' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Landline Number Pool</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setLandlineBulkModal(true)}
+                className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
+                📥 Bulk Import
+              </button>
+              <button onClick={() => setLandlineModal(true)}
+                className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+                <Plus size={13} /> Add Number
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Total',     value: landlines.length,                                      color: 'text-gray-800' },
+              { label: 'Available', value: landlines.filter(l => l.status === 'Available').length, color: 'text-green-600' },
+              { label: 'Assigned',  value: landlines.filter(l => l.status === 'Assigned').length,  color: 'text-blue-600' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-surface-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-gray-50/80 border-b border-surface-border">
+                {['Landline No','Status','Assigned To','Customer','Assigned Date','Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody className="divide-y divide-surface-border">
+                {landlines.map(l => (
+                  <tr key={l.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-mono text-sm text-gray-800">{l.number}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        l.status === 'Available' ? 'bg-green-100 text-green-700' :
+                        l.status === 'Assigned'  ? 'bg-blue-100 text-blue-700'  : 'bg-gray-100 text-gray-500'
+                      }`}>{l.status}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{l.assignedTo || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{l.customer || '—'}</td>
+                    <td className="px-4 py-3 text-gray-500">{l.assignedDate || '—'}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setLandlines(prev => prev.filter(x => x.id !== l.id))}
+                        className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {landlineModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Add Landline Number</h2>
+                  <button onClick={() => setLandlineModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Landline Number *</label>
+                    <input value={landlineForm.number} onChange={e => setLandlineForm(f=>({...f,number:e.target.value}))}
+                      placeholder="+91-120-..." className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Status</label>
+                    <select value={landlineForm.status} onChange={e => setLandlineForm(f=>({...f,status:e.target.value}))} className={inp}>
+                      <option>Available</option><option>Reserved</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setLandlineModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={() => {
+                      if (!landlineForm.number) return
+                      setLandlines(prev => [...prev, { id: Date.now(), number: landlineForm.number, status: landlineForm.status, assignedTo: null, customer: null, assignedDate: null }])
+                      setLandlineForm({ number: '', status: 'Available' })
+                      setLandlineModal(false)
+                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Number</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {landlineBulkModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Bulk Import Numbers</h2>
+                  <button onClick={() => setLandlineBulkModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <button className="w-full flex items-center justify-center gap-2 border border-dashed border-[#0A8DCD] rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">
+                    <Download size={14} /> Download Excel Template
+                  </button>
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400">
+                    <Upload size={24} className="mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">Drop Excel file here or click to upload</p>
+                    <p className="text-xs mt-1">Supports .xlsx, .csv</p>
+                  </div>
+                  <button onClick={() => setLandlineBulkModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STATIC IP ── */}
+      {sub === 'Static IP' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">Static IP Pool</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setIpBulkModal(true)}
+                className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
+                📥 Bulk Import
+              </button>
+              <button onClick={() => setIpModal(true)}
+                className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
+                <Plus size={13} /> Add IP
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Total',     value: staticIps.length,                                        color: 'text-gray-800' },
+              { label: 'Available', value: staticIps.filter(ip => ip.status === 'Available').length, color: 'text-green-600' },
+              { label: 'Assigned',  value: staticIps.filter(ip => ip.status === 'Assigned').length,  color: 'text-blue-600' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-surface-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-gray-50/80 border-b border-surface-border">
+                {['IP Address','Subnet','Gateway','Status','Assigned To','Customer','Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody className="divide-y divide-surface-border">
+                {staticIps.map(ip => (
+                  <tr key={ip.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3 font-mono text-sm text-gray-800">{ip.ip}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.subnet}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.gateway}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        ip.status === 'Available' ? 'bg-green-100 text-green-700' :
+                        ip.status === 'Assigned'  ? 'bg-blue-100 text-blue-700'  : 'bg-gray-100 text-gray-500'
+                      }`}>{ip.status}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{ip.assignedTo || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{ip.customer || '—'}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => setStaticIps(prev => prev.filter(x => x.id !== ip.id))}
+                        className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {ipModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Add Static IP</h2>
+                  <button onClick={() => setIpModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[['IP Address *','ip','e.g. 103.21.58.10'],['Subnet Mask *','subnet','e.g. 255.255.255.0'],['Gateway *','gateway','e.g. 103.21.58.1'],['DNS Primary','dns1','e.g. 8.8.8.8'],['DNS Secondary','dns2','e.g. 8.8.4.4']].map(([lbl,k,ph]) => (
+                    <div key={k}>
+                      <label className="text-xs font-medium text-gray-500 mb-1 block">{lbl}</label>
+                      <input value={ipForm[k]} onChange={e => setIpForm(f=>({...f,[k]:e.target.value}))} placeholder={ph} className={inp} />
+                    </div>
+                  ))}
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setIpModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={() => {
+                      if (!ipForm.ip) return
+                      setStaticIps(prev => [...prev, { id: Date.now(), ip: ipForm.ip, subnet: ipForm.subnet, gateway: ipForm.gateway, status: 'Available', assignedTo: null, customer: null }])
+                      setIpForm({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
+                      setIpModal(false)
+                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add IP</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {ipBulkModal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Bulk Import IPs</h2>
+                  <button onClick={() => setIpBulkModal(false)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <button className="w-full flex items-center justify-center gap-2 border border-dashed border-[#0A8DCD] rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">
+                    <Download size={14} /> Download Excel Template
+                  </button>
+                  <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400">
+                    <Upload size={24} className="mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">Drop Excel file here or click to upload</p>
+                    <p className="text-xs mt-1">Supports .xlsx, .csv</p>
+                  </div>
+                  <button onClick={() => setIpBulkModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('general')
-  const [landlines, setLandlines] = useState(MOCK_LANDLINES)
-  const [staticIps, setStaticIps] = useState(MOCK_STATIC_IPS)
-  const [addLandlineModal, setAddLandlineModal] = useState(false)
-  const [landlineForm, setLandlineForm] = useState({ number: '', status: 'Available', notes: '' })
-  const [addIpModal, setAddIpModal] = useState(false)
-  const [ipForm, setIpForm] = useState({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '', notes: '' })
-  const [bulkImportModal, setBulkImportModal] = useState(false)
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -1074,7 +1592,8 @@ export default function Settings() {
           {activeTab === 'sales-configuration' && <SalesConfigTab />}
           {activeTab === 'area-mapping'        && <AreaMappingTab />}
           {activeTab === 'zone'                && <ZoneTab />}
-          {activeTab === 'landline-numbers' && (
+          {activeTab === 'master-config'       && <MasterConfigTab />}
+          {false && activeTab === 'landline-numbers' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -1182,7 +1701,7 @@ export default function Settings() {
               )}
             </div>
           )}
-          {activeTab === 'static-ip' && (
+          {false && activeTab === 'static-ip' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
                 <div>
