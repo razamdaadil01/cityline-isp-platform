@@ -240,39 +240,44 @@ export default function Packages() {
         ))}
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl flex-wrap">
-        {TABS.map(t => (
-          <button key={t} onClick={() => setActiveTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              activeTab === t ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'
-            }`}>
-            {t}
-          </button>
-        ))}
-      </div>
+      {/* Tab bar + filters — single row */}
+      <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+        {/* Tabs */}
+        <div className="flex gap-1 shrink-0">
+          {TABS.map(t => (
+            <button key={t} onClick={() => setActiveTab(t)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === t ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {t}
+            </button>
+          ))}
+        </div>
 
-      {/* ── TAB 1: BANDWIDTH PACKAGES ── */}
-      {activeTab === 'Bandwidth Packages' && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <select value={bwZone} onChange={e => setBwZone(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
+        {/* Divider */}
+        <div className="w-px h-5 bg-gray-300 shrink-0" />
+
+        {/* Zone + Search + Filter — right side */}
+        {activeTab === 'Bandwidth Packages' && (
+          <>
+            <select value={bwZone} onChange={e => setBwZone(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none shrink-0">
               <option value="All">All Zones</option>
               <option>Residential</option>
               <option>Enterprise</option>
               <option>Both</option>
             </select>
-            <div className="relative flex-1 max-w-xs">
+            <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={bwSearch} onChange={e => setBwSearch(e.target.value)}
                 placeholder="Search by name, Jaze ID..."
-                className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
+                className="pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full bg-white focus:outline-none" />
             </div>
             <button onClick={() => { setBwPending(bwFilters); setBwDrawer(true) }}
-              className={`flex items-center gap-1.5 border rounded-lg px-3 py-2 text-sm font-medium transition-colors relative ${
+              className={`flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm font-medium transition-colors shrink-0 ${
                 bwActiveFilters > 0
                   ? 'border-[#0A8DCD] bg-blue-50 text-[#0A8DCD]'
-                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
               }`}>
               <Filter size={14} /> Filter
               {bwActiveFilters > 0 && (
@@ -281,9 +286,47 @@ export default function Packages() {
             </button>
             {bwActiveFilters > 0 && (
               <button onClick={() => { setBwFilters(EMPTY_BW_FILTERS); setBwPending(EMPTY_BW_FILTERS) }}
-                className="text-xs text-[#0A8DCD] hover:underline">Clear filters</button>
+                className="text-xs text-[#0A8DCD] hover:underline shrink-0">Clear</button>
             )}
-          </div>
+          </>
+        )}
+        {activeTab === 'Other Packages' && (
+          <>
+            <select value={othZone} onChange={e => setOthZone(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none shrink-0">
+              <option value="All">All Zones</option>
+              <option>Residential</option>
+              <option>Enterprise</option>
+              <option>Both</option>
+            </select>
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={othSearch} onChange={e => setOthSearch(e.target.value)}
+                placeholder="Search packages..."
+                className="pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm w-full bg-white focus:outline-none" />
+            </div>
+            <button onClick={() => { setOthPending(othFilters); setOthDrawer(true) }}
+              className={`flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm font-medium transition-colors shrink-0 ${
+                othActiveFilters > 0
+                  ? 'border-[#0A8DCD] bg-blue-50 text-[#0A8DCD]'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}>
+              <Filter size={14} /> Filter
+              {othActiveFilters > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#0A8DCD] text-white text-[10px] flex items-center justify-center">{othActiveFilters}</span>
+              )}
+            </button>
+            {othActiveFilters > 0 && (
+              <button onClick={() => { setOthFilters(EMPTY_OTH_FILTERS); setOthPending(EMPTY_OTH_FILTERS) }}
+                className="text-xs text-[#0A8DCD] hover:underline shrink-0">Clear</button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── TAB 1: BANDWIDTH PACKAGES ── */}
+      {activeTab === 'Bandwidth Packages' && (
+        <div className="space-y-4">
           <FilterDrawer
             open={bwDrawer} onClose={() => setBwDrawer(false)}
             filters={bwPendingFilters}
@@ -345,35 +388,6 @@ export default function Packages() {
       {/* ── TAB 2: OTHER PACKAGES ── */}
       {activeTab === 'Other Packages' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-center">
-            <select value={othZone} onChange={e => setOthZone(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none">
-              <option value="All">All Zones</option>
-              <option>Residential</option>
-              <option>Enterprise</option>
-              <option>Both</option>
-            </select>
-            <div className="relative flex-1 max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input value={othSearch} onChange={e => setOthSearch(e.target.value)}
-                placeholder="Search packages..."
-                className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
-            </div>
-            <button onClick={() => { setOthPending(othFilters); setOthDrawer(true) }}
-              className={`flex items-center gap-1.5 border rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                othActiveFilters > 0
-                  ? 'border-[#0A8DCD] bg-blue-50 text-[#0A8DCD]'
-                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}>
-              <Filter size={14} /> Filter
-              {othActiveFilters > 0 && (
-                <span className="w-4 h-4 rounded-full bg-[#0A8DCD] text-white text-[10px] flex items-center justify-center">{othActiveFilters}</span>
-              )}
-            </button>
-            {othActiveFilters > 0 && (
-              <button onClick={() => { setOthFilters(EMPTY_OTH_FILTERS); setOthPending(EMPTY_OTH_FILTERS) }}
-                className="text-xs text-[#0A8DCD] hover:underline">Clear filters</button>
-            )}
-          </div>
           <FilterDrawer
             open={othDrawer} onClose={() => setOthDrawer(false)}
             filters={othPendingFilters}
