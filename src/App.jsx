@@ -15,6 +15,7 @@ import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
 import SalesLeadDetail from './pages/SalesLeadDetail'
 import FeasibilityRequests from './pages/FeasibilityRequests'
+import Installations from './pages/Installations'
 import Billing from './pages/Billing'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
           <Route path="/sales/leads/:id" element={<SalesLeadDetail />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
+          <Route path="/installations" element={<Installations />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
