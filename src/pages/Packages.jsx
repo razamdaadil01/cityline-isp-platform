@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Package, CheckCircle, Wifi, Box, Plus, Search, Filter, MoreVertical, X, Info } from 'lucide-react'
 import {
@@ -73,6 +73,80 @@ const FLD = ({ label, children }) => (
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
 
+// ── Filter Drawer ─────────────────────────────────────────────────────────────
+
+const EMPTY_BW_FILTERS  = { status: 'All', ott: 'All', editable: 'All', landline: 'All' }
+const EMPTY_OTH_FILTERS = { status: 'All' }
+
+function FilterDrawer({ open, onClose, filters, onChange, onApply, onReset, tab }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    function handleKey(e) { if (e.key === 'Escape') onClose() }
+    if (open) document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const Row = ({ label, filterKey, options }) => (
+    <div className="py-3 border-b border-gray-100 last:border-0">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map(opt => (
+          <button key={opt} onClick={() => onChange(filterKey, opt)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              filters[filterKey] === opt
+                ? 'bg-[#0A8DCD] border-[#0A8DCD] text-white'
+                : 'bg-white border-gray-200 text-gray-600 hover:border-[#0A8DCD] hover:text-[#0A8DCD]'
+            }`}>
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const activeCount = Object.values(filters).filter(v => v !== 'All').length
+
+  return (
+    <>
+      <div className="fixed inset-0 z-30 bg-black/20" onClick={onClose} />
+      <div ref={ref} className="fixed right-0 top-0 h-full w-72 bg-white z-40 shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-[#0A8DCD]" />
+            <span className="font-semibold text-gray-800">Filters</span>
+            {activeCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-[#0A8DCD] text-white text-xs flex items-center justify-center">{activeCount}</span>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-2">
+          <Row label="Status" filterKey="status" options={['All', 'Active', 'Inactive']} />
+          {tab === 'Bandwidth Packages' && <>
+            <Row label="OTT" filterKey="ott" options={['All', 'With OTT', 'Without OTT']} />
+            <Row label="Editable" filterKey="editable" options={['All', 'Yes', 'No']} />
+            <Row label="Landline" filterKey="landline" options={['All', 'Yes', 'No']} />
+          </>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-200 flex gap-3">
+          <button onClick={onReset}
+            className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+            Reset
+          </button>
+          <button onClick={onApply}
+            className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-[#0878b0]">
+            Apply
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 const TABS = ['Bandwidth Packages', 'Other Packages', 'Tenure Management', 'Bandwidth Management', 'OTT Management']
@@ -85,11 +159,23 @@ export default function Packages() {
   const [bwPkgs, setBwPkgs] = useState(MOCK_BW_PACKAGES)
   const [bwSearch, setBwSearch] = useState('')
   const [bwZone, setBwZone] = useState('All')
+  const [bwFilters, setBwFilters]         = useState(EMPTY_BW_FILTERS)
+  const [bwPendingFilters, setBwPending]  = useState(EMPTY_BW_FILTERS)
+  const [bwDrawer, setBwDrawer]           = useState(false)
 
   // Other packages state
   const [othPkgs, setOthPkgs] = useState(MOCK_OTHER_PACKAGES)
   const [othSearch, setOthSearch] = useState('')
   const [othZone, setOthZone] = useState('All')
+  const [othFilters, setOthFilters]       = useState(EMPTY_OTH_FILTERS)
+  const [othPendingFilters, setOthPending]= useState(EMPTY_OTH_FILTERS)
+  const [othDrawer, setOthDrawer]         = useState(false)
+
+  // Reset filters when switching tabs
+  useEffect(() => {
+    setBwSearch(''); setBwZone('All'); setBwFilters(EMPTY_BW_FILTERS); setBwPending(EMPTY_BW_FILTERS); setBwDrawer(false)
+    setOthSearch(''); setOthZone('All'); setOthFilters(EMPTY_OTH_FILTERS); setOthPending(EMPTY_OTH_FILTERS); setOthDrawer(false)
+  }, [activeTab])
 
   // Tenure state
   const [tenures, setTenures] = useState(MOCK_TENURES)
@@ -110,16 +196,33 @@ export default function Packages() {
   const activePkgs = bwPkgs.filter(p => p.status === 'Active').length + othPkgs.filter(p => p.status === 'Active').length
 
   const filteredBw = bwPkgs.filter(p => {
-    const mz = bwZone === 'All' || p.zone === bwZone
-    const ms = !bwSearch || p.name.toLowerCase().includes(bwSearch.toLowerCase())
-    return mz && ms
+    if (bwZone !== 'All' && p.zone !== bwZone) return false
+    if (bwFilters.status !== 'All' && p.status !== bwFilters.status) return false
+    if (bwFilters.editable !== 'All' && (bwFilters.editable === 'Yes') !== !!p.editable) return false
+    if (bwFilters.landline !== 'All' && (bwFilters.landline === 'Yes') !== !!p.landline) return false
+    if (bwFilters.ott === 'With OTT'    && !p.rows.some(r => r.ott && r.ott !== 'None')) return false
+    if (bwFilters.ott === 'Without OTT' &&  p.rows.some(r => r.ott && r.ott !== 'None')) return false
+    if (bwSearch) {
+      const q = bwSearch.toLowerCase()
+      const nameMatch = p.name.toLowerCase().includes(q)
+      const jazeMatch = p.rows.some(r => String(r.jazeId).toLowerCase().includes(q))
+      if (!nameMatch && !jazeMatch) return false
+    }
+    return true
   })
 
   const filteredOth = othPkgs.filter(p => {
-    const mz = othZone === 'All' || p.zone === othZone
-    const ms = !othSearch || p.name.toLowerCase().includes(othSearch.toLowerCase())
-    return mz && ms
+    if (othZone !== 'All' && p.zone !== othZone) return false
+    if (othFilters.status !== 'All' && p.status !== othFilters.status) return false
+    if (othSearch) {
+      const q = othSearch.toLowerCase()
+      if (!p.name.toLowerCase().includes(q)) return false
+    }
+    return true
   })
+
+  const bwActiveFilters = Object.values(bwFilters).filter(v => v !== 'All').length
+  const othActiveFilters = Object.values(othFilters).filter(v => v !== 'All').length
 
   const addTenure = () => {
     if (!tenureForm.name || !tenureForm.months) return
@@ -194,6 +297,7 @@ export default function Packages() {
               <option value="All">All Zones</option>
               <option>Residential</option>
               <option>Enterprise</option>
+              <option>Both</option>
             </select>
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -201,10 +305,30 @@ export default function Packages() {
                 placeholder="Search by name, Jaze ID..."
                 className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
             </div>
-            <button className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+            <button onClick={() => { setBwPending(bwFilters); setBwDrawer(true) }}
+              className={`flex items-center gap-1.5 border rounded-lg px-3 py-2 text-sm font-medium transition-colors relative ${
+                bwActiveFilters > 0
+                  ? 'border-[#0A8DCD] bg-blue-50 text-[#0A8DCD]'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}>
               <Filter size={14} /> Filter
+              {bwActiveFilters > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#0A8DCD] text-white text-[10px] flex items-center justify-center">{bwActiveFilters}</span>
+              )}
             </button>
+            {bwActiveFilters > 0 && (
+              <button onClick={() => { setBwFilters(EMPTY_BW_FILTERS); setBwPending(EMPTY_BW_FILTERS) }}
+                className="text-xs text-[#0A8DCD] hover:underline">Clear filters</button>
+            )}
           </div>
+          <FilterDrawer
+            open={bwDrawer} onClose={() => setBwDrawer(false)}
+            filters={bwPendingFilters}
+            onChange={(k, v) => setBwPending(f => ({ ...f, [k]: v }))}
+            onApply={() => { setBwFilters(bwPendingFilters); setBwDrawer(false) }}
+            onReset={() => { setBwPending(EMPTY_BW_FILTERS); setBwFilters(EMPTY_BW_FILTERS) }}
+            tab="Bandwidth Packages"
+          />
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -271,10 +395,30 @@ export default function Packages() {
                 placeholder="Search packages..."
                 className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full focus:outline-none" />
             </div>
-            <button className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50">
+            <button onClick={() => { setOthPending(othFilters); setOthDrawer(true) }}
+              className={`flex items-center gap-1.5 border rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                othActiveFilters > 0
+                  ? 'border-[#0A8DCD] bg-blue-50 text-[#0A8DCD]'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}>
               <Filter size={14} /> Filter
+              {othActiveFilters > 0 && (
+                <span className="w-4 h-4 rounded-full bg-[#0A8DCD] text-white text-[10px] flex items-center justify-center">{othActiveFilters}</span>
+              )}
             </button>
+            {othActiveFilters > 0 && (
+              <button onClick={() => { setOthFilters(EMPTY_OTH_FILTERS); setOthPending(EMPTY_OTH_FILTERS) }}
+                className="text-xs text-[#0A8DCD] hover:underline">Clear filters</button>
+            )}
           </div>
+          <FilterDrawer
+            open={othDrawer} onClose={() => setOthDrawer(false)}
+            filters={othPendingFilters}
+            onChange={(k, v) => setOthPending(f => ({ ...f, [k]: v }))}
+            onApply={() => { setOthFilters(othPendingFilters); setOthDrawer(false) }}
+            onReset={() => { setOthPending(EMPTY_OTH_FILTERS); setOthFilters(EMPTY_OTH_FILTERS) }}
+            tab="Other Packages"
+          />
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
