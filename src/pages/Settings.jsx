@@ -5,6 +5,7 @@ import {
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -1072,6 +1073,35 @@ function StatusPill({ status }) {
   )
 }
 
+const MC_PAGE_SIZE = 10
+
+function MCPagination({ page, setPage, total }) {
+  const totalPages = Math.max(1, Math.ceil(total / MC_PAGE_SIZE))
+  const from = total === 0 ? 0 : (page - 1) * MC_PAGE_SIZE + 1
+  const to   = Math.min(page * MC_PAGE_SIZE, total)
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50/40">
+      <p className="text-xs text-gray-500">Showing {from}–{to} of {total}</p>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+          className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+          <ChevronLeft size={14} />
+        </button>
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+          <button key={p} onClick={() => setPage(p)}
+            className={`w-7 h-7 flex items-center justify-center rounded text-xs font-medium transition-all ${p === page ? 'bg-[#0A8DCD] text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}>
+            {p}
+          </button>
+        ))}
+        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+          className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function MasterConfigTab() {
   const { tab } = useParams()
   const navigate = useNavigate()
@@ -1082,28 +1112,40 @@ function MasterConfigTab() {
   const [tenures, setTenures] = useState(INIT_MC_TENURES)
   const [tenureModal, setTenureModal] = useState(false)
   const [tenureForm, setTenureForm] = useState({ name: '', months: '', description: '' })
+  const [tenurePage, setTenurePage] = useState(1)
 
   // Bandwidth state
   const [bandwidths, setBandwidths] = useState(INIT_MC_BANDWIDTHS)
   const [bwModal, setBwModal] = useState(false)
   const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '' })
+  const [bwPage, setBwPage] = useState(1)
 
   // OTT state
   const [otts, setOtts] = useState(INIT_MC_OTT)
   const [ottModal, setOttModal] = useState(false)
   const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', description: '' })
+  const [ottPage, setOttPage] = useState(1)
 
   // Landline state
   const [landlines, setLandlines] = useState(MOCK_LANDLINES)
   const [landlineModal, setLandlineModal] = useState(false)
   const [landlineBulkModal, setLandlineBulkModal] = useState(false)
   const [landlineForm, setLandlineForm] = useState({ number: '', status: 'Available' })
+  const [landlinePage, setLandlinePage] = useState(1)
 
   // Static IP state
   const [staticIps, setStaticIps] = useState(MOCK_STATIC_IPS)
   const [ipModal, setIpModal] = useState(false)
   const [ipBulkModal, setIpBulkModal] = useState(false)
   const [ipForm, setIpForm] = useState({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
+  const [ipPage, setIpPage] = useState(1)
+
+  // Sliced data for current page
+  const tenureRows   = tenures.slice((tenurePage   - 1) * MC_PAGE_SIZE, tenurePage   * MC_PAGE_SIZE)
+  const bwRows       = bandwidths.slice((bwPage     - 1) * MC_PAGE_SIZE, bwPage       * MC_PAGE_SIZE)
+  const ottRows      = otts.slice((ottPage          - 1) * MC_PAGE_SIZE, ottPage       * MC_PAGE_SIZE)
+  const landlineRows = landlines.slice((landlinePage - 1) * MC_PAGE_SIZE, landlinePage * MC_PAGE_SIZE)
+  const ipRows       = staticIps.slice((ipPage       - 1) * MC_PAGE_SIZE, ipPage        * MC_PAGE_SIZE)
 
   return (
     <div className="space-y-5">
@@ -1141,7 +1183,7 @@ function MasterConfigTab() {
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-surface-border">
-                {tenures.map(t => (
+                {tenureRows.map(t => (
                   <tr key={t.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-medium text-gray-800">{t.name}</td>
                     <td className="px-4 py-3 text-gray-600">{t.months}</td>
@@ -1157,6 +1199,7 @@ function MasterConfigTab() {
                 ))}
               </tbody>
             </table>
+            <MCPagination page={tenurePage} setPage={setTenurePage} total={tenures.length} />
           </div>
           {tenureModal && (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1207,7 +1250,7 @@ function MasterConfigTab() {
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-surface-border">
-                {bandwidths.map(b => (
+                {bwRows.map(b => (
                   <tr key={b.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-medium text-gray-800">{b.speed} {b.unit}</td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{b.unit}</span></td>
@@ -1223,6 +1266,7 @@ function MasterConfigTab() {
                 ))}
               </tbody>
             </table>
+            <MCPagination page={bwPage} setPage={setBwPage} total={bandwidths.length} />
           </div>
           {bwModal && (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1282,7 +1326,7 @@ function MasterConfigTab() {
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-surface-border">
-                {otts.map(o => (
+                {ottRows.map(o => (
                   <tr key={o.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-medium text-gray-800">{o.name}</td>
                     <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{o.provider}</span></td>
@@ -1298,6 +1342,7 @@ function MasterConfigTab() {
                 ))}
               </tbody>
             </table>
+            <MCPagination page={ottPage} setPage={setOttPage} total={otts.length} />
           </div>
           {ottModal && (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1361,7 +1406,7 @@ function MasterConfigTab() {
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-surface-border">
-                {landlines.map(l => (
+                {landlineRows.map(l => (
                   <tr key={l.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-mono text-sm text-gray-800">{l.number}</td>
                     <td className="px-4 py-3">
@@ -1381,6 +1426,7 @@ function MasterConfigTab() {
                 ))}
               </tbody>
             </table>
+            <MCPagination page={landlinePage} setPage={setLandlinePage} total={landlines.length} />
           </div>
           {landlineModal && (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1462,7 +1508,7 @@ function MasterConfigTab() {
                 ))}
               </tr></thead>
               <tbody className="divide-y divide-surface-border">
-                {staticIps.map(ip => (
+                {ipRows.map(ip => (
                   <tr key={ip.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-mono text-sm text-gray-800">{ip.ip}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.subnet}</td>
@@ -1483,6 +1529,7 @@ function MasterConfigTab() {
                 ))}
               </tbody>
             </table>
+            <MCPagination page={ipPage} setPage={setIpPage} total={staticIps.length} />
           </div>
           {ipModal && (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
