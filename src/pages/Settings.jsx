@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
@@ -1028,7 +1029,13 @@ function ZoneTab() {
 
 // ── Master Configuration (Tenure, Bandwidth, OTT, Landline, Static IP) ───────
 
-const MASTER_SUB_TABS = ['Tenure', 'Bandwidth', 'OTT', 'Landline Numbers', 'Static IP']
+const MASTER_SUB_TABS = [
+  { label: 'Tenure',           slug: 'tenure'    },
+  { label: 'Bandwidth',        slug: 'bandwidth' },
+  { label: 'OTT',              slug: 'ott'       },
+  { label: 'Landline Numbers', slug: 'landline'  },
+  { label: 'Static IP',        slug: 'static-ip' },
+]
 
 const INIT_MC_TENURES = [
   { id: 1, name: '1 Month',     months: 1,  description: 'Monthly billing cycle',     status: 'Active' },
@@ -1066,7 +1073,10 @@ function StatusPill({ status }) {
 }
 
 function MasterConfigTab() {
-  const [sub, setSub] = useState('Tenure')
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  const sub = MASTER_SUB_TABS.find(t => t.slug === tab)?.label ?? 'Tenure'
+  if (!tab) return <Navigate to="/settings/master-config/tenure" replace />
 
   // Tenure state
   const [tenures, setTenures] = useState(INIT_MC_TENURES)
@@ -1105,10 +1115,10 @@ function MasterConfigTab() {
       {/* Sub-tab bar */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-wrap">
         {MASTER_SUB_TABS.map(t => (
-          <button key={t} onClick={() => setSub(t)}
+          <button key={t.slug} onClick={() => navigate(`/settings/master-config/${t.slug}`)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-              sub === t ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'}`}>
-            {t}
+              sub === t.label ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'}`}>
+            {t.label}
           </button>
         ))}
       </div>
@@ -1531,7 +1541,9 @@ function MasterConfigTab() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('general')
+  const { tab } = useParams()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState(() => tab !== undefined ? 'master-config' : 'general')
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -1545,7 +1557,11 @@ export default function Settings() {
         <div className="w-52 shrink-0">
           <nav className="space-y-1">
             {TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => setActiveTab(id)}
+              <button key={id} onClick={() => {
+                if (id === 'master-config') navigate('/settings/master-config/tenure')
+                else navigate('/settings')
+                setActiveTab(id)
+              }}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
