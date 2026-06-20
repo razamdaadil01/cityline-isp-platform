@@ -66,6 +66,8 @@ export default function App() {
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/master-config" element={<Settings />} />
+          <Route path="/settings/master-config/:tab" element={<Settings />} />
           <Route path="/settings/roles" element={<RolesSettings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
