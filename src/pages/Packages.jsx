@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Package, CheckCircle, Wifi, Box, Plus, Search, Filter, MoreVertical, X, Info } from 'lucide-react'
 import {
   MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES,
-  MOCK_TENURES, MOCK_BANDWIDTHS, MOCK_OTT,
 } from '../data/packagesStore'
 
 // ── Shared UI ────────────────────────────────────────────────────────────────
@@ -149,7 +148,7 @@ function FilterDrawer({ open, onClose, filters, onChange, onApply, onReset, tab 
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
-const TABS = ['Bandwidth Packages', 'Other Packages', 'Tenure Management', 'Bandwidth Management', 'OTT Management']
+const TABS = ['Bandwidth Packages', 'Other Packages']
 
 export default function Packages() {
   const navigate = useNavigate()
@@ -176,21 +175,6 @@ export default function Packages() {
     setBwSearch(''); setBwZone('All'); setBwFilters(EMPTY_BW_FILTERS); setBwPending(EMPTY_BW_FILTERS); setBwDrawer(false)
     setOthSearch(''); setOthZone('All'); setOthFilters(EMPTY_OTH_FILTERS); setOthPending(EMPTY_OTH_FILTERS); setOthDrawer(false)
   }, [activeTab])
-
-  // Tenure state
-  const [tenures, setTenures] = useState(MOCK_TENURES)
-  const [tenureModal, setTenureModal] = useState(false)
-  const [tenureForm, setTenureForm] = useState({ name: '', months: '', description: '', status: true })
-
-  // Bandwidth state
-  const [bandwidths, setBandwidths] = useState(MOCK_BANDWIDTHS)
-  const [bwModal, setBwModal] = useState(false)
-  const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '', status: true })
-
-  // OTT state
-  const [otts, setOtts] = useState(MOCK_OTT)
-  const [ottModal, setOttModal] = useState(false)
-  const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', description: '', status: true })
 
   const totalPkgs = bwPkgs.length + othPkgs.length
   const activePkgs = bwPkgs.filter(p => p.status === 'Active').length + othPkgs.filter(p => p.status === 'Active').length
@@ -223,27 +207,6 @@ export default function Packages() {
 
   const bwActiveFilters = Object.values(bwFilters).filter(v => v !== 'All').length
   const othActiveFilters = Object.values(othFilters).filter(v => v !== 'All').length
-
-  const addTenure = () => {
-    if (!tenureForm.name || !tenureForm.months) return
-    setTenures(t => [...t, { id: Date.now(), ...tenureForm, months: Number(tenureForm.months), status: tenureForm.status ? 'Active' : 'Inactive' }])
-    setTenureModal(false)
-    setTenureForm({ name: '', months: '', description: '', status: true })
-  }
-
-  const addBw = () => {
-    if (!bwForm.speed) return
-    setBandwidths(b => [...b, { id: Date.now(), ...bwForm, speed: Number(bwForm.speed), status: bwForm.status ? 'Active' : 'Inactive' }])
-    setBwModal(false)
-    setBwForm({ speed: '', unit: 'Mbps', description: '', status: true })
-  }
-
-  const addOtt = () => {
-    if (!ottForm.name) return
-    setOtts(o => [...o, { id: Date.now(), ...ottForm, status: ottForm.status ? 'Active' : 'Inactive' }])
-    setOttModal(false)
-    setOttForm({ name: '', provider: 'Playbox', description: '', status: true })
-  }
 
   return (
     <div className="p-6 space-y-5">
@@ -462,8 +425,8 @@ export default function Packages() {
         </div>
       )}
 
-      {/* ── TAB 3: TENURE MANAGEMENT ── */}
-      {activeTab === 'Tenure Management' && (
+      {/* ── REMOVED: Tenure/BW/OTT Management tabs moved to Settings > Master Configuration ── */}
+      {false && activeTab === 'Tenure Management' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -520,8 +483,7 @@ export default function Packages() {
         </div>
       )}
 
-      {/* ── TAB 4: BANDWIDTH MANAGEMENT ── */}
-      {activeTab === 'Bandwidth Management' && (
+      {false && activeTab === 'Bandwidth Management' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -584,8 +546,7 @@ export default function Packages() {
         </div>
       )}
 
-      {/* ── TAB 5: OTT MANAGEMENT ── */}
-      {activeTab === 'OTT Management' && (
+      {false && activeTab === 'OTT Management' && (
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
             <Info size={16} className="text-blue-500 mt-0.5 flex-shrink-0" />
