@@ -1343,18 +1343,6 @@ function MasterConfigTab() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Total',     value: landlines.length,                                      color: 'text-gray-800' },
-              { label: 'Available', value: landlines.filter(l => l.status === 'Available').length, color: 'text-green-600' },
-              { label: 'Assigned',  value: landlines.filter(l => l.status === 'Assigned').length,  color: 'text-blue-600' },
-            ].map(s => (
-              <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-              </div>
-            ))}
-          </div>
           <div className="rounded-xl border border-surface-border overflow-hidden">
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50/80 border-b border-surface-border">
@@ -1455,18 +1443,6 @@ function MasterConfigTab() {
                 <Plus size={13} /> Add IP
               </button>
             </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Total',     value: staticIps.length,                                        color: 'text-gray-800' },
-              { label: 'Available', value: staticIps.filter(ip => ip.status === 'Available').length, color: 'text-green-600' },
-              { label: 'Assigned',  value: staticIps.filter(ip => ip.status === 'Assigned').length,  color: 'text-blue-600' },
-            ].map(s => (
-              <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-              </div>
-            ))}
           </div>
           <div className="rounded-xl border border-surface-border overflow-hidden">
             <table className="w-full text-sm">
