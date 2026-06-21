@@ -208,6 +208,48 @@ export default function Packages() {
   const bwActiveFilters = Object.values(bwFilters).filter(v => v !== 'All').length
   const othActiveFilters = Object.values(othFilters).filter(v => v !== 'All').length
 
+  // Pagination
+  const PKG_PAGE_SIZE = 10
+  const [bwPage,  setBwPage]  = useState(1)
+  const [othPage, setOthPage] = useState(1)
+
+  // Reset pages when filters/search change
+  useEffect(() => { setBwPage(1) }, [bwSearch, bwZone, bwFilters])
+  useEffect(() => { setOthPage(1) }, [othSearch, othZone, othFilters])
+
+  const bwTotalPages  = Math.max(1, Math.ceil(filteredBw.length  / PKG_PAGE_SIZE))
+  const othTotalPages = Math.max(1, Math.ceil(filteredOth.length / PKG_PAGE_SIZE))
+  const pagedBw  = filteredBw.slice( (bwPage  - 1) * PKG_PAGE_SIZE, bwPage  * PKG_PAGE_SIZE)
+  const pagedOth = filteredOth.slice((othPage - 1) * PKG_PAGE_SIZE, othPage * PKG_PAGE_SIZE)
+
+  function PkgPagination({ page, setPage, total, totalPages }) {
+    const from = total === 0 ? 0 : (page - 1) * PKG_PAGE_SIZE + 1
+    const to   = Math.min(page * PKG_PAGE_SIZE, total)
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50/40">
+        <p className="text-xs text-gray-500">Showing {from}–{to} of {total} package{total !== 1 ? 's' : ''}</p>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+            className="px-2.5 py-1 text-xs font-semibold border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+            Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button key={p} onClick={() => setPage(p)}
+              className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                p === page ? 'bg-[#0A8DCD] text-white' : 'border border-gray-200 hover:bg-white text-gray-600'
+              }`}>
+              {p}
+            </button>
+          ))}
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+            className="px-2.5 py-1 text-xs font-semibold border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+            Next
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
@@ -349,7 +391,7 @@ export default function Packages() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredBw.length === 0 ? (
                     <tr><td colSpan={12} className="text-center py-10 text-gray-400">No packages found</td></tr>
-                  ) : filteredBw.map(pkg =>
+                  ) : pagedBw.map(pkg =>
                     pkg.rows.map((row, ri) => (
                       <tr key={`${pkg.id}-${ri}`} className="hover:bg-gray-50">
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">
@@ -381,6 +423,7 @@ export default function Packages() {
                 </tbody>
               </table>
             </div>
+            <PkgPagination page={bwPage} setPage={setBwPage} total={filteredBw.length} totalPages={bwTotalPages} />
           </div>
         </div>
       )}
@@ -408,7 +451,7 @@ export default function Packages() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredOth.map(pkg => (
+                  {pagedOth.map(pkg => (
                     <tr key={pkg.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-semibold text-[#0F2744]">{pkg.name}</td>
                       <td className="px-4 py-3">
@@ -435,6 +478,7 @@ export default function Packages() {
                 </tbody>
               </table>
             </div>
+            <PkgPagination page={othPage} setPage={setOthPage} total={filteredOth.length} totalPages={othTotalPages} />
           </div>
         </div>
       )}
