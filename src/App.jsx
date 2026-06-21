@@ -57,6 +57,7 @@ export default function App() {
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
           <Route path="/sales/leads/:id" element={<SalesLeadDetail />} />
+          <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/billing" element={<Billing />} />
