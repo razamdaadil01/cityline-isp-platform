@@ -67,6 +67,7 @@ export default function App() {
           <Route path="/packages" element={<Packages />} />
           <Route path="/packages/add" element={<PackageAdd />} />
           <Route path="/packages/:packageId/edit" element={<PackageEdit />} />
+          <Route path="/packages/:packageId/:tab" element={<PackageDetail />} />
           <Route path="/packages/:packageId" element={<PackageDetail />} />
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
