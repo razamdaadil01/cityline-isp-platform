@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Package, CheckCircle, Wifi, Box, Plus, Search, Filter, MoreVertical, X, Info } from 'lucide-react'
 import {
   MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES,
@@ -152,7 +152,9 @@ const TABS = ['Bandwidth Packages', 'Other Packages']
 
 export default function Packages() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('Bandwidth Packages')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const activeTab = tabParam === 'other' ? 'Other Packages' : 'Bandwidth Packages'
 
   // Bandwidth packages state
   const [bwPkgs, setBwPkgs] = useState(MOCK_BW_PACKAGES)
@@ -287,7 +289,7 @@ export default function Packages() {
         {/* Tabs */}
         <div className="flex gap-1 shrink-0">
           {TABS.map(t => (
-            <button key={t} onClick={() => setActiveTab(t)}
+            <button key={t} onClick={() => setSearchParams({ tab: t === 'Bandwidth Packages' ? 'bandwidth' : 'other' })}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === t ? 'bg-white shadow-sm text-[#0F2744]' : 'text-gray-500 hover:text-gray-700'
               }`}>
