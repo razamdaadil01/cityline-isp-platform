@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Wifi, Package, CheckCircle, Plus, Trash2 } from 'lucide-react'
 import { MOCK_BANDWIDTHS, MOCK_TENURES, MOCK_OTT, MOCK_BW_PACKAGES } from '../data/packagesStore'
 
@@ -18,12 +18,18 @@ const STEPS = ['Zone & Type', 'Configuration', 'Settings']
 
 export default function PackageAdd() {
   const navigate = useNavigate()
-  const [step, setStep] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [toast, setToast] = useState(false)
+
+  const rawStep = parseInt(searchParams.get('step') || '1', 10)
+  const typeParam = searchParams.get('type') // 'bandwidth' | 'other' | null
+  // Guard: step 2/3 without a type → redirect to step 1
+  const step = (rawStep === 2 || rawStep === 3) && !typeParam ? 1 : rawStep
+  const stepIndex = step - 1 // 0-based for arrays/comparisons
 
   // Step 1 state
   const [zone, setZone] = useState('')
-  const [pkgType, setPkgType] = useState('')
+  const [pkgType, setPkgType] = useState(typeParam === 'bandwidth' ? 'Bandwidth' : typeParam === 'other' ? 'Other' : '')
   const [pkgName, setPkgName] = useState('')
 
   // Step 2 state — bandwidth rows
@@ -42,14 +48,35 @@ export default function PackageAdd() {
   const [offer, setOffer] = useState(false)
   const [active, setActive] = useState(true)
 
+  const resolvedType = typeParam === 'other' ? 'Other' : 'Bandwidth'
+
   const step1Valid = zone && pkgType && pkgName.trim()
-  const step2Valid = pkgType === 'Bandwidth'
+  const step2Valid = resolvedType === 'Bandwidth'
     ? bwRows.every(r => r.bandwidth && r.jazeId && r.tenure && r.price)
     : (bound ? (bindPkg && othPrice) : othPrice)
 
   const addRow = () => setBwRows(r => [...r, { ...EMPTY_ROW }])
   const removeRow = (i) => setBwRows(r => r.filter((_, idx) => idx !== i))
   const updateRow = (i, field, val) => setBwRows(r => r.map((row, idx) => idx === i ? { ...row, [field]: val } : row))
+
+  const goNext = () => {
+    if (stepIndex === 0) {
+      const t = pkgType === 'Other' ? 'other' : 'bandwidth'
+      setSearchParams({ type: t, step: '2' })
+    } else if (stepIndex === 1) {
+      setSearchParams({ type: typeParam, step: '3' })
+    }
+  }
+
+  const goBack = () => {
+    if (stepIndex === 0) {
+      navigate('/packages')
+    } else if (stepIndex === 1) {
+      setSearchParams({ step: '1' })
+    } else {
+      setSearchParams({ type: typeParam, step: '2' })
+    }
+  }
 
   const handleSave = () => {
     setToast(true)
@@ -68,7 +95,7 @@ export default function PackageAdd() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-[#0F2744]">Create New Package</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Step {step + 1} of 3 &mdash; {STEPS[step]}</p>
+        <p className="text-sm text-gray-500 mt-0.5">Step {step} of 3 &mdash; {STEPS[stepIndex]}</p>
       </div>
 
       {/* Step indicator */}
@@ -77,15 +104,15 @@ export default function PackageAdd() {
           <div key={s} className="flex items-center flex-1 last:flex-none">
             <div className="flex flex-col items-center">
               <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
-                i < step ? 'bg-green-500 border-green-500 text-white' :
-                i === step ? 'bg-[#0A8DCD] border-[#0A8DCD] text-white' :
+                i < stepIndex ? 'bg-green-500 border-green-500 text-white' :
+                i === stepIndex ? 'bg-[#0A8DCD] border-[#0A8DCD] text-white' :
                 'bg-white border-gray-300 text-gray-400'
               }`}>
-                {i < step ? <CheckCircle size={16} /> : i + 1}
+                {i < stepIndex ? <CheckCircle size={16} /> : i + 1}
               </div>
               <span className="text-xs text-gray-500 mt-1 whitespace-nowrap">{s}</span>
             </div>
-            {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-2 mb-4 ${i < step ? 'bg-green-500' : 'bg-gray-200'}`} />}
+            {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 mx-2 mb-4 ${i < stepIndex ? 'bg-green-500' : 'bg-gray-200'}`} />}
           </div>
         ))}
       </div>
@@ -94,7 +121,7 @@ export default function PackageAdd() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
 
         {/* STEP 1 */}
-        {step === 0 && (
+        {stepIndex === 0 && (
           <>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Select Zone *</label>
@@ -135,7 +162,7 @@ export default function PackageAdd() {
         )}
 
         {/* STEP 2A — Bandwidth */}
-        {step === 1 && pkgType === 'Bandwidth' && (
+        {stepIndex === 1 && resolvedType === 'Bandwidth' && (
           <>
             <p className="text-sm text-gray-500">Add pricing rows &mdash; each row is a bandwidth/tenure combination.</p>
             <div className="overflow-x-auto">
@@ -198,7 +225,7 @@ export default function PackageAdd() {
         )}
 
         {/* STEP 2B — Other */}
-        {step === 1 && pkgType === 'Other' && (
+        {stepIndex === 1 && resolvedType === 'Other' && (
           <>
             <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
               Zone: <span className="font-medium">{zone}</span>
@@ -250,7 +277,7 @@ export default function PackageAdd() {
         )}
 
         {/* STEP 3 */}
-        {step === 2 && (
+        {stepIndex === 2 && (
           <>
             {[
               { key: 'editable', val: editable, set: setEditable, title: 'Is Package Editable?',          icon: '✏️', desc: 'Allow sales team to modify price during lead stage. If Yes → approval flow triggered' },
@@ -281,9 +308,9 @@ export default function PackageAdd() {
             <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm border border-gray-200">
               <p className="font-semibold text-gray-700 mb-3">Summary</p>
               {[
-                ['Package Name', pkgName],
-                ['Zone', zone],
-                ['Type', pkgType + ' Package'],
+                ['Package Name', pkgName || '—'],
+                ['Zone', zone || '—'],
+                ['Type', resolvedType + ' Package'],
                 ['Editable', editable ? 'Yes' : 'No'],
                 ['Landline', landline ? 'Yes' : 'No'],
                 ['Offer', offer ? 'Yes' : 'No'],
@@ -301,15 +328,15 @@ export default function PackageAdd() {
 
       {/* Navigation buttons */}
       <div className="flex justify-between">
-        <button onClick={() => step === 0 ? navigate('/packages') : setStep(s => s - 1)}
+        <button onClick={goBack}
           className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
-          {step === 0 ? 'Cancel' : '← Back'}
+          {stepIndex === 0 ? 'Cancel' : '← Back'}
         </button>
-        {step < 2 ? (
-          <button onClick={() => setStep(s => s + 1)}
-            disabled={step === 0 ? !step1Valid : !step2Valid}
+        {stepIndex < 2 ? (
+          <button onClick={goNext}
+            disabled={stepIndex === 0 ? !step1Valid : !step2Valid}
             className={`px-6 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              (step === 0 ? step1Valid : step2Valid)
+              (stepIndex === 0 ? step1Valid : step2Valid)
                 ? 'bg-[#0A8DCD] text-white hover:bg-blue-600'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}>
