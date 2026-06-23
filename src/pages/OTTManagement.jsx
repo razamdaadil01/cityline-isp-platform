@@ -2,12 +2,37 @@ import { useState, useRef, useEffect } from 'react'
 import { Tv2, Plus, MoreVertical, X, Search } from 'lucide-react'
 
 const INIT_OTT = [
-  { id: 1, name: 'Cityline TV Gold',   provider: 'Playbox', description: 'Premium OTT bundle',  status: 'Active' },
-  { id: 2, name: 'Cityline TV Silver', provider: 'Playbox', description: 'Standard OTT bundle', status: 'Active' },
-  { id: 3, name: 'Cityline TV Basic',  provider: 'Playbox', description: 'Basic OTT bundle',    status: 'Active' },
+  { id: 1, name: 'Bengal special_365',   amount: 1320, validity: '365 days', provider: 'Play Box', packages: ['DistroTV','DiscoveryPlus','PlayboxTV','Fancode','SonyLIV','Hoichoi','JioHotstar (A)','Zee5','Shemaroo','Hungama'], status: 'Active' },
+  { id: 2, name: 'Bengal special_180',   amount: 660,  validity: '180 days', provider: 'Play Box', packages: ['DistroTV','DiscoveryPlus','PlayboxTV','Fancode','SonyLIV','Hoichoi','JioHotstar (A)','Zee5','Shemaroo','Hungama'], status: 'Active' },
+  { id: 3, name: 'Bengal special_90',    amount: 330,  validity: '90 days',  provider: 'Play Box', packages: ['DistroTV','DiscoveryPlus','PlayboxTV','Fancode','SonyLIV','Hoichoi','JioHotstar (A)','Zee5','Shemaroo','Hungama'], status: 'Active' },
+  { id: 4, name: 'Bengal special_30',    amount: 110,  validity: '30 days',  provider: 'Play Box', packages: ['DistroTV','DiscoveryPlus','PlayboxTV','Fancode','SonyLIV','Hoichoi','JioHotstar (A)','Zee5','Shemaroo','Hungama'], status: 'Active' },
+  { id: 5, name: 'Cityline_Plus (HY)',   amount: 799,  validity: '180 days', provider: 'Play Box', packages: ['SonyLIV','Zee5','Shemaroo','PlayboxTV','Hungama','DiscoveryPlus','AaoNxt','OM TV','Fancode','JioHotstar (A)','DistroTV','Hubhopper','1OTT','iTap','Stage','Kanccha Lannka','Chana Jor','Amazon'], status: 'Active' },
+  { id: 6, name: 'Asia cup special_(Y)', amount: 240,  validity: '365 days', provider: 'Play Box', packages: ['SonyLIV','Shemaroo','PlayboxTV','Hungama','OM TV','Fancode','DistroTV','Stage','Shorts Tv','RunnTV','Shucae Flim','Dangal Play','Waves'], status: 'Active' },
+  { id: 7, name: 'Asia cup special_(HY)',amount: 120,  validity: '180 days', provider: 'Play Box', packages: ['SonyLIV','Shemaroo','PlayboxTV','Hungama','OM TV','Fancode','DistroTV','Stage','Shorts Tv','RunnTV','Shucae Flim','Dangal Play','Waves'], status: 'Active' },
+  { id: 8, name: 'Asia cup special_(Q)', amount: 60,   validity: '90 days',  provider: 'Play Box', packages: ['SonyLIV','Shemaroo','PlayboxTV','Hungama','OM TV','Fancode','DistroTV','Stage','Shorts Tv','RunnTV','Shucae Flim','Dangal Play','Waves'], status: 'Active' },
 ]
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
+
+function PackagesList({ packages }) {
+  const SHOW = 3
+  if (packages.length <= SHOW) {
+    return <span className="text-gray-600 text-xs">{packages.join(', ')}</span>
+  }
+  const shown = packages.slice(0, SHOW).join(', ')
+  const rest  = packages.slice(SHOW)
+  return (
+    <span className="text-gray-600 text-xs">
+      {shown},{' '}
+      <span className="relative group cursor-default">
+        <span className="text-[#0A8DCD] font-medium">+{rest.length} more</span>
+        <span className="absolute left-0 top-full mt-1 z-30 hidden group-hover:block w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl leading-relaxed">
+          {rest.join(', ')}
+        </span>
+      </span>
+    </span>
+  )
+}
 
 function ThreeDotMenu({ onEdit, onDeactivate, onRemove }) {
   const [open, setOpen] = useState(false)
@@ -43,20 +68,23 @@ export default function OTTManagement() {
   const [packages, setPackages] = useState(INIT_OTT)
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ name: '', provider: 'Playbox', description: '', status: 'Active' })
+  const [form, setForm] = useState({ providerType: 'Play Box', name: '', url: '', apiKey: '' })
 
-  const total    = packages.length
-  const active   = packages.filter(p => p.status === 'Active').length
+  const total     = packages.length
+  const active    = packages.filter(p => p.status === 'Active').length
   const providers = [...new Set(packages.map(p => p.provider))].length
 
   const openAdd = () => {
-    setForm({ name: '', provider: 'Playbox', description: '', status: 'Active' })
+    setForm({ providerType: 'Play Box', name: '', url: '', apiKey: '' })
     setModal(true)
   }
 
   const handleSave = () => {
-    if (!form.name) return
-    setPackages(prev => [...prev, { id: Date.now(), ...form }])
+    if (!form.name || !form.url) return
+    setPackages(prev => [...prev, {
+      id: Date.now(), name: form.name, amount: 0, validity: '—',
+      provider: form.providerType, packages: [], status: 'Active',
+    }])
     setModal(false)
   }
 
@@ -115,27 +143,27 @@ export default function OTTManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                {['OTT Name', 'Provider', 'Description', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                {['S.No', 'Package Name', 'Amount', 'Validity', 'Provider', 'Packages Included', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map(pkg => (
+              {filtered.map((pkg, idx) => (
                 <tr key={pkg.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-800">{pkg.name}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{idx + 1}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{pkg.name}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">₹{pkg.amount.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{pkg.validity}</td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{pkg.provider}</span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500">{pkg.description || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${pkg.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {pkg.status}
-                    </span>
+                  <td className="px-4 py-3 max-w-xs">
+                    <PackagesList packages={pkg.packages} />
                   </td>
                   <td className="px-4 py-3">
                     <ThreeDotMenu
-                      onEdit={() => { setForm({ name: pkg.name, provider: pkg.provider, description: pkg.description, status: pkg.status }); setModal(true) }}
+                      onEdit={() => { setForm({ providerType: pkg.provider, name: pkg.name, url: '', apiKey: '' }); setModal(true) }}
                       onDeactivate={() => deactivate(pkg.id)}
                       onRemove={() => remove(pkg.id)}
                     />
@@ -144,7 +172,7 @@ export default function OTTManagement() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No OTT packages found.</td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">No OTT packages found.</td>
                 </tr>
               )}
             </tbody>
@@ -162,34 +190,33 @@ export default function OTTManagement() {
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">OTT Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Cityline TV Premium" className={inp} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Provider *</label>
-                <select value={form.provider} onChange={e => setForm(f => ({ ...f, provider: e.target.value }))} className={inp}>
-                  <option>Playbox</option>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Provider Type *</label>
+                <select value={form.providerType} onChange={e => setForm(f => ({ ...f, providerType: e.target.value }))} className={inp}>
+                  <option>Play Box</option>
                   <option>Other</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Description</label>
-                <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Short description" className={inp} />
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Name *</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Ott Provider Name" className={inp} />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inp}>
-                  <option>Active</option>
-                  <option>Inactive</option>
-                </select>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">URL *</label>
+                <input value={form.url} onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                  placeholder="Ott Url" className={inp} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">API Key</label>
+                <textarea value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
+                  placeholder="Api Key" rows={3}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30 resize-none" />
               </div>
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setModal(false)}
                   className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
                 <button onClick={handleSave}
-                  className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-[#0878b0]">Save</button>
+                  className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-[#0878b0]">Generate Package</button>
               </div>
             </div>
           </div>
