@@ -67,6 +67,8 @@ function ThreeDotMenu({ onEdit, onDeactivate, onRemove }) {
 export default function OTTManagement() {
   const [packages, setPackages] = useState(INIT_OTT)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 5
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ providerType: 'Play Box', name: '', url: '', apiKey: '' })
 
@@ -95,6 +97,10 @@ export default function OTTManagement() {
     const q = search.toLowerCase()
     return p.name.toLowerCase().includes(q) || p.provider.toLowerCase().includes(q)
   })
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const from = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const to   = Math.min(page * PAGE_SIZE, filtered.length)
 
   return (
     <div className="p-6 space-y-5">
@@ -132,7 +138,7 @@ export default function OTTManagement() {
       {/* Search */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)}
+        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
           placeholder="Search OTT packages..."
           className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full max-w-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
       </div>
@@ -149,9 +155,9 @@ export default function OTTManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((pkg, idx) => (
+              {paged.map((pkg, idx) => (
                 <tr key={pkg.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500 text-xs">{idx + 1}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{(page - 1) * PAGE_SIZE + idx + 1}</td>
                   <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{pkg.name}</td>
                   <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">₹{pkg.amount.toLocaleString('en-IN')}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{pkg.validity}</td>
@@ -170,13 +176,34 @@ export default function OTTManagement() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {paged.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-gray-400 text-sm">No OTT packages found.</td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50/40">
+          <p className="text-xs text-gray-500">Showing {from}–{to} of {filtered.length} package{filtered.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="px-2.5 py-1 text-xs font-semibold border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+              Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button key={p} onClick={() => setPage(p)}
+                className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                  p === page ? 'bg-[#0A8DCD] text-white' : 'border border-gray-200 hover:bg-white text-gray-600'
+                }`}>
+                {p}
+              </button>
+            ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className="px-2.5 py-1 text-xs font-semibold border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
