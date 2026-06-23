@@ -24,6 +24,7 @@ import Packages from './pages/Packages'
 import PackageAdd from './pages/PackageAdd'
 import PackageDetail from './pages/PackageDetail'
 import PackageEdit from './pages/PackageEdit'
+import OTTManagement from './pages/OTTManagement'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import Inventory from './pages/Inventory'
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/support" element={<Support />} />
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/packages" element={<Packages />} />
+          <Route path="/ott" element={<OTTManagement />} />
           <Route path="/packages/add" element={<PackageAdd />} />
           <Route path="/packages/:packageId/edit" element={<PackageEdit />} />
           <Route path="/packages/:packageId/:tab" element={<PackageDetail />} />

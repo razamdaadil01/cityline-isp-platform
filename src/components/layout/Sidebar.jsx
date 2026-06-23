@@ -26,6 +26,7 @@ import {
   MapPin,
   ClipboardCheck,
   Wrench,
+  Tv2,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -44,6 +45,7 @@ const NAV_ITEMS = [
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
   { label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support'                   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
+  { label: 'OTT',              icon: Tv2,             to: '/ott'                        },
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
   { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
   {
