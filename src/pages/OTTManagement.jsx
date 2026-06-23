@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Tv2, Plus, MoreVertical, X, Info } from 'lucide-react'
+import { Tv2, Plus, MoreVertical, X, Search } from 'lucide-react'
 
 const INIT_OTT = [
   { id: 1, name: 'Cityline TV Gold',   provider: 'Playbox', description: 'Premium OTT bundle',  status: 'Active' },
@@ -41,6 +41,7 @@ function ThreeDotMenu({ onEdit, onDeactivate, onRemove }) {
 
 export default function OTTManagement() {
   const [packages, setPackages] = useState(INIT_OTT)
+  const [search, setSearch] = useState('')
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ name: '', provider: 'Playbox', description: '', status: 'Active' })
 
@@ -62,8 +63,13 @@ export default function OTTManagement() {
   const deactivate = (id) => setPackages(prev => prev.map(p => p.id === id ? { ...p, status: 'Inactive' } : p))
   const remove     = (id) => setPackages(prev => prev.filter(p => p.id !== id))
 
+  const filtered = packages.filter(p => {
+    const q = search.toLowerCase()
+    return p.name.toLowerCase().includes(q) || p.provider.toLowerCase().includes(q)
+  })
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -74,12 +80,6 @@ export default function OTTManagement() {
           className="flex items-center gap-2 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#0878b0] transition-colors">
           <Plus size={15} /> Add OTT Package
         </button>
-      </div>
-
-      {/* Info Banner */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-        <Info size={15} className="text-[#0A8DCD] mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-700">Playbox API integration will be configured by backend team</p>
       </div>
 
       {/* Stat Cards */}
@@ -101,6 +101,14 @@ export default function OTTManagement() {
         ))}
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search OTT packages..."
+          className="pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full max-w-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -113,7 +121,7 @@ export default function OTTManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {packages.map(pkg => (
+              {filtered.map(pkg => (
                 <tr key={pkg.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-800">{pkg.name}</td>
                   <td className="px-4 py-3">
@@ -134,7 +142,7 @@ export default function OTTManagement() {
                   </td>
                 </tr>
               ))}
-              {packages.length === 0 && (
+              {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No OTT packages found.</td>
                 </tr>
