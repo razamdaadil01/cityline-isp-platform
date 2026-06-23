@@ -1033,7 +1033,6 @@ function ZoneTab() {
 const MASTER_SUB_TABS = [
   { label: 'Tenure',           slug: 'tenure'    },
   { label: 'Bandwidth',        slug: 'bandwidth' },
-  { label: 'OTT',              slug: 'ott'       },
   { label: 'Landline Numbers', slug: 'landline'  },
   { label: 'Static IP',        slug: 'static-ip' },
 ]
@@ -1120,12 +1119,6 @@ function MasterConfigTab() {
   const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '' })
   const [bwPage, setBwPage] = useState(1)
 
-  // OTT state
-  const [otts, setOtts] = useState(INIT_MC_OTT)
-  const [ottModal, setOttModal] = useState(false)
-  const [ottForm, setOttForm] = useState({ name: '', provider: 'Playbox', description: '' })
-  const [ottPage, setOttPage] = useState(1)
-
   // Landline state
   const [landlines, setLandlines] = useState(MOCK_LANDLINES)
   const [landlineModal, setLandlineModal] = useState(false)
@@ -1143,7 +1136,6 @@ function MasterConfigTab() {
   // Sliced data for current page
   const tenureRows   = tenures.slice((tenurePage   - 1) * MC_PAGE_SIZE, tenurePage   * MC_PAGE_SIZE)
   const bwRows       = bandwidths.slice((bwPage     - 1) * MC_PAGE_SIZE, bwPage       * MC_PAGE_SIZE)
-  const ottRows      = otts.slice((ottPage          - 1) * MC_PAGE_SIZE, ottPage       * MC_PAGE_SIZE)
   const landlineRows = landlines.slice((landlinePage - 1) * MC_PAGE_SIZE, landlinePage * MC_PAGE_SIZE)
   const ipRows       = staticIps.slice((ipPage       - 1) * MC_PAGE_SIZE, ipPage        * MC_PAGE_SIZE)
 
@@ -1151,7 +1143,7 @@ function MasterConfigTab() {
     <div className="space-y-5">
       <div className="pb-4 border-b border-surface-border">
         <h2 className="text-base font-semibold text-gray-900">Master Configuration</h2>
-        <p className="text-xs text-gray-500 mt-1">Manage tenures, bandwidths, OTT packages, landlines and static IPs</p>
+        <p className="text-xs text-gray-500 mt-1">Manage tenures, bandwidths, landlines and static IPs</p>
       </div>
 
       {/* Sub-tab bar */}
@@ -1299,80 +1291,6 @@ function MasterConfigTab() {
                       setBandwidths(prev => [...prev, { id: Date.now(), speed: Number(bwForm.speed), unit: bwForm.unit, description: bwForm.description, status: 'Active' }])
                       setBwForm({ speed: '', unit: 'Mbps', description: '' })
                       setBwModal(false)
-                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── OTT ── */}
-      {sub === 'OTT' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-800">OTT Packages</h3>
-            <button onClick={() => setOttModal(true)}
-              className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
-              <Plus size={13} /> Add OTT Package
-            </button>
-          </div>
-          <div className="rounded-xl border border-surface-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50/80 border-b border-surface-border">
-                {['OTT Name','Provider','Description','Status','Actions'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr></thead>
-              <tbody className="divide-y divide-surface-border">
-                {ottRows.map(o => (
-                  <tr key={o.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 font-medium text-gray-800">{o.name}</td>
-                    <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{o.provider}</span></td>
-                    <td className="px-4 py-3 text-gray-500">{o.description}</td>
-                    <td className="px-4 py-3"><StatusPill status={o.status} /></td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => setOtts(prev => prev.filter(x => x.id !== o.id))}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <MCPagination page={ottPage} setPage={setOttPage} total={otts.length} />
-          </div>
-          {ottModal && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                  <h2 className="font-semibold text-gray-800">Add OTT Package</h2>
-                  <button onClick={() => setOttModal(false)}><X size={16} className="text-gray-400" /></button>
-                </div>
-                <div className="p-5 space-y-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">OTT Package Name *</label>
-                    <input value={ottForm.name} onChange={e => setOttForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Cityline TV Premium" className={inp} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Provider</label>
-                    <select value={ottForm.provider} onChange={e => setOttForm(f=>({...f,provider:e.target.value}))} className={inp}>
-                      <option>Playbox</option><option>Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Description</label>
-                    <input value={ottForm.description} onChange={e => setOttForm(f=>({...f,description:e.target.value}))} className={inp} />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button onClick={() => setOttModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
-                    <button onClick={() => {
-                      if (!ottForm.name) return
-                      setOtts(prev => [...prev, { id: Date.now(), name: ottForm.name, provider: ottForm.provider, description: ottForm.description, status: 'Active' }])
-                      setOttForm({ name: '', provider: 'Playbox', description: '' })
-                      setOttModal(false)
                     }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
                   </div>
                 </div>
