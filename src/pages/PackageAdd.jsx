@@ -58,7 +58,7 @@ export default function PackageAdd() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 max-w-5xl mx-auto space-y-5">
       {/* Toast */}
       {toast && (
         <div className="fixed top-6 right-6 z-50 bg-green-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium">
@@ -95,22 +95,22 @@ export default function PackageAdd() {
       {/* ── Basic Details ─────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Basic Details</p>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Select Zone *</label>
-          <select value={zone} onChange={e => setZone(e.target.value)} className={inp}>
-            <option value="">Select zone...</option>
-            <option>Residential</option>
-            <option>Enterprise</option>
-            <option>Zone A</option>
-            <option>Zone B</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Package Name *</label>
-          <input value={pkgName} onChange={e => setPkgName(e.target.value)} className={inp}
-            placeholder="e.g. Sonic 100, Home Basic" />
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Select Zone *</label>
+            <select value={zone} onChange={e => setZone(e.target.value)} className={inp}>
+              <option value="">Select zone...</option>
+              <option>Residential</option>
+              <option>Enterprise</option>
+              <option>Zone A</option>
+              <option>Zone B</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Package Name *</label>
+            <input value={pkgName} onChange={e => setPkgName(e.target.value)} className={inp}
+              placeholder="e.g. Sonic 100, Home Basic" />
+          </div>
         </div>
       </div>
 
@@ -181,7 +181,8 @@ export default function PackageAdd() {
         )}
 
         {pkgType === 'Other' && (
-          <>
+          <div className="space-y-4">
+            {/* Bind toggle — full width */}
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
                 <p className="text-sm font-medium text-gray-800">Bind with Bandwidth Package</p>
@@ -191,7 +192,7 @@ export default function PackageAdd() {
             </div>
 
             {bound ? (
-              <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Bind Package *</label>
                   <select value={bindPkg} onChange={e => setBindPkg(e.target.value)} className={inp}>
@@ -205,7 +206,8 @@ export default function PackageAdd() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* Standalone info — full width */}
                 <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
                   Standalone package &mdash; can be added independently to any lead
                 </div>
@@ -216,7 +218,8 @@ export default function PackageAdd() {
               </div>
             )}
 
-            <label className="flex items-start gap-3 cursor-pointer">
+            {/* Separate Invoice — full width */}
+            <label className="flex items-start gap-3 cursor-pointer pt-1">
               <input type="checkbox" checked={separateInvoice} onChange={e => setSeparateInvoice(e.target.checked)}
                 className="mt-0.5 w-4 h-4 accent-[#0A8DCD]" />
               <div>
@@ -224,7 +227,7 @@ export default function PackageAdd() {
                 <p className="text-xs text-gray-500 mt-0.5">This package amount shows separately in the invoice</p>
               </div>
             </label>
-          </>
+          </div>
         )}
       </div>
 
@@ -232,28 +235,44 @@ export default function PackageAdd() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Settings</p>
 
-        {[
-          { key: 'editable', val: editable, set: setEditable, title: 'Is Package Editable?',        icon: '✏️', desc: 'Allow sales team to modify price during lead stage. If Yes → approval flow triggered' },
-          { key: 'landline', val: landline, set: setLandline, title: 'Landline Number Applicable?', icon: '📞', desc: 'Does this package support landline/VOIP assignment? If Yes → shown in lead form' },
-          { key: 'offer',    val: offer,    set: setOffer,    title: 'Is Offer Package?',           icon: '🎁', desc: 'Mark as introductory/special offer. Applicable once per customer only' },
-        ].map(opt => (
-          <div key={opt.key} className="flex items-start justify-between p-4 border border-gray-200 rounded-xl">
+        {/* Row 1: Editable | Landline */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { key: 'editable', val: editable, set: setEditable, title: 'Is Package Editable?',        icon: '✏️', desc: 'Allow sales team to modify price during lead stage. If Yes → approval flow triggered' },
+            { key: 'landline', val: landline, set: setLandline, title: 'Landline Number Applicable?', icon: '📞', desc: 'Does this package support landline/VOIP assignment? If Yes → shown in lead form' },
+          ].map(opt => (
+            <div key={opt.key} className="flex items-start justify-between p-4 border border-gray-200 rounded-xl">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">{opt.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{opt.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 max-w-[200px]">{opt.desc}</p>
+                </div>
+              </div>
+              <Toggle value={opt.val} onChange={opt.set} />
+            </div>
+          ))}
+        </div>
+
+        {/* Row 2: Offer | Status */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-start justify-between p-4 border border-gray-200 rounded-xl">
             <div className="flex items-start gap-3">
-              <span className="text-xl">{opt.icon}</span>
+              <span className="text-xl">🎁</span>
               <div>
-                <p className="text-sm font-semibold text-gray-800">{opt.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5 max-w-sm">{opt.desc}</p>
+                <p className="text-sm font-semibold text-gray-800">Is Offer Package?</p>
+                <p className="text-xs text-gray-500 mt-0.5 max-w-[200px]">Mark as introductory/special offer. Applicable once per customer only</p>
               </div>
             </div>
-            <Toggle value={opt.val} onChange={opt.set} />
+            <Toggle value={offer} onChange={setOffer} />
           </div>
-        ))}
 
-        <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
-          <p className="text-sm font-semibold text-gray-800">Status</p>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">{active ? 'Active' : 'Inactive'}</span>
-            <Toggle value={active} onChange={setActive} />
+          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
+            <p className="text-sm font-semibold text-gray-800">Status</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">{active ? 'Active' : 'Inactive'}</span>
+              <Toggle value={active} onChange={setActive} />
+            </div>
           </div>
         </div>
       </div>
