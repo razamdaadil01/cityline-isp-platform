@@ -464,9 +464,25 @@ export default function Billing() {
         <PaymentHistory payments={PAYMENT_HISTORY} />
       ) : (
         <>
-          {/* ── Quick status tabs + totals ── */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex gap-1">
+          {/* ── Totals ── */}
+          <div className="text-xs text-gray-700 font-medium">
+            Admin Total: <span className="text-gray-900 font-bold">₹88,646.00</span>
+            <span className="mx-3 text-gray-300">|</span>
+            Reseller Total: <span className="text-gray-900 font-bold">₹0.00</span>
+          </div>
+
+          {/* ── Search + Quick filters (same row) ── */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by customer name or ID..."
+                className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+              />
+            </div>
+            <div className="flex gap-1 shrink-0">
               {statusTabs.map(s => (
                 <button
                   key={s}
@@ -481,22 +497,6 @@ export default function Billing() {
                 </button>
               ))}
             </div>
-            <div className="text-xs text-gray-700 font-medium">
-              Admin Total: <span className="text-gray-900 font-bold">₹88,646.00</span>
-              <span className="mx-3 text-gray-300">|</span>
-              Reseller Total: <span className="text-gray-900 font-bold">₹0.00</span>
-            </div>
-          </div>
-
-          {/* ── Search bar ── */}
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by customer name or ID..."
-              className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
-            />
           </div>
 
           {/* ── Table ── */}
