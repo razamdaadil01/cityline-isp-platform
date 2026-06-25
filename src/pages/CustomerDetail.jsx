@@ -1448,7 +1448,7 @@ function FinanceTab({ customer }) {
       {/* Add Payment Modal */}
       {addPaymentModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-6 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[min(900px,90vw)] my-6">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="text-base font-semibold text-gray-800">Add Payment</h2>
@@ -1559,8 +1559,8 @@ function FinanceTab({ customer }) {
               {/* Settle Invoices Table */}
               <div className="pt-2">
                 <p className="text-sm font-semibold text-gray-700 mb-3">Settle invoices with this payment</p>
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="rounded-xl border border-gray-200 overflow-x-auto">
+                  <table className="w-full min-w-[700px] text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         {['Settle Invoice','Date','Invoice Number','Invoice Amount','Balance Amount','Amount Paid'].map(h => (
