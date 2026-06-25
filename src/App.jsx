@@ -15,6 +15,7 @@ import SalesProposals from './pages/SalesProposals'
 import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
 import SalesLeadDetail from './pages/SalesLeadDetail'
+import SalesEditLead from './pages/SalesEditLead'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import Installations from './pages/Installations'
 import Billing from './pages/Billing'
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/sales/proposals" element={<SalesProposals />} />
           <Route path="/sales/analytics" element={<SalesAnalytics />} />
           <Route path="/sales/leads/new" element={<SalesNewLead />} />
+          <Route path="/sales/leads/:id/edit" element={<SalesEditLead />} />
           <Route path="/sales/leads/:id" element={<SalesLeadDetail />} />
           <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
