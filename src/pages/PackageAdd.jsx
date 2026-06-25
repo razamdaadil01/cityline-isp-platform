@@ -1,31 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import Button from '../components/ui/Button'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { savePlan } from '../data/packagesStore'
+import { FormField, Input, Select } from '../components/ui/FormInputs'
 
-const PLAN_BILLING_TYPES = ['Monthly', 'Quarterly', 'Half Yearly', 'Yearly', 'One Time']
+const BANDWIDTHS = ['50 Mbps', '100 Mbps', '150 Mbps', '200 Mbps', '300 Mbps', '500 Mbps', '1 Gbps']
+const TENURES = ['1 Month', '3 Months', '6 Months', '1 Year', '12+1', '12+2']
+const OTT_OPTIONS = ['None', 'Cityline TV Gold', 'Cityline TV Silver', 'Cityline TV Basic', 'Playbox']
+const BILLING_TYPES = ['Monthly', 'Quarterly', 'Half Yearly', 'Yearly', 'One Time']
+const ZONES = ['Residential', 'Enterprise', 'Zone A', 'Zone B']
 
-const EMPTY_MMP_ROW = { name: '', billingType: 'Monthly', price: '' }
-
-const EMPTY_FORM = {
-  planType: 'Bandwidth',
-  name: '',
-  bandwidthPackageId: '',
-  serviceType: 'Plan',
-  pipeline: '',
-  noOfRecharge: '1',
-  sortOrder: '',
-  packageInfo: '',
-  multipleMonthPricing: false,
-  billingType: 'Monthly',
-  price: '',
-  mmpRows: [{ ...EMPTY_MMP_ROW }, { ...EMPTY_MMP_ROW }],
-  bundleOTT: false,
-  ottType: '',
-  ottPackage: '',
-}
+const EMPTY_ROW = { bandwidth: '', jazeId: '', tenure: '', price: '', ott: 'None' }
 
 function Toggle({ value, onChange }) {
   return (
@@ -36,34 +21,47 @@ function Toggle({ value, onChange }) {
   )
 }
 
+const inp = "w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+
 export default function PackageAdd() {
   const navigate = useNavigate()
-  const [form, setForm] = useState(EMPTY_FORM)
 
-  function setField(key, val) {
-    setForm(f => ({ ...f, [key]: val }))
-  }
+  // Plan Type
+  const [planType, setPlanType] = useState('Bandwidth')
+
+  // Basic Details
+  const [zone, setZone] = useState('')
+  const [pkgName, setPkgName] = useState('')
+
+  // Bandwidth config
+  const [bwRows, setBwRows] = useState([{ ...EMPTY_ROW }])
+
+  // Other Package config
+  const [price, setPrice] = useState('')
+  const [billingType, setBillingType] = useState('Monthly')
+  const [bindBw, setBindBw] = useState(false)
+  const [bindPkg, setBindPkg] = useState('')
+  const [separateInvoice, setSeparateInvoice] = useState(false)
+
+  // Settings
+  const [editable, setEditable] = useState(false)
+  const [landline, setLandline] = useState(false)
+  const [offer, setOffer] = useState(false)
+  const [active, setActive] = useState(true)
+
+  const addRow = () => setBwRows(r => [...r, { ...EMPTY_ROW }])
+  const removeRow = i => setBwRows(r => r.filter((_, idx) => idx !== i))
+  const updateRow = (i, field, val) => setBwRows(r => r.map((row, idx) => idx === i ? { ...row, [field]: val } : row))
+
+  const canSave = zone && pkgName.trim() && (
+    planType === 'Bandwidth'
+      ? bwRows.every(r => r.bandwidth && r.jazeId && r.tenure && r.price)
+      : !!price
+  )
 
   function handleSubmit() {
-    const newPlan = {
-      ...form,
-      id: Date.now(),
-      price: Number(form.price),
-      sortOrder: form.sortOrder ? Number(form.sortOrder) : null,
-      ottBundle: form.bundleOTT,
-      status: 'active',
-    }
-    savePlan(newPlan)
     navigate('/packages')
   }
-
-  const canSave =
-    form.name.trim() &&
-    (form.multipleMonthPricing
-      ? form.mmpRows.every(r => r.name.trim() && r.price)
-      : !!form.price)
-
-  const fieldCls = "w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
 
   const sectionLabel = "text-[11px] font-semibold text-gray-400 uppercase tracking-widest mb-4"
 
@@ -91,239 +89,181 @@ export default function PackageAdd() {
         {/* ── LEFT PANEL (60%) ─────────────────────────────────── */}
         <div className="flex-[3] min-w-0 bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
 
-          {/* Plan Type */}
+          {/* SECTION 1 — Plan Type */}
           <div>
             <p className={sectionLabel}>Plan Type</p>
-            <div className="flex items-center gap-6">
-              {['Bandwidth', 'Other Package'].map(opt => (
-                <label key={opt} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="radio"
-                    name="planType"
-                    value={opt}
-                    checked={form.planType === opt}
-                    onChange={() => setField('planType', opt)}
-                    className="w-4 h-4 border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                  />
-                  <span className="text-sm text-gray-700">{opt}</span>
-                </label>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { type: 'Bandwidth',     sub: 'Internet plans with speed tiers' },
+                { type: 'Other Package', sub: 'Add-on services' },
+              ].map(opt => (
+                <button key={opt.type} type="button" onClick={() => setPlanType(opt.type)}
+                  className={`p-5 rounded-xl border-2 text-left transition-colors ${
+                    planType === opt.type ? 'border-[#0A8DCD] bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                  <p className={`font-semibold text-sm ${planType === opt.type ? 'text-[#0A8DCD]' : 'text-gray-700'}`}>{opt.type}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{opt.sub}</p>
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Basic Details */}
+          {/* SECTION 2 — Basic Details */}
           <div className="border-t border-surface-border pt-5">
             <p className={sectionLabel}>Basic Details</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-
+              <FormField label="Select Zone" required>
+                <Select value={zone} onChange={e => setZone(e.target.value)}>
+                  <option value="">Select zone…</option>
+                  {ZONES.map(z => <option key={z}>{z}</option>)}
+                </Select>
+              </FormField>
               <FormField label="Package Name" required>
                 <Input
-                  placeholder="e.g. 100 Mbps Monthly FTTH"
-                  value={form.name}
-                  onChange={e => setField('name', e.target.value)}
+                  placeholder="e.g. Sonic 100, Home Basic"
+                  value={pkgName}
+                  onChange={e => setPkgName(e.target.value)}
                 />
               </FormField>
-
-              <FormField label="Bandwidth Package ID" required>
-                <Input
-                  placeholder="e.g. PKG-001"
-                  value={form.bandwidthPackageId}
-                  onChange={e => setField('bandwidthPackageId', e.target.value)}
-                />
-              </FormField>
-
-              <FormField label="Service Type" required>
-                <Select value={form.serviceType} onChange={e => setField('serviceType', e.target.value)}>
-                  <option value="Plan">Plan</option>
-                  <option value="Other Package">Other Package</option>
-                </Select>
-              </FormField>
-
-              <FormField label="Pipeline" required>
-                <Select value={form.pipeline} onChange={e => setField('pipeline', e.target.value)}>
-                  <option value="">Select pipeline…</option>
-                  <option value="Residential">Residential</option>
-                  <option value="Enterprise">Enterprise</option>
-                </Select>
-              </FormField>
-
-              <FormField label="No. of Recharge" required>
-                <Select value={form.noOfRecharge} onChange={e => setField('noOfRecharge', e.target.value)}>
-                  {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </Select>
-              </FormField>
-
-              <FormField label="Sort Order" required>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.sortOrder}
-                  onChange={e => setField('sortOrder', e.target.value)}
-                />
-              </FormField>
-
               <div className="col-span-2">
-                <FormField label="Package Info">
-                  <Textarea
-                    rows={3}
-                    placeholder="Additional details about this plan"
-                    value={form.packageInfo}
-                    onChange={e => setField('packageInfo', e.target.value)}
+                <FormField label="Package Type">
+                  <input
+                    readOnly
+                    value={planType === 'Bandwidth' ? 'Bandwidth Package' : 'Other Package'}
+                    className={`${inp} bg-gray-50 text-gray-500 cursor-not-allowed`}
                   />
                 </FormField>
               </div>
-
             </div>
           </div>
 
-          {/* Pricing */}
+          {/* SECTION 3 — Configuration */}
           <div className="border-t border-surface-border pt-5">
-            <p className={sectionLabel}>Pricing</p>
-            <div className="space-y-4">
+            <p className={sectionLabel}>Configuration</p>
 
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={form.multipleMonthPricing}
-                  onChange={e => setField('multipleMonthPricing', e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                />
-                <span className="text-sm font-medium text-gray-700">Multiple Month Pricing</span>
-              </label>
+            {/* ── Bandwidth rows ── */}
+            {planType === 'Bandwidth' && (
+              <div className="space-y-3">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {['Bandwidth *', 'Jaze Package ID *', 'Tenure *', 'Price (₹) *', 'OTT Package', ''].map((h, i) => (
+                          <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {bwRows.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-2 py-2">
+                            <select value={row.bandwidth} onChange={e => updateRow(i, 'bandwidth', e.target.value)} className={inp}>
+                              <option value="">Select…</option>
+                              {BANDWIDTHS.map(b => <option key={b}>{b}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number" min="0" max="100"
+                              value={row.jazeId}
+                              onChange={e => updateRow(i, 'jazeId', e.target.value)}
+                              className={inp} placeholder="e.g. 42"
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <select value={row.tenure} onChange={e => updateRow(i, 'tenure', e.target.value)} className={inp}>
+                              <option value="">Select…</option>
+                              {TENURES.map(t => <option key={t}>{t}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">₹</span>
+                              <input
+                                type="number" min="0"
+                                value={row.price}
+                                onChange={e => updateRow(i, 'price', e.target.value)}
+                                className={`${inp} pl-7`} placeholder="0"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <select value={row.ott} onChange={e => updateRow(i, 'ott', e.target.value)} className={inp}>
+                              {OTT_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2">
+                            <button type="button" onClick={() => removeRow(i)} disabled={bwRows.length === 1}
+                              className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-30 transition-colors">
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button type="button" onClick={addRow}
+                  className="flex items-center gap-1.5 text-[#0A8DCD] text-sm font-medium hover:text-blue-600">
+                  <Plus size={14} /> Add Row
+                </button>
+              </div>
+            )}
 
-              {!form.multipleMonthPricing && (
+            {/* ── Other Package fields ── */}
+            {planType === 'Other Package' && (
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  <FormField label="Billing Type" required>
-                    <Select value={form.billingType} onChange={e => setField('billingType', e.target.value)}>
-                      {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-                    </Select>
-                  </FormField>
                   <FormField label="Price (₹)" required>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={form.price}
-                      onChange={e => setField('price', e.target.value)}
-                    />
-                  </FormField>
-                </div>
-              )}
-
-              {form.multipleMonthPricing && (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_1.5fr_1fr_auto] gap-2 mb-1">
-                    <p className="text-xs font-medium text-gray-500">Name <span className="text-red-400">*</span></p>
-                    <p className="text-xs font-medium text-gray-500">Billing Type <span className="text-red-400">*</span></p>
-                    <p className="text-xs font-medium text-gray-500">Price <span className="text-red-400">*</span></p>
-                    <div />
-                  </div>
-                  {form.mmpRows.map((row, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1.5fr_1fr_auto] gap-2 items-center">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">₹</span>
                       <input
-                        type="text"
-                        placeholder="Name"
-                        value={row.name}
-                        onChange={e => {
-                          const rows = form.mmpRows.map((r, j) => j === i ? { ...r, name: e.target.value } : r)
-                          setField('mmpRows', rows)
-                        }}
-                        className={fieldCls}
+                        type="number" min="0"
+                        value={price}
+                        onChange={e => setPrice(e.target.value)}
+                        className={`${inp} pl-7`} placeholder="0"
                       />
-                      <select
-                        value={row.billingType}
-                        onChange={e => {
-                          const rows = form.mmpRows.map((r, j) => j === i ? { ...r, billingType: e.target.value } : r)
-                          setField('mmpRows', rows)
-                        }}
-                        className={fieldCls}
-                      >
-                        {PLAN_BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
-                      </select>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none">₹</span>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="0"
-                          value={row.price}
-                          onChange={e => {
-                            const rows = form.mmpRows.map((r, j) => j === i ? { ...r, price: e.target.value } : r)
-                            setField('mmpRows', rows)
-                          }}
-                          className={`${fieldCls} pl-7`}
-                        />
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setField('mmpRows', [...form.mmpRows, { ...EMPTY_MMP_ROW }])}
-                          className="w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-colors font-bold text-base leading-none"
-                        >+</button>
-                        {form.mmpRows.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => setField('mmpRows', form.mmpRows.filter((_, j) => j !== i))}
-                            className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors font-bold text-base leading-none"
-                          >−</button>
-                        )}
-                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* OTT */}
-          <div className="border-t border-surface-border pt-5">
-            <p className={sectionLabel}>OTT</p>
-            <div className="space-y-4">
-
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={form.bundleOTT}
-                  onChange={e => setField('bundleOTT', e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                />
-                <span className="text-sm font-medium text-gray-700">Bundle with OTT</span>
-              </label>
-
-              {form.bundleOTT && (
-                <div className="grid grid-cols-2 gap-x-6 gap-y-4 pl-7">
-                  <FormField label="OTT Type" required>
-                    <Select value={form.ottType} onChange={e => setField('ottType', e.target.value)}>
-                      <option value="">Select OTT Type…</option>
-                      <option>Play Box</option>
-                    </Select>
                   </FormField>
-                  <FormField label="Select Package" required>
-                    <Select value={form.ottPackage} onChange={e => setField('ottPackage', e.target.value)}>
-                      <option value="">Select Package…</option>
-                      {[
-                        'Cityline TV Gold Half Yearly',
-                        'Cityline TV Gold Yearly',
-                        'Cityline TV Gold Monthly',
-                        'Cityline TV Gold Quarterly',
-                        'Cityline_Plus (Y)',
-                        'Cityline TV Platinum Monthly',
-                        'Cityline TV Platinum Half Yearly',
-                        'Cityline TV Platinum Quarterly',
-                        'Cityline TV Platinum Yearly',
-                      ].map(o => <option key={o}>{o}</option>)}
+                  <FormField label="Billing Type" required>
+                    <Select value={billingType} onChange={e => setBillingType(e.target.value)}>
+                      {BILLING_TYPES.map(b => <option key={b}>{b}</option>)}
                     </Select>
                   </FormField>
                 </div>
-              )}
 
-            </div>
+                <div className="flex items-center justify-between py-3 border-t border-gray-100">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Bind with Bandwidth Package</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Link this add-on to a specific bandwidth package</p>
+                  </div>
+                  <Toggle value={bindBw} onChange={setBindBw} />
+                </div>
+
+                {bindBw && (
+                  <FormField label="Select Bandwidth Package" required>
+                    <Select value={bindPkg} onChange={e => setBindPkg(e.target.value)}>
+                      <option value="">Select package…</option>
+                      <option>Sonic 100 - Monthly</option>
+                      <option>Sonic 200 - Monthly</option>
+                      <option>Home Basic - Quarterly</option>
+                      <option>Enterprise 500 - Yearly</option>
+                    </Select>
+                  </FormField>
+                )}
+
+                <label className="flex items-start gap-3 cursor-pointer pt-1">
+                  <input type="checkbox" checked={separateInvoice} onChange={e => setSeparateInvoice(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#0A8DCD]" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Separate Invoice</p>
+                    <p className="text-xs text-gray-500 mt-0.5">This package amount shows separately in the invoice</p>
+                  </div>
+                </label>
+              </div>
+            )}
+
           </div>
-
         </div>
 
         {/* ── RIGHT PANEL (40%) ────────────────────────────────── */}
@@ -332,9 +272,9 @@ export default function PackageAdd() {
           <div className="space-y-3">
 
             {[
-              { key: 'editable', title: 'Is Package Editable?',        icon: '✏️', desc: 'Allow sales team to modify price during lead stage. If Yes → approval flow triggered' },
-              { key: 'landline', title: 'Landline Number Applicable?', icon: '📞', desc: 'Does this package support landline/VOIP assignment? If Yes → shown in lead form' },
-              { key: 'offer',    title: 'Is Offer Package?',           icon: '🎁', desc: 'Mark as introductory/special offer. Applicable once per customer only' },
+              { key: 'editable', val: editable, set: setEditable, icon: '✏️', title: 'Is Package Editable?',        desc: 'Allow sales team to modify price during lead stage. If Yes → approval flow triggered' },
+              { key: 'landline', val: landline, set: setLandline, icon: '📞', title: 'Landline Number Applicable?', desc: 'Does this package support landline/VOIP assignment? If Yes → shown in lead form' },
+              { key: 'offer',    val: offer,    set: setOffer,    icon: '🎁', title: 'Is Offer Package?',           desc: 'Mark as introductory/special offer. Applicable once per customer only' },
             ].map(opt => (
               <div key={opt.key} className="flex items-start justify-between p-4 border border-gray-200 rounded-xl gap-3">
                 <div className="flex items-start gap-3">
@@ -344,21 +284,15 @@ export default function PackageAdd() {
                     <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
                   </div>
                 </div>
-                <Toggle
-                  value={form[opt.key] ?? false}
-                  onChange={val => setField(opt.key, val)}
-                />
+                <Toggle value={opt.val} onChange={opt.set} />
               </div>
             ))}
 
             <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
               <p className="text-sm font-semibold text-gray-800">Status</p>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">{form.status !== false ? 'Active' : 'Inactive'}</span>
-                <Toggle
-                  value={form.status !== false}
-                  onChange={val => setField('status', val)}
-                />
+                <span className="text-sm text-gray-500">{active ? 'Active' : 'Inactive'}</span>
+                <Toggle value={active} onChange={setActive} />
               </div>
             </div>
 
