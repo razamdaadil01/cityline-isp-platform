@@ -1448,7 +1448,7 @@ function FinanceTab({ customer }) {
       {/* Add Payment Modal */}
       {addPaymentModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-6 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-auto">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <h2 className="text-base font-semibold text-gray-800">Add Payment</h2>
@@ -1457,29 +1457,41 @@ function FinanceTab({ customer }) {
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              {/* Row 1: Receipt No | User Id | Total Amount | Payment Date */}
-              <div className="grid grid-cols-4 gap-4">
+            <div className="p-6 space-y-4">
+              {/* Row 1: Receipt No | User Id */}
+              <div className="grid grid-cols-2 gap-5">
                 {[
-                  { label: 'Receipt No',    value: 'Auto-generated', disabled: true  },
-                  { label: 'User Id',       value: customer?.id || '',  disabled: true  },
-                  { label: 'Total Amount',  value: '35400',          disabled: true  },
-                  { label: 'Payment Date',  value: today,            disabled: true  },
+                  { label: 'Receipt No',   value: 'Auto-generated'  },
+                  { label: 'User Id',      value: customer?.id || '' },
                 ].map(f => (
                   <div key={f.label}>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
-                    <input defaultValue={f.value} disabled={f.disabled}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed" />
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{f.label}</label>
+                    <input defaultValue={f.value} disabled
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed" />
                   </div>
                 ))}
               </div>
 
-              {/* Row 2: Payment Mode | Amount to be paid | Due Amount | Transaction No */}
-              <div className="grid grid-cols-4 gap-4">
+              {/* Row 2: Total Amount | Payment Date */}
+              <div className="grid grid-cols-2 gap-5">
+                {[
+                  { label: 'Total Amount', value: '35400' },
+                  { label: 'Payment Date', value: today   },
+                ].map(f => (
+                  <div key={f.label}>
+                    <label className="block text-xs font-medium text-gray-500 mb-1.5">{f.label}</label>
+                    <input defaultValue={f.value} disabled
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Row 3: Payment Mode | Amount to be paid */}
+              <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Payment Mode</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Payment Mode</label>
                   <select value={payForm.mode} onChange={e => setPayForm(f => ({ ...f, mode: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30">
                     <option>Cash</option>
                     <option>Online</option>
                     <option>Cheque</option>
@@ -1487,61 +1499,65 @@ function FinanceTab({ customer }) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Amount to be paid</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Amount to be paid</label>
                   <input type="number" value={payForm.amount}
                     onChange={e => setPayForm(f => ({ ...f, amount: e.target.value, fullAmount: false }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
-                  <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
+                  <label className="flex items-center gap-1.5 mt-2 cursor-pointer">
                     <input type="checkbox" checked={payForm.fullAmount}
                       onChange={e => setPayForm(f => ({ ...f, fullAmount: e.target.checked, amount: e.target.checked ? '35400' : f.amount }))}
                       className="w-3.5 h-3.5 accent-[#0A8DCD]" />
                     <span className="text-xs text-gray-500">Full Amount To be Paid</span>
                   </label>
                 </div>
+              </div>
+
+              {/* Row 4: Due Amount | Transaction No */}
+              <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Due Amount</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Due Amount</label>
                   <input value="35400" disabled
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Transaction No.</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Transaction No.</label>
                   <input value={payForm.txn} onChange={e => setPayForm(f => ({ ...f, txn: e.target.value }))}
                     placeholder="Transaction / Cheque No."
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
                 </div>
               </div>
 
               {/* Comment */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Comment</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Comment</label>
                 <textarea value={payForm.comment} onChange={e => setPayForm(f => ({ ...f, comment: e.target.value }))}
-                  rows={2} placeholder="Add a comment..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30 resize-none" />
+                  rows={3} placeholder="Add a comment..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30 resize-none" />
               </div>
 
               {/* Payment Proof */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Payment Proof</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Payment Proof</label>
                 <input type="file" onChange={e => setPayForm(f => ({ ...f, proof: e.target.files[0] }))}
                   className="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-gray-100 file:text-gray-600 hover:file:bg-gray-200" />
               </div>
 
               {/* SMS checkbox */}
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
                 <input type="checkbox" checked={payForm.sms} onChange={e => setPayForm(f => ({ ...f, sms: e.target.checked }))}
                   className="w-4 h-4 accent-[#0A8DCD]" />
                 <span className="text-sm text-gray-700">SMS</span>
               </label>
 
               {/* Buttons */}
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-2">
                 <button onClick={() => setAddPaymentModal(false)}
-                  className="px-5 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Skip</button>
-                <button className="px-5 py-2 bg-[#0A8DCD] hover:bg-[#0878b0] text-white rounded-lg text-sm font-medium transition-colors">Submit</button>
+                  className="px-7 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Skip</button>
+                <button className="px-7 py-2.5 bg-[#0A8DCD] hover:bg-[#0878b0] text-white rounded-lg text-sm font-medium transition-colors">Submit</button>
               </div>
 
               {/* Settle Invoices Table */}
-              <div>
+              <div className="pt-2">
                 <p className="text-sm font-semibold text-gray-700 mb-3">Settle invoices with this payment</p>
                 <div className="rounded-xl border border-gray-200 overflow-hidden">
                   <table className="w-full text-sm">
@@ -1561,8 +1577,8 @@ function FinanceTab({ customer }) {
                         <td className="px-4 py-3 text-xs text-gray-500">—</td>
                         <td className="px-4 py-3 text-xs font-medium text-gray-800">₹35,400.00</td>
                         <td className="px-4 py-3">
-                          <span className="text-xs font-medium text-gray-800">₹35,400.00 </span>
-                          <span className="px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600 font-medium">Unpaid</span>
+                          <span className="text-xs font-medium text-gray-800 mr-1.5">₹35,400.00</span>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Unpaid</span>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600">0.00</td>
                       </tr>
