@@ -1,14 +1,54 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Download, Search, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
   TrendingUp, Filter, Calendar, History, IndianRupee, AlertCircle,
+  RotateCcw, MoreVertical, CheckCircle2, AlertOctagon,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { MOCK_INVOICES, PAYMENT_HISTORY } from '../data/billingData'
+
+const BILLING_MOCK_ROWS = [
+  {
+    id: 1,
+    userId: 'E1901_GV',
+    userLink: 'CNPL_B2C',
+    customerName: 'Accenture',
+    invoiceNo: 'B2C/26-27/5650',
+    package: 'SuperSonic_300M_1M_Cityline Platinum',
+    amount: 1032,
+    adminAmount: 1032,
+    resellerAmount: 0,
+    invoiceDate: '25-06-2026 14:00:06',
+    durationFrom: '27-06-2026',
+    durationTo: '26-07-2026',
+    addedBy: 'E1901_GV',
+    comment: '',
+    rechargeInternet: 'success',
+    rechargeOtt: 'retry',
+  },
+  {
+    id: 2,
+    userId: '5000022361',
+    userLink: 'CNPL_B2C',
+    customerName: 'Dinesh',
+    invoiceNo: 'B2C/26-27/5649',
+    package: 'Sonic_150M_12M_Gold',
+    amount: 6372,
+    adminAmount: 6372,
+    resellerAmount: 0,
+    invoiceDate: '25-06-2026 13:49:52',
+    durationFrom: '25-06-2026',
+    durationTo: '25-06-2027',
+    addedBy: '5000022361',
+    comment: '',
+    rechargeInternet: 'success',
+    rechargeOtt: 'retry',
+  },
+]
 
 const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
 const STATUS_LABELS = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
@@ -251,35 +291,66 @@ function PaymentHistory({ payments }) {
   )
 }
 
+// ─── Actions Dropdown ───────────────────────────────────────────────────────
+function ActionsDropdown() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="p-1.5 rounded-lg text-brand-blue hover:bg-brand-blue/10 transition-colors"
+      >
+        <MoreVertical size={15} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-50 mt-1 w-40 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
+          {['View Invoice', 'Remove', 'Email Invoice'].map(action => (
+            <button
+              key={action}
+              onClick={() => setOpen(false)}
+              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
+            >
+              {action}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Billing Page ──────────────────────────────────────────────────────
 export default function Billing() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('invoices')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [serviceFilter, setServiceFilter] = useState('All')
-  const [networkFilter, setNetworkFilter] = useState('All')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [search, setSearch] = useState('')
   const [paymentModal, setPaymentModal] = useState(null)
-  const [showFilters, setShowFilters] = useState(false)
+  const [selectedRows, setSelectedRows] = useState([])
 
-  const filtered = useMemo(() => {
-    return MOCK_INVOICES.filter(inv => {
-      if (statusFilter !== 'All' && inv.status !== statusFilter.toLowerCase()) return false
-      if (serviceFilter !== 'All' && inv.serviceType !== serviceFilter) return false
-      if (networkFilter !== 'All' && inv.network !== networkFilter) return false
-      if (dateFrom && inv.issueDate < dateFrom) return false
-      if (dateTo && inv.issueDate > dateTo) return false
-      if (search) {
-        const q = search.toLowerCase()
-        if (!inv.invoiceNo.toLowerCase().includes(q) &&
-            !inv.customerName.toLowerCase().includes(q) &&
-            !inv.phone.includes(q)) return false
-      }
-      return true
-    })
-  }, [statusFilter, serviceFilter, networkFilter, dateFrom, dateTo, search])
+  // Billing Invoice filters
+  const [fUserId, setFUserId] = useState('')
+  const [fDateFrom, setFDateFrom] = useState('')
+  const [fDateTo, setFDateTo] = useState('')
+  const [fCreatedBy, setFCreatedBy] = useState('')
+  const [fZone, setFZone] = useState('')
+  const [fStatus, setFStatus] = useState('')
+  const [fPackage, setFPackage] = useState('')
+  const [fRechargeStatus, setFRechargeStatus] = useState('')
+  const [fArea, setFArea] = useState('')
+  const [fReseller, setFReseller] = useState('Cityline Networks P...')
+  const [fDiscount, setFDiscount] = useState('')
+  const [fBox, setFBox] = useState('')
+
+  const resetFilters = () => {
+    setFUserId(''); setFDateFrom(''); setFDateTo(''); setFCreatedBy('')
+    setFZone(''); setFStatus(''); setFPackage(''); setFRechargeStatus('')
+    setFArea(''); setFReseller('Cityline Networks P...'); setFDiscount(''); setFBox('')
+  }
 
   const stats = useMemo(() => {
     const all = MOCK_INVOICES
@@ -291,6 +362,13 @@ export default function Billing() {
       gst: all.filter(i => i.status === 'paid').reduce((s, i) => s + i.cgst + i.sgst, 0),
     }
   }, [])
+
+  const allSelected = selectedRows.length === BILLING_MOCK_ROWS.length
+  const toggleAll = () => setSelectedRows(allSelected ? [] : BILLING_MOCK_ROWS.map(r => r.id))
+  const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const inputCls = 'w-full px-3 py-1.5 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white'
+  const selectCls = 'w-full px-3 py-1.5 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white appearance-none cursor-pointer'
 
   const statusTabs = ['All', 'Paid', 'Pending', 'Overdue']
 
@@ -351,187 +429,194 @@ export default function Billing() {
         <PaymentHistory payments={PAYMENT_HISTORY} />
       ) : (
         <>
-          {/* Filter bar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px] max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search invoice, customer, phone…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 text-sm bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-              />
+          {/* ── Filters (3 rows × 4 cols) ── */}
+          <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 space-y-3">
+            {/* Row 1 */}
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">User Id</label>
+                <input type="text" placeholder="User Id" value={fUserId} onChange={e => setFUserId(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Date From</label>
+                <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Date To</label>
+                <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Created By</label>
+                <div className="relative">
+                  <select value={fCreatedBy} onChange={e => setFCreatedBy(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
-            {/* Status pills */}
-            <div className="flex gap-1">
-              {statusTabs.map(s => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-                    statusFilter === s
-                      ? 'bg-brand-blue text-white shadow-sm'
-                      : 'bg-white border border-surface-border text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+            {/* Row 2 */}
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Select Server/Zone</label>
+                <div className="relative">
+                  <select value={fZone} onChange={e => setFZone(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <div className="relative">
+                  <select value={fStatus} onChange={e => setFStatus(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Select Package</label>
+                <div className="relative">
+                  <select value={fPackage} onChange={e => setFPackage(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Recharge Status</label>
+                <div className="relative">
+                  <select value={fRechargeStatus} onChange={e => setFRechargeStatus(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
-            <button
-              onClick={() => setShowFilters(f => !f)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                showFilters ? 'bg-brand-blue/10 border-brand-blue/30 text-brand-blue' : 'bg-white border-surface-border text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              <Filter size={12} /> Filters
-            </button>
+            {/* Row 3 */}
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Select Area</label>
+                <div className="relative">
+                  <select value={fArea} onChange={e => setFArea(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Select Reseller</label>
+                <div className="relative">
+                  <select value={fReseller} onChange={e => setFReseller(e.target.value)} className={selectCls}>
+                    <option value="Cityline Networks P...">Cityline Networks P...</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Discount</label>
+                <div className="relative">
+                  <select value={fDiscount} onChange={e => setFDiscount(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Select Box</label>
+                <div className="relative">
+                  <select value={fBox} onChange={e => setFBox(e.target.value)} className={selectCls}>
+                    <option value="">Please Select</option>
+                  </select>
+                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* Search + Reset */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" icon={<Search size={13} />}>Search</Button>
+              <button
+                onClick={resetFilters}
+                className="p-1.5 rounded-lg border border-surface-border text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                title="Reset filters"
+              >
+                <RotateCcw size={14} />
+              </button>
+            </div>
+
+            {/* Totals */}
+            <div className="pt-1 text-xs text-gray-700 font-medium">
+              Admin Total: <span className="text-gray-900 font-bold">₹88,646.00</span>
+              <span className="mx-3 text-gray-300">|</span>
+              Reseller Total: <span className="text-gray-900 font-bold">₹0.00</span>
+            </div>
           </div>
 
-          {/* Expanded filters */}
-          {showFilters && (
-            <div className="flex flex-wrap gap-3 p-4 bg-white rounded-xl border border-surface-border shadow-card">
-              <div className="flex items-center gap-2">
-                <Calendar size={13} className="text-gray-400" />
-                <span className="text-xs text-gray-500 font-medium">From</span>
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  className="px-2 py-1 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-                <span className="text-xs text-gray-400">to</span>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  className="px-2 py-1 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
-              </div>
-              <div className="relative">
-                <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)}
-                  className="appearance-none pl-3 pr-7 py-1.5 text-xs bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 cursor-pointer">
-                  {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
-                </select>
-                <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-              <div className="relative">
-                <select value={networkFilter} onChange={e => setNetworkFilter(e.target.value)}
-                  className="appearance-none pl-3 pr-7 py-1.5 text-xs bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 cursor-pointer">
-                  {NETWORKS.map(n => <option key={n}>{n}</option>)}
-                </select>
-                <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-              {(dateFrom || dateTo || serviceFilter !== 'All' || networkFilter !== 'All') && (
-                <button onClick={() => { setDateFrom(''); setDateTo(''); setServiceFilter('All'); setNetworkFilter('All') }}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors">
-                  <X size={11} /> Clear filters
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Invoice table */}
+          {/* ── Invoice Table ── */}
           <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-surface-border flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-gray-800">Invoice Register</h3>
-                <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{filtered.length}</span>
-              </div>
-              <p className="text-xs text-gray-400">Billing Period: May 2026 · FY 2026-27</p>
-            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50/60">
-                    {['Invoice No', 'Customer', 'Services', 'Base Amt', 'CGST 9%', 'SGST 9%', 'Total', 'Status', 'Due Date', 'Actions'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    <th className="px-3 py-3 w-8">
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300 cursor-pointer" />
+                    </th>
+                    {['S.NO', 'RECHARGE STATUS', 'USER/LINK ID', 'INVOICE NO', 'PACKAGE', 'AMOUNT', 'ADMIN AMOUNT', 'RESELLER AMOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
+                      <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="px-4 py-12 text-center text-sm text-gray-400">
-                        No invoices match your filters.
+                  {BILLING_MOCK_ROWS.map((row, idx) => (
+                    <tr key={row.id} className="hover:bg-gray-50/70 transition-colors">
+                      <td className="px-3 py-3">
+                        <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
                       </td>
-                    </tr>
-                  ) : filtered.map(inv => (
-                    <tr key={inv.invoiceNo} className="hover:bg-gray-50/70 transition-colors group">
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-brand-blue font-bold">{inv.invoiceNo}</span>
-                        <p className="text-xs text-gray-400 mt-0.5">{inv.billingPeriod}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-800 whitespace-nowrap">{inv.customerName}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{inv.phone}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {inv.services.map((s, i) => (
-                            <span key={i} className="text-xs bg-navy/8 text-navy px-1.5 py-0.5 rounded font-medium whitespace-nowrap">
-                              {s.name.split(' ').slice(0, 2).join(' ')}
-                            </span>
-                          ))}
+                      <td className="px-3 py-3 text-xs text-gray-600">{idx + 1}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
+                            <CheckCircle2 size={11} className="text-emerald-500" /> Internet
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-xs text-orange-600 font-medium">
+                            <AlertOctagon size={11} className="text-orange-500" /> OTT
+                            <button className="text-brand-blue underline text-xs ml-0.5">Retry</button>
+                          </span>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">{inv.network}</p>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-600 font-mono">{fmt(inv.baseAmount)}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600 font-mono">{fmt(inv.cgst)}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600 font-mono">{fmt(inv.sgst)}</td>
-                      <td className="px-4 py-3 font-bold text-gray-900 font-mono whitespace-nowrap">{fmt(inv.totalAmount)}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={STATUS_VARIANT[inv.status]} dot size="sm">
-                          {STATUS_LABELS[inv.status]}
-                        </Badge>
-                        {inv.status === 'paid' && inv.paymentMode && (
-                          <p className="text-xs text-gray-400 mt-0.5">{inv.paymentMode}</p>
-                        )}
+                      <td className="px-3 py-3">
+                        <a href="#" className="text-xs text-brand-blue font-semibold hover:underline">{row.userId}({row.userLink})</a>
+                        <p className="text-xs text-gray-500 mt-0.5">{row.customerName}</p>
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        {inv.dueDate}
-                        {inv.status === 'overdue' && (
-                          <p className="text-xs text-red-500 font-medium mt-0.5 flex items-center gap-1">
-                            <AlertTriangle size={10} /> Overdue
-                          </p>
-                        )}
+                      <td className="px-3 py-3">
+                        <a href="#" className="text-xs text-brand-blue font-semibold hover:underline whitespace-nowrap">{row.invoiceNo}</a>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => navigate(`/billing/invoice/${encodeURIComponent(inv.invoiceNo)}`)}
-                            title="View PDF"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-                          >
-                            <FileText size={14} />
-                          </button>
-                          <button
-                            title="Send WhatsApp"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                          >
-                            <MessageCircle size={14} />
-                          </button>
-                          {inv.status !== 'paid' && (
-                            <button
-                              onClick={() => setPaymentModal(inv)}
-                              title="Record Payment"
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-brand-orange hover:bg-brand-orange/10 transition-colors"
-                            >
-                              <CreditCard size={14} />
-                            </button>
-                          )}
-                        </div>
+                      <td className="px-3 py-3 text-xs text-gray-700 max-w-[160px]">
+                        <span className="line-clamp-2">{row.package}</span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="inline-block bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded">{row.amount}</span>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.adminAmount}</td>
+                      <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.resellerAmount}</td>
+                      <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{row.invoiceDate}</td>
+                      <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {row.durationFrom}<br />{row.durationTo}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
+                      <td className="px-3 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
+                      <td className="px-3 py-3">
+                        <ActionsDropdown />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {filtered.length > 0 && (
-              <div className="px-5 py-3 border-t border-surface-border bg-gray-50/40 flex items-center justify-between">
-                <p className="text-xs text-gray-500">
-                  Showing {filtered.length} of {MOCK_INVOICES.length} invoices
-                </p>
-                <p className="text-xs font-semibold text-gray-700">
-                  Filtered Total: {fmt(filtered.reduce((s, i) => s + i.totalAmount, 0))}
-                </p>
-              </div>
-            )}
           </div>
         </>
       )}
