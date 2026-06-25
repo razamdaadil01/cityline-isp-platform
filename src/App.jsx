@@ -23,7 +23,6 @@ import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
 import Packages from './pages/Packages'
-import AddNewPlan from './pages/AddNewPlan'
 import PackageAdd from './pages/PackageAdd'
 import PackageDetail from './pages/PackageDetail'
 import PackageEdit from './pages/PackageEdit'
@@ -73,7 +72,6 @@ export default function App() {
           <Route path="/packages" element={<Packages />} />
           <Route path="/ott" element={<OTTManagement />} />
           <Route path="/packages/add" element={<PackageAdd />} />
-          <Route path="/packages/new-plan" element={<AddNewPlan />} />
           <Route path="/packages/:packageId/edit" element={<PackageEdit />} />
           <Route path="/packages/:packageId/:tab" element={<PackageDetail />} />
           <Route path="/packages/:packageId" element={<PackageDetail />} />
