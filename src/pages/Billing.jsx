@@ -230,16 +230,17 @@ function RecordPaymentModal({ invoice, onClose }) {
 }
 
 // ─── Payment History Tab ────────────────────────────────────────────────────
-function PaymentHistory({ payments }) {
+function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, setPage, setPageSize }) {
   const totals = useMemo(() => {
+    const src = allPayments ?? payments
     const byMode = {}
     let total = 0
-    payments.forEach(p => {
+    src.forEach(p => {
       byMode[p.mode] = (byMode[p.mode] || 0) + p.amount
       total += p.amount
     })
     return { byMode, total }
-  }, [payments])
+  }, [allPayments, payments])
 
   return (
     <div className="space-y-4">
@@ -285,6 +286,38 @@ function PaymentHistory({ payments }) {
               ))}
             </tbody>
           </table>
+        </div>
+        {/* Pagination footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Records per page</span>
+            <select value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+              className="text-xs border border-surface-border rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+              {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <span className="text-xs text-gray-500">
+            Page {page} of {totalPages} &nbsp;|&nbsp; Total {allPayments.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+              Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              <button key={p} onClick={() => setPage(p)}
+                className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                  p === page ? 'bg-brand-blue text-white' : 'border border-surface-border hover:bg-white text-gray-600'
+                }`}>
+                {p}
+              </button>
+            ))}
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+              className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -338,6 +371,14 @@ export default function Billing() {
   const [quickStatus, setQuickStatus] = useState('All')
   const [search, setSearch] = useState('')
 
+  // Per-tab pagination
+  const [prPage, setPrPage] = useState(1)
+  const [prPageSize, setPrPageSize] = useState(10)
+  const [tiPage, setTiPage] = useState(1)
+  const [tiPageSize, setTiPageSize] = useState(10)
+  const [phPage, setPhPage] = useState(1)
+  const [phPageSize, setPhPageSize] = useState(10)
+
   // Drawer filter state
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
@@ -381,8 +422,22 @@ export default function Billing() {
     )
   }, [search])
 
-  const allSelected = selectedRows.length === filteredRows.length && filteredRows.length > 0
-  const toggleAll = () => setSelectedRows(allSelected ? [] : filteredRows.map(r => r.id))
+  // Pagination derived values for invoice tabs
+  const page     = activeTab === 'tax-invoice' ? tiPage     : prPage
+  const pageSize = activeTab === 'tax-invoice' ? tiPageSize : prPageSize
+  const setPage     = activeTab === 'tax-invoice' ? setTiPage     : setPrPage
+  const setPageSize = activeTab === 'tax-invoice' ? setTiPageSize : setPrPageSize
+  const totalPages  = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const safePage    = Math.min(page, totalPages)
+  const pagedRows   = filteredRows.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  // Payment History pagination
+  const phTotalPages = Math.max(1, Math.ceil(PAYMENT_HISTORY.length / phPageSize))
+  const phSafePage   = Math.min(phPage, phTotalPages)
+  const pagedPayments = PAYMENT_HISTORY.slice((phSafePage - 1) * phPageSize, phSafePage * phPageSize)
+
+  const allSelected = selectedRows.length === pagedRows.length && pagedRows.length > 0
+  const toggleAll = () => setSelectedRows(allSelected ? [] : pagedRows.map(r => r.id))
   const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   const drawerSelectCls = 'w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700 cursor-pointer'
@@ -461,7 +516,12 @@ export default function Billing() {
       </div>
 
       {activeTab === 'payment-history' ? (
-        <PaymentHistory payments={PAYMENT_HISTORY} />
+        <PaymentHistory
+          payments={pagedPayments}
+          allPayments={PAYMENT_HISTORY}
+          page={phSafePage} totalPages={phTotalPages} pageSize={phPageSize}
+          setPage={setPhPage} setPageSize={setPhPageSize}
+        />
       ) : (
         <>
           {/* ── Totals ── */}
@@ -519,7 +579,7 @@ export default function Billing() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {filteredRows.map((row) => (
+                  {pagedRows.map((row) => (
                     <tr key={row.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="px-3 py-3">
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
@@ -563,6 +623,38 @@ export default function Billing() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            {/* Pagination footer */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Records per page</span>
+                <select value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+                  className="text-xs border border-surface-border rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                  {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <span className="text-xs text-gray-500">
+                Page {safePage} of {totalPages} &nbsp;|&nbsp; Total {filteredRows.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                  className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+                  Prev
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                      p === safePage ? 'bg-brand-blue text-white' : 'border border-surface-border hover:bg-white text-gray-600'
+                    }`}>
+                    {p}
+                  </button>
+                ))}
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                  className="px-2.5 py-1 text-xs font-semibold border border-surface-border rounded-lg disabled:opacity-40 hover:bg-white transition-colors bg-gray-50">
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </>
