@@ -1218,15 +1218,23 @@ function PackagesTab() {
 // ── Tab: Finance ─────────────────────────────────────────────────────────────
 
 const FINANCE_SUB_TABS = [
-  { label: 'Invoices',       slug: 'invoices' },
-  { label: 'Account Ledger', slug: 'ledger'   },
+  { label: 'Invoices',       slug: 'invoices'  },
+  { label: 'Payments',       slug: 'payments'  },
+  { label: 'Account Ledger', slug: 'ledger'    },
+]
+
+const MOCK_PAYMENTS = [
+  { id: 1, receiptNo: '117644', invoiceNo: 'B2C/26-27/5523', paymentDate: '23-06-2026', date: '23-06-2026 14:45:08', mode: 'Android App', total: 2360.00, paid: 2360.00, status: 'Complete', orderNo: '1fb368b6934f7839488a', chequeBCh: 0, addBy: '5000022335',  comment: 'Complete' },
+  { id: 2, receiptNo: '117637', invoiceNo: '—',               paymentDate: '23-06-2026', date: '23-06-2026 09:55:46', mode: 'Online',      total: 1000.00, paid: 1000.00, status: 'Complete', orderNo: '94e4f91a9ab212b92cff', chequeBCh: 0, addBy: 'Preeti_TCNPL125', comment: 'Complete' },
 ]
 
 function FinanceTab({ customer }) {
   const { id: customerId, subTab: subTabParam } = useParams()
   const navigate = useNavigate()
   const [invPage, setInvPage] = useState(1)
+  const [payPage, setPayPage] = useState(1)
   const [ledPage, setLedPage] = useState(1)
+  const [showFailed, setShowFailed] = useState(false)
   const PER_PAGE = 5
 
   // Resolve active sub-tab from URL param; default to 'invoices'
@@ -1242,6 +1250,11 @@ function FinanceTab({ customer }) {
   const invTotal = INVOICES.length
   const invPages = Math.ceil(invTotal / PER_PAGE)
   const invRows  = INVOICES.slice((invPage - 1) * PER_PAGE, invPage * PER_PAGE)
+
+  const filteredPayments = showFailed ? MOCK_PAYMENTS.filter(p => p.status === 'Failed') : MOCK_PAYMENTS
+  const payTotal = filteredPayments.length
+  const payPages = Math.max(1, Math.ceil(payTotal / PER_PAGE))
+  const payRows  = filteredPayments.slice((payPage - 1) * PER_PAGE, payPage * PER_PAGE)
 
   const ledTotal = LEDGER.length
   const ledPages = Math.ceil(ledTotal / PER_PAGE)
@@ -1334,6 +1347,98 @@ function FinanceTab({ customer }) {
             </table>
           </div>
           <Pagination page={invPage} total={invTotal} pages={invPages} onPage={setInvPage} label="invoices" />
+        </Card>
+      )}
+
+      {/* Payments */}
+      {activeSlug === 'payments' && (
+        <Card padding={false}>
+          {/* Top row */}
+          <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between gap-4">
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={showFailed} onChange={e => { setShowFailed(e.target.checked); setPayPage(1) }}
+                className="w-4 h-4 accent-[#0A8DCD]" />
+              Display Failed Payments
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">0</span></span>
+              <button className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                <span>+</span> Add Payment
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 border-b border-surface-border">
+                  {['Receipt No','Invoice No','Payment Date','Date','Mode','Total','Paid','Payment Status','Order No / Cheque No','Cheque B CH','Add By','Comment','Actions'].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {payRows.map(pay => (
+                  <tr key={pay.id} className="hover:bg-gray-50/50">
+                    <td className="px-3 py-3 font-mono text-xs text-brand-blue font-semibold whitespace-nowrap">{pay.receiptNo}</td>
+                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.invoiceNo}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.date}</td>
+                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.mode}</td>
+                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.total.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.paid.toFixed(2)}</td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        pay.status === 'Complete' ? 'bg-green-100 text-green-700' :
+                        pay.status === 'Failed'   ? 'bg-red-100 text-red-600'    :
+                        'bg-orange-100 text-orange-600'
+                      }`}>{pay.status}</span>
+                    </td>
+                    <td className="px-3 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{pay.orderNo}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500">{pay.chequeBCh}</td>
+                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.addBy}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500">{pay.comment}</td>
+                    <td className="px-3 py-3">
+                      <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                        <MoreVertical size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {payRows.length === 0 && (
+                  <tr><td colSpan={13} className="px-4 py-8 text-center text-gray-400 text-sm">No payments found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom pagination row */}
+          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500">Records per page</label>
+              <select className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
+                <option>10</option><option>25</option><option>50</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>Page {payPage} of {payPages}</span>
+              <span className="text-gray-400">|</span>
+              <span>Total {payTotal}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPayPage(p => Math.max(1, p - 1))} disabled={payPage === 1}
+                className="px-2.5 py-1 text-xs rounded border border-surface-border text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Prev</button>
+              {Array.from({ length: payPages }, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPayPage(p)}
+                  className={`px-2.5 py-1 text-xs rounded border ${p === payPage ? 'bg-brand-blue text-white border-brand-blue' : 'border-surface-border text-gray-600 hover:bg-gray-50'}`}>
+                  {p}
+                </button>
+              ))}
+              <button onClick={() => setPayPage(p => Math.min(payPages, p + 1))} disabled={payPage === payPages}
+                className="px-2.5 py-1 text-xs rounded border border-surface-border text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+            </div>
+          </div>
         </Card>
       )}
 
