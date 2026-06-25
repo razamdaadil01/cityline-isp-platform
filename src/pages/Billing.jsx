@@ -601,7 +601,12 @@ export default function Billing() {
                       </td>
                       {activeTab === 'tax-invoice' && (
                         <td className="px-3 py-3">
-                          <a href="#" className="text-xs text-brand-blue font-semibold hover:underline whitespace-nowrap">{row.invoiceNo}</a>
+                          <button
+                            onClick={() => navigate(`/billing/invoice/${encodeURIComponent(row.invoiceNo)}`)}
+                            className="text-xs text-brand-blue font-semibold hover:underline whitespace-nowrap text-left"
+                          >
+                            {row.invoiceNo}
+                          </button>
                         </td>
                       )}
                       <td className="px-3 py-3 text-xs text-gray-700 max-w-[160px]">
