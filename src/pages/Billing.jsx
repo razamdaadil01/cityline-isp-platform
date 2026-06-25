@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  Plus, Download, ChevronDown, FileText, MessageCircle,
+  Plus, Download, Search, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
   TrendingUp, Filter, History, IndianRupee, AlertCircle,
   MoreVertical, CheckCircle2, AlertOctagon,
@@ -336,6 +336,7 @@ export default function Billing() {
   const [selectedRows, setSelectedRows] = useState([])
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [quickStatus, setQuickStatus] = useState('All')
+  const [search, setSearch] = useState('')
 
   // Drawer filter state
   const [fDateFrom, setFDateFrom] = useState('')
@@ -370,8 +371,18 @@ export default function Billing() {
     }
   }, [])
 
-  const allSelected = selectedRows.length === BILLING_MOCK_ROWS.length
-  const toggleAll = () => setSelectedRows(allSelected ? [] : BILLING_MOCK_ROWS.map(r => r.id))
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return BILLING_MOCK_ROWS
+    const q = search.trim().toLowerCase()
+    return BILLING_MOCK_ROWS.filter(r =>
+      r.customerName.toLowerCase().includes(q) ||
+      r.userId.toLowerCase().includes(q) ||
+      r.userLink.toLowerCase().includes(q)
+    )
+  }, [search])
+
+  const allSelected = selectedRows.length === filteredRows.length && filteredRows.length > 0
+  const toggleAll = () => setSelectedRows(allSelected ? [] : filteredRows.map(r => r.id))
   const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   const drawerSelectCls = 'w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700 cursor-pointer'
@@ -477,6 +488,17 @@ export default function Billing() {
             </div>
           </div>
 
+          {/* ── Search bar ── */}
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by customer name or ID..."
+              className="pl-9 pr-4 py-2 text-sm border border-surface-border rounded-lg bg-white w-full focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+            />
+          </div>
+
           {/* ── Table ── */}
           <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
             <div className="overflow-x-auto">
@@ -497,7 +519,7 @@ export default function Billing() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {BILLING_MOCK_ROWS.map((row) => (
+                  {filteredRows.map((row) => (
                     <tr key={row.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="px-3 py-3">
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
