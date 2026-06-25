@@ -1,10 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Download, Search, ChevronDown, FileText, MessageCircle,
+  Plus, Download, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
-  TrendingUp, Filter, Calendar, History, IndianRupee, AlertCircle,
-  RotateCcw, MoreVertical, CheckCircle2, AlertOctagon,
+  TrendingUp, Filter, History, IndianRupee, AlertCircle,
+  MoreVertical, CheckCircle2, AlertOctagon,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -331,9 +331,10 @@ export default function Billing() {
   const [activeTab, setActiveTab] = useState('invoices')
   const [paymentModal, setPaymentModal] = useState(null)
   const [selectedRows, setSelectedRows] = useState([])
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [quickStatus, setQuickStatus] = useState('All')
 
-  // Billing Invoice filters
-  const [fUserId, setFUserId] = useState('')
+  // Drawer filter state
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
   const [fCreatedBy, setFCreatedBy] = useState('')
@@ -346,11 +347,14 @@ export default function Billing() {
   const [fDiscount, setFDiscount] = useState('')
   const [fBox, setFBox] = useState('')
 
-  const resetFilters = () => {
-    setFUserId(''); setFDateFrom(''); setFDateTo(''); setFCreatedBy('')
+  const clearAllFilters = () => {
+    setFDateFrom(''); setFDateTo(''); setFCreatedBy('')
     setFZone(''); setFStatus(''); setFPackage(''); setFRechargeStatus('')
     setFArea(''); setFReseller('Cityline Networks P...'); setFDiscount(''); setFBox('')
   }
+
+  const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox]
+    .filter(Boolean).length + (fReseller !== 'Cityline Networks P...' ? 1 : 0)
 
   const stats = useMemo(() => {
     const all = MOCK_INVOICES
@@ -367,8 +371,8 @@ export default function Billing() {
   const toggleAll = () => setSelectedRows(allSelected ? [] : BILLING_MOCK_ROWS.map(r => r.id))
   const toggleRow = (id) => setSelectedRows(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
-  const inputCls = 'w-full px-3 py-1.5 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white'
-  const selectCls = 'w-full px-3 py-1.5 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white appearance-none cursor-pointer'
+  const drawerSelectCls = 'w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700 cursor-pointer'
+  const drawerInputCls  = 'w-full text-sm border border-surface-border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700'
 
   const statusTabs = ['All', 'Paid', 'Pending', 'Overdue']
 
@@ -382,6 +386,22 @@ export default function Billing() {
         </div>
         <div className="flex gap-2 shrink-0">
           <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+              filterCount > 0
+                ? 'border-brand-blue bg-brand-blue/5 text-brand-blue'
+                : 'border-surface-border bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <Filter size={14} />
+            Filters
+            {filterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center bg-brand-blue text-white text-[10px] font-bold rounded-full">
+                {filterCount}
+              </span>
+            )}
+          </button>
           <Button size="sm" icon={<Plus size={14} />}>New Invoice</Button>
         </div>
       </div>
@@ -429,127 +449,24 @@ export default function Billing() {
         <PaymentHistory payments={PAYMENT_HISTORY} />
       ) : (
         <>
-          {/* ── Filters (3 rows × 4 cols) ── */}
-          <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 space-y-3">
-            {/* Row 1 */}
-            <div className="grid grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">User Id</label>
-                <input type="text" placeholder="User Id" value={fUserId} onChange={e => setFUserId(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Date From</label>
-                <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Date To</label>
-                <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Created By</label>
-                <div className="relative">
-                  <select value={fCreatedBy} onChange={e => setFCreatedBy(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
+          {/* ── Quick status tabs + totals ── */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex gap-1">
+              {statusTabs.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setQuickStatus(s)}
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                    quickStatus === s
+                      ? 'bg-brand-blue text-white shadow-sm'
+                      : 'bg-white border border-surface-border text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
             </div>
-
-            {/* Row 2 */}
-            <div className="grid grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Select Server/Zone</label>
-                <div className="relative">
-                  <select value={fZone} onChange={e => setFZone(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                <div className="relative">
-                  <select value={fStatus} onChange={e => setFStatus(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Select Package</label>
-                <div className="relative">
-                  <select value={fPackage} onChange={e => setFPackage(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Recharge Status</label>
-                <div className="relative">
-                  <select value={fRechargeStatus} onChange={e => setFRechargeStatus(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Row 3 */}
-            <div className="grid grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Select Area</label>
-                <div className="relative">
-                  <select value={fArea} onChange={e => setFArea(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Select Reseller</label>
-                <div className="relative">
-                  <select value={fReseller} onChange={e => setFReseller(e.target.value)} className={selectCls}>
-                    <option value="Cityline Networks P...">Cityline Networks P...</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Discount</label>
-                <div className="relative">
-                  <select value={fDiscount} onChange={e => setFDiscount(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Select Box</label>
-                <div className="relative">
-                  <select value={fBox} onChange={e => setFBox(e.target.value)} className={selectCls}>
-                    <option value="">Please Select</option>
-                  </select>
-                  <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {/* Search + Reset */}
-            <div className="flex items-center gap-2 pt-1">
-              <Button size="sm" icon={<Search size={13} />}>Search</Button>
-              <button
-                onClick={resetFilters}
-                className="p-1.5 rounded-lg border border-surface-border text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
-                title="Reset filters"
-              >
-                <RotateCcw size={14} />
-              </button>
-            </div>
-
-            {/* Totals */}
-            <div className="pt-1 text-xs text-gray-700 font-medium">
+            <div className="text-xs text-gray-700 font-medium">
               Admin Total: <span className="text-gray-900 font-bold">₹88,646.00</span>
               <span className="mx-3 text-gray-300">|</span>
               Reseller Total: <span className="text-gray-900 font-bold">₹0.00</span>
@@ -620,6 +537,172 @@ export default function Billing() {
           </div>
         </>
       )}
+
+      {/* ── Filter Drawer ── */}
+      <div
+        className={`fixed inset-0 z-50 transition-opacity duration-300 ${drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      >
+        <div className="absolute inset-0 bg-black/30" onClick={() => setDrawerOpen(false)} />
+        <div
+          className={`absolute right-0 top-0 h-full w-80 bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${
+            drawerOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border shrink-0">
+            <div className="flex items-center gap-2">
+              <Filter size={15} className="text-brand-blue" />
+              <h2 className="text-sm font-bold text-gray-900">Filters</h2>
+              {filterCount > 0 && (
+                <span className="px-1.5 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-bold rounded-full">
+                  {filterCount} active
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setDrawerOpen(false)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+            {/* Date From */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date From</label>
+              <input type="date" value={fDateFrom} onChange={e => setFDateFrom(e.target.value)} className={drawerInputCls} />
+            </div>
+
+            {/* Date To */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date To</label>
+              <input type="date" value={fDateTo} onChange={e => setFDateTo(e.target.value)} className={drawerInputCls} />
+            </div>
+
+            {/* Created By */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Created By</label>
+              <div className="relative">
+                <select value={fCreatedBy} onChange={e => setFCreatedBy(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Select Server/Zone */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Server/Zone</label>
+              <div className="relative">
+                <select value={fZone} onChange={e => setFZone(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Status</label>
+              <div className="relative">
+                <select value={fStatus} onChange={e => setFStatus(e.target.value)} className={drawerSelectCls}>
+                  <option value="">All</option>
+                  <option>Paid</option>
+                  <option>Pending</option>
+                  <option>Overdue</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Select Package */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Package</label>
+              <div className="relative">
+                <select value={fPackage} onChange={e => setFPackage(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Recharge Status */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recharge Status</label>
+              <div className="relative">
+                <select value={fRechargeStatus} onChange={e => setFRechargeStatus(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Select Area */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Area</label>
+              <div className="relative">
+                <select value={fArea} onChange={e => setFArea(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Select Reseller */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Reseller</label>
+              <div className="relative">
+                <select value={fReseller} onChange={e => setFReseller(e.target.value)} className={drawerSelectCls}>
+                  <option value="Cityline Networks P...">Cityline Networks P...</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Discount */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Discount</label>
+              <div className="relative">
+                <select value={fDiscount} onChange={e => setFDiscount(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Select Box */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Box</label>
+              <div className="relative">
+                <select value={fBox} onChange={e => setFBox(e.target.value)} className={drawerSelectCls}>
+                  <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+          </div>
+
+          {/* Sticky footer */}
+          <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-gray-50 flex items-center gap-3">
+            <button
+              onClick={clearAllFilters}
+              className="flex-1 py-2.5 text-sm font-semibold text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-xl transition-colors bg-white"
+            >
+              Clear All Filters
+            </button>
+            <button
+              onClick={() => setDrawerOpen(false)}
+              className="flex-1 py-2.5 text-sm font-semibold text-white bg-brand-blue hover:bg-brand-blue/90 rounded-xl transition-colors shadow-sm"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Record Payment Modal */}
       <Modal
