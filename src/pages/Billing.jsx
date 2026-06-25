@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Plus, Download, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
@@ -328,7 +328,10 @@ function ActionsDropdown() {
 // ─── Main Billing Page ──────────────────────────────────────────────────────
 export default function Billing() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('invoices')
+  const location = useLocation()
+  const activeTab = location.pathname.includes('tax-invoice') ? 'tax-invoice'
+    : location.pathname.includes('payment-history') ? 'payment-history'
+    : 'package-recharge'
   const [paymentModal, setPaymentModal] = useState(null)
   const [selectedRows, setSelectedRows] = useState([])
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -428,12 +431,13 @@ export default function Billing() {
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-surface-border">
         {[
-          { key: 'invoices', label: 'Invoice Register', icon: <FileText size={13} /> },
-          { key: 'payments', label: 'Payment History', icon: <History size={13} /> },
+          { key: 'package-recharge',  label: 'Package Recharge', path: '/billing/package-recharge',  icon: <Receipt size={13} /> },
+          { key: 'tax-invoice',       label: 'Tax Invoice',       path: '/billing/tax-invoice',       icon: <FileText size={13} /> },
+          { key: 'payment-history',   label: 'Payment History',   path: '/billing/payment-history',   icon: <History size={13} /> },
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setActiveTab(t.key)}
+            onClick={() => navigate(t.path)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
               activeTab === t.key
                 ? 'border-brand-blue text-brand-blue'
@@ -445,7 +449,7 @@ export default function Billing() {
         ))}
       </div>
 
-      {activeTab === 'payments' ? (
+      {activeTab === 'payment-history' ? (
         <PaymentHistory payments={PAYMENT_HISTORY} />
       ) : (
         <>
@@ -473,7 +477,7 @@ export default function Billing() {
             </div>
           </div>
 
-          {/* ── Invoice Table ── */}
+          {/* ── Table ── */}
           <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -482,18 +486,22 @@ export default function Billing() {
                     <th className="px-3 py-3 w-8">
                       <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300 cursor-pointer" />
                     </th>
-                    {['S.NO', 'RECHARGE STATUS', 'USER/LINK ID', 'INVOICE NO', 'PACKAGE', 'AMOUNT', 'ADMIN AMOUNT', 'RESELLER AMOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">RECHARGE STATUS</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">USER/LINK ID</th>
+                    {activeTab === 'tax-invoice' && (
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">INVOICE</th>
+                    )}
+                    {['PACKAGE', 'AMOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
                       <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {BILLING_MOCK_ROWS.map((row, idx) => (
+                  {BILLING_MOCK_ROWS.map((row) => (
                     <tr key={row.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="px-3 py-3">
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600">{idx + 1}</td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col gap-1">
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
@@ -509,17 +517,17 @@ export default function Billing() {
                         <a href="#" className="text-xs text-brand-blue font-semibold hover:underline">{row.userId}({row.userLink})</a>
                         <p className="text-xs text-gray-500 mt-0.5">{row.customerName}</p>
                       </td>
-                      <td className="px-3 py-3">
-                        <a href="#" className="text-xs text-brand-blue font-semibold hover:underline whitespace-nowrap">{row.invoiceNo}</a>
-                      </td>
+                      {activeTab === 'tax-invoice' && (
+                        <td className="px-3 py-3">
+                          <a href="#" className="text-xs text-brand-blue font-semibold hover:underline whitespace-nowrap">{row.invoiceNo}</a>
+                        </td>
+                      )}
                       <td className="px-3 py-3 text-xs text-gray-700 max-w-[160px]">
                         <span className="line-clamp-2">{row.package}</span>
                       </td>
                       <td className="px-3 py-3">
                         <span className="inline-block bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded">{row.amount}</span>
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.adminAmount}</td>
-                      <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.resellerAmount}</td>
                       <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{row.invoiceDate}</td>
                       <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {row.durationFrom}<br />{row.durationTo}

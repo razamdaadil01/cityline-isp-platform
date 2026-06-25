@@ -66,6 +66,9 @@ export default function App() {
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/billing" element={<Billing />} />
+          <Route path="/billing/package-recharge" element={<Billing />} />
+          <Route path="/billing/tax-invoice" element={<Billing />} />
+          <Route path="/billing/payment-history" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
