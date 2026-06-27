@@ -38,6 +38,7 @@ import AuditLog from './pages/AuditLog'
 import BandwidthMonitoring from './pages/BandwidthMonitoring'
 import RolesSettings from './pages/RolesSettings'
 import NotificationSettings from './pages/NotificationSettings'
+import UserManagement from './pages/UserManagement'
 
 export default function App() {
   return (
@@ -89,6 +90,7 @@ export default function App() {
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />
+          <Route path="/users" element={<UserManagement />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
         </Route>
