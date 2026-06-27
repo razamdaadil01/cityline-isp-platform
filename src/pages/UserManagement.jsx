@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component } from 'react'
 import {
   Plus, Edit2, Eye, Users, UserCheck, UserX, Shield,
   Search, X, ChevronDown, CalendarDays, Phone, Mail,
@@ -9,6 +9,25 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import { getUsers, addUser, updateUser, subscribeUsers } from '../data/userStore'
+
+// ── Error boundary ────────────────────────────────────────────────────────────
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(e) { return { error: e } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-10 flex flex-col items-center gap-3 text-center">
+          <p className="text-red-600 font-semibold text-sm">Runtime error in User Management</p>
+          <pre className="text-xs text-gray-500 bg-gray-50 rounded-lg p-4 max-w-xl text-left overflow-auto whitespace-pre-wrap">
+            {String(this.state.error)}
+          </pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // ── Role metadata ─────────────────────────────────────────────────────────────
 
@@ -268,7 +287,7 @@ function ViewUserModal({ isOpen, onClose, user, onEdit }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function UserManagement() {
+function UserManagementInner() {
   const [users, setUsers]         = useState(getUsers)
   const [search, setSearch]       = useState('')
   const [roleFilter, setRoleFilter]     = useState('')
@@ -493,4 +512,8 @@ export default function UserManagement() {
       />
     </div>
   )
+}
+
+export default function UserManagement() {
+  return <ErrorBoundary><UserManagementInner /></ErrorBoundary>
 }
