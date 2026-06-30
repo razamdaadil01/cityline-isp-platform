@@ -37,11 +37,11 @@ const NAV_ITEMS = [
     children: [
       { label: 'Follow-ups',            icon: PhoneCall,      to: '/sales/followups'              },
       { label: 'Feasibility Requests',  icon: ClipboardCheck, to: '/sales/feasibility-requests'   },
+      { label: 'Installations',         icon: Wrench,         to: '/installations'                },
       { label: 'Proposals',             icon: FileCheck,      to: '/sales/proposals'              },
       { label: 'Analytics',             icon: BarChart2,      to: '/sales/analytics'              },
     ],
   },
-  { label: 'Installations',    icon: Wrench,          to: '/installations'             },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
   { label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support'                   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
