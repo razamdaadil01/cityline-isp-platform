@@ -386,7 +386,7 @@ export default function IntercomLeadDetail() {
   }
 
   function handleCreateCustomer() {
-    navigate('/intercom/customers/new', { state: { lead } })
+    navigate('/intercom/customers/new?leadId=' + lead.id)
   }
 
   if (!lead) {

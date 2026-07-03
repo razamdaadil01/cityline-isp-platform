@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, User, Building2, MapPin, Upload, Cable, ShieldCheck, Settings2, CheckCircle2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { INTERCOM_PLANS, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import { getLead, INTERCOM_PLANS, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 
 const PROJECTS = ['Sunrise Apartments', 'Greenwood Residency', 'Metro Business Park', 'Palm Grove Society']
 const AREAS_ZONES = ['Koramangala', 'Indiranagar', 'Whitefield', 'HSR Layout', 'Electronic City', 'Marathahalli', 'BTM Layout']
@@ -27,8 +27,9 @@ function SectionCard({ title, icon: Icon, children }) {
 
 export default function IntercomCustomerNew() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const lead = location.state?.lead ?? null
+  const [searchParams] = useSearchParams()
+  const leadId = searchParams.get('leadId')
+  const lead = leadId ? getLead(leadId) : null
 
   const [customerId] = useState(() => `INC-${new Date().getFullYear()}-0001`)
 
