@@ -86,6 +86,10 @@ function customerTypeOf(id) {
   return 'Residential'
 }
 
+function isIntercomCustomer(c) {
+  return c.id.startsWith('INC-') || (c.services ?? []).includes('Intercom')
+}
+
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function ServicePill({ service }) {
@@ -226,8 +230,8 @@ export default function Customers() {
       if (filterExpTo    && c.expiry  >  filterExpTo)             return false
       if (filterPipeline && filterPipeline === 'Residential' && !c.id.startsWith('RES')) return false
       if (filterPipeline && filterPipeline === 'Enterprise'  && !c.id.startsWith('ENT')) return false
-      if (filterServiceType === 'Intercom' && !c.id.startsWith('INC')) return false
-      if (filterServiceType === 'Internet' && c.id.startsWith('INC'))  return false
+      if (filterServiceType === 'Intercom' && !isIntercomCustomer(c)) return false
+      if (filterServiceType === 'Internet' && isIntercomCustomer(c))  return false
       return true
     })
   }, [search, statusTab, filterService, filterZone, filterArea, filterNetwork,

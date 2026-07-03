@@ -29,6 +29,7 @@ export const CUSTOMERS = [
   { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '9830089012', plan: 'FTTH 200Mbps',    status: 'active'    },
   { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active'    },
   { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active'    },
+  { id: 'INC-2026-0001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'Active', type: 'Intercom' },
 ]
 
 // ── Dynamically added customers (e.g. from Intercom Customer creation) ───────
