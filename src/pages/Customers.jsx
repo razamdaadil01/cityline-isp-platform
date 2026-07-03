@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   UserPlus, Download, Filter, ChevronLeft, ChevronRight,
   Search, X, ChevronDown, Users, MoreVertical, Eye, Edit2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import { getAddedCustomers, subscribeCustomers } from '../data/customersData'
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,19 @@ const PARTNERS   = ['CityLink Franchise - Andheri','NetPoint Partners - Bandra',
 
 const PAGE_SIZE = 25
 const STATUS_TABS = ['All','Active','Suspended','Inactive','Expired']
+const SERVICE_TYPES = ['Internet','Intercom']
+
+const CUSTOMER_TYPE_BADGE = {
+  Residential: { variant: 'blue',   label: 'Residential' },
+  Enterprise:  { variant: 'navy',   label: 'Enterprise'  },
+  Intercom:    { variant: 'cyan',   label: 'Intercom'    },
+}
+
+function customerTypeOf(id) {
+  if (id.startsWith('INC')) return 'Intercom'
+  if (id.startsWith('ENT')) return 'Enterprise'
+  return 'Residential'
+}
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -102,6 +116,7 @@ function FilterSelect({ label, value, onChange, options }) {
 
 export default function Customers() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [search,          setSearch]          = useState('')
   const [statusTab,       setStatusTab]       = useState('All')
@@ -110,6 +125,16 @@ export default function Customers() {
   const [menuId,          setMenuId]          = useState(null)
   const [menuPos,         setMenuPos]         = useState({ top: 0, right: 0 })
   const menuRef = useRef(null)
+
+  // Customers created at runtime (e.g. Intercom customers) merged with the static mock list
+  const [addedCustomers, setAddedCustomers] = useState(getAddedCustomers)
+  useEffect(() => subscribeCustomers(setAddedCustomers), [])
+  const ALL_CUSTOMERS = useMemo(() => [...addedCustomers, ...CUSTOMERS], [addedCustomers])
+
+  const [filterServiceType, setFilterServiceType] = useState(() => {
+    const t = searchParams.get('type')
+    return t === 'intercom' ? 'Intercom' : t === 'internet' ? 'Internet' : ''
+  })
 
   useEffect(() => {
     if (!menuId) return
@@ -189,7 +214,7 @@ export default function Customers() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return CUSTOMERS.filter(c => {
+    return ALL_CUSTOMERS.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !c.id.toLowerCase().includes(q)) return false
       if (statusTab !== 'All' && c.status !== statusTab.toLowerCase()) return false
       if (filterService  && !c.services.includes(filterService)) return false
@@ -201,10 +226,12 @@ export default function Customers() {
       if (filterExpTo    && c.expiry  >  filterExpTo)             return false
       if (filterPipeline && filterPipeline === 'Residential' && !c.id.startsWith('RES')) return false
       if (filterPipeline && filterPipeline === 'Enterprise'  && !c.id.startsWith('ENT')) return false
+      if (filterServiceType === 'Intercom' && !c.id.startsWith('INC')) return false
+      if (filterServiceType === 'Internet' && c.id.startsWith('INC'))  return false
       return true
     })
   }, [search, statusTab, filterService, filterZone, filterArea, filterNetwork,
-      filterPlan, filterExpFrom, filterExpTo, filterPipeline])
+      filterPlan, filterExpFrom, filterExpTo, filterPipeline, filterServiceType, ALL_CUSTOMERS])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -245,10 +272,10 @@ export default function Customers() {
   ].filter(Boolean).length
 
   const statusCounts = useMemo(() => {
-    const base = { All: CUSTOMERS.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0 }
-    CUSTOMERS.forEach(c => { const k = c.status.charAt(0).toUpperCase() + c.status.slice(1); if (k in base) base[k]++ })
+    const base = { All: ALL_CUSTOMERS.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0 }
+    ALL_CUSTOMERS.forEach(c => { const k = c.status.charAt(0).toUpperCase() + c.status.slice(1); if (k in base) base[k]++ })
     return base
-  }, [])
+  }, [ALL_CUSTOMERS])
 
   return (
     <div className="p-6 space-y-5">
@@ -258,7 +285,7 @@ export default function Customers() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Customers</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {filtered.length} of {CUSTOMERS.length} customers
+            {filtered.length} of {ALL_CUSTOMERS.length} customers
             {selected.size > 0 && <span className="ml-2 font-medium text-brand-blue">· {selected.size} selected</span>}
           </p>
         </div>
@@ -291,6 +318,17 @@ export default function Customers() {
               <X size={13} />
             </button>
           )}
+        </div>
+
+        {/* Service Type */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-xs font-medium text-gray-500 hidden sm:inline">Service Type</span>
+          <FilterSelect
+            label="All"
+            value={filterServiceType}
+            onChange={v => { setFilterServiceType(v); setPage(1) }}
+            options={SERVICE_TYPES}
+          />
         </div>
 
         {/* Filters button → opens drawer */}
@@ -548,6 +586,7 @@ export default function Customers() {
                 </tr>
               ) : paginated.map(c => {
                 const cfg = STATUS_CFG[c.status] ?? STATUS_CFG.inactive
+                const typeBadge = CUSTOMER_TYPE_BADGE[customerTypeOf(c.id)]
                 const isSelected = selected.has(c.id)
                 return (
                   <tr
@@ -564,7 +603,8 @@ export default function Customers() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs text-brand-blue font-semibold">{c.id}</span>
+                      <span className="font-mono text-xs text-brand-blue font-semibold block">{c.id}</span>
+                      <Badge variant={typeBadge.variant} size="sm" className="mt-1">{typeBadge.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">

@@ -11,7 +11,7 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { CUSTOMERS as BASE_CUSTOMERS } from '../data/customersData'
+import { getAllCustomers } from '../data/customersData'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@ const MOCK_CUSTOMERS = {
 
 // Build a customer record from base data when full mock data is unavailable
 function makeCustomerFromBase(id) {
-  const base = BASE_CUSTOMERS.find(c => c.id === id)
+  const base = getAllCustomers().find(c => c.id === id)
   if (!base) {
     return {
       id, name: 'Unknown Customer', phone: '—', altPhone: '—', email: '—',
@@ -146,7 +146,8 @@ function makeCustomerFromBase(id) {
     gender: '—',
     status: base.status,
     online: base.status === 'active',
-    services: [],
+    services: base.services ?? [],
+    circuit: base.circuit ?? null,
     outstandingDues: 0,
     ekyc: base.status === 'active' ? 'verified' : 'pending',
     accountManager: 'Admin User',
@@ -168,7 +169,7 @@ function makeCustomerFromBase(id) {
       photo: base.status === 'active' ? 'uploaded' : 'pending',
       agreementSigned: base.status === 'active',
     },
-    notes: '',
+    notes: base.notes ?? '',
   }
 }
 
@@ -281,6 +282,7 @@ const TAB_SLUGS = {
   'Inventory':       'inventory',
   'Network Map':     'network-map',
   'TR-069':          'tr-069',
+  'Circuit Details': 'circuit-details',
   'Recordings':      'recordings',
   'Activity Logs':   'activity-logs',
 }
@@ -1847,6 +1849,39 @@ function TR069Tab() {
   )
 }
 
+// ── Tab: Circuit Details (Intercom) ───────────────────────────────────────────
+
+function CircuitDetailsTab({ customer }) {
+  const circuit = customer.circuit ?? {}
+  const isActive = circuit.serviceStatus === 'Active'
+
+  return (
+    <Card>
+      <CardHeader title="Circuit Details" subtitle="Intercom circuit and landline provisioning info" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+        {[
+          ['Circuit ID',      circuit.circuitId],
+          ['Landline Number',  circuit.landlineNumber],
+          ['Activation Date',  circuit.activationDate],
+          ['Service Status',   null],
+        ].map(([label, val]) => (
+          <div key={label}>
+            <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
+            {label === 'Service Status' ? (
+              <span className={`flex items-center gap-1.5 mt-0.5 text-sm font-semibold ${isActive ? 'text-emerald-600' : 'text-amber-500'}`}>
+                <span className={`w-2 h-2 rounded-full inline-block ${isActive ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                {circuit.serviceStatus || '—'}
+              </span>
+            ) : (
+              <p className="text-sm text-gray-800 font-mono mt-0.5">{val || '—'}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
 // ── Tab: Recordings ──────────────────────────────────────────────────────────
 
 const RECORDINGS = [
@@ -2005,6 +2040,8 @@ export default function CustomerDetail() {
   const navigate = useNavigate()
 
   const customer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
+  const isIntercom = id.startsWith('INC')
+  const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
 
   const activeTab = SLUG_TO_TAB[tab] ?? 'Profile'
   const [notes, setNotes] = useState(customer.notes)
@@ -2106,7 +2143,7 @@ export default function CustomerDetail() {
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
         {/* Tab nav */}
         <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -2129,7 +2166,8 @@ export default function CustomerDetail() {
           {activeTab === 'Tickets'         && <TicketsTab />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
-          {activeTab === 'TR-069'          && <TR069Tab />}
+          {activeTab === 'TR-069'          && !isIntercom && <TR069Tab />}
+          {activeTab === 'Circuit Details' && isIntercom  && <CircuitDetailsTab customer={customer} />}
           {activeTab === 'Recordings'      && <RecordingsTab />}
           {activeTab === 'Activity Logs'   && <ActivityTab />}
         </div>

@@ -30,3 +30,39 @@ export const CUSTOMERS = [
   { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active'    },
   { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active'    },
 ]
+
+// ── Dynamically added customers (e.g. from Intercom Customer creation) ───────
+
+let _addedCustomers = []
+const _listeners = []
+
+function notify() { _listeners.forEach(fn => fn([..._addedCustomers])) }
+
+export function getAddedCustomers() { return [..._addedCustomers] }
+
+export function addCustomer(customer) {
+  _addedCustomers = [customer, ..._addedCustomers]
+  notify()
+}
+
+export function subscribeCustomers(fn) {
+  _listeners.push(fn)
+  return () => {
+    const i = _listeners.indexOf(fn)
+    if (i > -1) _listeners.splice(i, 1)
+  }
+}
+
+export function getAllCustomers() {
+  return [..._addedCustomers, ...CUSTOMERS]
+}
+
+export function nextIntercomCustomerId() {
+  const year = new Date().getFullYear()
+  const nums = _addedCustomers
+    .map(c => c.id.match(/^INC-(\d{4})-(\d+)$/))
+    .filter(Boolean)
+    .map(m => Number(m[2]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `INC-${year}-${String(next).padStart(4, '0')}`
+}

@@ -6,6 +6,7 @@ import {
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getLead, INTERCOM_PLANS, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import { addCustomer, nextIntercomCustomerId } from '../data/customersData'
 
 const PROJECTS = ['Sunrise Apartments', 'Greenwood Residency', 'Metro Business Park', 'Palm Grove Society']
 const AREAS_ZONES = ['Koramangala', 'Indiranagar', 'Whitefield', 'HSR Layout', 'Electronic City', 'Marathahalli', 'BTM Layout']
@@ -31,7 +32,7 @@ export default function IntercomCustomerNew() {
   const leadId = searchParams.get('leadId')
   const lead = leadId ? getLead(leadId) : null
 
-  const [customerId] = useState(() => `INC-${new Date().getFullYear()}-0001`)
+  const [customerId] = useState(() => nextIntercomCustomerId())
 
   const [form, setForm] = useState({
     customerName: lead?.customer ?? '',
@@ -83,6 +84,41 @@ export default function IntercomCustomerNew() {
   function handleCreate() {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
+
+    addCustomer({
+      id: customerId,
+      name: form.customerName,
+      phone: form.mobile,
+      services: ['Intercom'],
+      plan: form.plan,
+      zone: form.areaZone,
+      area: form.areaZone,
+      network: '—',
+      expiry: '—',
+      status: form.status === 'Active' ? 'active' : 'inactive',
+      // ── all form field values ──
+      altMobile: form.altMobile,
+      email: form.email,
+      sourceLeadId: lead?.id ?? null,
+      project: form.project,
+      areaZone: form.areaZone,
+      salesExec: form.salesExec,
+      billingAddress: form.billingAddress,
+      installationAddress: form.installationAddress,
+      circuitNumber: form.circuitNumber,
+      activationDate: form.activationDate,
+      docType: form.docType,
+      docNumber: form.docNumber,
+      installDate: form.installDate,
+      notes: form.notes,
+      circuit: {
+        circuitId: form.circuitNumber,
+        landlineNumber: form.mobile,
+        activationDate: form.activationDate,
+        serviceStatus: form.status,
+      },
+    })
+
     navigate('/customers?type=intercom')
   }
 
