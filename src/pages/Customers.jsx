@@ -57,6 +57,7 @@ const CUSTOMERS = [
   { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '98300 89012', services: ['Broadband','Landline','OTT'],       plan: 'FTTH 200Mbps',     zone: 'Navi Mumbai',  area: 'Navi Mumbai',network: 'OLT-NM-01', expiry: '2026-06-30', status: 'active' },
   { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '97100 90123', services: ['Broadband'],                        plan: 'FTTH 100Mbps',     zone: 'Mira Road',    area: 'Mira Road', network: 'OLT-MR-01', expiry: '2026-04-25', status: 'active' },
   { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '96100 01234', services: ['Broadband','OTT','Business BB'],    plan: 'FTTH 500Mbps',     zone: 'Powai',        area: 'Powai',     network: 'OLT-PW-01', expiry: '2026-08-20', status: 'active' },
+  { id: 'INC-2026-0001', name: 'Mohan Das',         phone: '93456 78901', services: ['Intercom'],                          plan: 'Intercom Basic',   zone: 'Andheri West', area: 'Andheri',   network: '—',          expiry: '—',           status: 'active' },
 ]
 
 const ZONES      = [...new Set(CUSTOMERS.map(c => c.zone))].sort()
