@@ -16,6 +16,9 @@ import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
 import SalesLeadDetail from './pages/SalesLeadDetail'
 import SalesEditLead from './pages/SalesEditLead'
+import IntercomLeads from './pages/IntercomLeads'
+import IntercomLeadNew from './pages/IntercomLeadNew'
+import IntercomLeadDetail from './pages/IntercomLeadDetail'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
 import Installations from './pages/Installations'
@@ -68,6 +71,9 @@ export default function App() {
           <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/sales/feasibility-requests/:id" element={<FeasibilityDetail />} />
+          <Route path="/intercom/leads" element={<IntercomLeads />} />
+          <Route path="/intercom/leads/new" element={<IntercomLeadNew />} />
+          <Route path="/intercom/leads/:id" element={<IntercomLeadDetail />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/installations/:id" element={<InstallationDetail />} />
           <Route path="/billing" element={<Billing />} />
