@@ -19,6 +19,7 @@ import SalesEditLead from './pages/SalesEditLead'
 import IntercomLeads from './pages/IntercomLeads'
 import IntercomLeadNew from './pages/IntercomLeadNew'
 import IntercomLeadDetail from './pages/IntercomLeadDetail'
+import IntercomCustomerNew from './pages/IntercomCustomerNew'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
 import Installations from './pages/Installations'
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="/intercom/leads" element={<IntercomLeads />} />
           <Route path="/intercom/leads/new" element={<IntercomLeadNew />} />
           <Route path="/intercom/leads/:id" element={<IntercomLeadDetail />} />
+          <Route path="/intercom/customers/new" element={<IntercomCustomerNew />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/installations/:id" element={<InstallationDetail />} />
           <Route path="/billing" element={<Billing />} />
