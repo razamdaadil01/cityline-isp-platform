@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
   Wrench,
   Tv2,
+  Phone,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -40,6 +41,12 @@ const NAV_ITEMS = [
       { label: 'Installations',         icon: Wrench,         to: '/installations'                },
       { label: 'Proposals',             icon: FileCheck,      to: '/sales/proposals'              },
       { label: 'Analytics',             icon: BarChart2,      to: '/sales/analytics'              },
+    ],
+  },
+  {
+    label: 'Intercom',        icon: Phone,           to: '/intercom/leads',
+    children: [
+      { label: 'Leads', icon: PhoneCall, to: '/intercom/leads' },
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
