@@ -29,6 +29,7 @@ const BILLING_MOCK_ROWS = [
     comment: '',
     rechargeInternet: 'success',
     rechargeOtt: 'retry',
+    serviceType: 'Internet',
   },
   {
     id: 2,
@@ -47,6 +48,25 @@ const BILLING_MOCK_ROWS = [
     comment: '',
     rechargeInternet: 'success',
     rechargeOtt: 'retry',
+    serviceType: 'Internet',
+  },
+  {
+    id: 3,
+    userId: 'INC-2026-0001',
+    userLink: 'CNPL_INTERCOM',
+    customerName: 'Mohan Das',
+    invoiceNo: 'INC/26-27/0001',
+    package: 'Intercom Basic',
+    amount: 500,
+    adminAmount: 500,
+    resellerAmount: 0,
+    invoiceDate: '01-07-2026 10:00:00',
+    durationFrom: '01-07-2026',
+    durationTo: '31-07-2026',
+    addedBy: 'INC-2026-0001',
+    comment: '',
+    serviceType: 'Intercom',
+    status: 'Complete',
   },
 ]
 
@@ -56,6 +76,8 @@ const MODE_VARIANT = { Cash: 'green', UPI: 'blue', NEFT: 'navy', IMPS: 'purple',
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'IMPS', 'Cheque', 'Razorpay']
 const SERVICE_TYPES = ['All', 'FTTH', 'FTTB', 'Wireless', 'P2P', 'ILL']
 const NETWORKS = ['All', 'OLT-ANW-01', 'OLT-ANW-02', 'OLT-BNW-01', 'OLT-MNW-01']
+const BILLING_SERVICE_TYPES = ['Internet', 'Intercom']
+const SERVICE_TYPE_BADGE = { Internet: 'blue', Intercom: 'cyan' }
 
 const fmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -391,14 +413,16 @@ export default function Billing() {
   const [fReseller, setFReseller] = useState('Cityline Networks P...')
   const [fDiscount, setFDiscount] = useState('')
   const [fBox, setFBox] = useState('')
+  const [fServiceType, setFServiceType] = useState('')
 
   const clearAllFilters = () => {
     setFDateFrom(''); setFDateTo(''); setFCreatedBy('')
     setFZone(''); setFStatus(''); setFPackage(''); setFRechargeStatus('')
     setFArea(''); setFReseller('Cityline Networks P...'); setFDiscount(''); setFBox('')
+    setFServiceType('')
   }
 
-  const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox]
+  const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox, fServiceType]
     .filter(Boolean).length + (fReseller !== 'Cityline Networks P...' ? 1 : 0)
 
   const stats = useMemo(() => {
@@ -413,14 +437,15 @@ export default function Billing() {
   }, [])
 
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return BILLING_MOCK_ROWS
     const q = search.trim().toLowerCase()
-    return BILLING_MOCK_ROWS.filter(r =>
-      r.customerName.toLowerCase().includes(q) ||
-      r.userId.toLowerCase().includes(q) ||
-      r.userLink.toLowerCase().includes(q)
-    )
-  }, [search])
+    return BILLING_MOCK_ROWS.filter(r => {
+      if (q && !r.customerName.toLowerCase().includes(q) &&
+               !r.userId.toLowerCase().includes(q) &&
+               !r.userLink.toLowerCase().includes(q)) return false
+      if (fServiceType && r.serviceType !== fServiceType) return false
+      return true
+    })
+  }, [search, fServiceType])
 
   // Pagination derived values for invoice tabs
   const page     = activeTab === 'tax-invoice' ? tiPage     : prPage
@@ -570,6 +595,7 @@ export default function Billing() {
                     </th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">RECHARGE STATUS</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">USER/LINK ID</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">SERVICE TYPE</th>
                     {activeTab === 'tax-invoice' && (
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">INVOICE</th>
                     )}
@@ -585,19 +611,28 @@ export default function Billing() {
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex flex-col gap-1">
+                        {row.serviceType === 'Intercom' ? (
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
-                            <CheckCircle2 size={11} className="text-emerald-500" /> Internet
+                            <CheckCircle2 size={11} className="text-emerald-500" /> {row.status || 'Complete'}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-xs text-orange-600 font-medium">
-                            <AlertOctagon size={11} className="text-orange-500" /> OTT
-                            <button className="text-brand-blue underline text-xs ml-0.5">Retry</button>
-                          </span>
-                        </div>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
+                              <CheckCircle2 size={11} className="text-emerald-500" /> Internet
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-xs text-orange-600 font-medium">
+                              <AlertOctagon size={11} className="text-orange-500" /> OTT
+                              <button className="text-brand-blue underline text-xs ml-0.5">Retry</button>
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-3">
                         <a href="#" className="text-xs text-brand-blue font-semibold hover:underline">{row.userId}({row.userLink})</a>
                         <p className="text-xs text-gray-500 mt-0.5">{row.customerName}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <Badge variant={SERVICE_TYPE_BADGE[row.serviceType] ?? 'gray'} size="sm">{row.serviceType || '—'}</Badge>
                       </td>
                       {activeTab === 'tax-invoice' && (
                         <td className="px-3 py-3">
@@ -806,6 +841,18 @@ export default function Billing() {
               <div className="relative">
                 <select value={fBox} onChange={e => setFBox(e.target.value)} className={drawerSelectCls}>
                   <option value="">Please Select</option>
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Service Type */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Service Type</label>
+              <div className="relative">
+                <select value={fServiceType} onChange={e => setFServiceType(e.target.value)} className={drawerSelectCls}>
+                  <option value="">All</option>
+                  {BILLING_SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
