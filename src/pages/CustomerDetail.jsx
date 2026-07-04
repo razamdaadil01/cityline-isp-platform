@@ -11,7 +11,8 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { getAllCustomers } from '../data/customersData'
+import { getAllCustomers, updateCustomer } from '../data/customersData'
+import { saveLead } from '../data/leadsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -148,6 +149,9 @@ function makeCustomerFromBase(id) {
     online: base.status === 'active',
     services: base.services ?? [],
     circuit: base.circuit ?? null,
+    convertedLeadId: base.convertedLeadId ?? null,
+    keepIntercomActive: base.keepIntercomActive ?? null,
+    conversionStatus: base.conversionStatus ?? null,
     outstandingDues: 0,
     ekyc: base.status === 'active' ? 'verified' : 'pending',
     accountManager: 'Admin User',
@@ -2061,6 +2065,55 @@ export default function CustomerDetail() {
 
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
 
+  const [convertModalOpen, setConvertModalOpen] = useState(false)
+  const [convertForm, setConvertForm] = useState({ keepIntercomActive: true, notes: '' })
+  const [convertToast, setConvertToast] = useState(null)
+
+  useEffect(() => {
+    if (convertModalOpen) setConvertForm({ keepIntercomActive: true, notes: '' })
+  }, [convertModalOpen])
+
+  function handleInitiateConversion() {
+    const leadId = `LD-${Date.now()}`
+    const today = new Date().toISOString().slice(0, 10)
+    saveLead({
+      id: leadId,
+      pipeline: 'B2C',
+      leadName: `${customer.name} — Internet Conversion`,
+      name: customer.name,
+      phone: customer.phone,
+      email: '',
+      area: '',
+      source: 'Intercom Conversion',
+      sourceIntercomId: customer.id,
+      plan: '',
+      assigned: '',
+      followUp: '',
+      notes: convertForm.notes,
+      stage: 'New Inquiry',
+      daysInStage: 0,
+      lastActivity: 'Lead created from Intercom conversion',
+      createdAt: today,
+      createdBy: 'Admin User',
+      assignedInitials: '??',
+      assignedColor: 'bg-gray-400',
+      priority: 'medium',
+      ekycStatus: null,
+      hwAssigned: null,
+      kycDocs: {},
+      stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: 'Admin User', fields: {} }],
+      activityLog: [{ id: Date.now(), icon: '🔄', text: 'Lead created from Intercom conversion', user: 'Admin User', time: 'just now' }],
+    })
+    updateCustomer(customer.id, {
+      convertedLeadId: leadId,
+      keepIntercomActive: convertForm.keepIntercomActive,
+      conversionStatus: 'Completed',
+    })
+    setConvertModalOpen(false)
+    setConvertToast(`Internet Lead created successfully! Lead ID: ${leadId}`)
+    setTimeout(() => setConvertToast(null), 3000)
+  }
+
   return (
     <div className="p-6 space-y-5">
 
@@ -2135,9 +2188,43 @@ export default function CustomerDetail() {
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
             <Button variant="orange"    size="sm" icon={<Ban size={13} />}>Suspend</Button>
             <Button variant="danger"    size="sm" icon={<AlertTriangle size={13} />}>Terminate</Button>
+            {isIntercom && (
+              <Button size="sm" icon={<RefreshCw size={13} />}
+                onClick={() => setConvertModalOpen(true)}
+                disabled={!!customer.convertedLeadId}
+                title={customer.convertedLeadId ? 'Already converted to Internet' : undefined}>
+                {customer.convertedLeadId ? 'Already Converted' : 'Convert to Internet'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* ── Linked Internet Lead ── */}
+      {isIntercom && customer.convertedLeadId && (
+        <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="flex items-center gap-2">
+            <Wifi size={15} className="text-brand-blue shrink-0" />
+            <span className="text-sm text-gray-700">Converted to Internet:</span>
+            <button
+              onClick={() => navigate(`/sales/leads/${customer.convertedLeadId}`)}
+              className="text-sm font-semibold text-brand-blue hover:underline"
+            >
+              {customer.convertedLeadId}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Conversion Status:</span>
+            <Badge variant="green" size="sm">{customer.conversionStatus ?? 'Completed'}</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Keep Intercom Active:</span>
+            <Badge variant={customer.keepIntercomActive ? 'green' : 'gray'} size="sm">
+              {customer.keepIntercomActive ? 'Yes' : 'No'}
+            </Badge>
+          </div>
+        </div>
+      )}
 
       {/* ── Tabs ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
@@ -2172,6 +2259,60 @@ export default function CustomerDetail() {
           {activeTab === 'Activity Logs'   && <ActivityTab />}
         </div>
       </div>
+
+      {/* ── Convert to Internet Modal ── */}
+      <Modal
+        isOpen={convertModalOpen}
+        onClose={() => setConvertModalOpen(false)}
+        title="Convert to Internet"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setConvertModalOpen(false)}>Cancel</Button>
+          <Button size="sm" icon={<RefreshCw size={14} />} onClick={handleInitiateConversion}>
+            Initiate Conversion
+          </Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Source Intercom ID</label>
+            <input value={customer.id} disabled
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-gray-50 text-gray-500 font-mono" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Source Circuit ID</label>
+            <input value={customer.circuit?.circuitId ?? '—'} disabled
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-gray-50 text-gray-500 font-mono" />
+          </div>
+          <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-surface-border rounded-lg">
+            <span className="text-sm font-medium text-gray-700">Keep Intercom Active?</span>
+            <button
+              type="button"
+              onClick={() => setConvertForm(f => ({ ...f, keepIntercomActive: !f.keepIntercomActive }))}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${convertForm.keepIntercomActive ? 'bg-brand-blue' : 'bg-gray-200'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${convertForm.keepIntercomActive ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              value={convertForm.notes}
+              onChange={e => setConvertForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              placeholder="Optional notes…"
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 resize-none"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Toast */}
+      {convertToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg">
+          <CheckCircle size={15} /> {convertToast}
+        </div>
+      )}
     </div>
   )
 }
