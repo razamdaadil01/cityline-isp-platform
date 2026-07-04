@@ -54,8 +54,15 @@ export function subscribeCustomers(fn) {
   }
 }
 
+let _overrides = {}
+
+export function updateCustomer(id, patch) {
+  _overrides = { ..._overrides, [id]: { ...(_overrides[id] ?? {}), ...patch } }
+  notify()
+}
+
 export function getAllCustomers() {
-  return [..._addedCustomers, ...CUSTOMERS]
+  return [..._addedCustomers, ...CUSTOMERS].map(c => _overrides[c.id] ? { ...c, ..._overrides[c.id] } : c)
 }
 
 export function nextIntercomCustomerId() {

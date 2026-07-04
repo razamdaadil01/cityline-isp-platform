@@ -2222,6 +2222,22 @@ export default function SalesLeadDetail() {
         </div>
       </div>
 
+      {/* ── Converted from Intercom banner ── */}
+      {lead.sourceIntercomId && (
+        <div className="bg-cyan-50 border border-cyan-200 rounded-xl px-5 py-3 flex items-center gap-3">
+          <Badge variant="cyan" size="sm">Intercom</Badge>
+          <p className="text-sm text-cyan-800">
+            Converted from Intercom:{' '}
+            <button
+              onClick={() => navigate(`/customers/${lead.sourceIntercomId}/profile`)}
+              className="font-semibold text-brand-blue hover:underline"
+            >
+              {lead.sourceIntercomId}
+            </button>
+          </p>
+        </div>
+      )}
+
       {/* ── Tabs + content card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
 
