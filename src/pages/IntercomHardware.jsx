@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, HardDrive, Link2, PackageCheck,
   AlertTriangle, Eye, Repeat, XOctagon, Search as SearchIcon, MoreVertical,
@@ -63,6 +64,7 @@ function ActionsMenu({ device, pos, onView, onReassign, onMarkDamaged, onMarkLos
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomHardware() {
+  const navigate = useNavigate()
   const menuRef = useRef(null)
 
   const [search, setSearch] = useState('')
@@ -154,7 +156,7 @@ export default function IntercomHardware() {
 
   const menuDevice = INTERCOM_HARDWARE.find(d => d.id === menuId) ?? null
 
-  function handleView(d) { setMenuId(null) }
+  function handleView(d) { navigate(`/intercom/hardware/${d.id}`); setMenuId(null) }
   function handleReassign(d) { setMenuId(null) }
   function handleMarkDamaged(d) { setMenuId(null) }
   function handleMarkLost(d) { setMenuId(null) }
@@ -295,7 +297,12 @@ export default function IntercomHardware() {
                   return (
                     <tr key={d.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs text-brand-blue font-semibold">{d.id}</span>
+                        <button
+                          onClick={() => navigate(`/intercom/hardware/${d.id}`)}
+                          className="font-mono text-xs text-brand-blue font-semibold hover:underline"
+                        >
+                          {d.id}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{d.deviceType}</td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{d.serial}</td>
