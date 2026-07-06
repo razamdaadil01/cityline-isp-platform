@@ -20,6 +20,12 @@ import IntercomLeads from './pages/IntercomLeads'
 import IntercomLeadNew from './pages/IntercomLeadNew'
 import IntercomLeadDetail from './pages/IntercomLeadDetail'
 import IntercomCustomerNew from './pages/IntercomCustomerNew'
+import IntercomCustomers from './pages/IntercomCustomers'
+import IntercomCustomerDetail from './pages/IntercomCustomerDetail'
+import IntercomInstallations from './pages/IntercomInstallations'
+import IntercomBilling from './pages/IntercomBilling'
+import IntercomTickets from './pages/IntercomTickets'
+import IntercomHardware from './pages/IntercomHardware'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
 import Installations from './pages/Installations'
@@ -76,6 +82,12 @@ export default function App() {
           <Route path="/intercom/leads/new" element={<IntercomLeadNew />} />
           <Route path="/intercom/leads/:id" element={<IntercomLeadDetail />} />
           <Route path="/intercom/customers/new" element={<IntercomCustomerNew />} />
+          <Route path="/intercom/customers/:id" element={<IntercomCustomerDetail />} />
+          <Route path="/intercom/customers" element={<IntercomCustomers />} />
+          <Route path="/intercom/installations" element={<IntercomInstallations />} />
+          <Route path="/intercom/billing" element={<IntercomBilling />} />
+          <Route path="/intercom/tickets" element={<IntercomTickets />} />
+          <Route path="/intercom/hardware" element={<IntercomHardware />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/installations/:id" element={<InstallationDetail />} />
           <Route path="/billing" element={<Billing />} />
