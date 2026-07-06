@@ -1,0 +1,354 @@
+import { useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Check, Cpu, ClipboardList, Activity } from 'lucide-react'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
+import Card, { CardHeader } from '../components/ui/Card'
+
+// ── Mock work order dataset ──────────────────────────────────────────────────
+
+const MOCK_INSTALLATIONS = {
+  'IWO-2026-0001': {
+    id: 'IWO-2026-0001', customer: 'Mohan Das', customerId: 'INC-2026-0001', phone: '93456 78901',
+    circuitId: 'IC-2026-0001', zone: 'Andheri West', address: 'Flat 302, Sai Darshan CHS, Andheri West',
+    engineer: 'Suresh Babu', installDate: '20-06-2026', installTime: '10:00 AM', createdDate: '18-06-2026',
+    notes: 'Standard intercom installation', status: 'completed',
+    hardware: [
+      { device: 'Intercom Panel Unit', serial: 'ICP-2026-0001', status: 'active' },
+      { device: 'Handset Unit',        serial: 'ICH-2026-0001', status: 'active' },
+      { device: 'Power Adapter',       serial: 'IPA-2026-0001', status: 'active' },
+    ],
+    activity: [
+      { date: '18-06-2026', time: '10:00', event: 'Work order created', actor: 'Admin' },
+      { date: '19-06-2026', time: '09:00', event: 'Engineer Suresh Babu assigned', actor: 'Admin' },
+      { date: '20-06-2026', time: '11:30', event: 'Installation completed', actor: 'Suresh Babu' },
+    ],
+  },
+  'IWO-2026-0002': {
+    id: 'IWO-2026-0002', customer: 'Priya Nair', customerId: 'INC-2026-0002', phone: '98765 43210',
+    circuitId: 'IC-2026-0002', zone: 'Bandra East', address: 'B-204, Greenwood Residency, Bandra East',
+    engineer: 'Arjun Kumar', installDate: '22-06-2026', installTime: '11:00 AM', createdDate: '20-06-2026',
+    notes: 'Plus plan installation with extended handset range', status: 'completed',
+    hardware: [
+      { device: 'Intercom Panel Unit', serial: 'ICP-2026-0002', status: 'active' },
+    ],
+    activity: [
+      { date: '20-06-2026', time: '10:15', event: 'Work order created', actor: 'Admin' },
+      { date: '21-06-2026', time: '09:30', event: 'Engineer Arjun Kumar assigned', actor: 'Admin' },
+      { date: '22-06-2026', time: '12:00', event: 'Installation completed', actor: 'Arjun Kumar' },
+    ],
+  },
+  'IWO-2026-0003': {
+    id: 'IWO-2026-0003', customer: 'Suresh Patil', customerId: 'INC-2026-0003', phone: '99887 76655',
+    circuitId: 'IC-2026-0003', zone: 'Goregaon', address: 'Shop 12, Metro Business Park, Goregaon',
+    engineer: 'Preethi Nair', installDate: '25-06-2026', installTime: '02:00 PM', createdDate: '23-06-2026',
+    notes: 'In progress — awaiting final signal test', status: 'inprogress',
+    hardware: [
+      { device: 'Intercom Panel Unit', serial: 'ICP-2026-0003', status: 'active' },
+    ],
+    activity: [
+      { date: '23-06-2026', time: '10:00', event: 'Work order created', actor: 'Admin' },
+      { date: '24-06-2026', time: '09:00', event: 'Engineer Preethi Nair assigned', actor: 'Admin' },
+    ],
+  },
+  'IWO-2026-0004': {
+    id: 'IWO-2026-0004', customer: 'Anita Desai', customerId: 'INC-2026-0004', phone: '91234 56789',
+    circuitId: 'IC-2026-0004', zone: 'Versova', address: 'C-501, Palm Grove Society, Versova',
+    engineer: 'Anita Sharma', installDate: '28-06-2026', installTime: '09:30 AM', createdDate: '26-06-2026',
+    notes: 'Awaiting hardware dispatch', status: 'pending',
+    hardware: [],
+    activity: [
+      { date: '26-06-2026', time: '11:00', event: 'Work order created', actor: 'Admin' },
+      { date: '27-06-2026', time: '09:00', event: 'Engineer Anita Sharma assigned', actor: 'Admin' },
+    ],
+  },
+  'IWO-2026-0005': {
+    id: 'IWO-2026-0005', customer: 'Rajesh Kumar', customerId: 'INC-2026-0005', phone: '97654 32198',
+    circuitId: 'IC-2026-0005', zone: 'Andheri East', address: 'Flat 108, Sunrise Apartments, Andheri East',
+    engineer: 'Suresh Babu', installDate: '30-06-2026', installTime: '03:00 PM', createdDate: '29-06-2026',
+    notes: 'Scheduled installation', status: 'pending',
+    hardware: [],
+    activity: [
+      { date: '29-06-2026', time: '10:30', event: 'Work order created', actor: 'Admin' },
+    ],
+  },
+}
+
+function makeUnknownOrder(id) {
+  return {
+    id, customer: 'Unknown Customer', customerId: null, phone: '—',
+    circuitId: '—', zone: '—', address: '—', engineer: '—', installDate: '—',
+    installTime: '—', createdDate: '—', notes: '', status: 'pending',
+    hardware: [], activity: [],
+  }
+}
+
+// ── Shared config ────────────────────────────────────────────────────────────
+
+const STATUS_CFG = {
+  pending:    { variant: 'orange', label: 'Pending' },
+  inprogress: { variant: 'blue',   label: 'In Progress' },
+  completed:  { variant: 'green',  label: 'Completed' },
+  cancelled:  { variant: 'red',    label: 'Cancelled' },
+}
+
+const STAGE_STEPS = ['pending', 'inprogress', 'completed']
+const STAGE_LABELS = { pending: 'Pending', inprogress: 'In Progress', completed: 'Completed' }
+
+// ── Status Progress Bar ──────────────────────────────────────────────────────
+
+function StatusProgressBar({ status }) {
+  const currentIdx = STAGE_STEPS.indexOf(status)
+
+  return (
+    <div className="flex items-start">
+      {STAGE_STEPS.map((s, i) => {
+        const done = currentIdx >= 0 && i < currentIdx
+        const active = i === currentIdx
+        return (
+          <div key={s} className="flex items-start flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-2 min-w-0">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                done   ? 'bg-brand-blue text-white' :
+                active ? 'bg-navy text-white ring-4 ring-navy/20' :
+                         'bg-gray-100 text-gray-400'
+              }`}>
+                {done ? <Check size={15} /> : <span className="text-xs font-bold">{i + 1}</span>}
+              </div>
+              <span className={`text-[11px] font-semibold text-center leading-tight whitespace-nowrap ${
+                active ? 'text-navy' : done ? 'text-brand-blue' : 'text-gray-400'
+              }`}>
+                {STAGE_LABELS[s]}
+              </span>
+            </div>
+            {i < STAGE_STEPS.length - 1 && (
+              <div className={`flex-1 h-0.5 mt-[18px] mx-2 transition-all ${done ? 'bg-brand-blue' : 'bg-gray-200'}`} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function InfoField({ label, value, mono }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+      <p className={`text-sm text-gray-800 font-medium mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? '—'}</p>
+    </div>
+  )
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
+
+export default function IntercomInstallationDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+
+  const order = MOCK_INSTALLATIONS[id] ?? makeUnknownOrder(id)
+
+  const [status, setStatus] = useState(order.status)
+  const [remarks, setRemarks] = useState('')
+  const [activity, setActivity] = useState(order.activity)
+
+  const statusCfg = STATUS_CFG[status] ?? STATUS_CFG.pending
+
+  function handleUpdateStatus() {
+    const now = new Date()
+    const date = now.toLocaleDateString('en-GB').split('/').join('-')
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    setActivity(a => [...a, {
+      date, time,
+      event: `Status updated to ${STAGE_LABELS[status] ?? status}${remarks.trim() ? ` — ${remarks.trim()}` : ''}`,
+      actor: 'Admin',
+    }])
+    setRemarks('')
+  }
+
+  return (
+    <div className="p-6 space-y-5">
+
+      {/* ── Header card ── */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+
+        {/* Breadcrumb */}
+        <div className="px-5 lg:px-6 xl:px-7 2xl:px-8 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
+          <span className="text-gray-400">Intercom</span>
+          <span className="text-gray-300">›</span>
+          <button onClick={() => navigate('/intercom/installations')} className="text-gray-400 hover:underline transition-colors">
+            Installations
+          </button>
+          <span className="text-gray-300">›</span>
+          <span className="text-gray-500 truncate">{order.id}</span>
+        </div>
+        <div className="border-t border-surface-border" />
+
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-gray-900 font-mono">{order.id}</h1>
+              <Badge variant={statusCfg.variant} dot>{statusCfg.label}</Badge>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm">Edit</Button>
+              <Button variant="danger" size="sm">Close Work Order</Button>
+            </div>
+          </div>
+
+          {/* Status Progress Bar */}
+          <div className="mt-5 pt-5 border-t border-surface-border">
+            <StatusProgressBar status={status} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main grid ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+
+        {/* Left — Work Order Details */}
+        <Card>
+          <CardHeader title="Work Order Details" />
+          <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+            <InfoField label="Work Order ID" value={order.id} mono />
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Customer Name</p>
+              {order.customerId ? (
+                <button
+                  onClick={() => navigate(`/intercom/customers/${order.customerId}`)}
+                  className="text-sm text-brand-blue font-semibold hover:underline mt-0.5"
+                >
+                  {order.customer}
+                </button>
+              ) : (
+                <p className="text-sm text-gray-800 font-medium mt-0.5">{order.customer}</p>
+              )}
+            </div>
+            <InfoField label="Customer ID" value={order.customerId} mono />
+            <InfoField label="Phone" value={order.phone} mono />
+            <InfoField label="Circuit ID" value={order.circuitId} mono />
+            <InfoField label="Zone" value={order.zone} />
+            <div className="col-span-2">
+              <InfoField label="Installation Address" value={order.address} />
+            </div>
+            <InfoField label="Assigned Engineer" value={order.engineer} />
+            <InfoField label="Installation Date" value={order.installDate} />
+            <InfoField label="Installation Time" value={order.installTime} />
+            <InfoField label="Created Date" value={order.createdDate} />
+            <div className="col-span-2">
+              <InfoField label="Notes" value={order.notes} />
+            </div>
+          </div>
+        </Card>
+
+        {/* Right column */}
+        <div className="space-y-5">
+
+          {/* Hardware Assigned */}
+          <Card padding={false}>
+            <div className="px-5 py-4 border-b border-surface-border">
+              <h3 className="text-sm font-semibold text-gray-800">Hardware Assigned</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50/60 border-b border-surface-border">
+                    {['Device Type', 'Serial No', 'Status'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {order.hardware.length === 0 ? (
+                    <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-sm">No hardware assigned yet.</td></tr>
+                  ) : order.hardware.map((h, i) => (
+                    <tr key={i} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-navy/10 text-navy flex items-center justify-center shrink-0">
+                            <Cpu size={14} />
+                          </div>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">{h.device}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">{h.serial}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={h.status === 'active' ? 'green' : 'gray'} size="sm" dot>
+                          {h.status === 'active' ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Status Update */}
+          <Card>
+            <CardHeader title="Status Update" />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Current Status</label>
+                <select
+                  value={status}
+                  onChange={e => setStatus(e.target.value)}
+                  className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700 cursor-pointer"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="inprogress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Remarks</label>
+                <textarea
+                  value={remarks}
+                  onChange={e => setRemarks(e.target.value)}
+                  rows={3}
+                  placeholder="Add a remark for this status update…"
+                  className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none"
+                />
+              </div>
+              <Button size="sm" onClick={handleUpdateStatus} className="w-full justify-center">Update Status</Button>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* ── Activity Log ── */}
+      <Card padding={false}>
+        <div className="px-5 py-4 border-b border-surface-border flex items-center gap-2">
+          <Activity size={15} className="text-gray-500" />
+          <h3 className="text-sm font-semibold text-gray-800">Activity Log</h3>
+        </div>
+        <div className="px-5 py-5">
+          {activity.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No activity recorded yet.</p>
+          ) : (
+            <div className="space-y-0">
+              {activity.slice().reverse().map((entry, i) => (
+                <div key={i} className="flex gap-4 pb-5 relative">
+                  {i < activity.length - 1 && (
+                    <div className="absolute left-3.5 top-7 bottom-0 w-px bg-gray-200" />
+                  )}
+                  <div className="w-7 h-7 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center shrink-0 text-brand-blue z-10">
+                    <ClipboardList size={12} />
+                  </div>
+                  <div className="pt-1 min-w-0">
+                    <p className="text-sm text-gray-800 font-medium">{entry.event}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      by <span className="font-medium text-gray-600">{entry.actor}</span> · {entry.date} {entry.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
+    </div>
+  )
+}
