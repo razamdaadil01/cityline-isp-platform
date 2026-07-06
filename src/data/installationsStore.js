@@ -18,7 +18,7 @@ export const INST_BRANCHES = [
 // Status: Scheduled | Assigned | Hardware Collection Pending | Dispatched | Completed | Rescheduled | Cancelled | In Progress
 const INIT_INSTALLATIONS = [
   {
-    id: 'INS-001', leadId: 'LD-215', serviceType: 'Internet',
+    id: 'INS-001', leadId: 'LD-215',
     customerName: 'Ramesh Nair',        customerPhone: '9876001890', mobile: '9876001890',
     address: '12, Brigade Road',        area: 'Koramangala', locality: 'Koramangala 5th Block', city: 'Bangalore', pincode: '560001',
     plan: '100 Mbps Monthly (FTTH)',
@@ -38,7 +38,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-002', leadId: null, serviceType: 'Intercom',
+    id: 'INS-002', leadId: null,
     customerName: 'Sridhar Rao',        customerPhone: '9845021345', mobile: '9845021345',
     address: '45, MG Road',             area: 'MG Road', locality: 'MG Road 2nd Stage', city: 'Bangalore', pincode: '560001',
     plan: '50 Mbps Monthly (FTTH)',
@@ -57,7 +57,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-003', leadId: null, serviceType: 'Internet',
+    id: 'INS-003', leadId: null,
     customerName: 'Kavya Reddy',        customerPhone: '9876543211', mobile: '9876543211',
     address: '78, 100ft Road',          area: 'Indiranagar', locality: 'Indiranagar HAL 2nd Stage', city: 'Bangalore', pincode: '560038',
     plan: '100 Mbps Monthly (FTTH)',
@@ -78,7 +78,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-004', leadId: null, serviceType: 'Internet',
+    id: 'INS-004', leadId: null,
     customerName: 'Venkat Subramaniam', customerPhone: '9988001145', mobile: '9988001145',
     address: '23, Whitefield Main Road', area: 'Whitefield', locality: 'Whitefield Hope Farm', city: 'Bangalore', pincode: '560066',
     plan: '200 Mbps Quarterly (FTTH)',
@@ -101,7 +101,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-005', leadId: null, serviceType: 'Internet',
+    id: 'INS-005', leadId: null,
     customerName: 'Preeti Agarwal',     customerPhone: '9012345678', mobile: '9012345678',
     address: '11, Sector 2',            area: 'HSR Layout', locality: 'HSR Layout Sector 2', city: 'Bangalore', pincode: '560102',
     plan: '500 Mbps Half Yearly (FTTH)',
@@ -125,7 +125,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-006', leadId: null, serviceType: 'Intercom',
+    id: 'INS-006', leadId: null,
     customerName: 'Amit Sharma',        customerPhone: '9876543210', mobile: '9876543210',
     address: 'Sector 18',               area: 'Noida', locality: 'Sector 18 Noida', city: 'Noida', pincode: '201301',
     plan: '100 Mbps Monthly (FTTH)',
@@ -148,7 +148,7 @@ const INIT_INSTALLATIONS = [
     rescheduleRemarks: 'Customer called and said not available on 5 June.',
   },
   {
-    id: 'INS-007', leadId: null, serviceType: 'Internet',
+    id: 'INS-007', leadId: null,
     customerName: 'Sunita Rao',         customerPhone: '9812345678', mobile: '9812345678',
     address: 'Indiranagar',             area: 'Indiranagar', locality: 'Indiranagar 12th Main', city: 'Bangalore', pincode: '560038',
     plan: '200 Mbps Quarterly (FTTH)',
@@ -168,7 +168,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-008', leadId: null, serviceType: 'Internet',
+    id: 'INS-008', leadId: null,
     customerName: 'Rajiv Malhotra',     customerPhone: '9845678901', mobile: '9845678901',
     address: 'Koramangala',             area: 'Koramangala', locality: 'Koramangala 3rd Block', city: 'Bangalore', pincode: '560034',
     plan: '500 Mbps Half Yearly (FTTH)',
@@ -192,7 +192,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-009', leadId: null, serviceType: 'Intercom',
+    id: 'INS-009', leadId: null,
     customerName: 'Meena Pillai',       customerPhone: '9901234567', mobile: '9901234567',
     address: 'Sector 62',               area: 'Noida', locality: 'Sector 62 Noida', city: 'Noida', pincode: '201309',
     plan: '100 Mbps Monthly (FTTH)',
@@ -215,7 +215,7 @@ const INIT_INSTALLATIONS = [
     ],
   },
   {
-    id: 'INS-010', leadId: null, serviceType: 'Internet',
+    id: 'INS-010', leadId: null,
     customerName: 'Vikash Gupta',       customerPhone: '9823456789', mobile: '9823456789',
     address: 'Whitefield',              area: 'Whitefield', locality: 'Whitefield ITPL Road', city: 'Bangalore', pincode: '560066',
     plan: '50 Mbps Monthly (FTTH)',

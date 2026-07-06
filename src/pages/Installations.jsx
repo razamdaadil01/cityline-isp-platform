@@ -29,13 +29,6 @@ const RESCHEDULE_REASONS = [
   'Other',
 ]
 
-const SERVICE_TYPES = ['Internet', 'Intercom']
-
-const SERVICE_TYPE_CHIP = {
-  'Internet': 'bg-blue-100 text-blue-700',
-  'Intercom': 'bg-cyan-100 text-cyan-700',
-}
-
 const STATUS_CHIP = {
   'Scheduled':                  'bg-blue-100 text-blue-700',
   'Assigned':                   'bg-purple-100 text-purple-700',
@@ -99,14 +92,13 @@ export default function Installations() {
   const [filterSlot,      setFilterSlot]      = useState('')
   const [filterPriority,  setFilterPriority]  = useState('')
   const [filterBranch,    setFilterBranch]    = useState('')
-  const [filterServiceType, setFilterServiceType] = useState('')
 
   /* Drawer state */
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   /* Draft filters (edited inside drawer, applied on "Apply") */
   const EMPTY_DRAFT = {
-    dateFrom: '', dateTo: '', statuses: [], slot: '', team: '', engineer: '', priority: '', branch: '', serviceType: '',
+    dateFrom: '', dateTo: '', statuses: [], slot: '', team: '', engineer: '', priority: '', branch: '',
   }
   const [draft, setDraft] = useState(EMPTY_DRAFT)
 
@@ -120,7 +112,6 @@ export default function Installations() {
       engineer:  filterEngineer,
       priority:  filterPriority,
       branch:    filterBranch,
-      serviceType: filterServiceType,
     })
     setDrawerOpen(true)
   }
@@ -134,7 +125,6 @@ export default function Installations() {
     setFilterEngineer(draft.engineer)
     setFilterPriority(draft.priority)
     setFilterBranch(draft.branch)
-    setFilterServiceType(draft.serviceType)
     setPage(1)
     setDrawerOpen(false)
   }
@@ -146,7 +136,7 @@ export default function Installations() {
   function clearAllFilters() {
     setFilterDateFrom(''); setFilterDateTo(''); setFilterStatuses([])
     setFilterTeam(''); setFilterEngineer(''); setFilterSlot('')
-    setFilterPriority(''); setFilterBranch(''); setFilterServiceType('')
+    setFilterPriority(''); setFilterBranch('')
   }
 
   function toggleDraftStatus(s) {
@@ -164,7 +154,6 @@ export default function Installations() {
     filterSlot,
     filterPriority,
     filterBranch,
-    filterServiceType,
   ].filter(Boolean).length
 
   /* Menu */
@@ -240,11 +229,10 @@ export default function Installations() {
       if (filterSlot     && inst.slot !== filterSlot)       return false
       if (filterPriority && inst.priority !== filterPriority) return false
       if (filterBranch   && inst.branch !== filterBranch)   return false
-      if (filterServiceType && inst.serviceType !== filterServiceType) return false
       return true
     })
   }, [installations, activeTab, search, filterDateFrom, filterDateTo,
-      filterStatuses, filterTeam, filterEngineer, filterSlot, filterPriority, filterBranch, filterServiceType])
+      filterStatuses, filterTeam, filterEngineer, filterSlot, filterPriority, filterBranch])
 
   const hasFilters = activeFilterCount > 0
 
@@ -455,7 +443,7 @@ export default function Installations() {
               <table className="w-full" style={{ minWidth: 1400 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {['Inst ID','Lead ID','Customer Name','Service Type','Mobile','Area','Locality',
+                    {['Inst ID','Lead ID','Customer Name','Mobile','Area','Locality',
                       'Assigned Engineer','Installation Slot','Installation Date',
                       'Status','Branch','Created By','Actions'].map((h, i) => (
                       <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-6' : ''}`}>
@@ -489,13 +477,6 @@ export default function Installations() {
                       {/* CUSTOMER NAME */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs font-semibold text-gray-900">{inst.customerName}</span>
-                      </td>
-
-                      {/* SERVICE TYPE */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${SERVICE_TYPE_CHIP[inst.serviceType] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {inst.serviceType || '—'}
-                        </span>
                       </td>
 
                       {/* MOBILE */}
@@ -1207,16 +1188,6 @@ export default function Installations() {
                   className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700">
                   <option value="">All Branches</option>
                   {INST_BRANCHES.map(b => <option key={b}>{b}</option>)}
-                </select>
-              </div>
-
-              {/* Section 8 — Service Type */}
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Service Type</p>
-                <select value={draft.serviceType} onChange={e => setDraft(d => ({ ...d, serviceType: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-700">
-                  <option value="">All</option>
-                  {SERVICE_TYPES.map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
 
