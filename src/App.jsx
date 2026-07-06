@@ -88,6 +88,8 @@ export default function App() {
           <Route path="/intercom/customers" element={<IntercomCustomers />} />
           <Route path="/intercom/installations" element={<IntercomInstallations />} />
           <Route path="/intercom/billing" element={<IntercomBilling />} />
+          <Route path="/intercom/billing/recharge" element={<IntercomBilling />} />
+          <Route path="/intercom/billing/payments" element={<IntercomBilling />} />
           <Route path="/intercom/tickets" element={<IntercomTickets />} />
           <Route path="/intercom/hardware" element={<IntercomHardware />} />
           <Route path="/installations" element={<Installations />} />
