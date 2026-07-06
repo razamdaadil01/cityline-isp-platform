@@ -26,6 +26,7 @@ import IntercomInstallations from './pages/IntercomInstallations'
 import IntercomInstallationDetail from './pages/IntercomInstallationDetail'
 import IntercomBilling from './pages/IntercomBilling'
 import IntercomTickets from './pages/IntercomTickets'
+import IntercomTicketDetail from './pages/IntercomTicketDetail'
 import IntercomHardware from './pages/IntercomHardware'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="/intercom/billing/recharge" element={<IntercomBilling />} />
           <Route path="/intercom/billing/payments" element={<IntercomBilling />} />
           <Route path="/intercom/tickets" element={<IntercomTickets />} />
+          <Route path="/intercom/tickets/:id" element={<IntercomTicketDetail />} />
           <Route path="/intercom/hardware" element={<IntercomHardware />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/installations/:id" element={<InstallationDetail />} />
