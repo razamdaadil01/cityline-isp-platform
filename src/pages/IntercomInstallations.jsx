@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, ClipboardList, Clock, Loader2,
   CheckCircle2, Eye, Edit2, XCircle, MoreVertical,
@@ -60,6 +61,7 @@ function ActionsMenu({ order, pos, onView, onEdit, onCancel }) {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomInstallations() {
+  const navigate = useNavigate()
   const menuRef = useRef(null)
 
   const [search, setSearch] = useState('')
@@ -146,7 +148,7 @@ export default function IntercomInstallations() {
 
   const menuOrder = INTERCOM_INSTALLATIONS.find(o => o.id === menuId) ?? null
 
-  function handleView(o) { setMenuId(null) }
+  function handleView(o) { navigate(`/intercom/installations/${o.id}`); setMenuId(null) }
   function handleEdit(o) { setMenuId(null) }
   function handleCancel(o) { setMenuId(null) }
 
@@ -286,7 +288,12 @@ export default function IntercomInstallations() {
                   return (
                     <tr key={o.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs text-brand-blue font-semibold">{o.id}</span>
+                        <button
+                          onClick={() => navigate(`/intercom/installations/${o.id}`)}
+                          className="font-mono text-xs text-brand-blue font-semibold hover:underline"
+                        >
+                          {o.id}
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
