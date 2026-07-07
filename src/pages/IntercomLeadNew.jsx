@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { saveLead, nextLeadId, INTERCOM_STAGES, INTERCOM_PLANS, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import { saveLead, nextLeadId, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 
 const INIT_FORM = {
-  customer: '', mobile: '', plan: INTERCOM_PLANS[0],
-  stage: INTERCOM_STAGES[0], assigned: '', followUp: '', notes: '',
+  customer: '', mobile: '', assigned: '', followUp: '', notes: '',
 }
 
 export default function IntercomLeadNew() {
@@ -21,6 +20,7 @@ export default function IntercomLeadNew() {
     const e = {}
     if (!form.customer.trim())          e.customer = 'Customer name is required'
     if (!form.mobile.match(/^\d{10}$/)) e.mobile   = 'Enter a valid 10-digit number'
+    if (!form.assigned)                  e.assigned = 'Assign a sales executive'
     return e
   }
 
@@ -30,11 +30,10 @@ export default function IntercomLeadNew() {
     const id = nextLeadId()
     const lead = saveLead({
       id,
-      leadName: `${form.customer.trim()} — ${form.plan}`,
+      leadName: form.customer.trim(),
       customer: form.customer.trim(),
       mobile: form.mobile,
-      plan: form.plan,
-      stage: form.stage,
+      stage: 'New Inquiry',
       assigned: form.assigned,
       followUp: form.followUp,
       notes: form.notes,
@@ -92,23 +91,16 @@ export default function IntercomLeadNew() {
               {errors.mobile && <p className="text-xs text-red-500 mt-1">{errors.mobile}</p>}
             </FormField>
 
-            <FormField label="Plan">
-              <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
-                {INTERCOM_PLANS.map(p => <option key={p}>{p}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Stage">
-              <Select value={form.stage} onChange={e => set('stage', e.target.value)}>
-                {INTERCOM_STAGES.map(s => <option key={s}>{s}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Assigned To">
-              <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
+            <FormField label="Assigned To" required>
+              <Select
+                value={form.assigned}
+                onChange={e => { set('assigned', e.target.value); setErrors(p => ({ ...p, assigned: '' })) }}
+                className={errors.assigned ? 'border-red-400 focus:ring-red-400/30' : ''}
+              >
                 <option value="">Select user…</option>
                 {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
               </Select>
+              {errors.assigned && <p className="text-xs text-red-500 mt-1">{errors.assigned}</p>}
             </FormField>
 
             <FormField label="Follow-up Date">
