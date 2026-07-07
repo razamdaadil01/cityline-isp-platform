@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Check, Cpu, ClipboardList, Activity } from 'lucide-react'
+import { Check, Cpu, ClipboardList, Activity, UserCog, Search, X } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
-import { getInstallation } from '../data/intercomInstallationsStore'
+import Modal from '../components/ui/Modal'
+import { FormField, Input } from '../components/ui/FormInputs'
+import { getInstallation, updateInstallation, INSTALLATION_ENGINEERS } from '../data/intercomInstallationsStore'
 
 // ── Mock work order dataset ──────────────────────────────────────────────────
 
@@ -155,6 +157,151 @@ function InfoField({ label, value, mono }) {
   )
 }
 
+// dd-mm-yyyy <-> yyyy-mm-dd
+function toISO(ddmmyyyy) {
+  const [d, m, y] = ddmmyyyy.split('-')
+  return `${y}-${m}-${d}`
+}
+
+function toDDMMYYYY(iso) {
+  const [y, m, d] = iso.split('-')
+  return `${d}-${m}-${y}`
+}
+
+// ── Engineer avatars ─────────────────────────────────────────────────────────
+
+function EngineerBadges({ value }) {
+  const names = (value ?? '').split(',').map(n => n.trim()).filter(n => n && n !== '—')
+  if (names.length === 0) return <p className="text-sm text-gray-800 font-medium mt-0.5">—</p>
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      <div className="flex items-center -space-x-1.5">
+        {names.map(name => {
+          const eng = INSTALLATION_ENGINEERS.find(e => e.name === name)
+          return (
+            <div key={name} title={name}
+              className={`w-6 h-6 rounded-full ${eng?.color ?? 'bg-gray-400'} flex items-center justify-center text-white text-[9px] font-bold border-2 border-white shrink-0`}>
+              {eng?.initials ?? name.charAt(0)}
+            </div>
+          )
+        })}
+      </div>
+      <span className="text-sm text-gray-800 font-medium">{names.join(', ')}</span>
+    </div>
+  )
+}
+
+// ── Assign Engineer Modal ────────────────────────────────────────────────────
+
+function AssignEngineerModal({ isOpen, onClose, order, onSubmit }) {
+  const [engineers, setEngineers] = useState([])
+  const [installDate, setInstallDate] = useState('')
+  const [installTime, setInstallTime] = useState('')
+  const [engSearch, setEngSearch] = useState('')
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen && order) {
+      setEngineers((order.engineer ?? '').split(',').map(n => n.trim()).filter(n => n && n !== '—'))
+      setInstallDate(order.installDate && order.installDate !== '—' ? toISO(order.installDate) : '')
+      setInstallTime(order.installTime && order.installTime !== '—' ? order.installTime : '')
+      setEngSearch('')
+      setErrors({})
+    }
+  }, [isOpen, order])
+
+  function toggleEngineer(name) {
+    setEngineers(list => list.includes(name) ? list.filter(n => n !== name) : [...list, name])
+    setErrors(p => ({ ...p, engineers: '' }))
+  }
+
+  function handleSubmit() {
+    const e = {}
+    if (engineers.length === 0) e.engineers = 'Select at least one engineer'
+    if (!installDate) e.installDate = 'Installation date is required'
+    if (!installTime) e.installTime = 'Installation time is required'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit({ engineers, installDate, installTime })
+  }
+
+  const filtered = INSTALLATION_ENGINEERS.filter(e => e.name.toLowerCase().includes(engSearch.toLowerCase()))
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Engineer — ${order?.id ?? ''}`} size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleSubmit}>Assign</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">Engineer <span className="text-red-500">*</span></p>
+
+          {engineers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {engineers.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                  {name}
+                  <button type="button" onClick={() => toggleEngineer(name)}
+                    className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="relative mb-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              value={engSearch}
+              onChange={e => setEngSearch(e.target.value)}
+              placeholder="Search engineer..."
+              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+            />
+          </div>
+
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[200px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No engineers found</p>
+            ) : filtered.map(eng => {
+              const selected = engineers.includes(eng.name)
+              return (
+                <label key={eng.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <input type="checkbox"
+                    checked={selected}
+                    onChange={() => toggleEngineer(eng.name)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                  />
+                  <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                    {eng.initials}
+                  </div>
+                  <span className="text-sm text-gray-700">{eng.name}</span>
+                </label>
+              )
+            })}
+          </div>
+          {errors.engineers && <p className="text-xs text-red-500 mt-1">{errors.engineers}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Installation Date" required error={errors.installDate}>
+            <Input type="date" value={installDate}
+              onChange={e => { setInstallDate(e.target.value); setErrors(p => ({ ...p, installDate: '' })) }} />
+          </FormField>
+          <FormField label="Installation Time" required error={errors.installTime}>
+            <Input type="time" value={installTime}
+              onChange={e => { setInstallTime(e.target.value); setErrors(p => ({ ...p, installTime: '' })) }} />
+          </FormField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomInstallationDetail() {
@@ -166,8 +313,13 @@ export default function IntercomInstallationDetail() {
   const [status, setStatus] = useState(order.status)
   const [remarks, setRemarks] = useState('')
   const [activity, setActivity] = useState(order.activity)
+  const [engineer, setEngineer] = useState(order.engineer)
+  const [installDate, setInstallDate] = useState(order.installDate)
+  const [installTime, setInstallTime] = useState(order.installTime)
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
 
   const statusCfg = STATUS_CFG[status] ?? STATUS_CFG.pending
+  const hasEngineer = !!engineer && engineer !== '—'
 
   function handleUpdateStatus() {
     const now = new Date()
@@ -179,6 +331,28 @@ export default function IntercomInstallationDetail() {
       actor: 'Admin',
     }])
     setRemarks('')
+  }
+
+  function handleAssignSubmit({ engineers, installDate: newDate, installTime: newTime }) {
+    const names = engineers.join(', ')
+    const ddmmyyyy = toDDMMYYYY(newDate)
+    const newStatus = status === 'pending' ? 'inprogress' : status
+    const now = new Date()
+    const date = now.toLocaleDateString('en-GB').split('/').join('-')
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
+    setEngineer(names)
+    setInstallDate(ddmmyyyy)
+    setInstallTime(newTime)
+    setStatus(newStatus)
+    setActivity(a => [...a, {
+      date, time,
+      event: `Engineer${engineers.length > 1 ? 's' : ''} ${names} assigned`,
+      actor: 'Admin',
+    }])
+
+    updateInstallation(order.id, { engineer: names, installDate: ddmmyyyy, installTime: newTime, status: newStatus })
+    setAssignModalOpen(false)
   }
 
   return (
@@ -207,6 +381,11 @@ export default function IntercomInstallationDetail() {
               <Badge variant={statusCfg.variant} dot>{statusCfg.label}</Badge>
             </div>
             <div className="flex gap-2">
+              {!hasEngineer && (
+                <Button size="sm" icon={<UserCog size={14} />} onClick={() => setAssignModalOpen(true)}>
+                  Assign Engineer
+                </Button>
+              )}
               <Button variant="secondary" size="sm">Edit</Button>
               <Button variant="danger" size="sm">Close Work Order</Button>
             </div>
@@ -247,9 +426,12 @@ export default function IntercomInstallationDetail() {
             <div className="col-span-2">
               <InfoField label="Installation Address" value={order.address} />
             </div>
-            <InfoField label="Assigned Engineer" value={order.engineer} />
-            <InfoField label="Installation Date" value={order.installDate} />
-            <InfoField label="Installation Time" value={order.installTime} />
+            <div>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Assigned Engineer</p>
+              <EngineerBadges value={engineer} />
+            </div>
+            <InfoField label="Installation Date" value={installDate} />
+            <InfoField label="Installation Time" value={installTime} />
             <InfoField label="Created Date" value={order.createdDate} />
             <div className="col-span-2">
               <InfoField label="Notes" value={order.notes} />
@@ -363,6 +545,13 @@ export default function IntercomInstallationDetail() {
           )}
         </div>
       </Card>
+
+      <AssignEngineerModal
+        isOpen={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        order={{ id: order.id, engineer, installDate, installTime }}
+        onSubmit={handleAssignSubmit}
+      />
 
     </div>
   )

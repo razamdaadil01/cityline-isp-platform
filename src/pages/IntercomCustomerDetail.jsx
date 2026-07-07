@@ -731,7 +731,7 @@ function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
         <FormField label="Assigned Engineer" required error={errors.engineer}>
           <Select value={form.engineer} onChange={e => set('engineer', e.target.value)}>
             <option value="">Select engineer…</option>
-            {INSTALLATION_ENGINEERS.map(eng => <option key={eng}>{eng}</option>)}
+            {INSTALLATION_ENGINEERS.map(eng => <option key={eng.id} value={eng.name}>{eng.name}</option>)}
           </Select>
         </FormField>
         <FormField label="Installation Date" required error={errors.installDate}>

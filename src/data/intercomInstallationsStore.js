@@ -1,4 +1,9 @@
-export const INSTALLATION_ENGINEERS = ['Suresh Babu', 'Arjun Kumar', 'Preethi Nair', 'Anita Sharma']
+export const INSTALLATION_ENGINEERS = [
+  { id: 'ieng-001', name: 'Suresh Babu',  initials: 'SB', color: 'bg-brand-blue'  },
+  { id: 'ieng-002', name: 'Arjun Kumar',  initials: 'AK', color: 'bg-emerald-500' },
+  { id: 'ieng-003', name: 'Preethi Nair', initials: 'PN', color: 'bg-purple-500'  },
+  { id: 'ieng-004', name: 'Anita Sharma', initials: 'AS', color: 'bg-teal-500'    },
+]
 
 const INIT_INSTALLATIONS = [
   { id: 'IWO-2026-0001', customer: 'Mohan Das',    customerId: 'INC-2026-0001', phone: '93456 78901', circuitId: 'IC-2026-0001', zone: 'Andheri West', engineer: 'Suresh Babu',   installDate: '20-06-2026', installTime: '10:00', createdDate: '18-06-2026', notes: 'Standard intercom installation', status: 'completed'  },
@@ -25,6 +30,12 @@ export function addInstallation(order) {
   _installations = [order, ..._installations]
   notify()
   return order
+}
+
+export function updateInstallation(id, patch) {
+  _installations = _installations.map(o => o.id === id ? { ...o, ...patch } : o)
+  notify()
+  return getInstallation(id)
 }
 
 export function subscribeInstallations(fn) {

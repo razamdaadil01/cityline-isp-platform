@@ -2,11 +2,15 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, ClipboardList, Clock, Loader2,
-  CheckCircle2, Eye, Edit2, XCircle, MoreVertical,
+  CheckCircle2, Eye, Edit2, XCircle, MoreVertical, UserCog,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-import { getInstallations, subscribeInstallations, INSTALLATION_ENGINEERS } from '../data/intercomInstallationsStore'
+import Modal from '../components/ui/Modal'
+import { FormField, Input } from '../components/ui/FormInputs'
+import {
+  getInstallations, subscribeInstallations, updateInstallation, INSTALLATION_ENGINEERS,
+} from '../data/intercomInstallationsStore'
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -26,17 +30,49 @@ function toISO(ddmmyyyy) {
   return `${y}-${m}-${d}`
 }
 
+function toDDMMYYYY(iso) {
+  const [y, m, d] = iso.split('-')
+  return `${d}-${m}-${y}`
+}
+
+// ── Engineer avatars ─────────────────────────────────────────────────────────
+
+function EngineerBadges({ value }) {
+  const names = (value ?? '').split(',').map(n => n.trim()).filter(Boolean)
+  if (names.length === 0) return <span className="text-gray-400">—</span>
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="flex items-center -space-x-1.5">
+        {names.map(name => {
+          const eng = INSTALLATION_ENGINEERS.find(e => e.name === name)
+          return (
+            <div key={name} title={name}
+              className={`w-6 h-6 rounded-full ${eng?.color ?? 'bg-gray-400'} flex items-center justify-center text-white text-[9px] font-bold border-2 border-white shrink-0`}>
+              {eng?.initials ?? name.charAt(0)}
+            </div>
+          )
+        })}
+      </div>
+      <span className="text-xs text-gray-600 whitespace-nowrap">{names.join(', ')}</span>
+    </div>
+  )
+}
+
 // ── Actions Menu ───────────────────────────────────────────────────────────────
 
-function ActionsMenu({ order, pos, onView, onEdit, onCancel }) {
+function ActionsMenu({ order, pos, onView, onAssign, onEdit, onCancel }) {
   return (
     <div
       style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
-      className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-40"
+      className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
     >
       <button onClick={() => onView(order)}
         className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
         <Eye size={13} className="text-brand-blue shrink-0" /> View
+      </button>
+      <button onClick={() => onAssign(order)}
+        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+        <UserCog size={13} className="text-emerald-500 shrink-0" /> Assign Engineer
       </button>
       <button onClick={() => onEdit(order)}
         className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
@@ -51,6 +87,117 @@ function ActionsMenu({ order, pos, onView, onEdit, onCancel }) {
   )
 }
 
+// ── Assign Engineer Modal ────────────────────────────────────────────────────
+
+function AssignEngineerModal({ isOpen, onClose, order, onSubmit }) {
+  const [engineers, setEngineers] = useState([])
+  const [installDate, setInstallDate] = useState('')
+  const [installTime, setInstallTime] = useState('')
+  const [engSearch, setEngSearch] = useState('')
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen && order) {
+      setEngineers((order.engineer ?? '').split(',').map(n => n.trim()).filter(Boolean))
+      setInstallDate(order.installDate ? toISO(order.installDate) : '')
+      setInstallTime(order.installTime && order.installTime !== '—' ? order.installTime : '')
+      setEngSearch('')
+      setErrors({})
+    }
+  }, [isOpen, order])
+
+  function toggleEngineer(name) {
+    setEngineers(list => list.includes(name) ? list.filter(n => n !== name) : [...list, name])
+    setErrors(p => ({ ...p, engineers: '' }))
+  }
+
+  function handleSubmit() {
+    const e = {}
+    if (engineers.length === 0) e.engineers = 'Select at least one engineer'
+    if (!installDate) e.installDate = 'Installation date is required'
+    if (!installTime) e.installTime = 'Installation time is required'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit({ engineers, installDate, installTime })
+  }
+
+  const filtered = INSTALLATION_ENGINEERS.filter(e => e.name.toLowerCase().includes(engSearch.toLowerCase()))
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Engineer — ${order?.id ?? ''}`} size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleSubmit}>Assign</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">Engineer <span className="text-red-500">*</span></p>
+
+          {engineers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {engineers.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                  {name}
+                  <button type="button" onClick={() => toggleEngineer(name)}
+                    className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="relative mb-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              value={engSearch}
+              onChange={e => setEngSearch(e.target.value)}
+              placeholder="Search engineer..."
+              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+            />
+          </div>
+
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[200px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No engineers found</p>
+            ) : filtered.map(eng => {
+              const selected = engineers.includes(eng.name)
+              return (
+                <label key={eng.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <input type="checkbox"
+                    checked={selected}
+                    onChange={() => toggleEngineer(eng.name)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                  />
+                  <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                    {eng.initials}
+                  </div>
+                  <span className="text-sm text-gray-700">{eng.name}</span>
+                </label>
+              )
+            })}
+          </div>
+          {errors.engineers && <p className="text-xs text-red-500 mt-1">{errors.engineers}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Installation Date" required error={errors.installDate}>
+            <Input type="date" value={installDate}
+              onChange={e => { setInstallDate(e.target.value); setErrors(p => ({ ...p, installDate: '' })) }} />
+          </FormField>
+          <FormField label="Installation Time" required error={errors.installTime}>
+            <Input type="time" value={installTime}
+              onChange={e => { setInstallTime(e.target.value); setErrors(p => ({ ...p, installTime: '' })) }} />
+          </FormField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomInstallations() {
@@ -59,6 +206,8 @@ export default function IntercomInstallations() {
 
   const [installations, setInstallations] = useState(getInstallations())
   useEffect(() => subscribeInstallations(setInstallations), [])
+
+  const [assignOrder, setAssignOrder] = useState(null)
 
   const [search, setSearch] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -123,7 +272,7 @@ export default function IntercomInstallations() {
     return installations.filter(o => {
       if (q && !o.customer.toLowerCase().includes(q) && !o.id.toLowerCase().includes(q) && !o.customerId.toLowerCase().includes(q)) return false
       if (filterStatus && o.status !== filterStatus.toLowerCase().replace(/\s+/g, '')) return false
-      if (filterEngineer && o.engineer !== filterEngineer) return false
+      if (filterEngineer && !(o.engineer ?? '').split(',').map(n => n.trim()).includes(filterEngineer)) return false
       if (filterZone && o.zone !== filterZone) return false
       if (filterDateFrom && toISO(o.installDate) < filterDateFrom) return false
       if (filterDateTo && toISO(o.installDate) > filterDateTo) return false
@@ -145,8 +294,19 @@ export default function IntercomInstallations() {
   const menuOrder = installations.find(o => o.id === menuId) ?? null
 
   function handleView(o) { navigate(`/intercom/installations/${o.id}`); setMenuId(null) }
+  function handleAssign(o) { setAssignOrder(o); setMenuId(null) }
   function handleEdit(o) { setMenuId(null) }
   function handleCancel(o) { setMenuId(null) }
+
+  function handleAssignSubmit({ engineers, installDate, installTime }) {
+    updateInstallation(assignOrder.id, {
+      engineer: engineers.join(', '),
+      installDate: toDDMMYYYY(installDate),
+      installTime,
+      status: assignOrder.status === 'pending' ? 'inprogress' : assignOrder.status,
+    })
+    setAssignOrder(null)
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -301,7 +461,7 @@ export default function IntercomInstallations() {
                       </td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{o.customerId}</td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{o.phone}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{o.engineer}</td>
+                      <td className="px-4 py-3 whitespace-nowrap"><EngineerBadges value={o.engineer} /></td>
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{o.installDate}</td>
                       <td className="px-4 py-3">
                         <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
@@ -365,6 +525,7 @@ export default function IntercomInstallations() {
             order={menuOrder}
             pos={menuPos}
             onView={handleView}
+            onAssign={handleAssign}
             onEdit={handleEdit}
             onCancel={handleCancel}
           />
@@ -419,7 +580,7 @@ export default function IntercomInstallations() {
                 <select value={draft.engineer} onChange={e => setDraft(d => ({ ...d, engineer: e.target.value }))}
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
                   <option value="">All Engineers</option>
-                  {ENGINEERS.map(e => <option key={e} value={e}>{e}</option>)}
+                  {ENGINEERS.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
@@ -471,6 +632,13 @@ export default function IntercomInstallations() {
 
         </div>
       </div>
+
+      <AssignEngineerModal
+        isOpen={!!assignOrder}
+        onClose={() => setAssignOrder(null)}
+        order={assignOrder}
+        onSubmit={handleAssignSubmit}
+      />
 
     </div>
   )
