@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
@@ -19,7 +21,15 @@ const STATUS_CFG = {
 const DEVICE_TYPES = ['Intercom Panel Unit', 'Handset Unit', 'Power Adapter', 'Cable']
 const ZONES = ['Andheri West', 'Bandra East']
 
-const INTERCOM_HARDWARE = [
+const CUSTOMERS = [
+  { id: 'INC-2026-0001', name: 'Mohan Das',    circuitId: 'IC-2026-0001' },
+  { id: 'INC-2026-0002', name: 'Priya Nair',   circuitId: 'IC-2026-0002' },
+  { id: 'INC-2026-0003', name: 'Suresh Patil', circuitId: 'IC-2026-0003' },
+  { id: 'INC-2026-0004', name: 'Anita Desai',  circuitId: 'IC-2026-0004' },
+  { id: 'INC-2026-0005', name: 'Rajesh Kumar', circuitId: 'IC-2026-0005' },
+]
+
+const INIT_HARDWARE = [
   { id: 'IHW-2026-0001', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0001', assignedTo: 'Mohan Das',  customerId: 'INC-2026-0001', zone: 'Andheri West', assignedDate: '19-06-2026', status: 'assigned'  },
   { id: 'IHW-2026-0002', deviceType: 'Handset Unit',        serial: 'ICH-2026-0001', assignedTo: 'Mohan Das',  customerId: 'INC-2026-0001', zone: 'Andheri West', assignedDate: '19-06-2026', status: 'assigned'  },
   { id: 'IHW-2026-0003', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0002', assignedTo: 'Priya Nair', customerId: 'INC-2026-0002', zone: 'Bandra East',  assignedDate: '22-06-2026', status: 'assigned'  },
@@ -30,6 +40,18 @@ const INTERCOM_HARDWARE = [
 function toISO(ddmmyyyy) {
   const [d, m, y] = ddmmyyyy.split('-')
   return `${y}-${m}-${d}`
+}
+
+function todayDDMMYYYY() {
+  const now = new Date()
+  return now.toLocaleDateString('en-GB').split('/').join('-')
+}
+
+function nextHardwareId(list) {
+  const year = list[0]?.id.match(/^IHW-(\d{4})-/)?.[1] ?? new Date().getFullYear()
+  const nums = list.map(h => h.id.match(/^IHW-\d{4}-(\d+)$/)).filter(Boolean).map(m => Number(m[1]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `IHW-${year}-${String(next).padStart(4, '0')}`
 }
 
 // ── Actions Menu ───────────────────────────────────────────────────────────────
@@ -61,12 +83,115 @@ function ActionsMenu({ device, pos, onView, onReassign, onMarkDamaged, onMarkLos
   )
 }
 
+// ── Add Hardware Modal ───────────────────────────────────────────────────────
+
+const EMPTY_ADD_FORM = {
+  deviceType: DEVICE_TYPES[0], serial: '', brandModel: '', purchaseDate: '',
+  warrantyUntil: '', zone: ZONES[0], status: 'available', customerId: '', remarks: '',
+}
+
+function AddHardwareModal({ isOpen, onClose, onSubmit }) {
+  const [form, setForm] = useState(EMPTY_ADD_FORM)
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm(EMPTY_ADD_FORM); setErrors({}) }
+  }, [isOpen])
+
+  function set(f, v) {
+    setForm(p => ({ ...p, [f]: v }))
+    setErrors(p => ({ ...p, [f]: '' }))
+  }
+
+  const selectedCustomer = CUSTOMERS.find(c => c.id === form.customerId) ?? null
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.deviceType) e.deviceType = 'Select a device type'
+    if (!form.serial.trim()) e.serial = 'Serial number is required'
+    if (!form.zone) e.zone = 'Select a zone'
+    if (!form.status) e.status = 'Select a status'
+    if (form.status === 'assigned' && !form.customerId) e.customerId = 'Select a customer to assign to'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form, selectedCustomer)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Hardware" size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button icon={<Plus size={14} />} onClick={handleSubmit}>Add Hardware</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <FormField label="Device Type" required error={errors.deviceType}>
+          <Select value={form.deviceType} onChange={e => set('deviceType', e.target.value)}>
+            {DEVICE_TYPES.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Serial No" required error={errors.serial}>
+          <Input value={form.serial} onChange={e => set('serial', e.target.value)} placeholder="e.g. ICP-2026-0006" />
+        </FormField>
+
+        <FormField label="Brand/Model">
+          <Input value={form.brandModel} onChange={e => set('brandModel', e.target.value)} placeholder="Optional" />
+        </FormField>
+        <FormField label="Purchase Date">
+          <Input type="date" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} />
+        </FormField>
+
+        <FormField label="Warranty Until">
+          <Input type="date" value={form.warrantyUntil} onChange={e => set('warrantyUntil', e.target.value)} />
+        </FormField>
+        <FormField label="Zone" required error={errors.zone}>
+          <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
+            {ZONES.map(z => <option key={z}>{z}</option>)}
+          </Select>
+        </FormField>
+
+        <FormField label="Status" required error={errors.status}>
+          <Select value={form.status} onChange={e => set('status', e.target.value)}>
+            <option value="available">Available</option>
+            <option value="assigned">Assigned</option>
+          </Select>
+        </FormField>
+        {form.status === 'assigned' && (
+          <FormField label="Assign To Customer" error={errors.customerId}>
+            <Select value={form.customerId} onChange={e => set('customerId', e.target.value)}>
+              <option value="">Select customer…</option>
+              {CUSTOMERS.map(c => <option key={c.id} value={c.id}>{c.name} ({c.id})</option>)}
+            </Select>
+          </FormField>
+        )}
+
+        {form.status === 'assigned' && selectedCustomer && (
+          <FormField label="Select Circuit">
+            <Select value={selectedCustomer.circuitId} disabled>
+              <option value={selectedCustomer.circuitId}>{selectedCustomer.circuitId}</option>
+            </Select>
+          </FormField>
+        )}
+
+        <div className="col-span-2">
+          <FormField label="Remarks">
+            <Textarea value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={3} placeholder="Any additional notes…" />
+          </FormField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomHardware() {
   const navigate = useNavigate()
   const menuRef = useRef(null)
 
+  const [hardware, setHardware] = useState(INIT_HARDWARE)
+  const [addModalOpen, setAddModalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [menuId, setMenuId] = useState(null)
@@ -127,7 +252,7 @@ export default function IntercomHardware() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return INTERCOM_HARDWARE.filter(d => {
+    return hardware.filter(d => {
       if (q &&
         !d.id.toLowerCase().includes(q) &&
         !d.serial.toLowerCase().includes(q) &&
@@ -141,25 +266,44 @@ export default function IntercomHardware() {
       if (filterDateTo && (!d.assignedDate || toISO(d.assignedDate) > filterDateTo)) return false
       return true
     })
-  }, [search, filterStatus, filterDeviceType, filterZone, filterDateFrom, filterDateTo])
+  }, [hardware, search, filterStatus, filterDeviceType, filterZone, filterDateFrom, filterDateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const stats = useMemo(() => ({
-    total:     INTERCOM_HARDWARE.length,
-    assigned:  INTERCOM_HARDWARE.filter(d => d.status === 'assigned').length,
-    available: INTERCOM_HARDWARE.filter(d => d.status === 'available').length,
-    damagedLost: INTERCOM_HARDWARE.filter(d => d.status === 'damaged' || d.status === 'lost').length,
-  }), [])
+    total:     hardware.length,
+    assigned:  hardware.filter(d => d.status === 'assigned').length,
+    available: hardware.filter(d => d.status === 'available').length,
+    damagedLost: hardware.filter(d => d.status === 'damaged' || d.status === 'lost').length,
+  }), [hardware])
 
-  const menuDevice = INTERCOM_HARDWARE.find(d => d.id === menuId) ?? null
+  const menuDevice = hardware.find(d => d.id === menuId) ?? null
 
   function handleView(d) { navigate(`/intercom/hardware/${d.id}`); setMenuId(null) }
   function handleReassign(d) { setMenuId(null) }
   function handleMarkDamaged(d) { setMenuId(null) }
   function handleMarkLost(d) { setMenuId(null) }
+
+  function handleAddHardware(form, selectedCustomer) {
+    const newDevice = {
+      id: nextHardwareId(hardware),
+      deviceType: form.deviceType,
+      serial: form.serial.trim(),
+      brandModel: form.brandModel.trim() || null,
+      purchaseDate: form.purchaseDate || null,
+      warrantyUntil: form.warrantyUntil || null,
+      assignedTo: form.status === 'assigned' ? selectedCustomer?.name ?? null : null,
+      customerId: form.status === 'assigned' ? selectedCustomer?.id ?? null : null,
+      zone: form.zone,
+      assignedDate: form.status === 'assigned' ? todayDDMMYYYY() : null,
+      status: form.status,
+      remarks: form.remarks || null,
+    }
+    setHardware(h => [newDevice, ...h])
+    setAddModalOpen(false)
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -170,7 +314,7 @@ export default function IntercomHardware() {
           <h1 className="text-xl font-bold text-gray-900">Intercom Hardware</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage intercom hardware inventory and assignments</p>
         </div>
-        <Button size="sm" icon={<Plus size={14} />}>Add Hardware</Button>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => setAddModalOpen(true)}>Add Hardware</Button>
       </div>
 
       {/* ── Stats ──────────────────────────────────────────────────────────── */}
@@ -479,6 +623,13 @@ export default function IntercomHardware() {
 
         </div>
       </div>
+
+      {/* ── Add Hardware Modal ─────────────────────────────────────────────── */}
+      <AddHardwareModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onSubmit={handleAddHardware}
+      />
 
     </div>
   )
