@@ -9,7 +9,7 @@ const sizes = {
   xl: 'max-w-4xl',
 }
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md', footer, zIndex = 'z-50' }) {
+export default function Modal({ isOpen, onClose, title, children, size = 'md', className = '', footer, zIndex = 'z-50' }) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -24,7 +24,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', f
   return (
     <div className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4`}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} flex flex-col max-h-[90vh]`}>
+      <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${className || sizes[size]} flex flex-col max-h-[90vh]`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border shrink-0">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">

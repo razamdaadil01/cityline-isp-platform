@@ -123,7 +123,7 @@ function AssignEngineerModal({ isOpen, onClose, order, onSubmit }) {
   const filtered = INSTALLATION_ENGINEERS.filter(e => e.name.toLowerCase().includes(engSearch.toLowerCase()))
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Engineer — ${order?.id ?? ''}`} size="sm"
+    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Engineer — ${order?.id ?? ''}`} className="max-w-xl"
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
