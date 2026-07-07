@@ -37,6 +37,7 @@ const MOCK_INTERCOM_CUSTOMERS = {
     salesExecutive: 'Pradeep Kumar',
     createdOn: '20 Jun 2026',
     sourceLeadId: 'IL-2026-0003',
+    installationId: 'IWO-2026-0001',
     kyc: { idProofType: 'Aadhaar Card', idProof: 'verified', addressProof: 'verified', photo: 'uploaded' },
     circuit: {
       circuitId: 'IC-2026-0001',
@@ -210,7 +211,7 @@ function makeUnknownCustomer(id) {
     dob: '—', gender: '—', sonOf: '—', customerType: '—', gstNo: '—',
     status: 'inactive', plan: '—',
     billingAddress: '—', installationAddress: '—', area: '—', zone: '—', project: '—',
-    salesExecutive: '—', createdOn: '—', sourceLeadId: null,
+    salesExecutive: '—', createdOn: '—', sourceLeadId: null, installationId: null,
     kyc: { idProofType: 'Aadhaar Card', idProof: 'pending', addressProof: 'pending', photo: 'pending' },
     circuit: { circuitId: '—', landlineNumber: '—', serviceStatus: '—', activationDate: '—', installationBy: '—', sourceBookingId: null, remarks: '—' },
     hardware: [],
@@ -761,7 +762,9 @@ export default function IntercomCustomerDetail() {
 
   const [installations, setInstallations] = useState(getInstallations())
   useEffect(() => subscribeInstallations(setInstallations), [])
-  const linkedInstallation = installations.find(o => o.customerId === customer.id) ?? null
+  const linkedInstallation = customer.installationId
+    ? installations.find(o => o.id === customer.installationId) ?? null
+    : null
 
   const [installModalOpen, setInstallModalOpen] = useState(false)
 
@@ -769,8 +772,9 @@ export default function IntercomCustomerDetail() {
     const now = new Date()
     const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
     const [y, m, d] = form.installDate.split('-')
+    const workOrderId = nextInstallationId()
     addInstallation({
-      id: nextInstallationId(),
+      id: workOrderId,
       customer: customer.name,
       customerId: customer.id,
       phone: customer.phone,
@@ -783,6 +787,7 @@ export default function IntercomCustomerDetail() {
       notes: form.notes,
       status: 'pending',
     })
+    customer.installationId = workOrderId
     setInstallModalOpen(false)
   }
 
