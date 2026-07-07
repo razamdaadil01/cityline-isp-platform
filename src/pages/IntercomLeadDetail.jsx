@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, User, CalendarDays, Wifi, FileText, Trash2,
-  Check, X, CalendarClock,
-  UserPlus, Activity,
+  UserPlus, Activity, CheckCircle2, XCircle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -17,12 +16,12 @@ import {
 
 const STAGE_BADGE = {
   'New Inquiry': 'blue',
-  'Booked':      'purple',
+  'Booked':      'green',
   'Converted':   'green',
   'Lost':        'red',
 }
 
-const STAGE_STEPS = ['New Inquiry', 'Booked', 'Converted']
+const LOST_REASONS = ['Price too high', 'Chose competitor', 'Not interested', 'Other']
 
 const STAGE_ICON = {
   'New Inquiry': '📝',
@@ -52,82 +51,37 @@ function InfoRow({ icon: Icon, label, value }) {
   )
 }
 
-// ── Stage Progress Bar ────────────────────────────────────────────────────────
+// ── Mark as Won Modal ──────────────────────────────────────────────────────────
 
-function StageProgressBar({ stage }) {
-  const isLost = stage === 'Lost'
-  const effectiveStage = isLost ? 'New Inquiry' : stage
-  const currentIdx = STAGE_STEPS.indexOf(effectiveStage)
-
-  return (
-    <div className="flex items-start">
-      {STAGE_STEPS.map((s, i) => {
-        const done = i < currentIdx
-        const active = i === currentIdx
-        return (
-          <div key={s} className="flex items-start flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-2 min-w-0">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                done   ? 'bg-brand-blue text-white' :
-                active ? (isLost ? 'bg-red-500 text-white ring-4 ring-red-100' : 'bg-navy text-white ring-4 ring-navy/20') :
-                         'bg-gray-100 text-gray-400'
-              }`}>
-                {done ? <Check size={15} /> : active && isLost ? <X size={15} /> : <span className="text-xs font-bold">{i + 1}</span>}
-              </div>
-              <span className={`text-[11px] font-semibold text-center leading-tight whitespace-nowrap ${
-                active ? (isLost ? 'text-red-600' : 'text-navy') : done ? 'text-brand-blue' : 'text-gray-400'
-              }`}>
-                {s}
-              </span>
-            </div>
-            {i < STAGE_STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mt-[18px] mx-2 transition-all ${
-                done ? 'bg-brand-blue' : 'bg-gray-200'
-              }`} />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// ── Confirm Booking Modal ─────────────────────────────────────────────────────
-
-function ConfirmBookingModal({ isOpen, onClose, onSubmit }) {
-  const [form, setForm] = useState({ package: INTERCOM_PLANS[0], installDate: '', installTime: '', advancePayment: '' })
+function MarkAsWonModal({ isOpen, onClose, onSubmit }) {
+  const [form, setForm] = useState({ installDate: '', installTime: '', amount: '' })
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    if (isOpen) { setForm({ package: INTERCOM_PLANS[0], installDate: '', installTime: '', advancePayment: '' }); setErrors({}) }
+    if (isOpen) { setForm({ installDate: '', installTime: '', amount: '' }); setErrors({}) }
   }, [isOpen])
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
   function handleSubmit() {
     const e = {}
-    if (!form.package)     e.package     = 'Select a package'
     if (!form.installDate) e.installDate = 'Installation date is required'
     if (!form.installTime) e.installTime = 'Installation time is required'
+    if (!form.amount)      e.amount      = 'Amount is required'
     if (Object.keys(e).length) { setErrors(e); return }
     onSubmit(form)
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Confirm Booking" size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Won" size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button icon={<CalendarClock size={14} />} onClick={handleSubmit}>Confirm Booking</Button>
+          <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<CheckCircle2 size={14} />} onClick={handleSubmit}>Confirm</Button>
         </>
       }
     >
       <div className="space-y-4">
-        <FormField label="Intercom Package" required error={errors.package}>
-          <Select value={form.package} onChange={e => set('package', e.target.value)}>
-            {INTERCOM_PLANS.map(p => <option key={p}>{p}</option>)}
-          </Select>
-        </FormField>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Installation Date" required error={errors.installDate}>
             <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
@@ -136,8 +90,60 @@ function ConfirmBookingModal({ isOpen, onClose, onSubmit }) {
             <Input type="time" value={form.installTime} onChange={e => set('installTime', e.target.value)} />
           </FormField>
         </div>
-        <FormField label="Advance Payment" hint="Optional">
-          <Input type="number" min="0" value={form.advancePayment} onChange={e => set('advancePayment', e.target.value)} placeholder="e.g. 500" />
+        <FormField label="Amount" required error={errors.amount}>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input
+              type="number" min="0"
+              value={form.amount}
+              onChange={e => set('amount', e.target.value)}
+              placeholder="e.g. 15000"
+              className={`w-full pl-7 pr-4 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${errors.amount ? 'border-red-400' : 'border-surface-border'}`}
+            />
+          </div>
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Mark as Lost Modal ─────────────────────────────────────────────────────────
+
+function MarkAsLostModal({ isOpen, onClose, onSubmit }) {
+  const [form, setForm] = useState({ lostReason: '', notes: '' })
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm({ lostReason: '', notes: '' }); setErrors({}) }
+  }, [isOpen])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.lostReason) e.lostReason = 'Select a reason'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Lost" size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" icon={<XCircle size={14} />} onClick={handleSubmit}>Confirm</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Lost Reason" required error={errors.lostReason}>
+          <Select value={form.lostReason} onChange={e => set('lostReason', e.target.value)}>
+            <option value="">Select a reason…</option>
+            {LOST_REASONS.map(r => <option key={r}>{r}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Notes">
+          <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any additional details…" />
         </FormField>
       </div>
     </Modal>
@@ -146,10 +152,13 @@ function ConfirmBookingModal({ isOpen, onClose, onSubmit }) {
 
 // ── Stage-based Actions ───────────────────────────────────────────────────────
 
-function StageActions({ lead, onConfirmBooking, onCreateCustomer }) {
+function StageActions({ lead, onMarkWon, onMarkLost, onCreateCustomer }) {
   if (lead.stage === 'New Inquiry') {
     return (
-      <Button icon={<CalendarClock size={14} />} onClick={onConfirmBooking}>Confirm Booking</Button>
+      <>
+        <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<CheckCircle2 size={14} />} onClick={onMarkWon}>Mark as Won</Button>
+        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost</Button>
+      </>
     )
   }
   if (lead.stage === 'Booked') {
@@ -210,7 +219,8 @@ export default function IntercomLeadDetail() {
   const [editing, setEditing] = useState(searchParams.get('edit') === '1')
   const [form, setForm] = useState(() => (searchParams.get('edit') === '1' ? lead : null))
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [bookingModalOpen, setBookingModalOpen] = useState(false)
+  const [wonModalOpen, setWonModalOpen] = useState(false)
+  const [lostModalOpen, setLostModalOpen] = useState(false)
 
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
   useEffect(() => { setLead(getLead(id)) }, [id])
@@ -249,17 +259,22 @@ export default function IntercomLeadDetail() {
     return { ...updated, stageHistory: [...(lead.stageHistory ?? []), entry] }
   }
 
-  function handleConfirmBooking(data) {
+  function handleMarkWon(data) {
     const updated = {
       ...lead,
       stage: 'Booked',
-      package: data.package,
       installDate: data.installDate,
       installTime: data.installTime,
-      advancePayment: data.advancePayment,
+      amount: data.amount,
     }
-    saveLead(addHistory(updated, `Booking confirmed — ${data.package}, install ${data.installDate} ${data.installTime}`))
-    setBookingModalOpen(false)
+    saveLead(addHistory(updated, `Marked as Won — install ${data.installDate} ${data.installTime}, amount ₹${data.amount}`))
+    setWonModalOpen(false)
+  }
+
+  function handleMarkLost(data) {
+    const updated = { ...lead, stage: 'Lost', lostReason: data.lostReason, lostNotes: data.notes }
+    saveLead(addHistory(updated, `Marked as Lost — ${data.lostReason}${data.notes ? ': ' + data.notes : ''}`))
+    setLostModalOpen(false)
   }
 
   function handleCreateCustomer() {
@@ -307,7 +322,8 @@ export default function IntercomLeadDetail() {
               <>
                 <StageActions
                   lead={lead}
-                  onConfirmBooking={() => setBookingModalOpen(true)}
+                  onMarkWon={() => setWonModalOpen(true)}
+                  onMarkLost={() => setLostModalOpen(true)}
                   onCreateCustomer={handleCreateCustomer}
                 />
                 <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => setDeleteOpen(true)}>Delete</Button>
@@ -318,25 +334,15 @@ export default function IntercomLeadDetail() {
         </div>
       </div>
 
-      {/* ── Stage Progress Bar ──────────────────────────────────────────── */}
-      {!editing && (
-        <div className="px-6 py-5 shrink-0 bg-white border-b border-surface-border">
-          <StageProgressBar stage={lead.stage} />
-
-          {lead.stage === 'Converted' && (
-            <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg w-fit">
-              <Badge variant="green" size="sm">Converted</Badge>
-              <span className="text-xs text-emerald-700 font-medium">
-                Customer ID: <span className="font-mono font-semibold">{lead.customerId ?? '—'}</span>
-              </span>
-            </div>
-          )}
-          {lead.stage === 'Lost' && (
-            <div className="mt-4 flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg w-fit max-w-lg">
-              <Badge variant="red" size="sm">Lost</Badge>
-              <span className="text-xs text-red-700 font-medium">{lead.lostReason || 'No reason recorded'}</span>
-            </div>
-          )}
+      {/* ── Converted Banner ─────────────────────────────────────────────── */}
+      {!editing && lead.stage === 'Converted' && (
+        <div className="px-6 py-4 shrink-0 bg-white border-b border-surface-border">
+          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg w-fit">
+            <Badge variant="green" size="sm">Converted</Badge>
+            <span className="text-xs text-emerald-700 font-medium">
+              Customer ID: <span className="font-mono font-semibold">{lead.customerId ?? '—'}</span>
+            </span>
+          </div>
         </div>
       )}
 
@@ -371,6 +377,22 @@ export default function IntercomLeadDetail() {
                 <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.notes || 'No notes added.'}</p>
               </div>
             </Card>
+
+            {lead.stage === 'Lost' && (
+              <Card className="col-span-2">
+                <CardHeader title="Lost Details" />
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[11px] text-gray-400">Lost Reason</p>
+                    <p className="text-sm font-medium text-red-700">{lead.lostReason || '—'}</p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FileText size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.lostNotes || 'No additional notes.'}</p>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {/* ── Activity Log ────────────────────────────────────────── */}
             <ActivityLog history={lead.stageHistory ?? []} />
@@ -430,10 +452,15 @@ export default function IntercomLeadDetail() {
       </Modal>
 
       {/* ── Stage Action Modals ─────────────────────────────────────────── */}
-      <ConfirmBookingModal
-        isOpen={bookingModalOpen}
-        onClose={() => setBookingModalOpen(false)}
-        onSubmit={handleConfirmBooking}
+      <MarkAsWonModal
+        isOpen={wonModalOpen}
+        onClose={() => setWonModalOpen(false)}
+        onSubmit={handleMarkWon}
+      />
+      <MarkAsLostModal
+        isOpen={lostModalOpen}
+        onClose={() => setLostModalOpen(false)}
+        onSubmit={handleMarkLost}
       />
 
     </div>
