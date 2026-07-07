@@ -502,7 +502,7 @@ export default function IntercomLeadDetail() {
             <ActivityLog history={lead.stageHistory ?? []} />
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5 max-w-2xl">
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5 w-full">
             <p className="text-sm font-bold text-gray-700 mb-4">Edit Lead Details</p>
             <div className="grid grid-cols-2 gap-x-5 gap-y-4">
               <FormField label="Customer Name">
