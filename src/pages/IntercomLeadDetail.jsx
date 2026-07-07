@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Phone, User, CalendarDays, Wifi, FileText,
+  ArrowLeft, Phone, User, CalendarDays, FileText,
   UserPlus, Activity, CheckCircle2, XCircle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -352,7 +352,6 @@ export default function IntercomLeadDetail() {
               <CardHeader title="Customer Info" />
               <InfoRow icon={User} label="Customer" value={lead.customer} />
               <InfoRow icon={Phone} label="Mobile" value={lead.mobile} />
-              <InfoRow icon={Wifi} label="Plan" value={lead.plan} />
             </Card>
             <Card>
               <CardHeader title="Assignment & Follow-up" />
