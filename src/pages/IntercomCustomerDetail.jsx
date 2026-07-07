@@ -866,7 +866,7 @@ export default function IntercomCustomerDetail() {
                 </Badge>
               </div>
             ) : (
-              <Button variant="secondary" size="sm" icon={<Wrench size={13} />} onClick={() => setInstallModalOpen(true)}>
+              <Button size="sm" className="!bg-emerald-500 hover:!bg-emerald-600" icon={<Wrench size={13} />} onClick={() => setInstallModalOpen(true)}>
                 Installation Request
               </Button>
             )}

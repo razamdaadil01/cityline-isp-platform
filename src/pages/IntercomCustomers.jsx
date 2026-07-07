@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Download, UserPlus, Search, Filter, X, ChevronDown, Users, Activity,
+  Download, Search, Filter, X, ChevronDown, Users, Activity,
   Ban, UserX, MoreVertical, Eye, Edit2, PowerOff,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -159,17 +159,9 @@ export default function IntercomCustomers() {
     <div className="p-6 space-y-5">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Intercom Customers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage intercom service customers</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
-          <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/intercom/customers/new')}>
-            Add Customer
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Intercom Customers</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Manage intercom service customers</p>
       </div>
 
       {/* ── Stats ──────────────────────────────────────────────────────────── */}
@@ -228,6 +220,7 @@ export default function IntercomCustomers() {
               </span>
             )}
           </button>
+          <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
         </div>
 
         {(hasActiveFilters || search.trim()) && (
@@ -306,8 +299,7 @@ export default function IntercomCustomers() {
                       className="cursor-pointer hover:bg-gray-50 transition-colors"
                     >
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs text-brand-blue font-semibold block">{c.id}</span>
-                        <Badge variant="cyan" size="sm" className="mt-1">Intercom</Badge>
+                        <span className="font-mono text-xs text-brand-blue font-semibold">{c.id}</span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
