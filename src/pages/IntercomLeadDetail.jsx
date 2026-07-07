@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Phone, User, CalendarDays, Wifi, FileText, Trash2,
+  ArrowLeft, Phone, User, CalendarDays, Wifi, FileText,
   UserPlus, Activity, CheckCircle2, XCircle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -326,8 +326,6 @@ export default function IntercomLeadDetail() {
                   onMarkLost={() => setLostModalOpen(true)}
                   onCreateCustomer={handleCreateCustomer}
                 />
-                <Button variant="danger" icon={<Trash2 size={14} />} onClick={() => setDeleteOpen(true)}>Delete</Button>
-                <Button onClick={startEdit}>Edit Lead</Button>
               </>
             )}
           </div>
