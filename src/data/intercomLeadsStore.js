@@ -1,4 +1,4 @@
-export const INTERCOM_STAGES = ['New Inquiry', 'Feasibility', 'Booked', 'Converted', 'Lost']
+export const INTERCOM_STAGES = ['New Inquiry', 'Booked', 'Converted', 'Lost']
 
 export const INTERCOM_PLANS = ['Intercom Basic', 'Intercom Plus']
 
@@ -28,7 +28,7 @@ const INIT_LEADS = [
   },
   {
     id: 'IL-2026-0002', leadName: 'Priya Sharma — Intercom Plus', customer: 'Priya Sharma', mobile: '9845123456',
-    plan: 'Intercom Plus', stage: 'Feasibility', assigned: 'Suresh Babu', followUp: '28-06-2026', createdAt: '2026-06-24', notes: '',
+    plan: 'Intercom Plus', stage: 'New Inquiry', assigned: 'Suresh Babu', followUp: '28-06-2026', createdAt: '2026-06-24', notes: '',
     engineer: 'Ravi Technician', visitDate: '2026-06-28', visitTime: '11:00',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-24', time: '10:00', note: 'Lead created', actor: 'Suresh Babu' },
