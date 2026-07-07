@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, User, CalendarDays, FileText,
-  UserPlus, Activity, XCircle,
+  UserPlus, Activity, XCircle, Tag,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -274,6 +274,7 @@ export default function IntercomLeadDetail() {
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardHeader title="Customer Info" />
+              <InfoRow icon={Tag} label="Lead Name" value={lead.leadName} />
               <InfoRow icon={User} label="Customer" value={lead.customer} />
               <InfoRow icon={Phone} label="Mobile" value={lead.mobile} />
             </Card>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, User, Building2, MapPin, Upload, Cable, ShieldCheck, Settings2, CheckCircle2,
+  ArrowLeft, User, Building2, MapPin, Upload, Cable, ShieldCheck, CheckCircle2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -76,7 +76,7 @@ export default function IntercomCustomerNew() {
     if (!form.salesExec)                       e.salesExec    = 'Select a sales executive'
     if (!form.billingAddress.trim())           e.billingAddress = 'Billing address is required'
     if (!form.installationAddress.trim())      e.installationAddress = 'Installation address is required'
-    if (!form.circuitNumber.trim())            e.circuitNumber = 'Circuit/landline number is required'
+    if (!form.circuitNumber.trim())            e.circuitNumber = 'Intercom Circuit ID is required'
     if (!form.activationDate)                  e.activationDate = 'Activation date is required'
     return e
   }
@@ -160,170 +160,124 @@ export default function IntercomCustomerNew() {
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-5 items-start">
+        <div className="w-full space-y-5">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Customer Details</p>
 
-          {/* ── LEFT PANEL — Customer Details ─────────────────────────── */}
-          <div className="space-y-5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Customer Details</p>
+          {/* Personal Info */}
+          <SectionCard title="Personal Info" icon={User}>
+            <FormField label="Customer Name" required error={errors.customerName}>
+              <Input value={form.customerName} onChange={e => set('customerName', e.target.value)} placeholder="Ramesh Nair" />
+            </FormField>
+            <FormField label="Mobile Number" required error={errors.mobile}>
+              <Input type="tel" value={form.mobile}
+                onChange={e => set('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" />
+            </FormField>
+            <FormField label="Alternate Number">
+              <Input type="tel" value={form.altMobile}
+                onChange={e => set('altMobile', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" />
+            </FormField>
+            <FormField label="Email">
+              <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
+            </FormField>
+          </SectionCard>
 
-            {/* Personal Info */}
-            <SectionCard title="Personal Info" icon={User}>
-              <FormField label="Customer Name" required error={errors.customerName}>
-                <Input value={form.customerName} onChange={e => set('customerName', e.target.value)} placeholder="Ramesh Nair" />
-              </FormField>
-              <FormField label="Mobile Number" required error={errors.mobile}>
-                <Input type="tel" value={form.mobile}
-                  onChange={e => set('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" />
-              </FormField>
-              <FormField label="Alternate Number">
-                <Input type="tel" value={form.altMobile}
-                  onChange={e => set('altMobile', e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="9876543210" />
-              </FormField>
-              <FormField label="Email">
-                <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
-              </FormField>
-            </SectionCard>
-
-            {/* Service Info */}
-            <SectionCard title="Service Info" icon={Building2}>
-              <FormField label="Intercom Customer ID">
-                <Input value={customerId} disabled className="bg-gray-50 text-gray-500 font-mono" />
-              </FormField>
-              <FormField label="Source Lead ID">
-                <Input value={lead?.id ?? '—'} disabled className="bg-gray-50 text-gray-500 font-mono" />
-              </FormField>
-              <FormField label="Project" required error={errors.project}>
-                <Select value={form.project} onChange={e => set('project', e.target.value)}>
-                  <option value="">Select project…</option>
-                  {PROJECTS.map(p => <option key={p}>{p}</option>)}
+          {/* Service Info */}
+          <SectionCard title="Service Info" icon={Building2}>
+            <FormField label="Intercom Customer ID">
+              <Input value={customerId} disabled className="bg-gray-50 text-gray-500 font-mono" />
+            </FormField>
+            <FormField label="Lead ID">
+              <Input value={lead?.id ?? '—'} disabled className="bg-gray-50 text-gray-500 font-mono" />
+            </FormField>
+            <FormField label="Project" required error={errors.project}>
+              <Select value={form.project} onChange={e => set('project', e.target.value)}>
+                <option value="">Select project…</option>
+                {PROJECTS.map(p => <option key={p}>{p}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Area/Zone" required error={errors.areaZone}>
+              <Select value={form.areaZone} onChange={e => set('areaZone', e.target.value)}>
+                <option value="">Select area/zone…</option>
+                {AREAS_ZONES.map(a => <option key={a}>{a}</option>)}
+              </Select>
+            </FormField>
+            <div className="col-span-2">
+              <FormField label="Sales Executive" required error={errors.salesExec}>
+                <Select value={form.salesExec} onChange={e => set('salesExec', e.target.value)}>
+                  <option value="">Select sales executive…</option>
+                  {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
                 </Select>
-              </FormField>
-              <FormField label="Area/Zone" required error={errors.areaZone}>
-                <Select value={form.areaZone} onChange={e => set('areaZone', e.target.value)}>
-                  <option value="">Select area/zone…</option>
-                  {AREAS_ZONES.map(a => <option key={a}>{a}</option>)}
-                </Select>
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Sales Executive" required error={errors.salesExec}>
-                  <Select value={form.salesExec} onChange={e => set('salesExec', e.target.value)}>
-                    <option value="">Select sales executive…</option>
-                    {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
-                  </Select>
-                </FormField>
-              </div>
-            </SectionCard>
-
-            {/* Address */}
-            <SectionCard title="Address" icon={MapPin}>
-              <div className="col-span-2">
-                <FormField label="Billing Address" required error={errors.billingAddress}>
-                  <Textarea value={form.billingAddress} onChange={e => set('billingAddress', e.target.value)}
-                    placeholder="House/Flat no., Street, Building name, Area" rows={2} />
-                </FormField>
-              </div>
-              <div className="col-span-2">
-                <FormField label="Installation Address" required error={errors.installationAddress}>
-                  <Textarea value={form.installationAddress} onChange={e => set('installationAddress', e.target.value)}
-                    placeholder="House/Flat no., Street, Building name, Area" rows={2}
-                    disabled={form.sameAsBilling} className={form.sameAsBilling ? 'bg-gray-50 text-gray-500' : ''} />
-                </FormField>
-              </div>
-              <div className="col-span-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.sameAsBilling}
-                    onChange={e => set('sameAsBilling', e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-                  <span className="text-sm text-gray-700">Same as Billing Address</span>
-                </label>
-              </div>
-            </SectionCard>
-
-            {/* Circuit */}
-            <SectionCard title="Circuit" icon={Cable}>
-              <FormField label="Circuit/Landline Number" required error={errors.circuitNumber}>
-                <Input value={form.circuitNumber} onChange={e => set('circuitNumber', e.target.value)} placeholder="IC-2026-0001" className="font-mono" />
-              </FormField>
-              <FormField label="Activation Date" required error={errors.activationDate}>
-                <Input type="date" value={form.activationDate} onChange={e => set('activationDate', e.target.value)} />
-              </FormField>
-            </SectionCard>
-
-            {/* KYC */}
-            <SectionCard title="KYC" icon={ShieldCheck}>
-              <FormField label="Document Type">
-                <Select value={form.docType} onChange={e => set('docType', e.target.value)}>
-                  {DOC_TYPES.map(d => <option key={d}>{d}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Document Number">
-                <Input value={form.docNumber} onChange={e => set('docNumber', e.target.value)} placeholder="Document number" />
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Upload Document">
-                  <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
-                    form.docFile ? 'border-emerald-400 bg-emerald-50' : 'border-surface-border bg-gray-50 hover:border-brand-blue/50 hover:bg-brand-blue/5'
-                  }`}>
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden"
-                      onChange={e => e.target.files?.[0] && set('docFile', e.target.files[0])} />
-                    {form.docFile ? (
-                      <>
-                        <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                        <span className="text-xs font-medium text-emerald-700 truncate">{form.docFile.name}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload size={16} className="text-gray-400 shrink-0" />
-                        <span className="text-xs font-semibold text-gray-600">Click to upload · JPG, PNG or PDF</span>
-                      </>
-                    )}
-                  </label>
-                </FormField>
-              </div>
-            </SectionCard>
-          </div>
-
-          {/* ── RIGHT PANEL — Service Settings ────────────────────────── */}
-          <div className="space-y-5">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Service Settings</p>
-            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5 space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Settings2 size={15} className="text-brand-blue" />
-                <p className="text-sm font-bold text-gray-700">Service Settings</p>
-              </div>
-
-              <FormField label="Customer Status">
-                <div className="flex gap-2">
-                  {['Pending Installation', 'Active'].map(s => (
-                    <button key={s} type="button" onClick={() => set('status', s)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                        form.status === s
-                          ? 'bg-brand-blue text-white border-transparent shadow-sm'
-                          : 'border-surface-border text-gray-600 hover:border-brand-blue/40'
-                      }`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </FormField>
-
-              <FormField label="Plan">
-                <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
-                  {INTERCOM_PLANS.map(p => <option key={p}>{p}</option>)}
-                </Select>
-              </FormField>
-
-              <FormField label="Installation Date">
-                <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
-              </FormField>
-
-              <FormField label="Notes">
-                <Textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-                  placeholder="Any additional notes about this customer…" rows={4} />
               </FormField>
             </div>
-          </div>
+          </SectionCard>
 
+          {/* Address */}
+          <SectionCard title="Address" icon={MapPin}>
+            <div className="col-span-2">
+              <FormField label="Billing Address" required error={errors.billingAddress}>
+                <Textarea value={form.billingAddress} onChange={e => set('billingAddress', e.target.value)}
+                  placeholder="House/Flat no., Street, Building name, Area" rows={2} />
+              </FormField>
+            </div>
+            <div className="col-span-2">
+              <FormField label="Installation Address" required error={errors.installationAddress}>
+                <Textarea value={form.installationAddress} onChange={e => set('installationAddress', e.target.value)}
+                  placeholder="House/Flat no., Street, Building name, Area" rows={2}
+                  disabled={form.sameAsBilling} className={form.sameAsBilling ? 'bg-gray-50 text-gray-500' : ''} />
+              </FormField>
+            </div>
+            <div className="col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.sameAsBilling}
+                  onChange={e => set('sameAsBilling', e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+                <span className="text-sm text-gray-700">Same as Billing Address</span>
+              </label>
+            </div>
+          </SectionCard>
+
+          {/* Circuit */}
+          <SectionCard title="Circuit" icon={Cable}>
+            <FormField label="Intercom Circuit ID" required error={errors.circuitNumber}>
+              <Input value={form.circuitNumber} onChange={e => set('circuitNumber', e.target.value)} placeholder="IC-2026-0001" className="font-mono" />
+            </FormField>
+            <FormField label="Activation Date" required error={errors.activationDate}>
+              <Input type="date" value={form.activationDate} onChange={e => set('activationDate', e.target.value)} />
+            </FormField>
+          </SectionCard>
+
+          {/* KYC */}
+          <SectionCard title="KYC" icon={ShieldCheck}>
+            <FormField label="Document Type">
+              <Select value={form.docType} onChange={e => set('docType', e.target.value)}>
+                {DOC_TYPES.map(d => <option key={d}>{d}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Document Number">
+              <Input value={form.docNumber} onChange={e => set('docNumber', e.target.value)} placeholder="Document number" />
+            </FormField>
+            <div className="col-span-2">
+              <FormField label="Upload Document">
+                <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                  form.docFile ? 'border-emerald-400 bg-emerald-50' : 'border-surface-border bg-gray-50 hover:border-brand-blue/50 hover:bg-brand-blue/5'
+                }`}>
+                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden"
+                    onChange={e => e.target.files?.[0] && set('docFile', e.target.files[0])} />
+                  {form.docFile ? (
+                    <>
+                      <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                      <span className="text-xs font-medium text-emerald-700 truncate">{form.docFile.name}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} className="text-gray-400 shrink-0" />
+                      <span className="text-xs font-semibold text-gray-600">Click to upload · JPG, PNG or PDF</span>
+                    </>
+                  )}
+                </label>
+              </FormField>
+            </div>
+          </SectionCard>
         </div>
       </div>
 
