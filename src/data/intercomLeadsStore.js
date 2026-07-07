@@ -1,4 +1,4 @@
-export const INTERCOM_STAGES = ['New Inquiry', 'Booked', 'Converted', 'Lost']
+export const INTERCOM_STAGES = ['New Inquiry', 'Converted', 'Lost']
 
 export const INTERCOM_PLANS = ['Intercom Basic', 'Intercom Plus']
 
@@ -37,14 +37,16 @@ const INIT_LEADS = [
   },
   {
     id: 'IL-2026-0003', leadName: 'Mohan Das', customer: 'Mohan Das', mobile: '9345678901',
-    stage: 'Booked', assigned: 'Preethi Nair', followUp: '', createdAt: '2026-06-20', notes: '',
+    stage: 'Converted', assigned: 'Preethi Nair', followUp: '', createdAt: '2026-06-20', notes: '',
     engineer: 'Kumar Installer', visitDate: '2026-06-22', visitTime: '14:00', feasible: true,
     package: 'Intercom Basic', installDate: '2026-07-05', installTime: '10:30', advancePayment: '500',
+    customerId: 'INC-2026-0001',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-20', time: '09:00', note: 'Lead created', actor: 'Preethi Nair' },
       { stage: 'Feasibility', date: '2026-06-21', time: '10:15', note: 'Feasibility requested — engineer Kumar Installer, visit 2026-06-22 14:00', actor: 'Preethi Nair' },
       { stage: 'Feasibility', date: '2026-06-22', time: '15:30', note: 'Marked Feasible', actor: 'Preethi Nair' },
       { stage: 'Booked', date: '2026-06-23', time: '09:45', note: 'Booking confirmed — Intercom Basic, install 2026-07-05 10:30', actor: 'Preethi Nair' },
+      { stage: 'Converted', date: '2026-06-24', time: '11:00', note: 'Installation completed — customer account INC-2026-0001 created', actor: 'Preethi Nair' },
     ],
   },
   {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, User, CalendarDays, FileText,
-  UserPlus, Activity, CheckCircle2, XCircle,
+  UserPlus, Activity, XCircle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -16,7 +16,6 @@ import {
 
 const STAGE_BADGE = {
   'New Inquiry': 'blue',
-  'Booked':      'green',
   'Converted':   'green',
   'Lost':        'red',
 }
@@ -48,62 +47,6 @@ function InfoRow({ icon: Icon, label, value }) {
         <p className="text-sm font-medium text-gray-800 truncate">{value || '—'}</p>
       </div>
     </div>
-  )
-}
-
-// ── Mark as Won Modal ──────────────────────────────────────────────────────────
-
-function MarkAsWonModal({ isOpen, onClose, onSubmit }) {
-  const [form, setForm] = useState({ installDate: '', installTime: '', amount: '' })
-  const [errors, setErrors] = useState({})
-
-  useEffect(() => {
-    if (isOpen) { setForm({ installDate: '', installTime: '', amount: '' }); setErrors({}) }
-  }, [isOpen])
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  function handleSubmit() {
-    const e = {}
-    if (!form.installDate) e.installDate = 'Installation date is required'
-    if (!form.installTime) e.installTime = 'Installation time is required'
-    if (!form.amount)      e.amount      = 'Amount is required'
-    if (Object.keys(e).length) { setErrors(e); return }
-    onSubmit(form)
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Won" size="md"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<CheckCircle2 size={14} />} onClick={handleSubmit}>Confirm</Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Installation Date" required error={errors.installDate}>
-            <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
-          </FormField>
-          <FormField label="Installation Time" required error={errors.installTime}>
-            <Input type="time" value={form.installTime} onChange={e => set('installTime', e.target.value)} />
-          </FormField>
-        </div>
-        <FormField label="Amount" required error={errors.amount}>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-            <input
-              type="number" min="0"
-              value={form.amount}
-              onChange={e => set('amount', e.target.value)}
-              placeholder="e.g. 15000"
-              className={`w-full pl-7 pr-4 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${errors.amount ? 'border-red-400' : 'border-surface-border'}`}
-            />
-          </div>
-        </FormField>
-      </div>
-    </Modal>
   )
 }
 
@@ -152,18 +95,13 @@ function MarkAsLostModal({ isOpen, onClose, onSubmit }) {
 
 // ── Stage-based Actions ───────────────────────────────────────────────────────
 
-function StageActions({ lead, onMarkWon, onMarkLost, onCreateCustomer }) {
+function StageActions({ lead, onMarkLost, onCreateCustomer }) {
   if (lead.stage === 'New Inquiry') {
     return (
       <>
-        <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<CheckCircle2 size={14} />} onClick={onMarkWon}>Mark as Won</Button>
+        <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<UserPlus size={14} />} onClick={onCreateCustomer}>Create Intercom Customer</Button>
         <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost</Button>
       </>
-    )
-  }
-  if (lead.stage === 'Booked') {
-    return (
-      <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<UserPlus size={14} />} onClick={onCreateCustomer}>Create Intercom Customer</Button>
     )
   }
   return null
@@ -219,7 +157,6 @@ export default function IntercomLeadDetail() {
   const [editing, setEditing] = useState(searchParams.get('edit') === '1')
   const [form, setForm] = useState(() => (searchParams.get('edit') === '1' ? lead : null))
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [wonModalOpen, setWonModalOpen] = useState(false)
   const [lostModalOpen, setLostModalOpen] = useState(false)
 
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
@@ -257,18 +194,6 @@ export default function IntercomLeadDetail() {
   function addHistory(updated, note) {
     const entry = { stage: updated.stage, date: todayStr(), time: nowTime(), note, actor: CURRENT_USER }
     return { ...updated, stageHistory: [...(lead.stageHistory ?? []), entry] }
-  }
-
-  function handleMarkWon(data) {
-    const updated = {
-      ...lead,
-      stage: 'Booked',
-      installDate: data.installDate,
-      installTime: data.installTime,
-      amount: data.amount,
-    }
-    saveLead(addHistory(updated, `Marked as Won — install ${data.installDate} ${data.installTime}, amount ₹${data.amount}`))
-    setWonModalOpen(false)
   }
 
   function handleMarkLost(data) {
@@ -322,7 +247,6 @@ export default function IntercomLeadDetail() {
               <>
                 <StageActions
                   lead={lead}
-                  onMarkWon={() => setWonModalOpen(true)}
                   onMarkLost={() => setLostModalOpen(true)}
                   onCreateCustomer={handleCreateCustomer}
                 />
@@ -449,11 +373,6 @@ export default function IntercomLeadDetail() {
       </Modal>
 
       {/* ── Stage Action Modals ─────────────────────────────────────────── */}
-      <MarkAsWonModal
-        isOpen={wonModalOpen}
-        onClose={() => setWonModalOpen(false)}
-        onSubmit={handleMarkWon}
-      />
       <MarkAsLostModal
         isOpen={lostModalOpen}
         onClose={() => setLostModalOpen(false)}
