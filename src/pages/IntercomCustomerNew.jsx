@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { getLead, INTERCOM_PLANS, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import { getLead, saveLead, INTERCOM_PLANS, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 import { addCustomer, nextIntercomCustomerId } from '../data/customersData'
 
 const PROJECTS = ['Sunrise Apartments', 'Greenwood Residency', 'Metro Business Park', 'Palm Grove Society']
@@ -118,6 +118,23 @@ export default function IntercomCustomerNew() {
         serviceStatus: form.status,
       },
     })
+
+    if (lead) {
+      const now = new Date()
+      const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      saveLead({
+        ...lead,
+        stage: 'Converted',
+        customerId,
+        stageHistory: [...(lead.stageHistory ?? []), {
+          stage: 'Converted',
+          date: now.toISOString().slice(0, 10),
+          time,
+          note: `Installation completed — customer account ${customerId} created`,
+          actor: 'Admin User',
+        }],
+      })
+    }
 
     navigate('/customers?type=intercom')
   }
