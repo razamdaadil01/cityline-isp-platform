@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
@@ -81,6 +81,7 @@ export default function App() {
           <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/sales/feasibility-requests/:id" element={<FeasibilityDetail />} />
+          <Route path="/intercom" element={<Navigate to="/intercom/leads" replace />} />
           <Route path="/intercom/leads" element={<IntercomLeads />} />
           <Route path="/intercom/leads/new" element={<IntercomLeadNew />} />
           <Route path="/intercom/leads/:id" element={<IntercomLeadDetail />} />
