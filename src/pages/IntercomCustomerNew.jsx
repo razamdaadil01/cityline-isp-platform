@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, User, Building2, MapPin, Upload, Cable, ShieldCheck, CheckCircle2,
+  ArrowLeft, User, Building2, MapPin, Upload, ShieldCheck, CheckCircle2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -46,7 +46,6 @@ export default function IntercomCustomerNew() {
     installationAddress: '',
     sameAsBilling: false,
     circuitNumber: '',
-    activationDate: '',
     docType: DOC_TYPES[0],
     docNumber: '',
     docFile: null,
@@ -77,7 +76,6 @@ export default function IntercomCustomerNew() {
     if (!form.billingAddress.trim())           e.billingAddress = 'Billing address is required'
     if (!form.installationAddress.trim())      e.installationAddress = 'Installation address is required'
     if (!form.circuitNumber.trim())            e.circuitNumber = 'Intercom Circuit ID is required'
-    if (!form.activationDate)                  e.activationDate = 'Activation date is required'
     return e
   }
 
@@ -106,7 +104,6 @@ export default function IntercomCustomerNew() {
       billingAddress: form.billingAddress,
       installationAddress: form.installationAddress,
       circuitNumber: form.circuitNumber,
-      activationDate: form.activationDate,
       docType: form.docType,
       docNumber: form.docNumber,
       installDate: form.installDate,
@@ -114,7 +111,6 @@ export default function IntercomCustomerNew() {
       circuit: {
         circuitId: form.circuitNumber,
         landlineNumber: form.mobile,
-        activationDate: form.activationDate,
         serviceStatus: form.status,
       },
     })
@@ -201,6 +197,9 @@ export default function IntercomCustomerNew() {
                 {AREAS_ZONES.map(a => <option key={a}>{a}</option>)}
               </Select>
             </FormField>
+            <FormField label="Intercom Circuit ID" required error={errors.circuitNumber}>
+              <Input value={form.circuitNumber} onChange={e => set('circuitNumber', e.target.value)} placeholder="IC-2026-0001" className="font-mono" />
+            </FormField>
             <div className="col-span-2">
               <FormField label="Sales Executive" required error={errors.salesExec}>
                 <Select value={form.salesExec} onChange={e => set('salesExec', e.target.value)}>
@@ -234,16 +233,6 @@ export default function IntercomCustomerNew() {
                 <span className="text-sm text-gray-700">Same as Billing Address</span>
               </label>
             </div>
-          </SectionCard>
-
-          {/* Circuit */}
-          <SectionCard title="Circuit" icon={Cable}>
-            <FormField label="Intercom Circuit ID" required error={errors.circuitNumber}>
-              <Input value={form.circuitNumber} onChange={e => set('circuitNumber', e.target.value)} placeholder="IC-2026-0001" className="font-mono" />
-            </FormField>
-            <FormField label="Activation Date" required error={errors.activationDate}>
-              <Input type="date" value={form.activationDate} onChange={e => set('activationDate', e.target.value)} />
-            </FormField>
           </SectionCard>
 
           {/* KYC */}
