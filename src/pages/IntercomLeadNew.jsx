@@ -6,7 +6,7 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { saveLead, nextLeadId, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 
 const INIT_FORM = {
-  customer: '', mobile: '', assigned: '', followUp: '', notes: '',
+  leadName: '', customer: '', mobile: '', assigned: '', followUp: '', notes: '',
 }
 
 export default function IntercomLeadNew() {
@@ -18,6 +18,7 @@ export default function IntercomLeadNew() {
 
   function validate() {
     const e = {}
+    if (!form.leadName.trim())          e.leadName = 'Lead name is required'
     if (!form.customer.trim())          e.customer = 'Customer name is required'
     if (!form.mobile.match(/^\d{10}$/)) e.mobile   = 'Enter a valid 10-digit number'
     if (!form.assigned)                  e.assigned = 'Assign a sales executive'
@@ -30,7 +31,7 @@ export default function IntercomLeadNew() {
     const id = nextLeadId()
     const lead = saveLead({
       id,
-      leadName: form.customer.trim(),
+      leadName: form.leadName.trim(),
       customer: form.customer.trim(),
       mobile: form.mobile,
       stage: 'New Inquiry',
@@ -66,6 +67,18 @@ export default function IntercomLeadNew() {
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
           <p className="text-sm font-bold text-gray-700 mb-4">Lead Details</p>
           <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+
+            <div className="col-span-2">
+              <FormField label="Lead Name" required>
+                <Input
+                  value={form.leadName}
+                  onChange={e => { set('leadName', e.target.value); setErrors(p => ({ ...p, leadName: '' })) }}
+                  placeholder="e.g. Customer Name — Plan Interest"
+                  className={errors.leadName ? 'border-red-400 focus:ring-red-400/30' : ''}
+                />
+                {errors.leadName && <p className="text-xs text-red-500 mt-1">{errors.leadName}</p>}
+              </FormField>
+            </div>
 
             <FormField label="Customer Name" required>
               <Input
