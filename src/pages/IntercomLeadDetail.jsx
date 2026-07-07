@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, User, CalendarDays, Wifi, FileText, Trash2,
-  Check, X, ClipboardCheck, CheckCircle2, XCircle, CalendarClock,
-  UserPlus, Activity, AlertTriangle,
+  Check, X, CalendarClock,
+  UserPlus, Activity,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -12,18 +12,17 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getLead, saveLead, deleteLead, subscribeLeads,
-  INTERCOM_STAGES, INTERCOM_PLANS, INTERCOM_STAFF, INTERCOM_ENGINEERS,
+  INTERCOM_STAGES, INTERCOM_PLANS, INTERCOM_STAFF,
 } from '../data/intercomLeadsStore'
 
 const STAGE_BADGE = {
   'New Inquiry': 'blue',
-  'Feasibility': 'orange',
   'Booked':      'purple',
   'Converted':   'green',
   'Lost':        'red',
 }
 
-const STAGE_STEPS = ['New Inquiry', 'Feasibility', 'Booked', 'Converted']
+const STAGE_STEPS = ['New Inquiry', 'Booked', 'Converted']
 
 const STAGE_ICON = {
   'New Inquiry': '📝',
@@ -57,7 +56,7 @@ function InfoRow({ icon: Icon, label, value }) {
 
 function StageProgressBar({ stage }) {
   const isLost = stage === 'Lost'
-  const effectiveStage = isLost ? 'Feasibility' : stage
+  const effectiveStage = isLost ? 'New Inquiry' : stage
   const currentIdx = STAGE_STEPS.indexOf(effectiveStage)
 
   return (
@@ -90,88 +89,6 @@ function StageProgressBar({ stage }) {
         )
       })}
     </div>
-  )
-}
-
-// ── Request Feasibility Modal ─────────────────────────────────────────────────
-
-function RequestFeasibilityModal({ isOpen, onClose, onSubmit }) {
-  const [form, setForm] = useState({ engineer: '', visitDate: '', visitTime: '', notes: '' })
-  const [errors, setErrors] = useState({})
-
-  useEffect(() => {
-    if (isOpen) { setForm({ engineer: '', visitDate: '', visitTime: '', notes: '' }); setErrors({}) }
-  }, [isOpen])
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  function handleSubmit() {
-    const e = {}
-    if (!form.engineer)  e.engineer  = 'Assign an engineer'
-    if (!form.visitDate) e.visitDate = 'Visit date is required'
-    if (!form.visitTime) e.visitTime = 'Visit time is required'
-    if (Object.keys(e).length) { setErrors(e); return }
-    onSubmit(form)
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Request Feasibility" size="md"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button icon={<ClipboardCheck size={14} />} onClick={handleSubmit}>Submit Request</Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <FormField label="Assign Engineer" required error={errors.engineer}>
-          <Select value={form.engineer} onChange={e => set('engineer', e.target.value)}>
-            <option value="">Select engineer…</option>
-            {INTERCOM_ENGINEERS.map(e => <option key={e}>{e}</option>)}
-          </Select>
-        </FormField>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Visit Date" required error={errors.visitDate}>
-            <Input type="date" value={form.visitDate} onChange={e => set('visitDate', e.target.value)} />
-          </FormField>
-          <FormField label="Visit Time" required error={errors.visitTime}>
-            <Input type="time" value={form.visitTime} onChange={e => set('visitTime', e.target.value)} />
-          </FormField>
-        </div>
-        <FormField label="Notes">
-          <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any details for the site visit…" />
-        </FormField>
-      </div>
-    </Modal>
-  )
-}
-
-// ── Not Feasible Reason Modal ─────────────────────────────────────────────────
-
-function NotFeasibleModal({ isOpen, onClose, onSubmit }) {
-  const [reason, setReason] = useState('')
-
-  useEffect(() => { if (isOpen) setReason('') }, [isOpen])
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Not Feasible" size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="danger" icon={<XCircle size={14} />} onClick={() => onSubmit(reason)}>Mark Not Feasible</Button>
-        </>
-      }
-    >
-      <div className="space-y-3">
-        <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">This will move the lead to <strong>Lost</strong>.</p>
-        </div>
-        <FormField label="Reason">
-          <Textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Why is this site not feasible?" />
-        </FormField>
-      </div>
-    </Modal>
   )
 }
 
@@ -229,23 +146,10 @@ function ConfirmBookingModal({ isOpen, onClose, onSubmit }) {
 
 // ── Stage-based Actions ───────────────────────────────────────────────────────
 
-function StageActions({ lead, onRequestFeasibility, onMarkFeasible, onMarkNotFeasible, onConfirmBooking, onCreateCustomer }) {
+function StageActions({ lead, onConfirmBooking, onCreateCustomer }) {
   if (lead.stage === 'New Inquiry') {
     return (
-      <Button icon={<ClipboardCheck size={14} />} onClick={onRequestFeasibility}>Request Feasibility</Button>
-    )
-  }
-  if (lead.stage === 'Feasibility') {
-    if (lead.feasible) {
-      return (
-        <Button icon={<CalendarClock size={14} />} onClick={onConfirmBooking}>Confirm Booking</Button>
-      )
-    }
-    return (
-      <>
-        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkNotFeasible}>Mark Not Feasible</Button>
-        <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<CheckCircle2 size={14} />} onClick={onMarkFeasible}>Mark Feasible</Button>
-      </>
+      <Button icon={<CalendarClock size={14} />} onClick={onConfirmBooking}>Confirm Booking</Button>
     )
   }
   if (lead.stage === 'Booked') {
@@ -306,8 +210,6 @@ export default function IntercomLeadDetail() {
   const [editing, setEditing] = useState(searchParams.get('edit') === '1')
   const [form, setForm] = useState(() => (searchParams.get('edit') === '1' ? lead : null))
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [feasibilityModalOpen, setFeasibilityModalOpen] = useState(false)
-  const [notFeasibleModalOpen, setNotFeasibleModalOpen] = useState(false)
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
 
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
@@ -345,31 +247,6 @@ export default function IntercomLeadDetail() {
   function addHistory(updated, note) {
     const entry = { stage: updated.stage, date: todayStr(), time: nowTime(), note, actor: CURRENT_USER }
     return { ...updated, stageHistory: [...(lead.stageHistory ?? []), entry] }
-  }
-
-  function handleRequestFeasibility(data) {
-    const updated = {
-      ...lead,
-      stage: 'Feasibility',
-      engineer: data.engineer,
-      visitDate: data.visitDate,
-      visitTime: data.visitTime,
-      feasibilityNotes: data.notes,
-      feasible: false,
-    }
-    saveLead(addHistory(updated, `Feasibility requested — engineer ${data.engineer}, visit ${data.visitDate} ${data.visitTime}`))
-    setFeasibilityModalOpen(false)
-  }
-
-  function handleMarkFeasible() {
-    const updated = { ...lead, feasible: true }
-    saveLead(addHistory(updated, 'Marked Feasible'))
-  }
-
-  function handleMarkNotFeasible(reason) {
-    const updated = { ...lead, stage: 'Lost', feasible: false, lostReason: reason || 'No reason provided' }
-    saveLead(addHistory(updated, `Marked Not Feasible — ${reason || 'No reason provided'}`))
-    setNotFeasibleModalOpen(false)
   }
 
   function handleConfirmBooking(data) {
@@ -430,9 +307,6 @@ export default function IntercomLeadDetail() {
               <>
                 <StageActions
                   lead={lead}
-                  onRequestFeasibility={() => setFeasibilityModalOpen(true)}
-                  onMarkFeasible={handleMarkFeasible}
-                  onMarkNotFeasible={() => setNotFeasibleModalOpen(true)}
                   onConfirmBooking={() => setBookingModalOpen(true)}
                   onCreateCustomer={handleCreateCustomer}
                 />
@@ -556,16 +430,6 @@ export default function IntercomLeadDetail() {
       </Modal>
 
       {/* ── Stage Action Modals ─────────────────────────────────────────── */}
-      <RequestFeasibilityModal
-        isOpen={feasibilityModalOpen}
-        onClose={() => setFeasibilityModalOpen(false)}
-        onSubmit={handleRequestFeasibility}
-      />
-      <NotFeasibleModal
-        isOpen={notFeasibleModalOpen}
-        onClose={() => setNotFeasibleModalOpen(false)}
-        onSubmit={handleMarkNotFeasible}
-      />
       <ConfirmBookingModal
         isOpen={bookingModalOpen}
         onClose={() => setBookingModalOpen(false)}
