@@ -304,7 +304,7 @@ export default function IntercomLeadDetail() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [lead, setLead] = useState(() => getLead(id))
   const [editing, setEditing] = useState(searchParams.get('edit') === '1')
-  const [form, setForm] = useState(null)
+  const [form, setForm] = useState(() => (searchParams.get('edit') === '1' ? lead : null))
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [feasibilityModalOpen, setFeasibilityModalOpen] = useState(false)
   const [notFeasibleModalOpen, setNotFeasibleModalOpen] = useState(false)
