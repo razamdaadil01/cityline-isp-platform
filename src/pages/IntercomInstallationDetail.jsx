@@ -4,6 +4,7 @@ import { Check, Cpu, ClipboardList, Activity } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
+import { getInstallation } from '../data/intercomInstallationsStore'
 
 // ── Mock work order dataset ──────────────────────────────────────────────────
 
@@ -72,6 +73,20 @@ const MOCK_INSTALLATIONS = {
       { date: '29-06-2026', time: '10:30', event: 'Work order created', actor: 'Admin' },
     ],
   },
+}
+
+function fromStoreOrder(o) {
+  if (!o) return null
+  return {
+    id: o.id, customer: o.customer, customerId: o.customerId, phone: o.phone,
+    circuitId: o.circuitId, zone: o.zone, address: '—',
+    engineer: o.engineer, installDate: o.installDate, installTime: o.installTime,
+    createdDate: o.createdDate, notes: o.notes, status: o.status,
+    hardware: [],
+    activity: [
+      { date: o.createdDate, time: '—', event: 'Work order created', actor: 'Admin' },
+    ],
+  }
 }
 
 function makeUnknownOrder(id) {
@@ -146,7 +161,7 @@ export default function IntercomInstallationDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
 
-  const order = MOCK_INSTALLATIONS[id] ?? makeUnknownOrder(id)
+  const order = MOCK_INSTALLATIONS[id] ?? fromStoreOrder(getInstallation(id)) ?? makeUnknownOrder(id)
 
   const [status, setStatus] = useState(order.status)
   const [remarks, setRemarks] = useState('')

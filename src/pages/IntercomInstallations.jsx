@@ -6,8 +6,9 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import { getInstallations, subscribeInstallations, INSTALLATION_ENGINEERS } from '../data/intercomInstallationsStore'
 
-// ── Mock data ────────────────────────────────────────────────────────────────
+// ── Config ───────────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
   pending:     { variant: 'orange', label: 'Pending' },
@@ -16,16 +17,8 @@ const STATUS_CFG = {
   cancelled:   { variant: 'red',    label: 'Cancelled' },
 }
 
-const ENGINEERS = ['Suresh Babu', 'Arjun Kumar', 'Preethi Nair', 'Anita Sharma']
+const ENGINEERS = INSTALLATION_ENGINEERS
 const ZONES = ['Andheri West', 'Bandra East', 'Goregaon', 'Versova', 'Andheri East']
-
-const INTERCOM_INSTALLATIONS = [
-  { id: 'IWO-2026-0001', customer: 'Mohan Das',    customerId: 'INC-2026-0001', phone: '93456 78901', engineer: 'Suresh Babu',   zone: 'Andheri West', date: '20-06-2026', status: 'completed'  },
-  { id: 'IWO-2026-0002', customer: 'Priya Nair',   customerId: 'INC-2026-0002', phone: '98765 43210', engineer: 'Arjun Kumar',   zone: 'Bandra East',  date: '22-06-2026', status: 'completed'  },
-  { id: 'IWO-2026-0003', customer: 'Suresh Patil', customerId: 'INC-2026-0003', phone: '99887 76655', engineer: 'Preethi Nair', zone: 'Goregaon',     date: '25-06-2026', status: 'inprogress' },
-  { id: 'IWO-2026-0004', customer: 'Anita Desai',  customerId: 'INC-2026-0004', phone: '91234 56789', engineer: 'Anita Sharma', zone: 'Versova',      date: '28-06-2026', status: 'pending'    },
-  { id: 'IWO-2026-0005', customer: 'Rajesh Kumar', customerId: 'INC-2026-0005', phone: '97654 32198', engineer: 'Suresh Babu',   zone: 'Andheri East', date: '30-06-2026', status: 'pending'    },
-]
 
 // Parse dd-mm-yyyy for date-range comparisons
 function toISO(ddmmyyyy) {
@@ -63,6 +56,9 @@ function ActionsMenu({ order, pos, onView, onEdit, onCancel }) {
 export default function IntercomInstallations() {
   const navigate = useNavigate()
   const menuRef = useRef(null)
+
+  const [installations, setInstallations] = useState(getInstallations())
+  useEffect(() => subscribeInstallations(setInstallations), [])
 
   const [search, setSearch] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -124,29 +120,29 @@ export default function IntercomInstallations() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return INTERCOM_INSTALLATIONS.filter(o => {
+    return installations.filter(o => {
       if (q && !o.customer.toLowerCase().includes(q) && !o.id.toLowerCase().includes(q) && !o.customerId.toLowerCase().includes(q)) return false
       if (filterStatus && o.status !== filterStatus.toLowerCase().replace(/\s+/g, '')) return false
       if (filterEngineer && o.engineer !== filterEngineer) return false
       if (filterZone && o.zone !== filterZone) return false
-      if (filterDateFrom && toISO(o.date) < filterDateFrom) return false
-      if (filterDateTo && toISO(o.date) > filterDateTo) return false
+      if (filterDateFrom && toISO(o.installDate) < filterDateFrom) return false
+      if (filterDateTo && toISO(o.installDate) > filterDateTo) return false
       return true
     })
-  }, [search, filterStatus, filterEngineer, filterZone, filterDateFrom, filterDateTo])
+  }, [installations, search, filterStatus, filterEngineer, filterZone, filterDateFrom, filterDateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const stats = useMemo(() => ({
-    total:      INTERCOM_INSTALLATIONS.length,
-    pending:    INTERCOM_INSTALLATIONS.filter(o => o.status === 'pending').length,
-    inprogress: INTERCOM_INSTALLATIONS.filter(o => o.status === 'inprogress').length,
-    completed:  INTERCOM_INSTALLATIONS.filter(o => o.status === 'completed').length,
-  }), [])
+    total:      installations.length,
+    pending:    installations.filter(o => o.status === 'pending').length,
+    inprogress: installations.filter(o => o.status === 'inprogress').length,
+    completed:  installations.filter(o => o.status === 'completed').length,
+  }), [installations])
 
-  const menuOrder = INTERCOM_INSTALLATIONS.find(o => o.id === menuId) ?? null
+  const menuOrder = installations.find(o => o.id === menuId) ?? null
 
   function handleView(o) { navigate(`/intercom/installations/${o.id}`); setMenuId(null) }
   function handleEdit(o) { setMenuId(null) }
@@ -306,7 +302,7 @@ export default function IntercomInstallations() {
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{o.customerId}</td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{o.phone}</td>
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{o.engineer}</td>
-                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{o.date}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{o.installDate}</td>
                       <td className="px-4 py-3">
                         <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
                       </td>

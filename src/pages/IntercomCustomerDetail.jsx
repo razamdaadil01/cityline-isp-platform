@@ -1,11 +1,17 @@
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   Ticket, MessageSquare, Ban, AlertTriangle, CheckCircle, Clock,
-  Cpu, Activity, Download, FileText, ExternalLink, Plus,
+  Cpu, Activity, Download, FileText, ExternalLink, Plus, Wrench,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+import {
+  getInstallations, subscribeInstallations, addInstallation, nextInstallationId, INSTALLATION_ENGINEERS,
+} from '../data/intercomInstallationsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -236,6 +242,13 @@ const TICKET_STATUS_CFG = {
   open:     { variant: 'blue',  label: 'Open' },
   resolved: { variant: 'green', label: 'Resolved' },
   closed:   { variant: 'gray',  label: 'Closed' },
+}
+
+const INSTALL_STATUS_CFG = {
+  pending:    { variant: 'orange', label: 'Pending' },
+  inprogress: { variant: 'blue',   label: 'In Progress' },
+  completed:  { variant: 'green',  label: 'Completed' },
+  cancelled:  { variant: 'red',    label: 'Cancelled' },
 }
 
 const TABS = ['Profile', 'Circuit Details', 'Billing', 'Tickets', 'Hardware', 'Activity Logs']
@@ -671,6 +684,72 @@ function ActivityTab({ customer }) {
   )
 }
 
+// ── Installation Request Modal ───────────────────────────────────────────────
+
+function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
+  const [form, setForm] = useState({ engineer: '', installDate: '', installTime: '', notes: '' })
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm({ engineer: '', installDate: '', installTime: '', notes: '' }); setErrors({}) }
+  }, [isOpen])
+
+  function set(f, v) {
+    setForm(p => ({ ...p, [f]: v }))
+    setErrors(p => ({ ...p, [f]: '' }))
+  }
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.engineer)    e.engineer = 'Select an assigned engineer'
+    if (!form.installDate) e.installDate = 'Installation date is required'
+    if (!form.installTime) e.installTime = 'Installation time is required'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Request Installation"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Create Work Order</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <FormField label="Customer">
+          <Input value={customer.name} disabled />
+        </FormField>
+        <FormField label="Customer ID">
+          <Input value={customer.id} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Circuit ID">
+          <Input value={customer.circuit.circuitId} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Assigned Engineer" required error={errors.engineer}>
+          <Select value={form.engineer} onChange={e => set('engineer', e.target.value)}>
+            <option value="">Select engineer…</option>
+            {INSTALLATION_ENGINEERS.map(eng => <option key={eng}>{eng}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Installation Date" required error={errors.installDate}>
+          <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
+        </FormField>
+        <FormField label="Installation Time" required error={errors.installTime}>
+          <Input type="time" value={form.installTime} onChange={e => set('installTime', e.target.value)} />
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Notes">
+            <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
+              placeholder="Any additional notes about this installation…" />
+          </FormField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function IntercomCustomerDetail() {
@@ -679,6 +758,33 @@ export default function IntercomCustomerDetail() {
 
   const customer = MOCK_INTERCOM_CUSTOMERS[id] ?? makeUnknownCustomer(id)
   const activeTab = SLUG_TO_TAB[tab] ?? 'Profile'
+
+  const [installations, setInstallations] = useState(getInstallations())
+  useEffect(() => subscribeInstallations(setInstallations), [])
+  const linkedInstallation = installations.find(o => o.customerId === customer.id) ?? null
+
+  const [installModalOpen, setInstallModalOpen] = useState(false)
+
+  function handleCreateWorkOrder(form) {
+    const now = new Date()
+    const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
+    const [y, m, d] = form.installDate.split('-')
+    addInstallation({
+      id: nextInstallationId(),
+      customer: customer.name,
+      customerId: customer.id,
+      phone: customer.phone,
+      circuitId: customer.circuit.circuitId,
+      zone: customer.zone,
+      engineer: form.engineer,
+      installDate: `${d}-${m}-${y}`,
+      installTime: form.installTime,
+      createdDate,
+      notes: form.notes,
+      status: 'pending',
+    })
+    setInstallModalOpen(false)
+  }
 
   if (!tab) return <Navigate to={`/intercom/customers/${id}/profile`} replace />
 
@@ -735,9 +841,30 @@ export default function IntercomCustomerDetail() {
           </div>
 
           {/* Quick action buttons */}
-          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
+          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-surface-border">
             <Button variant="secondary" size="sm" icon={<Ticket size={13} />}>Raise Ticket</Button>
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
+            {linkedInstallation ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20">
+                <Wrench size={13} className="text-brand-blue shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Installation Work Order:{' '}
+                  <button
+                    onClick={() => navigate(`/intercom/installations/${linkedInstallation.id}`)}
+                    className="font-mono font-semibold text-brand-blue hover:underline"
+                  >
+                    {linkedInstallation.id}
+                  </button>
+                </span>
+                <Badge variant={(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).variant} size="sm" dot>
+                  {(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).label}
+                </Badge>
+              </div>
+            ) : (
+              <Button variant="secondary" size="sm" icon={<Wrench size={13} />} onClick={() => setInstallModalOpen(true)}>
+                Installation Request
+              </Button>
+            )}
             <Button variant="orange"    size="sm" icon={<Ban size={13} />}>Suspend</Button>
             <Button variant="danger"    size="sm" icon={<AlertTriangle size={13} />}>Terminate</Button>
           </div>
@@ -771,6 +898,13 @@ export default function IntercomCustomerDetail() {
           {activeTab === 'Activity Logs'   && <ActivityTab       customer={customer} />}
         </div>
       </div>
+
+      <InstallRequestModal
+        isOpen={installModalOpen}
+        onClose={() => setInstallModalOpen(false)}
+        customer={customer}
+        onSubmit={handleCreateWorkOrder}
+      />
     </div>
   )
 }
