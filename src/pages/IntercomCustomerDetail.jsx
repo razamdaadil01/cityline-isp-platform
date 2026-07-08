@@ -22,23 +22,17 @@ const MOCK_INTERCOM_CUSTOMERS = {
     phone: '93456 78901',
     altPhone: '—',
     email: 'mohan.das@email.com',
-    dob: '12 Apr 1978',
-    gender: 'Male',
-    sonOf: 'Ram Das',
-    customerType: 'Individual',
-    gstNo: '—',
     status: 'active',
     plan: 'Intercom Basic',
     billingAddress: 'Flat 302, Sai Darshan CHS, Four Bungalows Road, Andheri West',
     installationAddress: 'Flat 302, Sai Darshan CHS, Four Bungalows Road, Andheri West',
-    area: 'Andheri',
     zone: 'Andheri West',
     project: 'Sunrise Apartments',
     salesExecutive: 'Pradeep Kumar',
     createdOn: '20 Jun 2026',
     sourceLeadId: 'IL-2026-0003',
     installationId: 'IWO-2026-0001',
-    kyc: { idProofType: 'Aadhaar Card', idProof: 'verified', addressProof: 'verified', photo: 'uploaded' },
+    kyc: { docType: 'Aadhaar', docNumber: 'XXXX-XXXX-4521', uploaded: true },
     circuit: {
       circuitId: 'IC-2026-0001',
       landlineNumber: '022-2678 9012',
@@ -62,22 +56,16 @@ const MOCK_INTERCOM_CUSTOMERS = {
     phone: '98765 43210',
     altPhone: '—',
     email: 'priya.nair@email.com',
-    dob: '05 Sep 1990',
-    gender: 'Female',
-    sonOf: 'D/o Ravi Nair',
-    customerType: 'Individual',
-    gstNo: '—',
     status: 'active',
     plan: 'Intercom Plus',
     billingAddress: 'B-204, Greenwood Residency, Bandra East',
     installationAddress: 'B-204, Greenwood Residency, Bandra East',
-    area: 'Bandra',
     zone: 'Bandra East',
     project: 'Greenwood Residency',
     salesExecutive: 'Anita Sharma',
     createdOn: '18 Jun 2026',
     sourceLeadId: 'IL-2026-0002',
-    kyc: { idProofType: 'Aadhaar Card', idProof: 'verified', addressProof: 'verified', photo: 'uploaded' },
+    kyc: { docType: 'Aadhaar', docNumber: 'XXXX-XXXX-7788', uploaded: true },
     circuit: {
       circuitId: 'IC-2026-0002',
       landlineNumber: '022-2678 4321',
@@ -98,22 +86,16 @@ const MOCK_INTERCOM_CUSTOMERS = {
     phone: '99887 76655',
     altPhone: '—',
     email: 'suresh.patil@email.com',
-    dob: '22 Nov 1975',
-    gender: 'Male',
-    sonOf: 'Anand Patil',
-    customerType: 'Individual',
-    gstNo: '—',
     status: 'suspended',
     plan: 'Intercom Basic',
     billingAddress: 'Shop 12, Metro Business Park, Goregaon',
     installationAddress: 'Shop 12, Metro Business Park, Goregaon',
-    area: 'Goregaon',
     zone: 'Goregaon',
     project: 'Metro Business Park',
     salesExecutive: 'Vikram Patil',
     createdOn: '10 Jun 2026',
     sourceLeadId: 'IL-2026-0001',
-    kyc: { idProofType: 'Aadhaar Card', idProof: 'verified', addressProof: 'pending', photo: 'uploaded' },
+    kyc: { docType: 'PAN', docNumber: 'ABCDE1234F', uploaded: true },
     circuit: {
       circuitId: 'IC-2026-0003',
       landlineNumber: '022-2678 5566',
@@ -136,22 +118,16 @@ const MOCK_INTERCOM_CUSTOMERS = {
     phone: '91234 56789',
     altPhone: '—',
     email: 'anita.desai@email.com',
-    dob: '30 Jan 1988',
-    gender: 'Female',
-    sonOf: 'D/o Kishore Desai',
-    customerType: 'Individual',
-    gstNo: '—',
     status: 'active',
     plan: 'Intercom Plus',
     billingAddress: 'C-501, Palm Grove Society, Versova',
     installationAddress: 'C-501, Palm Grove Society, Versova',
-    area: 'Andheri',
     zone: 'Versova',
     project: 'Palm Grove Society',
     salesExecutive: 'Pradeep Kumar',
     createdOn: '05 Jun 2026',
     sourceLeadId: 'IL-2026-0004',
-    kyc: { idProofType: 'Aadhaar Card', idProof: 'verified', addressProof: 'verified', photo: 'uploaded' },
+    kyc: { docType: 'Aadhaar', docNumber: 'XXXX-XXXX-3345', uploaded: true },
     circuit: {
       circuitId: 'IC-2026-0004',
       landlineNumber: '022-2678 7788',
@@ -173,22 +149,16 @@ const MOCK_INTERCOM_CUSTOMERS = {
     phone: '97654 32198',
     altPhone: '—',
     email: 'rajesh.kumar@email.com',
-    dob: '14 Jul 1982',
-    gender: 'Male',
-    sonOf: 'Mahesh Kumar',
-    customerType: 'Individual',
-    gstNo: '—',
     status: 'inactive',
     plan: 'Intercom Basic',
     billingAddress: 'Flat 108, Sunrise Apartments, Andheri East',
     installationAddress: 'Flat 108, Sunrise Apartments, Andheri East',
-    area: 'Andheri',
     zone: 'Andheri East',
     project: 'Sunrise Apartments',
     salesExecutive: 'Anita Sharma',
     createdOn: '28 May 2026',
     sourceLeadId: 'IL-2026-0005',
-    kyc: { idProofType: 'Aadhaar Card', idProof: 'pending', addressProof: 'pending', photo: 'pending' },
+    kyc: { docType: 'Voter ID', docNumber: 'ABC1234567', uploaded: false },
     circuit: {
       circuitId: 'IC-2026-0005',
       landlineNumber: '022-2678 9900',
@@ -208,11 +178,10 @@ const MOCK_INTERCOM_CUSTOMERS = {
 function makeUnknownCustomer(id) {
   return {
     id, name: 'Unknown Customer', phone: '—', altPhone: '—', email: '—',
-    dob: '—', gender: '—', sonOf: '—', customerType: '—', gstNo: '—',
     status: 'inactive', plan: '—',
-    billingAddress: '—', installationAddress: '—', area: '—', zone: '—', project: '—',
+    billingAddress: '—', installationAddress: '—', zone: '—', project: '—',
     salesExecutive: '—', createdOn: '—', sourceLeadId: null, installationId: null,
-    kyc: { idProofType: 'Aadhaar Card', idProof: 'pending', addressProof: 'pending', photo: 'pending' },
+    kyc: { docType: '—', docNumber: '—', uploaded: false },
     circuit: { circuitId: '—', landlineNumber: '—', serviceStatus: '—', activationDate: '—', installationBy: '—', sourceBookingId: null, remarks: '—' },
     hardware: [],
     tickets: [],
@@ -228,9 +197,8 @@ const STATUS_CFG = {
 }
 
 const KYC_STATUS = {
-  verified: { icon: CheckCircle, color: 'text-emerald-600', label: 'Verified' },
-  uploaded: { icon: CheckCircle, color: 'text-brand-blue',  label: 'Uploaded' },
-  pending:  { icon: Clock,       color: 'text-amber-500',   label: 'Pending' },
+  uploaded: { icon: CheckCircle, color: 'text-brand-blue', label: 'Uploaded' },
+  pending:  { icon: Clock,       color: 'text-amber-500',  label: 'Pending' },
 }
 
 const PRIORITY_CFG = {
@@ -335,23 +303,17 @@ function ProfileTab({ customer }) {
           <CardHeader title="Personal Details" />
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
             <InfoField label="Full Name"     value={customer.name} />
-            <InfoField label="S/o (Son of)"  value={customer.sonOf} />
-            <InfoField label="Date of Birth" value={customer.dob} />
-            <InfoField label="Gender"        value={customer.gender} />
-            <InfoField label="Customer Type" value={customer.customerType} />
-            <InfoField label="GST No."       value={customer.gstNo} mono />
             <InfoField label="Mobile (Primary)" value={customer.phone} />
             <InfoField label="Alternate Mobile" value={customer.altPhone} />
             <InfoField label="Email"         value={customer.email} />
             <InfoField label="Billing Address"      value={customer.billingAddress} wide />
             <InfoField label="Installation Address" value={customer.installationAddress} wide />
-            <InfoField label="Area"          value={customer.area} />
-            <InfoField label="Zone"          value={customer.zone} />
             <InfoField label="Project"       value={customer.project} />
+            <InfoField label="Area/Zone"     value={customer.zone} />
             <InfoField label="Sales Executive" value={customer.salesExecutive} />
-            <InfoField label="Created Date"  value={customer.createdOn} />
+            <InfoField label="Intercom Circuit ID" value={customer.circuit.circuitId} mono />
             <div>
-              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Source Lead ID</p>
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Lead ID</p>
               {customer.sourceLeadId ? (
                 <button
                   onClick={() => navigate(`/intercom/leads/${customer.sourceLeadId}`)}
@@ -370,10 +332,12 @@ function ProfileTab({ customer }) {
       <div className="space-y-5">
         <Card>
           <CardHeader title="KYC Documents" />
+          <div className="grid grid-cols-2 gap-y-4 gap-x-4 mb-3">
+            <InfoField label="Document Type"   value={customer.kyc.docType} />
+            <InfoField label="Document Number" value={customer.kyc.docNumber} mono />
+          </div>
           <div>
-            <KycRow label={`ID Proof — ${customer.kyc.idProofType}`} statusKey={customer.kyc.idProof} />
-            <KycRow label="Address Proof" statusKey={customer.kyc.addressProof} />
-            <KycRow label="Customer Photo" statusKey={customer.kyc.photo} />
+            <KycRow label="Uploaded Document" statusKey={customer.kyc.uploaded ? 'uploaded' : 'pending'} />
           </div>
         </Card>
       </div>
