@@ -8,9 +8,9 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+import { FormField, Input } from '../components/ui/FormInputs'
 import {
-  getInstallations, subscribeInstallations, addInstallation, nextInstallationId, INSTALLATION_ENGINEERS,
+  getInstallations, subscribeInstallations, addInstallation, nextInstallationId,
 } from '../data/intercomInstallationsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
@@ -652,11 +652,11 @@ function ActivityTab({ customer }) {
 // ── Installation Request Modal ───────────────────────────────────────────────
 
 function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
-  const [form, setForm] = useState({ engineer: '', installDate: '', installTime: '', notes: '' })
+  const [form, setForm] = useState({ installDate: '', installTime: '' })
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    if (isOpen) { setForm({ engineer: '', installDate: '', installTime: '', notes: '' }); setErrors({}) }
+    if (isOpen) { setForm({ installDate: '', installTime: '' }); setErrors({}) }
   }, [isOpen])
 
   function set(f, v) {
@@ -666,7 +666,6 @@ function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
 
   function handleSubmit() {
     const e = {}
-    if (!form.engineer)    e.engineer = 'Select an assigned engineer'
     if (!form.installDate) e.installDate = 'Installation date is required'
     if (!form.installTime) e.installTime = 'Installation time is required'
     if (Object.keys(e).length) { setErrors(e); return }
@@ -686,17 +685,8 @@ function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
         <FormField label="Customer">
           <Input value={customer.name} disabled />
         </FormField>
-        <FormField label="Customer ID">
-          <Input value={customer.id} disabled className="font-mono" />
-        </FormField>
         <FormField label="Circuit ID">
           <Input value={customer.circuit.circuitId} disabled className="font-mono" />
-        </FormField>
-        <FormField label="Assigned Engineer" required error={errors.engineer}>
-          <Select value={form.engineer} onChange={e => set('engineer', e.target.value)}>
-            <option value="">Select engineer…</option>
-            {INSTALLATION_ENGINEERS.map(eng => <option key={eng.id} value={eng.name}>{eng.name}</option>)}
-          </Select>
         </FormField>
         <FormField label="Installation Date" required error={errors.installDate}>
           <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
@@ -704,12 +694,6 @@ function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
         <FormField label="Installation Time" required error={errors.installTime}>
           <Input type="time" value={form.installTime} onChange={e => set('installTime', e.target.value)} />
         </FormField>
-        <div className="col-span-2">
-          <FormField label="Notes">
-            <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
-              placeholder="Any additional notes about this installation…" />
-          </FormField>
-        </div>
       </div>
     </Modal>
   )
@@ -744,11 +728,11 @@ export default function IntercomCustomerDetail() {
       phone: customer.phone,
       circuitId: customer.circuit.circuitId,
       zone: customer.zone,
-      engineer: form.engineer,
+      engineer: '',
       installDate: `${d}-${m}-${y}`,
       installTime: form.installTime,
       createdDate,
-      notes: form.notes,
+      notes: '',
       status: 'pending',
     })
     customer.installationId = workOrderId
