@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
@@ -24,9 +26,18 @@ const PRIORITY_CFG = {
 }
 
 const CATEGORIES = ['Hardware Issue', 'No Signal', 'Line Fault', 'Billing', 'Other']
+const PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
 const AGENTS = ['Suresh Babu', 'Arjun Kumar', 'Preethi Nair', 'Anita Sharma']
 
-const INTERCOM_TICKETS = [
+const INTERCOM_CUSTOMERS = [
+  { id: 'INC-2026-0001', name: 'Mohan Das',    phone: '93456 78901' },
+  { id: 'INC-2026-0002', name: 'Priya Nair',   phone: '98765 43210' },
+  { id: 'INC-2026-0003', name: 'Suresh Patil', phone: '99887 76655' },
+  { id: 'INC-2026-0004', name: 'Anita Desai',  phone: '91234 56789' },
+  { id: 'INC-2026-0005', name: 'Rajesh Kumar', phone: '97654 32198' },
+]
+
+const INIT_TICKETS = [
   { id: 'ITC-2026-0001', customer: 'Mohan Das',    customerId: 'INC-2026-0001', phone: '93456 78901', category: 'No Signal',       priority: 'high',     status: 'open',       created: '01-07-2026', assignedTo: 'Suresh Babu'  },
   { id: 'ITC-2026-0002', customer: 'Priya Nair',   customerId: 'INC-2026-0002', phone: '98765 43210', category: 'Hardware Issue',  priority: 'medium',   status: 'inprogress', created: '02-07-2026', assignedTo: 'Arjun Kumar'  },
   { id: 'ITC-2026-0003', customer: 'Suresh Patil', customerId: 'INC-2026-0003', phone: '99887 76655', category: 'Line Fault',      priority: 'critical', status: 'open',       created: '03-07-2026', assignedTo: 'Preethi Nair' },
@@ -37,6 +48,126 @@ const INTERCOM_TICKETS = [
 function toISO(ddmmyyyy) {
   const [d, m, y] = ddmmyyyy.split('-')
   return `${y}-${m}-${d}`
+}
+
+function todayDDMMYYYY() {
+  const now = new Date()
+  const d = String(now.getDate()).padStart(2, '0')
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  return `${d}-${m}-${now.getFullYear()}`
+}
+
+// ── New Ticket Modal ─────────────────────────────────────────────────────────
+
+function NewTicketModal({ isOpen, onClose, onSubmit }) {
+  const EMPTY = { customerId: '', category: '', priority: '', description: '', assignedTo: '' }
+  const [form, setForm] = useState(EMPTY)
+  const [errors, setErrors] = useState({})
+  const [customerQuery, setCustomerQuery] = useState('')
+  const [customerOpen, setCustomerOpen] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm(EMPTY)
+      setErrors({})
+      setCustomerQuery('')
+      setCustomerOpen(false)
+    }
+  }, [isOpen])
+
+  function set(f, v) {
+    setForm(p => ({ ...p, [f]: v }))
+    setErrors(p => ({ ...p, [f]: '' }))
+  }
+
+  function selectCustomer(c) {
+    set('customerId', c.id)
+    setCustomerQuery(`${c.name} (${c.id})`)
+    setCustomerOpen(false)
+  }
+
+  const filteredCustomers = INTERCOM_CUSTOMERS.filter(c =>
+    c.name.toLowerCase().includes(customerQuery.toLowerCase()) || c.id.toLowerCase().includes(customerQuery.toLowerCase())
+  )
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.customerId)         e.customerId = 'Select a customer'
+    if (!form.category)           e.category = 'Select a category'
+    if (!form.priority)           e.priority = 'Select a priority'
+    if (!form.description.trim()) e.description = 'Description is required'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="New Intercom Ticket" size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Create Ticket</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <div className="col-span-2 relative">
+          <FormField label="Customer" required error={errors.customerId}>
+            <Input
+              value={customerQuery}
+              onChange={e => { setCustomerQuery(e.target.value); setCustomerOpen(true); set('customerId', '') }}
+              onFocus={() => setCustomerOpen(true)}
+              placeholder="Search customer by name or ID…"
+            />
+          </FormField>
+          {customerOpen && (
+            <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg bg-white shadow-lg divide-y divide-surface-border overflow-hidden max-h-[180px] overflow-y-auto">
+              {filteredCustomers.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-3">No customers found</p>
+              ) : filteredCustomers.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseDown={() => selectCustomer(c)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-gray-700">{c.name}</span>
+                  <span className="text-xs font-mono text-gray-400">{c.id}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <FormField label="Category" required error={errors.category}>
+          <Select value={form.category} onChange={e => set('category', e.target.value)}>
+            <option value="">Select category…</option>
+            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          </Select>
+        </FormField>
+
+        <FormField label="Priority" required error={errors.priority}>
+          <Select value={form.priority} onChange={e => set('priority', e.target.value)}>
+            <option value="">Select priority…</option>
+            {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+          </Select>
+        </FormField>
+
+        <div className="col-span-2">
+          <FormField label="Description" required error={errors.description}>
+            <Textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
+              placeholder="Describe the issue…" />
+          </FormField>
+        </div>
+
+        <FormField label="Assigned To">
+          <Select value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}>
+            <option value="">Unassigned</option>
+            {AGENTS.map(a => <option key={a}>{a}</option>)}
+          </Select>
+        </FormField>
+      </div>
+    </Modal>
+  )
 }
 
 // ── Actions Menu ───────────────────────────────────────────────────────────────
@@ -69,6 +200,9 @@ function ActionsMenu({ ticket, pos, onView, onEdit, onClose }) {
 export default function IntercomTickets() {
   const navigate = useNavigate()
   const menuRef = useRef(null)
+
+  const [tickets, setTickets] = useState(INIT_TICKETS)
+  const [addModalOpen, setAddModalOpen] = useState(false)
 
   const [search, setSearch] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -132,7 +266,7 @@ export default function IntercomTickets() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return INTERCOM_TICKETS.filter(t => {
+    return tickets.filter(t => {
       if (q && !t.id.toLowerCase().includes(q) && !t.customer.toLowerCase().includes(q) && !t.customerId.toLowerCase().includes(q)) return false
       if (filterStatus && t.status !== filterStatus.toLowerCase().replace(/\s+/g, '')) return false
       if (filterPriority && t.priority !== filterPriority.toLowerCase()) return false
@@ -142,24 +276,52 @@ export default function IntercomTickets() {
       if (filterDateTo && toISO(t.created) > filterDateTo) return false
       return true
     })
-  }, [search, filterStatus, filterPriority, filterCategory, filterAssignedTo, filterDateFrom, filterDateTo])
+  }, [tickets, search, filterStatus, filterPriority, filterCategory, filterAssignedTo, filterDateFrom, filterDateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const stats = useMemo(() => ({
-    total:      INTERCOM_TICKETS.length,
-    open:       INTERCOM_TICKETS.filter(t => t.status === 'open').length,
-    inprogress: INTERCOM_TICKETS.filter(t => t.status === 'inprogress').length,
-    resolved:   INTERCOM_TICKETS.filter(t => t.status === 'resolved').length,
-  }), [])
+    total:      tickets.length,
+    open:       tickets.filter(t => t.status === 'open').length,
+    inprogress: tickets.filter(t => t.status === 'inprogress').length,
+    resolved:   tickets.filter(t => t.status === 'resolved').length,
+  }), [tickets])
 
-  const menuTicket = INTERCOM_TICKETS.find(t => t.id === menuId) ?? null
+  const menuTicket = tickets.find(t => t.id === menuId) ?? null
 
   function handleView(t) { navigate(`/intercom/tickets/${t.id}`); setMenuId(null) }
   function handleEdit(t) { setMenuId(null) }
   function handleClose(t) { setMenuId(null) }
+
+  function nextTicketId() {
+    const year = new Date().getFullYear()
+    const nums = tickets
+      .map(t => t.id.match(/^ITC-(\d{4})-(\d+)$/))
+      .filter(Boolean)
+      .map(m => Number(m[2]))
+    const next = (nums.length ? Math.max(...nums) : 0) + 1
+    return `ITC-${year}-${String(next).padStart(4, '0')}`
+  }
+
+  function handleCreateTicket(form) {
+    const customer = INTERCOM_CUSTOMERS.find(c => c.id === form.customerId)
+    const newTicket = {
+      id: nextTicketId(),
+      customer: customer.name,
+      customerId: customer.id,
+      phone: customer.phone,
+      category: form.category,
+      priority: form.priority.toLowerCase(),
+      status: 'open',
+      created: todayDDMMYYYY(),
+      assignedTo: form.assignedTo,
+      description: form.description,
+    }
+    setTickets(prev => [newTicket, ...prev])
+    setAddModalOpen(false)
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -170,7 +332,7 @@ export default function IntercomTickets() {
           <h1 className="text-xl font-bold text-gray-900">Intercom Tickets</h1>
           <p className="text-sm text-gray-500 mt-0.5">Manage intercom support tickets</p>
         </div>
-        <Button size="sm" icon={<Plus size={14} />}>New Ticket</Button>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => setAddModalOpen(true)}>New Ticket</Button>
       </div>
 
       {/* ── Stats ──────────────────────────────────────────────────────────── */}
@@ -511,6 +673,12 @@ export default function IntercomTickets() {
 
         </div>
       </div>
+
+      <NewTicketModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onSubmit={handleCreateTicket}
+      />
 
     </div>
   )
