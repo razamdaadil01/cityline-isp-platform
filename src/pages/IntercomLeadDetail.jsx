@@ -24,8 +24,6 @@ const LOST_REASONS = ['Price too high', 'Chose competitor', 'Not interested', 'O
 
 const STAGE_ICON = {
   'New Inquiry': '📝',
-  'Feasibility': '🔍',
-  'Booked':      '📅',
   'Converted':   '✅',
   'Lost':        '❌',
 }

@@ -32,7 +32,6 @@ const INIT_LEADS = [
     engineer: 'Ravi Technician', visitDate: '2026-06-28', visitTime: '11:00',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-24', time: '10:00', note: 'Lead created', actor: 'Suresh Babu' },
-      { stage: 'Feasibility', date: '2026-06-25', time: '11:30', note: 'Feasibility requested — engineer Ravi Technician, visit 2026-06-28 11:00', actor: 'Suresh Babu' },
     ],
   },
   {
@@ -43,10 +42,7 @@ const INIT_LEADS = [
     customerId: 'INC-2026-0001',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-20', time: '09:00', note: 'Lead created', actor: 'Preethi Nair' },
-      { stage: 'Feasibility', date: '2026-06-21', time: '10:15', note: 'Feasibility requested — engineer Kumar Installer, visit 2026-06-22 14:00', actor: 'Preethi Nair' },
-      { stage: 'Feasibility', date: '2026-06-22', time: '15:30', note: 'Marked Feasible', actor: 'Preethi Nair' },
-      { stage: 'Booked', date: '2026-06-23', time: '09:45', note: 'Booking confirmed — Intercom Basic, install 2026-07-05 10:30', actor: 'Preethi Nair' },
-      { stage: 'Converted', date: '2026-06-24', time: '11:00', note: 'Installation completed — customer account INC-2026-0001 created', actor: 'Preethi Nair' },
+      { stage: 'Converted', date: '2026-06-24', time: '11:00', note: 'Intercom Customer created — customer account INC-2026-0001 created', actor: 'Preethi Nair' },
     ],
   },
   {
@@ -57,10 +53,7 @@ const INIT_LEADS = [
     customerId: 'INC-2026-0004',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-15', time: '09:30', note: 'Lead created', actor: 'Anita Sharma' },
-      { stage: 'Feasibility', date: '2026-06-15', time: '16:00', note: 'Feasibility requested — engineer Sunil Networks, visit 2026-06-16 11:00', actor: 'Anita Sharma' },
-      { stage: 'Feasibility', date: '2026-06-16', time: '12:30', note: 'Marked Feasible', actor: 'Anita Sharma' },
-      { stage: 'Booked', date: '2026-06-17', time: '09:00', note: 'Booking confirmed — Intercom Plus, install 2026-06-20 10:00', actor: 'Anita Sharma' },
-      { stage: 'Converted', date: '2026-06-20', time: '12:00', note: 'Installation completed — customer account INC-2026-0004 created', actor: 'Anita Sharma' },
+      { stage: 'Converted', date: '2026-06-20', time: '12:00', note: 'Intercom Customer created — customer account INC-2026-0004 created', actor: 'Anita Sharma' },
     ],
   },
   {
@@ -70,8 +63,7 @@ const INIT_LEADS = [
     lostReason: 'Customer relocated before installation could be scheduled.',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-10', time: '10:00', note: 'Lead created', actor: 'Arjun Kumar' },
-      { stage: 'Feasibility', date: '2026-06-11', time: '09:30', note: 'Feasibility requested — engineer Dinesh Fiber, visit 2026-06-12 15:00', actor: 'Arjun Kumar' },
-      { stage: 'Lost', date: '2026-06-12', time: '16:15', note: 'Marked Not Feasible — Customer relocated before installation could be scheduled.', actor: 'Arjun Kumar' },
+      { stage: 'Lost', date: '2026-06-12', time: '16:15', note: 'Marked as lost, reason: Customer relocated before installation could be scheduled.', actor: 'Arjun Kumar' },
     ],
   },
 ].map(withAssigned)
