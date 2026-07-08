@@ -2,12 +2,11 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, ClipboardList, Clock, Loader2,
-  CheckCircle2, Eye, Edit2, XCircle, MoreVertical, UserCog,
+  CheckCircle2, Eye, Edit2, XCircle, MoreVertical, UserCog, Wrench, Trash2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import { FormField, Input } from '../components/ui/FormInputs'
 import {
   getInstallations, subscribeInstallations, updateInstallation, INSTALLATION_ENGINEERS,
 } from '../data/intercomInstallationsStore'
@@ -24,15 +23,15 @@ const STATUS_CFG = {
 const ENGINEERS = INSTALLATION_ENGINEERS
 const ZONES = ['Andheri West', 'Bandra East', 'Goregaon', 'Versova', 'Andheri East']
 
+const HW_ITEM_SUGGESTIONS = ['Intercom Panel Unit', 'Handset Unit', 'Power Adapter', 'Other']
+const WIRE_ITEM_SUGGESTIONS = ['Drop Wire (m)', 'Cable', 'Other']
+function newHwRow(name = '', qty = '', unit = 'pcs')   { return { id: Date.now() + Math.random(), name, qty, unit } }
+function newWireRow(name = '', qty = '', unit = 'pcs') { return { id: Date.now() + Math.random(), name, qty, unit } }
+
 // Parse dd-mm-yyyy for date-range comparisons
 function toISO(ddmmyyyy) {
   const [d, m, y] = ddmmyyyy.split('-')
   return `${y}-${m}-${d}`
-}
-
-function toDDMMYYYY(iso) {
-  const [y, m, d] = iso.split('-')
-  return `${d}-${m}-${y}`
 }
 
 // ── Engineer avatars ─────────────────────────────────────────────────────────
@@ -91,18 +90,20 @@ function ActionsMenu({ order, pos, onView, onAssign, onEdit, onCancel }) {
 
 function AssignEngineerModal({ isOpen, onClose, order, onSubmit }) {
   const [engineers, setEngineers] = useState([])
-  const [installDate, setInstallDate] = useState('')
-  const [installTime, setInstallTime] = useState('')
   const [engSearch, setEngSearch] = useState('')
   const [errors, setErrors] = useState({})
+  const [hwToggle, setHwToggle] = useState(true)
+  const [hwItems, setHwItems] = useState([])
+  const [wireItems, setWireItems] = useState([])
 
   useEffect(() => {
     if (isOpen && order) {
       setEngineers((order.engineer ?? '').split(',').map(n => n.trim()).filter(Boolean))
-      setInstallDate(order.installDate ? toISO(order.installDate) : '')
-      setInstallTime(order.installTime && order.installTime !== '—' ? order.installTime : '')
       setEngSearch('')
       setErrors({})
+      setHwToggle(true)
+      setHwItems(order.hwItems?.length ? order.hwItems : [newHwRow('Intercom Panel Unit', '1', 'pcs')])
+      setWireItems(order.wireItems?.length ? order.wireItems : [newWireRow('Drop Wire (m)', '50', 'pcs')])
     }
   }, [isOpen, order])
 
@@ -111,13 +112,23 @@ function AssignEngineerModal({ isOpen, onClose, order, onSubmit }) {
     setErrors(p => ({ ...p, engineers: '' }))
   }
 
+  function addHwItem()   { setHwItems(r => [...r, newHwRow()]) }
+  function removeHwItem(id) { setHwItems(r => r.filter(x => x.id !== id)) }
+  function updateHwItem(id, field, val) { setHwItems(r => r.map(x => x.id === id ? { ...x, [field]: val } : x)) }
+
+  function addWireItem()   { setWireItems(r => [...r, newWireRow()]) }
+  function removeWireItem(id) { setWireItems(r => r.filter(x => x.id !== id)) }
+  function updateWireItem(id, field, val) { setWireItems(r => r.map(x => x.id === id ? { ...x, [field]: val } : x)) }
+
   function handleSubmit() {
     const e = {}
     if (engineers.length === 0) e.engineers = 'Select at least one engineer'
-    if (!installDate) e.installDate = 'Installation date is required'
-    if (!installTime) e.installTime = 'Installation time is required'
     if (Object.keys(e).length) { setErrors(e); return }
-    onSubmit({ engineers, installDate, installTime })
+    onSubmit({
+      engineers,
+      hwItems: hwToggle ? hwItems : [],
+      wireItems: hwToggle ? wireItems : [],
+    })
   }
 
   const filtered = INSTALLATION_ENGINEERS.filter(e => e.name.toLowerCase().includes(engSearch.toLowerCase()))
@@ -183,15 +194,103 @@ function AssignEngineerModal({ isOpen, onClose, order, onSubmit }) {
           {errors.engineers && <p className="text-xs text-red-500 mt-1">{errors.engineers}</p>}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Installation Date" required error={errors.installDate}>
-            <Input type="date" value={installDate}
-              onChange={e => { setInstallDate(e.target.value); setErrors(p => ({ ...p, installDate: '' })) }} />
-          </FormField>
-          <FormField label="Installation Time" required error={errors.installTime}>
-            <Input type="time" value={installTime}
-              onChange={e => { setInstallTime(e.target.value); setErrors(p => ({ ...p, installTime: '' })) }} />
-          </FormField>
+        {/* Hardware Requirements toggle */}
+        <div className="border border-surface-border rounded-xl overflow-hidden">
+          <button type="button"
+            onClick={() => setHwToggle(p => !p)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-2">
+              <Wrench size={14} className="text-gray-500" />
+              Add Hardware Requirements
+            </div>
+            <div className={`w-9 h-5 rounded-full transition-colors relative ${hwToggle ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${hwToggle ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+
+          {hwToggle && (
+            <div className="px-4 pb-4 pt-1 border-t border-surface-border space-y-5">
+
+              {/* Hardware Items */}
+              <div>
+                <div className="flex items-center justify-between mb-2 pt-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Hardware Items</p>
+                  <button type="button" onClick={addHwItem}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                    <Plus size={12} /> Add Item
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_64px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                    <span>Item Name</span><span>QTY</span><span>Unit</span><span />
+                  </div>
+                  {hwItems.map(row => (
+                    <div key={row.id} className="grid grid-cols-[1fr_64px_64px_28px] gap-2 items-center">
+                      <input value={row.name} onChange={e => updateHwItem(row.id, 'name', e.target.value)}
+                        placeholder="e.g. Intercom Panel Unit" list="intercom-hw-suggestions"
+                        className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800" />
+                      <input type="number" min="0" value={row.qty} onChange={e => updateHwItem(row.id, 'qty', e.target.value)}
+                        placeholder="0"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <input value={row.unit} onChange={e => updateHwItem(row.id, 'unit', e.target.value)}
+                        placeholder="pcs"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <button type="button" onClick={() => removeHwItem(row.id)}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {hwItems.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2 border-2 border-dashed border-gray-200 rounded-lg">No items added</p>
+                  )}
+                </div>
+                <datalist id="intercom-hw-suggestions">
+                  {HW_ITEM_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+
+              {/* Wire / Cable */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Wire / Cable</p>
+                  <button type="button" onClick={addWireItem}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                    <Plus size={12} /> Add Wire
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_64px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                    <span>Cable Name</span><span>QTY</span><span>Unit</span><span />
+                  </div>
+                  {wireItems.map(row => (
+                    <div key={row.id} className="grid grid-cols-[1fr_64px_64px_28px] gap-2 items-center">
+                      <input value={row.name} onChange={e => updateWireItem(row.id, 'name', e.target.value)}
+                        placeholder="e.g. Drop Wire (m)" list="intercom-wire-suggestions"
+                        className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800" />
+                      <input type="number" min="0" value={row.qty} onChange={e => updateWireItem(row.id, 'qty', e.target.value)}
+                        placeholder="0"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <input value={row.unit} onChange={e => updateWireItem(row.id, 'unit', e.target.value)}
+                        placeholder="pcs"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <button type="button" onClick={() => removeWireItem(row.id)}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {wireItems.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2 border-2 border-dashed border-gray-200 rounded-lg">No wires added</p>
+                  )}
+                </div>
+                <datalist id="intercom-wire-suggestions">
+                  {WIRE_ITEM_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+
+            </div>
+          )}
         </div>
       </div>
     </Modal>
@@ -298,11 +397,11 @@ export default function IntercomInstallations() {
   function handleEdit(o) { setMenuId(null) }
   function handleCancel(o) { setMenuId(null) }
 
-  function handleAssignSubmit({ engineers, installDate, installTime }) {
+  function handleAssignSubmit({ engineers, hwItems, wireItems }) {
     updateInstallation(assignOrder.id, {
       engineer: engineers.join(', '),
-      installDate: toDDMMYYYY(installDate),
-      installTime,
+      hwItems,
+      wireItems,
       status: assignOrder.status === 'pending' ? 'inprogress' : assignOrder.status,
     })
     setAssignOrder(null)
