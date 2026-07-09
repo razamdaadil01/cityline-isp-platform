@@ -1,18 +1,16 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
-  ArrowLeft, Phone, User, CalendarDays, FileText,
-  UserPlus, Activity, XCircle, Tag,
+  ArrowLeft, Phone, Mail, Building2, MapPin, CalendarDays, FileText,
+  User, UserPlus, Activity, XCircle, MessageSquare, Paperclip, Send,
+  Upload, Download, Trash2, FileImage, File as FileIcon,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import {
-  getLead, saveLead, deleteLead, subscribeLeads,
-  INTERCOM_STAGES, INTERCOM_PLANS, INTERCOM_STAFF,
-} from '../data/intercomLeadsStore'
+import { FormField, Select, Textarea } from '../components/ui/FormInputs'
+import { getLead, saveLead, subscribeLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 
 const STAGE_BADGE = {
   'New Inquiry': 'blue',
@@ -30,10 +28,42 @@ const STAGE_ICON = {
 
 const CURRENT_USER = 'Admin User'
 
+const TABS = ['Profile', 'Comments', 'Attachments', 'Activity Log']
+const TAB_SLUGS = { 'Profile': 'profile', 'Comments': 'comments', 'Attachments': 'attachments', 'Activity Log': 'activity' }
+const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) => [v, k]))
+
+const MOCK_COMMENTS = [
+  { id: 1, name: 'Preethi Nair', date: '2026-06-26', text: 'Follow-up done, customer confirmed interest' },
+  { id: 2, name: 'Arjun Kumar',  date: '2026-06-25', text: 'Customer interested, will call back tomorrow' },
+]
+
+const MOCK_ATTACHMENTS = [
+  { id: 1, name: 'site_photo.jpg',  sizeLabel: '1.2 MB', date: '2026-06-20', file: null },
+  { id: 2, name: 'customer_id.pdf', sizeLabel: '0.8 MB', date: '2026-06-20', file: null },
+]
+
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 function nowTime() {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function fileIcon(name) {
+  const lower = name.toLowerCase()
+  if (lower.endsWith('.pdf')) return { Icon: FileText, color: 'text-red-500', bg: 'bg-red-50' }
+  if (/\.(jpg|jpeg|png|gif|webp)$/.test(lower)) return { Icon: FileImage, color: 'text-brand-blue', bg: 'bg-brand-blue/10' }
+  return { Icon: FileIcon, color: 'text-gray-500', bg: 'bg-gray-100' }
+}
+
+function staffMeta(name) {
+  const staff = INTERCOM_STAFF.find(s => s.name === name)
+  return { initials: staff?.initials ?? name?.charAt(0)?.toUpperCase() ?? '?', color: staff?.color ?? 'bg-gray-400' }
 }
 
 function InfoRow({ icon: Icon, label, value }) {
@@ -105,12 +135,175 @@ function StageActions({ lead, onMarkLost, onCreateCustomer }) {
   return null
 }
 
-// ── Activity Log ──────────────────────────────────────────────────────────────
+// ── Tab: Profile ─────────────────────────────────────────────────────────────
 
-function ActivityLog({ history }) {
+function ProfileTab({ lead }) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <Card>
+        <CardHeader title="Customer Info" />
+        <div className="flex flex-col items-center pb-4 border-b border-gray-50">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shadow-md">
+            {lead.customer?.charAt(0)?.toUpperCase() ?? '?'}
+          </div>
+          <p className="text-sm font-semibold text-gray-900 mt-3">{lead.customer}</p>
+        </div>
+        <InfoRow icon={Phone} label="Mobile" value={lead.mobile} />
+        <InfoRow icon={Mail} label="Email" value={lead.email} />
+        <InfoRow icon={Building2} label="Project" value={lead.project} />
+        <InfoRow icon={MapPin} label="Installation Address" value={lead.installationAddress} />
+        <InfoRow icon={CalendarDays} label="Follow-up Date" value={lead.followUp} />
+      </Card>
+
+      <Card>
+        <CardHeader title="Assignment" />
+        <div className="flex items-center gap-3 py-2.5 border-b border-gray-50">
+          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${lead.assignedColor}`}>
+            {lead.assignedInitials}
+          </span>
+          <div>
+            <p className="text-[11px] text-gray-400">Assigned To</p>
+            <p className="text-sm font-medium text-gray-800">{lead.assigned || '—'}</p>
+          </div>
+        </div>
+        <InfoRow icon={CalendarDays} label="Created Date" value={lead.createdAt} />
+        <InfoRow icon={FileText} label="Lead ID" value={lead.id} />
+        <div className="flex items-start gap-3 py-2.5">
+          <Activity size={14} className="text-gray-400 mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[11px] text-gray-400">Stage</p>
+            <Badge variant={STAGE_BADGE[lead.stage] ?? 'gray'} size="sm">{lead.stage}</Badge>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+// ── Tab: Comments ────────────────────────────────────────────────────────────
+
+function CommentsTab() {
+  const [comments, setComments] = useState(MOCK_COMMENTS)
+  const [draft, setDraft] = useState('')
+
+  function addComment() {
+    if (!draft.trim()) return
+    setComments(c => [{ id: Date.now(), name: CURRENT_USER, date: todayStr(), text: draft.trim() }, ...c])
+    setDraft('')
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Comments" />
+      <div className="flex items-start gap-3 pb-5 border-b border-gray-50">
+        <Textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2}
+          placeholder="Add a comment…" className="flex-1" />
+        <Button size="sm" icon={<Send size={13} />} onClick={addComment}>Add Comment</Button>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {comments.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">No comments yet.</p>
+        ) : comments.map(c => {
+          const { initials, color } = staffMeta(c.name)
+          return (
+            <div key={c.id} className="flex items-start gap-3 py-3.5">
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${color}`}>
+                {initials}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                  <span className="text-xs text-gray-400">{c.date}</span>
+                </div>
+                <p className="text-sm text-gray-700 mt-0.5">{c.text}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
+  )
+}
+
+// ── Tab: Attachments ─────────────────────────────────────────────────────────
+
+function AttachmentsTab() {
+  const [attachments, setAttachments] = useState(MOCK_ATTACHMENTS)
+
+  function handleUpload(fileList) {
+    const files = Array.from(fileList ?? [])
+    if (!files.length) return
+    const newEntries = files.map(file => ({
+      id: Date.now() + Math.random(),
+      name: file.name,
+      sizeLabel: fmtSize(file.size),
+      date: todayStr(),
+      file,
+    }))
+    setAttachments(a => [...newEntries, ...a])
+  }
+
+  function removeAttachment(id) {
+    setAttachments(a => a.filter(x => x.id !== id))
+  }
+
+  function downloadAttachment(entry) {
+    if (!entry.file) return
+    const url = URL.createObjectURL(entry.file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = entry.name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-bold text-gray-700">Attachments</p>
+        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg cursor-pointer transition-colors shadow-sm">
+          <input type="file" multiple className="hidden" onChange={e => { handleUpload(e.target.files); e.target.value = '' }} />
+          <Upload size={13} /> Upload
+        </label>
+      </div>
+      {attachments.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-6">No attachments yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {attachments.map(entry => {
+            const { Icon, color, bg } = fileIcon(entry.name)
+            return (
+              <div key={entry.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-white">
+                <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                  <Icon size={16} className={color} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 truncate">{entry.name}</p>
+                  <p className="text-xs text-gray-400">{entry.sizeLabel} · {entry.date}</p>
+                </div>
+                <button type="button" onClick={() => downloadAttachment(entry)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors shrink-0">
+                  <Download size={14} />
+                </button>
+                <button type="button" onClick={() => removeAttachment(entry.id)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Tab: Activity Log ────────────────────────────────────────────────────────
+
+function ActivityLogTab({ history }) {
   const entries = [...history].reverse()
   return (
-    <Card padding={false} className="col-span-2">
+    <Card padding={false}>
       <div className="px-5 py-4 border-b border-surface-border flex items-center gap-2">
         <Activity size={15} className="text-gray-500" />
         <h3 className="text-sm font-semibold text-gray-800">Activity Log</h3>
@@ -148,46 +341,13 @@ function ActivityLog({ history }) {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomLeadDetail() {
-  const { id } = useParams()
+  const { id, tab } = useParams()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [lead, setLead] = useState(() => getLead(id))
-  const [editing, setEditing] = useState(searchParams.get('edit') === '1')
-  const [form, setForm] = useState(() => (searchParams.get('edit') === '1' ? lead : null))
-  const [deleteOpen, setDeleteOpen] = useState(false)
   const [lostModalOpen, setLostModalOpen] = useState(false)
 
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
   useEffect(() => { setLead(getLead(id)) }, [id])
-  useEffect(() => {
-    if (searchParams.get('edit') === '1') { setEditing(true); setForm(lead) }
-  }, [searchParams.get('edit')])
-
-  function startEdit() {
-    setForm(lead)
-    setEditing(true)
-  }
-
-  function cancelEdit() {
-    setEditing(false)
-    setForm(null)
-    setSearchParams({})
-  }
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  function handleSave() {
-    saveLead({ ...lead, ...form })
-    setEditing(false)
-    setForm(null)
-    setSearchParams({})
-  }
-
-  function confirmDelete() {
-    deleteLead(id)
-    setDeleteOpen(false)
-    navigate('/intercom/leads')
-  }
 
   function addHistory(updated, note) {
     const entry = { stage: updated.stage, date: todayStr(), time: nowTime(), note, actor: CURRENT_USER }
@@ -214,6 +374,10 @@ export default function IntercomLeadDetail() {
     )
   }
 
+  if (!tab) return <Navigate to={`/intercom/leads/${id}/profile`} replace />
+
+  const activeTab = SLUG_TO_TAB[tab] ?? 'Profile'
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
 
@@ -236,140 +400,45 @@ export default function IntercomLeadDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {editing ? (
-              <>
-                <Button variant="secondary" onClick={cancelEdit}>Cancel</Button>
-                <Button onClick={handleSave}>Save Changes</Button>
-              </>
-            ) : (
-              <>
-                <StageActions
-                  lead={lead}
-                  onMarkLost={() => setLostModalOpen(true)}
-                  onCreateCustomer={handleCreateCustomer}
-                />
-              </>
-            )}
+            <StageActions
+              lead={lead}
+              onMarkLost={() => setLostModalOpen(true)}
+              onCreateCustomer={handleCreateCustomer}
+            />
           </div>
         </div>
       </div>
 
-      {/* ── Converted Banner ─────────────────────────────────────────────── */}
-      {!editing && lead.stage === 'Converted' && (
-        <div className="px-6 py-4 shrink-0 bg-white border-b border-surface-border">
-          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg w-fit">
-            <Badge variant="green" size="sm">Converted</Badge>
-            <span className="text-xs text-emerald-700 font-medium">
-              Customer ID: <span className="font-mono font-semibold">{lead.customerId ?? '—'}</span>
-            </span>
-          </div>
+      {/* ── Tabs ────────────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-surface-border shrink-0">
+        <div className="flex overflow-x-auto scrollbar-none px-6">
+          {TABS.map(t => {
+            const Icon = t === 'Profile' ? User : t === 'Comments' ? MessageSquare : t === 'Attachments' ? Paperclip : Activity
+            return (
+              <button
+                key={t}
+                onClick={() => navigate(`/intercom/leads/${id}/${TAB_SLUGS[t]}`)}
+                className={`flex items-center gap-1.5 shrink-0 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                  ${activeTab === t
+                    ? 'border-brand-blue text-brand-blue'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                  }`}
+              >
+                <Icon size={14} />
+                {t}
+              </button>
+            )
+          })}
         </div>
-      )}
+      </div>
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6">
-        {!editing ? (
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardHeader title="Customer Info" />
-              <InfoRow icon={Tag} label="Lead Name" value={lead.leadName} />
-              <InfoRow icon={User} label="Customer" value={lead.customer} />
-              <InfoRow icon={Phone} label="Mobile" value={lead.mobile} />
-            </Card>
-            <Card>
-              <CardHeader title="Assignment & Follow-up" />
-              <div className="flex items-center gap-3 py-2.5 border-b border-gray-50">
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${lead.assignedColor}`}>
-                  {lead.assignedInitials}
-                </span>
-                <div>
-                  <p className="text-[11px] text-gray-400">Assigned To</p>
-                  <p className="text-sm font-medium text-gray-800">{lead.assigned || '—'}</p>
-                </div>
-              </div>
-              <InfoRow icon={CalendarDays} label="Follow-up Date" value={lead.followUp} />
-              <InfoRow icon={CalendarDays} label="Created" value={lead.createdAt} />
-            </Card>
-            <Card className="col-span-2">
-              <CardHeader title="Notes" />
-              <div className="flex items-start gap-3">
-                <FileText size={14} className="text-gray-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.notes || 'No notes added.'}</p>
-              </div>
-            </Card>
-
-            {lead.stage === 'Lost' && (
-              <Card className="col-span-2">
-                <CardHeader title="Lost Details" />
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-[11px] text-gray-400">Lost Reason</p>
-                    <p className="text-sm font-medium text-red-700">{lead.lostReason || '—'}</p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <FileText size={14} className="text-gray-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.lostNotes || 'No additional notes.'}</p>
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            {/* ── Activity Log ────────────────────────────────────────── */}
-            <ActivityLog history={lead.stageHistory ?? []} />
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5 w-full">
-            <p className="text-sm font-bold text-gray-700 mb-4">Edit Lead Details</p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              <FormField label="Customer Name">
-                <Input value={form.customer} onChange={e => set('customer', e.target.value)} />
-              </FormField>
-              <FormField label="Mobile Number">
-                <Input value={form.mobile} onChange={e => set('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))} />
-              </FormField>
-              <FormField label="Plan">
-                <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
-                  {INTERCOM_PLANS.map(p => <option key={p}>{p}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Stage">
-                <Select value={form.stage} onChange={e => set('stage', e.target.value)}>
-                  {INTERCOM_STAGES.map(s => <option key={s}>{s}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Assigned To">
-                <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
-                  <option value="">Select user…</option>
-                  {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Follow-up Date">
-                <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
-              </FormField>
-              <div className="col-span-2">
-                <FormField label="Notes">
-                  <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} />
-                </FormField>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'Profile'      && <ProfileTab lead={lead} />}
+        {activeTab === 'Comments'     && <CommentsTab />}
+        {activeTab === 'Attachments'  && <AttachmentsTab />}
+        {activeTab === 'Activity Log' && <ActivityLogTab history={lead.stageHistory ?? []} />}
       </div>
-
-      {/* ── Delete Confirm Modal ────────────────────────────────────────── */}
-      <Modal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete this lead?" size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmDelete}>Delete Lead</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-gray-600">
-          <span className="font-semibold text-gray-900">{lead.leadName}</span>{' '}
-          will be permanently removed from the intercom leads list.
-        </p>
-      </Modal>
 
       {/* ── Stage Action Modals ─────────────────────────────────────────── */}
       <MarkAsLostModal
