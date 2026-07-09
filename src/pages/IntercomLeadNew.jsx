@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Upload, CheckCircle2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { saveLead, nextLeadId, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 
+const PROJECTS = ['Sunrise Apartments', 'Greenwood Residency', 'Metro Business Park', 'Palm Grove Society']
+
 const INIT_FORM = {
-  leadName: '', customer: '', mobile: '', assigned: '', followUp: '', notes: '',
+  customer: '', mobile: '', email: '', project: '', installationAddress: '',
+  followUp: '', assigned: '', profilePic: null, attachment: null, notes: '',
 }
 
 export default function IntercomLeadNew() {
@@ -18,10 +21,11 @@ export default function IntercomLeadNew() {
 
   function validate() {
     const e = {}
-    if (!form.leadName.trim())          e.leadName = 'Lead name is required'
-    if (!form.customer.trim())          e.customer = 'Customer name is required'
-    if (!form.mobile.match(/^\d{10}$/)) e.mobile   = 'Enter a valid 10-digit number'
-    if (!form.assigned)                  e.assigned = 'Assign a sales executive'
+    if (!form.customer.trim())            e.customer = 'Customer name is required'
+    if (!form.mobile.match(/^\d{10}$/))   e.mobile   = 'Enter a valid 10-digit number'
+    if (!form.project)                    e.project  = 'Select a project'
+    if (!form.installationAddress.trim()) e.installationAddress = 'Installation address is required'
+    if (!form.assigned)                   e.assigned = 'Assign a sales executive'
     return e
   }
 
@@ -31,9 +35,12 @@ export default function IntercomLeadNew() {
     const id = nextLeadId()
     const lead = saveLead({
       id,
-      leadName: form.leadName.trim(),
+      leadName: form.customer.trim(),
       customer: form.customer.trim(),
       mobile: form.mobile,
+      email: form.email,
+      project: form.project,
+      installationAddress: form.installationAddress,
       stage: 'New Inquiry',
       assigned: form.assigned,
       followUp: form.followUp,
@@ -68,18 +75,7 @@ export default function IntercomLeadNew() {
           <p className="text-sm font-bold text-gray-700 mb-4">Lead Details</p>
           <div className="grid grid-cols-2 gap-x-5 gap-y-4">
 
-            <div className="col-span-2">
-              <FormField label="Lead Name" required>
-                <Input
-                  value={form.leadName}
-                  onChange={e => { set('leadName', e.target.value); setErrors(p => ({ ...p, leadName: '' })) }}
-                  placeholder="e.g. Customer Name — Plan Interest"
-                  className={errors.leadName ? 'border-red-400 focus:ring-red-400/30' : ''}
-                />
-                {errors.leadName && <p className="text-xs text-red-500 mt-1">{errors.leadName}</p>}
-              </FormField>
-            </div>
-
+            {/* Row 1 */}
             <FormField label="Customer Name" required>
               <Input
                 value={form.customer}
@@ -104,6 +100,37 @@ export default function IntercomLeadNew() {
               {errors.mobile && <p className="text-xs text-red-500 mt-1">{errors.mobile}</p>}
             </FormField>
 
+            {/* Row 2 */}
+            <FormField label="Email">
+              <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
+            </FormField>
+
+            <FormField label="Project" required error={errors.project}>
+              <Select
+                value={form.project}
+                onChange={e => { set('project', e.target.value); setErrors(p => ({ ...p, project: '' })) }}
+              >
+                <option value="">Select project…</option>
+                {PROJECTS.map(p => <option key={p}>{p}</option>)}
+              </Select>
+            </FormField>
+
+            {/* Row 3 */}
+            <div className="col-span-2">
+              <FormField label="Installation Address" required error={errors.installationAddress}>
+                <Textarea
+                  value={form.installationAddress}
+                  onChange={e => { set('installationAddress', e.target.value); setErrors(p => ({ ...p, installationAddress: '' })) }}
+                  placeholder="House/Flat no., Street, Building name, Area" rows={2}
+                />
+              </FormField>
+            </div>
+
+            {/* Row 4 */}
+            <FormField label="Follow-up Date">
+              <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
+            </FormField>
+
             <FormField label="Assigned To" required>
               <Select
                 value={form.assigned}
@@ -116,10 +143,48 @@ export default function IntercomLeadNew() {
               {errors.assigned && <p className="text-xs text-red-500 mt-1">{errors.assigned}</p>}
             </FormField>
 
-            <FormField label="Follow-up Date">
-              <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
+            {/* Row 5 */}
+            <FormField label="Profile Picture">
+              <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                form.profilePic ? 'border-emerald-400 bg-emerald-50' : 'border-surface-border bg-gray-50 hover:border-brand-blue/50 hover:bg-brand-blue/5'
+              }`}>
+                <input type="file" accept=".jpg,.jpeg,.png" className="hidden"
+                  onChange={e => e.target.files?.[0] && set('profilePic', e.target.files[0])} />
+                {form.profilePic ? (
+                  <>
+                    <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                    <span className="text-xs font-medium text-emerald-700 truncate">{form.profilePic.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={16} className="text-gray-400 shrink-0" />
+                    <span className="text-xs font-semibold text-gray-600">Click to upload · JPG or PNG</span>
+                  </>
+                )}
+              </label>
             </FormField>
 
+            <FormField label="Attachment">
+              <label className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                form.attachment ? 'border-emerald-400 bg-emerald-50' : 'border-surface-border bg-gray-50 hover:border-brand-blue/50 hover:bg-brand-blue/5'
+              }`}>
+                <input type="file" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" className="hidden"
+                  onChange={e => e.target.files?.[0] && set('attachment', e.target.files[0])} />
+                {form.attachment ? (
+                  <>
+                    <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                    <span className="text-xs font-medium text-emerald-700 truncate">{form.attachment.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={16} className="text-gray-400 shrink-0" />
+                    <span className="text-xs font-semibold text-gray-600">Click to upload · Any document type</span>
+                  </>
+                )}
+              </label>
+            </FormField>
+
+            {/* Row 6 */}
             <div className="col-span-2">
               <FormField label="Notes">
                 <Textarea value={form.notes} onChange={e => set('notes', e.target.value)}
