@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, Building2, MapPin, CalendarDays, FileText,
   User, UserPlus, Activity, XCircle, MessageSquare, Paperclip, Send,
-  Upload, Download, Trash2, FileImage, File as FileIcon,
+  Upload, Download, Trash2, Eye, FileImage, File as FileIcon,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -42,6 +42,13 @@ const MOCK_ATTACHMENTS = [
   { id: 2, name: 'customer_id.pdf', sizeLabel: '0.8 MB', date: '2026-06-20', file: null },
 ]
 
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300">'
+  + '<rect width="100%" height="100%" fill="#f1f5f9"/>'
+  + '<text x="50%" y="50%" font-family="sans-serif" font-size="16" fill="#94a3b8" text-anchor="middle" dy=".3em">Image preview not available in demo</text>'
+  + '</svg>'
+)
+
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 function nowTime() {
   const d = new Date()
@@ -54,10 +61,14 @@ function fmtSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function isImageName(name) {
+  return /\.(jpg|jpeg|png|gif|webp)$/.test(name.toLowerCase())
+}
+
 function fileIcon(name) {
   const lower = name.toLowerCase()
   if (lower.endsWith('.pdf')) return { Icon: FileText, color: 'text-red-500', bg: 'bg-red-50' }
-  if (/\.(jpg|jpeg|png|gif|webp)$/.test(lower)) return { Icon: FileImage, color: 'text-brand-blue', bg: 'bg-brand-blue/10' }
+  if (isImageName(lower)) return { Icon: FileImage, color: 'text-brand-blue', bg: 'bg-brand-blue/10' }
   return { Icon: FileIcon, color: 'text-gray-500', bg: 'bg-gray-100' }
 }
 
@@ -223,6 +234,7 @@ function CommentsTab() {
 
 function AttachmentsTab() {
   const [attachments, setAttachments] = useState(MOCK_ATTACHMENTS)
+  const [previewEntry, setPreviewEntry] = useState(null)
 
   function handleUpload(fileList) {
     const files = Array.from(fileList ?? [])
@@ -251,44 +263,66 @@ function AttachmentsTab() {
     URL.revokeObjectURL(url)
   }
 
+  function viewAttachment(entry) {
+    if (entry.file) {
+      window.open(URL.createObjectURL(entry.file), '_blank')
+    } else {
+      setPreviewEntry(entry)
+    }
+  }
+
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-bold text-gray-700">Attachments</p>
-        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg cursor-pointer transition-colors shadow-sm">
-          <input type="file" multiple className="hidden" onChange={e => { handleUpload(e.target.files); e.target.value = '' }} />
-          <Upload size={13} /> Upload
-        </label>
-      </div>
-      {attachments.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-6">No attachments yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {attachments.map(entry => {
-            const { Icon, color, bg } = fileIcon(entry.name)
-            return (
-              <div key={entry.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-white">
-                <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
-                  <Icon size={16} className={color} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800 truncate">{entry.name}</p>
-                  <p className="text-xs text-gray-400">{entry.sizeLabel} · {entry.date}</p>
-                </div>
-                <button type="button" onClick={() => downloadAttachment(entry)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors shrink-0">
-                  <Download size={14} />
-                </button>
-                <button type="button" onClick={() => removeAttachment(entry.id)}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            )
-          })}
+    <>
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-bold text-gray-700">Attachments</p>
+          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand-blue hover:bg-brand-blue-dark rounded-lg cursor-pointer transition-colors shadow-sm">
+            <input type="file" multiple className="hidden" onChange={e => { handleUpload(e.target.files); e.target.value = '' }} />
+            <Upload size={13} /> Upload
+          </label>
         </div>
-      )}
-    </Card>
+        {attachments.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-6">No attachments yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {attachments.map(entry => {
+              const { Icon, color, bg } = fileIcon(entry.name)
+              return (
+                <div key={entry.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-white">
+                  <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                    <Icon size={16} className={color} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800 truncate">{entry.name}</p>
+                    <p className="text-xs text-gray-400">{entry.sizeLabel} · {entry.date}</p>
+                  </div>
+                  <button type="button" onClick={() => viewAttachment(entry)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors shrink-0">
+                    <Eye size={14} />
+                  </button>
+                  <button type="button" onClick={() => downloadAttachment(entry)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-colors shrink-0">
+                    <Download size={14} />
+                  </button>
+                  <button type="button" onClick={() => removeAttachment(entry.id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Modal isOpen={!!previewEntry} onClose={() => setPreviewEntry(null)} title={previewEntry?.name ?? 'Preview'} size="md">
+        {previewEntry && isImageName(previewEntry.name) ? (
+          <img src={PLACEHOLDER_IMAGE} alt={previewEntry.name} className="w-full rounded-lg border border-surface-border" />
+        ) : (
+          <div className="py-12 text-center text-sm text-gray-400">PDF Preview not available in demo</div>
+        )}
+      </Modal>
+    </>
   )
 }
 
