@@ -142,11 +142,11 @@ function ProfileTab({ lead }) {
     <div className="grid grid-cols-2 gap-4">
       <Card>
         <CardHeader title="Customer Info" />
-        <div className="flex flex-col items-center pb-4 border-b border-gray-50">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shadow-md">
+        <div className="flex items-center gap-3 pb-4 border-b border-gray-50">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xl font-bold shadow-md shrink-0">
             {lead.customer?.charAt(0)?.toUpperCase() ?? '?'}
           </div>
-          <p className="text-sm font-semibold text-gray-900 mt-3">{lead.customer}</p>
+          <p className="text-sm font-semibold text-gray-900 truncate">{lead.customer}</p>
         </div>
         <InfoRow icon={Phone} label="Mobile" value={lead.mobile} />
         <InfoRow icon={Mail} label="Email" value={lead.email} />
