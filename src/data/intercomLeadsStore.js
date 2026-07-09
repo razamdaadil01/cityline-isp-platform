@@ -21,6 +21,7 @@ function withAssigned(lead) {
 const INIT_LEADS = [
   {
     id: 'IL-2026-0001', leadName: 'Ramesh Nair', customer: 'Ramesh Nair', mobile: '9876001890',
+    email: 'ramesh.nair@email.com',
     stage: 'New Inquiry', assigned: 'Arjun Kumar', followUp: '', createdAt: '2026-06-25', notes: '',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-25', time: '09:15', note: 'Lead created', actor: 'Arjun Kumar' },
@@ -28,6 +29,7 @@ const INIT_LEADS = [
   },
   {
     id: 'IL-2026-0002', leadName: 'Priya Sharma', customer: 'Priya Sharma', mobile: '9845123456',
+    email: 'priya.sharma@email.com',
     stage: 'New Inquiry', assigned: 'Suresh Babu', followUp: '28-06-2026', createdAt: '2026-06-24', notes: '',
     engineer: 'Ravi Technician', visitDate: '2026-06-28', visitTime: '11:00',
     stageHistory: [
@@ -36,6 +38,7 @@ const INIT_LEADS = [
   },
   {
     id: 'IL-2026-0003', leadName: 'Mohan Das', customer: 'Mohan Das', mobile: '9345678901',
+    email: 'mohan.das@email.com',
     stage: 'Converted', assigned: 'Preethi Nair', followUp: '', createdAt: '2026-06-20', notes: '',
     engineer: 'Kumar Installer', visitDate: '2026-06-22', visitTime: '14:00', feasible: true,
     package: 'Intercom Basic', installDate: '2026-07-05', installTime: '10:30', advancePayment: '500',
@@ -47,6 +50,7 @@ const INIT_LEADS = [
   },
   {
     id: 'IL-2026-0004', leadName: 'Sunita Bose', customer: 'Sunita Bose', mobile: '9765443322',
+    email: 'sunita.bose@email.com',
     stage: 'Converted', assigned: 'Anita Sharma', followUp: '', createdAt: '2026-06-15', notes: '',
     engineer: 'Sunil Networks', visitDate: '2026-06-16', visitTime: '11:00', feasible: true,
     package: 'Intercom Plus', installDate: '2026-06-20', installTime: '10:00', advancePayment: '750',
@@ -58,6 +62,7 @@ const INIT_LEADS = [
   },
   {
     id: 'IL-2026-0005', leadName: 'Harish Kulkarni', customer: 'Harish Kulkarni', mobile: '9988001133',
+    email: 'harish.kulkarni@email.com',
     stage: 'Lost', assigned: 'Arjun Kumar', followUp: '', createdAt: '2026-06-10', notes: '',
     engineer: 'Dinesh Fiber', visitDate: '2026-06-12', visitTime: '15:00', feasible: false,
     lostReason: 'Customer relocated before installation could be scheduled.',
