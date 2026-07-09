@@ -271,7 +271,7 @@ export default function IntercomLeads() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                {['Lead ID', 'Lead Name', 'Customer', 'Mobile', 'Stage', 'Assigned', 'Follow-up Date', 'Actions'].map(h => (
+                {['Lead ID', 'Customer', 'Mobile', 'Stage', 'Assigned', 'Follow-up Date', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -279,7 +279,7 @@ export default function IntercomLeads() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">No intercom leads found</td>
+                  <td colSpan={7} className="text-center py-12 text-gray-400 text-sm">No intercom leads found</td>
                 </tr>
               ) : (
                 paged.map(lead => (
@@ -290,11 +290,18 @@ export default function IntercomLeads() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Link to={`/intercom/leads/${lead.id}`} className="font-semibold text-sm text-brand-blue hover:underline">
-                        {lead.leadName}
-                      </Link>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {lead.customer.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <Link to={`/intercom/leads/${lead.id}`} className="block font-semibold text-sm text-brand-blue hover:underline truncate">
+                            {lead.customer}
+                          </Link>
+                          <p className="text-xs text-gray-400 truncate">{lead.email || '—'}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{lead.customer}</td>
                     <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{lead.mobile}</td>
                     <td className="px-4 py-3">
                       <Badge variant={STAGE_BADGE[lead.stage] ?? 'gray'} size="sm">{lead.stage}</Badge>
