@@ -142,12 +142,6 @@ function ProfileTab({ lead }) {
     <div className="grid grid-cols-2 gap-4">
       <Card>
         <CardHeader title="Customer Info" />
-        <div className="flex items-center gap-3 pb-4 border-b border-gray-50">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xl font-bold shadow-md shrink-0">
-            {lead.customer?.charAt(0)?.toUpperCase() ?? '?'}
-          </div>
-          <p className="text-sm font-semibold text-gray-900 truncate">{lead.customer}</p>
-        </div>
         <InfoRow icon={Phone} label="Mobile" value={lead.mobile} />
         <InfoRow icon={Mail} label="Email" value={lead.email} />
         <InfoRow icon={Building2} label="Project" value={lead.project} />
@@ -391,6 +385,13 @@ export default function IntercomLeadDetail() {
             >
               <ArrowLeft size={16} />
             </button>
+            {lead.avatarUrl ? (
+              <img src={lead.avatarUrl} alt={lead.customer} className="w-10 h-10 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-sm font-bold shrink-0">
+                {lead.customer?.charAt(0)?.toUpperCase() ?? '?'}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-gray-900">{lead.leadName}</h1>
