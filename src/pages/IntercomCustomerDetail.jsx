@@ -32,6 +32,10 @@ const MOCK_INTERCOM_CUSTOMERS = {
     createdOn: '20 Jun 2026',
     sourceLeadId: 'IL-2026-0003',
     installationId: 'IWO-2026-0001',
+    linkedInternetCustomerId: 'RES-2026-0001',
+    linkedInternetPackage: 'FTTH 100Mbps',
+    linkedInternetStatus: 'Active',
+    linkedInternetSince: '01 Jan 2023',
     kyc: { docType: 'Aadhaar', docNumber: 'XXXX-XXXX-4521', uploaded: true },
     circuit: {
       circuitId: 'IC-2026-0001',
@@ -292,10 +296,28 @@ function KycRow({ label, statusKey }) {
   )
 }
 
+function statusDotColor(status) {
+  const key = (status ?? '').toLowerCase()
+  if (key === 'active') return 'bg-emerald-500'
+  if (key === 'suspended') return 'bg-amber-400'
+  return 'bg-gray-400'
+}
+
+function ServiceBadge({ label, colorClass, status }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${colorClass}`}>
+      {label}
+      <span className={`w-1.5 h-1.5 rounded-full ${statusDotColor(status)}`} />
+    </span>
+  )
+}
+
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
 function ProfileTab({ customer }) {
   const navigate = useNavigate()
+  const hasLinkedInternet = !!customer.linkedInternetCustomerId
+  const intercomStatusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
       <div className="xl:col-span-2 space-y-5">
@@ -324,6 +346,48 @@ function ProfileTab({ customer }) {
               ) : (
                 <p className="text-sm text-gray-800 font-medium mt-0.5">—</p>
               )}
+            </div>
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="Active Services" subtitle="Services linked to this customer account" />
+          <div className={`grid grid-cols-1 ${hasLinkedInternet ? 'sm:grid-cols-2' : ''} gap-6`}>
+            {hasLinkedInternet && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-brand-blue uppercase tracking-wide">Internet Service</p>
+                <div className="grid grid-cols-2 gap-y-4 gap-x-4">
+                  <InfoField label="Service Type" value="Internet" />
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Customer ID</p>
+                    <button
+                      onClick={() => navigate(`/customers/${customer.linkedInternetCustomerId}/profile`)}
+                      className="text-sm font-mono font-semibold text-brand-blue hover:underline mt-0.5"
+                    >
+                      {customer.linkedInternetCustomerId}
+                    </button>
+                  </div>
+                  <InfoField label="Package" value={customer.linkedInternetPackage} />
+                  <div>
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Status</p>
+                    <Badge variant="green" size="sm">{customer.linkedInternetStatus}</Badge>
+                  </div>
+                  <InfoField label="Since" value={customer.linkedInternetSince} />
+                </div>
+              </div>
+            )}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide">Intercom Service</p>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-4">
+                <InfoField label="Service Type" value="Intercom" />
+                <InfoField label="Customer ID" value={customer.id} mono />
+                <InfoField label="Package" value={customer.plan} />
+                <div>
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Status</p>
+                  <Badge variant={intercomStatusCfg.variant} size="sm">{intercomStatusCfg.label}</Badge>
+                </div>
+                <InfoField label="Since" value={customer.createdOn} />
+              </div>
             </div>
           </div>
         </Card>
@@ -787,10 +851,15 @@ export default function IntercomCustomerDetail() {
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
                 <h1 className="text-xl font-bold text-gray-900">{customer.name}</h1>
                 <Badge variant={statusCfg.variant} dot>{statusCfg.label}</Badge>
-                <Badge variant="cyan" size="sm">Intercom</Badge>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {customer.linkedInternetCustomerId && (
+                  <ServiceBadge label="Internet Service" colorClass="bg-brand-blue/10 text-brand-blue" status={customer.linkedInternetStatus} />
+                )}
+                <ServiceBadge label="Intercom Service" colorClass="bg-cyan-100 text-cyan-700" status={customer.status} />
               </div>
               <p className="text-sm text-gray-500 mb-2">
                 <span className="font-mono font-semibold text-cyan-700">{customer.id}</span>
