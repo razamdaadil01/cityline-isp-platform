@@ -53,5 +53,5 @@ export function nextInstallationId() {
     .filter(Boolean)
     .map(m => Number(m[2]))
   const next = (nums.length ? Math.max(...nums) : 0) + 1
-  return `IWO-${year}-${String(next).padStart(4, '0')}`
+  return `IWO-${year}-${String(next).padStart(6, '0')}`
 }
