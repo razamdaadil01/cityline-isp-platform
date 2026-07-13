@@ -42,10 +42,10 @@ const INIT_LEADS = [
     stage: 'Installed', assigned: 'Preethi Nair', followUp: '', createdAt: '2026-06-20', notes: '',
     engineer: 'Kumar Installer', visitDate: '2026-06-22', visitTime: '14:00', feasible: true,
     package: 'Intercom Basic', installDate: '2026-07-05', installTime: '10:30', advancePayment: '500',
-    customerId: 'INC-2026-0001',
+    customerId: 'IC-CUST-2026-000001',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-20', time: '09:00', note: 'Lead created', actor: 'Preethi Nair' },
-      { stage: 'Converted', date: '2026-06-24', time: '11:00', note: 'Intercom Customer created — customer account INC-2026-0001 created', actor: 'Preethi Nair' },
+      { stage: 'Converted', date: '2026-06-24', time: '11:00', note: 'Intercom Customer created — customer account IC-CUST-2026-000001 created', actor: 'Preethi Nair' },
     ],
   },
   {
@@ -54,10 +54,10 @@ const INIT_LEADS = [
     stage: 'Active', assigned: 'Anita Sharma', followUp: '', createdAt: '2026-06-15', notes: '',
     engineer: 'Sunil Networks', visitDate: '2026-06-16', visitTime: '11:00', feasible: true,
     package: 'Intercom Plus', installDate: '2026-06-20', installTime: '10:00', advancePayment: '750',
-    customerId: 'INC-2026-0004',
+    customerId: 'IC-CUST-2026-000004',
     stageHistory: [
       { stage: 'New Inquiry', date: '2026-06-15', time: '09:30', note: 'Lead created', actor: 'Anita Sharma' },
-      { stage: 'Converted', date: '2026-06-20', time: '12:00', note: 'Intercom Customer created — customer account INC-2026-0004 created', actor: 'Anita Sharma' },
+      { stage: 'Converted', date: '2026-06-20', time: '12:00', note: 'Intercom Customer created — customer account IC-CUST-2026-000004 created', actor: 'Anita Sharma' },
     ],
   },
   {

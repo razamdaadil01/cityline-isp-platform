@@ -29,7 +29,7 @@ export const CUSTOMERS = [
   { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '9830089012', plan: 'FTTH 200Mbps',    status: 'active'    },
   { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active'    },
   { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active'    },
-  { id: 'INC-2026-0001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom' },
+  { id: 'IC-CUST-2026-000001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom' },
 ]
 
 // ── Dynamically added customers (e.g. from Intercom Customer creation) ───────
@@ -68,9 +68,9 @@ export function getAllCustomers() {
 export function nextIntercomCustomerId() {
   const year = new Date().getFullYear()
   const nums = _addedCustomers
-    .map(c => c.id.match(/^INC-(\d{4})-(\d+)$/))
+    .map(c => c.id.match(/^IC-CUST-(\d{4})-(\d+)$/))
     .filter(Boolean)
     .map(m => Number(m[2]))
   const next = (nums.length ? Math.max(...nums) : 0) + 1
-  return `INC-${year}-${String(next).padStart(4, '0')}`
+  return `IC-CUST-${year}-${String(next).padStart(6, '0')}`
 }
