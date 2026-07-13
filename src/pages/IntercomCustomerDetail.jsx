@@ -652,11 +652,11 @@ function ActivityTab({ customer }) {
 // ── Installation Request Modal ───────────────────────────────────────────────
 
 function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
-  const [form, setForm] = useState({ installDate: '', installTime: '' })
+  const [form, setForm] = useState({ landlineNumber: '', installDate: '', installTime: '' })
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    if (isOpen) { setForm({ installDate: '', installTime: '' }); setErrors({}) }
+    if (isOpen) { setForm({ landlineNumber: '', installDate: '', installTime: '' }); setErrors({}) }
   }, [isOpen])
 
   function set(f, v) {
@@ -666,6 +666,7 @@ function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
 
   function handleSubmit() {
     const e = {}
+    if (!form.landlineNumber.trim()) e.landlineNumber = 'Landline number is required'
     if (!form.installDate) e.installDate = 'Installation date is required'
     if (!form.installTime) e.installTime = 'Installation time is required'
     if (Object.keys(e).length) { setErrors(e); return }
@@ -687,6 +688,13 @@ function InstallRequestModal({ isOpen, onClose, customer, onSubmit }) {
         </FormField>
         <FormField label="Circuit ID">
           <Input value={customer.circuit.circuitId} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Landline Number" required error={errors.landlineNumber}>
+          <Input
+            value={form.landlineNumber}
+            onChange={e => set('landlineNumber', e.target.value)}
+            placeholder="e.g. 022-2678 9012"
+          />
         </FormField>
         <FormField label="Installation Date" required error={errors.installDate}>
           <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
@@ -736,6 +744,7 @@ export default function IntercomCustomerDetail() {
       status: 'pending',
     })
     customer.installationId = workOrderId
+    customer.circuit.landlineNumber = form.landlineNumber
     setInstallModalOpen(false)
   }
 
