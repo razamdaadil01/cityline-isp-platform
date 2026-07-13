@@ -4,37 +4,62 @@ const INIT_DATA = [
   {
     id: 'AM-001', state: 'Uttar Pradesh', district: 'Gautam Buddha Nagar',
     area: 'Noida', locality: 'Sector 62', subLocality: 'Tower A',
-    siteType: 'FTTH', branchCode: 'CNPL-001', feasibility: 'Feasible', active: true,
+    siteType: 'FTTH', branchCode: 'CNPL-001', feasibility: 'Feasible', active: true, intercomSite: false,
   },
   {
     id: 'AM-002', state: 'Uttar Pradesh', district: 'Gautam Buddha Nagar',
     area: 'Noida', locality: 'Sector 62', subLocality: 'Tower B',
-    siteType: 'FTTH', branchCode: 'CNPL-001', feasibility: 'Feasible', active: true,
+    siteType: 'FTTH', branchCode: 'CNPL-001', feasibility: 'Feasible', active: true, intercomSite: false,
   },
   {
     id: 'AM-003', state: 'Uttar Pradesh', district: 'Gautam Buddha Nagar',
     area: 'Noida', locality: 'Sector 63', subLocality: 'Block C',
-    siteType: 'Sector', branchCode: 'CNPL-002', feasibility: 'Feasible', active: true,
+    siteType: 'Sector', branchCode: 'CNPL-002', feasibility: 'Feasible', active: true, intercomSite: false,
   },
   {
     id: 'AM-004', state: 'Uttar Pradesh', district: 'Gautam Buddha Nagar',
     area: 'Noida Extension', locality: 'Bisrakh', subLocality: 'Tower A',
-    siteType: 'FTTH', branchCode: 'CNPL-001', feasibility: 'Feasible', active: true,
+    siteType: 'FTTH', branchCode: 'CNPL-001', feasibility: 'Feasible', active: true, intercomSite: false,
   },
   {
     id: 'AM-005', state: 'Uttar Pradesh', district: 'Ghaziabad',
     area: 'Indirapuram', locality: 'Ahinsa Khand', subLocality: 'Block A',
-    siteType: 'FTTH', branchCode: 'CNPL-003', feasibility: 'Feasible', active: true,
+    siteType: 'FTTH', branchCode: 'CNPL-003', feasibility: 'Feasible', active: true, intercomSite: false,
   },
   {
     id: 'AM-006', state: 'Karnataka', district: 'Bangalore',
     area: 'Koramangala', locality: '5th Block', subLocality: 'HSR Layout',
-    siteType: 'FTTH', branchCode: 'CNPL-010', feasibility: 'Feasible', active: true,
+    siteType: 'FTTH', branchCode: 'CNPL-010', feasibility: 'Feasible', active: true, intercomSite: false,
   },
   {
     id: 'AM-007', state: 'Karnataka', district: 'Bangalore',
     area: 'Whitefield', locality: 'Marathahalli', subLocality: 'Outer Ring Road',
-    siteType: 'FTTH', branchCode: 'CNPL-011', feasibility: 'Feasible', active: true,
+    siteType: 'FTTH', branchCode: 'CNPL-011', feasibility: 'Feasible', active: true, intercomSite: false,
+  },
+  {
+    id: 'AM-008', state: 'Maharashtra', district: 'Mumbai Suburban',
+    area: 'Mumbai', locality: 'Andheri West', subLocality: 'Four Bungalows',
+    siteType: 'FTTH', branchCode: 'CNPL-AW-01', feasibility: 'Feasible', active: true, intercomSite: true,
+  },
+  {
+    id: 'AM-009', state: 'Maharashtra', district: 'Mumbai Suburban',
+    area: 'Mumbai', locality: 'Bandra East', subLocality: 'Kalanagar',
+    siteType: 'FTTH', branchCode: 'CNPL-BE-01', feasibility: 'Feasible', active: true, intercomSite: true,
+  },
+  {
+    id: 'AM-010', state: 'Maharashtra', district: 'Mumbai Suburban',
+    area: 'Mumbai', locality: 'Goregaon', subLocality: 'Goregaon West',
+    siteType: 'FTTH', branchCode: 'CNPL-GO-01', feasibility: 'Feasible', active: true, intercomSite: false,
+  },
+  {
+    id: 'AM-011', state: 'Maharashtra', district: 'Mumbai Suburban',
+    area: 'Mumbai', locality: 'Versova', subLocality: 'Yari Road',
+    siteType: 'FTTH', branchCode: 'CNPL-VE-01', feasibility: 'Feasible', active: true, intercomSite: false,
+  },
+  {
+    id: 'AM-012', state: 'Maharashtra', district: 'Mumbai Suburban',
+    area: 'Mumbai', locality: 'Andheri East', subLocality: 'Marol',
+    siteType: 'FTTH', branchCode: 'CNPL-AE-01', feasibility: 'Feasible', active: true, intercomSite: true,
   },
 ]
 
@@ -104,9 +129,9 @@ export function saveAreaName(state, district, name) {
   }
 }
 
-export function saveLocalityName(state, district, area, name, siteType = '', branchCode = '') {
+export function saveLocalityName(state, district, area, name, siteType = '', branchCode = '', intercomSite = false) {
   if (!_stubs.localities.find(l => l.state === state && l.district === district && l.area === area && l.name === name)) {
-    _stubs.localities = [..._stubs.localities, { state, district, area, name, siteType, branchCode }]
+    _stubs.localities = [..._stubs.localities, { state, district, area, name, siteType, branchCode, intercomSite }]
     notifyHierarchy()
   }
 }
@@ -140,12 +165,19 @@ export function getLocalityInfo(state, district, area, locality) {
   const fromArea = _areas.find(a =>
     a.state === state && a.district === district && a.area === area && a.locality === locality
   )
-  if (fromArea) return { siteType: fromArea.siteType, branchCode: fromArea.branchCode }
+  if (fromArea) return { siteType: fromArea.siteType, branchCode: fromArea.branchCode, intercomSite: !!fromArea.intercomSite }
   const fromStub = _stubs.localities.find(l =>
     l.state === state && l.district === district && l.area === area && l.name === locality
   )
-  if (fromStub?.siteType || fromStub?.branchCode) return { siteType: fromStub.siteType || '', branchCode: fromStub.branchCode || '' }
+  if (fromStub) return { siteType: fromStub.siteType || '', branchCode: fromStub.branchCode || '', intercomSite: !!fromStub.intercomSite }
   return null
+}
+
+export function getIntercomLocalities(state, district, area) {
+  return getLocalities(state, district, area).filter(locality => {
+    const info = getLocalityInfo(state, district, area, locality)
+    return !!info?.intercomSite
+  })
 }
 
 export function getSubLocalities(state, district, area, locality) {

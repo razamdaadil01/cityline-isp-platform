@@ -461,8 +461,8 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
   )
   const [lf, setLf] = useState(
     isHEdit && hierarchyEdit.type === 'Locality'
-      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name, siteType: 'FTTH', branchCode: '' }
-      : { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '' }
+      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name, siteType: 'FTTH', branchCode: '', intercomSite: false }
+      : { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '', intercomSite: false }
   )
   const [slForm, setSlForm] = useState(isEdit ? {
     id:          initial.id,
@@ -556,8 +556,8 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       onToast('Locality updated successfully')
       onCancel()
     } else {
-      saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim(), lf.siteType, lf.branchCode)
-      setLf({ state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '' })
+      saveLocalityName(lf.state, lf.district, lf.area, lf.name.trim(), lf.siteType, lf.branchCode, lf.intercomSite)
+      setLf({ state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '', intercomSite: false })
       setErrors({})
       onToast('Locality added successfully')
     }
@@ -751,6 +751,19 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   error={errors.branchCode}
                 />
               </FormField>
+            </div>
+            <div className="flex items-start gap-2.5 pt-1">
+              <input
+                type="checkbox"
+                id="locality-intercom-site"
+                checked={lf.intercomSite}
+                onChange={e => setLf(f => ({ ...f, intercomSite: e.target.checked }))}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              />
+              <label htmlFor="locality-intercom-site" className="cursor-pointer">
+                <span className="text-sm font-medium text-gray-700">Intercom Site</span>
+                <p className="text-xs text-gray-400 mt-0.5">Check this if intercom service is available at this locality</p>
+              </label>
             </div>
           </div>
         )}
@@ -1051,10 +1064,11 @@ export default function AreaMapping() {
 
               {/* Table */}
               <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
-                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <span>Location</span>
                   <span>Branch Code</span>
                   <span>Site Type</span>
+                  <span>Intercom Site</span>
                   <span>Feasibility</span>
                   <span>Actions</span>
                 </div>
@@ -1066,13 +1080,14 @@ export default function AreaMapping() {
                 ) : (
                   <div className="divide-y divide-surface-border">
                     {areas.map(a => (
-                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
+                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-800">{a.subLocality}</p>
                           <p className="text-xs text-gray-400">{a.locality} · {a.area} · {a.district}</p>
                         </div>
                         <span className="text-sm font-mono text-gray-700">{a.branchCode}</span>
                         <Badge variant="blue" size="sm">{a.siteType}</Badge>
+                        <Badge variant={a.intercomSite ? 'green' : 'gray'} size="sm">{a.intercomSite ? 'Yes' : 'No'}</Badge>
                         <Badge variant={feasVariant[a.feasibility] || 'gray'} size="sm">{a.feasibility}</Badge>
                         <div className="flex gap-1">
                           <button

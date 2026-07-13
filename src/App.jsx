@@ -47,6 +47,7 @@ import NetworkServers from './pages/NetworkServers'
 import Inventory from './pages/Inventory'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import AreaMapping from './pages/AreaMapping'
 import Resellers from './pages/Resellers'
 import ResellerDetail from './pages/ResellerDetail'
 import AuditLog from './pages/AuditLog'
@@ -122,6 +123,12 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />
           <Route path="/settings/master-config/:tab" element={<Settings />} />
+          <Route path="/settings/area-mapping" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/state" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/district" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/area" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/locality" element={<AreaMapping />} />
+          <Route path="/settings/area-mapping/sub-locality" element={<AreaMapping />} />
           <Route path="/settings/roles" element={<RolesSettings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
