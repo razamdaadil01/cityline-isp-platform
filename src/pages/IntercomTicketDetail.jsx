@@ -11,7 +11,7 @@ const AGENTS = ['Suresh Babu', 'Arjun Kumar', 'Preethi Nair', 'Anita Sharma']
 
 const MOCK_TICKETS = {
   'ITC-2026-0001': {
-    id: 'ITC-2026-0001', customer: 'Mohan Das', customerId: 'INC-2026-0001', phone: '93456 78901',
+    id: 'ITC-2026-0001', customer: 'Mohan Das', customerId: 'IC-CUST-2026-000001', phone: '93456 78901',
     circuitId: 'IC-2026-0001', category: 'No Signal', priority: 'high', status: 'open',
     assignedTo: 'Suresh Babu', created: '01-07-2026', resolvedDate: null,
     description: 'Customer reporting no signal on intercom panel',
@@ -22,7 +22,7 @@ const MOCK_TICKETS = {
     ],
   },
   'ITC-2026-0002': {
-    id: 'ITC-2026-0002', customer: 'Priya Nair', customerId: 'INC-2026-0002', phone: '98765 43210',
+    id: 'ITC-2026-0002', customer: 'Priya Nair', customerId: 'IC-CUST-2026-000002', phone: '98765 43210',
     circuitId: 'IC-2026-0002', category: 'Hardware Issue', priority: 'medium', status: 'inprogress',
     assignedTo: 'Arjun Kumar', created: '02-07-2026', resolvedDate: null,
     description: 'Handset unit not receiving power',
@@ -33,7 +33,7 @@ const MOCK_TICKETS = {
     ],
   },
   'ITC-2026-0003': {
-    id: 'ITC-2026-0003', customer: 'Suresh Patil', customerId: 'INC-2026-0003', phone: '99887 76655',
+    id: 'ITC-2026-0003', customer: 'Suresh Patil', customerId: 'IC-CUST-2026-000003', phone: '99887 76655',
     circuitId: 'IC-2026-0003', category: 'Line Fault', priority: 'critical', status: 'open',
     assignedTo: 'Preethi Nair', created: '03-07-2026', resolvedDate: null,
     description: 'Complete line fault — no dial tone on intercom circuit',
@@ -43,7 +43,7 @@ const MOCK_TICKETS = {
     ],
   },
   'ITC-2026-0004': {
-    id: 'ITC-2026-0004', customer: 'Anita Desai', customerId: 'INC-2026-0004', phone: '91234 56789',
+    id: 'ITC-2026-0004', customer: 'Anita Desai', customerId: 'IC-CUST-2026-000004', phone: '91234 56789',
     circuitId: 'IC-2026-0004', category: 'Billing', priority: 'low', status: 'resolved',
     assignedTo: 'Anita Sharma', created: '28-06-2026', resolvedDate: '29-06-2026',
     description: 'Billing discrepancy on intercom plan invoice',
@@ -54,7 +54,7 @@ const MOCK_TICKETS = {
     ],
   },
   'ITC-2026-0005': {
-    id: 'ITC-2026-0005', customer: 'Rajesh Kumar', customerId: 'INC-2026-0005', phone: '97654 32198',
+    id: 'ITC-2026-0005', customer: 'Rajesh Kumar', customerId: 'IC-CUST-2026-000005', phone: '97654 32198',
     circuitId: 'IC-2026-0005', category: 'Other', priority: 'medium', status: 'closed',
     assignedTo: 'Suresh Babu', created: '25-06-2026', resolvedDate: '26-06-2026',
     description: 'General inquiry regarding intercom service pause',

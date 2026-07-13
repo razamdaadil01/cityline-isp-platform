@@ -30,19 +30,19 @@ const PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
 const AGENTS = ['Suresh Babu', 'Arjun Kumar', 'Preethi Nair', 'Anita Sharma']
 
 const INTERCOM_CUSTOMERS = [
-  { id: 'INC-2026-0001', name: 'Mohan Das',    phone: '93456 78901' },
-  { id: 'INC-2026-0002', name: 'Priya Nair',   phone: '98765 43210' },
-  { id: 'INC-2026-0003', name: 'Suresh Patil', phone: '99887 76655' },
-  { id: 'INC-2026-0004', name: 'Anita Desai',  phone: '91234 56789' },
-  { id: 'INC-2026-0005', name: 'Rajesh Kumar', phone: '97654 32198' },
+  { id: 'IC-CUST-2026-000001', name: 'Mohan Das',    phone: '93456 78901' },
+  { id: 'IC-CUST-2026-000002', name: 'Priya Nair',   phone: '98765 43210' },
+  { id: 'IC-CUST-2026-000003', name: 'Suresh Patil', phone: '99887 76655' },
+  { id: 'IC-CUST-2026-000004', name: 'Anita Desai',  phone: '91234 56789' },
+  { id: 'IC-CUST-2026-000005', name: 'Rajesh Kumar', phone: '97654 32198' },
 ]
 
 const INIT_TICKETS = [
-  { id: 'ITC-2026-0001', customer: 'Mohan Das',    customerId: 'INC-2026-0001', phone: '93456 78901', category: 'No Signal',       priority: 'high',     status: 'open',       created: '01-07-2026', assignedTo: 'Suresh Babu'  },
-  { id: 'ITC-2026-0002', customer: 'Priya Nair',   customerId: 'INC-2026-0002', phone: '98765 43210', category: 'Hardware Issue',  priority: 'medium',   status: 'inprogress', created: '02-07-2026', assignedTo: 'Arjun Kumar'  },
-  { id: 'ITC-2026-0003', customer: 'Suresh Patil', customerId: 'INC-2026-0003', phone: '99887 76655', category: 'Line Fault',      priority: 'critical', status: 'open',       created: '03-07-2026', assignedTo: 'Preethi Nair' },
-  { id: 'ITC-2026-0004', customer: 'Anita Desai',  customerId: 'INC-2026-0004', phone: '91234 56789', category: 'Billing',         priority: 'low',      status: 'resolved',   created: '28-06-2026', assignedTo: 'Anita Sharma' },
-  { id: 'ITC-2026-0005', customer: 'Rajesh Kumar', customerId: 'INC-2026-0005', phone: '97654 32198', category: 'Other',           priority: 'medium',   status: 'closed',     created: '25-06-2026', assignedTo: 'Suresh Babu'  },
+  { id: 'ITC-2026-0001', customer: 'Mohan Das',    customerId: 'IC-CUST-2026-000001', phone: '93456 78901', category: 'No Signal',       priority: 'high',     status: 'open',       created: '01-07-2026', assignedTo: 'Suresh Babu'  },
+  { id: 'ITC-2026-0002', customer: 'Priya Nair',   customerId: 'IC-CUST-2026-000002', phone: '98765 43210', category: 'Hardware Issue',  priority: 'medium',   status: 'inprogress', created: '02-07-2026', assignedTo: 'Arjun Kumar'  },
+  { id: 'ITC-2026-0003', customer: 'Suresh Patil', customerId: 'IC-CUST-2026-000003', phone: '99887 76655', category: 'Line Fault',      priority: 'critical', status: 'open',       created: '03-07-2026', assignedTo: 'Preethi Nair' },
+  { id: 'ITC-2026-0004', customer: 'Anita Desai',  customerId: 'IC-CUST-2026-000004', phone: '91234 56789', category: 'Billing',         priority: 'low',      status: 'resolved',   created: '28-06-2026', assignedTo: 'Anita Sharma' },
+  { id: 'ITC-2026-0005', customer: 'Rajesh Kumar', customerId: 'IC-CUST-2026-000005', phone: '97654 32198', category: 'Other',           priority: 'medium',   status: 'closed',     created: '25-06-2026', assignedTo: 'Suresh Babu'  },
 ]
 
 function toISO(ddmmyyyy) {

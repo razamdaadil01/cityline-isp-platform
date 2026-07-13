@@ -15,21 +15,21 @@ const AREAS = ['Andheri', 'Bandra', 'Goregaon']
 
 const INTERCOM_RECHARGE_ROWS = [
   {
-    id: 1, customerId: 'INC-2026-0001', userLink: 'CNPL_INC', customerName: 'Mohan Das',
+    id: 1, customerId: 'IC-CUST-2026-000001', userLink: 'CNPL_INC', customerName: 'Mohan Das',
     package: 'Intercom Basic', amount: 199, invoiceDate: '01-06-2026',
-    durationFrom: '01-06-2026', durationTo: '30-06-2026', addedBy: 'INC-2026-0001', comment: '',
+    durationFrom: '01-06-2026', durationTo: '30-06-2026', addedBy: 'IC-CUST-2026-000001', comment: '',
     zone: 'Andheri West', area: 'Andheri', status: 'paid', rechargeStatus: 'success',
   },
   {
-    id: 2, customerId: 'INC-2026-0002', userLink: 'CNPL_INC', customerName: 'Priya Nair',
+    id: 2, customerId: 'IC-CUST-2026-000002', userLink: 'CNPL_INC', customerName: 'Priya Nair',
     package: 'Intercom Plus', amount: 299, invoiceDate: '01-06-2026',
-    durationFrom: '01-06-2026', durationTo: '30-06-2026', addedBy: 'INC-2026-0002', comment: '',
+    durationFrom: '01-06-2026', durationTo: '30-06-2026', addedBy: 'IC-CUST-2026-000002', comment: '',
     zone: 'Bandra East', area: 'Bandra', status: 'paid', rechargeStatus: 'success',
   },
   {
-    id: 3, customerId: 'INC-2026-0003', userLink: 'CNPL_INC', customerName: 'Suresh Patil',
+    id: 3, customerId: 'IC-CUST-2026-000003', userLink: 'CNPL_INC', customerName: 'Suresh Patil',
     package: 'Intercom Basic', amount: 199, invoiceDate: '01-06-2026',
-    durationFrom: '01-06-2026', durationTo: '30-06-2026', addedBy: 'INC-2026-0003', comment: '',
+    durationFrom: '01-06-2026', durationTo: '30-06-2026', addedBy: 'IC-CUST-2026-000003', comment: '',
     zone: 'Goregaon', area: 'Goregaon', status: 'paid', rechargeStatus: 'success',
   },
 ]

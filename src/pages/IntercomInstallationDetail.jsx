@@ -12,7 +12,7 @@ import { getInstallation, updateInstallation, INSTALLATION_ENGINEERS } from '../
 
 const MOCK_INSTALLATIONS = {
   'IWO-2026-0001': {
-    id: 'IWO-2026-0001', customer: 'Mohan Das', customerId: 'INC-2026-0001', phone: '93456 78901',
+    id: 'IWO-2026-0001', customer: 'Mohan Das', customerId: 'IC-CUST-2026-000001', phone: '93456 78901',
     circuitId: 'IC-2026-0001', zone: 'Andheri West', address: 'Flat 302, Sai Darshan CHS, Andheri West',
     engineer: 'Suresh Babu', installDate: '20-06-2026', installTime: '10:00 AM', createdDate: '18-06-2026',
     notes: 'Standard intercom installation', status: 'completed',
@@ -28,7 +28,7 @@ const MOCK_INSTALLATIONS = {
     ],
   },
   'IWO-2026-0002': {
-    id: 'IWO-2026-0002', customer: 'Priya Nair', customerId: 'INC-2026-0002', phone: '98765 43210',
+    id: 'IWO-2026-0002', customer: 'Priya Nair', customerId: 'IC-CUST-2026-000002', phone: '98765 43210',
     circuitId: 'IC-2026-0002', zone: 'Bandra East', address: 'B-204, Greenwood Residency, Bandra East',
     engineer: 'Arjun Kumar', installDate: '22-06-2026', installTime: '11:00 AM', createdDate: '20-06-2026',
     notes: 'Plus plan installation with extended handset range', status: 'completed',
@@ -42,7 +42,7 @@ const MOCK_INSTALLATIONS = {
     ],
   },
   'IWO-2026-0003': {
-    id: 'IWO-2026-0003', customer: 'Suresh Patil', customerId: 'INC-2026-0003', phone: '99887 76655',
+    id: 'IWO-2026-0003', customer: 'Suresh Patil', customerId: 'IC-CUST-2026-000003', phone: '99887 76655',
     circuitId: 'IC-2026-0003', zone: 'Goregaon', address: 'Shop 12, Metro Business Park, Goregaon',
     engineer: 'Preethi Nair', installDate: '25-06-2026', installTime: '02:00 PM', createdDate: '23-06-2026',
     notes: 'In progress — awaiting final signal test', status: 'inprogress',
@@ -55,7 +55,7 @@ const MOCK_INSTALLATIONS = {
     ],
   },
   'IWO-2026-0004': {
-    id: 'IWO-2026-0004', customer: 'Anita Desai', customerId: 'INC-2026-0004', phone: '91234 56789',
+    id: 'IWO-2026-0004', customer: 'Anita Desai', customerId: 'IC-CUST-2026-000004', phone: '91234 56789',
     circuitId: 'IC-2026-0004', zone: 'Versova', address: 'C-501, Palm Grove Society, Versova',
     engineer: 'Anita Sharma', installDate: '28-06-2026', installTime: '09:30 AM', createdDate: '26-06-2026',
     notes: 'Awaiting hardware dispatch', status: 'pending',
@@ -66,7 +66,7 @@ const MOCK_INSTALLATIONS = {
     ],
   },
   'IWO-2026-0005': {
-    id: 'IWO-2026-0005', customer: 'Rajesh Kumar', customerId: 'INC-2026-0005', phone: '97654 32198',
+    id: 'IWO-2026-0005', customer: 'Rajesh Kumar', customerId: 'IC-CUST-2026-000005', phone: '97654 32198',
     circuitId: 'IC-2026-0005', zone: 'Andheri East', address: 'Flat 108, Sunrise Apartments, Andheri East',
     engineer: 'Suresh Babu', installDate: '30-06-2026', installTime: '03:00 PM', createdDate: '29-06-2026',
     notes: 'Scheduled installation', status: 'pending',

@@ -22,17 +22,17 @@ const DEVICE_TYPES = ['Intercom Panel Unit', 'Handset Unit', 'Power Adapter', 'C
 const ZONES = ['Andheri West', 'Bandra East']
 
 const CUSTOMERS = [
-  { id: 'INC-2026-0001', name: 'Mohan Das',    circuitId: 'IC-2026-0001' },
-  { id: 'INC-2026-0002', name: 'Priya Nair',   circuitId: 'IC-2026-0002' },
-  { id: 'INC-2026-0003', name: 'Suresh Patil', circuitId: 'IC-2026-0003' },
-  { id: 'INC-2026-0004', name: 'Anita Desai',  circuitId: 'IC-2026-0004' },
-  { id: 'INC-2026-0005', name: 'Rajesh Kumar', circuitId: 'IC-2026-0005' },
+  { id: 'IC-CUST-2026-000001', name: 'Mohan Das',    circuitId: 'IC-2026-0001' },
+  { id: 'IC-CUST-2026-000002', name: 'Priya Nair',   circuitId: 'IC-2026-0002' },
+  { id: 'IC-CUST-2026-000003', name: 'Suresh Patil', circuitId: 'IC-2026-0003' },
+  { id: 'IC-CUST-2026-000004', name: 'Anita Desai',  circuitId: 'IC-2026-0004' },
+  { id: 'IC-CUST-2026-000005', name: 'Rajesh Kumar', circuitId: 'IC-2026-0005' },
 ]
 
 const INIT_HARDWARE = [
-  { id: 'IHW-2026-0001', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0001', assignedTo: 'Mohan Das',  customerId: 'INC-2026-0001', zone: 'Andheri West', assignedDate: '19-06-2026', status: 'assigned'  },
-  { id: 'IHW-2026-0002', deviceType: 'Handset Unit',        serial: 'ICH-2026-0001', assignedTo: 'Mohan Das',  customerId: 'INC-2026-0001', zone: 'Andheri West', assignedDate: '19-06-2026', status: 'assigned'  },
-  { id: 'IHW-2026-0003', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0002', assignedTo: 'Priya Nair', customerId: 'INC-2026-0002', zone: 'Bandra East',  assignedDate: '22-06-2026', status: 'assigned'  },
+  { id: 'IHW-2026-0001', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0001', assignedTo: 'Mohan Das',  customerId: 'IC-CUST-2026-000001', zone: 'Andheri West', assignedDate: '19-06-2026', status: 'assigned'  },
+  { id: 'IHW-2026-0002', deviceType: 'Handset Unit',        serial: 'ICH-2026-0001', assignedTo: 'Mohan Das',  customerId: 'IC-CUST-2026-000001', zone: 'Andheri West', assignedDate: '19-06-2026', status: 'assigned'  },
+  { id: 'IHW-2026-0003', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0002', assignedTo: 'Priya Nair', customerId: 'IC-CUST-2026-000002', zone: 'Bandra East',  assignedDate: '22-06-2026', status: 'assigned'  },
   { id: 'IHW-2026-0004', deviceType: 'Handset Unit',        serial: 'ICH-2026-0002', assignedTo: null,         customerId: null,           zone: null,            assignedDate: null,          status: 'available' },
   { id: 'IHW-2026-0005', deviceType: 'Power Adapter',       serial: 'IPA-2026-0001', assignedTo: null,         customerId: null,           zone: null,            assignedDate: null,          status: 'damaged'   },
 ]

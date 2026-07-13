@@ -16,8 +16,8 @@ import {
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
 const MOCK_INTERCOM_CUSTOMERS = {
-  'INC-2026-0001': {
-    id: 'INC-2026-0001',
+  'IC-CUST-2026-000001': {
+    id: 'IC-CUST-2026-000001',
     name: 'Mohan Das',
     phone: '93456 78901',
     altPhone: '—',
@@ -50,8 +50,8 @@ const MOCK_INTERCOM_CUSTOMERS = {
       { id: 'TKT-INC-0001', subject: 'Intercom panel not ringing', priority: 'P2', status: 'resolved', created: '25 Jun 2026' },
     ],
   },
-  'INC-2026-0002': {
-    id: 'INC-2026-0002',
+  'IC-CUST-2026-000002': {
+    id: 'IC-CUST-2026-000002',
     name: 'Priya Nair',
     phone: '98765 43210',
     altPhone: '—',
@@ -80,8 +80,8 @@ const MOCK_INTERCOM_CUSTOMERS = {
     ],
     tickets: [],
   },
-  'INC-2026-0003': {
-    id: 'INC-2026-0003',
+  'IC-CUST-2026-000003': {
+    id: 'IC-CUST-2026-000003',
     name: 'Suresh Patil',
     phone: '99887 76655',
     altPhone: '—',
@@ -112,8 +112,8 @@ const MOCK_INTERCOM_CUSTOMERS = {
       { id: 'TKT-INC-0002', subject: 'Requesting reactivation after payment', priority: 'P1', status: 'open', created: '01 Jul 2026' },
     ],
   },
-  'INC-2026-0004': {
-    id: 'INC-2026-0004',
+  'IC-CUST-2026-000004': {
+    id: 'IC-CUST-2026-000004',
     name: 'Anita Desai',
     phone: '91234 56789',
     altPhone: '—',
@@ -143,8 +143,8 @@ const MOCK_INTERCOM_CUSTOMERS = {
     ],
     tickets: [],
   },
-  'INC-2026-0005': {
-    id: 'INC-2026-0005',
+  'IC-CUST-2026-000005': {
+    id: 'IC-CUST-2026-000005',
     name: 'Rajesh Kumar',
     phone: '97654 32198',
     altPhone: '—',

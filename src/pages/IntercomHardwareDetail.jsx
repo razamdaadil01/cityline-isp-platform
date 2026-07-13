@@ -7,18 +7,18 @@ import Card, { CardHeader } from '../components/ui/Card'
 // ── Mock data ────────────────────────────────────────────────────────────────
 
 const CUSTOMERS = [
-  { id: 'INC-2026-0001', name: 'Mohan Das',    circuitId: 'IC-2026-0001' },
-  { id: 'INC-2026-0002', name: 'Priya Nair',   circuitId: 'IC-2026-0002' },
-  { id: 'INC-2026-0003', name: 'Suresh Patil', circuitId: 'IC-2026-0003' },
-  { id: 'INC-2026-0004', name: 'Anita Desai',  circuitId: 'IC-2026-0004' },
-  { id: 'INC-2026-0005', name: 'Rajesh Kumar', circuitId: 'IC-2026-0005' },
+  { id: 'IC-CUST-2026-000001', name: 'Mohan Das',    circuitId: 'IC-2026-0001' },
+  { id: 'IC-CUST-2026-000002', name: 'Priya Nair',   circuitId: 'IC-2026-0002' },
+  { id: 'IC-CUST-2026-000003', name: 'Suresh Patil', circuitId: 'IC-2026-0003' },
+  { id: 'IC-CUST-2026-000004', name: 'Anita Desai',  circuitId: 'IC-2026-0004' },
+  { id: 'IC-CUST-2026-000005', name: 'Rajesh Kumar', circuitId: 'IC-2026-0005' },
 ]
 
 const MOCK_HARDWARE = {
   'IHW-2026-0001': {
     id: 'IHW-2026-0001', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0001', brandModel: '—',
     purchaseDate: '01-01-2026', warrantyUntil: '01-01-2028', zone: 'Andheri West', status: 'assigned',
-    assignedTo: 'Mohan Das', customerId: 'INC-2026-0001', circuitId: 'IC-2026-0001', assignedDate: '19-06-2026', assignedBy: 'Admin',
+    assignedTo: 'Mohan Das', customerId: 'IC-CUST-2026-000001', circuitId: 'IC-2026-0001', assignedDate: '19-06-2026', assignedBy: 'Admin',
     history: [
       { customer: 'Mohan Das', circuitId: 'IC-2026-0001', assignedDate: '19-06-2026', returnedDate: null, condition: 'Good' },
     ],
@@ -26,7 +26,7 @@ const MOCK_HARDWARE = {
   'IHW-2026-0002': {
     id: 'IHW-2026-0002', deviceType: 'Handset Unit', serial: 'ICH-2026-0001', brandModel: '—',
     purchaseDate: '01-01-2026', warrantyUntil: '01-01-2027', zone: 'Andheri West', status: 'assigned',
-    assignedTo: 'Mohan Das', customerId: 'INC-2026-0001', circuitId: 'IC-2026-0001', assignedDate: '19-06-2026', assignedBy: 'Admin',
+    assignedTo: 'Mohan Das', customerId: 'IC-CUST-2026-000001', circuitId: 'IC-2026-0001', assignedDate: '19-06-2026', assignedBy: 'Admin',
     history: [
       { customer: 'Mohan Das', circuitId: 'IC-2026-0001', assignedDate: '19-06-2026', returnedDate: null, condition: 'Good' },
     ],
@@ -34,7 +34,7 @@ const MOCK_HARDWARE = {
   'IHW-2026-0003': {
     id: 'IHW-2026-0003', deviceType: 'Intercom Panel Unit', serial: 'ICP-2026-0002', brandModel: '—',
     purchaseDate: '05-01-2026', warrantyUntil: '05-01-2028', zone: 'Bandra East', status: 'assigned',
-    assignedTo: 'Priya Nair', customerId: 'INC-2026-0002', circuitId: 'IC-2026-0002', assignedDate: '22-06-2026', assignedBy: 'Admin',
+    assignedTo: 'Priya Nair', customerId: 'IC-CUST-2026-000002', circuitId: 'IC-2026-0002', assignedDate: '22-06-2026', assignedBy: 'Admin',
     history: [
       { customer: 'Priya Nair', circuitId: 'IC-2026-0002', assignedDate: '22-06-2026', returnedDate: null, condition: 'Good' },
     ],
