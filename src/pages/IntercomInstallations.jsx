@@ -524,7 +524,7 @@ export default function IntercomInstallations() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                {['Work Order ID', 'Customer', 'Customer ID', 'Phone', 'Engineer', 'Installation Date', 'Status', 'Actions'].map(h => (
+                {['Work Order ID', 'Lead ID', 'Customer', 'Customer ID', 'Phone', 'Engineer', 'Installation Date', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -532,7 +532,7 @@ export default function IntercomInstallations() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-14 text-gray-400 text-sm">
+                  <td colSpan={9} className="text-center py-14 text-gray-400 text-sm">
                     <ClipboardList size={32} className="mx-auto mb-2 text-gray-200" />
                     No installation work orders found
                   </td>
@@ -549,6 +549,18 @@ export default function IntercomInstallations() {
                         >
                           {o.id}
                         </button>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {o.leadId ? (
+                          <button
+                            onClick={() => navigate(`/intercom/leads/${o.leadId}`)}
+                            className="font-mono text-xs text-brand-blue font-semibold hover:underline"
+                          >
+                            {o.leadId}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">

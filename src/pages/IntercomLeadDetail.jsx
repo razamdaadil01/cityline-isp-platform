@@ -4,6 +4,7 @@ import {
   ArrowLeft, Phone, Mail, Building2, MapPin, CalendarDays, FileText,
   User, UserPlus, Activity, XCircle, MessageSquare, Paperclip, Send,
   Upload, Download, Trash2, Eye, FileImage, File as FileIcon, RefreshCw, IdCard, Wifi,
+  Wrench, CheckCircle2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -11,6 +12,9 @@ import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getLead, saveLead, subscribeLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import {
+  getInstallations, subscribeInstallations, addInstallation, nextInstallationId, INSTALLATION_ENGINEERS,
+} from '../data/intercomInstallationsStore'
 
 const ALL_STAGES = [
   'New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required',
@@ -18,7 +22,15 @@ const ALL_STAGES = [
   'On Hold', 'Cancelled', 'Converted to Internet', 'Closed',
 ]
 
-const TERMINAL_STAGES = ['Installed', 'Active', 'Cancelled', 'Closed']
+const TIME_SLOTS = ['Morning 9-12', 'Afternoon 12-3', 'Evening 3-6']
+const VISIT_PRIORITIES = ['Normal', 'High', 'Urgent']
+
+const INSTALL_STATUS_CFG = {
+  pending:    { variant: 'orange', label: 'Pending' },
+  inprogress: { variant: 'blue',   label: 'In Progress' },
+  completed:  { variant: 'green',  label: 'Completed' },
+  cancelled:  { variant: 'red',    label: 'Cancelled' },
+}
 
 const STAGE_BADGE = {
   'New':                       'blue',
@@ -216,26 +228,152 @@ function UpdateStageModal({ isOpen, currentStage, onClose, onSubmit }) {
   )
 }
 
-// ── Stage-based Actions ───────────────────────────────────────────────────────
+// ── Create Installation Visit Modal ─────────────────────────────────────────────
 
-function StageActions({ lead, onUpdateStage, onMarkLost, onCreateCustomer }) {
-  const showUpdateStage = !TERMINAL_STAGES.includes(lead.stage)
-  const showCreateCustomer = lead.stage === 'Installed' || lead.stage === 'Active'
-  const showMarkLost = lead.stage !== 'Cancelled' && lead.stage !== 'Closed'
+const INIT_VISIT_FORM = {
+  technician: '', installDate: '', timeSlot: '', priority: 'Normal',
+  requiredHardware: '', visitNotes: '', accessInstructions: '', altNumber: '',
+}
+
+function CreateInstallationVisitModal({ isOpen, lead, onClose, onSubmit }) {
+  const [form, setForm] = useState(INIT_VISIT_FORM)
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm(INIT_VISIT_FORM); setErrors({}) }
+  }, [isOpen])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErrors(p => ({ ...p, [f]: '' })) }
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.technician) e.technician = 'Select a technician'
+    if (!form.installDate) e.installDate = 'Installation date is required'
+    if (!form.timeSlot) e.timeSlot = 'Select a time slot'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  if (!lead) return null
+
+  const customerType = leadTypeOf(lead) === 'Internet + Intercom' ? 'Existing Internet Customer' : 'Intercom Only'
+  const areaLine = [lead.area, lead.locality, lead.subLocality].filter(Boolean).join(' / ') || '—'
 
   return (
-    <>
-      {showUpdateStage && (
-        <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={onUpdateStage}>Update Stage</Button>
-      )}
-      {showCreateCustomer && (
-        <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<UserPlus size={14} />} onClick={onCreateCustomer}>Create Intercom Customer</Button>
-      )}
-      {showMarkLost && (
-        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost/Cancel</Button>
-      )}
-    </>
+    <Modal isOpen={isOpen} onClose={onClose} title="Create Installation Visit" size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Create Visit</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <FormField label="Lead Number">
+          <Input value={formatLeadId(lead.id)} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Customer Name">
+          <Input value={lead.leadName} disabled />
+        </FormField>
+        <FormField label="Customer Type">
+          <Input value={customerType} disabled />
+        </FormField>
+        <FormField label="Area / Locality / Sub Locality">
+          <Input value={areaLine} disabled />
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Installation Address">
+            <Textarea value={lead.installationAddress || '—'} disabled rows={2} />
+          </FormField>
+        </div>
+        <FormField label="Assigned Technician" required error={errors.technician}>
+          <Select value={form.technician} onChange={e => set('technician', e.target.value)}>
+            <option value="">Select technician…</option>
+            {INSTALLATION_ENGINEERS.map(eng => <option key={eng.id} value={eng.name}>{eng.name}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Installation Date" required error={errors.installDate}>
+          <Input type="date" value={form.installDate} onChange={e => set('installDate', e.target.value)} />
+        </FormField>
+        <FormField label="Time Slot" required error={errors.timeSlot}>
+          <Select value={form.timeSlot} onChange={e => set('timeSlot', e.target.value)}>
+            <option value="">Select slot…</option>
+            {TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Visit Priority">
+          <Select value={form.priority} onChange={e => set('priority', e.target.value)}>
+            {VISIT_PRIORITIES.map(p => <option key={p}>{p}</option>)}
+          </Select>
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Required Hardware">
+            <Textarea value={form.requiredHardware} onChange={e => set('requiredHardware', e.target.value)} rows={2} placeholder="e.g. Intercom Panel Unit, Handset Unit…" />
+          </FormField>
+        </div>
+        <div className="col-span-2">
+          <FormField label="Visit Notes">
+            <Textarea value={form.visitNotes} onChange={e => set('visitNotes', e.target.value)} rows={2} placeholder="Any additional notes for the visit…" />
+          </FormField>
+        </div>
+        <div className="col-span-2">
+          <FormField label="Access Instructions">
+            <Textarea value={form.accessInstructions} onChange={e => set('accessInstructions', e.target.value)} rows={2} placeholder="Gate code, floor access, etc…" />
+          </FormField>
+        </div>
+        <FormField label="Contact Number">
+          <Input value={lead.mobile} disabled />
+        </FormField>
+        <FormField label="Alternative Number">
+          <Input
+            type="tel"
+            value={form.altNumber}
+            onChange={e => set('altNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+            placeholder="9876543210"
+          />
+        </FormField>
+      </div>
+    </Modal>
   )
+}
+
+// ── Stage-based Actions ───────────────────────────────────────────────────────
+
+const STAGE_UPDATE_ONLY = ['New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required', 'On Hold']
+
+function StageActions({ lead, onUpdateStage, onMarkLost, onCreateVisit, onCreateCustomer }) {
+  const stage = lead.stage
+
+  if (STAGE_UPDATE_ONLY.includes(stage)) {
+    return (
+      <>
+        <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={onUpdateStage}>Update Stage</Button>
+        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost/Cancel</Button>
+      </>
+    )
+  }
+
+  if (stage === 'Installation Scheduled') {
+    return (
+      <>
+        <Button icon={<Wrench size={14} />} onClick={onCreateVisit}>Create Installation Visit</Button>
+        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost/Cancel</Button>
+      </>
+    )
+  }
+
+  if (stage === 'Installation In Progress') {
+    return <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={onUpdateStage}>Update Stage</Button>
+  }
+
+  if (stage === 'Installed') {
+    return (
+      <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<UserPlus size={14} />} onClick={onCreateCustomer}>Create Intercom Customer</Button>
+    )
+  }
+
+  // Active, Cancelled, Closed, Converted to Internet — no action buttons
+  return null
 }
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
@@ -482,9 +620,23 @@ export default function IntercomLeadDetail() {
   const [lead, setLead] = useState(() => getLead(id))
   const [lostModalOpen, setLostModalOpen] = useState(false)
   const [updateStageOpen, setUpdateStageOpen] = useState(false)
+  const [visitModalOpen, setVisitModalOpen] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+
+  const [installations, setInstallations] = useState(getInstallations())
+  useEffect(() => subscribeInstallations(setInstallations), [])
+  const linkedInstallation = lead?.installationId
+    ? installations.find(o => o.id === lead.installationId) ?? null
+    : null
 
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
   useEffect(() => { setLead(getLead(id)) }, [id])
+
+  useEffect(() => {
+    if (!successMessage) return
+    const t = setTimeout(() => setSuccessMessage(''), 4000)
+    return () => clearTimeout(t)
+  }, [successMessage])
 
   function addHistory(updated, note) {
     const entry = { stage: updated.stage, date: todayStr(), time: nowTime(), note, actor: CURRENT_USER }
@@ -505,6 +657,36 @@ export default function IntercomLeadDetail() {
 
   function handleCreateCustomer() {
     navigate('/intercom/customers/new?leadId=' + lead.id)
+  }
+
+  function handleCreateVisit(form) {
+    const now = new Date()
+    const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
+    const [y, m, d] = form.installDate.split('-')
+    const workOrderId = nextInstallationId()
+    addInstallation({
+      id: workOrderId,
+      leadId: lead.id,
+      customer: lead.leadName,
+      customerId: lead.existingCustomerId ?? '',
+      phone: lead.mobile,
+      circuitId: '',
+      zone: lead.area ?? '',
+      engineer: form.technician,
+      installDate: `${d}-${m}-${y}`,
+      installTime: form.timeSlot,
+      priority: form.priority,
+      requiredHardware: form.requiredHardware,
+      accessInstructions: form.accessInstructions,
+      altNumber: form.altNumber,
+      createdDate,
+      notes: form.visitNotes,
+      status: 'pending',
+    })
+    const updated = { ...lead, stage: 'Installation In Progress', installationId: workOrderId }
+    saveLead(addHistory(updated, `Installation Visit created — Work Order ${workOrderId}`))
+    setVisitModalOpen(false)
+    setSuccessMessage('Installation Visit created successfully')
   }
 
   if (!lead) {
@@ -560,16 +742,55 @@ export default function IntercomLeadDetail() {
               <p className="text-sm text-gray-500 mt-0.5 font-mono">{formatLeadId(lead.id)}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {linkedInstallation && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20">
+                <Wrench size={13} className="text-brand-blue shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Installation Visit:{' '}
+                  <button
+                    onClick={() => navigate(`/intercom/installations/${linkedInstallation.id}`)}
+                    className="font-mono font-semibold text-brand-blue hover:underline"
+                  >
+                    {linkedInstallation.id}
+                  </button>
+                </span>
+                <Badge variant={(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).variant} size="sm" dot>
+                  {(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).label}
+                </Badge>
+              </div>
+            )}
+            {lead.stage === 'Active' && lead.customerId && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                <UserPlus size={13} className="text-emerald-600 shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Intercom Customer:{' '}
+                  <button
+                    onClick={() => navigate(`/intercom/customers/${lead.customerId}`)}
+                    className="font-mono font-semibold text-emerald-700 hover:underline"
+                  >
+                    {lead.customerId}
+                  </button>
+                </span>
+              </div>
+            )}
             <StageActions
               lead={lead}
               onUpdateStage={() => setUpdateStageOpen(true)}
               onMarkLost={() => setLostModalOpen(true)}
+              onCreateVisit={() => setVisitModalOpen(true)}
               onCreateCustomer={handleCreateCustomer}
             />
           </div>
         </div>
       </div>
+
+      {successMessage && (
+        <div className="mx-6 mt-4 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-medium flex items-center gap-2 shrink-0">
+          <CheckCircle2 size={15} className="shrink-0" />
+          {successMessage}
+        </div>
+      )}
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-surface-border shrink-0">
@@ -613,6 +834,12 @@ export default function IntercomLeadDetail() {
         currentStage={lead.stage}
         onClose={() => setUpdateStageOpen(false)}
         onSubmit={handleUpdateStage}
+      />
+      <CreateInstallationVisitModal
+        isOpen={visitModalOpen}
+        lead={lead}
+        onClose={() => setVisitModalOpen(false)}
+        onSubmit={handleCreateVisit}
       />
 
     </div>
