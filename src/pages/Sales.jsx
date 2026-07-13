@@ -608,6 +608,11 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
       <div className="flex flex-wrap gap-1.5 mb-3">
         <Badge variant={SOURCE_VARIANT[lead.source] ?? 'gray'} size="sm">{lead.source}</Badge>
+        {lead.sourceIntercomId && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-100 text-cyan-700">
+            Converted from Intercom
+          </span>
+        )}
         {lead.plan && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-navy/10 text-navy">{lead.plan}</span>
         )}
@@ -1931,6 +1936,11 @@ export default function Sales() {
                           >
                             {leadTitle}
                           </button>
+                          {lead.sourceIntercomId && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-cyan-100 text-cyan-700">
+                              Converted from Intercom
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 overflow-hidden" title={lead.name}>
                           <span className="block truncate text-xs text-gray-700">{lead.name}</span>

@@ -3,13 +3,17 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   Ticket, MessageSquare, Ban, AlertTriangle, CheckCircle, Clock,
   Cpu, Activity, Download, FileText, ExternalLink, Plus, Wrench,
+  Wifi, CheckCircle2,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
+import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getInstallations, subscribeInstallations,
 } from '../data/intercomInstallationsStore'
+import { getLeads, saveLead as saveSalesLead, subscribeLeads } from '../data/leadsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -196,7 +200,10 @@ const STATUS_CFG = {
   active:    { variant: 'green',  label: 'Active' },
   suspended: { variant: 'orange', label: 'Suspended' },
   inactive:  { variant: 'gray',   label: 'Inactive' },
+  pending_termination: { variant: 'orange', label: 'Pending Termination' },
 }
+
+const INTERNET_PACKAGE_OPTIONS = ['FTTH 50Mbps', 'FTTH 100Mbps', 'FTTH 200Mbps', 'Wireless 25Mbps']
 
 const KYC_STATUS = {
   uploaded: { icon: CheckCircle, color: 'text-brand-blue', label: 'Uploaded' },
@@ -711,13 +718,83 @@ function ActivityTab({ customer }) {
   )
 }
 
+// ── Convert to Internet Modal ─────────────────────────────────────────────────
+
+const INIT_CONVERT_FORM = { keepIntercomActive: true, packageInterest: INTERNET_PACKAGE_OPTIONS[0], notes: '' }
+
+function ConvertToInternetModal({ isOpen, customer, onClose, onSubmit }) {
+  const [form, setForm] = useState(INIT_CONVERT_FORM)
+
+  useEffect(() => {
+    if (isOpen) setForm(INIT_CONVERT_FORM)
+  }, [isOpen])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Convert to Internet" size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSubmit(form)}>Create Internet Lead</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <FormField label="Customer Name">
+          <Input value={customer.name} disabled />
+        </FormField>
+        <FormField label="Customer ID">
+          <Input value={customer.id} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Mobile">
+          <Input value={customer.phone} disabled />
+        </FormField>
+        <FormField label="Email">
+          <Input value={customer.email} disabled />
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Installation Address">
+            <Textarea value={customer.installationAddress || '—'} disabled rows={2} />
+          </FormField>
+        </div>
+        <FormField label="Keep Intercom Active?">
+          <div className="flex items-center gap-3 mt-1">
+            <button
+              type="button"
+              onClick={() => set('keepIntercomActive', !form.keepIntercomActive)}
+              className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${form.keepIntercomActive ? 'bg-brand-blue' : 'bg-gray-300'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.keepIntercomActive ? 'left-4' : 'left-0.5'}`} />
+            </button>
+            <span className="text-sm font-medium text-gray-700">{form.keepIntercomActive ? 'Yes' : 'No'}</span>
+          </div>
+        </FormField>
+        <FormField label="Internet Package Interest">
+          <Select value={form.packageInterest} onChange={e => set('packageInterest', e.target.value)}>
+            {INTERNET_PACKAGE_OPTIONS.map(p => <option key={p}>{p}</option>)}
+          </Select>
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Notes">
+            <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any additional context…" />
+          </FormField>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function IntercomCustomerDetail() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
 
-  const customer = MOCK_INTERCOM_CUSTOMERS[id] ?? makeUnknownCustomer(id)
+  const [overrides, setOverrides] = useState({})
+  useEffect(() => setOverrides({}), [id])
+
+  const customer = { ...(MOCK_INTERCOM_CUSTOMERS[id] ?? makeUnknownCustomer(id)), ...overrides }
   const activeTab = SLUG_TO_TAB[tab] ?? 'Profile'
 
   const [installations, setInstallations] = useState(getInstallations())
@@ -725,6 +802,21 @@ export default function IntercomCustomerDetail() {
   const linkedInstallation = customer.installationId
     ? installations.find(o => o.id === customer.installationId) ?? null
     : null
+
+  const [salesLeads, setSalesLeads] = useState(getLeads())
+  useEffect(() => subscribeLeads(setSalesLeads), [])
+  const linkedInternetLead = overrides.internetLeadId
+    ? salesLeads.find(l => l.id === overrides.internetLeadId) ?? null
+    : null
+
+  const [convertModalOpen, setConvertModalOpen] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+
+  useEffect(() => {
+    if (!successMessage) return
+    const t = setTimeout(() => setSuccessMessage(''), 4000)
+    return () => clearTimeout(t)
+  }, [successMessage])
 
   if (!tab) return <Navigate to={`/intercom/customers/${id}/profile`} replace />
 
@@ -737,7 +829,46 @@ export default function IntercomCustomerDetail() {
     }
   }
 
+  function handleConvertToInternet(form) {
+    const today = new Date().toISOString().slice(0, 10)
+    const leadId = `LD-${Date.now()}`
+    saveSalesLead({
+      id: leadId,
+      pipeline: 'B2C',
+      leadName: `${customer.name} — Internet Conversion`,
+      name: customer.name,
+      phone: (customer.phone ?? '').replace(/\D/g, ''),
+      email: customer.email,
+      area: customer.zone,
+      address: customer.installationAddress,
+      source: 'Intercom Conversion',
+      sourceIntercomId: customer.id,
+      stage: 'New Inquiry',
+      plan: form.packageInterest,
+      assigned: '',
+      assignedInitials: '??',
+      assignedColor: 'bg-gray-400',
+      daysInStage: 0,
+      lastActivity: 'Converted from Intercom',
+      followUp: '',
+      priority: 'medium',
+      ekycStatus: null,
+      hwAssigned: null,
+      createdAt: today,
+      createdBy: 'Admin User',
+      notes: form.notes,
+    })
+    setOverrides(o => {
+      const next = { ...o, internetLeadId: leadId }
+      if (!form.keepIntercomActive) next.status = 'pending_termination'
+      return next
+    })
+    setConvertModalOpen(false)
+    setSuccessMessage(`Internet Lead created! Lead ID: ${leadId}`)
+  }
+
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
+  const canConvertToInternet = !customer.linkedInternetCustomerId && !overrides.internetLeadId
 
   return (
     <div className="p-6 space-y-5">
@@ -789,6 +920,11 @@ export default function IntercomCustomerDetail() {
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-surface-border">
             <Button variant="secondary" size="sm" icon={<Ticket size={13} />}>Raise Ticket</Button>
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
+            {canConvertToInternet && (
+              <Button size="sm" icon={<Wifi size={13} />} onClick={() => setConvertModalOpen(true)}>
+                Convert to Internet
+              </Button>
+            )}
             {linkedInstallation && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20">
                 <Wrench size={13} className="text-brand-blue shrink-0" />
@@ -806,9 +942,32 @@ export default function IntercomCustomerDetail() {
                 </Badge>
               </div>
             )}
+            {linkedInternetLead && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200">
+                <Wifi size={13} className="text-cyan-600 shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Internet Lead Created:{' '}
+                  <button
+                    onClick={() => navigate(`/sales/leads/${linkedInternetLead.id}`)}
+                    className="font-mono font-semibold text-cyan-700 hover:underline"
+                  >
+                    {linkedInternetLead.id}
+                  </button>
+                  {' '}→
+                </span>
+                <Badge variant="blue" size="sm" dot>{linkedInternetLead.stage}</Badge>
+              </div>
+            )}
             <Button variant="orange"    size="sm" icon={<Ban size={13} />}>Suspend</Button>
             <Button variant="danger"    size="sm" icon={<AlertTriangle size={13} />}>Terminate</Button>
           </div>
+
+          {successMessage && (
+            <div className="mt-4 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-medium flex items-center gap-2">
+              <CheckCircle2 size={15} className="shrink-0" />
+              {successMessage}
+            </div>
+          )}
         </div>
       </div>
 
@@ -839,6 +998,13 @@ export default function IntercomCustomerDetail() {
           {activeTab === 'Activity Logs'   && <ActivityTab       customer={customer} />}
         </div>
       </div>
+
+      <ConvertToInternetModal
+        isOpen={convertModalOpen}
+        customer={customer}
+        onClose={() => setConvertModalOpen(false)}
+        onSubmit={handleConvertToInternet}
+      />
     </div>
   )
 }
