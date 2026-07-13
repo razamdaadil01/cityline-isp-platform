@@ -8,16 +8,29 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import {
-  getLeads, deleteLead, subscribeLeads, INTERCOM_STAGES, INTERCOM_STAFF,
+  getLeads, deleteLead, subscribeLeads, INTERCOM_STAFF,
 } from '../data/intercomLeadsStore'
 
 const STAGE_BADGE = {
-  'New Inquiry': 'blue',
-  'Feasibility': 'orange',
-  'Booked':      'purple',
-  'Converted':   'green',
-  'Lost':        'red',
+  'New':                    'blue',
+  'Contacted':              'cyan',
+  'Requirement Confirmed':  'purple',
+  'Installation Scheduled': 'orange',
+  'Installed':              'yellow',
+  'Active':                 'green',
+  'Cancelled':              'red',
 }
+
+const TYPE_BADGE = {
+  'Internet + Intercom': 'blue',
+  'Intercom Only':       'cyan',
+}
+
+const FILTER_STAGES = [
+  'New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required',
+  'Installation Scheduled', 'Installation In Progress', 'Installed', 'Active',
+  'On Hold', 'Cancelled', 'Converted to Internet', 'Closed',
+]
 
 const TODAY_DMY = (() => {
   const d = new Date()
@@ -271,7 +284,7 @@ export default function IntercomLeads() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                {['Lead ID', 'Customer', 'Mobile', 'Stage', 'Assigned', 'Follow-up Date', 'Actions'].map(h => (
+                {['Lead ID', 'Type', 'Customer', 'Mobile', 'Stage', 'Assigned', 'Follow-up Date', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -279,7 +292,7 @@ export default function IntercomLeads() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400 text-sm">No intercom leads found</td>
+                  <td colSpan={8} className="text-center py-12 text-gray-400 text-sm">No intercom leads found</td>
                 </tr>
               ) : (
                 paged.map(lead => (
@@ -288,6 +301,9 @@ export default function IntercomLeads() {
                       <span className="text-xs font-mono font-semibold bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
                         {lead.id}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge variant={TYPE_BADGE[lead.type] ?? 'gray'} size="sm">{lead.type ?? '—'}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -398,8 +414,8 @@ export default function IntercomLeads() {
               <div className="relative">
                 <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
-                  <option value="">All Stages</option>
-                  {INTERCOM_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                  <option value="">All</option>
+                  {FILTER_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
