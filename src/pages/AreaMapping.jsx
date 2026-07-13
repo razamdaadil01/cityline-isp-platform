@@ -38,7 +38,7 @@ const TAB_TO_PATH = {
 
 const SUB_FORM_INIT = {
   state: '', district: '', area: '', locality: '', subLocality: '',
-  siteType: 'FTTH', branchCode: '', feasibility: 'Feasible', active: true,
+  siteType: 'FTTH', branchCode: '', feasibility: 'Feasible', active: true, intercomSite: false,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -465,16 +465,17 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       : { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '', intercomSite: false }
   )
   const [slForm, setSlForm] = useState(isEdit ? {
-    id:          initial.id,
-    state:       initial.state,
-    district:    initial.district,
-    area:        initial.area,
-    locality:    initial.locality,
-    subLocality: initial.subLocality,
-    siteType:    initial.siteType,
-    branchCode:  initial.branchCode,
-    feasibility: initial.feasibility,
-    active:      initial.active,
+    id:           initial.id,
+    state:        initial.state,
+    district:     initial.district,
+    area:         initial.area,
+    locality:     initial.locality,
+    subLocality:  initial.subLocality,
+    siteType:     initial.siteType,
+    branchCode:   initial.branchCode,
+    feasibility:  initial.feasibility,
+    active:       initial.active,
+    intercomSite: initial.intercomSite ?? false,
   } : { ...SUB_FORM_INIT })
 
   const [errors, setErrors] = useState({})
@@ -850,6 +851,20 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
               <span className="text-sm font-medium text-gray-700">
                 Active <span className="font-normal text-gray-400">— Show this sub-locality in lead forms</span>
               </span>
+            </div>
+
+            <div className="flex items-start gap-2.5 pt-1">
+              <input
+                type="checkbox"
+                id="sub-locality-intercom-site"
+                checked={slForm.intercomSite}
+                onChange={e => setSlForm(f => ({ ...f, intercomSite: e.target.checked }))}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              />
+              <label htmlFor="sub-locality-intercom-site" className="cursor-pointer">
+                <span className="text-sm font-medium text-gray-700">Intercom Site</span>
+                <p className="text-xs text-gray-400 mt-0.5">Check this if intercom service is available at this locality</p>
+              </label>
             </div>
           </div>
         )}
