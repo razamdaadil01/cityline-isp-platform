@@ -7,7 +7,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { saveLead, getLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
-import { getStates, getDistricts, getAreasList, getLocalities, getSubLocalities } from '../data/areaMappingStore'
+import { getStates, getDistricts, getAreasList, getIntercomLocalities, getSubLocalities } from '../data/areaMappingStore'
 
 const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
 const INTERCOM_TYPES = ['Basic', 'Plus', 'Premium']
@@ -448,7 +448,7 @@ export default function IntercomLeadNew() {
               <FormField label="Locality" required error={errorsB.locality} hint="Only sites marked as Intercom Site are shown">
                 <Select value={formB.locality} onChange={e => setB('locality', e.target.value)} disabled={!formB.area}>
                   <option value="">Select locality…</option>
-                  {getLocalities(formB.state, formB.district, formB.area).map(l => <option key={l}>{l}</option>)}
+                  {getIntercomLocalities(formB.state, formB.district, formB.area).map(l => <option key={l}>{l}</option>)}
                 </Select>
               </FormField>
               <FormField label="Sub Locality">
