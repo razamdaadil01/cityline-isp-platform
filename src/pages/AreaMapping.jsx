@@ -11,7 +11,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import {
   getAreas, saveArea, deleteArea, subscribeAreas, subscribeHierarchy,
-  getStates, getDistricts, getAreasList, getLocalities, getLocalityInfo,
+  getStates, getDistricts, getAreasList, getLocalities, getLocalityInfo, upsertLocalityIntercomSite,
   saveStateName, saveDistrictName, saveAreaName, saveLocalityName,
   updateStateName, updateDistrictName, updateAreaName, updateLocalityName,
   deleteStateName, deleteDistrictName, deleteAreaName, deleteLocalityName,
@@ -38,7 +38,7 @@ const TAB_TO_PATH = {
 
 const SUB_FORM_INIT = {
   state: '', district: '', area: '', locality: '', subLocality: '',
-  siteType: 'FTTH', branchCode: '', feasibility: 'Feasible', active: true, intercomSite: false,
+  siteType: 'FTTH', branchCode: '', feasibility: 'Feasible', active: true,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ function Toggle({ checked, onChange }) {
 
 // ── Tree Node ─────────────────────────────────────────────────────────────────
 
-function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditItem, onDeleteItem }) {
+function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditItem, onDeleteItem, intercomSite }) {
   const [open, setOpen] = useState(true)
   const hasChildren = (Array.isArray(children) ? children.length > 0 : !!children) || items?.length > 0
   const indent = level * 14
@@ -117,6 +117,16 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
           }
           <MapPin size={12} className={`shrink-0 ${dotColor}`} />
           <span className={`text-sm ${labelClass} whitespace-nowrap`} title={label}>{truncLabel(label)}</span>
+          {level === 3 && (
+            <span
+              className={`ml-1 shrink-0 inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-semibold ${
+                intercomSite ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+              }`}
+              title="Intercom Site"
+            >
+              {intercomSite ? 'Yes' : 'No'}
+            </span>
+          )}
         </button>
         <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
           <button
@@ -461,21 +471,24 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
   )
   const [lf, setLf] = useState(
     isHEdit && hierarchyEdit.type === 'Locality'
-      ? { state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name, siteType: 'FTTH', branchCode: '', intercomSite: false }
+      ? {
+          state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name,
+          siteType: 'FTTH', branchCode: '',
+          intercomSite: !!getLocalityInfo(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, hierarchyEdit.name)?.intercomSite,
+        }
       : { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '', intercomSite: false }
   )
   const [slForm, setSlForm] = useState(isEdit ? {
-    id:           initial.id,
-    state:        initial.state,
-    district:     initial.district,
-    area:         initial.area,
-    locality:     initial.locality,
-    subLocality:  initial.subLocality,
-    siteType:     initial.siteType,
-    branchCode:   initial.branchCode,
-    feasibility:  initial.feasibility,
-    active:       initial.active,
-    intercomSite: initial.intercomSite ?? false,
+    id:          initial.id,
+    state:       initial.state,
+    district:    initial.district,
+    area:        initial.area,
+    locality:    initial.locality,
+    subLocality: initial.subLocality,
+    siteType:    initial.siteType,
+    branchCode:  initial.branchCode,
+    feasibility: initial.feasibility,
+    active:      initial.active,
   } : { ...SUB_FORM_INIT })
 
   const [errors, setErrors] = useState({})
@@ -554,6 +567,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
     if (Object.keys(e).length) { setErrors(e); return }
     if (isHEdit) {
       updateLocalityName(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, hierarchyEdit.name, lf.name.trim())
+      upsertLocalityIntercomSite(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, lf.name.trim(), lf.intercomSite)
       onToast('Locality updated successfully')
       onCancel()
     } else {
@@ -852,20 +866,6 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                 Active <span className="font-normal text-gray-400">— Show this sub-locality in lead forms</span>
               </span>
             </div>
-
-            <div className="flex items-start gap-2.5 pt-1">
-              <input
-                type="checkbox"
-                id="sub-locality-intercom-site"
-                checked={slForm.intercomSite}
-                onChange={e => setSlForm(f => ({ ...f, intercomSite: e.target.checked }))}
-                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-              />
-              <label htmlFor="sub-locality-intercom-site" className="cursor-pointer">
-                <span className="text-sm font-medium text-gray-700">Intercom Site</span>
-                <p className="text-xs text-gray-400 mt-0.5">Check this if intercom service is available at this locality</p>
-              </label>
-            </div>
           </div>
         )}
       </div>
@@ -1033,6 +1033,7 @@ export default function AreaMapping() {
                             label={locality}
                             level={3}
                             items={subItems}
+                            intercomSite={!!getLocalityInfo(state, district, area, locality)?.intercomSite}
                             onEdit={() => handleHierarchyEdit({ type: 'Locality', state, district, area, name: locality })}
                             onDelete={() => handleHierarchyDelete({ type: 'Locality', state, district, area, name: locality })}
                             onEditItem={handleEdit}
@@ -1079,11 +1080,10 @@ export default function AreaMapping() {
 
               {/* Table */}
               <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
-                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <span>Location</span>
                   <span>Branch Code</span>
                   <span>Site Type</span>
-                  <span>Intercom Site</span>
                   <span>Feasibility</span>
                   <span>Actions</span>
                 </div>
@@ -1095,14 +1095,13 @@ export default function AreaMapping() {
                 ) : (
                   <div className="divide-y divide-surface-border">
                     {areas.map(a => (
-                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
+                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-800">{a.subLocality}</p>
                           <p className="text-xs text-gray-400">{a.locality} · {a.area} · {a.district}</p>
                         </div>
                         <span className="text-sm font-mono text-gray-700">{a.branchCode}</span>
                         <Badge variant="blue" size="sm">{a.siteType}</Badge>
-                        <Badge variant={a.intercomSite ? 'green' : 'gray'} size="sm">{a.intercomSite ? 'Yes' : 'No'}</Badge>
                         <Badge variant={feasVariant[a.feasibility] || 'gray'} size="sm">{a.feasibility}</Badge>
                         <div className="flex gap-1">
                           <button
