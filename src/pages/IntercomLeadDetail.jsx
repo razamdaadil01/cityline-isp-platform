@@ -3,27 +3,65 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, Building2, MapPin, CalendarDays, FileText,
   User, UserPlus, Activity, XCircle, MessageSquare, Paperclip, Send,
-  Upload, Download, Trash2, Eye, FileImage, File as FileIcon,
+  Upload, Download, Trash2, Eye, FileImage, File as FileIcon, RefreshCw, IdCard, Wifi,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { FormField, Select, Textarea } from '../components/ui/FormInputs'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getLead, saveLead, subscribeLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 
+const ALL_STAGES = [
+  'New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required',
+  'Installation Scheduled', 'Installation In Progress', 'Installed', 'Active',
+  'On Hold', 'Cancelled', 'Converted to Internet', 'Closed',
+]
+
+const TERMINAL_STAGES = ['Installed', 'Active', 'Cancelled', 'Closed']
+
 const STAGE_BADGE = {
-  'New Inquiry': 'blue',
-  'Converted':   'green',
-  'Lost':        'red',
+  'New':                       'blue',
+  'Contacted':                 'cyan',
+  'Requirement Confirmed':     'purple',
+  'Site Verification Required':'navy',
+  'Installation Scheduled':    'orange',
+  'Installation In Progress':  'yellow',
+  'Installed':                 'green',
+  'Active':                    'green',
+  'On Hold':                   'orange',
+  'Cancelled':                 'red',
+  'Converted to Internet':     'purple',
+  'Closed':                    'gray',
 }
 
 const LOST_REASONS = ['Price too high', 'Chose competitor', 'Not interested', 'Other']
 
 const STAGE_ICON = {
-  'New Inquiry': '📝',
-  'Converted':   '✅',
-  'Lost':        '❌',
+  'New':                        '📝',
+  'Contacted':                  '📞',
+  'Requirement Confirmed':      '📋',
+  'Site Verification Required': '🔍',
+  'Installation Scheduled':     '🗓️',
+  'Installation In Progress':   '🔧',
+  'Installed':                  '📦',
+  'Active':                     '✅',
+  'On Hold':                    '⏸️',
+  'Cancelled':                  '❌',
+  'Converted to Internet':      '🔄',
+  'Closed':                     '🔒',
+}
+
+function formatLeadId(id) {
+  if (!id) return '—'
+  const legacy = id.match(/^IL-(\d{4})-(\d+)$/)
+  if (legacy) return `IC-LEAD-${legacy[1]}-${String(legacy[2]).padStart(6, '0')}`
+  return id
+}
+
+function leadTypeOf(lead) {
+  if (lead.type) return lead.type
+  return lead.relationshipType === 'Existing Internet Customer' ? 'Internet + Intercom' : 'Intercom Only'
 }
 
 const CURRENT_USER = 'Admin User'
@@ -109,7 +147,7 @@ function MarkAsLostModal({ isOpen, onClose, onSubmit }) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Lost" size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Lost / Cancel" size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -132,23 +170,78 @@ function MarkAsLostModal({ isOpen, onClose, onSubmit }) {
   )
 }
 
+// ── Update Stage Modal ────────────────────────────────────────────────────────
+
+function UpdateStageModal({ isOpen, currentStage, onClose, onSubmit }) {
+  const [form, setForm] = useState({ newStage: '', remarks: '' })
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm({ newStage: '', remarks: '' }); setErrors({}) }
+  }, [isOpen])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.newStage) e.newStage = 'Select a new stage'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Update Stage" size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Submit</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Current Stage">
+          <Input value={currentStage} disabled />
+        </FormField>
+        <FormField label="New Stage" required error={errors.newStage}>
+          <Select value={form.newStage} onChange={e => set('newStage', e.target.value)}>
+            <option value="">Select a stage…</option>
+            {ALL_STAGES.map(s => <option key={s}>{s}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Remarks">
+          <Textarea value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={3} placeholder="Add remarks…" />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Stage-based Actions ───────────────────────────────────────────────────────
 
-function StageActions({ lead, onMarkLost, onCreateCustomer }) {
-  if (lead.stage === 'New Inquiry') {
-    return (
-      <>
+function StageActions({ lead, onUpdateStage, onMarkLost, onCreateCustomer }) {
+  const showUpdateStage = !TERMINAL_STAGES.includes(lead.stage)
+  const showCreateCustomer = lead.stage === 'Installed' || lead.stage === 'Active'
+  const showMarkLost = lead.stage !== 'Cancelled' && lead.stage !== 'Closed'
+
+  return (
+    <>
+      {showUpdateStage && (
+        <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={onUpdateStage}>Update Stage</Button>
+      )}
+      {showCreateCustomer && (
         <Button className="!bg-emerald-500 hover:!bg-emerald-600" icon={<UserPlus size={14} />} onClick={onCreateCustomer}>Create Intercom Customer</Button>
-        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost</Button>
-      </>
-    )
-  }
-  return null
+      )}
+      {showMarkLost && (
+        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost/Cancel</Button>
+      )}
+    </>
+  )
 }
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
 function ProfileTab({ lead }) {
+  const type = leadTypeOf(lead)
   return (
     <div className="grid grid-cols-2 gap-4">
       <Card>
@@ -158,6 +251,21 @@ function ProfileTab({ lead }) {
         <InfoRow icon={Building2} label="Project" value={lead.project} />
         <InfoRow icon={MapPin} label="Installation Address" value={lead.installationAddress} />
         <InfoRow icon={CalendarDays} label="Follow-up Date" value={lead.followUp} />
+        {type === 'Internet + Intercom' ? (
+          <>
+            <InfoRow icon={IdCard} label="Internet Customer ID" value={lead.existingCustomerId} />
+            <InfoRow icon={Wifi} label="Internet Package" value={lead.internetPackage} />
+            <div className="flex items-start gap-3 py-2.5">
+              <Activity size={14} className="text-gray-400 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[11px] text-gray-400">Internet Status</p>
+                <Badge variant="green" size="sm">{lead.internetStatus ?? 'Active'}</Badge>
+              </div>
+            </div>
+          </>
+        ) : (
+          <InfoRow icon={Wifi} label="Internet Provider" value={lead.internetProvider} />
+        )}
       </Card>
 
       <Card>
@@ -172,7 +280,7 @@ function ProfileTab({ lead }) {
           </div>
         </div>
         <InfoRow icon={CalendarDays} label="Created Date" value={lead.createdAt} />
-        <InfoRow icon={FileText} label="Lead ID" value={lead.id} />
+        <InfoRow icon={FileText} label="Lead ID" value={formatLeadId(lead.id)} />
         <div className="flex items-start gap-3 py-2.5">
           <Activity size={14} className="text-gray-400 mt-0.5 shrink-0" />
           <div className="min-w-0">
@@ -373,6 +481,7 @@ export default function IntercomLeadDetail() {
   const navigate = useNavigate()
   const [lead, setLead] = useState(() => getLead(id))
   const [lostModalOpen, setLostModalOpen] = useState(false)
+  const [updateStageOpen, setUpdateStageOpen] = useState(false)
 
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
   useEffect(() => { setLead(getLead(id)) }, [id])
@@ -383,9 +492,15 @@ export default function IntercomLeadDetail() {
   }
 
   function handleMarkLost(data) {
-    const updated = { ...lead, stage: 'Lost', lostReason: data.lostReason, lostNotes: data.notes }
-    saveLead(addHistory(updated, `Marked as Lost — ${data.lostReason}${data.notes ? ': ' + data.notes : ''}`))
+    const updated = { ...lead, stage: 'Cancelled', lostReason: data.lostReason, lostNotes: data.notes }
+    saveLead(addHistory(updated, `Marked as Cancelled — ${data.lostReason}${data.notes ? ': ' + data.notes : ''}`))
     setLostModalOpen(false)
+  }
+
+  function handleUpdateStage(data) {
+    const updated = { ...lead, stage: data.newStage }
+    saveLead(addHistory(updated, `Stage updated to ${data.newStage}${data.remarks ? ' — ' + data.remarks : ''}`))
+    setUpdateStageOpen(false)
   }
 
   function handleCreateCustomer() {
@@ -427,16 +542,28 @@ export default function IntercomLeadDetail() {
               </div>
             )}
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900">{lead.leadName}</h1>
                 <Badge variant={STAGE_BADGE[lead.stage] ?? 'gray'} size="sm">{lead.stage}</Badge>
+                {leadTypeOf(lead) === 'Internet + Intercom' ? (
+                  <>
+                    <Badge variant="blue" size="sm">Existing Internet Customer</Badge>
+                    <Badge variant="cyan" size="sm">Intercom Lead</Badge>
+                  </>
+                ) : (
+                  <>
+                    <Badge variant="cyan" size="sm">Intercom-Only Lead</Badge>
+                    <Badge variant="gray" size="sm">No Internet Service</Badge>
+                  </>
+                )}
               </div>
-              <p className="text-sm text-gray-500 mt-0.5 font-mono">{lead.id}</p>
+              <p className="text-sm text-gray-500 mt-0.5 font-mono">{formatLeadId(lead.id)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <StageActions
               lead={lead}
+              onUpdateStage={() => setUpdateStageOpen(true)}
               onMarkLost={() => setLostModalOpen(true)}
               onCreateCustomer={handleCreateCustomer}
             />
@@ -480,6 +607,12 @@ export default function IntercomLeadDetail() {
         isOpen={lostModalOpen}
         onClose={() => setLostModalOpen(false)}
         onSubmit={handleMarkLost}
+      />
+      <UpdateStageModal
+        isOpen={updateStageOpen}
+        currentStage={lead.stage}
+        onClose={() => setUpdateStageOpen(false)}
+        onSubmit={handleUpdateStage}
       />
 
     </div>
