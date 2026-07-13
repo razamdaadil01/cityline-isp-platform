@@ -741,149 +741,41 @@ function SalesConfigTab() {
   )
 }
 
-// ── Area Mapping mock data ────────────────────────────────────────────────────
+// ── Area Mapping intro ───────────────────────────────────────────────────────
 
-const AREA_TABS = ['State', 'District', 'Area', 'Locality', 'Sub Locality']
-
-const INIT_AREA_DATA = {
-  State:        [{ id: 1, name: 'Maharashtra', code: 'MH' }, { id: 2, name: 'Karnataka', code: 'KA' }],
-  District:     [{ id: 1, name: 'Mumbai', state: 'Maharashtra' }, { id: 2, name: 'Thane', state: 'Maharashtra' }],
-  Area:         [{ id: 1, name: 'Andheri', district: 'Mumbai' }, { id: 2, name: 'Bandra', district: 'Mumbai' }, { id: 3, name: 'Kurla', district: 'Mumbai' }],
-  Locality:     [{ id: 1, name: 'Andheri West', area: 'Andheri' }, { id: 2, name: 'Andheri East', area: 'Andheri' }, { id: 3, name: 'Bandra West', area: 'Bandra' }],
-  'Sub Locality': [{ id: 1, name: 'Versova', locality: 'Andheri West' }, { id: 2, name: 'DN Nagar', locality: 'Andheri West' }],
-}
-
-function AreaMappingTab() {
-  const [areaTab, setAreaTab] = useState('State')
-  const [data, setData] = useState(INIT_AREA_DATA)
-  const [addModal, setAddModal] = useState(false)
-  const [bulkModal, setBulkModal] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [hoveredRow, setHoveredRow] = useState(null)
-
-  const rows = data[areaTab] || []
-  const colKeys = rows.length > 0 ? Object.keys(rows[0]).filter(k => k !== 'id') : []
+function AreaMappingIntroTab() {
+  const navigate = useNavigate()
 
   return (
     <div className="space-y-5">
-      <div className="pb-4 border-b border-surface-border flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Area Mapping</h2>
-          <p className="text-xs text-gray-500 mt-1">Manage hierarchical area data for service zones</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setBulkModal(true)}
-            className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
-            <Upload size={13} /> Bulk Upload
-          </button>
-          <button onClick={() => { setNewName(''); setAddModal(true) }}
-            className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
-            <Plus size={13} /> Add {areaTab}
-          </button>
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Area Mapping</h2>
+        <p className="text-sm text-gray-500 mt-1">Manage service areas, localities and feasibility settings for lead address selection</p>
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        {AREA_TABS.map(t => (
-          <button key={t} onClick={() => setAreaTab(t)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              areaTab === t ? 'bg-white text-[#0A8DCD] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div className="rounded-xl border border-surface-border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/80 border-b border-surface-border">
-              {colKeys.map(k => (
-                <th key={k} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide capitalize">{k}</th>
-              ))}
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {rows.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50/50 group"
-                onMouseEnter={() => setHoveredRow(row.id)}
-                onMouseLeave={() => setHoveredRow(null)}>
-                {colKeys.map(k => (
-                  <td key={k} className="px-4 py-3 text-gray-700">{row[k]}</td>
-                ))}
-                <td className="px-4 py-3">
-                  <div className={`flex gap-1 transition-opacity ${hoveredRow === row.id ? 'opacity-100' : 'opacity-0'}`}>
-                    <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-blue-50 text-gray-400 hover:text-[#0A8DCD]">
-                      <Edit2 size={13} />
-                    </button>
-                    <button onClick={() => setData(d => ({ ...d, [areaTab]: d[areaTab].filter(x => x.id !== row.id) }))}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={colKeys.length + 1} className="px-4 py-8 text-center text-sm text-gray-400">No {areaTab} entries yet</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Add Modal */}
-      {addModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Add {areaTab}</h2>
-              <button onClick={() => setAddModal(false)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">{areaTab} Name *</label>
-                <input value={newName} onChange={e => setNewName(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]"
-                  placeholder={`Enter ${areaTab} name`} />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setAddModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
-                <button onClick={() => {
-                  if (!newName.trim()) return
-                  setData(d => ({ ...d, [areaTab]: [...d[areaTab], { id: Date.now(), name: newName.trim() }] }))
-                  setNewName('')
-                  setAddModal(false)
-                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
-              </div>
-            </div>
-          </div>
+      <button
+        onClick={() => navigate('/settings/area-mapping')}
+        className="w-full flex items-center gap-4 p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-brand-blue/5 transition-colors text-left"
+      >
+        <div className="w-11 h-11 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
+          <MapPin size={20} className="text-brand-blue" />
         </div>
-      )}
-
-      {/* Bulk Upload Modal */}
-      {bulkModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Bulk Upload — {areaTab}</h2>
-              <button onClick={() => setBulkModal(false)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <button className="w-full flex items-center justify-center gap-2 border border-dashed border-[#0A8DCD] rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">
-                <Download size={14} /> Download Excel Template
-              </button>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:bg-gray-50">
-                <Upload size={24} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">Drop Excel file here or click to upload</p>
-                <p className="text-xs text-gray-400 mt-1">Supports .xlsx, .csv</p>
-              </div>
-              <button onClick={() => setBulkModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
-            </div>
-          </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900">Manage Area Mapping</p>
+          <p className="text-xs text-gray-500 mt-0.5">States, districts, areas, localities & sub localities</p>
         </div>
-      )}
+        <ChevronRight size={18} className="text-gray-400 shrink-0" />
+      </button>
+
+      <div className="rounded-xl border border-surface-border bg-gray-50/60 p-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">How it works</p>
+        <ol className="space-y-2 text-sm text-gray-600 list-decimal list-inside">
+          <li>Add states, districts, areas, localities and sub-localities in <strong className="text-gray-800 font-semibold">Manage Area Mapping</strong>.</li>
+          <li>When a lead is created, the address dropdowns are powered by this mapping.</li>
+          <li>If a sub-locality isn't in the mapping, the agent can flag it as <strong className="text-gray-800 font-semibold">Feasibility Required</strong>.</li>
+          <li>Admin reviews and updates those requests in <strong className="text-gray-800 font-semibold">Feasibility Requests</strong>.</li>
+        </ol>
+      </div>
     </div>
   )
 }
@@ -1547,7 +1439,7 @@ export default function Settings() {
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'                && <RolesTab />}
           {activeTab === 'sales-configuration' && <SalesConfigTab />}
-          {activeTab === 'area-mapping'        && <AreaMappingTab />}
+          {activeTab === 'area-mapping'        && <AreaMappingIntroTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}
           {false && activeTab === 'landline-numbers' && (
