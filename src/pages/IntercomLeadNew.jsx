@@ -1,34 +1,57 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Upload, Camera, FileText, FileImage, File as FileIcon, X,
-  User, MapPin, CalendarClock, Paperclip, StickyNote,
+  ArrowLeft, UserCheck, Search, Loader2, User, MapPin, PhoneCall, ClipboardList,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { saveLead, nextLeadId, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import { saveLead, getLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
+import { getStates, getDistricts, getAreasList, getLocalities, getSubLocalities } from '../data/areaMappingStore'
 
-const PROJECTS = ['Sunrise Apartments', 'Greenwood Residency', 'Metro Business Park', 'Palm Grove Society']
+const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
+const INTERCOM_TYPES = ['Basic', 'Plus', 'Premium']
+const TIME_SLOTS = ['Morning 9-12', 'Afternoon 12-3', 'Evening 3-6']
+const LEAD_SOURCES = ['Walk-in', 'Reference', 'Call', 'Online', 'Field Visit']
 
-const INIT_FORM = {
-  customer: '', mobile: '', email: '', project: '', installationAddress: '',
-  followUp: '', assigned: '', profilePic: null, attachments: [], notes: '',
+const MOCK_CUSTOMER = {
+  customerName: 'Rajan Mehta',
+  customerId: 'RES-2026-0001',
+  registrationNumber: 'REG-001',
+  mobile: '98765 43210',
+  email: 'rajan.mehta@gmail.com',
+  installationAddress: 'Flat 302, Sai Darshan CHS, Andheri West',
+  billingAddress: 'Flat 302, Sai Darshan CHS, Andheri West',
+  internetPackage: 'FTTH 100Mbps',
+  internetStatus: 'Active',
+  customerStatus: 'Active',
 }
 
-function fmtSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+const INIT_FORM_A_EXTRA = {
+  altMobile: '', intercomType: '', installDate: '', timeSlot: '', customerRemarks: '', salesRemarks: '',
 }
 
-function fileIcon(file) {
-  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-    return { Icon: FileText, color: 'text-red-500', bg: 'bg-red-50' }
-  }
-  if (file.type.startsWith('image/')) {
-    return { Icon: FileImage, color: 'text-brand-blue', bg: 'bg-brand-blue/10' }
-  }
-  return { Icon: FileIcon, color: 'text-gray-500', bg: 'bg-gray-100' }
+const INIT_FORM_B = {
+  customerName: '', primaryMobile: '', altMobile: '', email: '', internetProvider: '',
+  state: '', district: '', area: '', locality: '', subLocality: '',
+  installationAddress: '', landmark: '',
+  intercomType: '', preferredDate: '', timeSlot: '', customerRemarks: '', specialAccess: '',
+  leadSource: '', assignedSales: '',
+}
+
+function nextIntercomLeadId() {
+  const year = new Date().getFullYear()
+  const nums = getLeads()
+    .map(l => l.id.match(/^IC-LEAD-(\d{4})-(\d{6})$/))
+    .filter(Boolean)
+    .map(m => Number(m[2]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `IC-LEAD-${year}-${String(next).padStart(6, '0')}`
+}
+
+function nowTime() {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 function SectionCard({ title, icon: Icon, children }) {
@@ -45,60 +68,170 @@ function SectionCard({ title, icon: Icon, children }) {
   )
 }
 
+function RelationshipOption({ selected, onSelect, title, subtitle }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex items-start gap-3 flex-1 text-left px-4 py-3.5 rounded-xl border-2 transition-colors ${
+        selected ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:border-gray-300'
+      }`}
+    >
+      <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+        selected ? 'border-brand-blue' : 'border-gray-300'
+      }`}>
+        {selected && <span className="w-2 h-2 rounded-full bg-brand-blue" />}
+      </span>
+      <span>
+        <span className="block text-sm font-semibold text-gray-800">{title}</span>
+        <span className="block text-xs text-gray-500 mt-0.5">{subtitle}</span>
+      </span>
+    </button>
+  )
+}
+
 export default function IntercomLeadNew() {
   const navigate = useNavigate()
-  const [form, setForm] = useState(INIT_FORM)
-  const [errors, setErrors] = useState({})
+  const [leadId] = useState(() => nextIntercomLeadId())
+  const [relationship, setRelationship] = useState('')
 
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+  // Flow A — existing customer
+  const [searchCustomerId, setSearchCustomerId] = useState('')
+  const [searchRegNumber, setSearchRegNumber] = useState('')
+  const [searchError, setSearchError] = useState('')
+  const [finding, setFinding] = useState(false)
+  const [foundCustomer, setFoundCustomer] = useState(null)
+  const [formA, setFormA] = useState(INIT_FORM_A_EXTRA)
 
-  function handleProfilePic(file) {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => set('profilePic', { name: file.name, preview: ev.target.result })
-    reader.readAsDataURL(file)
+  // Flow B — new / intercom-only customer
+  const [formB, setFormB] = useState(INIT_FORM_B)
+  const [errorsB, setErrorsB] = useState({})
+
+  function setA(f, v) { setFormA(p => ({ ...p, [f]: v })) }
+
+  function setB(f, v) {
+    setFormB(p => {
+      const next = { ...p, [f]: v }
+      if (f === 'state') Object.assign(next, { district: '', area: '', locality: '', subLocality: '' })
+      if (f === 'district') Object.assign(next, { area: '', locality: '', subLocality: '' })
+      if (f === 'area') Object.assign(next, { locality: '', subLocality: '' })
+      if (f === 'locality') next.subLocality = ''
+      return next
+    })
+    setErrorsB(p => ({ ...p, [f]: '' }))
   }
 
-  function addAttachments(fileList) {
-    const files = Array.from(fileList ?? [])
-    if (!files.length) return
-    setForm(p => ({ ...p, attachments: [...p.attachments, ...files] }))
+  function handleRelationshipChange(value) {
+    setRelationship(value)
+    setSearchCustomerId('')
+    setSearchRegNumber('')
+    setSearchError('')
+    setFinding(false)
+    setFoundCustomer(null)
+    setFormA(INIT_FORM_A_EXTRA)
+    setFormB(INIT_FORM_B)
+    setErrorsB({})
   }
 
-  function removeAttachment(idx) {
-    setForm(p => ({ ...p, attachments: p.attachments.filter((_, i) => i !== idx) }))
+  function handleFindCustomer() {
+    if (!searchCustomerId.trim() && !searchRegNumber.trim()) {
+      setSearchError('Enter at least one value')
+      return
+    }
+    setSearchError('')
+    setFinding(true)
+    setFoundCustomer(null)
+    setTimeout(() => {
+      setFinding(false)
+      setFoundCustomer(MOCK_CUSTOMER)
+    }, 1000)
   }
 
-  function validate() {
+  function validateB() {
     const e = {}
-    if (!form.customer.trim())            e.customer = 'Customer name is required'
-    if (!form.mobile.match(/^\d{10}$/))   e.mobile   = 'Enter a valid 10-digit number'
-    if (!form.project)                    e.project  = 'Select a project'
-    if (!form.installationAddress.trim()) e.installationAddress = 'Installation address is required'
-    if (!form.assigned)                   e.assigned = 'Assign a sales executive'
+    if (!formB.customerName.trim())             e.customerName = 'Customer name is required'
+    if (!formB.primaryMobile.match(/^\d{10}$/))  e.primaryMobile = 'Enter a valid 10-digit number'
+    if (!formB.internetProvider)                 e.internetProvider = 'Select an option'
+    if (!formB.state)                            e.state = 'Select a state'
+    if (!formB.district)                         e.district = 'Select a district'
+    if (!formB.area)                             e.area = 'Select an area'
+    if (!formB.locality)                         e.locality = 'Select a locality'
+    if (!formB.installationAddress.trim())       e.installationAddress = 'Installation address is required'
+    if (!formB.intercomType)                     e.intercomType = 'Select intercom type'
+    if (!formB.assignedSales)                    e.assignedSales = 'Assign a sales executive'
     return e
   }
 
   function handleCreate() {
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
-    const id = nextLeadId()
-    const lead = saveLead({
-      id,
-      leadName: form.customer.trim(),
-      customer: form.customer.trim(),
-      mobile: form.mobile,
-      email: form.email,
-      project: form.project,
-      installationAddress: form.installationAddress,
-      stage: 'New Inquiry',
-      assigned: form.assigned,
-      followUp: form.followUp,
-      notes: form.notes,
-      createdAt: new Date().toISOString().slice(0, 10),
-    })
-    navigate(`/intercom/leads/${lead.id}`)
+    const today = new Date().toISOString().slice(0, 10)
+    const stageHistory = [{ stage: 'New', date: today, time: nowTime(), note: 'Lead created', actor: 'Admin User' }]
+
+    if (relationship === 'yes') {
+      if (!foundCustomer) return
+      const lead = saveLead({
+        id: leadId,
+        leadName: foundCustomer.customerName,
+        customer: foundCustomer.customerName,
+        mobile: foundCustomer.mobile,
+        email: foundCustomer.email,
+        installationAddress: foundCustomer.installationAddress,
+        stage: 'New',
+        assigned: '',
+        followUp: '',
+        notes: formA.customerRemarks,
+        createdAt: today,
+        relationshipType: 'Existing Internet Customer',
+        existingCustomerId: foundCustomer.customerId,
+        registrationNumber: foundCustomer.registrationNumber,
+        billingAddress: foundCustomer.billingAddress,
+        internetPackage: foundCustomer.internetPackage,
+        altMobile: formA.altMobile,
+        intercomType: formA.intercomType,
+        installDate: formA.installDate,
+        timeSlot: formA.timeSlot,
+        customerRemarks: formA.customerRemarks,
+        salesRemarks: formA.salesRemarks,
+        stageHistory,
+      })
+      navigate(`/intercom/leads/${lead.id}`)
+      return
+    }
+
+    if (relationship === 'no') {
+      const e = validateB()
+      if (Object.keys(e).length) { setErrorsB(e); return }
+      const lead = saveLead({
+        id: leadId,
+        leadName: formB.customerName.trim(),
+        customer: formB.customerName.trim(),
+        mobile: formB.primaryMobile,
+        email: formB.email,
+        installationAddress: formB.installationAddress,
+        stage: 'New',
+        assigned: formB.assignedSales,
+        followUp: formB.preferredDate,
+        notes: formB.customerRemarks,
+        createdAt: today,
+        relationshipType: 'New / Intercom-Only Customer',
+        altMobile: formB.altMobile,
+        internetProvider: formB.internetProvider,
+        state: formB.state,
+        district: formB.district,
+        area: formB.area,
+        locality: formB.locality,
+        subLocality: formB.subLocality,
+        landmark: formB.landmark,
+        intercomType: formB.intercomType,
+        timeSlot: formB.timeSlot,
+        specialAccess: formB.specialAccess,
+        leadSource: formB.leadSource,
+        stageHistory,
+      })
+      navigate(`/intercom/leads/${lead.id}`)
+    }
   }
+
+  const canCreate = relationship === 'yes' ? !!foundCustomer : relationship === 'no'
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
@@ -114,7 +247,9 @@ export default function IntercomLeadNew() {
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">Create Intercom Lead</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Fill in the details to add a new intercom service lead</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Fill in the details to add a new intercom service lead · <span className="font-mono">{leadId}</span>
+            </p>
           </div>
         </div>
       </div>
@@ -122,155 +257,266 @@ export default function IntercomLeadNew() {
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
 
-        {/* Personal Info */}
-        <SectionCard title="Personal Info" icon={User}>
-          <FormField label="Customer Name" required>
-            <Input
-              value={form.customer}
-              onChange={e => { set('customer', e.target.value); setErrors(p => ({ ...p, customer: '' })) }}
-              placeholder="Ramesh Nair"
-              className={errors.customer ? 'border-red-400 focus:ring-red-400/30' : ''}
-            />
-            {errors.customer && <p className="text-xs text-red-500 mt-1">{errors.customer}</p>}
-          </FormField>
-
-          <FormField label="Mobile Number" required>
-            <Input
-              type="tel"
-              value={form.mobile}
-              onChange={e => {
-                set('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))
-                setErrors(p => ({ ...p, mobile: '' }))
-              }}
-              placeholder="9876543210"
-              className={errors.mobile ? 'border-red-400 focus:ring-red-400/30' : ''}
-            />
-            {errors.mobile && <p className="text-xs text-red-500 mt-1">{errors.mobile}</p>}
-          </FormField>
-
-          <FormField label="Email">
-            <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
-          </FormField>
-
-          <FormField label="Project" required error={errors.project}>
-            <Select
-              value={form.project}
-              onChange={e => { set('project', e.target.value); setErrors(p => ({ ...p, project: '' })) }}
-            >
-              <option value="">Select project…</option>
-              {PROJECTS.map(p => <option key={p}>{p}</option>)}
-            </Select>
-          </FormField>
-        </SectionCard>
-
-        {/* Address */}
-        <SectionCard title="Address" icon={MapPin}>
-          <div className="col-span-2">
-            <FormField label="Installation Address" required error={errors.installationAddress}>
-              <Textarea
-                value={form.installationAddress}
-                onChange={e => { set('installationAddress', e.target.value); setErrors(p => ({ ...p, installationAddress: '' })) }}
-                placeholder="House/Flat no., Street, Building name, Area" rows={2}
-              />
-            </FormField>
+        {/* Section 1 — Customer Relationship Check */}
+        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <UserCheck size={15} className="text-brand-blue" />
+            <p className="text-sm font-bold text-gray-700">Customer Relationship Check</p>
           </div>
-        </SectionCard>
-
-        {/* Follow-up & Assignment */}
-        <SectionCard title="Follow-up & Assignment" icon={CalendarClock}>
-          <FormField label="Follow-up Date">
-            <Input type="date" value={form.followUp} onChange={e => set('followUp', e.target.value)} />
-          </FormField>
-
-          <FormField label="Assigned To" required>
-            <Select
-              value={form.assigned}
-              onChange={e => { set('assigned', e.target.value); setErrors(p => ({ ...p, assigned: '' })) }}
-              className={errors.assigned ? 'border-red-400 focus:ring-red-400/30' : ''}
-            >
-              <option value="">Select user…</option>
-              {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
-            </Select>
-            {errors.assigned && <p className="text-xs text-red-500 mt-1">{errors.assigned}</p>}
-          </FormField>
-        </SectionCard>
-
-        {/* Documents */}
-        <SectionCard title="Documents" icon={Paperclip}>
-          {/* Profile Picture */}
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1.5">Profile Picture</p>
-            <div className="flex items-center gap-4">
-              <label className={`relative w-20 h-20 rounded-full flex items-center justify-center cursor-pointer shrink-0 overflow-hidden transition-colors ${
-                form.profilePic ? '' : 'border-2 border-dashed border-surface-border bg-gray-50 hover:border-brand-blue/50 hover:bg-brand-blue/5'
-              }`}>
-                <input type="file" accept=".jpg,.jpeg,.png" className="hidden"
-                  onChange={e => { handleProfilePic(e.target.files?.[0]); e.target.value = '' }} />
-                {form.profilePic ? (
-                  <img src={form.profilePic.preview} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex flex-col items-center gap-1">
-                    <Camera size={20} className="text-gray-400" />
-                    <span className="text-[9px] font-semibold text-gray-500">Upload Photo</span>
-                  </div>
-                )}
-              </label>
-              {form.profilePic && (
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-700 truncate">{form.profilePic.name}</p>
-                  <button type="button" onClick={() => set('profilePic', null)}
-                    className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors mt-0.5">
-                    Remove
-                  </button>
-                </div>
-              )}
-            </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <RelationshipOption
+              selected={relationship === 'yes'}
+              onSelect={() => handleRelationshipChange('yes')}
+              title="Yes — Existing Internet Customer"
+              subtitle="Link this lead to an existing internet customer account"
+            />
+            <RelationshipOption
+              selected={relationship === 'no'}
+              onSelect={() => handleRelationshipChange('no')}
+              title="No — New / Intercom-Only Customer"
+              subtitle="Create a fresh lead with full customer & location details"
+            />
           </div>
+        </div>
 
-          {/* Attachment */}
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1.5">Attachment</p>
-            <label className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-surface-border bg-gray-50 hover:border-brand-blue/50 hover:bg-brand-blue/5 cursor-pointer transition-colors">
-              <input type="file" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" className="hidden"
-                onChange={e => { addAttachments(e.target.files); e.target.value = '' }} />
-              <Upload size={16} className="text-gray-400 shrink-0" />
-              <span className="text-xs font-semibold text-gray-600">Click to upload · Any document type</span>
-            </label>
-
-            {form.attachments.length > 0 && (
-              <div className="mt-2 space-y-1.5">
-                {form.attachments.map((file, i) => {
-                  const { Icon, color, bg } = fileIcon(file)
-                  return (
-                    <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-surface-border bg-white">
-                      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
-                        <Icon size={14} className={color} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-gray-700 truncate">{file.name}</p>
-                        <p className="text-[10px] text-gray-400">{fmtSize(file.size)}</p>
-                      </div>
-                      <button type="button" onClick={() => removeAttachment(i)}
-                        className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )
-                })}
+        {/* ── FLOW A — Existing Internet Customer ────────────────────────── */}
+        {relationship === 'yes' && (
+          <>
+            <SectionCard title="Customer Verification" icon={Search}>
+              <FormField label="Customer ID">
+                <Input
+                  value={searchCustomerId}
+                  onChange={e => { setSearchCustomerId(e.target.value); setSearchError('') }}
+                  placeholder="Enter Customer ID"
+                />
+              </FormField>
+              <FormField label="Registration Number">
+                <Input
+                  value={searchRegNumber}
+                  onChange={e => { setSearchRegNumber(e.target.value); setSearchError('') }}
+                  placeholder="Enter Registration Number"
+                />
+              </FormField>
+              <div className="col-span-2 flex items-center justify-between gap-3">
+                <p className={`text-xs ${searchError ? 'text-red-500' : 'text-gray-500'}`}>
+                  {searchError || 'Enter at least one value'}
+                </p>
+                <Button
+                  onClick={handleFindCustomer}
+                  disabled={finding}
+                  icon={finding ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                >
+                  {finding ? 'Searching…' : 'Find Customer'}
+                </Button>
               </div>
-            )}
-          </div>
-        </SectionCard>
+            </SectionCard>
 
-        {/* Notes */}
-        <SectionCard title="Notes" icon={StickyNote}>
-          <div className="col-span-2">
-            <FormField label="Notes">
-              <Textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-                placeholder="Any additional notes about this lead…" rows={3} />
-            </FormField>
-          </div>
-        </SectionCard>
+            {foundCustomer && (
+              <>
+                <SectionCard title="Customer Details" icon={User}>
+                  <FormField label="Customer Name">
+                    <Input value={foundCustomer.customerName} disabled />
+                  </FormField>
+                  <FormField label="Customer ID">
+                    <Input value={foundCustomer.customerId} disabled className="font-mono" />
+                  </FormField>
+                  <FormField label="Registration Number">
+                    <Input value={foundCustomer.registrationNumber} disabled className="font-mono" />
+                  </FormField>
+                  <FormField label="Mobile">
+                    <Input value={foundCustomer.mobile} disabled />
+                  </FormField>
+                  <FormField label="Email">
+                    <Input value={foundCustomer.email} disabled />
+                  </FormField>
+                  <FormField label="Internet Package">
+                    <Input value={foundCustomer.internetPackage} disabled />
+                  </FormField>
+                  <div className="col-span-2">
+                    <FormField label="Installation Address">
+                      <Textarea value={foundCustomer.installationAddress} disabled rows={2} />
+                    </FormField>
+                  </div>
+                  <div className="col-span-2">
+                    <FormField label="Billing Address">
+                      <Textarea value={foundCustomer.billingAddress} disabled rows={2} />
+                    </FormField>
+                  </div>
+                  <FormField label="Internet Status">
+                    <div><Badge variant="green" size="sm">{foundCustomer.internetStatus}</Badge></div>
+                  </FormField>
+                  <FormField label="Customer Status">
+                    <div><Badge variant="green" size="sm">{foundCustomer.customerStatus}</Badge></div>
+                  </FormField>
+                </SectionCard>
+
+                <SectionCard title="Additional Intercom Details" icon={PhoneCall}>
+                  <FormField label="Alternative Mobile">
+                    <Input
+                      type="tel"
+                      value={formA.altMobile}
+                      onChange={e => setA('altMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="9876543210"
+                    />
+                  </FormField>
+                  <FormField label="Intercom Type">
+                    <Select value={formA.intercomType} onChange={e => setA('intercomType', e.target.value)}>
+                      <option value="">Select type…</option>
+                      {INTERCOM_TYPES.map(t => <option key={t}>{t}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Required Installation Date">
+                    <Input type="date" value={formA.installDate} onChange={e => setA('installDate', e.target.value)} />
+                  </FormField>
+                  <FormField label="Preferred Time Slot">
+                    <Select value={formA.timeSlot} onChange={e => setA('timeSlot', e.target.value)}>
+                      <option value="">Select slot…</option>
+                      {TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
+                    </Select>
+                  </FormField>
+                  <div className="col-span-2">
+                    <FormField label="Customer Remarks">
+                      <Textarea value={formA.customerRemarks} onChange={e => setA('customerRemarks', e.target.value)} rows={2} />
+                    </FormField>
+                  </div>
+                  <div className="col-span-2">
+                    <FormField label="Sales Remarks">
+                      <Textarea value={formA.salesRemarks} onChange={e => setA('salesRemarks', e.target.value)} rows={2} />
+                    </FormField>
+                  </div>
+                </SectionCard>
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── FLOW B — New / Intercom-Only Customer ──────────────────────── */}
+        {relationship === 'no' && (
+          <>
+            <SectionCard title="Customer Info" icon={User}>
+              <FormField label="Customer Name" required error={errorsB.customerName}>
+                <Input value={formB.customerName} onChange={e => setB('customerName', e.target.value)} placeholder="Ramesh Nair" />
+              </FormField>
+              <FormField label="Primary Mobile" required error={errorsB.primaryMobile}>
+                <Input
+                  type="tel"
+                  value={formB.primaryMobile}
+                  onChange={e => setB('primaryMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="9876543210"
+                />
+              </FormField>
+              <FormField label="Alternative Mobile">
+                <Input
+                  type="tel"
+                  value={formB.altMobile}
+                  onChange={e => setB('altMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="9876543210"
+                />
+              </FormField>
+              <FormField label="Email">
+                <Input type="email" value={formB.email} onChange={e => setB('email', e.target.value)} placeholder="ramesh@email.com" />
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Which Internet Provider are they using?" required error={errorsB.internetProvider}>
+                  <Select value={formB.internetProvider} onChange={e => setB('internetProvider', e.target.value)}>
+                    <option value="">Select provider…</option>
+                    {INTERNET_PROVIDERS.map(p => <option key={p}>{p}</option>)}
+                  </Select>
+                </FormField>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Location" icon={MapPin}>
+              <FormField label="State" required error={errorsB.state}>
+                <Select value={formB.state} onChange={e => setB('state', e.target.value)}>
+                  <option value="">Select state…</option>
+                  {getStates().map(s => <option key={s}>{s}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="District" required error={errorsB.district}>
+                <Select value={formB.district} onChange={e => setB('district', e.target.value)} disabled={!formB.state}>
+                  <option value="">Select district…</option>
+                  {getDistricts(formB.state).map(d => <option key={d}>{d}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Area" required error={errorsB.area}>
+                <Select value={formB.area} onChange={e => setB('area', e.target.value)} disabled={!formB.district}>
+                  <option value="">Select area…</option>
+                  {getAreasList(formB.state, formB.district).map(a => <option key={a}>{a}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Locality" required error={errorsB.locality} hint="Only sites marked as Intercom Site are shown">
+                <Select value={formB.locality} onChange={e => setB('locality', e.target.value)} disabled={!formB.area}>
+                  <option value="">Select locality…</option>
+                  {getLocalities(formB.state, formB.district, formB.area).map(l => <option key={l}>{l}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Sub Locality">
+                <Select value={formB.subLocality} onChange={e => setB('subLocality', e.target.value)} disabled={!formB.locality}>
+                  <option value="">Select sub locality…</option>
+                  {getSubLocalities(formB.state, formB.district, formB.area, formB.locality).map(sl => (
+                    <option key={sl.subLocality}>{sl.subLocality}</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Landmark">
+                <Input value={formB.landmark} onChange={e => setB('landmark', e.target.value)} placeholder="Near…" />
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Installation Address" required error={errorsB.installationAddress}>
+                  <Textarea
+                    value={formB.installationAddress}
+                    onChange={e => setB('installationAddress', e.target.value)}
+                    placeholder="House/Flat no., Street, Building name, Area" rows={2}
+                  />
+                </FormField>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Intercom Requirement" icon={PhoneCall}>
+              <FormField label="Intercom Type" required error={errorsB.intercomType}>
+                <Select value={formB.intercomType} onChange={e => setB('intercomType', e.target.value)}>
+                  <option value="">Select type…</option>
+                  {INTERCOM_TYPES.map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Preferred Installation Date">
+                <Input type="date" value={formB.preferredDate} onChange={e => setB('preferredDate', e.target.value)} />
+              </FormField>
+              <FormField label="Preferred Time Slot">
+                <Select value={formB.timeSlot} onChange={e => setB('timeSlot', e.target.value)}>
+                  <option value="">Select slot…</option>
+                  {TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <div className="col-span-2">
+                <FormField label="Customer Remarks">
+                  <Textarea value={formB.customerRemarks} onChange={e => setB('customerRemarks', e.target.value)} rows={2} />
+                </FormField>
+              </div>
+              <div className="col-span-2">
+                <FormField label="Special Access Instructions">
+                  <Textarea value={formB.specialAccess} onChange={e => setB('specialAccess', e.target.value)} rows={2} />
+                </FormField>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Lead Info" icon={ClipboardList}>
+              <FormField label="Lead Source">
+                <Select value={formB.leadSource} onChange={e => setB('leadSource', e.target.value)}>
+                  <option value="">Select source…</option>
+                  {LEAD_SOURCES.map(s => <option key={s}>{s}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Assigned Sales Executive" required error={errorsB.assignedSales}>
+                <Select value={formB.assignedSales} onChange={e => setB('assignedSales', e.target.value)}>
+                  <option value="">Select executive…</option>
+                  {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
+                </Select>
+              </FormField>
+            </SectionCard>
+          </>
+        )}
 
       </div>
 
@@ -281,7 +527,7 @@ export default function IntercomLeadNew() {
         </p>
         <div className="flex items-center gap-3">
           <Button variant="secondary" onClick={() => navigate('/intercom/leads')}>Cancel</Button>
-          <Button onClick={handleCreate}>Create Lead</Button>
+          <Button onClick={handleCreate} disabled={!canCreate}>Create Lead</Button>
         </div>
       </div>
 
