@@ -1,8 +1,8 @@
-export function FormField({ label, error, hint, children, required }) {
+export function FormField({ label, error, hint, children, required, dense = false }) {
   return (
-    <div className="space-y-1.5">
+    <div className={dense ? 'space-y-1' : 'space-y-1.5'}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700">
+        <label className={`block font-medium text-gray-700 ${dense ? 'text-xs' : 'text-sm'}`}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
