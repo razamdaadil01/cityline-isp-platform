@@ -91,7 +91,7 @@ function Toggle({ checked, onChange }) {
 function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditItem, onDeleteItem }) {
   const [open, setOpen] = useState(true)
   const hasChildren = (Array.isArray(children) ? children.length > 0 : !!children) || items?.length > 0
-  const indent = level * 14
+  const indent = level * 12
   const dotColor = level === 0 ? 'text-brand-blue' : level === 1 ? 'text-navy' : 'text-brand-orange'
   const labelClass = level === 0
     ? 'font-semibold text-gray-900'
@@ -102,36 +102,36 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
     <div>
       {/* Node header — group div so edit/delete icons appear on hover */}
       <div
-        className="group flex items-center w-full rounded-lg hover:bg-gray-100 transition-colors"
-        style={{ paddingLeft: `${8 + indent}px`, paddingRight: '4px' }}
+        className="group flex items-center w-full rounded hover:bg-gray-100 transition-colors"
+        style={{ paddingLeft: `${6 + indent}px`, paddingRight: '4px' }}
       >
         <button
           onClick={() => setOpen(o => !o)}
-          className="flex-1 flex items-center gap-1.5 text-left py-1.5 min-w-0 pr-1"
+          className="flex-1 flex items-center gap-1 text-left py-0.5 min-w-0 pr-1"
         >
           {hasChildren
             ? open
-              ? <ChevronDown size={13} className="text-gray-400 shrink-0" />
-              : <ChevronRight size={13} className="text-gray-400 shrink-0" />
-            : <span className="w-[13px] shrink-0" />
+              ? <ChevronDown size={12} className="text-gray-400 shrink-0" />
+              : <ChevronRight size={12} className="text-gray-400 shrink-0" />
+            : <span className="w-3 shrink-0" />
           }
-          <MapPin size={12} className={`shrink-0 ${dotColor}`} />
-          <span className={`text-sm ${labelClass} whitespace-nowrap`} title={label}>{truncLabel(label)}</span>
+          <MapPin size={11} className={`shrink-0 ${dotColor}`} />
+          <span className={`text-[13px] leading-tight ${labelClass} whitespace-nowrap`} title={label}>{truncLabel(label)}</span>
         </button>
         <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
           <button
             onClick={e => { e.stopPropagation(); onEdit?.() }}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
+            className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
             title="Edit"
           >
-            <Edit2 size={13} />
+            <Edit2 size={12} />
           </button>
           <button
             onClick={e => { e.stopPropagation(); onDelete?.() }}
-            className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
             title="Delete"
           >
-            <Trash2 size={13} />
+            <Trash2 size={12} />
           </button>
         </div>
       </div>
@@ -142,30 +142,30 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
       {open && items?.map(item => (
         <div
           key={item.id}
-          className="group flex items-center rounded-lg hover:bg-gray-50 transition-colors"
-          style={{ paddingLeft: `${8 + indent + 14}px`, paddingRight: '4px' }}
+          className="group flex items-center rounded hover:bg-gray-50 transition-colors"
+          style={{ paddingLeft: `${6 + indent + 12}px`, paddingRight: '4px' }}
         >
-          <div className="flex-1 flex items-center gap-1.5 py-1.5 min-w-0 pr-1">
+          <div className="flex-1 flex items-center gap-1 py-0.5 min-w-0 pr-1">
             <span className="text-gray-300 text-xs shrink-0">•</span>
-            <span className="text-sm text-gray-700 whitespace-nowrap" title={item.subLocality}>
+            <span className="text-[13px] leading-tight text-gray-700 whitespace-nowrap" title={item.subLocality}>
               {truncLabel(item.subLocality)}
             </span>
-            <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-1">→ {item.siteType} · {item.branchCode}</span>
+            <span className="text-[11px] text-gray-400 shrink-0 whitespace-nowrap ml-1">→ {item.siteType} · {item.branchCode}</span>
           </div>
           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 shrink-0 transition-opacity">
             <button
               onClick={() => onEditItem?.(item)}
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
               title="Edit"
             >
-              <Edit2 size={13} />
+              <Edit2 size={12} />
             </button>
             <button
               onClick={() => onDeleteItem?.(item.id, item.subLocality)}
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
               title="Delete"
             >
-              <Trash2 size={13} />
+              <Trash2 size={12} />
             </button>
           </div>
         </div>
@@ -587,12 +587,12 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
     <div className="flex flex-col h-full">
       {/* Tabs — only for add-new flow */}
       {!isAnyEdit && (
-        <div className="flex border-b border-surface-border px-5 pt-5 gap-0.5 shrink-0">
+        <div className="flex border-b border-surface-border px-4 pt-3 gap-0.5 shrink-0">
           {FORM_TABS.map(t => (
             <button
               key={t}
               onClick={() => changeTab(t)}
-              className={`px-3.5 py-2 text-xs font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
+              className={`px-2.5 py-1.5 text-[11px] font-medium rounded-t-md border-b-2 -mb-px transition-colors ${
                 tab === t
                   ? 'border-brand-blue text-brand-blue bg-blue-50/60'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
@@ -604,15 +604,15 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3">
 
         {/* ── STATE ── */}
         {tab === 'State' && (
-          <div className="space-y-3 w-full">
+          <div className="space-y-2 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {isHEdit ? 'Edit State' : 'Add State'}
             </p>
-            <FormField label="State Name" required error={errors.name}>
+            <FormField dense label="State Name" required error={errors.name}>
               <Input
                 value={sf.name}
                 onChange={e => { setSf(f => ({ ...f, name: e.target.value })); setErrors({}) }}
@@ -624,12 +624,12 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
 
         {/* ── DISTRICT ── */}
         {tab === 'District' && (
-          <div className="space-y-3 w-full">
+          <div className="space-y-2 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {isHEdit ? 'Edit District' : 'Add District'}
             </p>
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <FormField label="State" required error={errors.state}>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <FormField dense label="State" required error={errors.state}>
                 <Select
                   value={df.state}
                   onChange={e => { setDf(f => ({ ...f, state: e.target.value, name: '' })); setErrors({}) }}
@@ -640,7 +640,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {allStates.map(s => <option key={s}>{s}</option>)}
                 </Select>
               </FormField>
-              <FormField label="District Name" required error={errors.name}>
+              <FormField dense label="District Name" required error={errors.name}>
                 <Input
                   value={df.name}
                   onChange={e => { setDf(f => ({ ...f, name: e.target.value })); setErrors({}) }}
@@ -653,12 +653,12 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
 
         {/* ── AREA ── */}
         {tab === 'Area' && (
-          <div className="space-y-3 w-full">
+          <div className="space-y-2 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {isHEdit ? 'Edit Area' : 'Add Area'}
             </p>
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <FormField label="State" required error={errors.state}>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <FormField dense label="State" required error={errors.state}>
                 <Select
                   value={af.state}
                   onChange={e => { setAf(f => ({ ...f, state: e.target.value, district: '', name: '' })); setErrors({}) }}
@@ -669,7 +669,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {allStates.map(s => <option key={s}>{s}</option>)}
                 </Select>
               </FormField>
-              <FormField label="District" required error={errors.district}>
+              <FormField dense label="District" required error={errors.district}>
                 <Select
                   value={af.district}
                   onChange={e => { setAf(f => ({ ...f, district: e.target.value, name: '' })); setErrors({}) }}
@@ -681,7 +681,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                 </Select>
               </FormField>
             </div>
-            <FormField label="Area Name" required error={errors.name}>
+            <FormField dense label="Area Name" required error={errors.name}>
               <Input
                 value={af.name}
                 onChange={e => { setAf(f => ({ ...f, name: e.target.value })); setErrors({}) }}
@@ -693,12 +693,12 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
 
         {/* ── LOCALITY ── */}
         {tab === 'Locality' && (
-          <div className="space-y-3 w-full">
+          <div className="space-y-2 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {isHEdit ? 'Edit Locality' : 'Add Locality'}
             </p>
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <FormField label="State" required error={errors.state}>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <FormField dense label="State" required error={errors.state}>
                 <Select
                   value={lf.state}
                   onChange={e => { setLf(f => ({ ...f, state: e.target.value, district: '', area: '', name: '' })); setErrors({}) }}
@@ -709,7 +709,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {allStates.map(s => <option key={s}>{s}</option>)}
                 </Select>
               </FormField>
-              <FormField label="District" required error={errors.district}>
+              <FormField dense label="District" required error={errors.district}>
                 <Select
                   value={lf.district}
                   onChange={e => { setLf(f => ({ ...f, district: e.target.value, area: '', name: '' })); setErrors({}) }}
@@ -720,7 +720,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {lfDistricts.map(d => <option key={d}>{d}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Area" required error={errors.area}>
+              <FormField dense label="Area" required error={errors.area}>
                 <Select
                   value={lf.area}
                   onChange={e => { setLf(f => ({ ...f, area: e.target.value, name: '' })); setErrors({}) }}
@@ -731,19 +731,19 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {lfAreas.map(a => <option key={a}>{a}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Locality Name" required error={errors.name}>
+              <FormField dense label="Locality Name" required error={errors.name}>
                 <Input
                   value={lf.name}
                   onChange={e => { setLf(f => ({ ...f, name: e.target.value })); setErrors({}) }}
                   placeholder="e.g. Sector 62"
                 />
               </FormField>
-              <FormField label="Site Type">
+              <FormField dense label="Site Type">
                 <Select value={lf.siteType} onChange={e => setLf(f => ({ ...f, siteType: e.target.value }))}>
                   {SITE_TYPES.map(t => <option key={t}>{t}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Branch Code" required error={errors.branchCode}>
+              <FormField dense label="Branch Code" required error={errors.branchCode}>
                 <Input
                   value={lf.branchCode}
                   onChange={e => { setLf(f => ({ ...f, branchCode: e.target.value })); setErrors(er => ({ ...er, branchCode: '' })) }}
@@ -770,13 +770,13 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
 
         {/* ── SUB LOCALITY ── */}
         {(tab === 'Sub Locality' || isEdit) && (
-          <div className="space-y-3 w-full">
+          <div className="space-y-2 w-full">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               {isEdit ? 'Edit Sub Locality' : 'Add Sub Locality'}
             </p>
 
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <FormField label="State" required error={errors.state}>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <FormField dense label="State" required error={errors.state}>
                 <Select
                   value={slForm.state}
                   onChange={e => { setSlForm(f => ({ ...f, state: e.target.value, district: '', area: '', locality: '' })); setErrors(er => ({ ...er, state: '' })) }}
@@ -786,7 +786,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {allStates.map(s => <option key={s}>{s}</option>)}
                 </Select>
               </FormField>
-              <FormField label="District" required error={errors.district}>
+              <FormField dense label="District" required error={errors.district}>
                 <Select
                   value={slForm.district}
                   onChange={e => { setSlForm(f => ({ ...f, district: e.target.value, area: '', locality: '' })); setErrors(er => ({ ...er, district: '' })) }}
@@ -797,7 +797,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {slDistricts.map(d => <option key={d}>{d}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Area" required error={errors.area}>
+              <FormField dense label="Area" required error={errors.area}>
                 <Select
                   value={slForm.area}
                   onChange={e => { setSlForm(f => ({ ...f, area: e.target.value, locality: '' })); setErrors(er => ({ ...er, area: '' })) }}
@@ -808,7 +808,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {slAreas.map(a => <option key={a}>{a}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Locality" required error={errors.locality}>
+              <FormField dense label="Locality" required error={errors.locality}>
                 <Select
                   value={slForm.locality}
                   onChange={e => { setSlForm(f => ({ ...f, locality: e.target.value })); setErrors(er => ({ ...er, locality: '' })) }}
@@ -819,7 +819,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
                   {slLocalities.map(l => <option key={l}>{l}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Sub Locality Name" required error={errors.subLocality}>
+              <FormField dense label="Sub Locality Name" required error={errors.subLocality}>
                 <Input
                   value={slForm.subLocality}
                   onChange={e => { setSlForm(f => ({ ...f, subLocality: e.target.value })); setErrors(er => ({ ...er, subLocality: '' })) }}
@@ -856,7 +856,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-white flex items-center justify-end gap-3">
+      <div className="shrink-0 px-4 py-3 border-t border-surface-border bg-white flex items-center justify-end gap-3">
         <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
         <Button size="sm" icon={<Save size={13} />} onClick={saveHandler}>
           {isAnyEdit ? 'Update' : 'Save'}
@@ -952,23 +952,24 @@ export default function AreaMapping() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
       {/* Header */}
-      <div className="px-6 pt-6 pb-5 shrink-0 bg-white border-b border-surface-border">
+      <div className="px-5 pt-4 pb-3 shrink-0 bg-white border-b border-surface-border">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => navigate('/settings')}
-              className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={15} />
             </button>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Area Mapping</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Manage service areas, localities and feasibility settings</p>
+              <h1 className="text-lg font-bold text-gray-900">Area Mapping</h1>
+              <p className="text-xs text-gray-500 mt-0.5">Manage service areas, localities and feasibility settings</p>
             </div>
           </div>
           <Button
             variant="secondary"
-            icon={<Upload size={14} />}
+            size="sm"
+            icon={<Upload size={13} />}
             onClick={() => setBulkUploadOpen(true)}
           >
             Bulk Upload
@@ -980,8 +981,8 @@ export default function AreaMapping() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Left: Hierarchy tree */}
-        <div className="w-[360px] min-w-[320px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Hierarchy</p>
+        <div className="w-[320px] min-w-[280px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-2">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-2 mb-1.5">Hierarchy</p>
           {Object.keys(tree).length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <MapPin size={32} className="mx-auto mb-2 opacity-30" />
@@ -1047,15 +1048,15 @@ export default function AreaMapping() {
               onTabChange={(!editItem && !hierarchyEditItem && activeUrlTab) ? t => navigate(TAB_TO_PATH[t]) : undefined}
             />
           ) : (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-5">
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-3 gap-3 mb-4">
                 {[
                   { label: 'Total Sub Localities', value: areas.length,                                            color: 'text-brand-blue'  },
                   { label: 'Feasible',              value: areas.filter(a => a.feasibility === 'Feasible').length, color: 'text-emerald-600' },
                   { label: 'Pending Feasibility',   value: areas.filter(a => a.feasibility === 'Pending').length,  color: 'text-amber-600'   },
                 ].map(s => (
-                  <div key={s.label} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                  <div key={s.label} className="bg-white rounded-xl border border-surface-border p-3 shadow-card">
                     <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
                     <p className="text-xs text-gray-500 mt-1">{s.label}</p>
                   </div>
@@ -1064,7 +1065,7 @@ export default function AreaMapping() {
 
               {/* Table */}
               <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
-                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <div className="px-4 py-2.5 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <span>Location</span>
                   <span>Branch Code</span>
                   <span>Site Type</span>
@@ -1080,7 +1081,7 @@ export default function AreaMapping() {
                 ) : (
                   <div className="divide-y divide-surface-border">
                     {areas.map(a => (
-                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
+                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-2.5 items-center hover:bg-gray-50/50 transition-colors">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-800">{a.subLocality}</p>
                           <p className="text-xs text-gray-400">{a.locality} · {a.area} · {a.district}</p>
