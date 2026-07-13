@@ -741,45 +741,6 @@ function SalesConfigTab() {
   )
 }
 
-// ── Area Mapping intro ───────────────────────────────────────────────────────
-
-function AreaMappingIntroTab() {
-  const navigate = useNavigate()
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900">Area Mapping</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage service areas, localities and feasibility settings for lead address selection</p>
-      </div>
-
-      <button
-        onClick={() => navigate('/settings/area-mapping')}
-        className="w-full flex items-center gap-4 p-4 rounded-xl border border-surface-border hover:border-brand-blue/40 hover:bg-brand-blue/5 transition-colors text-left"
-      >
-        <div className="w-11 h-11 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
-          <MapPin size={20} className="text-brand-blue" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900">Manage Area Mapping</p>
-          <p className="text-xs text-gray-500 mt-0.5">States, districts, areas, localities & sub localities</p>
-        </div>
-        <ChevronRight size={18} className="text-gray-400 shrink-0" />
-      </button>
-
-      <div className="rounded-xl border border-surface-border bg-gray-50/60 p-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">How it works</p>
-        <ol className="space-y-2 text-sm text-gray-600 list-decimal list-inside">
-          <li>Add states, districts, areas, localities and sub-localities in <strong className="text-gray-800 font-semibold">Manage Area Mapping</strong>.</li>
-          <li>When a lead is created, the address dropdowns are powered by this mapping.</li>
-          <li>If a sub-locality isn't in the mapping, the agent can flag it as <strong className="text-gray-800 font-semibold">Feasibility Required</strong>.</li>
-          <li>Admin reviews and updates those requests in <strong className="text-gray-800 font-semibold">Feasibility Requests</strong>.</li>
-        </ol>
-      </div>
-    </div>
-  )
-}
-
 // ── Zone mock data ────────────────────────────────────────────────────────────
 
 const INIT_ZONES = [
@@ -1415,9 +1376,9 @@ export default function Settings() {
           <nav className="space-y-1">
             {TABS.map(({ id, label, icon: Icon }) => (
               <button key={id} onClick={() => {
-                if (id === 'master-config') navigate('/settings/master-config/tenure')
-                else navigate('/settings')
-                setActiveTab(id)
+                if (id === 'master-config') { navigate('/settings/master-config/tenure'); setActiveTab(id) }
+                else if (id === 'area-mapping') navigate('/settings/area-mapping')
+                else { navigate('/settings'); setActiveTab(id) }
               }}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
@@ -1439,7 +1400,6 @@ export default function Settings() {
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'                && <RolesTab />}
           {activeTab === 'sales-configuration' && <SalesConfigTab />}
-          {activeTab === 'area-mapping'        && <AreaMappingIntroTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}
           {false && activeTab === 'landline-numbers' && (
