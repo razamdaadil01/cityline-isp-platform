@@ -2223,16 +2223,16 @@ export default function SalesLeadDetail() {
       </div>
 
       {/* ── Converted from Intercom banner ── */}
-      {lead.sourceIntercomId && (
+      {lead.sourceType === 'Intercom Conversion' && lead.convertedFromIntercomId && (
         <div className="bg-cyan-50 border border-cyan-200 rounded-xl px-5 py-3 flex items-center gap-3">
           <Badge variant="cyan" size="sm">Intercom</Badge>
           <p className="text-sm text-cyan-800">
             Converted from Intercom:{' '}
             <button
-              onClick={() => navigate(`/customers/${lead.sourceIntercomId}/profile`)}
+              onClick={() => navigate(`/intercom/customers/${lead.convertedFromIntercomId}/profile`)}
               className="font-semibold text-brand-blue hover:underline"
             >
-              {lead.sourceIntercomId}
+              {lead.convertedFromIntercomId}
             </button>
           </p>
         </div>

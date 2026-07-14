@@ -574,6 +574,7 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
 // ── Lead card ─────────────────────────────────────────────────────────────────
 
 function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, onAssignHw, onFeasibility, onFollowup, onSendToInventory, onView, onCall, userRole, followUpAllowed = true, isClosed = false }) {
+  const navigate = useNavigate()
   const TODAY_STR = new Date().toISOString().split('T')[0]
   const isOverdueFollowUp = lead.followUp && lead.followUp < TODAY_STR
   const isTodayFollowUp   = lead.followUp && lead.followUp === TODAY_STR
@@ -608,10 +609,13 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
 
       <div className="flex flex-wrap gap-1.5 mb-3">
         <Badge variant={SOURCE_VARIANT[lead.source] ?? 'gray'} size="sm">{lead.source}</Badge>
-        {lead.sourceIntercomId && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-100 text-cyan-700">
+        {lead.sourceType === 'Intercom Conversion' && lead.convertedFromIntercomId && (
+          <button
+            onClick={e => { e.stopPropagation(); navigate(`/intercom/customers/${lead.convertedFromIntercomId}/profile`) }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors"
+          >
             Converted from Intercom
-          </span>
+          </button>
         )}
         {lead.plan && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-navy/10 text-navy">{lead.plan}</span>
@@ -1936,10 +1940,13 @@ export default function Sales() {
                           >
                             {leadTitle}
                           </button>
-                          {lead.sourceIntercomId && (
-                            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-cyan-100 text-cyan-700">
+                          {lead.sourceType === 'Intercom Conversion' && lead.convertedFromIntercomId && (
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/intercom/customers/${lead.convertedFromIntercomId}/profile`) }}
+                              className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors"
+                            >
                               Converted from Intercom
-                            </span>
+                            </button>
                           )}
                         </td>
                         <td className="px-4 py-3 overflow-hidden" title={lead.name}>
