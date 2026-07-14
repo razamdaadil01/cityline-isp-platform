@@ -36,6 +36,11 @@ const MOCK_INTERCOM_CUSTOMERS = {
     project: 'Sunrise Apartments',
     salesExecutive: 'Pradeep Kumar',
     createdOn: '20 Jun 2026',
+    securityDeposit: 1500,
+    monthlyCharge: 199,
+    hardwareOwnership: true,
+    depositSettlementStatus: 'Not Applicable',
+    recoveryEligibility: 'Eligible',
     sourceLeadId: 'IL-2026-0003',
     installationId: 'IWO-2026-0001',
     linkedInternetCustomerId: 'RES-2026-0001',
@@ -74,6 +79,11 @@ const MOCK_INTERCOM_CUSTOMERS = {
     project: 'Greenwood Residency',
     salesExecutive: 'Anita Sharma',
     createdOn: '18 Jun 2026',
+    securityDeposit: 1500,
+    monthlyCharge: 349,
+    hardwareOwnership: true,
+    depositSettlementStatus: 'Not Applicable',
+    recoveryEligibility: 'Eligible',
     sourceLeadId: 'IL-2026-0002',
     kyc: { docType: 'Aadhaar', docNumber: 'XXXX-XXXX-7788', uploaded: true },
     circuit: {
@@ -104,6 +114,11 @@ const MOCK_INTERCOM_CUSTOMERS = {
     project: 'Metro Business Park',
     salesExecutive: 'Vikram Patil',
     createdOn: '10 Jun 2026',
+    securityDeposit: 1500,
+    monthlyCharge: 199,
+    hardwareOwnership: true,
+    depositSettlementStatus: 'Pending',
+    recoveryEligibility: 'Eligible',
     sourceLeadId: 'IL-2026-0001',
     kyc: { docType: 'PAN', docNumber: 'ABCDE1234F', uploaded: true },
     circuit: {
@@ -136,6 +151,11 @@ const MOCK_INTERCOM_CUSTOMERS = {
     project: 'Palm Grove Society',
     salesExecutive: 'Pradeep Kumar',
     createdOn: '05 Jun 2026',
+    securityDeposit: 1500,
+    monthlyCharge: 349,
+    hardwareOwnership: true,
+    depositSettlementStatus: 'Pending',
+    recoveryEligibility: 'Eligible',
     sourceLeadId: 'IL-2026-0004',
     kyc: { docType: 'Aadhaar', docNumber: 'XXXX-XXXX-3345', uploaded: true },
     circuit: {
@@ -167,6 +187,11 @@ const MOCK_INTERCOM_CUSTOMERS = {
     project: 'Sunrise Apartments',
     salesExecutive: 'Anita Sharma',
     createdOn: '28 May 2026',
+    securityDeposit: 1000,
+    monthlyCharge: 199,
+    hardwareOwnership: false,
+    depositSettlementStatus: 'Settled',
+    recoveryEligibility: 'Not Eligible',
     sourceLeadId: 'IL-2026-0005',
     kyc: { docType: 'Voter ID', docNumber: 'ABC1234567', uploaded: false },
     circuit: {
@@ -191,6 +216,8 @@ function makeUnknownCustomer(id) {
     status: 'inactive', plan: '—',
     billingAddress: '—', installationAddress: '—', zone: '—', project: '—',
     salesExecutive: '—', createdOn: '—', sourceLeadId: null, installationId: null,
+    securityDeposit: 0, monthlyCharge: 0, hardwareOwnership: false,
+    depositSettlementStatus: 'Not Applicable', recoveryEligibility: 'N/A',
     kyc: { docType: '—', docNumber: '—', uploaded: false },
     circuit: { circuitId: '—', landlineNumber: '—', serviceStatus: '—', activationDate: '—', installationBy: '—', sourceBookingId: null, remarks: '—' },
     hardware: [],
@@ -251,6 +278,9 @@ const BILLING_SUB_TABS = [
   { label: 'Payments',       slug: 'payments' },
   { label: 'Account Ledger', slug: 'ledger'   },
 ]
+
+const DEPOSIT_SETTLEMENT_OPTIONS = ['Pending', 'Settled', 'Not Applicable']
+const RECOVERY_ELIGIBILITY_OPTIONS = ['Eligible', 'Not Eligible', 'N/A']
 
 const PLAN_AMOUNT = { 'Intercom Basic': 199, 'Intercom Plus': 349 }
 
@@ -459,9 +489,81 @@ function CircuitDetailsTab({ customer }) {
   )
 }
 
+// ── Billing Configuration ─────────────────────────────────────────────────────
+
+function BillingConfigCard({ customer, onSave }) {
+  const [form, setForm] = useState({
+    securityDeposit: customer.securityDeposit,
+    monthlyCharge: customer.monthlyCharge,
+    hardwareOwnership: customer.hardwareOwnership,
+    depositSettlementStatus: customer.depositSettlementStatus,
+    recoveryEligibility: customer.recoveryEligibility,
+  })
+
+  useEffect(() => {
+    setForm({
+      securityDeposit: customer.securityDeposit,
+      monthlyCharge: customer.monthlyCharge,
+      hardwareOwnership: customer.hardwareOwnership,
+      depositSettlementStatus: customer.depositSettlementStatus,
+      recoveryEligibility: customer.recoveryEligibility,
+    })
+  }, [customer.id])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  return (
+    <Card>
+      <CardHeader title="Billing Configuration" subtitle="Deposit, recurring charge, and hardware ownership terms" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+        <FormField label="Security Deposit">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+            <Input type="number" min="0" className="pl-6" value={form.securityDeposit}
+              onChange={e => set('securityDeposit', Number(e.target.value))} />
+          </div>
+        </FormField>
+        <FormField label="Monthly Charge">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+            <Input type="number" min="0" className="pl-6" value={form.monthlyCharge}
+              onChange={e => set('monthlyCharge', Number(e.target.value))} />
+            <span className="text-xs text-gray-400 ml-1">/month</span>
+          </div>
+        </FormField>
+        <FormField label="Hardware Ownership">
+          <div className="flex items-center gap-3 mt-1">
+            <button
+              type="button"
+              onClick={() => set('hardwareOwnership', !form.hardwareOwnership)}
+              className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${form.hardwareOwnership ? 'bg-brand-blue' : 'bg-gray-300'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.hardwareOwnership ? 'left-4' : 'left-0.5'}`} />
+            </button>
+            <span className="text-sm font-medium text-gray-700">{form.hardwareOwnership ? 'Company Owned' : 'Customer Owned'}</span>
+          </div>
+        </FormField>
+        <FormField label="Deposit Settlement Status">
+          <Select value={form.depositSettlementStatus} onChange={e => set('depositSettlementStatus', e.target.value)}>
+            {DEPOSIT_SETTLEMENT_OPTIONS.map(o => <option key={o}>{o}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Recovery Eligibility">
+          <Select value={form.recoveryEligibility} onChange={e => set('recoveryEligibility', e.target.value)}>
+            {RECOVERY_ELIGIBILITY_OPTIONS.map(o => <option key={o}>{o}</option>)}
+          </Select>
+        </FormField>
+      </div>
+      <div className="flex justify-end mt-4 pt-4 border-t border-surface-border">
+        <Button size="sm" onClick={() => onSave(form)}>Save Billing Configuration</Button>
+      </div>
+    </Card>
+  )
+}
+
 // ── Tab: Billing ─────────────────────────────────────────────────────────────
 
-function BillingTab({ customer }) {
+function BillingTab({ customer, onSaveBilling }) {
   const { id: customerId, subTab: subTabParam } = useParams()
   const navigate = useNavigate()
   const finance = buildFinance(customer)
@@ -474,6 +576,8 @@ function BillingTab({ customer }) {
 
   return (
     <div className="space-y-5">
+      <BillingConfigCard customer={customer} onSave={onSaveBilling} />
+
       <div className="flex border-b border-surface-border gap-6">
         {BILLING_SUB_TABS.map(t => (
           <button
@@ -966,6 +1070,11 @@ export default function IntercomCustomerDetail() {
     setSuccessMessage(`Hardware Recovery Visit scheduled! Work Order: ${workOrderId}`)
   }
 
+  function handleSaveBilling(patch) {
+    setOverrides(o => ({ ...o, ...patch }))
+    setSuccessMessage('Billing configuration updated')
+  }
+
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
   const canConvertToInternet = !customer.linkedInternetCustomerId && !overrides.internetLeadId
   const isTerminated = customer.status === 'terminated'
@@ -1120,7 +1229,7 @@ export default function IntercomCustomerDetail() {
         <div className="p-5 sm:p-6">
           {activeTab === 'Profile'         && <ProfileTab        customer={customer} />}
           {activeTab === 'Circuit Details' && <CircuitDetailsTab customer={customer} />}
-          {activeTab === 'Billing'         && <BillingTab        customer={customer} />}
+          {activeTab === 'Billing'         && <BillingTab        customer={customer} onSaveBilling={handleSaveBilling} />}
           {activeTab === 'Tickets'         && <TicketsTab        customer={customer} />}
           {activeTab === 'Hardware'        && <HardwareTab       customer={customer} />}
           {activeTab === 'Activity Logs'   && <ActivityTab       customer={customer} />}
