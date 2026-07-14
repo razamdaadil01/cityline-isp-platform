@@ -15,9 +15,15 @@ const MOCK_DUPLICATE_LEADS = {
   '9845123456': { id: 'IC-LEAD-2026-000002', customerName: 'Priya Sharma', stage: 'New', createdAt: '25-06-2026' },
 }
 
-function findDuplicateLead(mobile) {
+const MOCK_DUPLICATE_CUSTOMER_IDS = {
+  'RES-2026-0001': { id: 'IC-LEAD-2026-000001', customerName: 'Ramesh Nair', stage: 'New', createdAt: '25-06-2026' },
+}
+
+function findDuplicateLead({ mobile, customerId }) {
   const normalized = (mobile ?? '').replace(/\D/g, '')
-  return MOCK_DUPLICATE_LEADS[normalized] ?? null
+  if (MOCK_DUPLICATE_LEADS[normalized]) return MOCK_DUPLICATE_LEADS[normalized]
+  if (customerId && MOCK_DUPLICATE_CUSTOMER_IDS[customerId]) return MOCK_DUPLICATE_CUSTOMER_IDS[customerId]
+  return null
 }
 
 const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
@@ -257,7 +263,8 @@ export default function IntercomLeadNew() {
     }
 
     const mobile = relationship === 'yes' ? foundCustomer.mobile : formB.primaryMobile
-    const duplicate = findDuplicateLead(mobile)
+    const customerId = relationship === 'yes' ? foundCustomer.customerId : undefined
+    const duplicate = findDuplicateLead({ mobile, customerId })
 
     const payload = buildLeadPayload()
     if (!payload) return
