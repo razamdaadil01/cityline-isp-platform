@@ -28,6 +28,7 @@ import {
   Wrench,
   Tv2,
   Phone,
+  PackageSearch,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -46,10 +47,11 @@ const NAV_ITEMS = [
   {
     label: 'Intercom',        icon: Phone,           to: '/intercom/dashboard',
     children: [
-      { label: 'Leads',          icon: PhoneCall,     to: '/intercom/leads'          },
-      { label: 'Installations',  icon: Wrench,        to: '/intercom/installations'  },
-      { label: 'Customers',      icon: Users,         to: '/intercom/customers'      },
-      { label: 'Dashboard',      icon: LayoutDashboard, to: '/intercom/dashboard'    },
+      { label: 'Leads',             icon: PhoneCall,     to: '/intercom/leads'             },
+      { label: 'Installations',     icon: Wrench,        to: '/intercom/installations'     },
+      { label: 'Hardware Recovery', icon: PackageSearch, to: '/intercom/hardware-recovery' },
+      { label: 'Customers',         icon: Users,         to: '/intercom/customers'         },
+      { label: 'Dashboard',         icon: LayoutDashboard, to: '/intercom/dashboard'       },
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
