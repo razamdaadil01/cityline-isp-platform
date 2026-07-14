@@ -3,15 +3,19 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   Ticket, MessageSquare, Ban, AlertTriangle, CheckCircle, Clock,
   Cpu, Activity, Download, FileText, ExternalLink, Plus, Wrench,
-  Wifi, CheckCircle2,
+  Wifi, CheckCircle2, PackageSearch,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
-  getInstallations, subscribeInstallations,
+  getInstallations, subscribeInstallations, INSTALLATION_ENGINEERS,
 } from '../data/intercomInstallationsStore'
+import {
+  getRecoveries, subscribeRecoveries, addRecovery, nextRecoveryId, RECOVERY_REASONS, RECOVERY_STATUS_CFG,
+} from '../data/intercomRecoveryStore'
 import { getLeads, saveLead as saveSalesLead, subscribeLeads, nextSalesLeadId } from '../data/leadsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
@@ -154,7 +158,7 @@ const MOCK_INTERCOM_CUSTOMERS = {
     phone: '97654 32198',
     altPhone: '—',
     email: 'rajesh.kumar@email.com',
-    status: 'inactive',
+    status: 'terminated',
     plan: 'Intercom Basic',
     billingAddress: 'Flat 108, Sunrise Apartments, Andheri East',
     installationAddress: 'Flat 108, Sunrise Apartments, Andheri East',
@@ -200,7 +204,10 @@ const STATUS_CFG = {
   suspended: { variant: 'orange', label: 'Suspended' },
   inactive:  { variant: 'gray',   label: 'Inactive' },
   pending_termination: { variant: 'orange', label: 'Pending Termination' },
+  terminated: { variant: 'red',   label: 'Terminated' },
 }
+
+const RECOVERY_TIME_SLOTS = ['Morning 9-12', 'Afternoon 12-3', 'Evening 3-6']
 
 const KYC_STATUS = {
   uploaded: { icon: CheckCircle, color: 'text-brand-blue', label: 'Uploaded' },
@@ -744,6 +751,103 @@ function ConvertToInternetModal({ isOpen, customer, onClose, onConfirm }) {
   )
 }
 
+// ── Schedule Hardware Recovery Modal ──────────────────────────────────────────
+
+function initRecoveryForm(customer, defaultReason) {
+  return {
+    reason: defaultReason,
+    hardwareToRecover: (customer.hardware ?? []).map(h => `${h.device} (${h.serial})`).join(', '),
+    technician: '', recoveryDate: '', timeSlot: '', visitNotes: '', accessInstructions: '', altNumber: '',
+  }
+}
+
+function ScheduleHardwareRecoveryModal({ isOpen, customer, defaultReason, onClose, onSubmit }) {
+  const [form, setForm] = useState(() => initRecoveryForm(customer, defaultReason))
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm(initRecoveryForm(customer, defaultReason)); setErrors({}) }
+  }, [isOpen, customer, defaultReason])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErrors(p => ({ ...p, [f]: '' })) }
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.technician) e.technician = 'Select a technician'
+    if (!form.recoveryDate) e.recoveryDate = 'Recovery visit date is required'
+    if (!form.timeSlot) e.timeSlot = 'Select a time slot'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Schedule Hardware Recovery" size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Schedule Visit</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <FormField label="Customer Name">
+          <Input value={customer.name} disabled />
+        </FormField>
+        <FormField label="Intercom Customer ID">
+          <Input value={customer.id} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Reason for Recovery">
+          <Select value={form.reason} onChange={e => set('reason', e.target.value)}>
+            {RECOVERY_REASONS.map(r => <option key={r}>{r}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Assigned Technician" required error={errors.technician}>
+          <Select value={form.technician} onChange={e => set('technician', e.target.value)}>
+            <option value="">Select technician…</option>
+            {INSTALLATION_ENGINEERS.map(eng => <option key={eng.id} value={eng.name}>{eng.name}</option>)}
+          </Select>
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Installed Hardware to Recover">
+            <Textarea value={form.hardwareToRecover} onChange={e => set('hardwareToRecover', e.target.value)} rows={2}
+              placeholder="e.g. Intercom Panel Unit, Handset Unit…" />
+          </FormField>
+        </div>
+        <FormField label="Recovery Visit Date" required error={errors.recoveryDate}>
+          <Input type="date" value={form.recoveryDate} onChange={e => set('recoveryDate', e.target.value)} />
+        </FormField>
+        <FormField label="Time Slot" required error={errors.timeSlot}>
+          <Select value={form.timeSlot} onChange={e => set('timeSlot', e.target.value)}>
+            <option value="">Select slot…</option>
+            {RECOVERY_TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Visit Notes">
+            <Textarea value={form.visitNotes} onChange={e => set('visitNotes', e.target.value)} rows={2} placeholder="Any additional notes for the visit…" />
+          </FormField>
+        </div>
+        <div className="col-span-2">
+          <FormField label="Access Instructions">
+            <Textarea value={form.accessInstructions} onChange={e => set('accessInstructions', e.target.value)} rows={2} placeholder="Gate code, floor access, etc…" />
+          </FormField>
+        </div>
+        <FormField label="Contact Number">
+          <Input value={customer.phone} disabled />
+        </FormField>
+        <FormField label="Alternative Number">
+          <Input
+            type="tel"
+            value={form.altNumber}
+            onChange={e => set('altNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
+            placeholder="9876543210"
+          />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function IntercomCustomerDetail() {
@@ -768,7 +872,12 @@ export default function IntercomCustomerDetail() {
     ? salesLeads.find(l => l.id === overrides.internetLeadId) ?? null
     : null
 
+  const [recoveries, setRecoveries] = useState(getRecoveries())
+  useEffect(() => subscribeRecoveries(setRecoveries), [])
+  const existingRecovery = recoveries.find(r => r.customerId === customer.id) ?? null
+
   const [convertModalOpen, setConvertModalOpen] = useState(false)
+  const [recoveryModalOpen, setRecoveryModalOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
@@ -824,8 +933,38 @@ export default function IntercomCustomerDetail() {
     setSuccessMessage(`Internet Lead created! Lead ID: ${leadId}`)
   }
 
+  function handleScheduleRecovery(form) {
+    if (existingRecovery) { setRecoveryModalOpen(false); return }
+    const now = new Date()
+    const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
+    const [y, m, d] = form.recoveryDate.split('-')
+    const workOrderId = nextRecoveryId()
+    addRecovery({
+      id: workOrderId,
+      customerId: customer.id,
+      customer: customer.name,
+      phone: customer.phone,
+      reason: form.reason,
+      hardwareToRecover: form.hardwareToRecover,
+      technician: form.technician,
+      scheduledDate: `${d}-${m}-${y}`,
+      timeSlot: form.timeSlot,
+      accessInstructions: form.accessInstructions,
+      altNumber: form.altNumber,
+      createdDate,
+      notes: form.visitNotes,
+      status: 'pending',
+    })
+    setRecoveryModalOpen(false)
+    setSuccessMessage(`Hardware Recovery Visit scheduled! Work Order: ${workOrderId}`)
+  }
+
   const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
   const canConvertToInternet = !customer.linkedInternetCustomerId && !overrides.internetLeadId
+  const isTerminated = customer.status === 'terminated'
+  const isConvertedToInternet = !!overrides.internetLeadId
+  const canScheduleRecovery = (isTerminated || isConvertedToInternet) && !existingRecovery
+  const recoveryDefaultReason = isTerminated ? RECOVERY_REASONS[0] : RECOVERY_REASONS[1]
 
   return (
     <div className="p-6 space-y-5">
@@ -915,6 +1054,28 @@ export default function IntercomCustomerDetail() {
                 <Badge variant="blue" size="sm" dot>{linkedInternetLead.stage}</Badge>
               </div>
             )}
+            {canScheduleRecovery && (
+              <Button size="sm" icon={<PackageSearch size={13} />} onClick={() => setRecoveryModalOpen(true)}>
+                Schedule Hardware Recovery
+              </Button>
+            )}
+            {existingRecovery && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200">
+                <PackageSearch size={13} className="text-purple-600 shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Hardware Recovery Scheduled:{' '}
+                  <button
+                    onClick={() => navigate('/intercom/hardware-recovery')}
+                    className="font-mono font-semibold text-purple-700 hover:underline"
+                  >
+                    {existingRecovery.id}
+                  </button>
+                </span>
+                <Badge variant={(RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending).variant} size="sm" dot>
+                  {(RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending).label}
+                </Badge>
+              </div>
+            )}
             <Button variant="orange"    size="sm" icon={<Ban size={13} />}>Suspend</Button>
             <Button variant="danger"    size="sm" icon={<AlertTriangle size={13} />}>Terminate</Button>
           </div>
@@ -961,6 +1122,13 @@ export default function IntercomCustomerDetail() {
         customer={customer}
         onClose={() => setConvertModalOpen(false)}
         onConfirm={handleConvertToInternet}
+      />
+      <ScheduleHardwareRecoveryModal
+        isOpen={recoveryModalOpen}
+        customer={customer}
+        defaultReason={recoveryDefaultReason}
+        onClose={() => setRecoveryModalOpen(false)}
+        onSubmit={handleScheduleRecovery}
       />
     </div>
   )

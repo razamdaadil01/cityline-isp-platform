@@ -25,6 +25,7 @@ import IntercomCustomers from './pages/IntercomCustomers'
 import IntercomCustomerDetail from './pages/IntercomCustomerDetail'
 import IntercomInstallations from './pages/IntercomInstallations'
 import IntercomInstallationDetail from './pages/IntercomInstallationDetail'
+import IntercomHardwareRecovery from './pages/IntercomHardwareRecovery'
 import IntercomBilling from './pages/IntercomBilling'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
@@ -92,6 +93,7 @@ export default function App() {
           <Route path="/intercom/customers" element={<IntercomCustomers />} />
           <Route path="/intercom/installations" element={<IntercomInstallations />} />
           <Route path="/intercom/installations/:id" element={<IntercomInstallationDetail />} />
+          <Route path="/intercom/hardware-recovery" element={<IntercomHardwareRecovery />} />
           <Route path="/intercom/billing" element={<IntercomBilling />} />
           <Route path="/intercom/billing/recharge" element={<IntercomBilling />} />
           <Route path="/intercom/billing/payments" element={<IntercomBilling />} />
