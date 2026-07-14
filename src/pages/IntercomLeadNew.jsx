@@ -9,6 +9,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { saveLead, getLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 import { getStates, getDistricts, getAreasList, getIntercomLocalities, getSubLocalities } from '../data/areaMappingStore'
+import { getAllCustomers } from '../data/customersData'
 
 const MOCK_DUPLICATE_LEADS = {
   '9876001890': { id: 'IC-LEAD-2026-000001', customerName: 'Ramesh Nair', stage: 'New', createdAt: '25-06-2026' },
@@ -24,6 +25,16 @@ function findDuplicateLead({ mobile, customerId }) {
   if (MOCK_DUPLICATE_LEADS[normalized]) return MOCK_DUPLICATE_LEADS[normalized]
   if (customerId && MOCK_DUPLICATE_CUSTOMER_IDS[customerId]) return MOCK_DUPLICATE_CUSTOMER_IDS[customerId]
   return null
+}
+
+function findInternetCustomerByMobile(mobile) {
+  const normalized = (mobile ?? '').replace(/\D/g, '')
+  if (!normalized) return null
+  return getAllCustomers().find(c => c.type !== 'Intercom' && (c.phone ?? '').replace(/\D/g, '') === normalized) ?? null
+}
+
+function titleCase(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'
 }
 
 const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
@@ -264,14 +275,22 @@ export default function IntercomLeadNew() {
 
     const mobile = relationship === 'yes' ? foundCustomer.mobile : formB.primaryMobile
     const customerId = relationship === 'yes' ? foundCustomer.customerId : undefined
-    const duplicate = findDuplicateLead({ mobile, customerId })
+    const duplicateLead = findDuplicateLead({ mobile, customerId })
 
     const payload = buildLeadPayload()
     if (!payload) return
 
-    if (duplicate) {
-      setDuplicateModal({ ...duplicate, pendingPayload: payload })
+    if (duplicateLead) {
+      setDuplicateModal({ kind: 'lead', ...duplicateLead, pendingPayload: payload })
       return
+    }
+
+    if (relationship === 'no') {
+      const existingCustomer = findInternetCustomerByMobile(formB.primaryMobile)
+      if (existingCustomer) {
+        setDuplicateModal({ kind: 'internetCustomer', customer: existingCustomer, pendingPayload: payload })
+        return
+      }
     }
 
     commitLead(payload)
@@ -284,6 +303,30 @@ export default function IntercomLeadNew() {
 
   function handleViewExisting() {
     if (duplicateModal) navigate(`/intercom/leads/${duplicateModal.id}/profile`)
+    setDuplicateModal(null)
+  }
+
+  function handleSwitchToFlowA(customer) {
+    setRelationship('yes')
+    setSearchCustomerId(customer.id)
+    setSearchRegNumber('')
+    setSearchError('')
+    setFinding(false)
+    setFoundCustomer({
+      customerName: customer.name,
+      customerId: customer.id,
+      registrationNumber: customer.registrationNumber ?? '—',
+      mobile: customer.phone,
+      email: customer.email ?? '—',
+      installationAddress: customer.installationAddress ?? '—',
+      billingAddress: customer.billingAddress ?? '—',
+      internetPackage: customer.plan ?? '—',
+      internetStatus: titleCase(customer.status),
+      customerStatus: titleCase(customer.status),
+    })
+    setFormA(INIT_FORM_A_EXTRA)
+    setFormB(INIT_FORM_B)
+    setErrorsB({})
     setDuplicateModal(null)
   }
 
@@ -591,16 +634,49 @@ export default function IntercomLeadNew() {
       <Modal
         isOpen={!!duplicateModal}
         onClose={() => setDuplicateModal(null)}
-        title="Duplicate Lead Found"
+        title={duplicateModal?.kind === 'internetCustomer' ? 'Existing Internet Customer Found' : 'Duplicate Lead Found'}
         size="sm"
         footer={
-          <>
-            <Button variant="secondary" onClick={handleViewExisting}>View Existing Lead</Button>
-            <Button onClick={handleContinueAnyway}>Continue Anyway</Button>
-          </>
+          duplicateModal?.kind === 'internetCustomer' ? (
+            <>
+              <Button variant="secondary" onClick={() => setDuplicateModal(null)}>Go Back</Button>
+              <Button onClick={() => handleSwitchToFlowA(duplicateModal.customer)}>Switch to Flow A</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={handleViewExisting}>View Existing Lead</Button>
+              <Button onClick={handleContinueAnyway}>Continue Anyway</Button>
+            </>
+          )
         }
       >
-        {duplicateModal && (
+        {duplicateModal?.kind === 'internetCustomer' && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">This mobile number already belongs to an existing Internet Customer:</p>
+            </div>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Customer ID</span>
+                <span className="font-mono font-semibold text-gray-800">{duplicateModal.customer.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Customer Name</span>
+                <span className="font-medium text-gray-800">{duplicateModal.customer.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Plan</span>
+                <span className="font-medium text-gray-800">{duplicateModal.customer.plan ?? '—'}</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              This customer already has an internet connection. Please use "Yes — Existing Internet Customer" instead.
+            </p>
+          </div>
+        )}
+
+        {duplicateModal && duplicateModal.kind !== 'internetCustomer' && (
           <div className="space-y-3">
             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200">
               <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
