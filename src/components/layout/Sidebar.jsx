@@ -50,7 +50,6 @@ const NAV_ITEMS = [
       { label: 'Installations',  icon: Wrench,        to: '/intercom/installations'  },
       { label: 'Customers',      icon: Users,         to: '/intercom/customers'      },
       { label: 'Dashboard',      icon: LayoutDashboard, to: '/intercom/dashboard'    },
-      { label: 'Tickets',        icon: HeadphonesIcon,to: '/intercom/tickets'        },
       { label: 'Reports',        icon: BarChart2,     to: '/intercom/reports'        },
     ],
   },
