@@ -49,3 +49,12 @@ export function subscribeLeads(fn) {
     if (i > -1) _listeners.splice(i, 1)
   }
 }
+
+export function nextSalesLeadId() {
+  const nums = _leads
+    .map(l => l.id.match(/^LD-(\d+)$/))
+    .filter(Boolean)
+    .map(m => Number(m[1]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `LD-${next}`
+}
