@@ -1,13 +1,24 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, UserCheck, Search, Loader2, User, MapPin, PhoneCall, ClipboardList,
+  ArrowLeft, UserCheck, Search, Loader2, User, MapPin, PhoneCall, ClipboardList, AlertTriangle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { saveLead, getLeads, INTERCOM_STAFF } from '../data/intercomLeadsStore'
 import { getStates, getDistricts, getAreasList, getIntercomLocalities, getSubLocalities } from '../data/areaMappingStore'
+
+const MOCK_DUPLICATE_LEADS = {
+  '9876001890': { id: 'IC-LEAD-2026-000001', customerName: 'Ramesh Nair', stage: 'New', createdAt: '25-06-2026' },
+  '9845123456': { id: 'IC-LEAD-2026-000002', customerName: 'Priya Sharma', stage: 'New', createdAt: '25-06-2026' },
+}
+
+function findDuplicateLead(mobile) {
+  const normalized = (mobile ?? '').replace(/\D/g, '')
+  return MOCK_DUPLICATE_LEADS[normalized] ?? null
+}
 
 const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
 const INTERCOM_TYPES = ['Basic', 'Plus', 'Premium']
@@ -107,6 +118,9 @@ export default function IntercomLeadNew() {
   const [formB, setFormB] = useState(INIT_FORM_B)
   const [errorsB, setErrorsB] = useState({})
 
+  // Duplicate check
+  const [duplicateModal, setDuplicateModal] = useState(null)
+
   function setA(f, v) { setFormA(p => ({ ...p, [f]: v })) }
 
   function setB(f, v) {
@@ -131,6 +145,7 @@ export default function IntercomLeadNew() {
     setFormA(INIT_FORM_A_EXTRA)
     setFormB(INIT_FORM_B)
     setErrorsB({})
+    setDuplicateModal(null)
   }
 
   function handleFindCustomer() {
@@ -162,13 +177,13 @@ export default function IntercomLeadNew() {
     return e
   }
 
-  function handleCreate() {
+  function buildLeadPayload() {
     const today = new Date().toISOString().slice(0, 10)
     const stageHistory = [{ stage: 'New', date: today, time: nowTime(), note: 'Lead created', actor: 'Admin User' }]
 
     if (relationship === 'yes') {
-      if (!foundCustomer) return
-      const lead = saveLead({
+      if (!foundCustomer) return null
+      return {
         id: leadId,
         leadName: foundCustomer.customerName,
         customer: foundCustomer.customerName,
@@ -192,15 +207,11 @@ export default function IntercomLeadNew() {
         customerRemarks: formA.customerRemarks,
         salesRemarks: formA.salesRemarks,
         stageHistory,
-      })
-      navigate(`/intercom/leads/${lead.id}`)
-      return
+      }
     }
 
     if (relationship === 'no') {
-      const e = validateB()
-      if (Object.keys(e).length) { setErrorsB(e); return }
-      const lead = saveLead({
+      return {
         id: leadId,
         leadName: formB.customerName.trim(),
         customer: formB.customerName.trim(),
@@ -226,9 +237,47 @@ export default function IntercomLeadNew() {
         specialAccess: formB.specialAccess,
         leadSource: formB.leadSource,
         stageHistory,
-      })
-      navigate(`/intercom/leads/${lead.id}`)
+      }
     }
+
+    return null
+  }
+
+  function commitLead(payload) {
+    const lead = saveLead(payload)
+    navigate(`/intercom/leads/${lead.id}`)
+  }
+
+  function handleCreate() {
+    if (relationship === 'yes' && !foundCustomer) return
+
+    if (relationship === 'no') {
+      const e = validateB()
+      if (Object.keys(e).length) { setErrorsB(e); return }
+    }
+
+    const mobile = relationship === 'yes' ? foundCustomer.mobile : formB.primaryMobile
+    const duplicate = findDuplicateLead(mobile)
+
+    const payload = buildLeadPayload()
+    if (!payload) return
+
+    if (duplicate) {
+      setDuplicateModal({ ...duplicate, pendingPayload: payload })
+      return
+    }
+
+    commitLead(payload)
+  }
+
+  function handleContinueAnyway() {
+    if (duplicateModal?.pendingPayload) commitLead(duplicateModal.pendingPayload)
+    setDuplicateModal(null)
+  }
+
+  function handleViewExisting() {
+    if (duplicateModal) navigate(`/intercom/leads/${duplicateModal.id}/profile`)
+    setDuplicateModal(null)
   }
 
   const canCreate = relationship === 'yes' ? !!foundCustomer : relationship === 'no'
@@ -530,6 +579,47 @@ export default function IntercomLeadNew() {
           <Button onClick={handleCreate} disabled={!canCreate}>Create Lead</Button>
         </div>
       </div>
+
+      {/* ── Duplicate Lead Modal ────────────────────────────────────────── */}
+      <Modal
+        isOpen={!!duplicateModal}
+        onClose={() => setDuplicateModal(null)}
+        title="Duplicate Lead Found"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={handleViewExisting}>View Existing Lead</Button>
+            <Button onClick={handleContinueAnyway}>Continue Anyway</Button>
+          </>
+        }
+      >
+        {duplicateModal && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">A lead already exists with this mobile number:</p>
+            </div>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Lead ID</span>
+                <span className="font-mono font-semibold text-gray-800">{duplicateModal.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Customer Name</span>
+                <span className="font-medium text-gray-800">{duplicateModal.customerName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Stage</span>
+                <span className="font-medium text-gray-800">{duplicateModal.stage}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Created</span>
+                <span className="font-medium text-gray-800">{duplicateModal.createdAt}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
     </div>
   )
