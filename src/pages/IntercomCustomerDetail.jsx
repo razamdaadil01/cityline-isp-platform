@@ -12,7 +12,7 @@ import Modal from '../components/ui/Modal'
 import {
   getInstallations, subscribeInstallations,
 } from '../data/intercomInstallationsStore'
-import { getLeads, saveLead as saveSalesLead, subscribeLeads } from '../data/leadsStore'
+import { getLeads, saveLead as saveSalesLead, subscribeLeads, nextSalesLeadId } from '../data/leadsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -789,8 +789,9 @@ export default function IntercomCustomerDetail() {
   }
 
   function handleConvertToInternet() {
+    if (overrides.internetLeadId) { setConvertModalOpen(false); return }
     const today = new Date().toISOString().slice(0, 10)
-    const leadId = `LD-${Date.now()}`
+    const leadId = nextSalesLeadId()
     saveSalesLead({
       id: leadId,
       pipeline: 'B2C',
