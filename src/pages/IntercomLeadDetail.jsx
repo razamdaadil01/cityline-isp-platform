@@ -4,7 +4,7 @@ import {
   ArrowLeft, Phone, Mail, Building2, MapPin, CalendarDays, FileText,
   User, UserPlus, Activity, XCircle, MessageSquare, Paperclip, Send,
   Upload, Download, Trash2, Eye, FileImage, File as FileIcon, RefreshCw, IdCard, Wifi,
-  Wrench, CheckCircle2,
+  Wrench, CheckCircle2, Search as SearchIcon, X, Cpu,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -15,6 +15,9 @@ import { getLead, saveLead, subscribeLeads, INTERCOM_STAFF } from '../data/inter
 import {
   getInstallations, subscribeInstallations, addInstallation, nextInstallationId, INSTALLATION_ENGINEERS,
 } from '../data/intercomInstallationsStore'
+import {
+  getHardware, subscribeHardware, assignHardwareToWorkOrder,
+} from '../data/intercomHardwareStore'
 
 const ALL_STAGES = [
   'New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required',
@@ -228,11 +231,81 @@ function UpdateStageModal({ isOpen, currentStage, onClose, onSubmit }) {
   )
 }
 
+// ── Hardware Multi-Select ────────────────────────────────────────────────────
+
+function HardwareMultiSelect({ selected, onChange }) {
+  const [hardware, setHardware] = useState(getHardware())
+  useEffect(() => subscribeHardware(setHardware), [])
+  const [search, setSearch] = useState('')
+
+  const available = hardware.filter(h => h.status === 'available')
+  const filtered = available.filter(h =>
+    `${h.deviceType} ${h.serial}`.toLowerCase().includes(search.toLowerCase())
+  )
+
+  function toggle(serial) {
+    onChange(selected.includes(serial) ? selected.filter(s => s !== serial) : [...selected, serial])
+  }
+
+  return (
+    <div>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selected.map(serial => {
+            const item = hardware.find(h => h.serial === serial)
+            return (
+              <span key={serial} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                {item ? `${item.deviceType} — ${item.serial}` : serial}
+                <button type="button" onClick={() => toggle(serial)}
+                  className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                  <X size={11} />
+                </button>
+              </span>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="relative mb-1">
+        <SearchIcon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search available hardware…"
+          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+        />
+      </div>
+
+      <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[160px] overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-4">No available hardware found</p>
+        ) : filtered.map(item => {
+          const isSelected = selected.includes(item.serial)
+          return (
+            <label key={item.serial}
+              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+              <input type="checkbox"
+                checked={isSelected}
+                onChange={() => toggle(item.serial)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+              />
+              <div className="w-6 h-6 rounded-full bg-navy/10 text-navy flex items-center justify-center shrink-0">
+                <Cpu size={12} />
+              </div>
+              <span className="text-sm text-gray-700">{item.deviceType} — <span className="font-mono text-xs">{item.serial}</span></span>
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── Create Installation Visit Modal ─────────────────────────────────────────────
 
 const INIT_VISIT_FORM = {
   technician: '', installDate: '', timeSlot: '', priority: 'Normal',
-  requiredHardware: '', visitNotes: '', accessInstructions: '', altNumber: '',
+  assignedHardware: [], visitNotes: '', accessInstructions: '', altNumber: '',
 }
 
 function CreateInstallationVisitModal({ isOpen, lead, onClose, onSubmit }) {
@@ -307,8 +380,8 @@ function CreateInstallationVisitModal({ isOpen, lead, onClose, onSubmit }) {
           </Select>
         </FormField>
         <div className="col-span-2">
-          <FormField label="Required Hardware">
-            <Textarea value={form.requiredHardware} onChange={e => set('requiredHardware', e.target.value)} rows={2} placeholder="e.g. Intercom Panel Unit, Handset Unit…" />
+          <FormField label="Required Hardware" hint="Only units currently marked Available are shown">
+            <HardwareMultiSelect selected={form.assignedHardware} onChange={v => set('assignedHardware', v)} />
           </FormField>
         </div>
         <div className="col-span-2">
@@ -629,6 +702,12 @@ export default function IntercomLeadDetail() {
     ? installations.find(o => o.id === lead.installationId) ?? null
     : null
 
+  const [hardware, setHardware] = useState(getHardware())
+  useEffect(() => subscribeHardware(setHardware), [])
+  const linkedHardware = linkedInstallation?.assignedHardware?.length
+    ? hardware.filter(h => linkedInstallation.assignedHardware.includes(h.serial))
+    : []
+
   useEffect(() => subscribeLeads(() => setLead(getLead(id))), [id])
   useEffect(() => { setLead(getLead(id)) }, [id])
 
@@ -676,13 +755,22 @@ export default function IntercomLeadDetail() {
       installDate: `${d}-${m}-${y}`,
       installTime: form.timeSlot,
       priority: form.priority,
-      requiredHardware: form.requiredHardware,
+      assignedHardware: form.assignedHardware,
       accessInstructions: form.accessInstructions,
       altNumber: form.altNumber,
       createdDate,
       notes: form.visitNotes,
       status: 'pending',
     })
+    if (form.assignedHardware.length) {
+      assignHardwareToWorkOrder(form.assignedHardware, {
+        workOrderId,
+        assignedTo: lead.leadName,
+        customerId: lead.existingCustomerId ?? '',
+        zone: lead.area ?? '',
+        assignedDate: createdDate,
+      })
+    }
     const updated = { ...lead, stage: 'Installation In Progress', installationId: workOrderId }
     saveLead(addHistory(updated, `Installation Visit created — Work Order ${workOrderId}`))
     setVisitModalOpen(false)
@@ -744,20 +832,27 @@ export default function IntercomLeadDetail() {
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {linkedInstallation && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20">
-                <Wrench size={13} className="text-brand-blue shrink-0" />
-                <span className="text-xs text-gray-700">
-                  Installation Visit:{' '}
-                  <button
-                    onClick={() => navigate(`/intercom/installations/${linkedInstallation.id}`)}
-                    className="font-mono font-semibold text-brand-blue hover:underline"
-                  >
-                    {linkedInstallation.id}
-                  </button>
-                </span>
-                <Badge variant={(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).variant} size="sm" dot>
-                  {(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).label}
-                </Badge>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20">
+                  <Wrench size={13} className="text-brand-blue shrink-0" />
+                  <span className="text-xs text-gray-700">
+                    Installation Visit:{' '}
+                    <button
+                      onClick={() => navigate(`/intercom/installations/${linkedInstallation.id}`)}
+                      className="font-mono font-semibold text-brand-blue hover:underline"
+                    >
+                      {linkedInstallation.id}
+                    </button>
+                  </span>
+                  <Badge variant={(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).variant} size="sm" dot>
+                    {(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).label}
+                  </Badge>
+                </div>
+                {linkedHardware.length > 0 && (
+                  <p className="text-[11px] text-gray-500 text-right max-w-xs">
+                    {linkedHardware.map(h => `${h.deviceType} (${h.serial})`).join(', ')}
+                  </p>
+                )}
               </div>
             )}
             {lead.stage === 'Active' && lead.customerId && (

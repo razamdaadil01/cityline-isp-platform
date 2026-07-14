@@ -10,6 +10,7 @@ import Modal from '../components/ui/Modal'
 import {
   getInstallations, subscribeInstallations, updateInstallation, INSTALLATION_ENGINEERS,
 } from '../data/intercomInstallationsStore'
+import { getHardware, subscribeHardware } from '../data/intercomHardwareStore'
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,23 @@ function EngineerBadges({ value }) {
         })}
       </div>
       <span className="text-xs text-gray-600 whitespace-nowrap">{names.join(', ')}</span>
+    </div>
+  )
+}
+
+// ── Assigned hardware summary ────────────────────────────────────────────────
+
+function HardwareCell({ serials, hardware }) {
+  if (!serials?.length) return <span className="text-gray-400">—</span>
+  const items = hardware.filter(h => serials.includes(h.serial))
+  const shown = items.slice(0, 2)
+  const extra = items.length - shown.length
+  return (
+    <div className="text-xs text-gray-600 whitespace-nowrap" title={items.map(h => `${h.deviceType} (${h.serial})`).join(', ')}>
+      {shown.map(h => (
+        <div key={h.serial}>{h.deviceType} <span className="font-mono text-gray-400">({h.serial})</span></div>
+      ))}
+      {extra > 0 && <span className="text-gray-400">+{extra} more</span>}
     </div>
   )
 }
@@ -306,6 +324,9 @@ export default function IntercomInstallations() {
   const [installations, setInstallations] = useState(getInstallations())
   useEffect(() => subscribeInstallations(setInstallations), [])
 
+  const [hardware, setHardware] = useState(getHardware())
+  useEffect(() => subscribeHardware(setHardware), [])
+
   const [assignOrder, setAssignOrder] = useState(null)
 
   const [search, setSearch] = useState('')
@@ -524,7 +545,7 @@ export default function IntercomInstallations() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                {['Work Order ID', 'Lead ID', 'Customer', 'Customer ID', 'Phone', 'Engineer', 'Installation Date', 'Status', 'Actions'].map(h => (
+                {['Work Order ID', 'Lead ID', 'Customer', 'Customer ID', 'Phone', 'Engineer', 'Hardware', 'Installation Date', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -532,7 +553,7 @@ export default function IntercomInstallations() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-14 text-gray-400 text-sm">
+                  <td colSpan={10} className="text-center py-14 text-gray-400 text-sm">
                     <ClipboardList size={32} className="mx-auto mb-2 text-gray-200" />
                     No installation work orders found
                   </td>
@@ -573,6 +594,7 @@ export default function IntercomInstallations() {
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{o.customerId}</td>
                       <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{o.phone}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><EngineerBadges value={o.engineer} /></td>
+                      <td className="px-4 py-3"><HardwareCell serials={o.assignedHardware} hardware={hardware} /></td>
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{o.installDate}</td>
                       <td className="px-4 py-3">
                         <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
