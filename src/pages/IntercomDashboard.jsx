@@ -7,7 +7,7 @@ import {
 import {
   PhoneCall, UserPlus, Users, CheckCircle2, Clock, RefreshCw,
   HardDrive, AlertTriangle, MapPin, TrendingUp, ChevronRight,
-  Wifi, Percent, PackageMinus, PackageX, PackageCheck, Timer, Wrench,
+  Wifi, Percent, PackageMinus, PackageX, PackageCheck, Timer, Wrench, IndianRupee,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -238,6 +238,12 @@ export default function IntercomDashboard() {
     { label: 'Average Hardware Recovery Time', value: fmtDays(avgRecoveryTime), icon: <Timer size={18} />,        iconBg: 'bg-purple-100',  iconColor: 'text-purple-600'  },
   ]
 
+  const depositSettlementPending = INTERCOM_CUSTOMERS.filter(c => c.depositSettlementStatus === 'Pending').length
+
+  const statCardsRow5 = [
+    { label: 'Deposit Settlement Pending', value: depositSettlementPending, icon: <IndianRupee size={18} />, iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
+  ]
+
   const localityBreakdown = (() => {
     const counts = {}
     INTERCOM_CUSTOMERS.forEach(c => { counts[c.zone] = (counts[c.zone] ?? 0) + 1 })
@@ -288,6 +294,9 @@ export default function IntercomDashboard() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
           {statCardsRow4.map(card => <StatCard key={card.label} {...card} />)}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+          {statCardsRow5.map(card => <StatCard key={card.label} {...card} />)}
         </div>
       </div>
 
