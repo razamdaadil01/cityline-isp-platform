@@ -28,6 +28,30 @@ export const INTERCOM_CUSTOMERS = [
 const ZONES = [...new Set(INTERCOM_CUSTOMERS.map(c => c.zone))].sort()
 const AREAS = [...new Set(INTERCOM_CUSTOMERS.map(c => c.area))].sort()
 
+// ── Live overrides (billing config, etc. edited from the customer profile) ────
+
+let _customerOverrides = {}
+const _customerListeners = []
+
+function notifyCustomerListeners() { _customerListeners.forEach(fn => fn(getIntercomCustomersList())) }
+
+export function getIntercomCustomersList() {
+  return INTERCOM_CUSTOMERS.map(c => _customerOverrides[c.id] ? { ...c, ..._customerOverrides[c.id] } : c)
+}
+
+export function updateIntercomCustomer(id, patch) {
+  _customerOverrides = { ..._customerOverrides, [id]: { ...(_customerOverrides[id] ?? {}), ...patch } }
+  notifyCustomerListeners()
+}
+
+export function subscribeIntercomCustomers(fn) {
+  _customerListeners.push(fn)
+  return () => {
+    const i = _customerListeners.indexOf(fn)
+    if (i > -1) _customerListeners.splice(i, 1)
+  }
+}
+
 // ── Actions Menu ───────────────────────────────────────────────────────────────
 
 function ActionsMenu({ customer, pos, onView, onEdit, onSuspend, onTerminate }) {
@@ -62,6 +86,9 @@ function ActionsMenu({ customer, pos, onView, onEdit, onSuspend, onTerminate }) 
 export default function IntercomCustomers() {
   const navigate = useNavigate()
   const menuRef = useRef(null)
+
+  const [customers, setCustomers] = useState(getIntercomCustomersList())
+  useEffect(() => subscribeIntercomCustomers(setCustomers), [])
 
   const [search, setSearch] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -125,7 +152,7 @@ export default function IntercomCustomers() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return INTERCOM_CUSTOMERS.filter(c => {
+    return customers.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(search.trim()) && !c.id.toLowerCase().includes(q)) return false
       if (filterStatus && c.status !== filterStatus.toLowerCase()) return false
       if (filterZone && c.zone !== filterZone) return false
@@ -135,20 +162,20 @@ export default function IntercomCustomers() {
       if (filterDateTo && c.createdAt > filterDateTo) return false
       return true
     })
-  }, [search, filterStatus, filterZone, filterProject, filterArea, filterDateFrom, filterDateTo])
+  }, [customers, search, filterStatus, filterZone, filterProject, filterArea, filterDateFrom, filterDateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const paged = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const stats = useMemo(() => ({
-    total:     INTERCOM_CUSTOMERS.length,
-    active:    INTERCOM_CUSTOMERS.filter(c => c.status === 'active').length,
-    suspended: INTERCOM_CUSTOMERS.filter(c => c.status === 'suspended').length,
-    inactive:  INTERCOM_CUSTOMERS.filter(c => c.status === 'inactive').length,
-  }), [])
+    total:     customers.length,
+    active:    customers.filter(c => c.status === 'active').length,
+    suspended: customers.filter(c => c.status === 'suspended').length,
+    inactive:  customers.filter(c => c.status === 'inactive').length,
+  }), [customers])
 
-  const menuCustomer = INTERCOM_CUSTOMERS.find(c => c.id === menuId) ?? null
+  const menuCustomer = customers.find(c => c.id === menuId) ?? null
 
   function handleView(c) { navigate(`/intercom/customers/${c.id}`); setMenuId(null) }
   function handleEdit(c) { navigate(`/intercom/customers/${c.id}`); setMenuId(null) }

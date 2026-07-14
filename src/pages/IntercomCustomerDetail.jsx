@@ -18,6 +18,7 @@ import {
   getRecoveries, subscribeRecoveries, addRecovery, nextRecoveryId, RECOVERY_REASONS, RECOVERY_STATUS_CFG,
 } from '../data/intercomRecoveryStore'
 import { getLeads, saveLead as saveSalesLead, subscribeLeads, nextSalesLeadId } from '../data/leadsStore'
+import { updateIntercomCustomer } from './IntercomCustomers'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -1072,6 +1073,7 @@ export default function IntercomCustomerDetail() {
 
   function handleSaveBilling(patch) {
     setOverrides(o => ({ ...o, ...patch }))
+    updateIntercomCustomer(customer.id, patch)
     setSuccessMessage('Billing configuration updated')
   }
 
@@ -1198,13 +1200,6 @@ export default function IntercomCustomerDetail() {
             <Button variant="orange"    size="sm" icon={<Ban size={13} />}>Suspend</Button>
             <Button variant="danger"    size="sm" icon={<AlertTriangle size={13} />}>Terminate</Button>
           </div>
-
-          {successMessage && (
-            <div className="mt-4 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-medium flex items-center gap-2">
-              <CheckCircle2 size={15} className="shrink-0" />
-              {successMessage}
-            </div>
-          )}
         </div>
       </div>
 
@@ -1249,6 +1244,13 @@ export default function IntercomCustomerDetail() {
         onClose={() => setRecoveryModalOpen(false)}
         onSubmit={handleScheduleRecovery}
       />
+
+      {successMessage && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {successMessage}
+        </div>
+      )}
     </div>
   )
 }

@@ -17,7 +17,7 @@ import { getHardware, subscribeHardware } from '../data/intercomHardwareStore'
 import { getRecoveries, subscribeRecoveries } from '../data/intercomRecoveryStore'
 import { getLeads as getSalesLeads, subscribeLeads as subscribeSalesLeads } from '../data/leadsStore'
 import { getLocalityInfo } from '../data/areaMappingStore'
-import { INTERCOM_CUSTOMERS } from './IntercomCustomers'
+import { getIntercomCustomersList, subscribeIntercomCustomers } from './IntercomCustomers'
 
 // ─── Mock data (charts not covered by Section 23's metric list) ──────────────
 
@@ -194,10 +194,13 @@ export default function IntercomDashboard() {
   const [salesLeads, setSalesLeads] = useState(getSalesLeads())
   useEffect(() => subscribeSalesLeads(setSalesLeads), [])
 
+  const [intercomCustomers, setIntercomCustomers] = useState(getIntercomCustomersList())
+  useEffect(() => subscribeIntercomCustomers(setIntercomCustomers), [])
+
   const todayISO = new Date().toISOString().slice(0, 10)
 
   const conversions = salesLeads.filter(l => l.sourceType === 'Intercom Conversion')
-  const totalIntercomCustomers = INTERCOM_CUSTOMERS.length
+  const totalIntercomCustomers = intercomCustomers.length
   const conversionRate = totalIntercomCustomers > 0 ? (conversions.length / totalIntercomCustomers) * 100 : 0
   const activationPending = conversions.filter(l => !['Won', 'Lost'].includes(l.stage)).length
 
@@ -238,7 +241,7 @@ export default function IntercomDashboard() {
     { label: 'Average Hardware Recovery Time', value: fmtDays(avgRecoveryTime), icon: <Timer size={18} />,        iconBg: 'bg-purple-100',  iconColor: 'text-purple-600'  },
   ]
 
-  const depositSettlementPending = INTERCOM_CUSTOMERS.filter(c => c.depositSettlementStatus === 'Pending').length
+  const depositSettlementPending = intercomCustomers.filter(c => c.depositSettlementStatus === 'Pending').length
 
   const statCardsRow5 = [
     { label: 'Deposit Settlement Pending', value: depositSettlementPending, icon: <IndianRupee size={18} />, iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
@@ -246,7 +249,7 @@ export default function IntercomDashboard() {
 
   const localityBreakdown = (() => {
     const counts = {}
-    INTERCOM_CUSTOMERS.forEach(c => { counts[c.zone] = (counts[c.zone] ?? 0) + 1 })
+    intercomCustomers.forEach(c => { counts[c.zone] = (counts[c.zone] ?? 0) + 1 })
     return Object.entries(counts)
       .map(([zone, count]) => ({
         name: zone,
