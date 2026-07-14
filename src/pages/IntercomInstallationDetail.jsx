@@ -7,6 +7,7 @@ import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import { FormField, Input } from '../components/ui/FormInputs'
 import { getInstallation, updateInstallation, INSTALLATION_ENGINEERS } from '../data/intercomInstallationsStore'
+import { getHardware } from '../data/intercomHardwareStore'
 
 // ── Mock work order dataset ──────────────────────────────────────────────────
 
@@ -79,12 +80,18 @@ const MOCK_INSTALLATIONS = {
 
 function fromStoreOrder(o) {
   if (!o) return null
+  const assignedSerials = o.assignedHardware ?? []
+  const hardware = assignedSerials.length
+    ? getHardware()
+        .filter(h => assignedSerials.includes(h.serial))
+        .map(h => ({ device: h.deviceType, serial: h.serial, status: 'active' }))
+    : []
   return {
     id: o.id, customer: o.customer, customerId: o.customerId, phone: o.phone,
     circuitId: o.circuitId, zone: o.zone, address: '—',
     engineer: o.engineer, installDate: o.installDate, installTime: o.installTime,
     createdDate: o.createdDate, notes: o.notes, status: o.status,
-    hardware: [],
+    hardware,
     activity: [
       { date: o.createdDate, time: '—', event: 'Work order created', actor: 'Admin' },
     ],

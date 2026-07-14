@@ -13,6 +13,7 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getInstallations, subscribeInstallations, INSTALLATION_ENGINEERS,
 } from '../data/intercomInstallationsStore'
+import { getHardware, subscribeHardware } from '../data/intercomHardwareStore'
 import {
   getRecoveries, subscribeRecoveries, addRecovery, nextRecoveryId, RECOVERY_REASONS, RECOVERY_STATUS_CFG,
 } from '../data/intercomRecoveryStore'
@@ -866,6 +867,12 @@ export default function IntercomCustomerDetail() {
     ? installations.find(o => o.id === customer.installationId) ?? null
     : null
 
+  const [hardware, setHardware] = useState(getHardware())
+  useEffect(() => subscribeHardware(setHardware), [])
+  const linkedHardware = linkedInstallation?.assignedHardware?.length
+    ? hardware.filter(h => linkedInstallation.assignedHardware.includes(h.serial))
+    : []
+
   const [salesLeads, setSalesLeads] = useState(getLeads())
   useEffect(() => subscribeLeads(setSalesLeads), [])
   const linkedInternetLead = overrides.internetLeadId
@@ -1022,7 +1029,7 @@ export default function IntercomCustomerDetail() {
               </Button>
             )}
             {linkedInstallation && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-brand-blue/5 border border-brand-blue/20" title={linkedHardware.map(h => `${h.deviceType} (${h.serial})`).join(', ')}>
                 <Wrench size={13} className="text-brand-blue shrink-0" />
                 <span className="text-xs text-gray-700">
                   Installation Work Order:{' '}
@@ -1032,6 +1039,9 @@ export default function IntercomCustomerDetail() {
                   >
                     {linkedInstallation.id}
                   </button>
+                  {linkedHardware.length > 0 && (
+                    <span className="text-gray-400"> · {linkedHardware.map(h => h.deviceType).join(', ')}</span>
+                  )}
                 </span>
                 <Badge variant={(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).variant} size="sm" dot>
                   {(INSTALL_STATUS_CFG[linkedInstallation.status] ?? INSTALL_STATUS_CFG.pending).label}
