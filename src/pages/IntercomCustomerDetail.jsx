@@ -9,7 +9,6 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getInstallations, subscribeInstallations,
 } from '../data/intercomInstallationsStore'
@@ -202,8 +201,6 @@ const STATUS_CFG = {
   inactive:  { variant: 'gray',   label: 'Inactive' },
   pending_termination: { variant: 'orange', label: 'Pending Termination' },
 }
-
-const INTERNET_PACKAGE_OPTIONS = ['FTTH 50Mbps', 'FTTH 100Mbps', 'FTTH 200Mbps', 'Wireless 25Mbps']
 
 const KYC_STATUS = {
   uploaded: { icon: CheckCircle, color: 'text-brand-blue', label: 'Uploaded' },
@@ -720,65 +717,27 @@ function ActivityTab({ customer }) {
 
 // ── Convert to Internet Modal ─────────────────────────────────────────────────
 
-const INIT_CONVERT_FORM = { keepIntercomActive: true, packageInterest: INTERNET_PACKAGE_OPTIONS[0], notes: '' }
-
-function ConvertToInternetModal({ isOpen, customer, onClose, onSubmit }) {
-  const [form, setForm] = useState(INIT_CONVERT_FORM)
-
-  useEffect(() => {
-    if (isOpen) setForm(INIT_CONVERT_FORM)
-  }, [isOpen])
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
+function ConvertToInternetModal({ isOpen, customer, onClose, onConfirm }) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Convert to Internet" size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title="Convert to Internet Customer" size="sm"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onSubmit(form)}>Create Internet Lead</Button>
+          <Button onClick={onConfirm}>Confirm & Create Lead</Button>
         </>
       }
     >
-      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-        <FormField label="Customer Name">
-          <Input value={customer.name} disabled />
-        </FormField>
-        <FormField label="Customer ID">
-          <Input value={customer.id} disabled className="font-mono" />
-        </FormField>
-        <FormField label="Mobile">
-          <Input value={customer.phone} disabled />
-        </FormField>
-        <FormField label="Email">
-          <Input value={customer.email} disabled />
-        </FormField>
-        <div className="col-span-2">
-          <FormField label="Installation Address">
-            <Textarea value={customer.installationAddress || '—'} disabled rows={2} />
-          </FormField>
-        </div>
-        <FormField label="Keep Intercom Active?">
-          <div className="flex items-center gap-3 mt-1">
-            <button
-              type="button"
-              onClick={() => set('keepIntercomActive', !form.keepIntercomActive)}
-              className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${form.keepIntercomActive ? 'bg-brand-blue' : 'bg-gray-300'}`}
-            >
-              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.keepIntercomActive ? 'left-4' : 'left-0.5'}`} />
-            </button>
-            <span className="text-sm font-medium text-gray-700">{form.keepIntercomActive ? 'Yes' : 'No'}</span>
-          </div>
-        </FormField>
-        <FormField label="Internet Package Interest">
-          <Select value={form.packageInterest} onChange={e => set('packageInterest', e.target.value)}>
-            {INTERNET_PACKAGE_OPTIONS.map(p => <option key={p}>{p}</option>)}
-          </Select>
-        </FormField>
-        <div className="col-span-2">
-          <FormField label="Notes">
-            <Textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} placeholder="Any additional context…" />
-          </FormField>
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          This will create a new Internet Lead for <span className="font-semibold text-gray-800">{customer.name}</span>,
+          linked to their existing Intercom service (<span className="font-mono font-semibold text-cyan-700">{customer.id}</span>).
+          Their Intercom service will remain unchanged.
+        </p>
+        <div className="grid grid-cols-2 gap-y-3 gap-x-4 p-4 rounded-xl bg-gray-50 border border-surface-border">
+          <InfoField label="Name" value={customer.name} />
+          <InfoField label="Mobile" value={customer.phone} />
+          <InfoField label="Area/Locality" value={customer.zone} />
+          <InfoField label="Installation Address" value={customer.installationAddress} wide />
         </div>
       </div>
     </Modal>
@@ -829,7 +788,7 @@ export default function IntercomCustomerDetail() {
     }
   }
 
-  function handleConvertToInternet(form) {
+  function handleConvertToInternet() {
     const today = new Date().toISOString().slice(0, 10)
     const leadId = `LD-${Date.now()}`
     saveSalesLead({
@@ -842,9 +801,10 @@ export default function IntercomCustomerDetail() {
       area: customer.zone,
       address: customer.installationAddress,
       source: 'Intercom Conversion',
-      sourceIntercomId: customer.id,
+      sourceType: 'Intercom Conversion',
+      convertedFromIntercomId: customer.id,
       stage: 'New Inquiry',
-      plan: form.packageInterest,
+      plan: '',
       assigned: '',
       assignedInitials: '??',
       assignedColor: 'bg-gray-400',
@@ -856,13 +816,9 @@ export default function IntercomCustomerDetail() {
       hwAssigned: null,
       createdAt: today,
       createdBy: 'Admin User',
-      notes: form.notes,
+      notes: '',
     })
-    setOverrides(o => {
-      const next = { ...o, internetLeadId: leadId }
-      if (!form.keepIntercomActive) next.status = 'pending_termination'
-      return next
-    })
+    setOverrides(o => ({ ...o, internetLeadId: leadId }))
     setConvertModalOpen(false)
     setSuccessMessage(`Internet Lead created! Lead ID: ${leadId}`)
   }
@@ -1003,7 +959,7 @@ export default function IntercomCustomerDetail() {
         isOpen={convertModalOpen}
         customer={customer}
         onClose={() => setConvertModalOpen(false)}
-        onSubmit={handleConvertToInternet}
+        onConfirm={handleConvertToInternet}
       />
     </div>
   )
