@@ -17,7 +17,7 @@ const STATUS_CFG = {
 
 const PROJECTS = ['Sunrise Apartments', 'Greenwood Residency', 'Metro Business Park', 'Palm Grove Society']
 
-const INTERCOM_CUSTOMERS = [
+export const INTERCOM_CUSTOMERS = [
   { id: 'IC-CUST-2026-000001', name: 'Mohan Das',    phone: '93456 78901', circuitId: 'IC-2026-0001', plan: 'Intercom Basic', zone: 'Andheri West', area: 'Andheri',  project: 'Sunrise Apartments',  status: 'active',    createdAt: '2026-06-20' },
   { id: 'IC-CUST-2026-000002', name: 'Priya Nair',   phone: '98765 43210', circuitId: 'IC-2026-0002', plan: 'Intercom Plus',  zone: 'Bandra East',  area: 'Bandra',   project: 'Greenwood Residency', status: 'active',    createdAt: '2026-06-18' },
   { id: 'IC-CUST-2026-000003', name: 'Suresh Patil', phone: '99887 76655', circuitId: 'IC-2026-0003', plan: 'Intercom Basic', zone: 'Goregaon',     area: 'Goregaon', project: 'Metro Business Park', status: 'suspended', createdAt: '2026-06-10' },

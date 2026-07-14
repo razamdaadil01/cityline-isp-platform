@@ -46,7 +46,11 @@ export default function IntercomHardwareRecovery() {
   }), [recoveries, todayISO])
 
   function handleStatusChange(id, status) {
-    updateRecovery(id, { status })
+    const patch = { status }
+    if (status === 'completed') {
+      patch.completedDate = new Date().toLocaleDateString('en-GB').split('/').join('-')
+    }
+    updateRecovery(id, patch)
   }
 
   return (

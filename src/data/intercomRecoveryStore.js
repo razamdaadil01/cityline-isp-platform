@@ -10,7 +10,7 @@ export const RECOVERY_STATUS_CFG = {
 }
 
 const INIT_RECOVERIES = [
-  { id: 'HRWO-2026-000001', customerId: 'IC-CUST-2026-000003', customer: 'Suresh Patil', phone: '99887 76655', reason: 'Service Terminated',     hardwareToRecover: 'Intercom Panel Unit (ICP-2026-0003)', technician: 'Preethi Nair', scheduledDate: '05-07-2026', timeSlot: 'Morning 9-12',  createdDate: '01-07-2026', notes: 'Customer suspended, hardware pickup requested.', accessInstructions: '', status: 'completed' },
+  { id: 'HRWO-2026-000001', customerId: 'IC-CUST-2026-000003', customer: 'Suresh Patil', phone: '99887 76655', reason: 'Service Terminated',     hardwareToRecover: 'Intercom Panel Unit (ICP-2026-0003)', technician: 'Preethi Nair', scheduledDate: '05-07-2026', timeSlot: 'Morning 9-12',  createdDate: '01-07-2026', completedDate: '05-07-2026', notes: 'Customer suspended, hardware pickup requested.', accessInstructions: '', status: 'completed' },
   { id: 'HRWO-2026-000002', customerId: 'IC-CUST-2026-000004', customer: 'Anita Desai',  phone: '91234 56789', reason: 'Converted to Internet',   hardwareToRecover: 'Intercom Panel Unit (ICP-2026-0004), Handset Unit (ICH-2026-0004)', technician: 'Anita Sharma', scheduledDate: '10-07-2026', timeSlot: 'Afternoon 12-3', createdDate: '07-07-2026', notes: 'Converted to internet-only service.', accessInstructions: 'Ring bell twice, ask for security desk.', status: 'pending' },
 ]
 
