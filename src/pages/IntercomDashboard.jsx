@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -6,27 +7,19 @@ import {
 import {
   PhoneCall, UserPlus, Users, CheckCircle2, Clock, RefreshCw,
   HardDrive, AlertTriangle, MapPin, TrendingUp, ChevronRight,
+  Wifi, Percent, PackageMinus, PackageX, PackageCheck, Timer, Wrench,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
-import { getLeads } from '../data/intercomLeadsStore'
-import { getInstallations } from '../data/intercomInstallationsStore'
+import { getLeads as getIntercomLeads, subscribeLeads as subscribeIntercomLeads } from '../data/intercomLeadsStore'
+import { getInstallations, subscribeInstallations } from '../data/intercomInstallationsStore'
+import { getHardware, subscribeHardware } from '../data/intercomHardwareStore'
+import { getRecoveries, subscribeRecoveries } from '../data/intercomRecoveryStore'
+import { getLeads as getSalesLeads, subscribeLeads as subscribeSalesLeads } from '../data/leadsStore'
+import { getLocalityInfo } from '../data/areaMappingStore'
+import { INTERCOM_CUSTOMERS } from './IntercomCustomers'
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const STAT_CARDS_ROW1 = [
-  { label: 'Total Intercom Leads',                        value: 5, icon: <PhoneCall size={18} />,   iconBg: 'bg-brand-blue/10',  iconColor: 'text-brand-blue'  },
-  { label: 'New Intercom-Only Customers',                  value: 3, icon: <UserPlus size={18} />,    iconBg: 'bg-purple-100',     iconColor: 'text-purple-600'  },
-  { label: 'Existing Internet Customers Taking Intercom',  value: 2, icon: <Users size={18} />,       iconBg: 'bg-cyan-100',       iconColor: 'text-cyan-700'    },
-  { label: 'Intercom Installations Completed',             value: 8, icon: <CheckCircle2 size={18} />,iconBg: 'bg-emerald-100',    iconColor: 'text-emerald-600' },
-]
-
-const STAT_CARDS_ROW2 = [
-  { label: 'Pending Installations',            value: 2, icon: <Clock size={18} />,        iconBg: 'bg-amber-100',  iconColor: 'text-amber-600'  },
-  { label: 'Intercom-to-Internet Conversions', value: 1, icon: <RefreshCw size={18} />,     iconBg: 'bg-blue-100',   iconColor: 'text-blue-600'   },
-  { label: 'Hardware Recovery Pending',         value: 3, icon: <HardDrive size={18} />,     iconBg: 'bg-brand-orange/10', iconColor: 'text-brand-orange' },
-  { label: 'Overdue Recoveries',                value: 1, icon: <AlertTriangle size={18} />, iconBg: 'bg-red-100',   iconColor: 'text-red-500'    },
-]
+// ─── Mock data (charts not covered by Section 23's metric list) ──────────────
 
 const LEAD_STATUS_DATA = [
   { name: 'New',                    value: 2, color: '#0A8DCD' },
@@ -43,25 +36,6 @@ const MONTHLY_INSTALLATIONS = [
   { month: 'May', count: 3 },
   { month: 'Jun', count: 5 },
   { month: 'Jul', count: 8 },
-]
-
-const LOCALITY_SUMMARY = [
-  { locality: 'Andheri West', count: 4 },
-  { locality: 'Bandra East',  count: 3 },
-  { locality: 'Goregaon',     count: 2 },
-]
-
-const EXECUTIVE_CONVERSIONS = [
-  { name: 'Arjun Kumar',  count: 2 },
-  { name: 'Suresh Babu',  count: 2 },
-  { name: 'Preethi Nair', count: 1 },
-]
-
-const HARDWARE_STATUS = [
-  { label: 'Assigned',  value: 8, color: 'text-blue-600',    bg: 'bg-blue-100'    },
-  { label: 'Available', value: 5, color: 'text-emerald-700', bg: 'bg-emerald-100' },
-  { label: 'Damaged',   value: 2, color: 'text-orange-600',  bg: 'bg-orange-100'  },
-  { label: 'Lost',      value: 1, color: 'text-red-600',     bg: 'bg-red-100'     },
 ]
 
 const TYPE_BADGE = {
@@ -83,6 +57,68 @@ const INSTALLATION_STATUS_BADGE = {
   completed: { variant: 'green',  label: 'Completed'   },
   inprogress:{ variant: 'orange', label: 'In Progress' },
   pending:   { variant: 'gray',   label: 'Pending'      },
+}
+
+const HARDWARE_STATUS_DISPLAY = {
+  assigned:  { label: 'Assigned',  color: 'text-blue-600',    bg: 'bg-blue-100'    },
+  available: { label: 'Available', color: 'text-emerald-700', bg: 'bg-emerald-100' },
+  damaged:   { label: 'Damaged',   color: 'text-orange-600',  bg: 'bg-orange-100'  },
+  lost:      { label: 'Lost',      color: 'text-red-600',     bg: 'bg-red-100'     },
+}
+
+// Locality metadata used by the Locality-wise breakdown lives under this fixed hierarchy in areaMappingStore
+const LOCALITY_HIERARCHY = { state: 'Maharashtra', district: 'Mumbai Suburban', area: 'Mumbai' }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toISO(ddmmyyyy) {
+  if (!ddmmyyyy) return ''
+  const [d, m, y] = ddmmyyyy.split('-')
+  return `${y}-${m}-${d}`
+}
+
+function parseDDMMYYYY(ddmmyyyy) {
+  if (!ddmmyyyy) return null
+  const [d, m, y] = ddmmyyyy.split('-').map(Number)
+  if (!d || !m || !y) return null
+  return new Date(y, m - 1, d)
+}
+
+function daysBetween(startStr, endStr) {
+  const start = parseDDMMYYYY(startStr)
+  const end = parseDDMMYYYY(endStr)
+  if (!start || !end) return null
+  return Math.round((end - start) / (1000 * 60 * 60 * 24))
+}
+
+function average(nums) {
+  const valid = nums.filter(n => n !== null && !Number.isNaN(n))
+  if (!valid.length) return null
+  return valid.reduce((a, b) => a + b, 0) / valid.length
+}
+
+function fmtDays(n) {
+  return n === null ? '—' : `${n.toFixed(1)} days`
+}
+
+function groupCount(items, keyFn) {
+  const map = {}
+  items.forEach(item => {
+    const keys = keyFn(item)
+    ;(Array.isArray(keys) ? keys : [keys]).forEach(k => {
+      if (!k) return
+      map[k] = (map[k] ?? 0) + 1
+    })
+  })
+  return Object.entries(map).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+}
+
+function leadIsIntercomOnly(l) {
+  return l.type === 'Intercom Only' || l.relationshipType === 'New / Intercom-Only Customer'
+}
+
+function leadIsInternetPlusIntercom(l) {
+  return l.type === 'Internet + Intercom' || l.relationshipType === 'Existing Internet Customer'
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -119,11 +155,113 @@ function StatCard({ label, value, icon, iconBg, iconColor }) {
   )
 }
 
+function RankedList({ rows, icon: Icon, iconBg, iconColor, extra }) {
+  if (rows.length === 0) return <p className="text-sm text-gray-400 text-center py-4">No data yet</p>
+  return (
+    <div className="space-y-3">
+      {rows.map((r, i) => (
+        <div key={r.name} className="flex items-center gap-3">
+          <div className={`w-6 h-6 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center text-xs font-bold shrink-0`}>
+            {i + 1}
+          </div>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Icon size={13} className="text-gray-400 shrink-0" />
+            <span className="text-sm text-gray-700 truncate">{r.name}</span>
+            {extra && extra(r)}
+          </div>
+          <span className="text-sm font-bold text-gray-900">{r.count}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function IntercomDashboard() {
-  const leads = getLeads().slice(0, 5)
-  const pendingInstallations = getInstallations().filter(o => o.status !== 'completed').slice(0, 3)
+  const [intercomLeads, setIntercomLeads] = useState(getIntercomLeads())
+  useEffect(() => subscribeIntercomLeads(setIntercomLeads), [])
+
+  const [installations, setInstallations] = useState(getInstallations())
+  useEffect(() => subscribeInstallations(setInstallations), [])
+
+  const [hardware, setHardware] = useState(getHardware())
+  useEffect(() => subscribeHardware(setHardware), [])
+
+  const [recoveries, setRecoveries] = useState(getRecoveries())
+  useEffect(() => subscribeRecoveries(setRecoveries), [])
+
+  const [salesLeads, setSalesLeads] = useState(getSalesLeads())
+  useEffect(() => subscribeSalesLeads(setSalesLeads), [])
+
+  const todayISO = new Date().toISOString().slice(0, 10)
+
+  const conversions = salesLeads.filter(l => l.sourceType === 'Intercom Conversion')
+  const totalIntercomCustomers = INTERCOM_CUSTOMERS.length
+  const conversionRate = totalIntercomCustomers > 0 ? (conversions.length / totalIntercomCustomers) * 100 : 0
+  const activationPending = conversions.filter(l => !['Won', 'Lost'].includes(l.stage)).length
+
+  const completedInstallations = installations.filter(o => o.status === 'completed')
+  const avgInstallTime = average(completedInstallations.map(o => daysBetween(o.createdDate, o.completedDate)))
+
+  const completedRecoveries = recoveries.filter(r => r.status === 'completed')
+  const avgRecoveryTime = average(completedRecoveries.map(r => daysBetween(r.createdDate, r.completedDate)))
+
+  const leads5 = intercomLeads.slice(0, 5)
+  const pendingInstallations = installations.filter(o => o.status !== 'completed').slice(0, 3)
+
+  const statCardsRow1 = [
+    { label: 'Total Intercom Leads',                        value: intercomLeads.length, icon: <PhoneCall size={18} />,   iconBg: 'bg-brand-blue/10',  iconColor: 'text-brand-blue'  },
+    { label: 'New Intercom-Only Customers',                  value: intercomLeads.filter(leadIsIntercomOnly).length, icon: <UserPlus size={18} />,    iconBg: 'bg-purple-100',     iconColor: 'text-purple-600'  },
+    { label: 'Existing Internet Customers Taking Intercom',  value: intercomLeads.filter(leadIsInternetPlusIntercom).length, icon: <Users size={18} />,       iconBg: 'bg-cyan-100',       iconColor: 'text-cyan-700'    },
+    { label: 'Intercom Installations Completed',             value: completedInstallations.length, icon: <CheckCircle2 size={18} />,iconBg: 'bg-emerald-100',    iconColor: 'text-emerald-600' },
+  ]
+
+  const statCardsRow2 = [
+    { label: 'Pending Installations',            value: installations.filter(o => o.status !== 'completed').length, icon: <Clock size={18} />,        iconBg: 'bg-amber-100',  iconColor: 'text-amber-600'  },
+    { label: 'Intercom-to-Internet Conversions', value: conversions.length, icon: <RefreshCw size={18} />,     iconBg: 'bg-blue-100',   iconColor: 'text-blue-600'   },
+    { label: 'Hardware Recovery Pending',         value: recoveries.filter(r => r.status === 'pending').length, icon: <HardDrive size={18} />,     iconBg: 'bg-brand-orange/10', iconColor: 'text-brand-orange' },
+    { label: 'Overdue Recoveries',                value: recoveries.filter(r => (r.status === 'pending' || r.status === 'inprogress') && toISO(r.scheduledDate) < todayISO).length, icon: <AlertTriangle size={18} />, iconBg: 'bg-red-100',   iconColor: 'text-red-500'    },
+  ]
+
+  const statCardsRow3 = [
+    { label: 'Conversion Rate',              value: `${conversionRate.toFixed(1)}%`, icon: <Percent size={18} />,      iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+    { label: 'Internet Activation Pending',  value: activationPending, icon: <Wifi size={18} />,         iconBg: 'bg-blue-100',    iconColor: 'text-blue-600'    },
+    { label: 'Partial Recoveries',           value: recoveries.filter(r => r.status === 'partial_recovery').length, icon: <PackageMinus size={18} />, iconBg: 'bg-amber-100',   iconColor: 'text-amber-600'   },
+    { label: 'Missing Hardware',             value: recoveries.filter(r => r.status === 'missing_hardware').length, icon: <PackageX size={18} />,     iconBg: 'bg-red-100',     iconColor: 'text-red-600'     },
+  ]
+
+  const statCardsRow4 = [
+    { label: 'Damaged Hardware',               value: recoveries.filter(r => r.status === 'damaged_hardware').length, icon: <PackageX size={18} />,     iconBg: 'bg-orange-100',  iconColor: 'text-orange-600'  },
+    { label: 'Hardware Returned to Inventory', value: recoveries.filter(r => r.status === 'completed').length, icon: <PackageCheck size={18} />, iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+    { label: 'Average Installation Time',      value: fmtDays(avgInstallTime), icon: <Timer size={18} />,        iconBg: 'bg-brand-blue/10',iconColor: 'text-brand-blue'  },
+    { label: 'Average Hardware Recovery Time', value: fmtDays(avgRecoveryTime), icon: <Timer size={18} />,        iconBg: 'bg-purple-100',  iconColor: 'text-purple-600'  },
+  ]
+
+  const localityBreakdown = (() => {
+    const counts = {}
+    INTERCOM_CUSTOMERS.forEach(c => { counts[c.zone] = (counts[c.zone] ?? 0) + 1 })
+    return Object.entries(counts)
+      .map(([zone, count]) => ({
+        name: zone,
+        count,
+        intercomSite: !!getLocalityInfo(LOCALITY_HIERARCHY.state, LOCALITY_HIERARCHY.district, LOCALITY_HIERARCHY.area, zone)?.intercomSite,
+      }))
+      .sort((a, b) => b.count - a.count)
+  })()
+
+  const executiveBreakdown = groupCount(conversions, l => l.assigned).slice(0, 5)
+
+  const technicianBreakdown = groupCount(
+    completedInstallations,
+    o => (o.engineer ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  ).slice(0, 5)
+
+  const hardwareStatus = Object.keys(HARDWARE_STATUS_DISPLAY).map(key => ({
+    key,
+    ...HARDWARE_STATUS_DISPLAY[key],
+    value: hardware.filter(h => h.status === key).length,
+  }))
 
   return (
     <div className="p-6 space-y-6">
@@ -140,10 +278,16 @@ export default function IntercomDashboard() {
       <div>
         <SectionTitle>Key Metrics</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {STAT_CARDS_ROW1.map(card => <StatCard key={card.label} {...card} />)}
+          {statCardsRow1.map(card => <StatCard key={card.label} {...card} />)}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-          {STAT_CARDS_ROW2.map(card => <StatCard key={card.label} {...card} />)}
+          {statCardsRow2.map(card => <StatCard key={card.label} {...card} />)}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+          {statCardsRow3.map(card => <StatCard key={card.label} {...card} />)}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+          {statCardsRow4.map(card => <StatCard key={card.label} {...card} />)}
         </div>
       </div>
 
@@ -202,7 +346,7 @@ export default function IntercomDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {leads.map(lead => (
+                {leads5.map(lead => (
                   <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-2.5 whitespace-nowrap">
                       <Link to={`/intercom/leads/${lead.id}`} className="text-xs font-mono font-semibold text-brand-blue hover:underline">
@@ -261,46 +405,40 @@ export default function IntercomDashboard() {
         </WidgetCard>
       </div>
 
-      {/* Section 4 — Summary Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Section 4 — Breakdown Summary Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
         <WidgetCard title="Locality-wise Intercom Customers">
-          <div className="space-y-3">
-            {LOCALITY_SUMMARY.map((l, i) => (
-              <div key={l.locality} className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-lg bg-brand-blue/10 text-brand-blue flex items-center justify-center text-xs font-bold shrink-0">
-                  {i + 1}
-                </div>
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <MapPin size={13} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 truncate">{l.locality}</span>
-                </div>
-                <span className="text-sm font-bold text-gray-900">{l.count}</span>
-              </div>
-            ))}
-          </div>
+          <RankedList
+            rows={localityBreakdown}
+            icon={MapPin}
+            iconBg="bg-brand-blue/10"
+            iconColor="text-brand-blue"
+            extra={r => r.intercomSite && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Intercom Site" />}
+          />
         </WidgetCard>
 
         <WidgetCard title="Sales Executive-wise Conversions">
-          <div className="space-y-3">
-            {EXECUTIVE_CONVERSIONS.map((e, i) => (
-              <div key={e.name} className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
-                  {i + 1}
-                </div>
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <TrendingUp size={13} className="text-gray-400 shrink-0" />
-                  <span className="text-sm text-gray-700 truncate">{e.name}</span>
-                </div>
-                <span className="text-sm font-bold text-gray-900">{e.count}</span>
-              </div>
-            ))}
-          </div>
+          <RankedList
+            rows={executiveBreakdown}
+            icon={TrendingUp}
+            iconBg="bg-emerald-100"
+            iconColor="text-emerald-700"
+          />
+        </WidgetCard>
+
+        <WidgetCard title="Technician-wise Installation Completion">
+          <RankedList
+            rows={technicianBreakdown}
+            icon={Wrench}
+            iconBg="bg-purple-100"
+            iconColor="text-purple-700"
+          />
         </WidgetCard>
 
         <WidgetCard title="Hardware Status Summary">
           <div className="grid grid-cols-2 gap-3">
-            {HARDWARE_STATUS.map(s => (
-              <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
+            {hardwareStatus.map(s => (
+              <div key={s.key} className={`${s.bg} rounded-xl p-3 text-center`}>
                 <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
                 <p className="text-xs text-gray-600 mt-0.5">{s.label}</p>
               </div>

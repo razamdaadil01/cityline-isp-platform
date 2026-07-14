@@ -922,7 +922,7 @@ export default function IntercomCustomerDetail() {
       convertedFromIntercomId: customer.id,
       stage: 'New Inquiry',
       plan: '',
-      assigned: '',
+      assigned: customer.salesExecutive ?? '',
       assignedInitials: '??',
       assignedColor: 'bg-gray-400',
       daysInStage: 0,
