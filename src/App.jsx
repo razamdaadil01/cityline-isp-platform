@@ -16,6 +16,7 @@ import SalesAnalytics from './pages/SalesAnalytics'
 import SalesNewLead from './pages/SalesNewLead'
 import SalesLeadDetail from './pages/SalesLeadDetail'
 import SalesEditLead from './pages/SalesEditLead'
+import IntercomDashboard from './pages/IntercomDashboard'
 import IntercomLeads from './pages/IntercomLeads'
 import IntercomLeadNew from './pages/IntercomLeadNew'
 import IntercomLeadDetail from './pages/IntercomLeadDetail'
@@ -82,7 +83,8 @@ export default function App() {
           <Route path="/sales/leads/:id/:tab" element={<SalesLeadDetail />} />
           <Route path="/sales/feasibility-requests" element={<FeasibilityRequests />} />
           <Route path="/sales/feasibility-requests/:id" element={<FeasibilityDetail />} />
-          <Route path="/intercom" element={<Navigate to="/intercom/leads" replace />} />
+          <Route path="/intercom" element={<Navigate to="/intercom/dashboard" replace />} />
+          <Route path="/intercom/dashboard" element={<IntercomDashboard />} />
           <Route path="/intercom/leads" element={<IntercomLeads />} />
           <Route path="/intercom/leads/new" element={<IntercomLeadNew />} />
           <Route path="/intercom/leads/:id" element={<IntercomLeadDetail />} />

@@ -44,8 +44,9 @@ const NAV_ITEMS = [
     ],
   },
   {
-    label: 'Intercom',        icon: Phone,           to: '/intercom/leads',
+    label: 'Intercom',        icon: Phone,           to: '/intercom/dashboard',
     children: [
+      { label: 'Dashboard',      icon: LayoutDashboard, to: '/intercom/dashboard'    },
       { label: 'Customers',      icon: Users,         to: '/intercom/customers'      },
       { label: 'Installations',  icon: Wrench,        to: '/intercom/installations'  },
       { label: 'Billing',        icon: Receipt,       to: '/intercom/billing'        },
