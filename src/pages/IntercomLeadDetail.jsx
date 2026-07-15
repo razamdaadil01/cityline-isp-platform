@@ -236,9 +236,11 @@ function UpdateStageModal({ isOpen, currentStage, lead, onClose, onSubmit }) {
             {ALL_STAGES.map(s => <option key={s}>{s}</option>)}
           </Select>
         </FormField>
-        <FormField label="Remarks">
-          <Textarea value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={3} placeholder="Add remarks…" />
-        </FormField>
+        {!isSchedulingVisit && (
+          <FormField label="Remarks">
+            <Textarea value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={3} placeholder="Add remarks…" />
+          </FormField>
+        )}
 
         {isSchedulingVisit && lead && (
           <InstallationVisitFields form={visitForm} errors={errors} set={setVisit} lead={lead} />
