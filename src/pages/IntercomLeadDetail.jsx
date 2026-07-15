@@ -187,25 +187,38 @@ function MarkAsLostModal({ isOpen, onClose, onSubmit }) {
 
 // ── Update Stage Modal ────────────────────────────────────────────────────────
 
-function UpdateStageModal({ isOpen, currentStage, onClose, onSubmit }) {
+function UpdateStageModal({ isOpen, currentStage, lead, onClose, onSubmit }) {
   const [form, setForm] = useState({ newStage: '', remarks: '' })
+  const [visitForm, setVisitForm] = useState(INIT_VISIT_FORM)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    if (isOpen) { setForm({ newStage: '', remarks: '' }); setErrors({}) }
+    if (isOpen) {
+      setForm({ newStage: '', remarks: '' })
+      setVisitForm(INIT_VISIT_FORM)
+      setErrors({})
+    }
   }, [isOpen])
 
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErrors(p => ({ ...p, [f]: '' })) }
+  function setVisit(f, v) { setVisitForm(p => ({ ...p, [f]: v })); setErrors(p => ({ ...p, [f]: '' })) }
+
+  const isSchedulingVisit = form.newStage === 'Installation Scheduled'
 
   function handleSubmit() {
     const e = {}
     if (!form.newStage) e.newStage = 'Select a new stage'
+    if (isSchedulingVisit) {
+      if (!visitForm.technician) e.technician = 'Select a technician'
+      if (!visitForm.installDate) e.installDate = 'Installation date is required'
+      if (!visitForm.timeSlot) e.timeSlot = 'Select a time slot'
+    }
     if (Object.keys(e).length) { setErrors(e); return }
-    onSubmit(form)
+    onSubmit(isSchedulingVisit ? { ...form, visit: visitForm } : form)
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Update Stage" size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title="Update Stage" size={isSchedulingVisit ? 'lg' : 'md'}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -226,6 +239,10 @@ function UpdateStageModal({ isOpen, currentStage, onClose, onSubmit }) {
         <FormField label="Remarks">
           <Textarea value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={3} placeholder="Add remarks…" />
         </FormField>
+
+        {isSchedulingVisit && lead && (
+          <InstallationVisitFields form={visitForm} errors={errors} set={setVisit} lead={lead} />
+        )}
       </div>
     </Modal>
   )
@@ -301,46 +318,20 @@ function HardwareMultiSelect({ selected, onChange }) {
   )
 }
 
-// ── Create Installation Visit Modal ─────────────────────────────────────────────
+// ── Installation Visit Fields (reused inside Update Stage when scheduling) ──────
 
 const INIT_VISIT_FORM = {
   technician: '', installDate: '', timeSlot: '', priority: 'Normal',
   assignedHardware: [], visitNotes: '', accessInstructions: '', altNumber: '',
 }
 
-function CreateInstallationVisitModal({ isOpen, lead, onClose, onSubmit }) {
-  const [form, setForm] = useState(INIT_VISIT_FORM)
-  const [errors, setErrors] = useState({})
-
-  useEffect(() => {
-    if (isOpen) { setForm(INIT_VISIT_FORM); setErrors({}) }
-  }, [isOpen])
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErrors(p => ({ ...p, [f]: '' })) }
-
-  function handleSubmit() {
-    const e = {}
-    if (!form.technician) e.technician = 'Select a technician'
-    if (!form.installDate) e.installDate = 'Installation date is required'
-    if (!form.timeSlot) e.timeSlot = 'Select a time slot'
-    if (Object.keys(e).length) { setErrors(e); return }
-    onSubmit(form)
-  }
-
-  if (!lead) return null
-
+function InstallationVisitFields({ form, errors, set, lead }) {
   const customerType = leadTypeOf(lead) === 'Internet + Intercom' ? 'Existing Internet Customer' : 'Intercom Only'
   const areaLine = [lead.area, lead.locality, lead.subLocality].filter(Boolean).join(' / ') || '—'
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create Installation Visit" size="lg"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit}>Create Visit</Button>
-        </>
-      }
-    >
+    <div className="pt-4 mt-2 border-t border-surface-border">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Installation Visit Details</p>
       <div className="grid grid-cols-2 gap-x-4 gap-y-4">
         <FormField label="Lead Number">
           <Input value={formatLeadId(lead.id)} disabled className="font-mono" />
@@ -406,30 +397,21 @@ function CreateInstallationVisitModal({ isOpen, lead, onClose, onSubmit }) {
           />
         </FormField>
       </div>
-    </Modal>
+    </div>
   )
 }
 
 // ── Stage-based Actions ───────────────────────────────────────────────────────
 
-const STAGE_UPDATE_ONLY = ['New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required', 'On Hold']
+const STAGE_UPDATE_ONLY = ['New', 'Contacted', 'Requirement Confirmed', 'Site Verification Required', 'On Hold', 'Installation Scheduled']
 
-function StageActions({ lead, onUpdateStage, onMarkLost, onCreateVisit, onCreateCustomer }) {
+function StageActions({ lead, onUpdateStage, onMarkLost, onCreateCustomer }) {
   const stage = lead.stage
 
   if (STAGE_UPDATE_ONLY.includes(stage)) {
     return (
       <>
         <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={onUpdateStage}>Update Stage</Button>
-        <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost/Cancel</Button>
-      </>
-    )
-  }
-
-  if (stage === 'Installation Scheduled') {
-    return (
-      <>
-        <Button icon={<Wrench size={14} />} onClick={onCreateVisit}>Create Installation Visit</Button>
         <Button variant="danger" icon={<XCircle size={14} />} onClick={onMarkLost}>Mark as Lost/Cancel</Button>
       </>
     )
@@ -717,7 +699,6 @@ export default function IntercomLeadDetail() {
   const [lead, setLead] = useState(() => getLead(id))
   const [lostModalOpen, setLostModalOpen] = useState(false)
   const [updateStageOpen, setUpdateStageOpen] = useState(false)
-  const [visitModalOpen, setVisitModalOpen] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
   const [installations, setInstallations] = useState(getInstallations())
@@ -753,6 +734,47 @@ export default function IntercomLeadDetail() {
   }
 
   function handleUpdateStage(data) {
+    if (data.visit) {
+      const form = data.visit
+      const now = new Date()
+      const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
+      const [y, m, d] = form.installDate.split('-')
+      const workOrderId = nextInstallationId()
+      addInstallation({
+        id: workOrderId,
+        leadId: lead.id,
+        customer: lead.leadName,
+        customerId: lead.existingCustomerId ?? '',
+        phone: lead.mobile,
+        circuitId: '',
+        zone: lead.area ?? '',
+        engineer: form.technician,
+        installDate: `${d}-${m}-${y}`,
+        installTime: form.timeSlot,
+        priority: form.priority,
+        assignedHardware: form.assignedHardware,
+        accessInstructions: form.accessInstructions,
+        altNumber: form.altNumber,
+        createdDate,
+        notes: form.visitNotes,
+        status: 'pending',
+      })
+      if (form.assignedHardware.length) {
+        assignHardwareToWorkOrder(form.assignedHardware, {
+          workOrderId,
+          assignedTo: lead.leadName,
+          customerId: lead.existingCustomerId ?? '',
+          zone: lead.area ?? '',
+          assignedDate: createdDate,
+        })
+      }
+      const updated = { ...lead, stage: 'Installation In Progress', installationId: workOrderId }
+      saveLead(addHistory(updated, `Stage updated to ${data.newStage} — Installation Visit created (Work Order ${workOrderId})${data.remarks ? ' — ' + data.remarks : ''}`))
+      setUpdateStageOpen(false)
+      setSuccessMessage('Installation Visit created successfully')
+      return
+    }
+
     const updated = { ...lead, stage: data.newStage }
     saveLead(addHistory(updated, `Stage updated to ${data.newStage}${data.remarks ? ' — ' + data.remarks : ''}`))
     setUpdateStageOpen(false)
@@ -760,45 +782,6 @@ export default function IntercomLeadDetail() {
 
   function handleCreateCustomer() {
     navigate('/intercom/customers/new?leadId=' + lead.id)
-  }
-
-  function handleCreateVisit(form) {
-    const now = new Date()
-    const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
-    const [y, m, d] = form.installDate.split('-')
-    const workOrderId = nextInstallationId()
-    addInstallation({
-      id: workOrderId,
-      leadId: lead.id,
-      customer: lead.leadName,
-      customerId: lead.existingCustomerId ?? '',
-      phone: lead.mobile,
-      circuitId: '',
-      zone: lead.area ?? '',
-      engineer: form.technician,
-      installDate: `${d}-${m}-${y}`,
-      installTime: form.timeSlot,
-      priority: form.priority,
-      assignedHardware: form.assignedHardware,
-      accessInstructions: form.accessInstructions,
-      altNumber: form.altNumber,
-      createdDate,
-      notes: form.visitNotes,
-      status: 'pending',
-    })
-    if (form.assignedHardware.length) {
-      assignHardwareToWorkOrder(form.assignedHardware, {
-        workOrderId,
-        assignedTo: lead.leadName,
-        customerId: lead.existingCustomerId ?? '',
-        zone: lead.area ?? '',
-        assignedDate: createdDate,
-      })
-    }
-    const updated = { ...lead, stage: 'Installation In Progress', installationId: workOrderId }
-    saveLead(addHistory(updated, `Installation Visit created — Work Order ${workOrderId}`))
-    setVisitModalOpen(false)
-    setSuccessMessage('Installation Visit created successfully')
   }
 
   if (!lead) {
@@ -897,7 +880,6 @@ export default function IntercomLeadDetail() {
               lead={lead}
               onUpdateStage={() => setUpdateStageOpen(true)}
               onMarkLost={() => setLostModalOpen(true)}
-              onCreateVisit={() => setVisitModalOpen(true)}
               onCreateCustomer={handleCreateCustomer}
             />
           </div>
@@ -951,14 +933,9 @@ export default function IntercomLeadDetail() {
       <UpdateStageModal
         isOpen={updateStageOpen}
         currentStage={lead.stage}
+        lead={lead}
         onClose={() => setUpdateStageOpen(false)}
         onSubmit={handleUpdateStage}
-      />
-      <CreateInstallationVisitModal
-        isOpen={visitModalOpen}
-        lead={lead}
-        onClose={() => setVisitModalOpen(false)}
-        onSubmit={handleCreateVisit}
       />
 
     </div>
