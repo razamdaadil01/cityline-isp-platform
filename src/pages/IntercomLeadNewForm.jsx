@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Search, Loader2, User, MapPin, PhoneCall, ClipboardList, AlertTriangle,
 } from 'lucide-react'
@@ -37,6 +37,21 @@ function titleCase(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'
 }
 
+function toFoundCustomerShape(customer) {
+  return {
+    customerName: customer.name,
+    customerId: customer.id,
+    registrationNumber: customer.registrationNumber ?? '—',
+    mobile: customer.phone,
+    email: customer.email ?? '—',
+    installationAddress: customer.installationAddress ?? '—',
+    billingAddress: customer.billingAddress ?? '—',
+    internetPackage: customer.plan ?? '—',
+    internetStatus: titleCase(customer.status),
+    customerStatus: titleCase(customer.status),
+  }
+}
+
 const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
 const INTERCOM_TYPES = ['Basic', 'Plus', 'Premium']
 const TIME_SLOTS = ['Morning 9-12', 'Afternoon 12-3', 'Evening 3-6']
@@ -53,6 +68,13 @@ const MOCK_CUSTOMER = {
   internetPackage: 'FTTH 100Mbps',
   internetStatus: 'Active',
   customerStatus: 'Active',
+}
+
+function lookupCustomerById(id) {
+  if (!id) return null
+  if (id === MOCK_CUSTOMER.customerId) return MOCK_CUSTOMER
+  const real = getAllCustomers().find(c => c.id === id && c.type !== 'Intercom')
+  return real ? toFoundCustomerShape(real) : null
 }
 
 const INIT_FORM_A_EXTRA = {
@@ -99,17 +121,23 @@ function SectionCard({ title, icon: Icon, children }) {
 export default function IntercomLeadNewForm() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const relationship = location.pathname.endsWith('/existing') ? 'yes' : 'no'
   const prefillCustomer = location.state?.prefillCustomer ?? null
+  const customerIdFromUrl = searchParams.get('customerId')
 
   const [leadId] = useState(() => nextIntercomLeadId())
 
   // Flow A — existing customer
-  const [searchCustomerId, setSearchCustomerId] = useState(prefillCustomer?.customerId ?? '')
+  const [searchCustomerId, setSearchCustomerId] = useState(prefillCustomer?.customerId ?? customerIdFromUrl ?? '')
   const [searchRegNumber, setSearchRegNumber] = useState('')
   const [searchError, setSearchError] = useState('')
   const [finding, setFinding] = useState(false)
-  const [foundCustomer, setFoundCustomer] = useState(prefillCustomer)
+  const [foundCustomer, setFoundCustomer] = useState(() => {
+    if (prefillCustomer) return prefillCustomer
+    return customerIdFromUrl ? lookupCustomerById(customerIdFromUrl) : null
+  })
+  const [notFound, setNotFound] = useState(() => !prefillCustomer && !!customerIdFromUrl && !lookupCustomerById(customerIdFromUrl))
   const [formA, setFormA] = useState(INIT_FORM_A_EXTRA)
 
   // Flow B — new / intercom-only customer
@@ -141,9 +169,19 @@ export default function IntercomLeadNewForm() {
     setSearchError('')
     setFinding(true)
     setFoundCustomer(null)
+    setNotFound(false)
     setTimeout(() => {
       setFinding(false)
-      setFoundCustomer(MOCK_CUSTOMER)
+      const result = searchCustomerId.trim() ? lookupCustomerById(searchCustomerId.trim()) : MOCK_CUSTOMER
+      if (result) {
+        setFoundCustomer(result)
+        setNotFound(false)
+        setSearchParams({ customerId: result.customerId })
+      } else {
+        setFoundCustomer(null)
+        setNotFound(true)
+        setSearchParams({})
+      }
     }, 1000)
   }
 
@@ -276,21 +314,8 @@ export default function IntercomLeadNewForm() {
 
   function handleSwitchToFlowA(customer) {
     setDuplicateModal(null)
-    navigate('/intercom/leads/new/existing', {
-      state: {
-        prefillCustomer: {
-          customerName: customer.name,
-          customerId: customer.id,
-          registrationNumber: customer.registrationNumber ?? '—',
-          mobile: customer.phone,
-          email: customer.email ?? '—',
-          installationAddress: customer.installationAddress ?? '—',
-          billingAddress: customer.billingAddress ?? '—',
-          internetPackage: customer.plan ?? '—',
-          internetStatus: titleCase(customer.status),
-          customerStatus: titleCase(customer.status),
-        },
-      },
+    navigate(`/intercom/leads/new/existing?customerId=${encodeURIComponent(customer.id)}`, {
+      state: { prefillCustomer: toFoundCustomerShape(customer) },
       replace: true,
     })
   }
@@ -352,6 +377,20 @@ export default function IntercomLeadNewForm() {
                 </Button>
               </div>
             </SectionCard>
+
+            {notFound && (
+              <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+                <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">No customer found</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      No customer matches {searchCustomerId.trim() ? <span className="font-mono">{searchCustomerId.trim()}</span> : 'the details entered'}. Check the Customer ID and try again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {foundCustomer && (
               <>
