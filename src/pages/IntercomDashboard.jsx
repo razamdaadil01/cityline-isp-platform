@@ -381,7 +381,7 @@ export default function IntercomDashboard() {
         </WidgetCard>
 
         <WidgetCard title="Pending Installations"
-          action={<Link to="/intercom/installations"><Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />}>View All</Button></Link>}
+          action={<Link to="/installations?type=Intercom"><Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />}>View All</Button></Link>}
         >
           <div className="overflow-x-auto -mx-5 -mb-5">
             <table className="w-full text-sm">

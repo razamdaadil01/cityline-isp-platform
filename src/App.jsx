@@ -24,7 +24,6 @@ import IntercomLeadDetail from './pages/IntercomLeadDetail'
 import IntercomCustomerNew from './pages/IntercomCustomerNew'
 import IntercomCustomers from './pages/IntercomCustomers'
 import IntercomCustomerDetail from './pages/IntercomCustomerDetail'
-import IntercomInstallations from './pages/IntercomInstallations'
 import IntercomInstallationDetail from './pages/IntercomInstallationDetail'
 import IntercomHardwareRecovery from './pages/IntercomHardwareRecovery'
 import IntercomBilling from './pages/IntercomBilling'
@@ -94,7 +93,6 @@ export default function App() {
           <Route path="/intercom/customers/:id/:tab" element={<IntercomCustomerDetail />} />
           <Route path="/intercom/customers/:id/:tab/:subTab" element={<IntercomCustomerDetail />} />
           <Route path="/intercom/customers" element={<IntercomCustomers />} />
-          <Route path="/intercom/installations" element={<IntercomInstallations />} />
           <Route path="/intercom/installations/:id" element={<IntercomInstallationDetail />} />
           <Route path="/intercom/hardware-recovery" element={<IntercomHardwareRecovery />} />
           <Route path="/intercom/billing" element={<IntercomBilling />} />
