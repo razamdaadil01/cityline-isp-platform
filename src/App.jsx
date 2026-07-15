@@ -19,6 +19,7 @@ import SalesEditLead from './pages/SalesEditLead'
 import IntercomDashboard from './pages/IntercomDashboard'
 import IntercomLeads from './pages/IntercomLeads'
 import IntercomLeadNew from './pages/IntercomLeadNew'
+import IntercomLeadNewForm from './pages/IntercomLeadNewForm'
 import IntercomLeadDetail from './pages/IntercomLeadDetail'
 import IntercomCustomerNew from './pages/IntercomCustomerNew'
 import IntercomCustomers from './pages/IntercomCustomers'
@@ -84,6 +85,8 @@ export default function App() {
           <Route path="/intercom/dashboard" element={<IntercomDashboard />} />
           <Route path="/intercom/leads" element={<IntercomLeads />} />
           <Route path="/intercom/leads/new" element={<IntercomLeadNew />} />
+          <Route path="/intercom/leads/new/existing" element={<IntercomLeadNewForm />} />
+          <Route path="/intercom/leads/new/intercom-only" element={<IntercomLeadNewForm />} />
           <Route path="/intercom/leads/:id" element={<IntercomLeadDetail />} />
           <Route path="/intercom/leads/:id/:tab" element={<IntercomLeadDetail />} />
           <Route path="/intercom/customers/new" element={<IntercomCustomerNew />} />
