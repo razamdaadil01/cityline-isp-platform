@@ -473,6 +473,30 @@ function ProfileTab({ lead }) {
                 <Badge variant="green" size="sm">{lead.internetStatus ?? 'Active'}</Badge>
               </div>
             </div>
+            <InfoRow
+              icon={MapPin}
+              label="Area / Locality / Sub Locality"
+              value={[lead.area, lead.locality, lead.subLocality].filter(Boolean).join(' / ')}
+            />
+            <InfoRow icon={Building2} label="Assigned Branch" value={lead.assignedBranch} />
+            <div className="flex items-start gap-3 py-2.5 border-b border-gray-50 last:border-0">
+              <Cpu size={14} className="text-gray-400 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-gray-400">Existing Hardware Details</p>
+                {lead.existingHardware?.length ? (
+                  <div className="mt-1 space-y-1">
+                    {lead.existingHardware.map((h, i) => (
+                      <p key={i} className="text-sm font-medium text-gray-800">
+                        {h.device} <span className="text-xs font-mono text-gray-400">({h.serial})</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium text-gray-800">—</p>
+                )}
+              </div>
+            </div>
+            <InfoRow icon={FileText} label="Special Access Instructions" value={lead.specialAccess} />
           </>
         ) : (
           <InfoRow icon={Wifi} label="Internet Provider" value={lead.internetProvider} />
