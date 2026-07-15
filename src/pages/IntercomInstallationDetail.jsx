@@ -373,7 +373,7 @@ export default function IntercomInstallationDetail() {
         <div className="px-5 lg:px-6 xl:px-7 2xl:px-8 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
           <span className="text-gray-400">Intercom</span>
           <span className="text-gray-300">›</span>
-          <button onClick={() => navigate('/intercom/installations')} className="text-gray-400 hover:underline transition-colors">
+          <button onClick={() => navigate('/installations?type=Intercom')} className="text-gray-400 hover:underline transition-colors">
             Installations
           </button>
           <span className="text-gray-300">›</span>

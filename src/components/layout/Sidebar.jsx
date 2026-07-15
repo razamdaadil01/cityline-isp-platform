@@ -34,12 +34,12 @@ import {
 const NAV_ITEMS = [
   { label: 'Dashboard',        icon: LayoutDashboard, to: '/',              exact: true },
   { label: 'Customers',        icon: Users,           to: '/customers'                 },
+  { label: 'Installations',    icon: Wrench,          to: '/installations'             },
   {
     label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,
     children: [
       { label: 'Follow-ups',            icon: PhoneCall,      to: '/sales/followups'              },
       { label: 'Feasibility Requests',  icon: ClipboardCheck, to: '/sales/feasibility-requests'   },
-      { label: 'Installations',         icon: Wrench,         to: '/installations'                },
       { label: 'Proposals',             icon: FileCheck,      to: '/sales/proposals'              },
       { label: 'Analytics',             icon: BarChart2,      to: '/sales/analytics'              },
     ],
@@ -48,7 +48,6 @@ const NAV_ITEMS = [
     label: 'Intercom',        icon: Phone,           to: '/intercom/dashboard',
     children: [
       { label: 'Leads',             icon: PhoneCall,     to: '/intercom/leads'             },
-      { label: 'Installations',     icon: Wrench,        to: '/intercom/installations'     },
       { label: 'Hardware Recovery', icon: PackageSearch, to: '/intercom/hardware-recovery' },
       { label: 'Customers',         icon: Users,         to: '/intercom/customers'         },
       { label: 'Dashboard',         icon: LayoutDashboard, to: '/intercom/dashboard'       },
