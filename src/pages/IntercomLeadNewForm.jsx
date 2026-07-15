@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Search, Loader2, User, MapPin, PhoneCall, ClipboardList, AlertTriangle,
+  ArrowLeft, Search, Loader2, User, MapPin, PhoneCall, ClipboardList, AlertTriangle, Cpu,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -49,10 +49,17 @@ function toFoundCustomerShape(customer) {
     internetPackage: customer.plan ?? '—',
     internetStatus: titleCase(customer.status),
     customerStatus: titleCase(customer.status),
+    area: customer.area ?? '—',
+    locality: customer.locality ?? customer.zone ?? '—',
+    subLocality: customer.subLocality ?? '—',
+    assignedBranch: customer.assignedBranch ?? customer.branch ?? '—',
+    hardware: customer.hardware ?? [],
   }
 }
 
-const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Not Using Internet']
+const CURRENT_USER = 'Admin User'
+
+const INTERNET_PROVIDERS = ['Airtel', 'Jio', 'BSNL', 'ACT', 'Hathway', 'Other', 'Internet Not Using']
 const INTERCOM_TYPES = ['Basic', 'Plus', 'Premium']
 const TIME_SLOTS = ['Morning 9-12', 'Afternoon 12-3', 'Evening 3-6']
 const LEAD_SOURCES = ['Walk-in', 'Reference', 'Call', 'Online', 'Field Visit']
@@ -68,6 +75,14 @@ const MOCK_CUSTOMER = {
   internetPackage: 'FTTH 100Mbps',
   internetStatus: 'Active',
   customerStatus: 'Active',
+  area: 'Andheri',
+  locality: 'Andheri West',
+  subLocality: 'Four Bungalows',
+  assignedBranch: 'Andheri West Branch',
+  hardware: [
+    { device: 'ONT Device – Huawei HG8310M', serial: 'ONT-2026-0311' },
+    { device: 'WiFi Router – TP-Link AC1200', serial: 'RTR-2026-0311' },
+  ],
 }
 
 function lookupCustomerById(id) {
@@ -78,7 +93,7 @@ function lookupCustomerById(id) {
 }
 
 const INIT_FORM_A_EXTRA = {
-  altMobile: '', intercomType: '', installDate: '', timeSlot: '', customerRemarks: '', salesRemarks: '',
+  altMobile: '', intercomType: '', installDate: '', timeSlot: '', customerRemarks: '', salesRemarks: '', specialAccess: '',
 }
 
 const INIT_FORM_B = {
@@ -202,7 +217,7 @@ export default function IntercomLeadNewForm() {
 
   function buildLeadPayload() {
     const today = new Date().toISOString().slice(0, 10)
-    const stageHistory = [{ stage: 'New', date: today, time: nowTime(), note: 'Lead created', actor: 'Admin User' }]
+    const stageHistory = [{ stage: 'New', date: today, time: nowTime(), note: 'Lead created', actor: CURRENT_USER }]
 
     if (relationship === 'yes') {
       if (!foundCustomer) return null
@@ -218,17 +233,24 @@ export default function IntercomLeadNewForm() {
         followUp: '',
         notes: formA.customerRemarks,
         createdAt: today,
+        createdBy: CURRENT_USER,
         relationshipType: 'Existing Internet Customer',
         existingCustomerId: foundCustomer.customerId,
         registrationNumber: foundCustomer.registrationNumber,
         billingAddress: foundCustomer.billingAddress,
         internetPackage: foundCustomer.internetPackage,
+        area: foundCustomer.area,
+        locality: foundCustomer.locality,
+        subLocality: foundCustomer.subLocality,
+        assignedBranch: foundCustomer.assignedBranch,
+        existingHardware: foundCustomer.hardware,
         altMobile: formA.altMobile,
         intercomType: formA.intercomType,
         installDate: formA.installDate,
         timeSlot: formA.timeSlot,
         customerRemarks: formA.customerRemarks,
         salesRemarks: formA.salesRemarks,
+        specialAccess: formA.specialAccess,
         stageHistory,
       }
     }
@@ -246,6 +268,7 @@ export default function IntercomLeadNewForm() {
         followUp: formB.preferredDate,
         notes: formB.customerRemarks,
         createdAt: today,
+        createdBy: CURRENT_USER,
         relationshipType: 'New / Intercom-Only Customer',
         altMobile: formB.altMobile,
         internetProvider: formB.internetProvider,
@@ -429,6 +452,36 @@ export default function IntercomLeadNewForm() {
                   <FormField label="Customer Status">
                     <div><Badge variant="green" size="sm">{foundCustomer.customerStatus}</Badge></div>
                   </FormField>
+                  <div className="col-span-2">
+                    <FormField label="Area / Locality / Sub Locality">
+                      <Input
+                        value={[foundCustomer.area, foundCustomer.locality, foundCustomer.subLocality].filter(Boolean).join(' / ') || '—'}
+                        disabled
+                      />
+                    </FormField>
+                  </div>
+                  <FormField label="Assigned Branch">
+                    <Input value={foundCustomer.assignedBranch} disabled />
+                  </FormField>
+                  <div className="col-span-2">
+                    <FormField label="Existing Hardware Details">
+                      {foundCustomer.hardware?.length ? (
+                        <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+                          {foundCustomer.hardware.map((h, i) => (
+                            <div key={i} className="flex items-center gap-2.5 px-3 py-2 bg-gray-50/60">
+                              <div className="w-7 h-7 rounded-lg bg-navy/10 text-navy flex items-center justify-center shrink-0">
+                                <Cpu size={13} />
+                              </div>
+                              <span className="text-sm text-gray-700">{h.device}</span>
+                              <span className="text-xs font-mono text-gray-400 ml-auto">{h.serial}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <Input value="None" disabled />
+                      )}
+                    </FormField>
+                  </div>
                 </SectionCard>
 
                 <SectionCard title="Additional Intercom Details" icon={PhoneCall}>
@@ -463,6 +516,11 @@ export default function IntercomLeadNewForm() {
                   <div className="col-span-2">
                     <FormField label="Sales Remarks">
                       <Textarea value={formA.salesRemarks} onChange={e => setA('salesRemarks', e.target.value)} rows={2} />
+                    </FormField>
+                  </div>
+                  <div className="col-span-2">
+                    <FormField label="Special Access Instructions">
+                      <Textarea value={formA.specialAccess} onChange={e => setA('specialAccess', e.target.value)} rows={2} placeholder="Gate code, floor access, etc…" />
                     </FormField>
                   </div>
                 </SectionCard>
@@ -594,6 +652,9 @@ export default function IntercomLeadNewForm() {
                   <option value="">Select executive…</option>
                   {INTERCOM_STAFF.map(s => <option key={s.name}>{s.name}</option>)}
                 </Select>
+              </FormField>
+              <FormField label="Lead Create By">
+                <Input value={CURRENT_USER} disabled />
               </FormField>
             </SectionCard>
           </>
