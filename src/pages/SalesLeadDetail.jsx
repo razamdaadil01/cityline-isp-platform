@@ -9,6 +9,7 @@ import {
   Fingerprint, Search, FileText, PhoneCall,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
+import { findEkycRecord } from '../data/ekycRecordsStore'
 import { saveFeasibilityRequest, getFeasibilityRequests } from '../data/feasibilityStore'
 import { getInstallations, subscribeInstallations } from '../data/installationsStore'
 import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
@@ -103,6 +104,19 @@ function formatTimer(secs) {
 function maskPhone(phone) {
   if (!phone || phone.length < 3) return phone
   return 'X'.repeat(phone.length - 3) + phone.slice(-3)
+}
+
+const EKYC_TAB_STATUS_BADGE = {
+  'Not Started': 'gray',
+  'Link Sent':   'yellow',
+  'Verified':    'green',
+}
+
+function formatEkycTimestamp(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 // ── OTPModal ──────────────────────────────────────────────────────────────────
@@ -328,14 +342,18 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
   const [paymentType, setPaymentType] = useState('received')
   const [form, setForm] = useState({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
   const [copied, setCopied] = useState(null)
+  const [advancePaymentNotRequired, setAdvancePaymentNotRequired] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
       setPaymentType('received')
       setForm({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
       setCopied(null)
+      setAdvancePaymentNotRequired(false)
     }
   }, [isOpen])
+
+  const amountMissing = !advancePaymentNotRequired && !form.amount.trim()
 
   function handleCopy(text, key) {
     navigator.clipboard?.writeText(text).catch(() => {})
@@ -380,6 +398,13 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Status</p>
           </div>
 
+          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+            <input type="checkbox" checked={advancePaymentNotRequired}
+              onChange={e => setAdvancePaymentNotRequired(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+            <span className="text-sm text-gray-700">Advance Payment Not Required</span>
+          </label>
+
           <div className="space-y-3">
             {/* Option A — Payment Received */}
             <div
@@ -396,8 +421,8 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
                   {paymentType === 'received' && (
                     <div className="mt-3 space-y-3" onClick={e => e.stopPropagation()}>
                       <div className="grid grid-cols-2 gap-3">
-                        <FormField label="Amount Paid">
-                          <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" />
+                        <FormField label="Amount Paid" required={!advancePaymentNotRequired}>
+                          <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" disabled={advancePaymentNotRequired} />
                         </FormField>
                         <FormField label="Payment Mode">
                           <Select value={form.mode} onChange={e => setForm(p => ({ ...p, mode: e.target.value }))}>
@@ -408,9 +433,12 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
                       <FormField label="Reference Number">
                         <Input value={form.reference} onChange={e => setForm(p => ({ ...p, reference: e.target.value }))} placeholder="Transaction ID or Cheque no." />
                       </FormField>
-                      <Button className="w-full" icon={<CheckCircle2 size={14} />} onClick={onPaymentConfirmed}>
+                      <Button className="w-full" icon={<CheckCircle2 size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(advancePaymentNotRequired)}>
                         Confirm Payment
                       </Button>
+                      {amountMissing && (
+                        <p className="text-xs text-red-500">Amount is required, or check "Advance Payment Not Required" above.</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -431,8 +459,8 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
                   <p className="text-xs text-gray-500">Send payment request to customer</p>
                   {paymentType === 'pending' && (
                     <div className="mt-3 space-y-3" onClick={e => e.stopPropagation()}>
-                      <FormField label="Amount Due">
-                        <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" />
+                      <FormField label="Amount Due" required={!advancePaymentNotRequired}>
+                        <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" disabled={advancePaymentNotRequired} />
                       </FormField>
                       <FormField label="Payment Link (auto-generated)">
                         <div className="flex items-center gap-2">
@@ -459,9 +487,12 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
                           ))}
                         </div>
                       </div>
-                      <Button className="w-full" icon={<Send size={14} />} onClick={onPaymentConfirmed}>
+                      <Button className="w-full" icon={<Send size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(advancePaymentNotRequired)}>
                         Send Payment Request
                       </Button>
+                      {amountMissing && (
+                        <p className="text-xs text-red-500">Amount is required, or check "Advance Payment Not Required" above.</p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -892,29 +923,6 @@ function ReopenModal({ isOpen, onClose, lead, firstStage, onConfirm }) {
           <span className="text-gray-400">·</span>
           <span className="text-gray-500">{lead?.stage}</span>
         </div>
-      </div>
-    </Modal>
-  )
-}
-
-// ── EKycModal ─────────────────────────────────────────────────────────────────
-
-function EKycModal({ isOpen, onClose, phone, onConfirm }) {
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Initiate eKYC Verification" size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button icon={<Send size={14} />} onClick={onConfirm}>Send eKYC Link</Button>
-        </>
-      }
-    >
-      <div className="py-2">
-        <p className="text-sm text-gray-600 leading-relaxed">
-          A Digio verification link will be sent to{' '}
-          <span className="font-semibold text-gray-900">{phone}</span>.
-          The customer must complete Aadhaar-based verification before installation can proceed.
-        </p>
       </div>
     </Modal>
   )
@@ -1521,6 +1529,7 @@ const TAB_PATH_TO_KEY = {
   'stage-history': 'stageHistory',
   'activity-log':  'activity',
   'package':       'package',
+  'ekyc':          'ekyc',
 }
 
 // ── EditFuModal ────────────────────────────────────────────────────────────────
@@ -1658,10 +1667,9 @@ export default function SalesLeadDetail() {
   const [bwApprover, setBwApprover]         = useState('Regional Manager')
   const [otherApprover, setOtherApprover]   = useState('Regional Manager')
 
-  // eKYC state
-  const [ekycStatus, setEkycStatus]       = useState('not_started')
-  const [ekycVerifiedAt, setEkycVerifiedAt] = useState(null)
-  const [ekycModalOpen, setEkycModalOpen] = useState(false)
+  // eKYC tab — local (non-persisted) UI state; verification status/results live on lead.ekyc
+  const [ekycIdentifier, setEkycIdentifier] = useState('')
+  const [ekycCheckResult, setEkycCheckResult] = useState(null)
   const [editingFu, setEditingFu] = useState(null)
   const [fuToast, setFuToast] = useState(null)
   const [expandedRemarks, setExpandedRemarks] = useState(new Set())
@@ -1691,6 +1699,76 @@ export default function SalesLeadDetail() {
   }, [actionsOpen])
 
   const lead = leads.find(l => l.id === id)
+
+  // eKYC status derives from the persisted lead.ekyc object, not local state
+  const ekycStatus = lead?.ekyc?.status ?? 'Not Started'
+  const ekycVerifiedAt = lead?.ekyc?.verifiedAt ?? null
+
+  // Prefill the eKYC identifier input from the lead's phone/email once, without clobbering user edits
+  useEffect(() => {
+    if (lead && !ekycIdentifier) setEkycIdentifier(lead.phone || lead.email || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id])
+
+  function handleSendToEkyc() {
+    if (!lead || !ekycIdentifier.trim()) return
+    saveLead({
+      ...lead,
+      ekyc: {
+        identifier: ekycIdentifier.trim(),
+        status: 'Link Sent',
+        sentAt: new Date().toISOString(),
+        verifiedAt: null,
+        docType: null,
+        docNumberMasked: null,
+        documentFetched: false,
+        source: 'manual',
+      },
+      ekycStatus: 'Sent',
+    })
+  }
+
+  function handleMarkEkycVerified() {
+    if (!lead) return
+    saveLead({
+      ...lead,
+      ekyc: {
+        ...lead.ekyc,
+        status: 'Verified',
+        verifiedAt: new Date().toISOString(),
+        docType: 'Aadhaar',
+        docNumberMasked: 'XXXX-XXXX-1234',
+        documentFetched: true,
+        source: 'manual',
+      },
+      ekycStatus: 'Completed',
+    })
+  }
+
+  function handleCheckExistingEkyc() {
+    const record = findEkycRecord(ekycIdentifier.trim())
+    setEkycCheckResult(record ? { found: true, record } : { found: false, record: null })
+  }
+
+  function handleReuseEkycVerification() {
+    if (!lead || !ekycCheckResult?.record) return
+    const record = ekycCheckResult.record
+    saveLead({
+      ...lead,
+      ekyc: {
+        identifier: ekycIdentifier.trim(),
+        status: 'Verified',
+        sentAt: lead.ekyc?.sentAt ?? null,
+        verifiedAt: record.verifiedAt,
+        docType: record.docType,
+        docNumberMasked: record.docNumberMasked,
+        documentFetched: true,
+        source: 'reused',
+      },
+      ekycStatus: 'Completed',
+    })
+    setEkycCheckResult(null)
+  }
 
   const PIPELINE_LABEL = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
 
@@ -2049,6 +2127,7 @@ export default function SalesLeadDetail() {
     { key: 'stageHistory', path: 'stage-history', label: 'Stage History', icon: TrendingUp },
     { key: 'activity',     path: 'activity-log',  label: 'Activity Log',  icon: Activity },
     { key: 'package',      path: 'package',       label: 'Package',       icon: Package },
+    { key: 'ekyc',         path: 'ekyc',          label: 'eKYC',          icon: Fingerprint },
   ]
 
   const FU_STATUS_STYLE = {
@@ -2496,52 +2575,27 @@ export default function SalesLeadDetail() {
                   </div>
                 )}
 
-                {/* eKYC Verification — visible on all stages */}
+                {/* eKYC Verification — see the dedicated eKYC tab for the full flow */}
                 <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                      <Fingerprint size={15} className="text-purple-600" />
+                  <div className="flex items-center justify-between gap-2.5 mb-1">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                        <Fingerprint size={15} className="text-purple-600" />
+                      </div>
+                      <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
                     </div>
-                    <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
+                    <Badge variant={EKYC_TAB_STATUS_BADGE[ekycStatus] ?? 'gray'} size="sm">{ekycStatus}</Badge>
                   </div>
-
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-medium text-gray-500">Status:</span>
-                    {ekycStatus === 'not_started' && (
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-500">Not Started</span>
-                    )}
-                    {ekycStatus === 'in_progress' && (
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">In Progress</span>
-                    )}
-                    {ekycStatus === 'verified' && (
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">Verified ✓</span>
-                    )}
-                    {ekycStatus === 'failed' && (
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-600">Failed</span>
-                    )}
-                  </div>
-
-                  {ekycStatus === 'verified' && ekycVerifiedAt && (
-                    <p className="text-xs text-gray-500 mb-3">Verified at {ekycVerifiedAt}</p>
+                  {ekycStatus === 'Verified' && ekycVerifiedAt && (
+                    <p className="text-xs text-gray-500 mt-2">Verified {formatEkycTimestamp(ekycVerifiedAt)}</p>
                   )}
-
-                  {ekycStatus === 'failed' && (
-                    <p className="text-xs text-red-500 mb-3">Verification failed. Please retry.</p>
-                  )}
-
-                  {(ekycStatus === 'not_started' || ekycStatus === 'failed') && (
-                    <Button
-                      className="w-full"
-                      icon={<Fingerprint size={14} />}
-                      onClick={() => setEkycModalOpen(true)}
-                    >
-                      {ekycStatus === 'failed' ? 'Retry eKYC' : 'Start eKYC'}
-                    </Button>
-                  )}
-
-                  <p className="text-[11px] text-gray-400 text-center mt-3">
-                    eKYC must be completed before Installation Done can be marked.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/sales/leads/${id}/ekyc`)}
+                    className="text-xs font-medium text-brand-blue hover:underline mt-3"
+                  >
+                    Go to eKYC tab →
+                  </button>
                 </div>
 
                 {/* <Card> */}
@@ -3107,6 +3161,98 @@ export default function SalesLeadDetail() {
               )}
             </div>
           )}
+
+          {activeTab === 'ekyc' && (
+            <div className="max-w-xl space-y-5">
+
+              {/* Send / Verify flow */}
+              <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                    <Fingerprint size={15} className="text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
+                    <p className="text-[11px] text-gray-400">Aadhaar-based identity verification via Digio</p>
+                  </div>
+                </div>
+
+                <FormField label="Mobile Number or Email">
+                  <Input
+                    value={ekycIdentifier}
+                    onChange={e => setEkycIdentifier(e.target.value)}
+                    placeholder="e.g. 9876001122 or name@email.com"
+                    disabled={ekycStatus !== 'Not Started'}
+                  />
+                </FormField>
+
+                <div className="flex items-center gap-2 mt-3 mb-4">
+                  <span className="text-xs font-medium text-gray-500">Status:</span>
+                  <Badge variant={EKYC_TAB_STATUS_BADGE[ekycStatus] ?? 'gray'} size="sm">{ekycStatus}</Badge>
+                  {ekycStatus === 'Link Sent' && lead.ekyc?.sentAt && (
+                    <span className="text-[11px] text-gray-400">sent {formatEkycTimestamp(lead.ekyc.sentAt)}</span>
+                  )}
+                  {ekycStatus === 'Verified' && ekycVerifiedAt && (
+                    <span className="text-[11px] text-gray-400">verified {formatEkycTimestamp(ekycVerifiedAt)}</span>
+                  )}
+                </div>
+
+                {ekycStatus === 'Not Started' && (
+                  <Button className="w-full" icon={<Send size={14} />} disabled={!ekycIdentifier.trim()} onClick={handleSendToEkyc}>
+                    Send to eKYC
+                  </Button>
+                )}
+
+                {ekycStatus === 'Link Sent' && (
+                  <Button className="w-full" icon={<CheckCircle2 size={14} />} onClick={handleMarkEkycVerified}>
+                    Mark as Verified
+                  </Button>
+                )}
+
+                {ekycStatus === 'Verified' && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs text-emerald-700 font-semibold">
+                      <CheckCircle size={13} /> Document Fetched
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      Document Type: <span className="font-semibold text-gray-800">{lead.ekyc?.docType ?? 'Aadhaar'}</span>
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Document Number: <span className="font-mono font-semibold text-gray-800">{lead.ekyc?.docNumberMasked ?? 'XXXX-XXXX-1234'}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Check Existing eKYC */}
+              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Check Existing eKYC</p>
+                <p className="text-xs text-gray-500 mb-3">
+                  Look up whether this mobile number or email already has a verified eKYC record on file from a previous verification.
+                </p>
+                <Button variant="secondary" className="w-full" icon={<Search size={14} />} disabled={!ekycIdentifier.trim()} onClick={handleCheckExistingEkyc}>
+                  Check Existing eKYC
+                </Button>
+
+                {ekycCheckResult && (
+                  <div className="mt-3">
+                    {ekycCheckResult.found ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
+                        <p className="text-xs text-emerald-700">
+                          Existing Verification Found — Verified on {formatEkycTimestamp(ekycCheckResult.record.verifiedAt)}, Document: {ekycCheckResult.record.docType} {ekycCheckResult.record.docNumberMasked}
+                        </p>
+                        <Button size="sm" className="w-full" icon={<CheckCircle2 size={13} />} onClick={handleReuseEkycVerification}>
+                          Reuse This Verification
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">No existing verification found for this identifier.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -3161,15 +3307,6 @@ export default function SalesLeadDetail() {
           data={wonSuccessData}
         />
       )}
-      <EKycModal
-        isOpen={ekycModalOpen}
-        onClose={() => setEkycModalOpen(false)}
-        phone={lead.phone}
-        onConfirm={() => {
-          setEkycStatus('in_progress')
-          setEkycModalOpen(false)
-        }}
-      />
       <HardwareAssignmentModal
         isOpen={hwModalOpen}
         onClose={() => setHwModalOpen(false)}
@@ -3181,7 +3318,8 @@ export default function SalesLeadDetail() {
         onClose={() => setActivationModalOpen(false)}
         lead={lead}
         data={activationData}
-        onPaymentConfirmed={() => {
+        onPaymentConfirmed={(advancePaymentNotRequired) => {
+          saveLead({ ...lead, advancePaymentNotRequired })
           setActivationModalOpen(false)
           setActivationSuccessOpen(true)
         }}
