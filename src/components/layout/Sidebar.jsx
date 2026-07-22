@@ -60,6 +60,7 @@ const NAV_ITEMS = [
     children: [
       { label: 'Ticket List', icon: ClipboardCheck,  to: '/support/tickets'   },
       { label: 'Outages',     icon: Zap,             to: '/support/outages'  },
+      { label: 'Reports',     icon: BarChart2,       to: '/support/reports'  },
       { label: 'Dashboard',   icon: LayoutDashboard, to: '/support/dashboard' },
     ],
   },

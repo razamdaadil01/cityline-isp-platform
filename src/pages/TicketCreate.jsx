@@ -199,6 +199,8 @@ export default function TicketCreate() {
       internalNotesLog: internalNote.trim() ? [{ time: now, actor: CURRENT_USER, text: internalNote.trim() }] : [],
       technicianVisit: null,
       resolution: null,
+      firstResponseAt: assignedAgent ? now : null,
+      csatScore: null,
     }
 
     const saved = saveTicket(ticket)
