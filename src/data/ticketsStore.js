@@ -1,0 +1,212 @@
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+export const TICKET_STATUSES = [
+  'New', 'Assigned', 'In Progress', 'Waiting for Customer', 'Waiting for Technician',
+  'Waiting for NOC', 'Waiting for Billing', 'Resolved', 'Closed', 'Reopened',
+  'Cancelled', 'Duplicate',
+]
+
+// Statuses where the ticket is no longer being actively worked
+export const CLOSED_STATUSES = ['Resolved', 'Closed', 'Cancelled', 'Duplicate']
+
+export const PRIORITIES = ['P1', 'P2', 'P3', 'P4']
+export const PRIORITY_LABEL = { P1: 'P1 · Critical', P2: 'P2 · High', P3: 'P3 · Medium', P4: 'P4 · Low' }
+export const SLA_HOURS = { P1: 4, P2: 8, P3: 24, P4: 72 }
+
+export const CATEGORY_SUBCATEGORIES = {
+  Connectivity: ['No Internet', 'Intermittent Connection', 'Fiber Cut'],
+  Performance: ['Slow Speed', 'High Latency', 'OTT Buffering'],
+  Billing: ['Invoice Query', 'Payment Not Reflected', 'Plan Upgrade/Downgrade'],
+  Hardware: ['Router Issue', 'ONU/CPE Fault', 'Cabling Issue'],
+  Network: ['Outage', 'OLT Port Down', 'Backbone Issue'],
+  Installation: ['New Connection Delay', 'Relocation'],
+  Account: ['KYC Update', 'Address Change'],
+  Other: ['General Query', 'Feedback'],
+}
+export const CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)
+
+export const AREAS = [
+  'Andheri West', 'Andheri East', 'Bandra West', 'Bandra East',
+  'Mahim', 'Chembur', 'Nariman Point', 'Colaba',
+]
+
+export const AGENTS = ['Ravi T.', 'Neha M.', 'Arjun P.', 'Sita K.', 'Kiran B.']
+
+export const TECHNICIANS = ['Suresh Iyer', 'Prakash Yadav', 'Manoj Verma', 'Dinesh Kumar', 'Vikram Singh']
+
+const H = 3600000 // 1 hour in ms
+const NOW = Date.now()
+
+function slaDeadlineFor(createdAt, priority) {
+  return new Date(new Date(createdAt).getTime() + SLA_HOURS[priority] * H).toISOString()
+}
+
+// 'On Track' | 'Due Soon' | 'Breached' — 'Due Soon' = within 20% of SLA window remaining
+export function slaStatusOf(ticket) {
+  if (CLOSED_STATUSES.includes(ticket.status)) return 'Met'
+  const deadline = new Date(ticket.slaDeadline).getTime()
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) return 'Breached'
+  const windowMs = SLA_HOURS[ticket.priority] * H
+  if (remaining < windowMs * 0.2) return 'Due Soon'
+  return 'On Track'
+}
+
+// ─── Seed data ──────────────────────────────────────────────────────────────
+
+const SEED = [
+  {
+    id: 'TKT-2026-000101',
+    customerName: 'Mohan Lal', phone: '9765432198', accountNumber: 'ACC-100231',
+    category: 'Connectivity', subcategory: 'No Internet',
+    priority: 'P1', status: 'New',
+    assignedAgent: null, assignedTechnician: null,
+    area: 'Andheri West',
+    createdAt: new Date(NOW - 0.5 * H).toISOString(), updatedAt: new Date(NOW - 0.5 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Customer reports complete loss of internet since this morning. ONU signal light is red.',
+  },
+  {
+    id: 'TKT-2026-000102',
+    customerName: 'Radha Krishnan', phone: '9812334455', accountNumber: 'ACC-100455',
+    category: 'Billing', subcategory: 'Invoice Query',
+    priority: 'P2', status: 'Assigned',
+    assignedAgent: 'Neha M.', assignedTechnician: null,
+    area: 'Bandra West',
+    createdAt: new Date(NOW - 5 * H).toISOString(), updatedAt: new Date(NOW - 3 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Invoice amount mismatch — customer claims a promotional offer was not applied.',
+  },
+  {
+    id: 'TKT-2026-000103',
+    customerName: 'Deepak Patel', phone: '9988776655', accountNumber: 'ACC-100612',
+    category: 'Network', subcategory: 'OLT Port Down',
+    priority: 'P1', status: 'In Progress',
+    assignedAgent: 'Ravi T.', assignedTechnician: 'Suresh Iyer',
+    area: 'Andheri East',
+    createdAt: new Date(NOW - 9 * H).toISOString(), updatedAt: new Date(NOW - 1 * H).toISOString(),
+    outageLinked: true, reopened: false,
+    description: 'OLT-ANW-02 port 12 flapping intermittently. Field technician dispatched — SLA at risk.',
+  },
+  {
+    id: 'TKT-2026-000104',
+    customerName: 'Sunita Rao', phone: '9123456789', accountNumber: 'ACC-100789',
+    category: 'Hardware', subcategory: 'Router Issue',
+    priority: 'P3', status: 'Waiting for Customer',
+    assignedAgent: 'Sita K.', assignedTechnician: null,
+    area: 'Andheri West',
+    createdAt: new Date(NOW - 30 * H).toISOString(), updatedAt: new Date(NOW - 8 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Asked customer to power-cycle the router and share a screenshot of the status LEDs.',
+  },
+  {
+    id: 'TKT-2026-000105',
+    customerName: 'Arjun Nair', phone: '9876543210', accountNumber: 'ACC-100893',
+    category: 'Hardware', subcategory: 'Cabling Issue',
+    priority: 'P2', status: 'Waiting for Technician',
+    assignedAgent: 'Kiran B.', assignedTechnician: 'Prakash Yadav',
+    area: 'Nariman Point',
+    createdAt: new Date(NOW - 14 * H).toISOString(), updatedAt: new Date(NOW - 2 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Fiber patch cord needs replacement at the customer premises. Technician visit scheduled.',
+  },
+  {
+    id: 'TKT-2026-000106',
+    customerName: 'Kavita Mehta', phone: '9001234567', accountNumber: 'ACC-100944',
+    category: 'Network', subcategory: 'Outage',
+    priority: 'P1', status: 'Waiting for NOC',
+    assignedAgent: 'Arjun P.', assignedTechnician: null,
+    area: 'Mahim',
+    createdAt: new Date(NOW - 3 * H).toISOString(), updatedAt: new Date(NOW - 0.3 * H).toISOString(),
+    outageLinked: true, reopened: false,
+    description: 'Area-wide outage suspected after last night\'s storm — escalated to NOC for backbone check.',
+  },
+  {
+    id: 'TKT-2026-000107',
+    customerName: 'Sanjay Bhat', phone: '9912345678', accountNumber: 'ACC-101022',
+    category: 'Billing', subcategory: 'Payment Not Reflected',
+    priority: 'P4', status: 'Waiting for Billing',
+    assignedAgent: 'Neha M.', assignedTechnician: null,
+    area: 'Bandra East',
+    createdAt: new Date(NOW - 40 * H).toISOString(), updatedAt: new Date(NOW - 20 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Customer paid via UPI but payment has not reflected on the account. Forwarded to billing team.',
+  },
+  {
+    id: 'TKT-2026-000108',
+    customerName: 'Rajan Mehta', phone: '9876543210', accountNumber: 'ACC-100112',
+    category: 'Performance', subcategory: 'OTT Buffering',
+    priority: 'P3', status: 'Resolved',
+    assignedAgent: 'Neha M.', assignedTechnician: null,
+    area: 'Andheri West',
+    createdAt: new Date(NOW - 72 * H).toISOString(), updatedAt: new Date(NOW - 12 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Buffering on OTT platforms resolved after switching customer DNS to public resolvers.',
+  },
+  {
+    id: 'TKT-2026-000109',
+    customerName: 'Meena Krishnan', phone: '9812334455', accountNumber: 'ACC-100367',
+    category: 'Installation', subcategory: 'Relocation',
+    priority: 'P4', status: 'Closed',
+    assignedAgent: 'Kiran B.', assignedTechnician: 'Manoj Verma',
+    area: 'Chembur',
+    createdAt: new Date(NOW - 96 * H).toISOString(), updatedAt: new Date(NOW - 36 * H).toISOString(),
+    outageLinked: false, reopened: false,
+    description: 'Relocation to new address completed and closed after customer confirmation.',
+  },
+  {
+    id: 'TKT-2026-000110',
+    customerName: 'Priya Iyer', phone: '9845098450', accountNumber: 'ACC-101155',
+    category: 'Connectivity', subcategory: 'Intermittent Connection',
+    priority: 'P2', status: 'Reopened',
+    assignedAgent: 'Ravi T.', assignedTechnician: 'Vikram Singh',
+    area: 'Colaba',
+    createdAt: new Date(NOW - 60 * H).toISOString(), updatedAt: new Date(NOW - 1.5 * H).toISOString(),
+    outageLinked: false, reopened: true,
+    description: 'Customer reopened the ticket — intermittent drops resumed two days after the ticket was closed.',
+  },
+].map(t => ({ ...t, slaDeadline: slaDeadlineFor(t.createdAt, t.priority) }))
+
+// ─── Store ──────────────────────────────────────────────────────────────────
+
+let _tickets = [...SEED]
+const _listeners = []
+
+function notify() { _listeners.forEach(fn => fn([..._tickets])) }
+
+export function getTickets() { return [..._tickets] }
+
+export function getTicket(id) { return _tickets.find(t => t.id === id) ?? null }
+
+export function subscribeTickets(fn) {
+  _listeners.push(fn)
+  return () => {
+    const i = _listeners.indexOf(fn)
+    if (i !== -1) _listeners.splice(i, 1)
+  }
+}
+
+export function saveTicket(ticket) {
+  const exists = _tickets.find(t => t.id === ticket.id)
+  _tickets = exists ? _tickets.map(t => t.id === ticket.id ? ticket : t) : [ticket, ..._tickets]
+  notify()
+  return ticket
+}
+
+function updateTickets(ids, patch) {
+  const idSet = new Set(ids)
+  _tickets = _tickets.map(t => idSet.has(t.id) ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t)
+  notify()
+}
+
+export function assignAgent(ids, agent) { updateTickets(ids, { assignedAgent: agent }) }
+
+export function assignTechnician(ids, technician) { updateTickets(ids, { assignedTechnician: technician }) }
+
+export function changePriority(ids, priority) {
+  const idSet = new Set(ids)
+  _tickets = _tickets.map(t => idSet.has(t.id)
+    ? { ...t, priority, slaDeadline: slaDeadlineFor(t.createdAt, priority), updatedAt: new Date().toISOString() }
+    : t)
+  notify()
+}
