@@ -3055,12 +3055,9 @@ export default function SalesLeadDetail() {
                 return (
                 <div className="space-y-8">
                   {/* Invoice Preview */}
-                  {bwPlan && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                      <FileText size={13} className="text-gray-400 shrink-0" />
-                      Will appear on invoice as: <span className="font-semibold text-gray-700">{bwPlan.name}</span>
-                    </div>
-                  )}
+                  <p className="text-xs text-gray-400">
+                    Will appear on invoice as: {bwPlan ? bwPlan.name : '— (select a package first)'}
+                  </p>
 
                   {/* Bandwidth Package */}
                   <div>
