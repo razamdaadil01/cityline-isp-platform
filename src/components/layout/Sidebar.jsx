@@ -29,6 +29,7 @@ import {
   Tv2,
   Phone,
   PackageSearch,
+  Zap,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -58,6 +59,7 @@ const NAV_ITEMS = [
     label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support/tickets',
     children: [
       { label: 'Ticket List', icon: ClipboardCheck, to: '/support/tickets' },
+      { label: 'Outages',     icon: Zap,            to: '/support/outages' },
     ],
   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },

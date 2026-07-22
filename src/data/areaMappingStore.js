@@ -201,6 +201,21 @@ export function upsertLocalityIntercomSite(state, district, area, locality, inte
   notifyHierarchy()
 }
 
+// Flat, deduped list of every locality name across the whole state/district/area
+// hierarchy — for pickers (e.g. Outage Management) that just need real locality
+// names without caring which state/district/area they belong to.
+export function getAllLocalities() {
+  const set = new Set()
+  getStates().forEach(state => {
+    getDistricts(state).forEach(district => {
+      getAreasList(state, district).forEach(area => {
+        getLocalities(state, district, area).forEach(locality => set.add(locality))
+      })
+    })
+  })
+  return [...set].sort()
+}
+
 export function getIntercomLocalities(state, district, area) {
   return getLocalities(state, district, area).filter(locality => {
     const info = getLocalityInfo(state, district, area, locality)
