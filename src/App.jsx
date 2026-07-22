@@ -37,7 +37,7 @@ import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import TicketCreate from './pages/TicketCreate'
-import TicketDetailPlaceholder from './pages/TicketDetailPlaceholder'
+import SupportTicketDetail from './pages/SupportTicketDetail'
 import Packages from './pages/Packages'
 import PackageAdd from './pages/PackageAdd'
 import PackageDetail from './pages/PackageDetail'
@@ -112,7 +112,7 @@ export default function App() {
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/support/tickets" element={<TicketList />} />
           <Route path="/support/tickets/new" element={<TicketCreate />} />
-          <Route path="/support/tickets/:id" element={<TicketDetailPlaceholder />} />
+          <Route path="/support/tickets/:id" element={<SupportTicketDetail />} />
           <Route path="/packages" element={<Packages />} />
           <Route path="/ott" element={<OTTManagement />} />
           <Route path="/packages/add" element={<PackageAdd />} />

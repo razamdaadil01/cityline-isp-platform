@@ -159,12 +159,20 @@ export default function TicketCreate() {
     if (isDuplicate) activityLog.push({ time: now, actor: CURRENT_USER, action: `Linked as duplicate of ${duplicateChoice.ticketId}` })
     if (duplicateChoice?.mode === 'new') activityLog.push({ time: now, actor: CURRENT_USER, action: `Created despite existing complaint — reason: ${newReason.trim()}` })
 
+    const communicationLog = [
+      { time: now, actor: 'System', channel: contactMethod || 'Portal', text: 'Ticket created — notification sent to customer.' },
+    ]
+
     const ticket = {
       id: ticketNumber,
       customerName: selectedCustomer.name,
       phone: selectedCustomer.phone,
       accountNumber: selectedCustomer.id,
       customerId: selectedCustomer.id,
+      customerAddress: selectedCustomer.zone ?? '—',
+      plan: selectedCustomer.plan ?? '—',
+      billingStatus: BILLING_STATUS[selectedCustomer.status] ?? '—',
+      connectionStatus: CONNECTION_STATUS[selectedCustomer.status] ?? '—',
       category, subcategory,
       priority,
       status,
@@ -185,6 +193,10 @@ export default function TicketCreate() {
       attachments: attachments.map(a => a.name),
       assignmentType,
       activityLog,
+      communicationLog,
+      internalNotesLog: internalNote.trim() ? [{ time: now, actor: CURRENT_USER, text: internalNote.trim() }] : [],
+      technicianVisit: null,
+      resolution: null,
     }
 
     const saved = saveTicket(ticket)
