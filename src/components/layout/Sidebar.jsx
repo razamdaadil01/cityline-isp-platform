@@ -54,7 +54,12 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
-  { label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support'                   },
+  {
+    label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support/tickets',
+    children: [
+      { label: 'Ticket List', icon: ClipboardCheck, to: '/support/tickets' },
+    ],
+  },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
   { label: 'OTT',              icon: Tv2,             to: '/ott'                        },
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
