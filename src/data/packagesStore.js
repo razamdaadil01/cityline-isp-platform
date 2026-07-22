@@ -69,10 +69,62 @@ export const MOCK_STATIC_IPS = [
   { id: 3, ip: '103.21.58.12', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Available', assignedTo: null,     customer: null },
 ]
 
-export const MOCK_PLANS = [...MOCK_BW_PACKAGES, ...MOCK_OTHER_PACKAGES]
+// Flat, selectable plan shape for consumers like the Lead Detail package
+// assignment flow (PackageSelectModal / package cards) — the admin
+// MOCK_BW_PACKAGES/MOCK_OTHER_PACKAGES shape stores multiple tenure/price
+// "rows" per bandwidth package, which those consumers can't render directly
+// (they expect a single flat speed/price/billingType per plan).
+function bwPackageToPlan(p) {
+  const row = p.rows.find(r => r.tenure === '1 Month') ?? p.rows[0]
+  return {
+    id: p.id,
+    name: p.name,
+    serviceType: 'Bandwidth',
+    billingType: row?.tenure === '1 Month' ? 'Monthly' : 'Annual',
+    speed: row?.bandwidth ?? null,
+    price: row?.price ?? 0,
+    validity: null,
+    server: null,
+    packageType: p.zone === 'Enterprise' ? 'Private' : 'Standard',
+    offer: p.offer,
+    ottBundle: !!(row?.ott && row.ott !== 'None'),
+    zone: p.zone,
+    status: p.status,
+  }
+}
+
+function otherPackageToPlan(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    serviceType: 'Other',
+    billingType: 'Monthly',
+    speed: null,
+    price: p.price,
+    validity: null,
+    server: null,
+    packageType: 'Standard',
+    offer: false,
+    ottBundle: false,
+    zone: p.zone,
+    status: p.status,
+  }
+}
+
+export const MOCK_PLANS = [
+  ...MOCK_BW_PACKAGES.map(bwPackageToPlan),
+  ...MOCK_OTHER_PACKAGES.map(otherPackageToPlan),
+]
 export const SERVICE_TYPES = ['Bandwidth', 'Other']
 export const BILLING_TYPES = ['Monthly', 'Annual']
 export const SERVICE_BADGE = { Bandwidth: 'blue', Other: 'gray' }
+
+export const MOCK_ADDONS = [
+  { id: 'ADDON-001', name: 'Static IP',    price: 99 },
+  { id: 'ADDON-002', name: 'Extra Router', price: 149 },
+  { id: 'ADDON-003', name: 'OTT Bundle',   price: 199 },
+  { id: 'ADDON-004', name: 'Extended Warranty', price: 79 },
+]
 
 let _plans = [...MOCK_PLANS]
 const _subs = new Set()
