@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, MessageSquare, Lock, Send, RotateCcw, CheckCircle2, FileText,
+  ArrowLeft, MessageSquare, Lock, Send, RotateCcw, CheckCircle2, FileText, CalendarPlus,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -10,9 +10,9 @@ import Card, { CardHeader } from '../components/ui/Card'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addCommunication, addInternalNote,
-  resolveTicket, closeTicket, reopenTicket,
+  resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
-  CONTACT_METHODS, slaStatusOf,
+  CONTACT_METHODS, TECHNICIAN_PROFILES, TECHNICIAN_SKILLS, slaStatusOf,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
@@ -129,6 +129,102 @@ function ReopenModal({ isOpen, onClose, onSubmit }) {
   )
 }
 
+// ── Schedule Technician Visit Modal ────────────────────────────────────────────
+
+function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
+  const [requiredSkill, setRequiredSkill] = useState('')
+  const [technician, setTechnician] = useState('')
+  const [visitDate, setVisitDate] = useState('')
+  const [visitTime, setVisitTime] = useState('')
+  const [specialInstructions, setSpecialInstructions] = useState('')
+  const [error, setError] = useState('')
+
+  const candidates = requiredSkill
+    ? TECHNICIAN_PROFILES.filter(p => p.skills.includes(requiredSkill))
+    : TECHNICIAN_PROFILES
+
+  function reset() {
+    setRequiredSkill(''); setTechnician(''); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
+  }
+
+  function handleClose() { reset(); onClose() }
+
+  function handleSubmit() {
+    if (!requiredSkill || !technician || !visitDate || !visitTime) {
+      setError('Please fill in all required fields.')
+      return
+    }
+    const profile = TECHNICIAN_PROFILES.find(p => p.name === technician)
+    if (!profile || !profile.active) {
+      setError('Selected technician is not active.')
+      return
+    }
+    const visitDateTime = new Date(`${visitDate}T${visitTime}`)
+    if (Number.isNaN(visitDateTime.getTime()) || visitDateTime.getTime() < Date.now()) {
+      setError('Visit date/time cannot be in the past.')
+      return
+    }
+    onSubmit({ technician, visitDate, visitTime, requiredSkill, specialInstructions: specialInstructions.trim() })
+    reset()
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title="Schedule Technician Visit" size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Schedule Visit</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">{error}</div>}
+
+        <FormField label="Required Technician Skill" required>
+          <Select value={requiredSkill} onChange={e => { setRequiredSkill(e.target.value); setTechnician('') }}>
+            <option value="">Select skill…</option>
+            {TECHNICIAN_SKILLS.map(s => <option key={s} value={s}>{s}</option>)}
+          </Select>
+        </FormField>
+
+        <FormField label="Technician" required
+          hint={requiredSkill ? `Showing technicians with ${requiredSkill}, with their current active job count` : 'Select a skill to narrow this list'}>
+          <Select value={technician} onChange={e => setTechnician(e.target.value)}>
+            <option value="">Select technician…</option>
+            {candidates.map(p => (
+              <option key={p.name} value={p.name}>
+                {p.name} ({technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''})
+              </option>
+            ))}
+          </Select>
+          {requiredSkill && candidates.length === 0 && (
+            <p className="text-xs text-amber-600 mt-1">No technicians have this skill on file.</p>
+          )}
+        </FormField>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Visit Date" required>
+            <Input type="date" min={todayStr} value={visitDate} onChange={e => setVisitDate(e.target.value)} />
+          </FormField>
+          <FormField label="Visit Time" required>
+            <Input type="time" value={visitTime} onChange={e => setVisitTime(e.target.value)} />
+          </FormField>
+        </div>
+
+        <FormField label="Customer Address"><Input value={ticket.customerAddress ?? ticket.area ?? '—'} disabled /></FormField>
+        <FormField label="Customer Phone Number"><Input value={ticket.phone} disabled /></FormField>
+        <FormField label="Complaint Summary"><Textarea value={ticket.description} disabled rows={2} /></FormField>
+
+        <FormField label="Special Instructions" hint="Optional">
+          <Textarea value={specialInstructions} onChange={e => setSpecialInstructions(e.target.value)} rows={2} placeholder="Access notes, gate code, parking, etc." />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function SupportTicketDetail() {
@@ -141,6 +237,7 @@ export default function SupportTicketDetail() {
 
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [commChannel, setCommChannel] = useState('Phone')
   const [commText, setCommText] = useState('')
   const [internalText, setInternalText] = useState('')
@@ -164,6 +261,7 @@ export default function SupportTicketDetail() {
   const canResolve = !isGatedStatus
   const canClose = ticket.status === 'Resolved'
   const canReopen = isGatedStatus
+  const scheduleBlocked = ['Closed', 'Cancelled'].includes(ticket.status)
 
   function handleAddCommunication() {
     if (!commText.trim()) return
@@ -327,7 +425,14 @@ export default function SupportTicketDetail() {
       <Card>
         <CardHeader title="Technician Visit" />
         {!ticket.technicianVisit ? (
-          <p className="text-sm text-gray-400 text-center py-6">No technician visit scheduled yet.</p>
+          <div className="text-center py-6">
+            <p className="text-sm text-gray-400 mb-3">No technician visit scheduled yet.</p>
+            <span title={scheduleBlocked ? 'Cannot schedule a visit — ticket is Closed or Cancelled.' : undefined}>
+              <Button icon={<CalendarPlus size={14} />} disabled={scheduleBlocked} onClick={() => setScheduleOpen(true)}>
+                Schedule Technician Visit
+              </Button>
+            </span>
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-4">
@@ -339,7 +444,13 @@ export default function SupportTicketDetail() {
               <InfoField label="Materials Used">
                 {ticket.technicianVisit.materialsUsed?.length ? ticket.technicianVisit.materialsUsed.join(', ') : <span className="text-gray-300 font-normal">None</span>}
               </InfoField>
+              {ticket.technicianVisit.requiredSkill && (
+                <InfoField label="Required Skill">{ticket.technicianVisit.requiredSkill}</InfoField>
+              )}
             </div>
+            {ticket.technicianVisit.specialInstructions && (
+              <InfoField label="Special Instructions"><p className="font-normal text-gray-700">{ticket.technicianVisit.specialInstructions}</p></InfoField>
+            )}
             <InfoField label="Technician Notes"><p className="font-normal text-gray-700">{ticket.technicianVisit.notes || '—'}</p></InfoField>
             <InfoField label="Diagnosis"><p className="font-normal text-gray-700">{ticket.technicianVisit.diagnosis || '—'}</p></InfoField>
             <InfoField label="Work Completion Details"><p className="font-normal text-gray-700">{ticket.technicianVisit.completionDetails || '—'}</p></InfoField>
@@ -409,6 +520,8 @@ export default function SupportTicketDetail() {
         onSubmit={data => { resolveTicket(ticket.id, data, CURRENT_USER); setResolveOpen(false) }} />
       <ReopenModal isOpen={reopenOpen} onClose={() => setReopenOpen(false)}
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />
+      <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={() => setScheduleOpen(false)} ticket={ticket}
+        onSubmit={data => { scheduleTechnicianVisit(ticket.id, data, CURRENT_USER); setScheduleOpen(false) }} />
     </div>
   )
 }

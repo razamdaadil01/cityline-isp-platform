@@ -37,6 +37,22 @@ export const AGENTS = ['Ravi T.', 'Neha M.', 'Arjun P.', 'Sita K.', 'Kiran B.']
 
 export const TECHNICIANS = ['Suresh Iyer', 'Prakash Yadav', 'Manoj Verma', 'Dinesh Kumar', 'Vikram Singh']
 
+export const TECHNICIAN_SKILLS = [
+  'Fiber Splicing', 'Router Configuration', 'ONU Replacement',
+  'General Troubleshooting', 'Cabling & Wiring', 'OLT/Network Diagnostics',
+]
+
+// Richer per-technician profile (skills/active flag) for the Schedule Technician
+// Visit flow. TECHNICIANS above stays a plain name list so existing dropdowns
+// (Ticket List bulk-assign, Create Ticket) are unaffected.
+export const TECHNICIAN_PROFILES = [
+  { name: 'Suresh Iyer', skills: ['Fiber Splicing', 'OLT/Network Diagnostics'], active: true },
+  { name: 'Prakash Yadav', skills: ['Cabling & Wiring', 'General Troubleshooting'], active: true },
+  { name: 'Manoj Verma', skills: ['ONU Replacement', 'Fiber Splicing'], active: true },
+  { name: 'Dinesh Kumar', skills: ['Router Configuration', 'General Troubleshooting'], active: true },
+  { name: 'Vikram Singh', skills: ['Fiber Splicing', 'General Troubleshooting'], active: true },
+]
+
 export const CONTACT_METHODS = ['Phone', 'Email', 'WhatsApp', 'Portal', 'Walk-in']
 
 export const RESOLUTION_TYPES = ['Fixed Remotely', 'Technician Visit', 'Escalated', 'Customer Education', 'Other']
@@ -375,5 +391,36 @@ export function reopenTicket(id, reason, actor = 'Admin User') {
   return saveTicket({
     ...t, status: 'Reopened', reopened: true, reopenReason: reason, updatedAt: new Date().toISOString(),
     activityLog: appendActivity(t, `Ticket reopened — reason: ${reason}`, actor),
+  })
+}
+
+// Count of this technician's currently open (not Resolved/Closed/Cancelled/Duplicate) tickets.
+export function technicianWorkload(name) {
+  return _tickets.filter(t => t.assignedTechnician === name && !CLOSED_STATUSES.includes(t.status)).length
+}
+
+// Technician visits can't be scheduled once a ticket is Closed or Cancelled.
+export function scheduleTechnicianVisit(id, { technician, visitDate, visitTime, requiredSkill, specialInstructions }, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t || ['Closed', 'Cancelled'].includes(t.status)) return null
+  const profile = TECHNICIAN_PROFILES.find(p => p.name === technician)
+  if (!profile || !profile.active) return null
+
+  const now = new Date().toISOString()
+  const technicianVisit = {
+    technician, visitDate, visitTime, visitStatus: 'Visit Scheduled',
+    requiredSkill, specialInstructions,
+    notes: '', diagnosis: '', photos: [], materialsUsed: [], completionDetails: '',
+  }
+  const communicationLog = [
+    ...(t.communicationLog ?? []),
+    { time: now, actor: 'System', channel: 'Portal', text: `Visit confirmation sent to customer for ${visitDate} at ${visitTime}.` },
+  ]
+
+  return saveTicket({
+    ...t, technicianVisit, communicationLog,
+    assignedTechnician: technician,
+    updatedAt: now,
+    activityLog: appendActivity(t, `Technician visit scheduled with ${technician} for ${visitDate} ${visitTime}`, actor),
   })
 }
