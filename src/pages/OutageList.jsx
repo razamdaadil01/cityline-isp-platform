@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Filter, X, ChevronDown, AlertTriangle, Activity, CheckCircle2, Zap,
 } from 'lucide-react'
@@ -24,12 +24,14 @@ function formatDateTime(iso) {
 
 export default function OutageList() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [outages, setOutages] = useState(getOutages)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const [fState, setFState] = useState('') // '' | 'Active' | 'Resolved'
-  const [fArea, setFArea] = useState('')
-  const [fSeverity, setFSeverity] = useState('')
+  const [fState, setFState] = useState(() => // '' | 'Active' | 'Resolved'
+    ['Active', 'Resolved'].includes(searchParams.get('state')) ? searchParams.get('state') : '')
+  const [fArea, setFArea] = useState(() => searchParams.get('area') ?? '')
+  const [fSeverity, setFSeverity] = useState(() => searchParams.get('severity') ?? '')
   const [fType, setFType] = useState('')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
