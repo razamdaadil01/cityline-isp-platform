@@ -2371,11 +2371,17 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── Tabs + content card ── */}
-      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+      {/* ── Tabs + content card ──
+          Note: no overflow-hidden here — an ancestor with overflow other than
+          visible breaks position: sticky for descendants (e.g. the Package
+          tab's sticky Pricing Summary), since it becomes the containing block
+          instead of the page's real scroll container (<main> in Layout.jsx).
+          rounded-t-xl on the tab nav row below preserves the corner visual
+          that overflow-hidden used to enforce. */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
         {/* Tab nav */}
-        <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
+        <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none rounded-t-xl">
           {TABS.map(tab => {
             const Icon = tab.icon
             return (
