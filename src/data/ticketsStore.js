@@ -39,6 +39,17 @@ export const TECHNICIANS = ['Suresh Iyer', 'Prakash Yadav', 'Manoj Verma', 'Dine
 
 export const CONTACT_METHODS = ['Phone', 'Email', 'WhatsApp', 'Portal', 'Walk-in']
 
+export const RESOLUTION_TYPES = ['Fixed Remotely', 'Technician Visit', 'Escalated', 'Customer Education', 'Other']
+
+export const TECH_VISIT_STATUSES = [
+  'Visit Scheduled', 'Technician Travelling', 'Technician Reached',
+  'Work Started', 'Work Completed', 'Follow-up Required',
+]
+
+// Statuses only reachable through a dedicated action (Resolve / Close / Reopen modals),
+// never a plain status-dropdown selection.
+export const GATED_STATUSES = ['Resolved', 'Closed', 'Reopened']
+
 const H = 3600000 // 1 hour in ms
 const NOW = Date.now()
 
@@ -72,6 +83,7 @@ const SEED = [
     createdAt: new Date(NOW - 0.5 * H).toISOString(), updatedAt: new Date(NOW - 0.5 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Customer reports complete loss of internet since this morning. ONU signal light is red.',
+    customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
   },
   {
     id: 'TKT-2026-000102',
@@ -83,6 +95,7 @@ const SEED = [
     createdAt: new Date(NOW - 5 * H).toISOString(), updatedAt: new Date(NOW - 3 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Invoice amount mismatch — customer claims a promotional offer was not applied.',
+    customerAddress: 'Bandra West', plan: 'FTTB 50Mbps', billingStatus: 'Overdue', connectionStatus: 'Connected',
   },
   {
     id: 'TKT-2026-000103',
@@ -94,6 +107,18 @@ const SEED = [
     createdAt: new Date(NOW - 9 * H).toISOString(), updatedAt: new Date(NOW - 1 * H).toISOString(),
     outageLinked: true, reopened: false,
     description: 'OLT-ANW-02 port 12 flapping intermittently. Field technician dispatched — SLA at risk.',
+    customerAddress: 'Andheri East', plan: 'FTTH 200Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    technicianVisit: {
+      technician: 'Suresh Iyer',
+      visitDate: new Date(NOW - 1 * H).toISOString().slice(0, 10),
+      visitTime: '11:30',
+      visitStatus: 'Work Started',
+      notes: 'On-site at OLT-ANW-02. Confirmed intermittent port flapping on port 12.',
+      diagnosis: 'Suspected damaged SFP module on OLT port 12 causing signal flap.',
+      photos: ['olt_port12_before.jpg'],
+      materialsUsed: [],
+      completionDetails: '',
+    },
   },
   {
     id: 'TKT-2026-000104',
@@ -105,6 +130,7 @@ const SEED = [
     createdAt: new Date(NOW - 30 * H).toISOString(), updatedAt: new Date(NOW - 8 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Asked customer to power-cycle the router and share a screenshot of the status LEDs.',
+    customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
   },
   {
     id: 'TKT-2026-000105',
@@ -116,6 +142,18 @@ const SEED = [
     createdAt: new Date(NOW - 14 * H).toISOString(), updatedAt: new Date(NOW - 2 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Fiber patch cord needs replacement at the customer premises. Technician visit scheduled.',
+    customerAddress: 'Nariman Point', plan: 'P2P 1Gbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    technicianVisit: {
+      technician: 'Prakash Yadav',
+      visitDate: new Date(NOW + 24 * H).toISOString().slice(0, 10),
+      visitTime: '10:00',
+      visitStatus: 'Visit Scheduled',
+      notes: 'Customer confirmed availability for tomorrow morning slot.',
+      diagnosis: '',
+      photos: [],
+      materialsUsed: ['Patch cord (LC-LC, 5m)'],
+      completionDetails: '',
+    },
   },
   {
     id: 'TKT-2026-000106',
@@ -127,6 +165,7 @@ const SEED = [
     createdAt: new Date(NOW - 3 * H).toISOString(), updatedAt: new Date(NOW - 0.3 * H).toISOString(),
     outageLinked: true, reopened: false,
     description: 'Area-wide outage suspected after last night\'s storm — escalated to NOC for backbone check.',
+    customerAddress: 'Mahim', plan: 'Wireless 25Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
   },
   {
     id: 'TKT-2026-000107',
@@ -138,6 +177,7 @@ const SEED = [
     createdAt: new Date(NOW - 40 * H).toISOString(), updatedAt: new Date(NOW - 20 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Customer paid via UPI but payment has not reflected on the account. Forwarded to billing team.',
+    customerAddress: 'Bandra East', plan: 'FTTH 100Mbps', billingStatus: 'Overdue', connectionStatus: 'Connected',
   },
   {
     id: 'TKT-2026-000108',
@@ -149,6 +189,15 @@ const SEED = [
     createdAt: new Date(NOW - 72 * H).toISOString(), updatedAt: new Date(NOW - 12 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Buffering on OTT platforms resolved after switching customer DNS to public resolvers.',
+    customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    resolution: {
+      rootCause: 'DNS resolution latency to OTT CDN edge nodes.',
+      resolutionDetails: 'Switched customer DNS to public resolvers (1.1.1.1 / 8.8.8.8) and confirmed buffering stopped on retest.',
+      resolutionType: 'Fixed Remotely',
+      customerUpdate: 'Your OTT buffering issue has been resolved by updating your router DNS settings.',
+      resolvedAt: new Date(NOW - 12 * H).toISOString(),
+      resolvedBy: 'Neha M.',
+    },
   },
   {
     id: 'TKT-2026-000109',
@@ -160,6 +209,26 @@ const SEED = [
     createdAt: new Date(NOW - 96 * H).toISOString(), updatedAt: new Date(NOW - 36 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Relocation to new address completed and closed after customer confirmation.',
+    customerAddress: 'Chembur', plan: 'FTTB 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    technicianVisit: {
+      technician: 'Manoj Verma',
+      visitDate: new Date(NOW - 40 * H).toISOString().slice(0, 10),
+      visitTime: '14:00',
+      visitStatus: 'Work Completed',
+      notes: 'New fiber pulled to relocated address and ONU reinstalled.',
+      diagnosis: 'N/A — planned relocation, not a fault.',
+      photos: ['new_address_install.jpg', 'onu_signal_check.jpg'],
+      materialsUsed: ['Fiber cable (40m)', 'ONU unit', 'Patch cord'],
+      completionDetails: 'Connection verified active at new address. Customer confirmed speeds as expected.',
+    },
+    resolution: {
+      rootCause: 'Customer relocated to a new address.',
+      resolutionDetails: 'New fiber pull and installation completed at the Chembur address; service verified active.',
+      resolutionType: 'Technician Visit',
+      customerUpdate: 'Your relocation request has been completed and the new connection is active.',
+      resolvedAt: new Date(NOW - 38 * H).toISOString(),
+      resolvedBy: 'Kiran B.',
+    },
   },
   {
     id: 'TKT-2026-000110',
@@ -171,11 +240,26 @@ const SEED = [
     createdAt: new Date(NOW - 60 * H).toISOString(), updatedAt: new Date(NOW - 1.5 * H).toISOString(),
     outageLinked: false, reopened: true,
     description: 'Customer reopened the ticket — intermittent drops resumed two days after the ticket was closed.',
+    customerAddress: 'Colaba', plan: 'FTTH 200Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    reopenReason: 'Intermittent drops resumed two days after the ticket was closed.',
+    resolution: {
+      rootCause: 'Loose fiber connector at the ONU.',
+      resolutionDetails: 'Reseated the fiber connector at the customer ONU; signal stabilized on the day of the visit.',
+      resolutionType: 'Technician Visit',
+      customerUpdate: 'Your connection issue was resolved by reseating the fiber connection at your ONU.',
+      resolvedAt: new Date(NOW - 50 * H).toISOString(),
+      resolvedBy: 'Ravi T.',
+    },
   },
 ].map(t => ({
   ...t,
   slaDeadline: slaDeadlineFor(t.createdAt, t.priority),
   activityLog: t.activityLog ?? [{ time: t.createdAt, actor: 'System', action: 'Ticket created' }],
+  communicationLog: t.communicationLog ?? [{ time: t.createdAt, actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' }],
+  internalNotesLog: t.internalNotesLog ?? [],
+  technicianVisit: t.technicianVisit ?? null,
+  resolution: t.resolution ?? null,
+  attachments: t.attachments ?? [],
 }))
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -230,4 +314,66 @@ export function changePriority(ids, priority) {
     ? { ...t, priority, slaDeadline: slaDeadlineFor(t.createdAt, priority), updatedAt: new Date().toISOString() }
     : t)
   notify()
+}
+
+function appendActivity(ticket, action, actor) {
+  return [...(ticket.activityLog ?? []), { time: new Date().toISOString(), actor, action }]
+}
+
+// Plain status-dropdown transition. Resolved/Closed/Reopened are gated behind their
+// dedicated actions below and can never be reached through this function.
+export function updateTicketStatus(id, status, actor = 'Admin User') {
+  if (GATED_STATUSES.includes(status)) return null
+  const t = getTicket(id)
+  if (!t) return null
+  return saveTicket({
+    ...t, status, updatedAt: new Date().toISOString(),
+    activityLog: appendActivity(t, `Status changed to ${status}`, actor),
+  })
+}
+
+export function addCommunication(id, { channel, text }, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t) return null
+  const entry = { time: new Date().toISOString(), actor, channel, text }
+  return saveTicket({ ...t, communicationLog: [...(t.communicationLog ?? []), entry], updatedAt: new Date().toISOString() })
+}
+
+export function addInternalNote(id, text, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t) return null
+  const entry = { time: new Date().toISOString(), actor, text }
+  return saveTicket({ ...t, internalNotesLog: [...(t.internalNotesLog ?? []), entry], updatedAt: new Date().toISOString() })
+}
+
+export function resolveTicket(id, { rootCause, resolutionDetails, resolutionType, customerUpdate }, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t) return null
+  const now = new Date().toISOString()
+  const resolution = { rootCause, resolutionDetails, resolutionType, customerUpdate, resolvedAt: now, resolvedBy: actor }
+  const communicationLog = customerUpdate?.trim()
+    ? [...(t.communicationLog ?? []), { time: now, actor, channel: 'Portal', text: customerUpdate.trim() }]
+    : (t.communicationLog ?? [])
+  return saveTicket({
+    ...t, status: 'Resolved', resolution, communicationLog, updatedAt: now,
+    activityLog: appendActivity(t, `Ticket resolved (${resolutionType})`, actor),
+  })
+}
+
+export function closeTicket(id, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t || t.status !== 'Resolved') return null
+  return saveTicket({
+    ...t, status: 'Closed', updatedAt: new Date().toISOString(),
+    activityLog: appendActivity(t, 'Ticket closed', actor),
+  })
+}
+
+export function reopenTicket(id, reason, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t || !['Resolved', 'Closed'].includes(t.status)) return null
+  return saveTicket({
+    ...t, status: 'Reopened', reopened: true, reopenReason: reason, updatedAt: new Date().toISOString(),
+    activityLog: appendActivity(t, `Ticket reopened — reason: ${reason}`, actor),
+  })
 }
