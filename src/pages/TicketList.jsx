@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, Download, UserCog, Wrench,
   Flag, LayoutList, Sparkles, UserX, Loader2, AlertTriangle,
@@ -68,6 +68,12 @@ function BulkActionModal({ open, onClose, title, options, optionLabel, value, on
 
 export default function TicketList() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const qp = (key, allowed) => {
+    const v = searchParams.get(key)
+    return allowed.includes(v) ? v : ''
+  }
+
   const [tickets, setTickets] = useState(getTickets)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(new Set())
@@ -75,17 +81,19 @@ export default function TicketList() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  const [fStatus, setFStatus] = useState('')
-  const [fPriority, setFPriority] = useState('')
-  const [fCategory, setFCategory] = useState('')
-  const [fArea, setFArea] = useState('')
-  const [fAgent, setFAgent] = useState('')
-  const [fTechnician, setFTechnician] = useState('')
-  const [fSlaStatus, setFSlaStatus] = useState('')
-  const [fDateFrom, setFDateFrom] = useState('')
-  const [fDateTo, setFDateTo] = useState('')
-  const [fOutage, setFOutage] = useState('')
-  const [fReopened, setFReopened] = useState('')
+  const [fStatus, setFStatus] = useState(() => qp('status', TICKET_STATUSES))
+  const [fPriority, setFPriority] = useState(() => qp('priority', PRIORITIES))
+  const [fCategory, setFCategory] = useState(() => qp('category', CATEGORIES))
+  const [fArea, setFArea] = useState(() => qp('area', AREAS))
+  const [fAgent, setFAgent] = useState(() => qp('agent', AGENTS))
+  const [fTechnician, setFTechnician] = useState(() => qp('technician', TECHNICIANS))
+  const [fSlaStatus, setFSlaStatus] = useState(() => qp('slaStatus', ['On Track', 'Due Soon', 'Breached', 'Met']))
+  const [fDateFrom, setFDateFrom] = useState(() => searchParams.get('dateFrom') ?? '')
+  const [fDateTo, setFDateTo] = useState(() => searchParams.get('dateTo') ?? '')
+  const [fOutage, setFOutage] = useState(() => qp('outageLinked', ['Yes', 'No']))
+  const [fReopened, setFReopened] = useState(() => qp('reopened', ['Yes', 'No']))
+  const [fUnassigned, setFUnassigned] = useState(() => searchParams.get('unassigned') === '1')
+  const [fOpenOnly, setFOpenOnly] = useState(() => searchParams.get('view') === 'open')
 
   const [assignAgentOpen, setAssignAgentOpen] = useState(false)
   const [assignAgentValue, setAssignAgentValue] = useState('')
@@ -99,6 +107,7 @@ export default function TicketList() {
   function clearAllFilters() {
     setFStatus(''); setFPriority(''); setFCategory(''); setFArea(''); setFAgent(''); setFTechnician('')
     setFSlaStatus(''); setFDateFrom(''); setFDateTo(''); setFOutage(''); setFReopened('')
+    setFUnassigned(false); setFOpenOnly(false)
   }
 
   const searchTrimmed = search.trim().toLowerCase()
@@ -120,10 +129,12 @@ export default function TicketList() {
     if (fDateTo && t.createdAt.slice(0, 10) > fDateTo) return false
     if (fOutage && (t.outageLinked ? 'Yes' : 'No') !== fOutage) return false
     if (fReopened && (t.reopened ? 'Yes' : 'No') !== fReopened) return false
+    if (fUnassigned && t.assignedAgent) return false
+    if (fOpenOnly && ['Resolved', 'Closed', 'Cancelled'].includes(t.status)) return false
     return true
-  }), [tickets, searchTrimmed, search, fStatus, fPriority, fCategory, fArea, fAgent, fTechnician, fSlaStatus, fDateFrom, fDateTo, fOutage, fReopened])
+  }), [tickets, searchTrimmed, search, fStatus, fPriority, fCategory, fArea, fAgent, fTechnician, fSlaStatus, fDateFrom, fDateTo, fOutage, fReopened, fUnassigned, fOpenOnly])
 
-  const filterCount = [fStatus, fPriority, fCategory, fArea, fAgent, fTechnician, fSlaStatus, fDateFrom || fDateTo, fOutage, fReopened].filter(Boolean).length
+  const filterCount = [fStatus, fPriority, fCategory, fArea, fAgent, fTechnician, fSlaStatus, fDateFrom || fDateTo, fOutage, fReopened, fUnassigned, fOpenOnly].filter(Boolean).length
   const hasActiveFilters = filterCount > 0
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -306,6 +317,18 @@ export default function TicketList() {
                 <button onClick={() => setter('')} className="ml-0.5 hover:text-brand-blue-dark"><X size={10} /></button>
               </span>
             ))}
+            {fUnassigned && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-medium">
+                Unassigned only
+                <button onClick={() => setFUnassigned(false)} className="ml-0.5 hover:text-brand-blue-dark"><X size={10} /></button>
+              </span>
+            )}
+            {fOpenOnly && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-medium">
+                Open tickets only
+                <button onClick={() => setFOpenOnly(false)} className="ml-0.5 hover:text-brand-blue-dark"><X size={10} /></button>
+              </span>
+            )}
             {(fDateFrom || fDateTo) && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded-full text-xs font-medium">
                 Date: {fDateFrom || '…'} → {fDateTo || '…'}

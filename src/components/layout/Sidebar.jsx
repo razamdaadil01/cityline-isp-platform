@@ -56,10 +56,11 @@ const NAV_ITEMS = [
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
   {
-    label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support/tickets',
+    label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support/dashboard',
     children: [
-      { label: 'Ticket List', icon: ClipboardCheck, to: '/support/tickets' },
-      { label: 'Outages',     icon: Zap,            to: '/support/outages' },
+      { label: 'Ticket List', icon: ClipboardCheck,  to: '/support/tickets'   },
+      { label: 'Outages',     icon: Zap,             to: '/support/outages'  },
+      { label: 'Dashboard',   icon: LayoutDashboard, to: '/support/dashboard' },
     ],
   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
