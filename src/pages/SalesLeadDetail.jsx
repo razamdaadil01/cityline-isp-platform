@@ -6,13 +6,13 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall,
+  Fingerprint, Search, FileText, PhoneCall, X,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { findEkycRecord } from '../data/ekycRecordsStore'
 import { saveFeasibilityRequest, getFeasibilityRequests } from '../data/feasibilityStore'
 import { getInstallations, subscribeInstallations } from '../data/installationsStore'
-import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES } from '../data/packagesStore'
+import { MOCK_PLANS, SERVICE_BADGE, SERVICE_TYPES, BILLING_TYPES, MOCK_ADDONS } from '../data/packagesStore'
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields, getStageMeta } from '../data/stageFieldsStore'
@@ -945,7 +945,7 @@ const APPROVAL_LABEL = {
 
 const APPROVER_OPTIONS = ['Regional Manager', 'Zonal Manager', 'Director', 'Admin']
 
-function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onChange, onSave }) {
+function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onChange, onSave, onRemove }) {
   const displayPrice = editPrice && customPriceVal !== ''
     ? (parseFloat(customPriceVal) || plan.price)
     : (pkg.customPrice ?? plan.price)
@@ -956,10 +956,18 @@ function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggle
       <div className="p-4 pb-3 border-b border-surface-border">
         <div className="flex items-start justify-between gap-2 mb-2">
           <p className="text-sm font-semibold text-gray-900 leading-snug">{plan.name}</p>
-          <button type="button" onClick={onChange}
-            className="flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium shrink-0 transition-colors">
-            <Edit3 size={11} /> Change
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <button type="button" onClick={onChange}
+              className="flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium transition-colors">
+              <Edit3 size={11} /> Change Package
+            </button>
+            {onRemove && (
+              <button type="button" onClick={onRemove}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
+                <XCircle size={11} /> Remove
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
@@ -1190,7 +1198,7 @@ function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return MOCK_PLANS.filter(p => {
-      if (p.status !== 'active') return false
+      if (p.status !== 'Active') return false
       const matchSearch = !q || p.name.toLowerCase().includes(q) || p.serviceType.toLowerCase().includes(q)
       const matchService = !filterService || p.serviceType === filterService
       const matchBilling = !filterBilling || p.billingType === filterBilling
@@ -1257,6 +1265,37 @@ function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
                   Select
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+// ── AddonSelectModal ───────────────────────────────────────────────────────────
+
+function AddonSelectModal({ isOpen, onClose, addons, selectedIds, onSelect }) {
+  const available = addons.filter(a => !selectedIds.includes(a.id))
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Add-on" size="sm">
+      {available.length === 0 ? (
+        <div className="text-center py-10">
+          <Package size={22} className="mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-400">All available add-ons have been added</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {available.map(addon => (
+            <div key={addon.id} className="flex items-center justify-between px-4 py-3 border border-surface-border rounded-lg hover:border-brand-blue/40 transition-colors">
+              <div>
+                <p className="text-sm font-medium text-gray-800">{addon.name}</p>
+                <p className="text-xs text-gray-500">₹{addon.price.toLocaleString('en-IN')}/month</p>
+              </div>
+              <button type="button" onClick={() => onSelect(addon)}
+                className="px-3 py-1.5 text-xs font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
+                + Add
+              </button>
             </div>
           ))}
         </div>
@@ -1667,6 +1706,11 @@ export default function SalesLeadDetail() {
   const [bwApprover, setBwApprover]         = useState('Regional Manager')
   const [otherApprover, setOtherApprover]   = useState('Regional Manager')
 
+  // Package tab — Add-ons + Advance Payment (Residential/Custom pricing summary)
+  const [addonModalOpen, setAddonModalOpen] = useState(false)
+  const [pkgAdvanceAmount, setPkgAdvanceAmount] = useState('')
+  const [pkgAdvanceNotRequired, setPkgAdvanceNotRequired] = useState(false)
+
   // eKYC tab — local (non-persisted) UI state; verification status/results live on lead.ekyc
   const [ekycIdentifier, setEkycIdentifier] = useState('')
   const [ekycCheckResult, setEkycCheckResult] = useState(null)
@@ -1707,6 +1751,14 @@ export default function SalesLeadDetail() {
   // Prefill the eKYC identifier input from the lead's phone/email once, without clobbering user edits
   useEffect(() => {
     if (lead && !ekycIdentifier) setEkycIdentifier(lead.phone || lead.email || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id])
+
+  // Prefill the package Advance Payment fields from the lead record when it (first) loads
+  useEffect(() => {
+    if (!lead) return
+    setPkgAdvanceAmount(lead.packageAdvanceAmount != null ? String(lead.packageAdvanceAmount) : '')
+    setPkgAdvanceNotRequired(!!lead.packageAdvanceNotRequired)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id])
 
@@ -2118,6 +2170,33 @@ export default function SalesLeadDetail() {
     saveLead({ ...lead, [pkgKey]: updated })
     if (slot === 'bandwidth') { setBwEditPrice(false); setBwCustomPrice('') }
     else { setOtherEditPrice(false); setOtherCustomPrice('') }
+  }
+
+  function handleRemovePkg(slot) {
+    const pkgKey = slot === 'bandwidth' ? 'bandwidthPackage' : 'otherPackage'
+    saveLead({ ...lead, [pkgKey]: null })
+    if (slot === 'bandwidth') { setBwEditPrice(false); setBwCustomPrice('') }
+    else { setOtherEditPrice(false); setOtherCustomPrice('') }
+  }
+
+  function handleAddAddon(addon) {
+    const existing = lead.addons ?? []
+    if (existing.some(a => a.id === addon.id)) return
+    saveLead({ ...lead, addons: [...existing, { id: addon.id, name: addon.name, price: addon.price }] })
+  }
+
+  function handleRemoveAddon(addonId) {
+    saveLead({ ...lead, addons: (lead.addons ?? []).filter(a => a.id !== addonId) })
+  }
+
+  function handleSavePkgAdvance() {
+    saveLead({
+      ...lead,
+      packageAdvanceAmount: pkgAdvanceNotRequired || pkgAdvanceAmount.trim() === ''
+        ? null
+        : (parseFloat(pkgAdvanceAmount) || 0),
+      packageAdvanceNotRequired: pkgAdvanceNotRequired,
+    })
   }
 
   const TABS = [
@@ -2965,9 +3044,24 @@ export default function SalesLeadDetail() {
           {/* ─── PACKAGE ──────────────────────────────────────────────── */}
           {activeTab === 'package' && (
             <div className="space-y-6">
-              {lead.pipeline !== 'Enterprise' ? (
+              {lead.pipeline !== 'Enterprise' ? (() => {
                 /* Residential / Custom — Bandwidth + Other, no approval flow */
+                const bwPlan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
+                const packageBaseAmount = bwPlan ? (lead.bandwidthPackage.customPrice ?? bwPlan.price) : 0
+                const addons = lead.addons ?? []
+                const addonsTotal = addons.reduce((sum, a) => sum + (Number(a.price) || 0), 0)
+                const totalAmount = packageBaseAmount + addonsTotal
+
+                return (
                 <div className="space-y-8">
+                  {/* Invoice Preview */}
+                  {bwPlan && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                      <FileText size={13} className="text-gray-400 shrink-0" />
+                      Will appear on invoice as: <span className="font-semibold text-gray-700">{bwPlan.name}</span>
+                    </div>
+                  )}
+
                   {/* Bandwidth Package */}
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -2983,22 +3077,19 @@ export default function SalesLeadDetail() {
                         <Package size={18} className="mx-auto text-gray-300 mb-2" />
                         <p className="text-sm text-gray-400">No bandwidth package selected</p>
                       </div>
-                    ) : (() => {
-                      const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
-                      if (!plan) return null
-                      return (
-                        <div className="max-w-md">
-                          <ResidentialPackageCard
-                            plan={plan} pkg={lead.bandwidthPackage}
-                            editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
-                            onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? plan.price)) }}
-                            onCustomPriceChange={setBwCustomPrice}
-                            onChange={() => openPkgModal('bandwidth')}
-                            onSave={() => handleSaveResidentialPkg('bandwidth')}
-                          />
-                        </div>
-                      )
-                    })()}
+                    ) : bwPlan && (
+                      <div className="max-w-md">
+                        <ResidentialPackageCard
+                          plan={bwPlan} pkg={lead.bandwidthPackage}
+                          editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
+                          onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? bwPlan.price)) }}
+                          onCustomPriceChange={setBwCustomPrice}
+                          onChange={() => openPkgModal('bandwidth')}
+                          onSave={() => handleSaveResidentialPkg('bandwidth')}
+                          onRemove={() => handleRemovePkg('bandwidth')}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t border-surface-border" />
@@ -3030,10 +3121,89 @@ export default function SalesLeadDetail() {
                             onCustomPriceChange={setOtherCustomPrice}
                             onChange={() => openPkgModal('other')}
                             onSave={() => handleSaveResidentialPkg('other')}
+                            onRemove={() => handleRemovePkg('other')}
                           />
                         </div>
                       )
                     })()}
+                  </div>
+
+                  <div className="border-t border-surface-border" />
+
+                  {/* Add-ons */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
+                      <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
+                        Add Add-on
+                      </Button>
+                    </div>
+                    {addons.length === 0 ? (
+                      <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                        <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm text-gray-400">No add-ons added</p>
+                      </div>
+                    ) : (
+                      <div className="max-w-md space-y-2">
+                        {addons.map(addon => (
+                          <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">{addon.name}</p>
+                              <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
+                            </div>
+                            <button type="button" onClick={() => handleRemoveAddon(addon.id)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-surface-border" />
+
+                  {/* Pricing Summary */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-4">Pricing Summary</h3>
+                    <div className="max-w-md bg-white border border-surface-border rounded-xl shadow-card p-4 space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Package Base Amount</span>
+                        <span className="font-medium text-gray-800">₹{packageBaseAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Add-ons Total</span>
+                        <span className="font-medium text-gray-800">₹{addonsTotal.toLocaleString('en-IN')}</span>
+                      </div>
+
+                      <div className="pt-3 border-t border-gray-100 space-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={pkgAdvanceNotRequired}
+                            onChange={e => setPkgAdvanceNotRequired(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+                          <span className="text-sm text-gray-700">Advance Payment Not Required</span>
+                        </label>
+                        <FormField label="Advance Payment" required={!pkgAdvanceNotRequired}>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                            <input type="number" min="0" value={pkgAdvanceAmount}
+                              onChange={e => setPkgAdvanceAmount(e.target.value)}
+                              disabled={pkgAdvanceNotRequired}
+                              placeholder="e.g. 1000"
+                              className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50 disabled:text-gray-400" />
+                          </div>
+                        </FormField>
+                        <button type="button" onClick={handleSavePkgAdvance}
+                          className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
+                          Save
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-sm pt-3 border-t border-gray-100">
+                        <span className="font-semibold text-gray-700">Total Amount</span>
+                        <span className="font-bold text-gray-900 text-base">₹{totalAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Generate Quotation — always enabled once a package is selected */}
@@ -3049,7 +3219,8 @@ export default function SalesLeadDetail() {
                     </div>
                   )}
                 </div>
-              ) : (
+                )
+              })() : (
                 /* Enterprise — bandwidth + other */
                 <div className="space-y-8">
                   {/* Bandwidth Package */}
@@ -3262,6 +3433,14 @@ export default function SalesLeadDetail() {
         onClose={() => setPkgModalOpen(false)}
         onSelect={handleSelectPkg}
         title={pkgModalFor === 'bandwidth' ? 'Select Bandwidth Package' : pkgModalFor === 'other' ? 'Select Other Package' : 'Select Package'}
+      />
+
+      <AddonSelectModal
+        isOpen={addonModalOpen}
+        onClose={() => setAddonModalOpen(false)}
+        addons={MOCK_ADDONS}
+        selectedIds={(lead.addons ?? []).map(a => a.id)}
+        onSelect={handleAddAddon}
       />
 
       {/* ── Send Quotation modal ───────────────────────────────────────── */}
