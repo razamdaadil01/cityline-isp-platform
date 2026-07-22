@@ -6,7 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall, X,
+  Fingerprint, Search, FileText, PhoneCall, X, Eye,
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { findEkycRecord } from '../data/ekycRecordsStore'
@@ -117,6 +117,19 @@ function formatEkycTimestamp(iso) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// PI-{year}-{6-digit sequence}, globally unique across all leads — same
+// incrementing pattern as nextInstallationId() in intercomInstallationsStore.js
+function nextPiNumber(allLeads) {
+  const year = new Date().getFullYear()
+  const nums = allLeads
+    .flatMap(l => l.proformaInvoices ?? [])
+    .map(pi => pi.piNumber.match(/^PI-(\d{4})-(\d+)$/))
+    .filter(Boolean)
+    .map(m => Number(m[2]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `PI-${year}-${String(next).padStart(6, '0')}`
 }
 
 // ── OTPModal ──────────────────────────────────────────────────────────────────
@@ -1553,6 +1566,91 @@ function SendQuotationModal({ isOpen, onClose, lead, onSend }) {
   )
 }
 
+// ── ProformaInvoicePreviewModal ────────────────────────────────────────────────
+// Read-only snapshot viewer for a single PI history entry. Separate from
+// QuotationPreviewModal on purpose — quotations and PIs are distinct concepts.
+
+function ProformaInvoicePreviewModal({ isOpen, onClose, lead, pi }) {
+  if (!pi) return null
+  const effectivePrice = pi.customPrice ?? pi.basePrice
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Proforma Invoice" size="lg"
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+    >
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden text-sm">
+        {/* Letterhead bar */}
+        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div>
+            <p className="text-base font-black text-navy tracking-tight">CITYLINE</p>
+            <p className="text-xs text-gray-400">Internet Service Provider</p>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold text-gray-800">PROFORMA INVOICE</p>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">{pi.piNumber}</p>
+          </div>
+        </div>
+
+        {/* Meta */}
+        <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <div className="flex gap-2">
+              <span className="text-gray-400 w-20 shrink-0">Lead ID</span>
+              <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{lead?.id}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-400 w-20 shrink-0">Customer</span>
+              <span className="text-gray-700">{lead?.companyName || lead?.name}</span>
+            </div>
+          </div>
+          <div className="text-right space-y-1.5">
+            <div>
+              <p className="text-gray-400 text-xs">Generated</p>
+              <p className="font-semibold text-gray-800">{formatEkycTimestamp(pi.generatedAt)}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Status</p>
+              <p className={`font-semibold ${pi.status === 'Current' ? 'text-emerald-600' : 'text-gray-400'}`}>{pi.status}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Package + add-on rows */}
+        <div className="px-6 py-4">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Package Details</p>
+          <div className="divide-y divide-gray-100">
+            <div className="flex items-start justify-between py-2.5">
+              <div>
+                <p className="font-semibold text-gray-800">{pi.packageName}</p>
+                <p className="text-xs text-gray-500 mt-0.5">Base Price ₹{pi.basePrice.toLocaleString('en-IN')}</p>
+                {pi.discount > 0 && (
+                  <p className="text-xs text-emerald-600 mt-0.5">Discount applied: ₹{pi.discount.toLocaleString('en-IN')}</p>
+                )}
+              </div>
+              <p className="font-bold text-gray-900 shrink-0 ml-4">₹{effectivePrice.toLocaleString('en-IN')}</p>
+            </div>
+            {(pi.addons ?? []).map(a => (
+              <div key={a.id} className="flex items-start justify-between py-2.5">
+                <p className="text-gray-700">{a.name}</p>
+                <p className="font-medium text-gray-800 shrink-0 ml-4">₹{a.price.toLocaleString('en-IN')}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Total */}
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <span className="font-semibold text-gray-600">Total Amount</span>
+          <span className="text-xl font-black text-gray-900">₹{pi.totalAmount.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Tab routing ───────────────────────────────────────────────────────────────
 
 const TAB_PATH_TO_KEY = {
@@ -1700,6 +1798,9 @@ export default function SalesLeadDetail() {
   const [addonModalOpen, setAddonModalOpen] = useState(false)
   const [pkgAdvanceAmount, setPkgAdvanceAmount] = useState('')
   const [pkgAdvanceNotRequired, setPkgAdvanceNotRequired] = useState(false)
+
+  // Package tab — Proforma Invoice
+  const [piPreview, setPiPreview] = useState(null)
 
   // eKYC tab — local (non-persisted) UI state; verification status/results live on lead.ekyc
   const [ekycIdentifier, setEkycIdentifier] = useState('')
@@ -2172,6 +2273,37 @@ export default function SalesLeadDetail() {
         : (parseFloat(pkgAdvanceAmount) || 0),
       packageAdvanceNotRequired: pkgAdvanceNotRequired,
     })
+  }
+
+  function handleGeneratePi() {
+    if (!lead.bandwidthPackage) return
+    const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
+    if (!plan) return
+
+    const basePrice = plan.price
+    const customPrice = lead.bandwidthPackage.customPrice ?? null
+    const effectivePrice = customPrice ?? basePrice
+    const discount = customPrice != null && customPrice < basePrice ? basePrice - customPrice : 0
+    const addons = (lead.addons ?? []).map(a => ({ id: a.id, name: a.name, price: Number(a.price) || 0 }))
+    const addonsTotal = addons.reduce((sum, a) => sum + a.price, 0)
+
+    const newPi = {
+      piNumber: nextPiNumber(leads),
+      generatedAt: new Date().toISOString(),
+      status: 'Current',
+      packageName: plan.name,
+      basePrice,
+      customPrice,
+      discount,
+      addons,
+      addonsTotal,
+      totalAmount: effectivePrice + addonsTotal,
+    }
+
+    const supersededHistory = (lead.proformaInvoices ?? []).map(pi =>
+      pi.status === 'Current' ? { ...pi, status: 'Superseded' } : pi
+    )
+    saveLead({ ...lead, proformaInvoices: [newPi, ...supersededHistory] })
   }
 
   const TABS = [
@@ -3119,6 +3251,50 @@ export default function SalesLeadDetail() {
                           <span>📄</span> Generate Quotation
                         </button>
                       )}
+
+                      {/* Proforma Invoice */}
+                      <Card padding={false}>
+                        <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
+                          <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
+                          <Button size="sm" variant="secondary" icon={<FileText size={13} />} disabled={!lead.bandwidthPackage} onClick={handleGeneratePi}>
+                            Generate Proforma Invoice
+                          </Button>
+                        </div>
+                        <div className="p-5">
+                          {(lead.proformaInvoices ?? []).length === 0 ? (
+                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                              <FileText size={18} className="mx-auto text-gray-300 mb-2" />
+                              <p className="text-sm text-gray-400">No Proforma Invoice generated yet</p>
+                            </div>
+                          ) : (
+                            <div className="max-w-md space-y-2">
+                              {lead.proformaInvoices.map(pi => (
+                                <div key={pi.piNumber} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono text-xs font-semibold text-brand-blue">{pi.piNumber}</span>
+                                      <Badge variant={pi.status === 'Current' ? 'green' : 'gray'} size="sm">{pi.status}</Badge>
+                                    </div>
+                                    <p className="text-sm font-medium text-gray-800 mt-1">
+                                      {pi.packageName} · ₹{(pi.customPrice ?? pi.basePrice).toLocaleString('en-IN')}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      Generated {formatEkycTimestamp(pi.generatedAt)}
+                                      {pi.discount > 0 && (
+                                        <span className="text-emerald-600"> · ₹{pi.discount.toLocaleString('en-IN')} discount</span>
+                                      )}
+                                    </p>
+                                  </div>
+                                  <button type="button" onClick={() => setPiPreview(pi)}
+                                    className="shrink-0 flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium ml-3">
+                                    <Eye size={13} /> View
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </Card>
                     </div>
 
                     {/* Right column — Pricing Summary (sticky) */}
@@ -3240,6 +3416,50 @@ export default function SalesLeadDetail() {
                       </div>
                     )
                   })()}
+
+                  {/* Proforma Invoice */}
+                  <Card padding={false}>
+                    <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
+                      <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
+                      <Button size="sm" variant="secondary" icon={<FileText size={13} />} disabled={!lead.bandwidthPackage} onClick={handleGeneratePi}>
+                        Generate Proforma Invoice
+                      </Button>
+                    </div>
+                    <div className="p-5">
+                      {(lead.proformaInvoices ?? []).length === 0 ? (
+                        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                          <FileText size={18} className="mx-auto text-gray-300 mb-2" />
+                          <p className="text-sm text-gray-400">No Proforma Invoice generated yet</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {lead.proformaInvoices.map(pi => (
+                            <div key={pi.piNumber} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono text-xs font-semibold text-brand-blue">{pi.piNumber}</span>
+                                  <Badge variant={pi.status === 'Current' ? 'green' : 'gray'} size="sm">{pi.status}</Badge>
+                                </div>
+                                <p className="text-sm font-medium text-gray-800 mt-1">
+                                  {pi.packageName} · ₹{(pi.customPrice ?? pi.basePrice).toLocaleString('en-IN')}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  Generated {formatEkycTimestamp(pi.generatedAt)}
+                                  {pi.discount > 0 && (
+                                    <span className="text-emerald-600"> · ₹{pi.discount.toLocaleString('en-IN')} discount</span>
+                                  )}
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => setPiPreview(pi)}
+                                className="shrink-0 flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium ml-3">
+                                <Eye size={13} /> View
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
                 </div>
               )}
             </div>
@@ -3361,6 +3581,14 @@ export default function SalesLeadDetail() {
         onClose={() => setQuotationOpen(false)}
         lead={lead}
         onSend={handleSendQuotation}
+      />
+
+      {/* ── Proforma Invoice preview modal ────────────────────────────── */}
+      <ProformaInvoicePreviewModal
+        isOpen={!!piPreview}
+        onClose={() => setPiPreview(null)}
+        lead={lead}
+        pi={piPreview}
       />
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
