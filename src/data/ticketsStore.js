@@ -121,7 +121,7 @@ const SEED = [
     assignedAgent: 'Ravi T.', assignedTechnician: 'Suresh Iyer',
     area: 'Andheri East',
     createdAt: new Date(NOW - 9 * H).toISOString(), updatedAt: new Date(NOW - 1 * H).toISOString(),
-    outageLinked: true, reopened: false,
+    outageLinked: true, outageId: 'OUT-2026-000004', reopened: false,
     description: 'OLT-ANW-02 port 12 flapping intermittently. Field technician dispatched — SLA at risk.',
     customerAddress: 'Andheri East', plan: 'FTTH 200Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
     technicianVisit: {
@@ -179,7 +179,7 @@ const SEED = [
     assignedAgent: 'Arjun P.', assignedTechnician: null,
     area: 'Mahim',
     createdAt: new Date(NOW - 3 * H).toISOString(), updatedAt: new Date(NOW - 0.3 * H).toISOString(),
-    outageLinked: true, reopened: false,
+    outageLinked: true, outageId: 'OUT-2026-000005', reopened: false,
     description: 'Area-wide outage suspected after last night\'s storm — escalated to NOC for backbone check.',
     customerAddress: 'Mahim', plan: 'Wireless 25Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
   },
@@ -321,6 +321,23 @@ function updateTickets(ids, patch) {
 }
 
 export function assignAgent(ids, agent) { updateTickets(ids, { assignedAgent: agent }) }
+
+export function linkTicketsToOutage(ids, outageId) { updateTickets(ids, { outageId, outageLinked: true }) }
+
+// Open (not Resolved/Closed/Cancelled/Duplicate) tickets in the given areas whose
+// category suggests a network-level issue, created around/after the outage's start
+// time — candidates for auto-linking to a newly confirmed outage. A 6-hour lookback
+// is included since customers usually report the issue before an outage is formally
+// confirmed.
+export function findTicketsForOutage(areas, sinceIso) {
+  const since = new Date(sinceIso).getTime() - 6 * H
+  return _tickets.filter(t =>
+    areas.includes(t.area) &&
+    ['Network', 'Connectivity'].includes(t.category) &&
+    !CLOSED_STATUSES.includes(t.status) &&
+    new Date(t.createdAt).getTime() >= since
+  )
+}
 
 export function assignTechnician(ids, technician) { updateTickets(ids, { assignedTechnician: technician }) }
 

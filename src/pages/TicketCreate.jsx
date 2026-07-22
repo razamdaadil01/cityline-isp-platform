@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Search, ClipboardList, UserCog, CheckCircle2,
-  AlertTriangle, Upload, Paperclip, X, Wrench, Sparkles,
+  AlertTriangle, Upload, Paperclip, X, Wrench, Sparkles, Zap,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -13,6 +13,7 @@ import {
   CATEGORY_SUBCATEGORIES, CATEGORIES, PRIORITIES, PRIORITY_LABEL, CONTACT_METHODS,
   AGENTS, TECHNICIANS, CLOSED_STATUSES,
 } from '../data/ticketsStore'
+import { findActiveOutageForArea } from '../data/outagesStore'
 
 const CURRENT_USER = 'Admin User'
 
@@ -96,6 +97,7 @@ export default function TicketCreate() {
 
   const openTickets = customerTickets.filter(t => !CLOSED_STATUSES.includes(t.status))
   const last5Tickets = customerTickets.slice(0, 5)
+  const activeOutage = selectedCustomer ? findActiveOutageForArea(selectedCustomer.zone) : null
 
   const [duplicateChoice, setDuplicateChoice] = useState(null) // { mode: 'duplicate'|'new', ticketId?, reason? }
   const [newReason, setNewReason] = useState('')
@@ -365,10 +367,25 @@ export default function TicketCreate() {
 
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Active Outage</p>
-              <div className="flex items-center gap-2 text-sm text-gray-500 px-3 py-2 rounded-lg bg-gray-50 border border-surface-border">
-                <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                No active outage reported in {selectedCustomer.zone ?? 'this area'}.
-              </div>
+              {activeOutage ? (
+                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                  <Zap size={14} className="text-red-500 shrink-0 mt-0.5" />
+                  <div className="text-xs text-red-700">
+                    <p className="font-semibold">{activeOutage.title}</p>
+                    <p className="mt-0.5">
+                      <Badge variant="red" size="sm" dot>{activeOutage.severity}</Badge>{' '}
+                      Expected restoration: {new Date(activeOutage.expectedRestorationTime).toLocaleString('en-IN', {
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-gray-500 px-3 py-2 rounded-lg bg-gray-50 border border-surface-border">
+                  <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                  No active outage reported in {selectedCustomer.zone ?? 'this area'}.
+                </div>
+              )}
             </div>
           </div>
         )}
