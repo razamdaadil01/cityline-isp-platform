@@ -28,11 +28,16 @@ export const CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)
 export const AREAS = [
   'Andheri West', 'Andheri East', 'Bandra West', 'Bandra East',
   'Mahim', 'Chembur', 'Nariman Point', 'Colaba',
+  'Goregaon', 'Versova', 'MIDC Andheri', 'Juhu', 'Malad West', 'Santacruz', 'SEEPZ',
+  'Powai', 'Borivali', 'Kandivali', 'BKC', 'Ghatkopar', 'Mulund', 'Vikhroli', 'Bhandup',
+  'Kurla', 'Dadar', 'Matunga', 'Lower Parel', 'Worli', 'Thane West', 'Navi Mumbai', 'Mira Road',
 ]
 
 export const AGENTS = ['Ravi T.', 'Neha M.', 'Arjun P.', 'Sita K.', 'Kiran B.']
 
 export const TECHNICIANS = ['Suresh Iyer', 'Prakash Yadav', 'Manoj Verma', 'Dinesh Kumar', 'Vikram Singh']
+
+export const CONTACT_METHODS = ['Phone', 'Email', 'WhatsApp', 'Portal', 'Walk-in']
 
 const H = 3600000 // 1 hour in ms
 const NOW = Date.now()
@@ -40,6 +45,8 @@ const NOW = Date.now()
 function slaDeadlineFor(createdAt, priority) {
   return new Date(new Date(createdAt).getTime() + SLA_HOURS[priority] * H).toISOString()
 }
+
+export const computeSlaDeadline = slaDeadlineFor
 
 // 'On Track' | 'Due Soon' | 'Breached' — 'Due Soon' = within 20% of SLA window remaining
 export function slaStatusOf(ticket) {
@@ -165,7 +172,11 @@ const SEED = [
     outageLinked: false, reopened: true,
     description: 'Customer reopened the ticket — intermittent drops resumed two days after the ticket was closed.',
   },
-].map(t => ({ ...t, slaDeadline: slaDeadlineFor(t.createdAt, t.priority) }))
+].map(t => ({
+  ...t,
+  slaDeadline: slaDeadlineFor(t.createdAt, t.priority),
+  activityLog: t.activityLog ?? [{ time: t.createdAt, actor: 'System', action: 'Ticket created' }],
+}))
 
 // ─── Store ──────────────────────────────────────────────────────────────────
 
@@ -173,6 +184,16 @@ let _tickets = [...SEED]
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._tickets])) }
+
+export function nextTicketNumber() {
+  const year = new Date().getFullYear()
+  const nums = _tickets
+    .map(t => t.id.match(/^TKT-(\d{4})-(\d+)$/))
+    .filter(Boolean)
+    .map(m => Number(m[2]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `TKT-${year}-${String(next).padStart(6, '0')}`
+}
 
 export function getTickets() { return [..._tickets] }
 
