@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, MessageSquare, Lock, Send, RotateCcw, CheckCircle2, FileText, CalendarPlus,
-  Phone, Mail, MapPin, User, Activity, Wrench, ShieldCheck, Clock,
+  ArrowLeft, MessageSquare, Lock, RotateCcw, CheckCircle2, FileText, CalendarPlus,
+  Phone, Mail, MapPin, User, Activity, Wrench, ShieldCheck, Clock, PhoneCall,
+  MessageCircle, Globe,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
-  getTicket, subscribeTickets, updateTicketStatus, addCommunication, addInternalNote,
+  getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
-  CONTACT_METHODS, TECHNICIAN_PROFILES, TECHNICIAN_SKILLS, slaStatusOf,
+  TECHNICIAN_PROFILES, TECHNICIAN_SKILLS, slaStatusOf,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
@@ -29,6 +30,8 @@ const VISIT_STATUS_BADGE = {
   'Visit Scheduled': 'blue', 'Technician Travelling': 'cyan', 'Technician Reached': 'orange',
   'Work Started': 'orange', 'Work Completed': 'green', 'Follow-up Required': 'yellow',
 }
+const CHANNEL_BADGE = { Call: 'purple', SMS: 'yellow', Email: 'blue', WhatsApp: 'green', Portal: 'gray' }
+const CHANNEL_ICON = { Call: PhoneCall, SMS: MessageSquare, Email: Mail, WhatsApp: MessageCircle, Portal: Globe }
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140">'
@@ -274,8 +277,6 @@ export default function SupportTicketDetail() {
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [commChannel, setCommChannel] = useState('Phone')
-  const [commText, setCommText] = useState('')
   const [internalText, setInternalText] = useState('')
 
   if (!ticket) {
@@ -298,12 +299,6 @@ export default function SupportTicketDetail() {
   const canClose = ticket.status === 'Resolved'
   const canReopen = isGatedStatus
   const scheduleBlocked = ['Closed', 'Cancelled'].includes(ticket.status)
-
-  function handleAddCommunication() {
-    if (!commText.trim()) return
-    addCommunication(ticket.id, { channel: commChannel, text: commText.trim() }, CURRENT_USER)
-    setCommText('')
-  }
 
   function handleAddInternalNote() {
     if (!internalText.trim()) return
@@ -466,28 +461,26 @@ export default function SupportTicketDetail() {
               {/* ─── Communication ──────────────────────────────────────── */}
               {activeTab === 'communication' && (
                 <div>
-                  <p className="text-[11px] text-gray-400 mb-3">Visible to customer</p>
-                  <div className="space-y-3 max-h-96 overflow-y-auto mb-3">
+                  <p className="text-[11px] text-gray-400 mb-3">
+                    Visible to customer · automated feed (IVR, SMS, Email, WhatsApp, Portal)
+                  </p>
+                  <div className="space-y-3 max-h-[32rem] overflow-y-auto">
                     {(ticket.communicationLog ?? []).length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-4">No communication yet.</p>
-                    ) : ticket.communicationLog.map((entry, i) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <Badge variant="blue" size="sm" className="shrink-0 mt-0.5">{entry.channel}</Badge>
-                        <div className="min-w-0">
-                          <p className="text-sm text-gray-700">{entry.text}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{entry.actor} · {formatDateTime(entry.time)}</p>
+                    ) : ticket.communicationLog.map((entry, i) => {
+                      const Icon = CHANNEL_ICON[entry.channel] ?? Globe
+                      return (
+                        <div key={i} className="flex items-start gap-3">
+                          <Badge variant={CHANNEL_BADGE[entry.channel] ?? 'gray'} size="sm" className="shrink-0 mt-0.5">
+                            <Icon size={11} /> {entry.channel}
+                          </Badge>
+                          <div className="min-w-0">
+                            <p className="text-sm text-gray-700">{entry.text}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{entry.actor} · {formatDateTime(entry.time)}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-3 border-t border-surface-border flex items-start gap-2">
-                    <div className="w-32 shrink-0">
-                      <Select value={commChannel} onChange={e => setCommChannel(e.target.value)}>
-                        {CONTACT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
-                      </Select>
-                    </div>
-                    <Textarea value={commText} onChange={e => setCommText(e.target.value)} rows={1} placeholder="Log a customer communication…" className="flex-1" />
-                    <Button size="sm" icon={<Send size={13} />} onClick={handleAddCommunication} disabled={!commText.trim()}>Add</Button>
+                      )
+                    })}
                   </div>
                 </div>
               )}
