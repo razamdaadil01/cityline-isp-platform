@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, Download, UserCog, Wrench,
-  Flag, LayoutList, Sparkles, UserX, Loader2, AlertTriangle,
+  Flag, LayoutList, Sparkles, UserX, Loader2, AlertTriangle, MoreVertical,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -39,19 +39,19 @@ function formatDate(iso) {
 
 // ── Bulk action modal (shared shell for Assign Agent / Assign Technician / Change Priority) ──
 
-function BulkActionModal({ open, onClose, title, options, optionLabel, value, onChange, onApply, count }) {
+function BulkActionModal({ open, onClose, title, options, optionLabel, value, onChange, onApply, ticket }) {
   return (
     <Modal isOpen={open} onClose={onClose} title={title} size="sm"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={onApply} disabled={!value}>Apply to {count} ticket{count !== 1 ? 's' : ''}</Button>
+          <Button onClick={onApply} disabled={!value}>Apply</Button>
         </>
       }
     >
       <div className="space-y-3">
         <p className="text-sm text-gray-500">
-          Applying to <span className="font-semibold text-gray-800">{count}</span> selected ticket{count !== 1 ? 's' : ''}.
+          Applying to <span className="font-mono font-semibold text-gray-800">{ticket?.id}</span>.
         </p>
         <div className="relative">
           <select value={value} onChange={e => onChange(e.target.value)}
@@ -63,6 +63,48 @@ function BulkActionModal({ open, onClose, title, options, optionLabel, value, on
         </div>
       </div>
     </Modal>
+  )
+}
+
+// ── Per-row kebab menu (Assign Team / Assign Technician / Change Priority) ──
+
+function RowActionsMenu({ ticket, onAssignAgent, onAssignTechnician, onChangePriority }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+          open ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+        }`}
+      >
+        <MoreVertical size={15} />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-44 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
+          <button onClick={() => { setOpen(false); onAssignAgent(ticket) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+            <UserCog size={13} className="text-gray-400 shrink-0" /> Assign Team
+          </button>
+          <button onClick={() => { setOpen(false); onAssignTechnician(ticket) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+            <Wrench size={13} className="text-gray-400 shrink-0" /> Assign Technician
+          </button>
+          <button onClick={() => { setOpen(false); onChangePriority(ticket) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+            <Flag size={13} className="text-gray-400 shrink-0" /> Change Priority
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -95,6 +137,7 @@ export default function TicketList() {
   const [fUnassigned, setFUnassigned] = useState(() => searchParams.get('unassigned') === '1')
   const [fOpenOnly, setFOpenOnly] = useState(() => searchParams.get('view') === 'open')
 
+  const [actionTicket, setActionTicket] = useState(null)
   const [assignAgentOpen, setAssignAgentOpen] = useState(false)
   const [assignAgentValue, setAssignAgentValue] = useState('')
   const [assignTechOpen, setAssignTechOpen] = useState(false)
@@ -186,17 +229,21 @@ export default function TicketList() {
     URL.revokeObjectURL(url)
   }
 
+  function openAssignAgentFor(ticket) { setActionTicket(ticket); setAssignAgentValue(''); setAssignAgentOpen(true) }
+  function openAssignTechFor(ticket) { setActionTicket(ticket); setAssignTechValue(''); setAssignTechOpen(true) }
+  function openChangePriorityFor(ticket) { setActionTicket(ticket); setChangePriorityValue(''); setChangePriorityOpen(true) }
+
   function applyAssignAgent() {
-    assignAgent([...selected], assignAgentValue)
-    setAssignAgentOpen(false); setAssignAgentValue(''); setSelected(new Set())
+    if (actionTicket) assignAgent([actionTicket.id], assignAgentValue)
+    setAssignAgentOpen(false); setAssignAgentValue(''); setActionTicket(null)
   }
   function applyAssignTech() {
-    assignTechnician([...selected], assignTechValue)
-    setAssignTechOpen(false); setAssignTechValue(''); setSelected(new Set())
+    if (actionTicket) assignTechnician([actionTicket.id], assignTechValue)
+    setAssignTechOpen(false); setAssignTechValue(''); setActionTicket(null)
   }
   function applyChangePriority() {
-    changePriority([...selected], changePriorityValue)
-    setChangePriorityOpen(false); setChangePriorityValue(''); setSelected(new Set())
+    if (actionTicket) changePriority([actionTicket.id], changePriorityValue)
+    setChangePriorityOpen(false); setChangePriorityValue(''); setActionTicket(null)
   }
 
   const selectedCount = selected.size
@@ -273,18 +320,6 @@ export default function TicketList() {
           </button>
 
           <div className="flex items-center gap-1.5 ml-auto">
-            <Button variant="secondary" size="sm" icon={<UserCog size={13} />} disabled={selectedCount === 0}
-              onClick={() => setAssignAgentOpen(true)}>
-              Assign Agent
-            </Button>
-            <Button variant="secondary" size="sm" icon={<Wrench size={13} />} disabled={selectedCount === 0}
-              onClick={() => setAssignTechOpen(true)}>
-              Assign Technician
-            </Button>
-            <Button variant="secondary" size="sm" icon={<Flag size={13} />} disabled={selectedCount === 0}
-              onClick={() => setChangePriorityOpen(true)}>
-              Change Priority
-            </Button>
             <Button variant="secondary" size="sm" icon={<Download size={13} />} onClick={handleExport}>
               Export
             </Button>
@@ -356,12 +391,13 @@ export default function TicketList() {
                 {['Ticket Number', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Assigned Agent', 'Assigned Technician', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
+                <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
+                  <td colSpan={14} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
                 </tr>
               ) : paged.map(t => {
                 const sla = slaStatusOf(t)
@@ -400,6 +436,14 @@ export default function TicketList() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-xs text-gray-500">{formatDate(t.slaDeadline)}</p>
                       <Badge variant={SLA_BADGE[sla]} size="sm" className="mt-0.5">{sla}</Badge>
+                    </td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <RowActionsMenu
+                        ticket={t}
+                        onAssignAgent={openAssignAgentFor}
+                        onAssignTechnician={openAssignTechFor}
+                        onChangePriority={openChangePriorityFor}
+                      />
                     </td>
                   </tr>
                 )
@@ -518,21 +562,21 @@ export default function TicketList() {
         </div>
       </div>
 
-      {/* Bulk action modals */}
+      {/* Row action modals */}
       <BulkActionModal
-        open={assignAgentOpen} onClose={() => setAssignAgentOpen(false)} title="Assign Agent"
+        open={assignAgentOpen} onClose={() => setAssignAgentOpen(false)} title="Assign Team"
         options={AGENTS} value={assignAgentValue} onChange={setAssignAgentValue}
-        onApply={applyAssignAgent} count={selectedCount}
+        onApply={applyAssignAgent} ticket={actionTicket}
       />
       <BulkActionModal
         open={assignTechOpen} onClose={() => setAssignTechOpen(false)} title="Assign Technician"
         options={TECHNICIANS} value={assignTechValue} onChange={setAssignTechValue}
-        onApply={applyAssignTech} count={selectedCount}
+        onApply={applyAssignTech} ticket={actionTicket}
       />
       <BulkActionModal
         open={changePriorityOpen} onClose={() => setChangePriorityOpen(false)} title="Change Priority"
         options={PRIORITIES} optionLabel={p => PRIORITY_LABEL[p]} value={changePriorityValue} onChange={setChangePriorityValue}
-        onApply={applyChangePriority} count={selectedCount}
+        onApply={applyChangePriority} ticket={actionTicket}
       />
     </div>
   )
