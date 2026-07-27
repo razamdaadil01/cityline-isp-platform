@@ -11,7 +11,33 @@ export const CLOSED_STATUSES = ['Resolved', 'Closed', 'Cancelled', 'Duplicate']
 
 export const PRIORITIES = ['P1', 'P2', 'P3', 'P4']
 export const PRIORITY_LABEL = { P1: 'P1 · Critical', P2: 'P2 · High', P3: 'P3 · Medium', P4: 'P4 · Low' }
-export const SLA_HOURS = { P1: 4, P2: 8, P3: 24, P4: 72 }
+
+// Admin-configurable SLA response windows (hours), per priority. Seeded with the
+// previous hardcoded defaults; editable via Settings > SLA Configuration through
+// getSlaHours()/saveSlaHours()/subscribeSlaHours() below. Changing this only
+// affects SLA deadlines computed from this point forward (new tickets, and
+// existing tickets the next time their priority changes) — it never retroactively
+// recalculates a ticket's already-stored slaDeadline.
+let _slaHours = { P1: 4, P2: 8, P3: 24, P4: 72 }
+const _slaHoursListeners = []
+
+function notifySlaHours() { _slaHoursListeners.forEach(fn => fn({ ..._slaHours })) }
+
+export function getSlaHours() { return { ..._slaHours } }
+
+export function saveSlaHours(newHours) {
+  _slaHours = { ..._slaHours, ...newHours }
+  notifySlaHours()
+  return { ..._slaHours }
+}
+
+export function subscribeSlaHours(fn) {
+  _slaHoursListeners.push(fn)
+  return () => {
+    const i = _slaHoursListeners.indexOf(fn)
+    if (i !== -1) _slaHoursListeners.splice(i, 1)
+  }
+}
 
 export const CATEGORY_SUBCATEGORIES = {
   Connectivity: ['No Internet', 'Intermittent Connection', 'Fiber Cut'],
@@ -70,7 +96,7 @@ const H = 3600000 // 1 hour in ms
 const NOW = Date.now()
 
 function slaDeadlineFor(createdAt, priority) {
-  return new Date(new Date(createdAt).getTime() + SLA_HOURS[priority] * H).toISOString()
+  return new Date(new Date(createdAt).getTime() + _slaHours[priority] * H).toISOString()
 }
 
 export const computeSlaDeadline = slaDeadlineFor
@@ -81,7 +107,7 @@ export function slaStatusOf(ticket) {
   const deadline = new Date(ticket.slaDeadline).getTime()
   const remaining = deadline - Date.now()
   if (remaining <= 0) return 'Breached'
-  const windowMs = SLA_HOURS[ticket.priority] * H
+  const windowMs = _slaHours[ticket.priority] * H
   if (remaining < windowMs * 0.2) return 'Due Soon'
   return 'On Track'
 }
