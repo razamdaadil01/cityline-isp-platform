@@ -11,7 +11,33 @@ export const CLOSED_STATUSES = ['Resolved', 'Closed', 'Cancelled', 'Duplicate']
 
 export const PRIORITIES = ['P1', 'P2', 'P3', 'P4']
 export const PRIORITY_LABEL = { P1: 'P1 · Critical', P2: 'P2 · High', P3: 'P3 · Medium', P4: 'P4 · Low' }
-export const SLA_HOURS = { P1: 4, P2: 8, P3: 24, P4: 72 }
+
+// Admin-configurable SLA response windows (hours), per priority. Seeded with the
+// previous hardcoded defaults; editable via Settings > SLA Configuration through
+// getSlaHours()/saveSlaHours()/subscribeSlaHours() below. Changing this only
+// affects SLA deadlines computed from this point forward (new tickets, and
+// existing tickets the next time their priority changes) — it never retroactively
+// recalculates a ticket's already-stored slaDeadline.
+let _slaHours = { P1: 4, P2: 8, P3: 24, P4: 72 }
+const _slaHoursListeners = []
+
+function notifySlaHours() { _slaHoursListeners.forEach(fn => fn({ ..._slaHours })) }
+
+export function getSlaHours() { return { ..._slaHours } }
+
+export function saveSlaHours(newHours) {
+  _slaHours = { ..._slaHours, ...newHours }
+  notifySlaHours()
+  return { ..._slaHours }
+}
+
+export function subscribeSlaHours(fn) {
+  _slaHoursListeners.push(fn)
+  return () => {
+    const i = _slaHoursListeners.indexOf(fn)
+    if (i !== -1) _slaHoursListeners.splice(i, 1)
+  }
+}
 
 export const CATEGORY_SUBCATEGORIES = {
   Connectivity: ['No Internet', 'Intermittent Connection', 'Fiber Cut'],
@@ -70,7 +96,7 @@ const H = 3600000 // 1 hour in ms
 const NOW = Date.now()
 
 function slaDeadlineFor(createdAt, priority) {
-  return new Date(new Date(createdAt).getTime() + SLA_HOURS[priority] * H).toISOString()
+  return new Date(new Date(createdAt).getTime() + _slaHours[priority] * H).toISOString()
 }
 
 export const computeSlaDeadline = slaDeadlineFor
@@ -81,7 +107,7 @@ export function slaStatusOf(ticket) {
   const deadline = new Date(ticket.slaDeadline).getTime()
   const remaining = deadline - Date.now()
   if (remaining <= 0) return 'Breached'
-  const windowMs = SLA_HOURS[ticket.priority] * H
+  const windowMs = _slaHours[ticket.priority] * H
   if (remaining < windowMs * 0.2) return 'Due Soon'
   return 'On Track'
 }
@@ -109,6 +135,7 @@ const SEED = [
     assignedAgent: 'Neha M.', assignedTechnician: null,
     area: 'Bandra West',
     createdAt: new Date(NOW - 5 * H).toISOString(), updatedAt: new Date(NOW - 3 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 4.7 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Invoice amount mismatch — customer claims a promotional offer was not applied.',
     customerAddress: 'Bandra West', plan: 'FTTB 50Mbps', billingStatus: 'Overdue', connectionStatus: 'Connected',
@@ -121,6 +148,7 @@ const SEED = [
     assignedAgent: 'Ravi T.', assignedTechnician: 'Suresh Iyer',
     area: 'Andheri East',
     createdAt: new Date(NOW - 9 * H).toISOString(), updatedAt: new Date(NOW - 1 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 8.8 * H).toISOString(),
     outageLinked: true, outageId: 'OUT-2026-000004', reopened: false,
     description: 'OLT-ANW-02 port 12 flapping intermittently. Field technician dispatched — SLA at risk.',
     customerAddress: 'Andheri East', plan: 'FTTH 200Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
@@ -144,6 +172,7 @@ const SEED = [
     assignedAgent: 'Sita K.', assignedTechnician: null,
     area: 'Andheri West',
     createdAt: new Date(NOW - 30 * H).toISOString(), updatedAt: new Date(NOW - 8 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 29.5 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Asked customer to power-cycle the router and share a screenshot of the status LEDs.',
     customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
@@ -156,6 +185,7 @@ const SEED = [
     assignedAgent: 'Kiran B.', assignedTechnician: 'Prakash Yadav',
     area: 'Nariman Point',
     createdAt: new Date(NOW - 14 * H).toISOString(), updatedAt: new Date(NOW - 2 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 13 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Fiber patch cord needs replacement at the customer premises. Technician visit scheduled.',
     customerAddress: 'Nariman Point', plan: 'P2P 1Gbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
@@ -179,6 +209,7 @@ const SEED = [
     assignedAgent: 'Arjun P.', assignedTechnician: null,
     area: 'Mahim',
     createdAt: new Date(NOW - 3 * H).toISOString(), updatedAt: new Date(NOW - 0.3 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 2.75 * H).toISOString(),
     outageLinked: true, outageId: 'OUT-2026-000005', reopened: false,
     description: 'Area-wide outage suspected after last night\'s storm — escalated to NOC for backbone check.',
     customerAddress: 'Mahim', plan: 'Wireless 25Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
@@ -191,6 +222,7 @@ const SEED = [
     assignedAgent: 'Neha M.', assignedTechnician: null,
     area: 'Bandra East',
     createdAt: new Date(NOW - 40 * H).toISOString(), updatedAt: new Date(NOW - 20 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 38 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Customer paid via UPI but payment has not reflected on the account. Forwarded to billing team.',
     customerAddress: 'Bandra East', plan: 'FTTH 100Mbps', billingStatus: 'Overdue', connectionStatus: 'Connected',
@@ -203,9 +235,11 @@ const SEED = [
     assignedAgent: 'Neha M.', assignedTechnician: null,
     area: 'Andheri West',
     createdAt: new Date(NOW - 72 * H).toISOString(), updatedAt: new Date(NOW - 12 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 71 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Buffering on OTT platforms resolved after switching customer DNS to public resolvers.',
     customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    csatScore: 5,
     resolution: {
       rootCause: 'DNS resolution latency to OTT CDN edge nodes.',
       resolutionDetails: 'Switched customer DNS to public resolvers (1.1.1.1 / 8.8.8.8) and confirmed buffering stopped on retest.',
@@ -223,9 +257,11 @@ const SEED = [
     assignedAgent: 'Kiran B.', assignedTechnician: 'Manoj Verma',
     area: 'Chembur',
     createdAt: new Date(NOW - 96 * H).toISOString(), updatedAt: new Date(NOW - 36 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 95 * H).toISOString(),
     outageLinked: false, reopened: false,
     description: 'Relocation to new address completed and closed after customer confirmation.',
     customerAddress: 'Chembur', plan: 'FTTB 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    csatScore: 4,
     technicianVisit: {
       technician: 'Manoj Verma',
       visitDate: new Date(NOW - 40 * H).toISOString().slice(0, 10),
@@ -254,6 +290,7 @@ const SEED = [
     assignedAgent: 'Ravi T.', assignedTechnician: 'Vikram Singh',
     area: 'Colaba',
     createdAt: new Date(NOW - 60 * H).toISOString(), updatedAt: new Date(NOW - 1.5 * H).toISOString(),
+    firstResponseAt: new Date(NOW - 59.25 * H).toISOString(),
     outageLinked: false, reopened: true,
     description: 'Customer reopened the ticket — intermittent drops resumed two days after the ticket was closed.',
     customerAddress: 'Colaba', plan: 'FTTH 200Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
@@ -276,6 +313,8 @@ const SEED = [
   technicianVisit: t.technicianVisit ?? null,
   resolution: t.resolution ?? null,
   attachments: t.attachments ?? [],
+  firstResponseAt: t.firstResponseAt ?? null,
+  csatScore: t.csatScore ?? null,
 }))
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -320,7 +359,15 @@ function updateTickets(ids, patch) {
   notify()
 }
 
-export function assignAgent(ids, agent) { updateTickets(ids, { assignedAgent: agent }) }
+// Assigning an agent counts as a first response if none has been recorded yet.
+export function assignAgent(ids, agent) {
+  const idSet = new Set(ids)
+  const now = new Date().toISOString()
+  _tickets = _tickets.map(t => idSet.has(t.id)
+    ? { ...t, assignedAgent: agent, firstResponseAt: t.firstResponseAt ?? now, updatedAt: now }
+    : t)
+  notify()
+}
 
 export function linkTicketsToOutage(ids, outageId) { updateTickets(ids, { outageId, outageLinked: true }) }
 
@@ -359,8 +406,10 @@ export function updateTicketStatus(id, status, actor = 'Admin User') {
   if (GATED_STATUSES.includes(status)) return null
   const t = getTicket(id)
   if (!t) return null
+  const now = new Date().toISOString()
   return saveTicket({
-    ...t, status, updatedAt: new Date().toISOString(),
+    ...t, status, updatedAt: now,
+    firstResponseAt: t.firstResponseAt ?? (status !== 'New' ? now : null),
     activityLog: appendActivity(t, `Status changed to ${status}`, actor),
   })
 }
@@ -368,15 +417,25 @@ export function updateTicketStatus(id, status, actor = 'Admin User') {
 export function addCommunication(id, { channel, text }, actor = 'Admin User') {
   const t = getTicket(id)
   if (!t) return null
-  const entry = { time: new Date().toISOString(), actor, channel, text }
-  return saveTicket({ ...t, communicationLog: [...(t.communicationLog ?? []), entry], updatedAt: new Date().toISOString() })
+  const now = new Date().toISOString()
+  const entry = { time: now, actor, channel, text }
+  return saveTicket({
+    ...t, communicationLog: [...(t.communicationLog ?? []), entry],
+    firstResponseAt: t.firstResponseAt ?? now,
+    updatedAt: now,
+  })
 }
 
 export function addInternalNote(id, text, actor = 'Admin User') {
   const t = getTicket(id)
   if (!t) return null
-  const entry = { time: new Date().toISOString(), actor, text }
-  return saveTicket({ ...t, internalNotesLog: [...(t.internalNotesLog ?? []), entry], updatedAt: new Date().toISOString() })
+  const now = new Date().toISOString()
+  const entry = { time: now, actor, text }
+  return saveTicket({
+    ...t, internalNotesLog: [...(t.internalNotesLog ?? []), entry],
+    firstResponseAt: t.firstResponseAt ?? now,
+    updatedAt: now,
+  })
 }
 
 export function resolveTicket(id, { rootCause, resolutionDetails, resolutionType, customerUpdate }, actor = 'Admin User') {
@@ -389,6 +448,7 @@ export function resolveTicket(id, { rootCause, resolutionDetails, resolutionType
     : (t.communicationLog ?? [])
   return saveTicket({
     ...t, status: 'Resolved', resolution, communicationLog, updatedAt: now,
+    firstResponseAt: t.firstResponseAt ?? now,
     activityLog: appendActivity(t, `Ticket resolved (${resolutionType})`, actor),
   })
 }
@@ -437,6 +497,7 @@ export function scheduleTechnicianVisit(id, { technician, visitDate, visitTime, 
   return saveTicket({
     ...t, technicianVisit, communicationLog,
     assignedTechnician: technician,
+    firstResponseAt: t.firstResponseAt ?? now,
     updatedAt: now,
     activityLog: appendActivity(t, `Technician visit scheduled with ${technician} for ${visitDate} ${visitTime}`, actor),
   })

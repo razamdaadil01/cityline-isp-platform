@@ -5,13 +5,14 @@ import {
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Clock, AlertTriangle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { MOCK_LANDLINES, MOCK_STATIC_IPS } from '../data/packagesStore'
+import { PRIORITIES, PRIORITY_LABEL, getSlaHours, saveSlaHours } from '../data/ticketsStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'general',       label: 'General',               icon: Building2 },
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
+  { id: 'sla',           label: 'SLA Configuration',      icon: Clock     },
   { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
   { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
   { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
@@ -272,6 +274,79 @@ function NotificationsTab() {
       <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
         <Button variant="secondary" size="sm">Reset to Defaults</Button>
         <Button size="sm" icon={<Save size={14} />}>Save Changes</Button>
+      </div>
+    </div>
+  )
+}
+
+function SlaConfigTab() {
+  const [hours, setHours] = useState(getSlaHours)
+  const [saved, setSaved] = useState(false)
+
+  function setHour(priority, value) {
+    setHours(h => ({ ...h, [priority]: value }))
+    setSaved(false)
+  }
+
+  const parsed = Object.fromEntries(PRIORITIES.map(p => [p, Number(hours[p])]))
+  const allPositive = PRIORITIES.every(p => Number.isFinite(parsed[p]) && parsed[p] > 0)
+  const orderedCorrectly = allPositive && parsed.P1 < parsed.P2 && parsed.P2 < parsed.P3 && parsed.P3 < parsed.P4
+
+  function handleSave() {
+    if (!allPositive) return
+    saveSlaHours(parsed)
+    setSaved(true)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">SLA Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Set the response window (in hours) used to calculate each ticket's SLA deadline, per priority.
+          Changes here only apply going forward — to new tickets and to existing tickets the next time their
+          priority changes — already-computed SLA deadlines are not recalculated retroactively.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {PRIORITIES.map(p => (
+          <FormField key={p} label={`${PRIORITY_LABEL[p]} — Response Window (hours)`}>
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              value={hours[p]}
+              onChange={e => setHour(p, e.target.value)}
+            />
+          </FormField>
+        ))}
+      </div>
+
+      {!allPositive && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          Each priority needs a positive number of hours.
+        </div>
+      )}
+
+      {allPositive && !orderedCorrectly && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          P1 is usually shortest and P4 longest (P1 &lt; P2 &lt; P3 &lt; P4). That ordering isn't enforced —
+          just flagging it in case it's unintentional.
+        </div>
+      )}
+
+      {saved && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          SLA settings saved. New tickets and priority changes will use these windows going forward.
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave} disabled={!allPositive}>Save</Button>
       </div>
     </div>
   )
@@ -1396,6 +1471,7 @@ export default function Settings() {
           {activeTab === 'general'       && <GeneralTab />}
           {activeTab === 'billing'       && <BillingTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
+          {activeTab === 'sla'           && <SlaConfigTab />}
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'                && <RolesTab />}
