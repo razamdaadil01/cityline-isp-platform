@@ -204,7 +204,7 @@ export default function TicketCreate() {
     }
 
     const saved = saveTicket(ticket)
-    navigate(`/support/tickets/${saved.id}`)
+    navigate(`/support/tickets/${saved.id}/overview`)
   }
 
   return (
@@ -304,7 +304,7 @@ export default function TicketCreate() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="xs" variant="secondary" onClick={() => navigate(`/support/tickets/${primaryOpenTicket.id}`)}>
+                  <Button size="xs" variant="secondary" onClick={() => navigate(`/support/tickets/${primaryOpenTicket.id}/overview`)}>
                     Open Existing Ticket
                   </Button>
                   <Button size="xs" variant="secondary" onClick={() => setDuplicateChoice({ mode: 'duplicate', ticketId: primaryOpenTicket.id })}>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, MessageSquare, Lock, RotateCcw, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, MapPin, User, Activity, Wrench, ShieldCheck, Clock, PhoneCall,
@@ -256,28 +256,33 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
 // ── Middle-column tabs ──────────────────────────────────────────────────────
 
 const MIDDLE_TABS = [
-  { key: 'overview', label: 'Overview', icon: User },
-  { key: 'communication', label: 'Communication', icon: MessageSquare },
-  { key: 'internal', label: 'Internal Notes', icon: Lock },
-  { key: 'activity', label: 'Activity Log', icon: Activity },
+  { key: 'overview', slug: 'overview', label: 'Overview', icon: User },
+  { key: 'communication', slug: 'communication', label: 'Communication', icon: MessageSquare },
+  { key: 'internal', slug: 'internal-notes', label: 'Internal Notes', icon: Lock },
+  { key: 'activity', slug: 'activity-log', label: 'Activity Log', icon: Activity },
 ]
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function SupportTicketDetail() {
-  const { id } = useParams()
+  const { id, tab: tabSlug } = useParams()
   const navigate = useNavigate()
   const [ticket, setTicket] = useState(() => getTicket(id))
 
   useEffect(() => setTicket(getTicket(id)), [id])
   useEffect(() => subscribeTickets(() => setTicket(getTicket(id))), [id])
 
-  const [activeTab, setActiveTab] = useState('overview')
   const [leftTab, setLeftTab] = useState('ticket')
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
+
+  if (!tabSlug) {
+    return <Navigate to={`/support/tickets/${id}/overview`} replace />
+  }
+
+  const activeTab = MIDDLE_TABS.find(t => t.slug === tabSlug)?.key ?? 'overview'
 
   if (!ticket) {
     return (
@@ -411,7 +416,7 @@ export default function SupportTicketDetail() {
               {MIDDLE_TABS.map(tab => {
                 const Icon = tab.icon
                 return (
-                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                  <button key={tab.key} onClick={() => navigate(`/support/tickets/${id}/${tab.slug}`)}
                     className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-xs font-medium transition-all border-b-2 -mb-px whitespace-nowrap
                       ${activeTab === tab.key
                         ? 'border-brand-blue text-brand-blue'

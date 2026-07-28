@@ -118,6 +118,7 @@ export default function App() {
           <Route path="/support/tickets" element={<TicketList />} />
           <Route path="/support/tickets/new" element={<TicketCreate />} />
           <Route path="/support/tickets/:id" element={<SupportTicketDetail />} />
+          <Route path="/support/tickets/:id/:tab" element={<SupportTicketDetail />} />
           <Route path="/support/outages" element={<OutageList />} />
           <Route path="/support/outages/new" element={<OutageCreate />} />
           <Route path="/support/outages/:id" element={<OutageDetail />} />
