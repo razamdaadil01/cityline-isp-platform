@@ -37,6 +37,11 @@ function formatDate(iso) {
   })
 }
 
+function truncate(str, max = 45) {
+  if (!str) return ''
+  return str.length > max ? `${str.slice(0, max).trimEnd()}…` : str
+}
+
 // ── Bulk action modal (shared shell for Assign Agent / Assign Technician / Change Priority) ──
 
 function BulkActionModal({ open, onClose, title, options, optionLabel, value, onChange, onApply, ticket }) {
@@ -388,7 +393,7 @@ export default function TicketList() {
                   <input type="checkbox" checked={allPagedSelected} onChange={toggleAll}
                     className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
                 </th>
-                {['Ticket Number', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Assigned Agent', 'Assigned Technician', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
+                {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Assigned Agent', 'Assigned Technician', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
                 <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
@@ -397,7 +402,7 @@ export default function TicketList() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
+                  <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
                 </tr>
               ) : paged.map(t => {
                 const sla = slaStatusOf(t)
@@ -411,6 +416,9 @@ export default function TicketList() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
                       {t.reopened && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Reopened</p>}
+                    </td>
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <span className="text-xs text-gray-600" title={t.description}>{truncate(t.description)}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">{t.customerName}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">{t.phone}</td>
