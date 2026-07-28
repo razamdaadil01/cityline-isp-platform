@@ -37,11 +37,6 @@ function formatDate(iso) {
   })
 }
 
-function truncate(str, max = 45) {
-  if (!str) return ''
-  return str.length > max ? `${str.slice(0, max).trimEnd()}…` : str
-}
-
 // ── Bulk action modal (shared shell for Assign Agent / Assign Technician / Change Priority) ──
 
 function BulkActionModal({ open, onClose, title, options, optionLabel, value, onChange, onApply, ticket }) {
@@ -394,7 +389,7 @@ export default function TicketList() {
                     className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
                 </th>
                 {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Assigned Agent', 'Assigned Technician', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
+                  <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'Description' ? 'w-72' : ''}`}>{h}</th>
                 ))}
                 <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
               </tr>
@@ -417,8 +412,8 @@ export default function TicketList() {
                       <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
                       {t.reopened && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Reopened</p>}
                     </td>
-                    <td className="px-4 py-3 max-w-[220px]">
-                      <span className="text-xs text-gray-600" title={t.description}>{truncate(t.description)}</span>
+                    <td className="px-4 py-3 w-72 max-w-72">
+                      <span className="block text-xs text-gray-600 truncate" title={t.description}>{t.description}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">{t.customerName}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">{t.phone}</td>
