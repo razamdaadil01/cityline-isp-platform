@@ -127,10 +127,8 @@ const SEED = [
     description: 'Customer reports complete loss of internet since this morning. ONU signal light is red.',
     customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
     communicationLog: [
-      { time: new Date(NOW - 0.5 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 0.47 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000101 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 0.33 * H).toISOString(), actor: 'Support Desk', channel: 'Call', text: 'Call duration: 3m 45s — Customer reported no internet since early morning. ONU light red. Advised power-cycle; issue persists.' },
-      { time: new Date(NOW - 0.17 * H).toISOString(), actor: 'Mohan Lal', channel: 'Portal', text: 'Portal reply: Still not working, please help urgently.' },
+      { time: new Date(NOW - 0.17 * H).toISOString(), actor: 'Support Desk', channel: 'Call', text: 'Call duration: 1m 52s — Follow-up call; customer confirmed still no connectivity, escalated for urgent action.' },
     ],
   },
   {
@@ -146,12 +144,9 @@ const SEED = [
     description: 'Invoice amount mismatch — customer claims a promotional offer was not applied.',
     customerAddress: 'Bandra West', plan: 'FTTB 50Mbps', billingStatus: 'Overdue', connectionStatus: 'Connected',
     communicationLog: [
-      { time: new Date(NOW - 5 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 4.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000102 has been created. We\'ll update you shortly.' },
-      { time: new Date(NOW - 4 * H).toISOString(), actor: 'Neha M.', channel: 'Email', text: 'Email sent: Subject: Ticket Update — Your billing complaint is being reviewed by our accounts team.' },
-      { time: new Date(NOW - 3 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 5m 02s — Called to clarify the promotional offer details; customer to share screenshot.' },
-      { time: new Date(NOW - 2.5 * H).toISOString(), actor: 'Radha Krishnan', channel: 'WhatsApp', text: 'Hi, any update on my invoice issue?' },
-      { time: new Date(NOW - 2.3 * H).toISOString(), actor: 'Neha M.', channel: 'WhatsApp', text: 'We\'re checking with billing, will confirm by EOD.' },
+      { time: new Date(NOW - 4 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 5m 02s — Called to clarify the promotional offer details; customer to share screenshot.' },
+      { time: new Date(NOW - 2.5 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 2m 40s — Follow-up call; customer confirmed screenshot shared, verifying with billing team.' },
+      { time: new Date(NOW - 1 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 3m 15s — Informed customer that the promotional discount will be adjusted in the next invoice cycle.' },
     ],
   },
   {
@@ -178,12 +173,9 @@ const SEED = [
       completionDetails: '',
     },
     communicationLog: [
-      { time: new Date(NOW - 9 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 8.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000103 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 8 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 6m 20s — Customer escalated again; confirmed technician dispatched to OLT-ANW-02.' },
-      { time: new Date(NOW - 5 * H).toISOString(), actor: 'Deepak Patel', channel: 'WhatsApp', text: 'Any update? Still no internet.' },
-      { time: new Date(NOW - 4.8 * H).toISOString(), actor: 'Ravi T.', channel: 'WhatsApp', text: 'Technician is on-site now, working on port 12.' },
-      { time: new Date(NOW - 1 * H).toISOString(), actor: 'Deepak Patel', channel: 'Portal', text: 'Portal reply: Thanks for the update, waiting for it to be fixed.' },
+      { time: new Date(NOW - 5 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 2m 10s — Customer called for a status update; informed technician is on-site working on port 12.' },
+      { time: new Date(NOW - 1 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 3m 05s — Follow-up call; confirmed signal stabilizing, asked customer to monitor for further drops.' },
     ],
   },
   {
@@ -199,10 +191,8 @@ const SEED = [
     description: 'Asked customer to power-cycle the router and share a screenshot of the status LEDs.',
     customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
     communicationLog: [
-      { time: new Date(NOW - 30 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 29.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000104 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 28 * H).toISOString(), actor: 'Sita K.', channel: 'Call', text: 'Call duration: 2m 58s — Asked customer to power-cycle the router and share the LED status screenshot.' },
-      { time: new Date(NOW - 8 * H).toISOString(), actor: 'Sita K.', channel: 'Email', text: 'Email sent: Subject: Awaiting Your Response — We\'re still waiting for the router LED screenshot to proceed.' },
+      { time: new Date(NOW - 8 * H).toISOString(), actor: 'Sita K.', channel: 'Call', text: 'Call duration: 1m 45s — Follow-up call; customer hasn\'t sent the screenshot yet, requested again.' },
     ],
   },
   {
@@ -229,11 +219,8 @@ const SEED = [
       completionDetails: '',
     },
     communicationLog: [
-      { time: new Date(NOW - 14 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 13.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000105 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 11 * H).toISOString(), actor: 'Kiran B.', channel: 'Call', text: 'Call duration: 4m 30s — Confirmed fiber patch cord replacement needed; technician visit scheduled.' },
-      { time: new Date(NOW - 4 * H).toISOString(), actor: 'Arjun Nair', channel: 'WhatsApp', text: 'What time will the technician arrive tomorrow?' },
-      { time: new Date(NOW - 3.8 * H).toISOString(), actor: 'Kiran B.', channel: 'WhatsApp', text: 'Between 10-12 PM, we\'ll send a confirmation SMS.' },
+      { time: new Date(NOW - 4 * H).toISOString(), actor: 'Kiran B.', channel: 'Call', text: 'Call duration: 2m 15s — Called to confirm technician visit slot for tomorrow morning between 10-12 PM.' },
     ],
   },
   {
@@ -249,10 +236,8 @@ const SEED = [
     description: 'Area-wide outage suspected after last night\'s storm — escalated to NOC for backbone check.',
     customerAddress: 'Mahim', plan: 'Wireless 25Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
     communicationLog: [
-      { time: new Date(NOW - 3 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 2.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000106 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 2 * H).toISOString(), actor: 'Arjun P.', channel: 'Call', text: 'Call duration: 3m 15s — Customer reported area-wide outage after last night\'s storm; escalated to NOC.' },
-      { time: new Date(NOW - 1 * H).toISOString(), actor: 'Kavita Mehta', channel: 'Portal', text: 'Portal reply: My neighbors are also affected, please prioritize.' },
+      { time: new Date(NOW - 1 * H).toISOString(), actor: 'Arjun P.', channel: 'Call', text: 'Call duration: 1m 30s — Follow-up call; informed customer NOC is investigating a backbone fault, ETA pending.' },
     ],
   },
   {
@@ -268,10 +253,8 @@ const SEED = [
     description: 'Customer paid via UPI but payment has not reflected on the account. Forwarded to billing team.',
     customerAddress: 'Bandra East', plan: 'FTTH 100Mbps', billingStatus: 'Overdue', connectionStatus: 'Connected',
     communicationLog: [
-      { time: new Date(NOW - 40 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 39.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000107 has been created. We\'ll update you shortly.' },
-      { time: new Date(NOW - 38 * H).toISOString(), actor: 'Neha M.', channel: 'Email', text: 'Email sent: Subject: Payment Verification — We\'ve forwarded your UPI payment reference to the billing team.' },
-      { time: new Date(NOW - 20 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 3m 40s — Customer followed up on payment status; informed billing team is verifying the transaction.' },
+      { time: new Date(NOW - 38 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 3m 40s — Customer followed up on payment status; informed billing team is verifying the UPI transaction.' },
+      { time: new Date(NOW - 20 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 2m 20s — Follow-up call; confirmed payment reference forwarded, awaiting bank reconciliation.' },
     ],
   },
   {
@@ -296,12 +279,8 @@ const SEED = [
       resolvedBy: 'Neha M.',
     },
     communicationLog: [
-      { time: new Date(NOW - 72 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 71.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000108 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 70 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 4m 05s — Suggested switching DNS to public resolvers to fix OTT buffering.' },
-      { time: new Date(NOW - 12.5 * H).toISOString(), actor: 'Rajan Mehta', channel: 'WhatsApp', text: 'The buffering seems better now, thanks!' },
-      { time: new Date(NOW - 12.3 * H).toISOString(), actor: 'Neha M.', channel: 'WhatsApp', text: 'Glad to hear that! Let us know if it recurs.' },
-      { time: new Date(NOW - 12 * H).toISOString(), actor: 'Neha M.', channel: 'Portal', text: 'Your OTT buffering issue has been resolved by updating your router DNS settings.' },
+      { time: new Date(NOW - 12 * H).toISOString(), actor: 'Neha M.', channel: 'Call', text: 'Call duration: 1m 50s — Follow-up call; customer confirmed buffering resolved after the DNS change.' },
     ],
   },
   {
@@ -337,11 +316,9 @@ const SEED = [
       resolvedBy: 'Kiran B.',
     },
     communicationLog: [
-      { time: new Date(NOW - 96 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 95.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000109 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 72 * H).toISOString(), actor: 'Kiran B.', channel: 'Call', text: 'Call duration: 5m 50s — Confirmed relocation address and scheduled fiber pull with technician.' },
-      { time: new Date(NOW - 45 * H).toISOString(), actor: 'Meena Krishnan', channel: 'Portal', text: 'Portal reply: Excited for the move, please confirm technician timing.' },
-      { time: new Date(NOW - 38 * H).toISOString(), actor: 'Kiran B.', channel: 'Portal', text: 'Your relocation request has been completed and the new connection is active.' },
+      { time: new Date(NOW - 45 * H).toISOString(), actor: 'Kiran B.', channel: 'Call', text: 'Call duration: 2m 30s — Called to confirm technician visit timing for the new address.' },
+      { time: new Date(NOW - 38 * H).toISOString(), actor: 'Kiran B.', channel: 'Call', text: 'Call duration: 2m 05s — Follow-up call; customer confirmed new connection active and speeds as expected.' },
     ],
   },
   {
@@ -366,12 +343,9 @@ const SEED = [
       resolvedBy: 'Ravi T.',
     },
     communicationLog: [
-      { time: new Date(NOW - 60 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' },
-      { time: new Date(NOW - 59.92 * H).toISOString(), actor: 'System', channel: 'SMS', text: 'SMS sent: Your ticket TKT-2026-000110 has been created. We\'ll update you shortly.' },
       { time: new Date(NOW - 55 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 3m 30s — Technician visit arranged to reseat the fiber connector at the ONU.' },
-      { time: new Date(NOW - 50 * H).toISOString(), actor: 'Ravi T.', channel: 'Portal', text: 'Your connection issue was resolved by reseating the fiber connection at your ONU.' },
-      { time: new Date(NOW - 1.7 * H).toISOString(), actor: 'Priya Iyer', channel: 'WhatsApp', text: 'The internet is dropping again since yesterday!' },
-      { time: new Date(NOW - 1.6 * H).toISOString(), actor: 'Ravi T.', channel: 'WhatsApp', text: 'Sorry for the trouble, we\'ve reopened your ticket and dispatched a technician.' },
+      { time: new Date(NOW - 50 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 1m 40s — Follow-up call; customer confirmed connection stable after the technician visit.' },
+      { time: new Date(NOW - 1.6 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 2m 50s — Customer called again reporting drops resumed; ticket reopened and technician re-dispatched.' },
     ],
   },
 ].map(t => ({
