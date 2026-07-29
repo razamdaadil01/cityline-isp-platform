@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, MessageSquare, Lock, RotateCcw, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, MapPin, User, Activity, Wrench, ShieldCheck, Clock, PhoneCall,
-  MessageCircle, Globe, Play,
+  Globe, Play,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -30,8 +30,11 @@ const VISIT_STATUS_BADGE = {
   'Visit Scheduled': 'blue', 'Technician Travelling': 'cyan', 'Technician Reached': 'orange',
   'Work Started': 'orange', 'Work Completed': 'green', 'Follow-up Required': 'yellow',
 }
-const CHANNEL_BADGE = { Call: 'purple', SMS: 'yellow', Email: 'blue', WhatsApp: 'green', Portal: 'gray' }
-const CHANNEL_ICON = { Call: PhoneCall, SMS: MessageSquare, Email: Mail, WhatsApp: MessageCircle, Portal: Globe }
+// Call is the only channel the mock feed seeds today; Portal stays mapped since
+// live actions (resolving a ticket, scheduling a technician visit) still add
+// Portal-channel entries automatically.
+const CHANNEL_BADGE = { Call: 'purple', Portal: 'gray' }
+const CHANNEL_ICON = { Call: PhoneCall, Portal: Globe }
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140">'
@@ -467,7 +470,7 @@ export default function SupportTicketDetail() {
               {activeTab === 'communication' && (
                 <div>
                   <p className="text-[11px] text-gray-400 mb-3">
-                    Visible to customer · automated feed (IVR, SMS, Email, WhatsApp, Portal)
+                    Visible to customer · automated feed (IVR calls)
                   </p>
                   <div className="space-y-3 max-h-[32rem] overflow-y-auto">
                     {(ticket.communicationLog ?? []).length === 0 ? (
