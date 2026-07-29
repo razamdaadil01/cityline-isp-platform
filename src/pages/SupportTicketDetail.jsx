@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, MessageSquare, Lock, RotateCcw, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, MapPin, User, Activity, Wrench, ShieldCheck, Clock, PhoneCall,
-  MessageCircle, Globe,
+  MessageCircle, Globe, Play,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -482,6 +482,15 @@ export default function SupportTicketDetail() {
                           <div className="min-w-0">
                             <p className="text-sm text-gray-700">{entry.text}</p>
                             <p className="text-[11px] text-gray-400 mt-0.5">{entry.actor} · {formatDateTime(entry.time)}</p>
+                            {entry.channel === 'Call' && (
+                              <button
+                                type="button"
+                                onClick={() => console.log('Recording playback coming soon')}
+                                className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 hover:text-purple-800 transition-colors"
+                              >
+                                <Play size={11} className="fill-current" /> Play Recording
+                              </button>
+                            )}
                           </div>
                         </div>
                       )
