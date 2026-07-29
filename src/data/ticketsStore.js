@@ -117,7 +117,11 @@ export function slaStatusOf(ticket) {
 const SEED = [
   {
     id: 'TKT-2026-000101',
+    subject: 'Complete Internet Outage',
     customerName: 'Mohan Lal', phone: '9765432198', accountNumber: 'ACC-100231',
+    networkStatus: 'Offline', opticalPower: -29.8, lastOutageAt: new Date(NOW - 76 * H).toISOString(),
+    planExpireDate: new Date(NOW + 45 * 24 * H).toISOString(), nasPortId: 'OLT-ANW-01/PON-2/Port-05',
+    officeTeam: 'Mumbai Support Team', branch: 'Andheri Branch', customerType: 'Residential',
     category: 'Connectivity', subcategory: 'No Internet',
     priority: 'P1', status: 'New',
     assignedAgent: null, assignedTechnician: null,
@@ -133,7 +137,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000102',
+    subject: 'Invoice Amount Mismatch',
     customerName: 'Radha Krishnan', phone: '9812334455', accountNumber: 'ACC-100455',
+    networkStatus: 'Online', opticalPower: -17.2, lastOutageAt: new Date(NOW - 260 * H).toISOString(),
+    planExpireDate: new Date(NOW + 12 * 24 * H).toISOString(), nasPortId: 'OLT-BW-01/PON-1/Port-03',
+    officeTeam: 'Mumbai Support Team', branch: 'Bandra Branch', customerType: 'Business',
     category: 'Billing', subcategory: 'Invoice Query',
     priority: 'P2', status: 'Assigned',
     assignedAgent: 'Neha M.', assignedTechnician: null,
@@ -151,7 +159,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000103',
+    subject: 'OLT Port Flapping — SLA at Risk',
     customerName: 'Deepak Patel', phone: '9988776655', accountNumber: 'ACC-100612',
+    networkStatus: 'Offline', opticalPower: -30.6, lastOutageAt: null,
+    planExpireDate: new Date(NOW + 90 * 24 * H).toISOString(), nasPortId: 'OLT-ANW-02/PON-3/Port-12',
+    officeTeam: 'Mumbai Support Team', branch: 'Andheri Branch', customerType: 'Residential',
     category: 'Network', subcategory: 'OLT Port Down',
     priority: 'P1', status: 'In Progress',
     assignedAgent: 'Ravi T.', assignedTechnician: 'Suresh Iyer',
@@ -180,7 +192,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000104',
+    subject: 'Router Status Check Pending',
     customerName: 'Sunita Rao', phone: '9123456789', accountNumber: 'ACC-100789',
+    networkStatus: 'Online', opticalPower: -19.5, lastOutageAt: new Date(NOW - 400 * H).toISOString(),
+    planExpireDate: null, nasPortId: 'OLT-ANW-01/PON-2/Port-08',
+    officeTeam: 'Mumbai Support Team', branch: 'Andheri Branch', customerType: 'Residential',
     category: 'Hardware', subcategory: 'Router Issue',
     priority: 'P3', status: 'Waiting for Customer',
     assignedAgent: 'Sita K.', assignedTechnician: null,
@@ -197,7 +213,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000105',
+    subject: 'Fiber Patch Cord Replacement',
     customerName: 'Arjun Nair', phone: '9876543210', accountNumber: 'ACC-100893',
+    networkStatus: 'Online', opticalPower: -21.3, lastOutageAt: new Date(NOW - 500 * H).toISOString(),
+    planExpireDate: new Date(NOW + 200 * 24 * H).toISOString(), nasPortId: 'OLT-NP-01/PON-4/Port-02',
+    officeTeam: 'South Mumbai Support Team', branch: 'Colaba Branch', customerType: 'Business',
     category: 'Hardware', subcategory: 'Cabling Issue',
     priority: 'P2', status: 'Waiting for Technician',
     assignedAgent: 'Kiran B.', assignedTechnician: 'Prakash Yadav',
@@ -225,7 +245,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000106',
+    subject: 'Area-wide Outage After Storm',
     customerName: 'Kavita Mehta', phone: '9001234567', accountNumber: 'ACC-100944',
+    networkStatus: 'Offline', opticalPower: -31.4, lastOutageAt: null,
+    planExpireDate: new Date(NOW + 30 * 24 * H).toISOString(), nasPortId: 'OLT-ANW-02/PON-3/Port-12',
+    officeTeam: 'Mumbai Support Team', branch: 'Mahim Branch', customerType: 'Residential',
     category: 'Network', subcategory: 'Outage',
     priority: 'P1', status: 'Waiting for NOC',
     assignedAgent: 'Arjun P.', assignedTechnician: null,
@@ -242,7 +266,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000107',
+    subject: 'UPI Payment Not Reflected',
     customerName: 'Sanjay Bhat', phone: '9912345678', accountNumber: 'ACC-101022',
+    networkStatus: 'Online', opticalPower: -16.8, lastOutageAt: new Date(NOW - 600 * H).toISOString(),
+    planExpireDate: new Date(NOW + 5 * 24 * H).toISOString(), nasPortId: 'OLT-BE-01/PON-1/Port-09',
+    officeTeam: 'Mumbai Support Team', branch: 'Bandra Branch', customerType: 'Residential',
     category: 'Billing', subcategory: 'Payment Not Reflected',
     priority: 'P4', status: 'Waiting for Billing',
     assignedAgent: 'Neha M.', assignedTechnician: null,
@@ -259,7 +287,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000108',
+    subject: 'OTT Buffering Resolved via DNS Fix',
     customerName: 'Rajan Mehta', phone: '9876543210', accountNumber: 'ACC-100112',
+    networkStatus: 'Online', opticalPower: -18.9, lastOutageAt: new Date(NOW - 800 * H).toISOString(),
+    planExpireDate: new Date(NOW + 60 * 24 * H).toISOString(), nasPortId: 'OLT-ANW-01/PON-2/Port-11',
+    officeTeam: 'Mumbai Support Team', branch: 'Andheri Branch', customerType: 'Residential',
     category: 'Performance', subcategory: 'OTT Buffering',
     priority: 'P3', status: 'Resolved',
     assignedAgent: 'Neha M.', assignedTechnician: null,
@@ -285,7 +317,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000109',
+    subject: 'Relocation Completed',
     customerName: 'Meena Krishnan', phone: '9812334455', accountNumber: 'ACC-100367',
+    networkStatus: 'Online', opticalPower: -15.4, lastOutageAt: new Date(NOW - 1000 * H).toISOString(),
+    planExpireDate: new Date(NOW + 150 * 24 * H).toISOString(), nasPortId: 'OLT-CHB-01/PON-1/Port-04',
+    officeTeam: 'Eastern Suburbs Support Team', branch: 'Chembur Branch', customerType: 'Business',
     category: 'Installation', subcategory: 'Relocation',
     priority: 'P4', status: 'Closed',
     assignedAgent: 'Kiran B.', assignedTechnician: 'Manoj Verma',
@@ -323,7 +359,11 @@ const SEED = [
   },
   {
     id: 'TKT-2026-000110',
+    subject: 'Intermittent Drops Resumed',
     customerName: 'Priya Iyer', phone: '9845098450', accountNumber: 'ACC-101155',
+    networkStatus: 'Offline', opticalPower: -28.7, lastOutageAt: new Date(NOW - 48 * H).toISOString(),
+    planExpireDate: new Date(NOW + 20 * 24 * H).toISOString(), nasPortId: 'OLT-COL-01/PON-1/Port-06',
+    officeTeam: 'South Mumbai Support Team', branch: 'Colaba Branch', customerType: 'Residential',
     category: 'Connectivity', subcategory: 'Intermittent Connection',
     priority: 'P2', status: 'Reopened',
     assignedAgent: 'Ravi T.', assignedTechnician: 'Vikram Singh',
@@ -359,6 +399,15 @@ const SEED = [
   attachments: t.attachments ?? [],
   firstResponseAt: t.firstResponseAt ?? null,
   csatScore: t.csatScore ?? null,
+  subject: t.subject ?? `${t.category} — ${t.subcategory}`,
+  networkStatus: t.networkStatus ?? 'Online',
+  opticalPower: t.opticalPower ?? null,
+  lastOutageAt: t.lastOutageAt ?? null,
+  planExpireDate: t.planExpireDate ?? null,
+  nasPortId: t.nasPortId ?? null,
+  officeTeam: t.officeTeam ?? null,
+  branch: t.branch ?? null,
+  customerType: t.customerType ?? 'Residential',
 }))
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -513,6 +562,15 @@ export function reopenTicket(id, reason, actor = 'Admin User') {
     ...t, status: 'Reopened', reopened: true, reopenReason: reason, updatedAt: new Date().toISOString(),
     activityLog: appendActivity(t, `Ticket reopened — reason: ${reason}`, actor),
   })
+}
+
+// Other open tickets sharing the same NAS port — used to correlate outage-style
+// complaints on the Ticket Detail page's NAS Port card.
+export function findTicketsOnSamePort(nasPortId, excludeId) {
+  if (!nasPortId) return []
+  return _tickets.filter(t =>
+    t.nasPortId === nasPortId && t.id !== excludeId && !CLOSED_STATUSES.includes(t.status)
+  )
 }
 
 // Count of this technician's currently open (not Resolved/Closed/Cancelled/Duplicate) tickets.
