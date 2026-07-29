@@ -388,7 +388,7 @@ export default function TicketList() {
                   <input type="checkbox" checked={allPagedSelected} onChange={toggleAll}
                     className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
                 </th>
-                {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Assigned Agent', 'Assigned Technician', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
+                {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
                   <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'Description' ? 'w-72' : ''}`}>{h}</th>
                 ))}
                 <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
@@ -397,7 +397,7 @@ export default function TicketList() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
+                  <td colSpan={13} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
                 </tr>
               ) : paged.map(t => {
                 const sla = slaStatusOf(t)
@@ -426,12 +426,6 @@ export default function TicketList() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={STATUS_BADGE[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                      {t.assignedAgent ?? <span className="text-gray-300">Unassigned</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                      {t.assignedTechnician ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.area}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(t.createdAt)}</td>
