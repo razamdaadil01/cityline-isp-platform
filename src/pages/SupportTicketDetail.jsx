@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, MessageSquare, Lock, RotateCcw, CheckCircle2, FileText, CalendarPlus,
-  Phone, Mail, MapPin, User, Activity, Wrench, ShieldCheck, Clock, PhoneCall,
-  Globe, Play,
+  Phone, Mail, User, Activity, Wrench, PhoneCall,
+  Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -12,8 +12,9 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
+  findTicketsOnSamePort, assignAgent, assignTechnician,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
-  TECHNICIAN_PROFILES, TECHNICIAN_SKILLS, slaStatusOf,
+  TECHNICIAN_PROFILES, TECHNICIAN_SKILLS, AGENTS, TECHNICIANS, slaStatusOf,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
@@ -24,8 +25,13 @@ const STATUS_BADGE = {
   'Waiting for Billing': 'purple', 'Resolved': 'green', 'Closed': 'gray',
   'Reopened': 'red', 'Cancelled': 'gray', 'Duplicate': 'gray',
 }
+const STATUS_DOT_COLOR = {
+  blue: 'bg-blue-400', cyan: 'bg-cyan-400', orange: 'bg-orange-400', purple: 'bg-purple-400',
+  yellow: 'bg-amber-400', navy: 'bg-navy', green: 'bg-emerald-400', gray: 'bg-gray-300', red: 'bg-red-400',
+}
 const PRIORITY_BADGE = { P1: 'red', P2: 'orange', P3: 'yellow', P4: 'gray' }
 const SLA_BADGE = { 'On Track': 'green', 'Due Soon': 'yellow', 'Breached': 'red', 'Met': 'gray' }
+const SLA_LABEL = { 'On Track': 'ON Track', 'Due Soon': 'Due Soon', 'Breached': 'Breached', 'Met': 'Met' }
 const VISIT_STATUS_BADGE = {
   'Visit Scheduled': 'blue', 'Technician Travelling': 'cyan', 'Technician Reached': 'orange',
   'Work Started': 'orange', 'Work Completed': 'green', 'Follow-up Required': 'yellow',
@@ -36,6 +42,8 @@ const VISIT_STATUS_BADGE = {
 const CHANNEL_BADGE = { Call: 'purple', Portal: 'gray' }
 const CHANNEL_ICON = { Call: PhoneCall, Portal: Globe }
 
+const H = 3600000 // 1 hour in ms
+
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140">'
   + '<rect width="100%" height="100%" fill="#f1f5f9"/>'
@@ -43,13 +51,16 @@ const PLACEHOLDER_IMAGE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   + '</svg>'
 )
 
-function isImageName(name) { return /\.(jpg|jpeg|png|gif|webp)$/i.test(name ?? '') }
-
 function formatDateTime(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
   })
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function initialsOf(name) {
@@ -62,6 +73,21 @@ function daysOpenOf(ticket) {
     ? new Date(ticket.resolution.resolvedAt).getTime()
     : Date.now()
   return Math.max(0, Math.floor((end - new Date(ticket.createdAt).getTime()) / 86400000))
+}
+
+function slaRemainingLabel(ticket) {
+  const diff = new Date(ticket.slaDeadline).getTime() - Date.now()
+  const abs = Math.abs(diff)
+  const hh = String(Math.floor(abs / H)).padStart(2, '0')
+  const mm = String(Math.floor((abs % H) / 60000)).padStart(2, '0')
+  return `${hh}h ${mm}m ${diff >= 0 ? 'Left' : 'Over'}`
+}
+
+// Deterministic mock size label for attachments seeded as plain filenames (no real file bytes on hand).
+function mockFileSize(name) {
+  const sum = [...name].reduce((a, c) => a + c.charCodeAt(0), 0)
+  const kb = 40 + (sum % 900)
+  return kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`
 }
 
 // ── Left-sidebar / right-sidebar row style — matches SalesLeadDetail.jsx's InfoRow ──
@@ -256,12 +282,180 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   )
 }
 
+// ── Assign Modal (Assignment Overview → Assign) ────────────────────────────────
+
+function AssignModal({ isOpen, onClose, ticket }) {
+  const [agent, setAgent] = useState('')
+  const [technician, setTechnician] = useState('')
+
+  useEffect(() => {
+    if (isOpen) { setAgent(ticket.assignedAgent ?? ''); setTechnician(ticket.assignedTechnician ?? '') }
+  }, [isOpen, ticket.assignedAgent, ticket.assignedTechnician])
+
+  function handleApply() {
+    if (agent !== (ticket.assignedAgent ?? '')) assignAgent([ticket.id], agent)
+    if (technician !== (ticket.assignedTechnician ?? '')) assignTechnician([ticket.id], technician)
+    onClose()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign Ticket" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleApply}>Apply</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Assigning <span className="font-mono font-semibold text-gray-800">{ticket.id}</span>.
+        </p>
+        <FormField label="Individual Agent">
+          <Select value={agent} onChange={e => setAgent(e.target.value)}>
+            <option value="">Unassigned</option>
+            {AGENTS.map(a => <option key={a} value={a}>{a}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Technician">
+          <Select value={technician} onChange={e => setTechnician(e.target.value)}>
+            <option value="">Unassigned</option>
+            {TECHNICIANS.map(t => <option key={t} value={t}>{t}</option>)}
+          </Select>
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Header "Actions" dropdown (Close / Reopen) ──────────────────────────────────
+
+function HeaderActionsMenu({ canClose, canReopen, onClose, onReopen }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button variant="secondary" onClick={() => setOpen(o => !o)} iconRight={<ChevronDown size={14} />}>
+        Actions
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
+          <button
+            onClick={() => { setOpen(false); onClose() }}
+            disabled={!canClose}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Lock size={13} className="text-gray-400 shrink-0" /> Close Ticket
+          </button>
+          {canReopen && (
+            <button
+              onClick={() => { setOpen(false); onReopen() }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <RotateCcw size={13} className="shrink-0" /> Reopen Ticket
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Network / Connection Status card (TR-069) ───────────────────────────────────
+
+function NetworkStatusCard({ ticket }) {
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshedAt, setRefreshedAt] = useState(null)
+
+  const isOnline = ticket.networkStatus === 'Online'
+  const opticalOutOfRange = ticket.opticalPower != null && (ticket.opticalPower < -27 || ticket.opticalPower > -8)
+  const lastOutageLabel = ticket.outageLinked ? 'Live Outage' : (ticket.lastOutageAt ? formatDate(ticket.lastOutageAt) : 'None on file')
+
+  function handleRefresh() {
+    setRefreshing(true)
+    setTimeout(() => { setRefreshing(false); setRefreshedAt(new Date()) }, 700)
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-red-500'}`} />
+          <span className={`text-sm font-bold ${isOnline ? 'text-emerald-600' : 'text-red-600'}`}>{isOnline ? 'Online' : 'Offline'}</span>
+          <span className="text-[11px] text-gray-400">· via TR-069</span>
+        </div>
+        <Button size="sm" variant="secondary" icon={<RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />} onClick={handleRefresh} disabled={refreshing}>
+          Refresh Status
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-surface-border">
+        <div>
+          <p className={`text-sm font-bold ${opticalOutOfRange ? 'text-red-600' : 'text-gray-800'}`}>
+            {ticket.opticalPower != null ? `${ticket.opticalPower} dBm` : '—'}
+          </p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-1">Optical Power</p>
+          <p className="text-[10px] text-gray-400">normal: -8 to -27</p>
+        </div>
+        <div>
+          <p className={`text-sm font-bold ${ticket.outageLinked ? 'text-red-600' : 'text-gray-800'}`}>{lastOutageLabel}</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-1">Last Outage</p>
+          <p className="text-[10px] text-gray-400">this node</p>
+        </div>
+        <div>
+          <p className="text-sm font-bold text-gray-800">{ticket.planExpireDate ? formatDate(ticket.planExpireDate) : 'N/A'}</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-1">Plan Expire Date</p>
+          <p className="text-[10px] text-gray-400">subscribed</p>
+        </div>
+      </div>
+
+      {refreshedAt && (
+        <p className="text-[10px] text-gray-300 mt-3">Last refreshed {refreshedAt.toLocaleTimeString('en-IN')}</p>
+      )}
+    </div>
+  )
+}
+
+// ── Assignment Overview card ─────────────────────────────────────────────────────
+
+function AssignmentOverviewCard({ ticket, onAssign }) {
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-bold text-gray-800">Assignment Overview</p>
+        <Button size="sm" variant="secondary" icon={<UserCog size={13} />} onClick={onAssign}>Assign</Button>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Individual Agent</p>
+          {ticket.assignedAgent ? <Badge variant="navy" size="sm">{ticket.assignedAgent}</Badge> : <span className="text-xs text-gray-300">—</span>}
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Office Team</p>
+          {ticket.officeTeam ? <Badge variant="cyan" size="sm">{ticket.officeTeam}</Badge> : <span className="text-xs text-gray-300">—</span>}
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Branch</p>
+          {ticket.branch ? <Badge variant="purple" size="sm">{ticket.branch}</Badge> : <span className="text-xs text-gray-300">—</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Middle-column tabs ──────────────────────────────────────────────────────
 
 const MIDDLE_TABS = [
   { key: 'overview', slug: 'overview', label: 'Overview', icon: User },
   { key: 'communication', slug: 'communication', label: 'Communication', icon: MessageSquare },
-  { key: 'internal', slug: 'internal-notes', label: 'Internal Notes', icon: Lock },
+  { key: 'internal', slug: 'internal-notes', label: 'Notes', icon: Lock },
   { key: 'activity', slug: 'activity-log', label: 'Activity Log', icon: Activity },
 ]
 
@@ -275,10 +469,11 @@ export default function SupportTicketDetail() {
   useEffect(() => setTicket(getTicket(id)), [id])
   useEffect(() => subscribeTickets(() => setTicket(getTicket(id))), [id])
 
-  const [leftTab, setLeftTab] = useState('ticket')
+  const [leftTab, setLeftTab] = useState('customer')
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
 
   if (!tabSlug) {
@@ -308,6 +503,8 @@ export default function SupportTicketDetail() {
   const canReopen = isGatedStatus
   const scheduleBlocked = ['Closed', 'Cancelled'].includes(ticket.status)
 
+  const relatedOnPort = findTicketsOnSamePort(ticket.nasPortId, ticket.id)
+
   function handleAddInternalNote() {
     if (!internalText.trim()) return
     addInternalNote(ticket.id, internalText.trim(), CURRENT_USER)
@@ -318,16 +515,22 @@ export default function SupportTicketDetail() {
     <div className="p-6 space-y-5">
 
       {/* Top header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/support/tickets')}
-          className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0">
-          <ArrowLeft size={16} />
-        </button>
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 font-mono">{ticket.id}</h1>
-          <p className="text-sm text-gray-500 mt-0.5 truncate">{ticket.category} / {ticket.subcategory}</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-xl font-bold text-gray-900 min-w-0 truncate">
+          <span className="text-gray-400 font-mono">#</span> <span className="font-mono">{ticket.id}</span>
+          <span className="text-gray-400"> : </span>{ticket.subject}
+        </h1>
+        <div className="flex items-center gap-2 shrink-0">
+          <HeaderActionsMenu
+            canClose={canClose}
+            canReopen={canReopen}
+            onClose={() => closeTicket(ticket.id, CURRENT_USER)}
+            onReopen={() => setReopenOpen(true)}
+          />
+          <Button icon={<CheckCircle2 size={15} />} disabled={!canResolve} onClick={() => setResolveOpen(true)}>
+            Resolve
+          </Button>
         </div>
-        <Badge variant={STATUS_BADGE[ticket.status] ?? 'gray'} size="lg" className="ml-auto shrink-0">{ticket.status}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -343,21 +546,20 @@ export default function SupportTicketDetail() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-900 truncate">{ticket.customerName}</p>
-                <p className="text-xs text-gray-400 font-mono truncate">{ticket.id}</p>
               </div>
             </div>
 
-            {/* Badges */}
+            {/* Tags row */}
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge variant="navy" size="sm">{ticket.category}</Badge>
               <Badge variant={STATUS_BADGE[ticket.status] ?? 'gray'} size="sm">{ticket.status}</Badge>
             </div>
 
-            {/* Quick contact info */}
+            {/* Contact block */}
             <div className="border-t border-surface-border pt-3 space-y-2">
+              <ContactRow icon={User}>{ticket.customerName}</ContactRow>
               <ContactRow icon={Phone}>{ticket.phone}</ContactRow>
               {ticket.email && <ContactRow icon={Mail}>{ticket.email}</ContactRow>}
-              <ContactRow icon={MapPin}>{ticket.customerAddress ?? ticket.area ?? '—'}</ContactRow>
             </div>
 
             {/* Assigned agent */}
@@ -373,10 +575,10 @@ export default function SupportTicketDetail() {
               </div>
             </div>
 
-            {/* Mini tab switcher: Ticket Info / Customer Info */}
+            {/* Mini tab switcher: Customer Info / Address Info */}
             <div className="border-t border-surface-border pt-3">
               <div className="flex gap-1 mb-2">
-                {[{ key: 'ticket', label: 'Ticket Info' }, { key: 'customer', label: 'Customer Info' }].map(t => (
+                {[{ key: 'customer', label: 'Customer Info' }, { key: 'address', label: 'Address Info' }].map(t => (
                   <button key={t.key} onClick={() => setLeftTab(t.key)}
                     className={`flex-1 px-2 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
                       leftTab === t.key ? 'bg-brand-blue text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
@@ -386,24 +588,19 @@ export default function SupportTicketDetail() {
                 ))}
               </div>
 
-              {leftTab === 'ticket' ? (
+              {leftTab === 'customer' ? (
                 <div>
-                  <InfoRow label="Ticket #" value={<span className="font-mono text-brand-blue">{ticket.id}</span>} />
-                  <InfoRow label="Category" value={ticket.category} />
-                  <InfoRow label="Subcategory" value={ticket.subcategory} />
-                  <InfoRow label="Priority" value={<Badge variant={PRIORITY_BADGE[ticket.priority]} size="sm" dot>{PRIORITY_LABEL[ticket.priority]}</Badge>} />
-                  <InfoRow label="Created" value={formatDateTime(ticket.createdAt)} />
-                  <InfoRow label="Agent" value={ticket.assignedAgent} />
-                  <InfoRow label="Technician" value={ticket.assignedTechnician} />
+                  <InfoRow label="Account #" value={<span className="font-mono">{ticket.accountNumber}</span>} />
+                  <InfoRow label="Plan" value={ticket.plan} />
+                  <InfoRow label="Customer Type" value={ticket.customerType} />
+                  <InfoRow label="Billing" value={<Badge variant={ticket.billingStatus === 'Overdue' ? 'yellow' : 'green'} size="sm">{ticket.billingStatus ?? '—'}</Badge>} />
+                  <InfoRow label="Connection" value={<Badge variant={ticket.connectionStatus === 'Connected' ? 'green' : 'red'} size="sm">{ticket.connectionStatus ?? '—'}</Badge>} />
                 </div>
               ) : (
                 <div>
-                  <InfoRow label="Account #" value={<span className="font-mono">{ticket.accountNumber}</span>} />
-                  <InfoRow label="Phone" value={ticket.phone} />
                   <InfoRow label="Address" value={ticket.customerAddress ?? ticket.area} />
-                  <InfoRow label="Plan" value={ticket.plan} />
-                  <InfoRow label="Billing" value={<Badge variant={ticket.billingStatus === 'Overdue' ? 'yellow' : 'green'} size="sm">{ticket.billingStatus ?? '—'}</Badge>} />
-                  <InfoRow label="Connection" value={<Badge variant={ticket.connectionStatus === 'Connected' ? 'green' : 'red'} size="sm">{ticket.connectionStatus ?? '—'}</Badge>} />
+                  <InfoRow label="Area / Zone" value={ticket.area} />
+                  <InfoRow label="Phone" value={ticket.phone} />
                 </div>
               )}
             </div>
@@ -411,7 +608,12 @@ export default function SupportTicketDetail() {
         </div>
 
         {/* ── MIDDLE COLUMN ────────────────────────────────────────────────── */}
-        <div className="lg:col-span-6">
+        <div className="lg:col-span-6 space-y-4">
+
+          <NetworkStatusCard ticket={ticket} />
+
+          <AssignmentOverviewCard ticket={ticket} onAssign={() => setAssignOpen(true)} />
+
           <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
             {/* Tab nav */}
@@ -445,15 +647,28 @@ export default function SupportTicketDetail() {
                     {(ticket.attachments ?? []).length === 0 ? (
                       <p className="text-sm text-gray-400">No attachments.</p>
                     ) : (
-                      <div className="flex flex-wrap gap-3">
-                        {ticket.attachments.map((name, i) => isImageName(name) ? (
-                          <div key={i} className="w-24">
-                            <img src={PLACEHOLDER_IMAGE} alt={name} className="w-24 h-16 object-cover rounded-lg border border-surface-border" />
-                            <p className="text-[10px] text-gray-400 truncate mt-1">{name}</p>
-                          </div>
-                        ) : (
-                          <div key={i} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-surface-border bg-gray-50 text-xs text-gray-600">
-                            <FileText size={12} className="text-gray-400" /> {name}
+                      <div className="space-y-2">
+                        {ticket.attachments.map((name, i) => (
+                          <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-gray-50">
+                            <FileText size={16} className="text-gray-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-gray-700 truncate">{name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-gray-400 shrink-0">{mockFileSize(name)}</span>
+                                <div className="flex-1 h-1 max-w-[100px] bg-gray-200 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500" style={{ width: '100%' }} />
+                                </div>
+                                <span className="text-[10px] text-emerald-600 font-semibold shrink-0">100%</span>
+                              </div>
+                            </div>
+                            <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                            <button
+                              type="button"
+                              onClick={() => console.log('Remove attachment — coming soon')}
+                              className="text-gray-400 hover:text-red-500 shrink-0 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -502,7 +717,7 @@ export default function SupportTicketDetail() {
                 </div>
               )}
 
-              {/* ─── Internal Notes ─────────────────────────────────────── */}
+              {/* ─── Notes (Internal) ───────────────────────────────────── */}
               {activeTab === 'internal' && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 w-fit">
@@ -558,44 +773,71 @@ export default function SupportTicketDetail() {
         {/* ── RIGHT SIDEBAR ────────────────────────────────────────────────── */}
         <div className="lg:col-span-3 space-y-4">
 
-          {/* Current Status */}
-          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
-            <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
-                <Clock size={14} className="text-brand-blue" />
-              </div>
-              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Current Status</p>
+          {/* Resolution SLA */}
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card flex flex-col items-center">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider self-start mb-4">Resolution SLA</p>
+            <div className={`w-28 h-28 rounded-full border-4 flex items-center justify-center ${
+              sla === 'Breached' ? 'border-red-300' : sla === 'Due Soon' ? 'border-amber-300' : sla === 'Met' ? 'border-gray-200' : 'border-emerald-300'
+            }`}>
+              <p className={`text-xs font-bold text-center px-2 ${
+                sla === 'Breached' ? 'text-red-600' : sla === 'Due Soon' ? 'text-amber-600' : sla === 'Met' ? 'text-gray-500' : 'text-emerald-600'
+              }`}>
+                {slaRemainingLabel(ticket)}
+              </p>
             </div>
+            <Badge variant={SLA_BADGE[sla]} size="md" className="mt-3">{SLA_LABEL[sla]}</Badge>
+            <p className="text-[11px] text-gray-400 mt-2">{daysOpenOf(ticket)} day{daysOpenOf(ticket) !== 1 ? 's' : ''} open</p>
+          </div>
 
-            <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+          {/* Ticket Information */}
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Ticket Information</p>
+            <InfoRow label="Ticket No." value={<span className="font-mono text-brand-blue">{ticket.id}</span>} />
+            <InfoRow label="Category" value={ticket.category} />
+            <InfoRow label="Priority" value={<Badge variant={PRIORITY_BADGE[ticket.priority]} size="sm" dot>{PRIORITY_LABEL[ticket.priority]}</Badge>} />
+            <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-50">
               <span className="text-xs text-gray-500 shrink-0 pt-1.5">Status</span>
               {isGatedStatus ? (
                 <div className="text-right">
                   <Badge variant={STATUS_BADGE[ticket.status]} size="sm">{ticket.status}</Badge>
-                  <p className="text-[10px] text-gray-400 mt-1">Use Reopen below to change this.</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Use Actions ▸ Reopen to change this.</p>
                 </div>
               ) : (
-                <div className="w-36">
+                <div className="w-32">
                   <Select value={ticket.status} onChange={e => updateTicketStatus(ticket.id, e.target.value, CURRENT_USER)}>
                     {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                   </Select>
                 </div>
               )}
             </div>
-            <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-              <span className="text-xs text-gray-500 shrink-0">SLA Deadline</span>
-              <div className="text-right">
-                <p className="text-xs font-medium text-gray-800">{formatDateTime(ticket.slaDeadline)}</p>
-                <Badge variant={SLA_BADGE[sla]} size="sm" className="mt-1">{sla}</Badge>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2 pt-1.5">
-              <span className="text-xs text-gray-500">Days Open</span>
-              <span className="text-xs font-semibold text-gray-800">{daysOpenOf(ticket)} day{daysOpenOf(ticket) !== 1 ? 's' : ''}</span>
-            </div>
+            <InfoRow label="Created" value={formatDateTime(ticket.createdAt)} />
           </div>
 
-          {/* Technician Visit — Installation-card style */}
+          {/* NAS Port correlation */}
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-1">
+              NAS Port ID: <span className="font-mono normal-case tracking-normal text-gray-600">{ticket.nasPortId ?? '—'}</span>
+            </p>
+            <p className="text-[11px] text-gray-400 mb-3">Other open tickets on this port</p>
+            {relatedOnPort.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-3">No other open tickets on this port.</p>
+            ) : (
+              <div className="space-y-2">
+                {relatedOnPort.map(t => (
+                  <button key={t.id} onClick={() => navigate(`/support/tickets/${t.id}/overview`)}
+                    className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-surface-border hover:bg-gray-100 transition-colors text-left">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT_COLOR[STATUS_BADGE[t.status]] ?? 'bg-gray-300'}`} />
+                      <span className="font-mono text-xs text-brand-blue font-semibold shrink-0">{t.id}</span>
+                    </div>
+                    <span className="text-xs text-gray-500 truncate">{t.assignedAgent ?? 'Unassigned'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Technician Visit */}
           <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
             <div className="flex items-center gap-2.5 mb-3">
               <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
@@ -606,12 +848,13 @@ export default function SupportTicketDetail() {
 
             {!ticket.technicianVisit ? (
               <div className="text-center py-2">
-                <p className="text-xs text-gray-400 mb-3">No technician visit scheduled yet.</p>
+                <p className="text-xs text-gray-400 mb-3">Not Scheduled</p>
                 <span title={scheduleBlocked ? 'Cannot schedule a visit — ticket is Closed or Cancelled.' : undefined}>
                   <Button size="sm" className="w-full" icon={<CalendarPlus size={13} />} disabled={scheduleBlocked} onClick={() => setScheduleOpen(true)}>
                     Schedule Technician Visit
                   </Button>
                 </span>
+                <p className="text-[10px] text-gray-400 mt-2">A technician visit must be scheduled before this ticket can be resolved.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -639,55 +882,6 @@ export default function SupportTicketDetail() {
               </div>
             )}
           </div>
-
-          {/* Resolution — eKYC-style purple-bordered card */}
-          <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
-            <div className="flex items-center justify-between gap-2.5 mb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                  <ShieldCheck size={15} className="text-purple-600" />
-                </div>
-                <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Resolution</p>
-              </div>
-              <Badge variant={ticket.resolution ? (STATUS_BADGE[ticket.status] ?? 'gray') : 'gray'} size="sm">
-                {ticket.resolution ? ticket.status : 'Not Resolved'}
-              </Badge>
-            </div>
-
-            {ticket.resolution ? (
-              <div className="space-y-1 mb-3">
-                <InfoRow label="Type" value={ticket.resolution.resolutionType} />
-                <InfoRow label="Root Cause" value={ticket.resolution.rootCause} />
-                <InfoRow label="Details" value={ticket.resolution.resolutionDetails} />
-                {ticket.resolution.customerUpdate && <InfoRow label="Customer Update" value={ticket.resolution.customerUpdate} />}
-                <InfoRow label="Resolved By" value={ticket.resolution.resolvedBy} />
-                <InfoRow label="Resolved At" value={formatDateTime(ticket.resolution.resolvedAt)} />
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 mb-3">This ticket has not been resolved yet.</p>
-            )}
-
-            {ticket.reopenReason && (
-              <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-[11px] text-red-700 mb-3">
-                <span className="font-semibold">Reopen reason:</span> {ticket.reopenReason}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-purple-100">
-              <Button size="sm" icon={<CheckCircle2 size={13} />} disabled={!canResolve} onClick={() => setResolveOpen(true)}>
-                Resolve
-              </Button>
-              <Button size="sm" variant="secondary" icon={<Lock size={13} />} disabled={!canClose}
-                onClick={() => closeTicket(ticket.id, CURRENT_USER)}>
-                Close
-              </Button>
-              {canReopen && (
-                <Button size="sm" variant="danger" icon={<RotateCcw size={13} />} onClick={() => setReopenOpen(true)}>
-                  Reopen
-                </Button>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -697,6 +891,7 @@ export default function SupportTicketDetail() {
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />
       <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={() => setScheduleOpen(false)} ticket={ticket}
         onSubmit={data => { scheduleTechnicianVisit(ticket.id, data, CURRENT_USER); setScheduleOpen(false) }} />
+      <AssignModal isOpen={assignOpen} onClose={() => setAssignOpen(false)} ticket={ticket} />
     </div>
   )
 }
