@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Search, ClipboardList, UserCog, CheckCircle2,
   AlertTriangle, Upload, Paperclip, X, Wrench, Sparkles, Zap,
+  Check, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -36,20 +37,54 @@ function formatDateTime(iso) {
   })
 }
 
-function SectionCard({ step, title, icon: Icon, locked, lockedHint, children }) {
+const WIZARD_STEPS = [
+  { id: 1, label: 'Search Customer', icon: Search },
+  { id: 2, label: 'Check Complaints', icon: ClipboardList },
+  { id: 3, label: 'Complaint Details', icon: AlertTriangle },
+  { id: 4, label: 'Assignment', icon: UserCog },
+]
+
+function StepProgress({ current }) {
   return (
-    <div className={`bg-white rounded-2xl border border-surface-border shadow-card p-5 transition-opacity ${locked ? 'opacity-60' : ''}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <span className="w-6 h-6 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-bold flex items-center justify-center shrink-0">{step}</span>
-        <Icon size={15} className="text-brand-blue" />
-        <p className="text-sm font-bold text-gray-700">{title}</p>
-        {locked && (
-          <span className="ml-auto text-xs text-gray-400 font-medium">{lockedHint}</span>
-        )}
-      </div>
-      <div className={locked ? 'pointer-events-none select-none' : ''}>
-        {children}
-      </div>
+    <div className="flex items-start">
+      {WIZARD_STEPS.map((s, i) => {
+        const done = s.id < current
+        const active = s.id === current
+        const Icon = s.icon
+        return (
+          <div key={s.id} className="flex items-start flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-2 min-w-0">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                done   ? 'bg-brand-blue text-white' :
+                active ? 'bg-navy text-white ring-4 ring-navy/20' :
+                         'bg-gray-100 text-gray-400'
+              }`}>
+                {done ? <Check size={15} /> : <Icon size={15} />}
+              </div>
+              <span className={`text-[11px] font-semibold text-center leading-tight whitespace-nowrap ${
+                active ? 'text-navy' : done ? 'text-brand-blue' : 'text-gray-400'
+              }`}>
+                {s.label}
+              </span>
+            </div>
+            {i < WIZARD_STEPS.length - 1 && (
+              <div className={`flex-1 h-0.5 mt-[18px] mx-2 transition-all ${
+                done ? 'bg-brand-blue' : 'bg-gray-200'
+              }`} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function StepHeader({ step, title, icon: Icon }) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <span className="w-6 h-6 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-bold flex items-center justify-center shrink-0">{step}</span>
+      <Icon size={15} className="text-brand-blue" />
+      <p className="text-sm font-bold text-gray-700">{title}</p>
     </div>
   )
 }
@@ -58,6 +93,7 @@ export default function TicketCreate() {
   const navigate = useNavigate()
 
   const [ticketNumber] = useState(() => nextTicketNumber())
+  const [wizardStep, setWizardStep] = useState(1)
 
   // ── Step 1 — Search Customer ──────────────────────────────────────────────
   const [search, setSearch] = useState('')
@@ -135,15 +171,23 @@ export default function TicketCreate() {
 
   // ── Gating ─────────────────────────────────────────────────────────────────
   const step1Done = !!selectedCustomer
-  const step3Locked = !step1Done || !step2Resolved
-  const step4Locked = step3Locked || !category || !subcategory || !description.trim() || !contactMethod || !priority
-  const step5Locked = step4Locked
+  const step3Valid = !!category && !!subcategory && !!description.trim() && !!contactMethod && !!priority
 
   const canCreate = step1Done && step2Resolved && category && subcategory && description.trim() && contactMethod && priority
 
   function handleCategoryChange(v) {
     setCategory(v)
     setSubcategory('')
+  }
+
+  function goNext() {
+    if (wizardStep === 1 && !step1Done) return
+    if (wizardStep === 2 && !step2Resolved) return
+    if (wizardStep === 3 && !step3Valid) return
+    setWizardStep(s => Math.min(s + 1, 4))
+  }
+  function goBack() {
+    setWizardStep(s => Math.max(s - 1, 1))
   }
 
   function handleCreate() {
@@ -224,8 +268,18 @@ export default function TicketCreate() {
         </div>
       </div>
 
-      {/* Step 1 — Search Customer */}
-      <SectionCard step={1} title="Search Customer" icon={Search}>
+      {/* Step indicator */}
+      <div className="bg-white rounded-2xl shadow-card border border-surface-border px-8 py-6">
+        <StepProgress current={wizardStep} />
+      </div>
+
+      {/* Step content */}
+      <div className="bg-white rounded-2xl shadow-card border border-surface-border overflow-hidden">
+        <div className="px-8 py-7">
+
+      {wizardStep === 1 && (
+      <div>
+        <StepHeader step={1} title="Search Customer" icon={Search} />
         <div className="space-y-3">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -285,11 +339,12 @@ export default function TicketCreate() {
             </div>
           )}
         </div>
-      </SectionCard>
+      </div>
+      )}
 
-      {/* Step 2 — Check Existing Complaints */}
-      <SectionCard step={2} title="Check Existing Complaints" icon={ClipboardList}
-        locked={!step1Done} lockedHint="Select a customer first">
+      {wizardStep === 2 && (
+      <div>
+        <StepHeader step={2} title="Check Existing Complaints" icon={ClipboardList} />
         {step1Done && (
           <div className="space-y-4">
             {showDuplicateWarning && (
@@ -391,11 +446,12 @@ export default function TicketCreate() {
             </div>
           </div>
         )}
-      </SectionCard>
+      </div>
+      )}
 
-      {/* Step 3 — Complaint Details */}
-      <SectionCard step={3} title="Complaint Details" icon={AlertTriangle}
-        locked={step3Locked} lockedHint={!step1Done ? 'Select a customer first' : 'Resolve the existing complaint check above'}>
+      {wizardStep === 3 && (
+      <div>
+        <StepHeader step={3} title="Complaint Details" icon={AlertTriangle} />
         <div className="grid grid-cols-2 gap-x-5 gap-y-4">
           <FormField label="Complaint Category" required>
             <Select value={category} onChange={e => handleCategoryChange(e.target.value)}>
@@ -465,11 +521,12 @@ export default function TicketCreate() {
             <Textarea value={internalNote} onChange={e => setInternalNote(e.target.value)} rows={2} />
           </FormField>
         </div>
-      </SectionCard>
+      </div>
+      )}
 
-      {/* Step 4 — Assignment */}
-      <SectionCard step={4} title="Assignment" icon={UserCog}
-        locked={step4Locked} lockedHint="Complete complaint details first">
+      {wizardStep === 4 && (
+      <div>
+        <StepHeader step={4} title="Assignment" icon={UserCog} />
         <div className="space-y-4">
           <FormField label="Suggested Assignment Type">
             <div className="flex gap-3">
@@ -504,14 +561,45 @@ export default function TicketCreate() {
             </FormField>
           </div>
         </div>
-      </SectionCard>
+      </div>
+      )}
 
-      {/* Step 5 — Create */}
-      <div className="flex items-center justify-end gap-3 pb-2">
-        <Button variant="secondary" onClick={() => navigate('/support/tickets')}>Cancel</Button>
-        <Button onClick={handleCreate} disabled={!canCreate} icon={<CheckCircle2 size={15} />}>
-          Create Ticket
-        </Button>
+        </div>
+
+        {/* Footer navigation */}
+        <div className="flex items-center justify-between px-8 py-5 border-t border-surface-border bg-gray-50/50">
+          {wizardStep === 1 ? (
+            <Button variant="secondary" onClick={() => navigate('/support/tickets')}>Cancel</Button>
+          ) : (
+            <Button variant="secondary" onClick={goBack} icon={<ChevronLeft size={16} />}>Back</Button>
+          )}
+          <div className="flex items-center gap-1.5">
+            {WIZARD_STEPS.map(s => (
+              <div key={s.id} className={`rounded-full transition-all duration-300 ${
+                s.id === wizardStep ? 'bg-navy w-6 h-2' :
+                s.id < wizardStep  ? 'bg-brand-blue w-2 h-2' :
+                                     'bg-gray-200 w-2 h-2'
+              }`} />
+            ))}
+          </div>
+          {wizardStep < 4 ? (
+            <Button
+              onClick={goNext}
+              disabled={
+                wizardStep === 1 ? !step1Done :
+                wizardStep === 2 ? !step2Resolved :
+                !step3Valid
+              }
+              iconRight={<ChevronRight size={16} />}
+            >
+              Next
+            </Button>
+          ) : (
+            <Button onClick={handleCreate} disabled={!canCreate} icon={<CheckCircle2 size={15} />}>
+              Create Ticket
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
