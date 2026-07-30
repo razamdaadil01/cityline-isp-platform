@@ -129,6 +129,7 @@ export default function TicketCreate() {
     setSelectedCustomer(c)
     setSelectedConnectionId(c.id)
     setSearch('')
+    setLinkToOutage(false)
   }
 
   // Data model today is strictly one connection per customer account — this always
@@ -149,6 +150,7 @@ export default function TicketCreate() {
   const openTickets = customerTickets.filter(t => !CLOSED_STATUSES.includes(t.status))
   const last5Tickets = customerTickets.slice(0, 5)
   const activeOutage = selectedCustomer ? findActiveOutageForArea(selectedCustomer.zone) : null
+  const [linkToOutage, setLinkToOutage] = useState(false)
 
   const [duplicateChoice, setDuplicateChoice] = useState(null) // { mode: 'duplicate'|'new', ticketId?, reason? }
   const [newReason, setNewReason] = useState('')
@@ -234,6 +236,8 @@ export default function TicketCreate() {
     if (assignedTechnician) activityLog.push({ time: now, actor: 'System', action: `Notification sent to ${assignedTechnician} (technician)` })
     if (isDuplicate) activityLog.push({ time: now, actor: CURRENT_USER, action: `Linked as duplicate of ${duplicateChoice.ticketId}` })
     if (duplicateChoice?.mode === 'new') activityLog.push({ time: now, actor: CURRENT_USER, action: `Created despite existing complaint — reason: ${newReason.trim()}` })
+    const linkOutage = linkToOutage && activeOutage
+    if (linkOutage) activityLog.push({ time: now, actor: CURRENT_USER, action: `Linked to active outage ${activeOutage.id}` })
 
     const communicationLog = [
       { time: now, actor: 'System', channel: contactMethod || 'Portal', text: 'Ticket created — notification sent to customer.' },
@@ -258,7 +262,8 @@ export default function TicketCreate() {
       createdAt: now,
       updatedAt: now,
       slaDeadline: computeSlaDeadline(now, priority),
-      outageLinked: false,
+      outageLinked: !!linkOutage,
+      outageId: linkOutage ? activeOutage.id : null,
       reopened: false,
       duplicateOf: isDuplicate ? duplicateChoice.ticketId : null,
       description: description.trim(),
@@ -459,17 +464,30 @@ export default function TicketCreate() {
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Active Outage</p>
               {activeOutage ? (
-                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200">
-                  <Zap size={14} className="text-red-500 shrink-0 mt-0.5" />
-                  <div className="text-xs text-red-700">
-                    <p className="font-semibold">{activeOutage.title}</p>
-                    <p className="mt-0.5">
-                      <Badge variant="red" size="sm" dot>{activeOutage.severity}</Badge>{' '}
-                      Expected restoration: {new Date(activeOutage.expectedRestorationTime).toLocaleString('en-IN', {
-                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
-                      })}
-                    </p>
+                <div className="px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <Zap size={14} className="text-red-500 shrink-0 mt-0.5" />
+                    <div className="text-xs text-red-700">
+                      <p className="font-semibold">
+                        ⚠ Active outage in this area: {activeOutage.title} (<span className="font-mono">{activeOutage.id}</span>) — Status: {activeOutage.status}
+                      </p>
+                      <p className="mt-0.5">
+                        <Badge variant="red" size="sm" dot>{activeOutage.severity}</Badge>{' '}
+                        Expected restoration: {new Date(activeOutage.expectedRestorationTime).toLocaleString('en-IN', {
+                          day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true,
+                        })}
+                      </p>
+                      <button type="button" onClick={() => navigate(`/support/outages/${activeOutage.id}`)}
+                        className="mt-1 font-semibold text-red-700 hover:text-red-900 underline underline-offset-2">
+                        View Outage
+                      </button>
+                    </div>
                   </div>
+                  <label className="flex items-center gap-2 pl-6 text-xs text-red-700 cursor-pointer">
+                    <input type="checkbox" checked={linkToOutage} onChange={e => setLinkToOutage(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-red-300 text-red-600 focus:ring-red-400/30" />
+                    Link this ticket to the outage instead of treating it as standalone
+                  </label>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-sm text-gray-500 px-3 py-2 rounded-lg bg-gray-50 border border-surface-border">

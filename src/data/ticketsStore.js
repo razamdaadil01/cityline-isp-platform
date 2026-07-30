@@ -604,6 +604,18 @@ export function findTicketsOnSamePort(nasPortId, excludeId) {
   )
 }
 
+// Open tickets whose NAS Port ID matches an outage's (free-text) Affected Equipment
+// field — same equality check as findTicketsOnSamePort, loosened to a substring test
+// since Affected Equipment is a human-typed description (e.g. "OLT-AW-02, Junction Box #23")
+// rather than a single clean port ID.
+export function findTicketsForEquipment(affectedEquipment) {
+  if (!affectedEquipment?.trim()) return []
+  const eq = affectedEquipment.toLowerCase()
+  return _tickets.filter(t =>
+    t.nasPortId && !CLOSED_STATUSES.includes(t.status) && eq.includes(t.nasPortId.toLowerCase())
+  )
+}
+
 // Count of this technician's currently open (not Resolved/Closed/Cancelled/Duplicate) tickets.
 export function technicianWorkload(name) {
   return _tickets.filter(t => t.assignedTechnician === name && !CLOSED_STATUSES.includes(t.status)).length

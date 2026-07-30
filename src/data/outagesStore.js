@@ -1,5 +1,5 @@
 import { getAllCustomers } from './customersData'
-import { getTickets, findTicketsForOutage, linkTicketsToOutage } from './ticketsStore'
+import { getTickets, findTicketsForOutage, findTicketsForEquipment, linkTicketsToOutage } from './ticketsStore'
 
 export const OUTAGE_TYPES = ['Fiber Cut', 'Power Failure', 'Equipment Failure', 'Planned Maintenance', 'Backbone Issue']
 
@@ -18,6 +18,21 @@ const NOW = Date.now()
 
 function affectedCustomerCountFor(areas) {
   return getAllCustomers().filter(c => areas.includes(c.zone)).length
+}
+
+// Full customer records matching an outage's affected area(s) — customers only
+// carry a zone, not an equipment/NAS field, so area is the operative match for them.
+export function getAffectedCustomers(outage) {
+  return getAllCustomers().filter(c => outage.affectedAreas.includes(c.zone))
+}
+
+// Union of area-based and equipment/NAS-Port-based open-ticket matches, deduped —
+// the combined auto-link basis re-run on both outage creation and area/equipment edits.
+function computeRelatedTickets({ affectedAreas, affectedEquipment, startTime }) {
+  const byArea = findTicketsForOutage(affectedAreas, startTime)
+  const byEquipment = findTicketsForEquipment(affectedEquipment)
+  const seen = new Set()
+  return [...byArea, ...byEquipment].filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true)))
 }
 
 const SEED = [
@@ -101,6 +116,7 @@ const SEED = [
   createdAt: o.createdAt ?? o.startTime,
   updatedAt: o.updatedAt ?? o.startTime,
   activityLog: o.activityLog ?? [{ time: o.startTime, actor: 'Admin User', action: 'Outage confirmed' }],
+  notificationLog: o.notificationLog ?? [],
 }))
 
 let _outages = [...SEED]
@@ -173,13 +189,48 @@ export function getLinkedTickets(outageId) {
   return getTickets().filter(t => t.outageId === outageId)
 }
 
+// Re-runs the auto-link match after Affected Area(s)/Affected Equipment are edited
+// on an existing outage — links any newly-matching open tickets that aren't already linked.
+export function updateOutageAreaEquipment(id, { affectedAreas, affectedEquipment }, actor = 'Admin User') {
+  const o = getOutage(id)
+  if (!o) return null
+  const now = new Date().toISOString()
+  const relatedTickets = computeRelatedTickets({ affectedAreas, affectedEquipment, startTime: o.startTime })
+  const newlyLinked = relatedTickets.filter(t => t.outageId !== id)
+  if (newlyLinked.length) linkTicketsToOutage(newlyLinked.map(t => t.id), id)
+
+  const affectedCustomerCount = affectedCustomerCountFor(affectedAreas)
+  let activityLog = appendActivity(o, 'Affected area/equipment updated', actor)
+  if (newlyLinked.length) {
+    activityLog = [...activityLog, { time: now, actor: 'System', action: `Auto-linked ${newlyLinked.length} newly-matching open ticket(s).` }]
+  }
+
+  return saveOutage({
+    ...o, affectedAreas, affectedEquipment, affectedCustomerCount, updatedAt: now, activityLog,
+  })
+}
+
+// Logs a (stubbed) customer-notification send — no real SMS/email provider is wired up.
+export function logNotification(id, { customerCount, message }, actor = 'Admin User') {
+  const o = getOutage(id)
+  if (!o) return null
+  const now = new Date().toISOString()
+  const entry = { time: now, actor, customerCount, message }
+  return saveOutage({
+    ...o,
+    notificationLog: [...(o.notificationLog ?? []), entry],
+    updatedAt: now,
+    activityLog: appendActivity(o, `Notification sent to ${customerCount} customer(s).`, actor),
+  })
+}
+
 // Full "Create Outage" flow: generates the record, computes affected customers,
 // auto-links related open tickets, and logs the mock customer notification.
 export function createOutage(data, actor = 'Admin User') {
   const id = nextOutageNumber()
   const now = new Date().toISOString()
   const affectedCustomerCount = affectedCustomerCountFor(data.affectedAreas)
-  const relatedTickets = findTicketsForOutage(data.affectedAreas, data.startTime)
+  const relatedTickets = computeRelatedTickets({ affectedAreas: data.affectedAreas, affectedEquipment: data.affectedEquipment, startTime: data.startTime })
   if (relatedTickets.length) linkTicketsToOutage(relatedTickets.map(t => t.id), id)
 
   const activityLog = [
@@ -207,6 +258,7 @@ export function createOutage(data, actor = 'Admin User') {
     createdAt: now,
     updatedAt: now,
     activityLog,
+    notificationLog: [{ time: now, actor: 'System', customerCount: affectedCustomerCount, message: data.customerMessage }],
   }
 
   return saveOutage(outage)
