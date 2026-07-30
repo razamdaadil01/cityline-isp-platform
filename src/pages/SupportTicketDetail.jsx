@@ -426,6 +426,8 @@ function NetworkStatusCard({ ticket }) {
 // ── Assignment Overview card ─────────────────────────────────────────────────────
 
 function AssignmentOverviewCard({ ticket, onAssign }) {
+  const agents = ticket.assignedAgents?.length ? ticket.assignedAgents : (ticket.assignedAgent ? [ticket.assignedAgent] : [])
+  const teams = ticket.assignedTeams?.length ? ticket.assignedTeams : (ticket.officeTeam ? [ticket.officeTeam] : [])
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
       <div className="flex items-center justify-between mb-4">
@@ -434,12 +436,20 @@ function AssignmentOverviewCard({ ticket, onAssign }) {
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Individual Agent</p>
-          {ticket.assignedAgent ? <Badge variant="navy" size="sm">{ticket.assignedAgent}</Badge> : <span className="text-xs text-gray-300">—</span>}
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Individual Agent{agents.length > 1 ? 's' : ''}</p>
+          {agents.length ? (
+            <div className="flex flex-wrap gap-1">
+              {agents.map(a => <Badge key={a} variant="navy" size="sm">{a}</Badge>)}
+            </div>
+          ) : <span className="text-xs text-gray-300">—</span>}
         </div>
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Office Team</p>
-          {ticket.officeTeam ? <Badge variant="cyan" size="sm">{ticket.officeTeam}</Badge> : <span className="text-xs text-gray-300">—</span>}
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Office Team{teams.length > 1 ? 's' : ''}</p>
+          {teams.length ? (
+            <div className="flex flex-wrap gap-1">
+              {teams.map(tm => <Badge key={tm} variant="cyan" size="sm">{tm}</Badge>)}
+            </div>
+          ) : <span className="text-xs text-gray-300">—</span>}
         </div>
         <div>
           <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Branch</p>

@@ -63,6 +63,10 @@ export const AGENTS = ['Ravi T.', 'Neha M.', 'Arjun P.', 'Sita K.', 'Kiran B.']
 
 export const TECHNICIANS = ['Suresh Iyer', 'Prakash Yadav', 'Manoj Verma', 'Dinesh Kumar', 'Vikram Singh']
 
+// Office/support teams a ticket can be assigned to — the same names already used
+// in seed tickets' officeTeam field (Ticket Detail's Assignment Overview card).
+export const OFFICE_TEAMS = ['Mumbai Support Team', 'South Mumbai Support Team', 'Eastern Suburbs Support Team']
+
 export const TECHNICIAN_SKILLS = [
   'Fiber Splicing', 'Router Configuration', 'ONU Replacement',
   'General Troubleshooting', 'Cabling & Wiring', 'OLT/Network Diagnostics',
@@ -408,6 +412,8 @@ const SEED = [
   officeTeam: t.officeTeam ?? null,
   branch: t.branch ?? null,
   customerType: t.customerType ?? 'Residential',
+  assignedAgents: t.assignedAgents ?? (t.assignedAgent ? [t.assignedAgent] : []),
+  assignedTeams: t.assignedTeams ?? (t.officeTeam ? [t.officeTeam] : []),
 }))
 
 // ─── Store ──────────────────────────────────────────────────────────────────
@@ -480,6 +486,30 @@ export function findTicketsForOutage(areas, sinceIso) {
 }
 
 export function assignTechnician(ids, technician) { updateTickets(ids, { assignedTechnician: technician }) }
+
+// Multi-select "Assign Team" — sets the full list of assigned individuals/teams.
+// assignedAgent/officeTeam (the older single-value fields still read elsewhere,
+// e.g. the Assignment Overview card's fallback) are kept in sync to the first
+// selection so existing single-value displays stay meaningful.
+export function assignTeamMembers(ids, { agents = [], teams = [] }, actor = 'Admin User') {
+  const idSet = new Set(ids)
+  const now = new Date().toISOString()
+  const hasAssignment = agents.length > 0 || teams.length > 0
+  _tickets = _tickets.map(t => {
+    if (!idSet.has(t.id)) return t
+    return {
+      ...t,
+      assignedAgents: agents,
+      assignedTeams: teams,
+      assignedAgent: agents[0] ?? null,
+      officeTeam: teams[0] ?? null,
+      firstResponseAt: hasAssignment ? (t.firstResponseAt ?? now) : t.firstResponseAt,
+      updatedAt: now,
+      activityLog: appendActivity(t, `Assigned to ${[...agents, ...teams].join(', ') || 'nobody'}`, actor),
+    }
+  })
+  notify()
+}
 
 export function changePriority(ids, priority) {
   const idSet = new Set(ids)
