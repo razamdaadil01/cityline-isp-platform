@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, Search, ClipboardList, UserCog, CheckCircle2,
   AlertTriangle, Upload, Paperclip, X, Wrench, Sparkles, Zap,
@@ -44,28 +44,43 @@ const WIZARD_STEPS = [
   { id: 4, label: 'Assignment', icon: UserCog },
 ]
 
-function StepProgress({ current }) {
+function StepProgress({ current, isReachable, onSelect }) {
   return (
     <div className="flex items-start">
       {WIZARD_STEPS.map((s, i) => {
         const done = s.id < current
         const active = s.id === current
+        const reachable = isReachable(s.id)
         const Icon = s.icon
         return (
           <div key={s.id} className="flex items-start flex-1 last:flex-none">
             <div className="flex flex-col items-center gap-2 min-w-0">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                done   ? 'bg-brand-blue text-white' :
-                active ? 'bg-navy text-white ring-4 ring-navy/20' :
-                         'bg-gray-100 text-gray-400'
-              }`}>
+              <button
+                type="button"
+                onClick={() => reachable && onSelect(s.id)}
+                disabled={!reachable}
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                  reachable ? 'cursor-pointer hover:opacity-80' : 'cursor-not-allowed'
+                } ${
+                  done   ? 'bg-brand-blue text-white' :
+                  active ? 'bg-navy text-white ring-4 ring-navy/20' :
+                           'bg-gray-100 text-gray-400'
+                }`}
+              >
                 {done ? <Check size={15} /> : <Icon size={15} />}
-              </div>
-              <span className={`text-[11px] font-semibold text-center leading-tight whitespace-nowrap ${
-                active ? 'text-navy' : done ? 'text-brand-blue' : 'text-gray-400'
-              }`}>
+              </button>
+              <button
+                type="button"
+                onClick={() => reachable && onSelect(s.id)}
+                disabled={!reachable}
+                className={`text-[11px] font-semibold text-center leading-tight whitespace-nowrap ${
+                  reachable ? 'cursor-pointer' : 'cursor-not-allowed'
+                } ${
+                  active ? 'text-navy' : done ? 'text-brand-blue' : 'text-gray-400'
+                }`}
+              >
                 {s.label}
-              </span>
+              </button>
             </div>
             {i < WIZARD_STEPS.length - 1 && (
               <div className={`flex-1 h-0.5 mt-[18px] mx-2 transition-all ${
@@ -91,9 +106,9 @@ function StepHeader({ step, title, icon: Icon }) {
 
 export default function TicketCreate() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [ticketNumber] = useState(() => nextTicketNumber())
-  const [wizardStep, setWizardStep] = useState(1)
 
   // ── Step 1 — Search Customer ──────────────────────────────────────────────
   const [search, setSearch] = useState('')
@@ -175,6 +190,21 @@ export default function TicketCreate() {
 
   const canCreate = step1Done && step2Resolved && category && subcategory && description.trim() && contactMethod && priority
 
+  // ── URL-driven step (?step=1..4) ────────────────────────────────────────────
+  const stepParam = Number(searchParams.get('step'))
+  const wizardStep = [1, 2, 3, 4].includes(stepParam) ? stepParam : null
+
+  function stepReachable(id) {
+    if (id <= 1) return true
+    if (id === 2) return step1Done
+    if (id === 3) return step1Done && step2Resolved
+    return step1Done && step2Resolved && step3Valid
+  }
+
+  if (!wizardStep) {
+    return <Navigate to="/support/tickets/new?step=1" replace />
+  }
+
   function handleCategoryChange(v) {
     setCategory(v)
     setSubcategory('')
@@ -184,10 +214,10 @@ export default function TicketCreate() {
     if (wizardStep === 1 && !step1Done) return
     if (wizardStep === 2 && !step2Resolved) return
     if (wizardStep === 3 && !step3Valid) return
-    setWizardStep(s => Math.min(s + 1, 4))
+    setSearchParams({ step: String(Math.min(wizardStep + 1, 4)) })
   }
   function goBack() {
-    setWizardStep(s => Math.max(s - 1, 1))
+    setSearchParams({ step: String(Math.max(wizardStep - 1, 1)) })
   }
 
   function handleCreate() {
@@ -270,7 +300,11 @@ export default function TicketCreate() {
 
       {/* Step indicator */}
       <div className="bg-white rounded-2xl shadow-card border border-surface-border px-8 py-6">
-        <StepProgress current={wizardStep} />
+        <StepProgress
+          current={wizardStep}
+          isReachable={stepReachable}
+          onSelect={id => setSearchParams({ step: String(id) })}
+        />
       </div>
 
       {/* Step content */}
