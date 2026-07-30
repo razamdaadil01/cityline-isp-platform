@@ -3,14 +3,18 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, Download, UserCog, Wrench,
   Flag, LayoutList, Sparkles, UserX, Loader2, AlertTriangle, MoreVertical,
+  Phone, MessageSquare,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
+import CallModal from '../components/ui/CallModal'
 import {
-  getTickets, subscribeTickets, assignAgent, assignTechnician, changePriority, slaStatusOf,
+  getTickets, subscribeTickets, assignAgent, assignTechnician, changePriority, addCommunication, slaStatusOf,
   TICKET_STATUSES, CLOSED_STATUSES, PRIORITIES, PRIORITY_LABEL, CATEGORIES, AREAS, AGENTS, TECHNICIANS,
 } from '../data/ticketsStore'
+
+const CURRENT_USER = 'Admin User'
 
 const STATUS_BADGE = {
   'New': 'blue',
@@ -68,7 +72,7 @@ function BulkActionModal({ open, onClose, title, options, optionLabel, value, on
 
 // ── Per-row kebab menu (Assign Team / Assign Technician / Change Priority) ──
 
-function RowActionsMenu({ ticket, onAssignAgent, onAssignTechnician, onChangePriority }) {
+function RowActionsMenu({ ticket, onAssignAgent, onAssignTechnician, onChangePriority, onSendMessage }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -102,9 +106,53 @@ function RowActionsMenu({ ticket, onAssignAgent, onAssignTechnician, onChangePri
             className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
             <Flag size={13} className="text-gray-400 shrink-0" /> Change Priority
           </button>
+          <button onClick={() => { setOpen(false); onSendMessage(ticket) }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors border-t border-surface-border">
+            <MessageSquare size={13} className="text-gray-400 shrink-0" /> Send Customer Message
+          </button>
         </div>
       )}
     </div>
+  )
+}
+
+// ── Send Customer Message modal (stub — stores the message as a Communication entry) ──
+
+function CustomerMessageModal({ open, onClose, ticket, onSend }) {
+  const [message, setMessage] = useState('')
+
+  function handleSend() {
+    if (!message.trim()) return
+    onSend(message.trim())
+    setMessage('')
+  }
+
+  return (
+    <Modal isOpen={open} onClose={onClose} title="Send Customer Message" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSend} disabled={!message.trim()}>Send</Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-gray-500">
+          Sending to <span className="font-semibold text-gray-800">{ticket?.customerName}</span>
+          {ticket && <span className="font-mono text-gray-400"> · {ticket.phone}</span>}
+        </p>
+        <textarea
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          rows={4}
+          placeholder="Type a message to send to the customer…"
+          className="w-full text-sm border border-surface-border rounded-lg px-3 py-2.5 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400"
+        />
+        <p className="text-[11px] text-gray-400">
+          No messaging provider is connected yet — this stores the message in the ticket's Communication tab as sent.
+        </p>
+      </div>
+    </Modal>
   )
 }
 
@@ -144,6 +192,8 @@ export default function TicketList() {
   const [assignTechValue, setAssignTechValue] = useState('')
   const [changePriorityOpen, setChangePriorityOpen] = useState(false)
   const [changePriorityValue, setChangePriorityValue] = useState('')
+  const [callModal, setCallModal] = useState({ open: false, name: '', phone: '' })
+  const [messageOpen, setMessageOpen] = useState(false)
 
   useEffect(() => subscribeTickets(setTickets), [])
 
@@ -232,6 +282,7 @@ export default function TicketList() {
   function openAssignAgentFor(ticket) { setActionTicket(ticket); setAssignAgentValue(''); setAssignAgentOpen(true) }
   function openAssignTechFor(ticket) { setActionTicket(ticket); setAssignTechValue(''); setAssignTechOpen(true) }
   function openChangePriorityFor(ticket) { setActionTicket(ticket); setChangePriorityValue(''); setChangePriorityOpen(true) }
+  function openSendMessageFor(ticket) { setActionTicket(ticket); setMessageOpen(true) }
 
   function applyAssignAgent() {
     if (actionTicket) assignAgent([actionTicket.id], assignAgentValue)
@@ -244,6 +295,10 @@ export default function TicketList() {
   function applyChangePriority() {
     if (actionTicket) changePriority([actionTicket.id], changePriorityValue)
     setChangePriorityOpen(false); setChangePriorityValue(''); setActionTicket(null)
+  }
+  function applySendMessage(text) {
+    if (actionTicket) addCommunication(actionTicket.id, { channel: 'SMS', text }, CURRENT_USER)
+    setMessageOpen(false); setActionTicket(null)
   }
 
   const selectedCount = selected.size
@@ -388,7 +443,7 @@ export default function TicketList() {
                   <input type="checkbox" checked={allPagedSelected} onChange={toggleAll}
                     className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
                 </th>
-                {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Priority', 'Status', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
+                {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Branch', 'Customer Type', 'Priority', 'Status', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
                   <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'Description' ? 'w-72' : ''}`}>{h}</th>
                 ))}
                 <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
@@ -397,7 +452,7 @@ export default function TicketList() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
+                  <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
                 </tr>
               ) : paged.map(t => {
                 const sla = slaStatusOf(t)
@@ -416,10 +471,22 @@ export default function TicketList() {
                       <span className="block text-xs text-gray-600 truncate" title={t.description}>{t.description}</span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">{t.customerName}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">{t.phone}</td>
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setCallModal({ open: true, name: t.customerName, phone: t.phone })}
+                        className="flex items-center gap-1.5 font-mono text-xs text-gray-600 hover:text-emerald-600 transition-colors group"
+                      >
+                        <Phone size={11} className="text-gray-400 group-hover:text-emerald-500 shrink-0" />
+                        {t.phone}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">
                       <p className="text-xs text-gray-700 font-medium">{t.category}</p>
                       <p className="text-[11px] text-gray-400">{t.subcategory}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.branch ?? '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge variant={t.customerType === 'Enterprise' ? 'purple' : 'blue'} size="sm">{t.customerType ?? '—'}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={PRIORITY_BADGE[t.priority]} size="sm" dot>{t.priority}</Badge>
@@ -440,6 +507,7 @@ export default function TicketList() {
                         onAssignAgent={openAssignAgentFor}
                         onAssignTechnician={openAssignTechFor}
                         onChangePriority={openChangePriorityFor}
+                        onSendMessage={openSendMessageFor}
                       />
                     </td>
                   </tr>
@@ -574,6 +642,17 @@ export default function TicketList() {
         open={changePriorityOpen} onClose={() => setChangePriorityOpen(false)} title="Change Priority"
         options={PRIORITIES} optionLabel={p => PRIORITY_LABEL[p]} value={changePriorityValue} onChange={setChangePriorityValue}
         onApply={applyChangePriority} ticket={actionTicket}
+      />
+      <CustomerMessageModal
+        open={messageOpen} onClose={() => setMessageOpen(false)} ticket={actionTicket}
+        onSend={applySendMessage}
+      />
+      <CallModal
+        isOpen={callModal.open}
+        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        customerName={callModal.name}
+        phoneNumber={callModal.phone}
+        onCallInitiated={() => setCallModal({ open: false, name: '', phone: '' })}
       />
     </div>
   )

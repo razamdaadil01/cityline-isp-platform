@@ -39,8 +39,8 @@ const VISIT_STATUS_BADGE = {
 // Call is the only channel the mock feed seeds today; Portal stays mapped since
 // live actions (resolving a ticket, scheduling a technician visit) still add
 // Portal-channel entries automatically.
-const CHANNEL_BADGE = { Call: 'purple', Portal: 'gray' }
-const CHANNEL_ICON = { Call: PhoneCall, Portal: Globe }
+const CHANNEL_BADGE = { Call: 'purple', Portal: 'gray', SMS: 'blue' }
+const CHANNEL_ICON = { Call: PhoneCall, Portal: Globe, SMS: MessageSquare }
 
 const H = 3600000 // 1 hour in ms
 
@@ -685,7 +685,7 @@ export default function SupportTicketDetail() {
               {activeTab === 'communication' && (
                 <div>
                   <p className="text-[11px] text-gray-400 mb-3">
-                    Visible to customer · automated feed (IVR calls)
+                    Visible to customer · IVR call log and outbound messages
                   </p>
                   <div className="space-y-3 max-h-[32rem] overflow-y-auto">
                     {(ticket.communicationLog ?? []).length === 0 ? (
