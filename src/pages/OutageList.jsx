@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Filter, X, ChevronDown, AlertTriangle, Activity, CheckCircle2, Zap,
@@ -20,6 +20,42 @@ function formatDateTime(iso) {
   return new Date(iso).toLocaleString('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
   })
+}
+
+// Compact "Area(s)" cell — 1 or 2 areas shown in full, 3+ shows the first plus a
+// "+N more" badge whose popover (hover on desktop, tap on mobile) lists the rest.
+function AreaListCell({ areas }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (areas.length <= 2) {
+    return <span className="text-xs text-gray-600">{areas.join(', ')}</span>
+  }
+
+  const [first, ...rest] = areas
+  return (
+    <div className="relative inline-block group" ref={ref}>
+      <span className="text-xs text-gray-600">{first} </span>
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+        className="relative inline-flex items-center px-1.5 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue text-[10px] font-semibold hover:bg-brand-blue/20 transition-colors"
+      >
+        +{rest.length} more
+      </button>
+      <div className={`absolute left-0 top-full mt-1.5 z-20 w-max max-w-[220px] px-2.5 py-1.5 rounded-lg bg-gray-900 text-white text-[11px] shadow-lg
+        ${open ? 'block' : 'hidden group-hover:block'}`}>
+        {rest.join(', ')}
+      </div>
+    </div>
+  )
 }
 
 export default function OutageList() {
@@ -163,7 +199,9 @@ export default function OutageList() {
                     <p className="text-gray-800 font-medium truncate">{o.title}</p>
                     <p className="text-[11px] text-gray-400">{o.type}</p>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{o.affectedAreas.join(', ')}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">
+                    <AreaListCell areas={o.affectedAreas} />
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-600 max-w-[160px] truncate">{o.affectedEquipment}</td>
                   <td className="px-4 py-3"><Badge variant={SEVERITY_BADGE[o.severity]} size="sm" dot>{o.severity}</Badge></td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(o.startTime)}</td>
