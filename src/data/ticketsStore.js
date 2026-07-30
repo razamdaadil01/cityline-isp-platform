@@ -141,7 +141,7 @@ const SEED = [
     customerName: 'Radha Krishnan', phone: '9812334455', accountNumber: 'ACC-100455',
     networkStatus: 'Online', opticalPower: -17.2, lastOutageAt: new Date(NOW - 260 * H).toISOString(),
     planExpireDate: new Date(NOW + 12 * 24 * H).toISOString(), nasPortId: 'OLT-BW-01/PON-1/Port-03',
-    officeTeam: 'Mumbai Support Team', branch: 'Bandra Branch', customerType: 'Business',
+    officeTeam: 'Mumbai Support Team', branch: 'Bandra Branch', customerType: 'Enterprise',
     category: 'Billing', subcategory: 'Invoice Query',
     priority: 'P2', status: 'Assigned',
     assignedAgent: 'Neha M.', assignedTechnician: null,
@@ -217,7 +217,7 @@ const SEED = [
     customerName: 'Arjun Nair', phone: '9876543210', accountNumber: 'ACC-100893',
     networkStatus: 'Online', opticalPower: -21.3, lastOutageAt: new Date(NOW - 500 * H).toISOString(),
     planExpireDate: new Date(NOW + 200 * 24 * H).toISOString(), nasPortId: 'OLT-NP-01/PON-4/Port-02',
-    officeTeam: 'South Mumbai Support Team', branch: 'Colaba Branch', customerType: 'Business',
+    officeTeam: 'South Mumbai Support Team', branch: 'Colaba Branch', customerType: 'Enterprise',
     category: 'Hardware', subcategory: 'Cabling Issue',
     priority: 'P2', status: 'Waiting for Technician',
     assignedAgent: 'Kiran B.', assignedTechnician: 'Prakash Yadav',
@@ -321,7 +321,7 @@ const SEED = [
     customerName: 'Meena Krishnan', phone: '9812334455', accountNumber: 'ACC-100367',
     networkStatus: 'Online', opticalPower: -15.4, lastOutageAt: new Date(NOW - 1000 * H).toISOString(),
     planExpireDate: new Date(NOW + 150 * 24 * H).toISOString(), nasPortId: 'OLT-CHB-01/PON-1/Port-04',
-    officeTeam: 'Eastern Suburbs Support Team', branch: 'Chembur Branch', customerType: 'Business',
+    officeTeam: 'Eastern Suburbs Support Team', branch: 'Chembur Branch', customerType: 'Enterprise',
     category: 'Installation', subcategory: 'Relocation',
     priority: 'P4', status: 'Closed',
     assignedAgent: 'Kiran B.', assignedTechnician: 'Manoj Verma',
@@ -516,6 +516,7 @@ export function addCommunication(id, { channel, text }, actor = 'Admin User') {
     ...t, communicationLog: [...(t.communicationLog ?? []), entry],
     firstResponseAt: t.firstResponseAt ?? now,
     updatedAt: now,
+    activityLog: appendActivity(t, `${channel} message sent to customer`, actor),
   })
 }
 
