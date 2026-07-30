@@ -108,7 +108,7 @@ function RowActionsMenu({ ticket, onAssignTeam, onAssignTechnician, onChangePrio
           </button>
           <button onClick={() => { setOpen(false); onSendMessage(ticket) }}
             className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors border-t border-surface-border">
-            <MessageSquare size={13} className="text-gray-400 shrink-0" /> Send Customer Message
+            <MessageSquare size={13} className="text-gray-400 shrink-0" /> Send Message
           </button>
         </div>
       )}
