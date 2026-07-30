@@ -216,6 +216,26 @@ export function getAllLocalities() {
   return [...set].sort()
 }
 
+// Localities grouped by their parent Area (the closest "zone" tier in this
+// hierarchy) — for pickers that support grouping/"select all in zone" at once
+// (e.g. Outage Management's Affected Area(s) field).
+export function getAllLocalitiesGrouped() {
+  const groups = new Map() // area name -> Set(locality names)
+  getStates().forEach(state => {
+    getDistricts(state).forEach(district => {
+      getAreasList(state, district).forEach(area => {
+        const localities = getLocalities(state, district, area)
+        if (!localities.length) return
+        if (!groups.has(area)) groups.set(area, new Set())
+        localities.forEach(l => groups.get(area).add(l))
+      })
+    })
+  })
+  return [...groups.entries()]
+    .map(([area, set]) => ({ area, localities: [...set].sort() }))
+    .sort((a, b) => a.area.localeCompare(b.area))
+}
+
 export function getIntercomLocalities(state, district, area) {
   return getLocalities(state, district, area).filter(locality => {
     const info = getLocalityInfo(state, district, area, locality)
