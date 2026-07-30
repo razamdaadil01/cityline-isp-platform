@@ -40,7 +40,7 @@ const SEED = [
     id: 'OUT-2026-000001',
     title: 'Fiber Cut Near Four Bungalows Junction',
     type: 'Fiber Cut',
-    affectedAreas: ['Andheri West'],
+    affectedAreas: ['Andheri West', 'Andheri East', 'Juhu', 'Versova'],
     affectedEquipment: 'OLT-AW-02, Junction Box #23',
     severity: 'Critical',
     status: 'Work in Progress',
