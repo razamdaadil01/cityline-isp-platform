@@ -53,8 +53,8 @@ function formatDateTime(iso) {
 function InfoField({ label, children }) {
   return (
     <div>
-      <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">{label}</p>
-      <div className="text-sm text-gray-800 font-medium">{children}</div>
+      <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1.5">{label}</p>
+      <div className="text-sm text-gray-800 font-medium leading-relaxed">{children}</div>
     </div>
   )
 }
@@ -365,19 +365,19 @@ export default function OutageDetail() {
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-6xl mx-auto">
+    <div className="p-6 space-y-8 max-w-6xl mx-auto">
 
-      {/* Header — unchanged */}
-      <div className="flex items-center gap-3">
+      {/* Header — unchanged structure, more breathing room */}
+      <div className="flex items-center gap-4">
         <button onClick={() => navigate('/support/outages')}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0">
           <ArrowLeft size={16} />
         </button>
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 font-mono">{outage.id}</h1>
-          <p className="text-sm text-gray-500 mt-0.5 truncate">{outage.title}</p>
+          <h1 className="text-2xl font-bold text-gray-900 font-mono tracking-tight">{outage.id}</h1>
+          <p className="text-sm text-gray-500 mt-1 truncate">{outage.title}</p>
         </div>
-        <div className="flex items-center gap-2 ml-auto shrink-0">
+        <div className="flex items-center gap-4 ml-auto shrink-0">
           <Button size="sm" variant="secondary" icon={<Bell size={13} />} onClick={() => setNotifyOpen(true)}>
             Notify Customers
           </Button>
@@ -385,7 +385,7 @@ export default function OutageDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* ── MAIN: tabs ────────────────────────────────────────────────── */}
         <div className="lg:col-span-2">
@@ -408,11 +408,11 @@ export default function OutageDetail() {
               })}
             </div>
 
-            <div className="p-5">
+            <div className="p-8">
 
               {/* ─── Incident Details ───────────────────────────────────── */}
               {activeTab === 'incident' && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] text-gray-400 uppercase tracking-wide">Outage Details</p>
                     <Button size="xs" variant="secondary" icon={<Pencil size={12} />} onClick={() => setEditPortsOpen(true)}>
@@ -420,7 +420,7 @@ export default function OutageDetail() {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-6">
                     <InfoField label="Outage Number"><span className="font-mono">{outage.id}</span></InfoField>
                     <InfoField label="Outage Type">{outage.type}</InfoField>
                     <InfoField label="Severity"><Badge variant={SEVERITY_BADGE[outage.severity]} size="sm" dot>{outage.severity}</Badge></InfoField>
@@ -433,19 +433,23 @@ export default function OutageDetail() {
                         </Select>
                       )}
                     </InfoField>
-                    <InfoField label="Affected NAS Port ID(s)"><span className="font-mono">{(outage.affectedNasPorts ?? []).join(', ') || '—'}</span></InfoField>
+                    <div className="col-span-2">
+                      <InfoField label="Affected NAS Port ID(s)">
+                        <span className="font-mono leading-relaxed block">{(outage.affectedNasPorts ?? []).join(', ') || '—'}</span>
+                      </InfoField>
+                    </div>
                     <InfoField label="Affected Equipment">{outage.affectedEquipment}</InfoField>
                     <InfoField label="Server ID">{outage.serverId || '—'}</InfoField>
                     <InfoField label="Start Time">{formatDateTime(outage.startTime)}</InfoField>
                     <InfoField label="Expected Restoration">{formatDateTime(outage.expectedRestorationTime)}</InfoField>
                   </div>
 
-                  <div className="pt-4 border-t border-surface-border space-y-4">
+                  <div className="pt-6 border-t border-surface-border space-y-6">
                     <InfoField label="Description"><p className="font-normal text-gray-700">{outage.description}</p></InfoField>
                     <InfoField label="Customer Message">
                       <p className="font-normal text-gray-700">{outage.customerMessage}</p>
                       {outage.sendViaWhatsApp && (
-                        <p className="text-[11px] text-gray-400 mt-1">
+                        <p className="text-[11px] text-gray-400 mt-1.5">
                           Sent via WhatsApp template: {WHATSAPP_TEMPLATES.find(t => t.id === outage.templateId)?.label ?? '—'}
                         </p>
                       )}
@@ -454,19 +458,19 @@ export default function OutageDetail() {
                       {(outage.hardwareRequirement ?? []).length === 0 ? (
                         <p className="text-sm text-gray-400 font-normal">No hardware requirement on file.</p>
                       ) : (
-                        <div className="border border-surface-border rounded-lg overflow-hidden mt-1">
+                        <div className="border border-surface-border rounded-lg overflow-hidden mt-1.5">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
-                                <th className="text-left px-3 py-2 font-semibold">Item</th>
-                                <th className="text-right px-3 py-2 font-semibold">Qty</th>
+                                <th className="text-left px-4 py-2.5 font-semibold">Item</th>
+                                <th className="text-right px-4 py-2.5 font-semibold">Qty</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-surface-border">
                               {outage.hardwareRequirement.map((h, i) => (
                                 <tr key={i}>
-                                  <td className="px-3 py-2 text-gray-700">{h.name}</td>
-                                  <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
+                                  <td className="px-4 py-2.5 text-gray-700">{h.name}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-600">{h.quantity}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -481,7 +485,7 @@ export default function OutageDetail() {
               {/* ─── Linked Tickets ─────────────────────────────────────── */}
               {activeTab === 'linked-tickets' && (
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2">
                       <TicketIcon size={15} className="text-brand-blue" />
                       <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{linkedTickets.length} linked</span>
@@ -495,11 +499,11 @@ export default function OutageDetail() {
                   ) : (
                     <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
                       {linkedTickets.map(t => (
-                        <div key={t.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                        <div key={t.id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
                           onClick={() => navigate(`/support/tickets/${t.id}/overview`)}>
                           <div className="min-w-0">
                             <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
-                            <span className="text-sm text-gray-700 ml-2 truncate">{t.customerName} · {t.category}</span>
+                            <span className="text-sm text-gray-700 ml-3 truncate">{t.customerName} · {t.category}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Badge variant={PRIORITY_BADGE[t.priority]} size="sm" dot>{PRIORITY_LABEL[t.priority]}</Badge>
@@ -520,16 +524,16 @@ export default function OutageDetail() {
 
               {/* ─── Resolution ─────────────────────────────────────────── */}
               {activeTab === 'resolution' && (
-                <div className="space-y-6">
+                <div className="space-y-8">
                   <div>
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-4">
                       <p className="text-[11px] text-gray-400 uppercase tracking-wide">Resolution</p>
                       <Button icon={<CheckCircle2 size={14} />} disabled={isGated} onClick={() => setResolveOpen(true)}>
                         Resolve Outage
                       </Button>
                     </div>
                     {outage.resolution ? (
-                      <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-6">
                         <div className="col-span-2">
                           <InfoField label="Root Cause"><p className="font-normal text-gray-700">{outage.resolution.rootCause}</p></InfoField>
                         </div>
@@ -547,8 +551,8 @@ export default function OutageDetail() {
                     )}
                   </div>
 
-                  <div className="pt-5 border-t border-surface-border">
-                    <div className="flex items-center gap-2 mb-3">
+                  <div className="pt-6 border-t border-surface-border">
+                    <div className="flex items-center gap-2 mb-4">
                       <Bell size={14} className="text-brand-blue" />
                       <p className="text-[11px] text-gray-400 uppercase tracking-wide">Notification Log</p>
                       <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{(outage.notificationLog ?? []).length}</span>
@@ -558,12 +562,12 @@ export default function OutageDetail() {
                     ) : (
                       <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
                         {[...outage.notificationLog].reverse().map((n, i) => (
-                          <div key={i} className="px-4 py-3">
+                          <div key={i} className="px-5 py-4">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs font-semibold text-gray-700">Sent to {n.customerCount} customer{n.customerCount !== 1 ? 's' : ''}</span>
                               <span className="text-[11px] text-gray-400 shrink-0">{formatDateTime(n.time)}</span>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">{n.message}</p>
+                            <p className="text-xs text-gray-500 mt-1.5">{n.message}</p>
                           </div>
                         ))}
                       </div>
@@ -578,32 +582,32 @@ export default function OutageDetail() {
 
         {/* ── RIGHT SIDEBAR: Impact Summary — visual polish only, same data ── */}
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
-            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-4">Impact Summary</p>
+          <div className="bg-white rounded-xl border border-surface-border shadow-card p-8">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-6">Impact Summary</p>
 
             <button type="button" onClick={() => setCustomersOpen(o => !o)}
-              className="w-full flex items-center gap-3 pb-4 mb-4 border-b border-surface-border text-left hover:opacity-80 transition-opacity">
-              <div className="w-10 h-10 rounded-xl bg-brand-blue/10 flex items-center justify-center shrink-0">
-                <Users size={18} className="text-brand-blue" />
+              className="w-full flex items-center gap-4 pb-6 mb-6 border-b border-surface-border text-left hover:opacity-80 transition-opacity">
+              <div className="w-12 h-12 rounded-xl bg-brand-blue/10 flex items-center justify-center shrink-0">
+                <Users size={20} className="text-brand-blue" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xl font-bold text-gray-900">{outage.affectedCustomerCount}</p>
-                <p className="text-[11px] text-gray-500">Affected Customer{outage.affectedCustomerCount !== 1 ? 's' : ''}</p>
+                <p className="text-3xl font-bold text-gray-900 leading-tight">{outage.affectedCustomerCount}</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Affected Customer{outage.affectedCustomerCount !== 1 ? 's' : ''}</p>
               </div>
               <ChevronDown size={14} className={`text-gray-400 transition-transform shrink-0 ${customersOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {customersOpen && (
-              <div className="mb-4 -mt-2">
+              <div className="mb-6 -mt-3">
                 {affectedCustomers.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-3">No customers found in the affected area(s).</p>
                 ) : (
                   <div className="border border-surface-border rounded-lg divide-y divide-surface-border max-h-64 overflow-y-auto">
                     {affectedCustomers.map(c => (
-                      <div key={c.id} className="flex items-center justify-between px-3 py-2">
+                      <div key={c.id} className="flex items-center justify-between px-4 py-3">
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-gray-800 truncate">{c.name}</p>
-                          <p className="text-[10px] text-gray-400 font-mono">{c.id} · {c.phone}</p>
+                          <p className="text-[10px] text-gray-400 font-mono mt-0.5">{c.id} · {c.phone}</p>
                         </div>
                         <Badge variant={CONNECTION_STATUS_BADGE[c.status] ?? 'gray'} size="sm">
                           {CONNECTION_STATUS_LABEL[c.status] ?? c.status}
@@ -616,15 +620,15 @@ export default function OutageDetail() {
             )}
 
             <div>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-2">Affected NAS Port ID(s)</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-3">Affected NAS Port ID(s)</p>
               {(outage.affectedNasPorts ?? []).length === 0 ? (
                 <p className="text-xs text-gray-300">—</p>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-3">
                   {outage.affectedNasPorts.map((p, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                    <div key={i} className="flex items-center gap-2.5 text-xs text-gray-600">
                       <MapPin size={12} className="text-brand-blue/60 shrink-0" />
-                      <span className="font-mono truncate">{p}</span>
+                      <span className="font-mono truncate leading-relaxed">{p}</span>
                     </div>
                   ))}
                 </div>
