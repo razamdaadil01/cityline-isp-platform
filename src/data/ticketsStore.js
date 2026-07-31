@@ -158,6 +158,7 @@ const SEED = [
     outageLinked: false, reopened: false,
     description: 'Customer reports complete loss of internet since this morning. ONU signal light is red.',
     customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
+    attachments: ['onu_status_screenshot.jpg', 'call_recording_9821.mp3'],
     communicationLog: [
       { time: new Date(NOW - 0.33 * H).toISOString(), actor: 'Support Desk', channel: 'Call', text: 'Call duration: 3m 45s — Customer reported no internet since early morning. ONU light red. Advised power-cycle; issue persists.' },
       { time: new Date(NOW - 0.17 * H).toISOString(), actor: 'Support Desk', channel: 'Call', text: 'Call duration: 1m 52s — Follow-up call; customer confirmed still no connectivity, escalated for urgent action.' },
@@ -646,16 +647,23 @@ export function technicianWorkload(name) {
 }
 
 // Technician visits can't be scheduled once a ticket is Closed or Cancelled.
-export function scheduleTechnicianVisit(id, { technician, visitDate, visitTime, requiredSkill, specialInstructions }, actor = 'Admin User') {
+// Accepts multiple technicians (possibly across different skills) for a single visit —
+// technicianVisit.technicians is the source of truth; .technician (first pick) and
+// assignedTechnician are kept in sync for older single-technician display surfaces.
+export function scheduleTechnicianVisit(id, { technicians, visitDate, visitTime, specialInstructions }, actor = 'Admin User') {
   const t = getTicket(id)
   if (!t || ['Closed', 'Cancelled'].includes(t.status)) return null
-  const profile = TECHNICIAN_PROFILES.find(p => p.name === technician)
-  if (!profile || !profile.active) return null
+  const validTechnicians = (technicians ?? []).filter(name => {
+    const profile = TECHNICIAN_PROFILES.find(p => p.name === name)
+    return profile && profile.active
+  })
+  if (validTechnicians.length === 0) return null
 
   const now = new Date().toISOString()
   const technicianVisit = {
-    technician, visitDate, visitTime, visitStatus: 'Visit Scheduled',
-    requiredSkill, specialInstructions,
+    technicians: validTechnicians, technician: validTechnicians[0],
+    visitDate, visitTime, visitStatus: 'Visit Scheduled',
+    specialInstructions,
     notes: '', diagnosis: '', photos: [], materialsUsed: [], completionDetails: '',
   }
   const communicationLog = [
@@ -665,9 +673,9 @@ export function scheduleTechnicianVisit(id, { technician, visitDate, visitTime, 
 
   return saveTicket({
     ...t, technicianVisit, communicationLog,
-    assignedTechnician: technician,
+    assignedTechnician: validTechnicians[0],
     firstResponseAt: t.firstResponseAt ?? now,
     updatedAt: now,
-    activityLog: appendActivity(t, `Technician visit scheduled with ${technician} for ${visitDate} ${visitTime}`, actor),
+    activityLog: appendActivity(t, `Technician visit scheduled with ${validTechnicians.join(', ')} for ${visitDate} ${visitTime}`, actor),
   })
 }
