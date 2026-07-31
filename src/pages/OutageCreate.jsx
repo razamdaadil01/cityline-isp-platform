@@ -27,27 +27,28 @@ function SectionCard({ title, icon: Icon, children }) {
 // used by Ticket Detail's Add Hardware modal (minus the pricing fields). ──
 
 function HardwareRequirementRow({ row, onChange, onRemove }) {
-  const [search, setSearch] = useState(row.name)
+  const [search, setSearch] = useState('')
+  const selectedItem = HARDWARE_CATALOG.find(h => h.name === row.name) ?? null
 
   function pick(name) {
-    setSearch(name)
     onChange({ ...row, name })
+    setSearch('')
   }
 
-  const filtered = search.trim()
-    ? HARDWARE_CATALOG.filter(h => h.name.toLowerCase().includes(search.trim().toLowerCase()) && h.name !== search)
-    : []
+  // Empty search matches every item (same as Ticket Detail's Add Hardware modal),
+  // so the full catalog shows immediately on a fresh row instead of only after typing.
+  const filtered = HARDWARE_CATALOG.filter(h => h.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="flex items-start gap-2">
       <div className="relative flex-1">
         <input
-          value={search}
-          onChange={e => { setSearch(e.target.value); onChange({ ...row, name: e.target.value }) }}
+          value={selectedItem ? selectedItem.name : search}
+          onChange={e => { setSearch(e.target.value); onChange({ ...row, name: '' }) }}
           placeholder="Search hardware item…"
           className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
         />
-        {filtered.length > 0 && (
+        {!selectedItem && filtered.length > 0 && (
           <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg overflow-hidden shadow-lg bg-white max-h-40 overflow-y-auto">
             {filtered.map(h => (
               <button key={h.name} type="button" onClick={() => pick(h.name)}
