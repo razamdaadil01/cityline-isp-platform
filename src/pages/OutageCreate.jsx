@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, MapPin, CheckCircle2, Plus, X, Wrench } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -28,28 +28,41 @@ function SectionCard({ title, icon: Icon, children }) {
 
 function HardwareRequirementRow({ row, onChange, onRemove }) {
   const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef(null)
   const selectedItem = HARDWARE_CATALOG.find(h => h.name === row.name) ?? null
+
+  // Close on outside click — same ref + mousedown pattern used by the app's other
+  // floating dropdowns (e.g. SupportTicketDetail's HeaderActionsMenu).
+  useEffect(() => {
+    function handler(e) { if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   function pick(name) {
     onChange({ ...row, name })
     setSearch('')
+    setOpen(false)
   }
 
   // Empty search matches every item (same as Ticket Detail's Add Hardware modal),
-  // so the full catalog shows immediately on a fresh row instead of only after typing.
+  // so the full catalog shows immediately when the field is focused instead of
+  // only after typing.
   const filtered = HARDWARE_CATALOG.filter(h => h.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="flex items-start gap-2">
-      <div className="relative flex-1">
+      <div className="relative flex-1" ref={wrapperRef}>
         <input
           value={selectedItem ? selectedItem.name : search}
-          onChange={e => { setSearch(e.target.value); onChange({ ...row, name: '' }) }}
+          onFocus={() => setOpen(true)}
+          onChange={e => { setSearch(e.target.value); setOpen(true); onChange({ ...row, name: '' }) }}
           placeholder="Search hardware item…"
           className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
         />
-        {!selectedItem && filtered.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg overflow-hidden shadow-lg bg-white max-h-40 overflow-y-auto">
+        {open && !selectedItem && filtered.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-20 border border-surface-border rounded-lg overflow-hidden shadow-lg bg-white max-h-40 overflow-y-auto">
             {filtered.map(h => (
               <button key={h.name} type="button" onClick={() => pick(h.name)}
                 className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-brand-blue/5 transition-colors border-b border-surface-border last:border-0">
@@ -59,8 +72,9 @@ function HardwareRequirementRow({ row, onChange, onRemove }) {
           </div>
         )}
       </div>
-      <Input type="number" min="1" value={row.quantity} onChange={e => onChange({ ...row, quantity: e.target.value })}
-        className="w-24" placeholder="Qty" />
+      <div className="w-20 shrink-0">
+        <Input type="number" min="1" value={row.quantity} onChange={e => onChange({ ...row, quantity: e.target.value })} placeholder="Qty" />
+      </div>
       <button type="button" onClick={onRemove}
         className="w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors shrink-0">
         <X size={14} />
