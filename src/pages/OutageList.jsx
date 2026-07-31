@@ -9,6 +9,7 @@ import {
   getOutages, subscribeOutages, OUTAGE_TYPES, SEVERITIES, ACTIVE_OUTAGE_STATUSES, getLinkedTickets,
 } from '../data/outagesStore'
 import { getAllLocalities } from '../data/areaMappingStore'
+import { branchesForNasPorts } from '../data/ticketsStore'
 
 const SEVERITY_BADGE = { Critical: 'red', High: 'orange', Medium: 'yellow', Low: 'gray' }
 const STATUS_BADGE = {
@@ -22,9 +23,9 @@ function formatDateTime(iso) {
   })
 }
 
-// Compact "Area(s)" cell — 1 or 2 areas shown in full, 3+ shows the first plus a
-// "+N more" badge whose popover (hover on desktop, tap on mobile) lists the rest.
-function AreaListCell({ areas }) {
+// Compact "NAS Port ID(s)" cell — 1 or 2 ports shown in full, 3+ shows the first
+// plus a "+N more" badge whose popover (hover on desktop, tap on mobile) lists the rest.
+function NasPortListCell({ ports }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -35,14 +36,16 @@ function AreaListCell({ areas }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  if (areas.length <= 2) {
-    return <span className="text-xs text-gray-600">{areas.join(', ')}</span>
+  if (!ports.length) return <span className="text-xs text-gray-300">—</span>
+
+  if (ports.length <= 2) {
+    return <span className="text-xs text-gray-600 font-mono">{ports.join(', ')}</span>
   }
 
-  const [first, ...rest] = areas
+  const [first, ...rest] = ports
   return (
     <div className="relative inline-block group" ref={ref}>
-      <span className="text-xs text-gray-600">{first} </span>
+      <span className="text-xs text-gray-600 font-mono">{first} </span>
       <button
         type="button"
         onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
@@ -50,7 +53,7 @@ function AreaListCell({ areas }) {
       >
         +{rest.length} more
       </button>
-      <div className={`absolute left-0 top-full mt-1.5 z-20 w-max max-w-[220px] px-2.5 py-1.5 rounded-lg bg-gray-900 text-white text-[11px] shadow-lg
+      <div className={`absolute left-0 top-full mt-1.5 z-20 w-max max-w-[260px] px-2.5 py-1.5 rounded-lg bg-gray-900 text-white text-[11px] font-mono shadow-lg
         ${open ? 'block' : 'hidden group-hover:block'}`}>
         {rest.join(', ')}
       </div>
@@ -178,14 +181,14 @@ export default function OutageList() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                {['Outage Number', 'Outage Title', 'Area(s)', 'Network Equipment', 'Severity', 'Start Time', 'Expected Restoration', 'Affected Customers', 'Linked Tickets', 'Status'].map(h => (
-                  <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'Area(s)' ? 'w-64' : ''}`}>{h}</th>
+                {['Outage Number', 'Outage Title', 'NAS Port ID(s)', 'Branch', 'Network Equipment', 'Severity', 'Start Time', 'Expected Restoration', 'Affected Customers', 'Linked Tickets', 'Status'].map(h => (
+                  <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'NAS Port ID(s)' ? 'w-64' : ''}`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
               {filtered.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-12 text-gray-400 text-sm">No outages match your filters.</td></tr>
+                <tr><td colSpan={11} className="text-center py-12 text-gray-400 text-sm">No outages match your filters.</td></tr>
               ) : filtered.map(o => (
                 <tr key={o.id} className="hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => navigate(`/support/outages/${o.id}`)}>
@@ -200,7 +203,10 @@ export default function OutageList() {
                     <p className="text-[11px] text-gray-400">{o.type}</p>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600 w-64">
-                    <AreaListCell areas={o.affectedAreas} />
+                    <NasPortListCell ports={o.affectedNasPorts ?? []} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                    {branchesForNasPorts(o.affectedNasPorts).join(', ') || <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600 max-w-[160px] truncate">{o.affectedEquipment}</td>
                   <td className="px-4 py-3"><Badge variant={SEVERITY_BADGE[o.severity]} size="sm" dot>{o.severity}</Badge></td>

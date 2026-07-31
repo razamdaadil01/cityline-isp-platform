@@ -10,7 +10,9 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import AssignTeamModal from '../components/ui/AssignTeamModal'
+import AssignmentOverviewCard from '../components/ui/AssignmentOverviewCard'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+import { HARDWARE_CATALOG } from '../data/hardwareCatalog'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
@@ -109,17 +111,6 @@ function Waveform({ className = '' }) {
 // Mock hardware catalog reusing the same item names already seen in the Installation
 // module's hardware assignment (installationsStore.js) and Inventory — pricing is mocked
 // here since no existing store tracks per-item unit price yet.
-const HARDWARE_CATALOG = [
-  { name: 'ONT Device', unitPrice: 1800 },
-  { name: 'WiFi Router', unitPrice: 1500 },
-  { name: 'Wall Mount Bracket', unitPrice: 150 },
-  { name: 'POE Switch', unitPrice: 2200 },
-  { name: 'Drop Wire (per m)', unitPrice: 12 },
-  { name: 'Patch Cord (LC-LC, 5m)', unitPrice: 90 },
-  { name: 'Optical Splitter 1x8', unitPrice: 650 },
-  { name: 'SFP Module 1G', unitPrice: 900 },
-]
-
 // ── Left-sidebar / right-sidebar row style — matches SalesLeadDetail.jsx's InfoRow ──
 
 function InfoRow({ label, value }) {
@@ -507,42 +498,6 @@ function NetworkStatusCard({ ticket }) {
   )
 }
 
-// ── Assignment Overview card ─────────────────────────────────────────────────────
-
-function AssignmentOverviewCard({ ticket, onAssign }) {
-  const agents = ticket.assignedAgents?.length ? ticket.assignedAgents : (ticket.assignedAgent ? [ticket.assignedAgent] : [])
-  const teams = ticket.assignedTeams?.length ? ticket.assignedTeams : (ticket.officeTeam ? [ticket.officeTeam] : [])
-  return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm font-bold text-gray-800">Assignment Overview</p>
-        <Button size="sm" variant="secondary" icon={<UserCog size={13} />} onClick={onAssign}>Assign</Button>
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Individual Agent{agents.length > 1 ? 's' : ''}</p>
-          {agents.length ? (
-            <div className="flex flex-wrap gap-1">
-              {agents.map(a => <Badge key={a} variant="navy" size="sm">{a}</Badge>)}
-            </div>
-          ) : <span className="text-xs text-gray-300">—</span>}
-        </div>
-        <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Office Team{teams.length > 1 ? 's' : ''}</p>
-          {teams.length ? (
-            <div className="flex flex-wrap gap-1">
-              {teams.map(tm => <Badge key={tm} variant="cyan" size="sm">{tm}</Badge>)}
-            </div>
-          ) : <span className="text-xs text-gray-300">—</span>}
-        </div>
-        <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Branch</p>
-          {ticket.branch ? <Badge variant="purple" size="sm">{ticket.branch}</Badge> : <span className="text-xs text-gray-300">—</span>}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Hardware Assignment card ─────────────────────────────────────────────────────
 
@@ -838,7 +793,7 @@ export default function SupportTicketDetail() {
 
           <NetworkStatusCard ticket={ticket} />
 
-          <AssignmentOverviewCard ticket={ticket} onAssign={() => setAssignTeamOpen(true)} />
+          <AssignmentOverviewCard entity={ticket} onAssign={() => setAssignTeamOpen(true)} />
 
           <HardwareAssignmentCard items={hardwareAssignments} onAdd={() => setAddHardwareOpen(true)} />
 

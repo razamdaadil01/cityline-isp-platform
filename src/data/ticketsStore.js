@@ -107,6 +107,26 @@ export const TECHNICIAN_PROFILES = [
   { name: 'Vikram Singh', skills: ['Fiber Splicing', 'General Troubleshooting'], active: true },
 ]
 
+// NAS Port ID reference table — the exact port IDs already used by tickets'
+// nasPortId field/NAS Port correlation card, with each port's area/branch. Single
+// source of truth for NAS Port selection across Ticket and Outage creation so
+// no separate ID scheme is invented.
+export const NAS_PORTS = [
+  { id: 'OLT-ANW-01/PON-2/Port-05', area: 'Andheri West', branch: 'Andheri Branch' },
+  { id: 'OLT-ANW-01/PON-2/Port-08', area: 'Andheri West', branch: 'Andheri Branch' },
+  { id: 'OLT-ANW-01/PON-2/Port-11', area: 'Andheri West', branch: 'Andheri Branch' },
+  { id: 'OLT-ANW-02/PON-3/Port-12', area: 'Andheri East', branch: 'Andheri Branch' },
+  { id: 'OLT-BW-01/PON-1/Port-03', area: 'Bandra West', branch: 'Bandra Branch' },
+  { id: 'OLT-BE-01/PON-1/Port-09', area: 'Bandra East', branch: 'Bandra Branch' },
+  { id: 'OLT-NP-01/PON-4/Port-02', area: 'Nariman Point', branch: 'Colaba Branch' },
+  { id: 'OLT-COL-01/PON-1/Port-06', area: 'Colaba', branch: 'Colaba Branch' },
+  { id: 'OLT-CHB-01/PON-1/Port-04', area: 'Chembur', branch: 'Chembur Branch' },
+]
+export const NAS_PORT_IDS = NAS_PORTS.map(p => p.id)
+export function areaForNasPort(id) { return NAS_PORTS.find(p => p.id === id)?.area ?? null }
+export function branchForNasPort(id) { return NAS_PORTS.find(p => p.id === id)?.branch ?? null }
+export function branchesForNasPorts(ids) { return [...new Set((ids ?? []).map(branchForNasPort).filter(Boolean))] }
+
 export const CONTACT_METHODS = ['Phone', 'Email', 'WhatsApp', 'Portal', 'Walk-in']
 
 export const RESOLUTION_TYPES = ['Fixed Remotely', 'Technician Visit', 'Escalated', 'Customer Education', 'Other']
