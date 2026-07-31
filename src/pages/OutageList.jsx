@@ -182,7 +182,7 @@ export default function OutageList() {
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
                 {['Outage Number', 'Outage Title', 'NAS Port ID(s)', 'Branch', 'Network Equipment', 'Severity', 'Start Time', 'Expected Restoration', 'Affected Customers', 'Linked Tickets', 'Status'].map(h => (
-                  <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'NAS Port ID(s)' ? 'w-64' : ''}`}>{h}</th>
+                  <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'NAS Port ID(s)' ? 'w-96' : ''}`}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -202,7 +202,7 @@ export default function OutageList() {
                     <p className="text-gray-800 font-medium truncate">{o.title}</p>
                     <p className="text-[11px] text-gray-400">{o.type}</p>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-600 w-64">
+                  <td className="px-4 py-3 text-xs text-gray-600 w-96">
                     <NasPortListCell ports={o.affectedNasPorts ?? []} />
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
