@@ -24,6 +24,12 @@ const ACCOUNT_STATUS_LABEL = { active: 'Active', suspended: 'Suspended', inactiv
 // derived from it for display since the data model doesn't track them separately yet.
 const BILLING_STATUS = { active: 'Paid up to date', suspended: 'Overdue', inactive: 'No active plan', expired: 'Overdue' }
 const CONNECTION_STATUS = { active: 'Connected', suspended: 'Suspended', inactive: 'Disconnected', expired: 'Disconnected' }
+const TICKET_STATUS_BADGE = {
+  'New': 'blue', 'Assigned': 'cyan', 'In Progress': 'orange',
+  'Waiting for Customer': 'purple', 'Waiting for Technician': 'yellow', 'Waiting for NOC': 'navy',
+  'Waiting for Billing': 'purple', 'Resolved': 'green', 'Closed': 'gray',
+  'Reopened': 'red', 'Cancelled': 'gray', 'Duplicate': 'gray',
+}
 
 function fmtSize(bytes) {
   if (bytes < 1024) return `${bytes} B`
@@ -115,12 +121,32 @@ export default function TicketCreate() {
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [selectedConnectionId, setSelectedConnectionId] = useState(null)
 
+  // Detects which of the three search modes the typed value matches: an account
+  // number (e.g. "RES-2026-0001") shows only that one account; a 10-digit mobile
+  // number shows every account/connection linked to that number (a customer can
+  // have more than one); anything else falls back to the existing loose match.
   const searchResults = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return []
-    return getAllCustomers().filter(c =>
+    const raw = search.trim()
+    if (!raw) return []
+    const all = getAllCustomers()
+
+    if (/^[A-Za-z]{2,}-/.test(raw)) {
+      const q = raw.toLowerCase()
+      const exact = all.find(c => c.id.toLowerCase() === q)
+      if (exact) return [exact]
+      const match = all.find(c => c.id.toLowerCase().includes(q))
+      return match ? [match] : []
+    }
+
+    const digitsOnly = raw.replace(/[\s-]/g, '')
+    if (/^\d{10}$/.test(digitsOnly)) {
+      return all.filter(c => c.phone.replace(/[\s-]/g, '') === digitsOnly)
+    }
+
+    const q = raw.toLowerCase()
+    return all.filter(c =>
       c.name.toLowerCase().includes(q) ||
-      c.phone.includes(search.trim()) ||
+      c.phone.includes(raw) ||
       c.id.toLowerCase().includes(q)
     ).slice(0, 8)
   }, [search])
@@ -130,6 +156,7 @@ export default function TicketCreate() {
     setSelectedConnectionId(c.id)
     setSearch('')
     setLinkToOutage(false)
+    setShowAllHistory(false)
   }
 
   // Data model today is strictly one connection per customer account — this always
@@ -148,9 +175,17 @@ export default function TicketCreate() {
   }, [selectedCustomer])
 
   const openTickets = customerTickets.filter(t => !CLOSED_STATUSES.includes(t.status))
-  const last5Tickets = customerTickets.slice(0, 5)
   const activeOutage = selectedCustomer ? findActiveOutageForArea(selectedCustomer.zone) : null
   const [linkToOutage, setLinkToOutage] = useState(false)
+
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const historyTickets = showAllHistory ? customerTickets : customerTickets.slice(0, 5)
+  const ticketStats = {
+    total: customerTickets.length,
+    assigned: customerTickets.filter(t => t.status === 'Assigned').length,
+    open: openTickets.length,
+    resolved: customerTickets.filter(t => t.status === 'Resolved').length,
+  }
 
   const [duplicateChoice, setDuplicateChoice] = useState(null) // { mode: 'duplicate'|'new', ticketId?, reason? }
   const [newReason, setNewReason] = useState('')
@@ -390,12 +425,72 @@ export default function TicketCreate() {
         <StepHeader step={2} title="Check Existing Complaints" icon={ClipboardList} />
         {step1Done && (
           <div className="space-y-4">
+            <div className="p-4 rounded-xl border border-surface-border bg-gray-50/40 space-y-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer Detail</p>
+              <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                <FormField label="Customer Name"><Input value={selectedCustomer.name} disabled /></FormField>
+                <FormField label="Account Number"><Input value={selectedCustomer.id} disabled className="font-mono" /></FormField>
+                <FormField label="Service Address"><Input value={selectedCustomer.zone ?? '—'} disabled /></FormField>
+                <FormField label="Internet Plan"><Input value={selectedCustomer.plan ?? '—'} disabled /></FormField>
+                <FormField label="Account Status">
+                  <div><Badge variant={ACCOUNT_STATUS_BADGE[selectedCustomer.status] ?? 'gray'} size="sm">{ACCOUNT_STATUS_LABEL[selectedCustomer.status] ?? selectedCustomer.status}</Badge></div>
+                </FormField>
+                <FormField label="Billing Status">
+                  <div><Badge variant={selectedCustomer.status === 'active' ? 'green' : 'yellow'} size="sm">{BILLING_STATUS[selectedCustomer.status] ?? '—'}</Badge></div>
+                </FormField>
+                <FormField label="Connection Status">
+                  <div><Badge variant={selectedCustomer.status === 'active' ? 'green' : 'red'} size="sm">{CONNECTION_STATUS[selectedCustomer.status] ?? '—'}</Badge></div>
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3 pt-3 border-t border-surface-border">
+                {[
+                  { label: 'Total', value: ticketStats.total },
+                  { label: 'Assigned', value: ticketStats.assigned },
+                  { label: 'Open', value: ticketStats.open },
+                  { label: 'Resolved', value: ticketStats.resolved },
+                ].map(s => (
+                  <div key={s.label} className="text-center px-2 py-2.5 rounded-lg bg-white border border-surface-border">
+                    <p className="text-lg font-bold text-gray-800">{s.value}</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-3 border-t border-surface-border">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Ticket History</p>
+                {customerTickets.length === 0 ? (
+                  <p className="text-sm text-gray-400">No prior complaints on file.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {historyTickets.map(t => (
+                      <div key={t.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-white border border-surface-border">
+                        <button type="button" onClick={() => navigate(`/support/tickets/${t.id}/overview`)}
+                          className="font-mono text-brand-blue font-semibold hover:underline shrink-0">
+                          {t.id}
+                        </button>
+                        <span className="text-gray-500 truncate mx-2 flex-1" title={t.description}>{t.description}</span>
+                        <span className="text-gray-400 shrink-0">{formatDateTime(t.createdAt).split(',')[0]}</span>
+                        <Badge variant={TICKET_STATUS_BADGE[t.status] ?? 'gray'} size="sm" className="ml-2 shrink-0">{t.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {customerTickets.length > 5 && (
+                  <button type="button" onClick={() => setShowAllHistory(v => !v)}
+                    className="text-xs font-semibold text-brand-blue hover:underline mt-2">
+                    {showAllHistory ? 'Show less' : `View all (${customerTickets.length})`}
+                  </button>
+                )}
+              </div>
+            </div>
+
             {showDuplicateWarning && (
               <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
                 <div className="flex items-start gap-2.5">
                   <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">A complaint already exists</p>
+                    <p className="text-sm font-semibold text-amber-800">A similar complaint already exists. Choose how to proceed.</p>
                     <p className="text-xs text-amber-700 mt-0.5">
                       <span className="font-mono">{primaryOpenTicket.id}</span> is still open for this customer ({primaryOpenTicket.status}).
                     </p>
@@ -429,48 +524,41 @@ export default function TicketCreate() {
                   <button onClick={() => setDuplicateChoice(null)} className="text-blue-400 hover:text-blue-700"><X size={13} /></button>
                 </div>
               ) : (
-                <FormField label="Reason for creating a new ticket" required
-                  hint="Required since an open complaint already exists for this customer.">
-                  <Textarea value={newReason} onChange={e => setNewReason(e.target.value)} rows={2}
-                    placeholder="Explain why this needs a separate ticket…" />
-                </FormField>
+                <div className="p-3.5 rounded-lg bg-blue-50 border border-blue-200 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-blue-800">Creating a new ticket instead of using the existing one</span>
+                    <button type="button" onClick={() => { setDuplicateChoice(null); setNewReason('') }}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 underline shrink-0">
+                      Undo
+                    </button>
+                  </div>
+                  <FormField label="Reason for creating a new ticket" required
+                    hint="Required since an open complaint already exists for this customer.">
+                    <Textarea value={newReason} onChange={e => setNewReason(e.target.value)} rows={2}
+                      placeholder="Explain why this needs a separate ticket…" />
+                  </FormField>
+                  <div className="flex justify-end">
+                    <Button size="xs" onClick={goNext} disabled={!newReason.trim()}>Continue</Button>
+                  </div>
+                </div>
               )
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Open Tickets</p>
-                {openTickets.length === 0 ? (
-                  <p className="text-sm text-gray-400">No open tickets for this customer.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {openTickets.map(t => (
-                      <div key={t.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-gray-50 border border-surface-border">
-                        <span className="font-mono text-brand-blue font-semibold">{t.id}</span>
-                        <span className="text-gray-500 truncate mx-2 flex-1">{t.category}</span>
-                        <Badge variant="orange" size="sm">{t.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Last 5 Complaints</p>
-                {last5Tickets.length === 0 ? (
-                  <p className="text-sm text-gray-400">No prior complaints on file.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {last5Tickets.map(t => (
-                      <div key={t.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-gray-50 border border-surface-border">
-                        <span className="font-mono text-gray-600 shrink-0">{t.id}</span>
-                        <span className="text-gray-500 truncate mx-2 flex-1">{t.category}</span>
-                        <span className="text-gray-400 shrink-0">{formatDateTime(t.createdAt).split(',')[0]}</span>
-                        <Badge variant="gray" size="sm" className="ml-2 shrink-0">{t.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Open Tickets</p>
+              {openTickets.length === 0 ? (
+                <p className="text-sm text-gray-400">No open tickets for this customer.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {openTickets.map(t => (
+                    <div key={t.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-gray-50 border border-surface-border">
+                      <span className="font-mono text-brand-blue font-semibold">{t.id}</span>
+                      <span className="text-gray-500 truncate mx-2 flex-1">{t.category}</span>
+                      <Badge variant="orange" size="sm">{t.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
