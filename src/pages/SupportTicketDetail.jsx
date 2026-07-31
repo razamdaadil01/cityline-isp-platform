@@ -13,6 +13,7 @@ import AssignTeamModal from '../components/ui/AssignTeamModal'
 import AssignmentOverviewCard from '../components/ui/AssignmentOverviewCard'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { HARDWARE_CATALOG } from '../data/hardwareCatalog'
+import { createHardwareApproval, getApprovals, subscribeApprovals } from '../data/approvalsStore'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
@@ -501,7 +502,14 @@ function NetworkStatusCard({ ticket }) {
 
 // ── Hardware Assignment card ─────────────────────────────────────────────────────
 
+const APPROVAL_STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
+const APPROVAL_STATUS_LABEL = { Pending: 'Pending Approval', Approved: 'Approved', Rejected: 'Rejected' }
+
 function HardwareAssignmentCard({ items, onAdd }) {
+  const navigate = useNavigate()
+  const [approvals, setApprovals] = useState(getApprovals)
+  useEffect(() => subscribeApprovals(setApprovals), [])
+
   const totalCost = items.reduce((sum, h) => sum + h.quantity * h.unitPrice, 0)
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
@@ -523,17 +531,32 @@ function HardwareAssignmentCard({ items, onAdd }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
-              {items.map((h, i) => (
-                <tr key={i}>
-                  <td className="px-3 py-2 text-gray-700">
-                    {h.name}
-                    {h.expired && <Badge variant="red" size="sm" className="ml-1.5">Expired</Badge>}
-                  </td>
-                  <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
-                  <td className="px-3 py-2 text-right text-gray-600">₹{h.unitPrice.toLocaleString('en-IN')}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-gray-800">₹{(h.quantity * h.unitPrice).toLocaleString('en-IN')}</td>
-                </tr>
-              ))}
+              {items.map((h, i) => {
+                const approval = h.approvalId ? approvals.find(a => a.id === h.approvalId) : null
+                return (
+                  <tr key={i}>
+                    <td className="px-3 py-2 text-gray-700">
+                      <button
+                        type="button"
+                        disabled={!approval}
+                        onClick={() => approval && navigate(`/approvals/${approval.id}`)}
+                        className={approval ? 'hover:underline text-left' : 'text-left'}
+                      >
+                        {h.name}
+                      </button>
+                      {h.expired && <Badge variant="red" size="sm" className="ml-1.5">Expired</Badge>}
+                      {approval && (
+                        <Badge variant={APPROVAL_STATUS_BADGE[approval.status]} size="sm" className="ml-1.5">
+                          {APPROVAL_STATUS_LABEL[approval.status]}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">₹{h.unitPrice.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-800">₹{(h.quantity * h.unitPrice).toLocaleString('en-IN')}</td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t border-surface-border bg-gray-50">
@@ -544,7 +567,6 @@ function HardwareAssignmentCard({ items, onAdd }) {
           </table>
         </div>
       )}
-      {/* TODO: route hardware approval request to Approvals module once built */}
     </div>
   )
 }
@@ -609,8 +631,6 @@ function AddHardwareModal({ open, onClose, onAdd }) {
             className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
           Expired Hardware — being replaced, not newly added
         </label>
-
-        {/* TODO: route hardware approval request to Approvals module once built */}
       </div>
     </Modal>
   )
@@ -644,7 +664,8 @@ export default function SupportTicketDetail() {
   const [addHardwareOpen, setAddHardwareOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
 
-  // Hardware Assignment is local-only for now — no Approvals module to route through yet.
+  // Hardware Assignment list itself stays local to the ticket; each item added here also
+  // raises a linked Hardware approval request in the Approvals store (see handleAddHardware).
   const [hardwareAssignments, setHardwareAssignments] = useState(() => getTicket(id)?.hardwareAssignments ?? [])
   useEffect(() => setHardwareAssignments(getTicket(id)?.hardwareAssignments ?? []), [id])
 
@@ -684,7 +705,8 @@ export default function SupportTicketDetail() {
   }
 
   function handleAddHardware(item) {
-    setHardwareAssignments(items => [...items, item])
+    const approval = createHardwareApproval({ ticketId: ticket.id, items: [item] }, CURRENT_USER)
+    setHardwareAssignments(items => [...items, { ...item, approvalId: approval.id }])
     setAddHardwareOpen(false)
   }
 
