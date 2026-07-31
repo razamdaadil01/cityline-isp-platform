@@ -1,20 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
-  ArrowLeft, MessageSquare, Lock, RotateCcw, CheckCircle2, FileText, CalendarPlus,
+  ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
   Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
+  Music, Edit2, Search, X, Plus,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
+import AssignTeamModal from '../components/ui/AssignTeamModal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
-  findTicketsOnSamePort, assignAgent, assignTechnician,
+  findTicketsOnSamePort, assignTechnician, assignTeamMembers,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
-  TECHNICIAN_PROFILES, TECHNICIAN_SKILLS, AGENTS, TECHNICIANS, slaStatusOf,
+  TECHNICIAN_PROFILES, TECHNICIANS, slaStatusOf,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
@@ -90,6 +92,34 @@ function mockFileSize(name) {
   return kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`
 }
 
+function isAudioName(name) { return /\.(mp3|wav|m4a|ogg)$/i.test(name ?? '') }
+
+// Static CSS-bar waveform stub — visual only, not driven by real audio data.
+const WAVEFORM_HEIGHTS = [30, 55, 40, 70, 50, 90, 60, 45, 75, 55, 35, 65, 50, 80, 40, 60, 45, 70, 55, 35]
+function Waveform({ className = '' }) {
+  return (
+    <div className={`flex items-end gap-[2px] h-5 ${className}`}>
+      {WAVEFORM_HEIGHTS.map((h, i) => (
+        <span key={i} className="w-[2px] bg-purple-300 rounded-full shrink-0" style={{ height: `${h}%` }} />
+      ))}
+    </div>
+  )
+}
+
+// Mock hardware catalog reusing the same item names already seen in the Installation
+// module's hardware assignment (installationsStore.js) and Inventory — pricing is mocked
+// here since no existing store tracks per-item unit price yet.
+const HARDWARE_CATALOG = [
+  { name: 'ONT Device', unitPrice: 1800 },
+  { name: 'WiFi Router', unitPrice: 1500 },
+  { name: 'Wall Mount Bracket', unitPrice: 150 },
+  { name: 'POE Switch', unitPrice: 2200 },
+  { name: 'Drop Wire (per m)', unitPrice: 12 },
+  { name: 'Patch Cord (LC-LC, 5m)', unitPrice: 90 },
+  { name: 'Optical Splitter 1x8', unitPrice: 650 },
+  { name: 'SFP Module 1G', unitPrice: 900 },
+]
+
 // ── Left-sidebar / right-sidebar row style — matches SalesLeadDetail.jsx's InfoRow ──
 
 function InfoRow({ label, value }) {
@@ -99,6 +129,27 @@ function InfoRow({ label, value }) {
       <span className="text-xs font-medium text-gray-800 text-right">
         {value === undefined || value === null || value === '' ? <span className="text-gray-300">—</span> : value}
       </span>
+    </div>
+  )
+}
+
+// ── Activity Log timeline row — dot + connecting line, matches FeasibilityDetail.jsx's
+// TimelineEntry pattern (Feasibility's Activity Timeline card) ──
+
+function ActivityTimelineEntry({ entry, isLast }) {
+  const isSystem = entry.actor === 'System'
+  return (
+    <div className="flex gap-4">
+      <div className="flex flex-col items-center shrink-0">
+        <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${isSystem ? 'bg-gray-400' : 'bg-brand-blue'}`} />
+        {!isLast && <div className="w-px flex-1 bg-gray-200 mt-1" />}
+      </div>
+      <div className="pb-5 flex-1 min-w-0">
+        <p className="text-sm text-gray-800 font-medium">{entry.action}</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          by <span className="font-medium text-gray-600">{entry.actor}</span> · {formatDateTime(entry.time)}
+        </p>
+      </div>
     </div>
   )
 }
@@ -189,31 +240,34 @@ function ReopenModal({ isOpen, onClose, onSubmit }) {
 // ── Schedule Technician Visit Modal ────────────────────────────────────────────
 
 function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
-  const [requiredSkill, setRequiredSkill] = useState('')
-  const [technician, setTechnician] = useState('')
+  const [technicians, setTechnicians] = useState([])
+  const [techSearch, setTechSearch] = useState('')
   const [visitDate, setVisitDate] = useState('')
   const [visitTime, setVisitTime] = useState('')
   const [specialInstructions, setSpecialInstructions] = useState('')
   const [error, setError] = useState('')
 
-  const candidates = requiredSkill
-    ? TECHNICIAN_PROFILES.filter(p => p.skills.includes(requiredSkill))
-    : TECHNICIAN_PROFILES
-
   function reset() {
-    setRequiredSkill(''); setTechnician(''); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
+    setTechnicians([]); setTechSearch(''); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
   }
 
   function handleClose() { reset(); onClose() }
 
+  function toggleTechnician(name) {
+    setTechnicians(t => t.includes(name) ? t.filter(x => x !== name) : [...t, name])
+  }
+
   function handleSubmit() {
-    if (!requiredSkill || !technician || !visitDate || !visitTime) {
-      setError('Please fill in all required fields.')
+    if (technicians.length === 0 || !visitDate || !visitTime) {
+      setError('Please select at least one technician and fill in the visit date/time.')
       return
     }
-    const profile = TECHNICIAN_PROFILES.find(p => p.name === technician)
-    if (!profile || !profile.active) {
-      setError('Selected technician is not active.')
+    const inactive = technicians.filter(name => {
+      const profile = TECHNICIAN_PROFILES.find(p => p.name === name)
+      return !profile || !profile.active
+    })
+    if (inactive.length > 0) {
+      setError(`${inactive.join(', ')} ${inactive.length > 1 ? 'are' : 'is'} not active.`)
       return
     }
     const visitDateTime = new Date(`${visitDate}T${visitTime}`)
@@ -221,11 +275,12 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
       setError('Visit date/time cannot be in the past.')
       return
     }
-    onSubmit({ technician, visitDate, visitTime, requiredSkill, specialInstructions: specialInstructions.trim() })
+    onSubmit({ technicians, visitDate, visitTime, specialInstructions: specialInstructions.trim() })
     reset()
   }
 
   const todayStr = new Date().toISOString().slice(0, 10)
+  const filteredTechnicians = TECHNICIAN_PROFILES.filter(p => p.name.toLowerCase().includes(techSearch.toLowerCase()))
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Schedule Technician Visit" size="md"
@@ -239,26 +294,55 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
       <div className="space-y-4">
         {error && <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">{error}</div>}
 
-        <FormField label="Required Technician Skill" required>
-          <Select value={requiredSkill} onChange={e => { setRequiredSkill(e.target.value); setTechnician('') }}>
-            <option value="">Select skill…</option>
-            {TECHNICIAN_SKILLS.map(s => <option key={s} value={s}>{s}</option>)}
-          </Select>
-        </FormField>
-
-        <FormField label="Technician" required
-          hint={requiredSkill ? `Showing technicians with ${requiredSkill}, with their current active job count` : 'Select a skill to narrow this list'}>
-          <Select value={technician} onChange={e => setTechnician(e.target.value)}>
-            <option value="">Select technician…</option>
-            {candidates.map(p => (
-              <option key={p.name} value={p.name}>
-                {p.name} ({technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''})
-              </option>
-            ))}
-          </Select>
-          {requiredSkill && candidates.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1">No technicians have this skill on file.</p>
+        <FormField label="Technicians" required hint="Select one or more — across different skills if the visit needs it (e.g. one fiber tech + one splicing tech)">
+          {technicians.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {technicians.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                  {name}
+                  <button type="button" onClick={() => toggleTechnician(name)}
+                    className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
+
+          <div className="relative mb-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              value={techSearch}
+              onChange={e => setTechSearch(e.target.value)}
+              placeholder="Search technician..."
+              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+            />
+          </div>
+
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[200px] overflow-y-auto">
+            {filteredTechnicians.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No technicians found</p>
+            ) : filteredTechnicians.map(p => {
+              const selected = technicians.includes(p.name)
+              return (
+                <label key={p.name}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <input type="checkbox"
+                    checked={selected}
+                    onChange={() => toggleTechnician(p.name)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-sm text-gray-700">{p.name}</span>
+                    <span className="text-xs text-gray-400"> — {p.skills.join(', ')}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 shrink-0">
+                    {technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
         </FormField>
 
         <div className="grid grid-cols-2 gap-4">
@@ -282,24 +366,24 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   )
 }
 
-// ── Assign Modal (Assignment Overview → Assign) ────────────────────────────────
+// ── Assign Technician Modal (header Actions → Assign) ───────────────────────────
+// Individual/team agent assignment now lives in the shared AssignTeamModal — this
+// modal is technician-only, matching header Actions' "Assign" item.
 
-function AssignModal({ isOpen, onClose, ticket }) {
-  const [agent, setAgent] = useState('')
+function AssignTechnicianModal({ isOpen, onClose, ticket }) {
   const [technician, setTechnician] = useState('')
 
   useEffect(() => {
-    if (isOpen) { setAgent(ticket.assignedAgent ?? ''); setTechnician(ticket.assignedTechnician ?? '') }
-  }, [isOpen, ticket.assignedAgent, ticket.assignedTechnician])
+    if (isOpen) setTechnician(ticket.assignedTechnician ?? '')
+  }, [isOpen, ticket.assignedTechnician])
 
   function handleApply() {
-    if (agent !== (ticket.assignedAgent ?? '')) assignAgent([ticket.id], agent)
     if (technician !== (ticket.assignedTechnician ?? '')) assignTechnician([ticket.id], technician)
     onClose()
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Ticket" size="sm"
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign Technician" size="sm"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -311,12 +395,6 @@ function AssignModal({ isOpen, onClose, ticket }) {
         <p className="text-sm text-gray-500">
           Assigning <span className="font-mono font-semibold text-gray-800">{ticket.id}</span>.
         </p>
-        <FormField label="Individual Agent">
-          <Select value={agent} onChange={e => setAgent(e.target.value)}>
-            <option value="">Unassigned</option>
-            {AGENTS.map(a => <option key={a} value={a}>{a}</option>)}
-          </Select>
-        </FormField>
         <FormField label="Technician">
           <Select value={technician} onChange={e => setTechnician(e.target.value)}>
             <option value="">Unassigned</option>
@@ -328,9 +406,9 @@ function AssignModal({ isOpen, onClose, ticket }) {
   )
 }
 
-// ── Header "Actions" dropdown (Close / Reopen) ──────────────────────────────────
+// ── Header "Actions" dropdown (Edit / Assign Team / Assign) ─────────────────────
 
-function HeaderActionsMenu({ canClose, canReopen, onClose, onReopen }) {
+function HeaderActionsMenu({ onEdit, onAssignTeam, onAssign }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -348,20 +426,23 @@ function HeaderActionsMenu({ canClose, canReopen, onClose, onReopen }) {
       {open && (
         <div className="absolute right-0 z-20 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
           <button
-            onClick={() => { setOpen(false); onClose() }}
-            disabled={!canClose}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => { setOpen(false); onEdit() }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            <Lock size={13} className="text-gray-400 shrink-0" /> Close Ticket
+            <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
           </button>
-          {canReopen && (
-            <button
-              onClick={() => { setOpen(false); onReopen() }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <RotateCcw size={13} className="shrink-0" /> Reopen Ticket
-            </button>
-          )}
+          <button
+            onClick={() => { setOpen(false); onAssignTeam() }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <UserCog size={13} className="text-gray-400 shrink-0" /> Assign Team
+          </button>
+          <button
+            onClick={() => { setOpen(false); onAssign() }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Wrench size={13} className="text-gray-400 shrink-0" /> Assign
+          </button>
         </div>
       )}
     </div>
@@ -460,6 +541,123 @@ function AssignmentOverviewCard({ ticket, onAssign }) {
   )
 }
 
+// ── Hardware Assignment card ─────────────────────────────────────────────────────
+
+function HardwareAssignmentCard({ items, onAdd }) {
+  const totalCost = items.reduce((sum, h) => sum + h.quantity * h.unitPrice, 0)
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-bold text-gray-800">Hardware Assignment</p>
+        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={onAdd}>Add Hardware</Button>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">No hardware assigned to this ticket yet.</p>
+      ) : (
+        <div className="border border-surface-border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
+                <th className="text-left px-3 py-2 font-semibold">Item</th>
+                <th className="text-right px-3 py-2 font-semibold">Qty</th>
+                <th className="text-right px-3 py-2 font-semibold">Unit Price</th>
+                <th className="text-right px-3 py-2 font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {items.map((h, i) => (
+                <tr key={i}>
+                  <td className="px-3 py-2 text-gray-700">
+                    {h.name}
+                    {h.expired && <Badge variant="red" size="sm" className="ml-1.5">Expired</Badge>}
+                  </td>
+                  <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
+                  <td className="px-3 py-2 text-right text-gray-600">₹{h.unitPrice.toLocaleString('en-IN')}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-gray-800">₹{(h.quantity * h.unitPrice).toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-surface-border bg-gray-50">
+                <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Total Cost</td>
+                <td className="px-3 py-2 text-right text-sm font-bold text-gray-900">₹{totalCost.toLocaleString('en-IN')}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+      {/* TODO: route hardware approval request to Approvals module once built */}
+    </div>
+  )
+}
+
+function AddHardwareModal({ open, onClose, onAdd }) {
+  const [search, setSearch] = useState('')
+  const [selectedItem, setSelectedItem] = useState(null)
+  const [quantity, setQuantity] = useState(1)
+  const [expired, setExpired] = useState(false)
+
+  useEffect(() => {
+    if (open) return
+    setSearch(''); setSelectedItem(null); setQuantity(1); setExpired(false)
+  }, [open])
+
+  const filtered = HARDWARE_CATALOG.filter(h => h.name.toLowerCase().includes(search.toLowerCase()))
+  const valid = !!selectedItem && Number(quantity) > 0
+
+  function handleSubmit() {
+    if (!valid) return
+    onAdd({ name: selectedItem.name, quantity: Number(quantity), unitPrice: selectedItem.unitPrice, expired })
+  }
+
+  return (
+    <Modal isOpen={open} onClose={onClose} title="Add Hardware" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={!valid}>Add</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Hardware Item" required>
+          <div className="relative">
+            <input
+              value={selectedItem ? selectedItem.name : search}
+              onChange={e => { setSearch(e.target.value); setSelectedItem(null) }}
+              placeholder="Search hardware item…"
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+            />
+            {!selectedItem && filtered.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg overflow-hidden shadow-lg bg-white max-h-48 overflow-y-auto">
+                {filtered.map(h => (
+                  <button key={h.name} type="button" onClick={() => { setSelectedItem(h); setSearch('') }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-brand-blue/5 transition-colors border-b border-surface-border last:border-0">
+                    <span className="text-gray-800">{h.name}</span>
+                    <span className="text-xs text-gray-400 font-mono">₹{h.unitPrice.toLocaleString('en-IN')}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </FormField>
+
+        <FormField label="Quantity" required>
+          <Input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} />
+        </FormField>
+
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input type="checkbox" checked={expired} onChange={e => setExpired(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+          Expired Hardware — being replaced, not newly added
+        </label>
+
+        {/* TODO: route hardware approval request to Approvals module once built */}
+      </div>
+    </Modal>
+  )
+}
+
 // ── Middle-column tabs ──────────────────────────────────────────────────────
 
 const MIDDLE_TABS = [
@@ -483,8 +681,14 @@ export default function SupportTicketDetail() {
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [assignOpen, setAssignOpen] = useState(false)
+  const [assignTeamOpen, setAssignTeamOpen] = useState(false)
+  const [assignTechOpen, setAssignTechOpen] = useState(false)
+  const [addHardwareOpen, setAddHardwareOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
+
+  // Hardware Assignment is local-only for now — no Approvals module to route through yet.
+  const [hardwareAssignments, setHardwareAssignments] = useState(() => getTicket(id)?.hardwareAssignments ?? [])
+  useEffect(() => setHardwareAssignments(getTicket(id)?.hardwareAssignments ?? []), [id])
 
   if (!tabSlug) {
     return <Navigate to={`/support/tickets/${id}/overview`} replace />
@@ -521,6 +725,16 @@ export default function SupportTicketDetail() {
     setInternalText('')
   }
 
+  function handleAddHardware(item) {
+    setHardwareAssignments(items => [...items, item])
+    setAddHardwareOpen(false)
+  }
+
+  function handleAssignTeam(agents, teams) {
+    assignTeamMembers([ticket.id], { agents, teams }, CURRENT_USER)
+    setAssignTeamOpen(false)
+  }
+
   return (
     <div className="p-6 space-y-5">
 
@@ -532,10 +746,9 @@ export default function SupportTicketDetail() {
         </h1>
         <div className="flex items-center gap-2 shrink-0">
           <HeaderActionsMenu
-            canClose={canClose}
-            canReopen={canReopen}
-            onClose={() => closeTicket(ticket.id, CURRENT_USER)}
-            onReopen={() => setReopenOpen(true)}
+            onEdit={() => console.log('Edit ticket — coming soon')}
+            onAssignTeam={() => setAssignTeamOpen(true)}
+            onAssign={() => setAssignTechOpen(true)}
           />
           <Button icon={<CheckCircle2 size={15} />} disabled={!canResolve} onClick={() => setResolveOpen(true)}>
             Resolve
@@ -622,7 +835,9 @@ export default function SupportTicketDetail() {
 
           <NetworkStatusCard ticket={ticket} />
 
-          <AssignmentOverviewCard ticket={ticket} onAssign={() => setAssignOpen(true)} />
+          <AssignmentOverviewCard ticket={ticket} onAssign={() => setAssignTeamOpen(true)} />
+
+          <HardwareAssignmentCard items={hardwareAssignments} onAdd={() => setAddHardwareOpen(true)} />
 
           <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
@@ -652,35 +867,74 @@ export default function SupportTicketDetail() {
                     <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Description</p>
                     <p className="text-sm text-gray-700">{ticket.description}</p>
                   </div>
+
+                  <div>
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Latest Call Recording</p>
+                    {/* TODO: wire to real recording fetch once developer confirms CDN/IVR integration */}
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-purple-200 bg-purple-50">
+                      <button
+                        type="button"
+                        onClick={() => console.log('Recording playback coming soon')}
+                        className="w-8 h-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center shrink-0 transition-colors"
+                      >
+                        <Play size={14} className="fill-current ml-0.5" />
+                      </button>
+                      <Waveform className="flex-1" />
+                      <span className="text-xs font-mono text-purple-700 shrink-0">00:00 / 03:12</span>
+                    </div>
+                  </div>
+
                   <div>
                     <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Attachments / Screenshots</p>
                     {(ticket.attachments ?? []).length === 0 ? (
                       <p className="text-sm text-gray-400">No attachments.</p>
                     ) : (
                       <div className="space-y-2">
-                        {ticket.attachments.map((name, i) => (
-                          <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-gray-50">
-                            <FileText size={16} className="text-gray-400 shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium text-gray-700 truncate">{name}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] text-gray-400 shrink-0">{mockFileSize(name)}</span>
-                                <div className="flex-1 h-1 max-w-[100px] bg-gray-200 rounded-full overflow-hidden">
-                                  <div className="h-full bg-emerald-500" style={{ width: '100%' }} />
+                        {ticket.attachments.map((name, i) => {
+                          const isAudio = isAudioName(name)
+                          return (
+                            <div key={i} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-gray-50">
+                              {isAudio ? (
+                                <div className="relative w-8 h-8 shrink-0">
+                                  <div className="absolute inset-0 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center group-hover:opacity-0 transition-opacity">
+                                    <Music size={14} />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => console.log('Recording playback coming soon')}
+                                    className="absolute inset-0 rounded-full bg-purple-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <Play size={13} className="fill-current ml-0.5" />
+                                  </button>
                                 </div>
-                                <span className="text-[10px] text-emerald-600 font-semibold shrink-0">100%</span>
+                              ) : (
+                                <FileText size={16} className="text-gray-400 shrink-0" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-gray-700 truncate">{name}</p>
+                                {isAudio ? (
+                                  <Waveform className="mt-1" />
+                                ) : (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] text-gray-400 shrink-0">{mockFileSize(name)}</span>
+                                    <div className="flex-1 h-1 max-w-[100px] bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="h-full bg-emerald-500" style={{ width: '100%' }} />
+                                    </div>
+                                    <span className="text-[10px] text-emerald-600 font-semibold shrink-0">100%</span>
+                                  </div>
+                                )}
                               </div>
+                              <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                              <button
+                                type="button"
+                                onClick={() => console.log('Remove attachment — coming soon')}
+                                className="text-gray-400 hover:text-red-500 shrink-0 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
-                            <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                            <button
-                              type="button"
-                              onClick={() => console.log('Remove attachment — coming soon')}
-                              className="text-gray-400 hover:text-red-500 shrink-0 transition-colors"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -756,22 +1010,9 @@ export default function SupportTicketDetail() {
                 (ticket.activityLog ?? []).length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No activity recorded yet.</p>
                 ) : (
-                  <div className="space-y-0">
+                  <div>
                     {[...ticket.activityLog].reverse().map((entry, i, arr) => (
-                      <div key={i} className="flex gap-4 pb-5 relative">
-                        {i < arr.length - 1 && (
-                          <div className="absolute left-3.5 top-7 bottom-0 w-px bg-gray-200" />
-                        )}
-                        <div className="w-7 h-7 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center shrink-0 z-10">
-                          <Activity size={12} className="text-gray-400" />
-                        </div>
-                        <div className="pt-1 min-w-0">
-                          <p className="text-sm text-gray-800 font-medium">{entry.action}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            by <span className="font-medium text-gray-600">{entry.actor}</span> · {formatDateTime(entry.time)}
-                          </p>
-                        </div>
-                      </div>
+                      <ActivityTimelineEntry key={i} entry={entry} isLast={i === arr.length - 1} />
                     ))}
                   </div>
                 )
@@ -810,7 +1051,20 @@ export default function SupportTicketDetail() {
               {isGatedStatus ? (
                 <div className="text-right">
                   <Badge variant={STATUS_BADGE[ticket.status]} size="sm">{ticket.status}</Badge>
-                  <p className="text-[10px] text-gray-400 mt-1">Use Actions ▸ Reopen to change this.</p>
+                  <div className="flex items-center justify-end gap-2 mt-1.5">
+                    {canClose && (
+                      <button onClick={() => closeTicket(ticket.id, CURRENT_USER)}
+                        className="text-[10px] font-semibold text-gray-500 hover:text-gray-700 underline">
+                        Close
+                      </button>
+                    )}
+                    {canReopen && (
+                      <button onClick={() => setReopenOpen(true)}
+                        className="text-[10px] font-semibold text-red-500 hover:text-red-700 underline">
+                        Reopen
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="w-32">
@@ -868,7 +1122,7 @@ export default function SupportTicketDetail() {
               </div>
             ) : (
               <div className="space-y-2">
-                <InfoRow label="Technician" value={ticket.technicianVisit.technician} />
+                <InfoRow label="Technician(s)" value={ticket.technicianVisit.technicians?.length ? ticket.technicianVisit.technicians.join(', ') : ticket.technicianVisit.technician} />
                 <InfoRow label="Visit Slot" value={`${ticket.technicianVisit.visitDate} · ${ticket.technicianVisit.visitTime}`} />
                 <InfoRow label="Status" value={<Badge variant={VISIT_STATUS_BADGE[ticket.technicianVisit.visitStatus] ?? 'gray'} size="sm">{ticket.technicianVisit.visitStatus}</Badge>} />
                 {ticket.technicianVisit.requiredSkill && <InfoRow label="Skill" value={ticket.technicianVisit.requiredSkill} />}
@@ -901,7 +1155,9 @@ export default function SupportTicketDetail() {
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />
       <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={() => setScheduleOpen(false)} ticket={ticket}
         onSubmit={data => { scheduleTechnicianVisit(ticket.id, data, CURRENT_USER); setScheduleOpen(false) }} />
-      <AssignModal isOpen={assignOpen} onClose={() => setAssignOpen(false)} ticket={ticket} />
+      <AssignTechnicianModal isOpen={assignTechOpen} onClose={() => setAssignTechOpen(false)} ticket={ticket} />
+      <AssignTeamModal open={assignTeamOpen} onClose={() => setAssignTeamOpen(false)} ticket={ticket} onApply={handleAssignTeam} />
+      <AddHardwareModal open={addHardwareOpen} onClose={() => setAddHardwareOpen(false)} onAdd={handleAddHardware} />
     </div>
   )
 }
