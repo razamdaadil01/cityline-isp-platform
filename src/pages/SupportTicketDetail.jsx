@@ -139,16 +139,19 @@ function InfoRow({ label, value }) {
 function ActivityTimelineEntry({ entry, isLast }) {
   const isSystem = entry.actor === 'System'
   return (
-    <div className="flex gap-4">
-      <div className="flex flex-col items-center shrink-0">
-        <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${isSystem ? 'bg-gray-400' : 'bg-brand-blue'}`} />
-        {!isLast && <div className="w-px flex-1 bg-gray-200 mt-1" />}
-      </div>
-      <div className="pb-5 flex-1 min-w-0">
-        <p className="text-sm text-gray-800 font-medium">{entry.action}</p>
-        <p className="text-xs text-gray-400 mt-0.5">
-          by <span className="font-medium text-gray-600">{entry.actor}</span> · {formatDateTime(entry.time)}
-        </p>
+    <div className="relative pb-5">
+      {/* Connecting line: anchored to this row's own box (top/bottom), so it always
+          reaches from this dot's center down to the top of the next row's dot,
+          regardless of how tall this entry's text content is. */}
+      {!isLast && <span aria-hidden="true" className="absolute left-[4px] top-[11px] bottom-0 w-px bg-gray-200" />}
+      <div className="relative flex gap-4">
+        <div className={`relative z-10 w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${isSystem ? 'bg-gray-400' : 'bg-brand-blue'}`} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-800 font-medium">{entry.action}</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            by <span className="font-medium text-gray-600">{entry.actor}</span> · {formatDateTime(entry.time)}
+          </p>
+        </div>
       </div>
     </div>
   )
