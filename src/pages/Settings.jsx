@@ -5,14 +5,17 @@ import {
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
-  ChevronLeft, ChevronRight, Clock, AlertTriangle,
+  ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { MOCK_LANDLINES, MOCK_STATIC_IPS } from '../data/packagesStore'
-import { PRIORITIES, PRIORITY_LABEL, getSlaHours, saveSlaHours } from '../data/ticketsStore'
+import {
+  PRIORITIES, PRIORITY_LABEL, getSlaHours, saveSlaHours,
+  getSupportSettings, saveSupportSettings,
+} from '../data/ticketsStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -21,6 +24,7 @@ const TABS = [
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
   { id: 'sla',           label: 'SLA Configuration',      icon: Clock     },
+  { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
   { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
   { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
   { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
@@ -347,6 +351,54 @@ function SlaConfigTab() {
 
       <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
         <Button size="sm" icon={<Save size={14} />} onClick={handleSave} disabled={!allPositive}>Save</Button>
+      </div>
+    </div>
+  )
+}
+
+function SupportConfigTab() {
+  const [settings, setSettings] = useState(getSupportSettings)
+  const [saved, setSaved] = useState(false)
+
+  function handleToggle(v) {
+    setSettings(s => ({ ...s, allowMultipleOpenComplaints: v }))
+    setSaved(false)
+  }
+
+  function handleSave() {
+    saveSupportSettings(settings)
+    setSaved(true)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Support Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Rules that govern how agents handle duplicate complaints in the Create Ticket wizard.
+        </p>
+      </div>
+
+      <div className="flex items-start justify-between p-3 rounded-lg border border-surface-border">
+        <div>
+          <p className="text-sm font-medium text-gray-800">Allow Multiple Open Complaints per Customer</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Off (default): creating a new ticket while an open one exists is blocked unless the agent
+            gives a reason. On: agents can create additional tickets freely, no reason required.
+          </p>
+        </div>
+        <Toggle checked={settings.allowMultipleOpenComplaints} onChange={handleToggle} />
+      </div>
+
+      {saved && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          Support settings saved.
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save</Button>
       </div>
     </div>
   )
@@ -1472,6 +1524,7 @@ export default function Settings() {
           {activeTab === 'billing'       && <BillingTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'sla'           && <SlaConfigTab />}
+          {activeTab === 'support-configuration' && <SupportConfigTab />}
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'                && <RolesTab />}

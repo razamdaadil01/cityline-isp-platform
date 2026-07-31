@@ -39,6 +39,30 @@ export function subscribeSlaHours(fn) {
   }
 }
 
+// Admin-configurable Support settings, editable via Settings > Support Configuration.
+// allowMultipleOpenComplaints: OFF (default) blocks Create Ticket's duplicate-check step
+// unless the agent gives a reason; ON lets agents create additional tickets freely.
+let _supportSettings = { allowMultipleOpenComplaints: false }
+const _supportSettingsListeners = []
+
+function notifySupportSettings() { _supportSettingsListeners.forEach(fn => fn({ ..._supportSettings })) }
+
+export function getSupportSettings() { return { ..._supportSettings } }
+
+export function saveSupportSettings(newSettings) {
+  _supportSettings = { ..._supportSettings, ...newSettings }
+  notifySupportSettings()
+  return { ..._supportSettings }
+}
+
+export function subscribeSupportSettings(fn) {
+  _supportSettingsListeners.push(fn)
+  return () => {
+    const i = _supportSettingsListeners.indexOf(fn)
+    if (i !== -1) _supportSettingsListeners.splice(i, 1)
+  }
+}
+
 export const CATEGORY_SUBCATEGORIES = {
   Connectivity: ['No Internet', 'Intermittent Connection', 'Fiber Cut'],
   Performance: ['Slow Speed', 'High Latency', 'OTT Buffering'],

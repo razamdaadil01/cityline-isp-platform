@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, Search, ClipboardList, UserCog, CheckCircle2,
@@ -12,7 +12,7 @@ import { getAllCustomers } from '../data/customersData'
 import {
   getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
   CATEGORY_SUBCATEGORIES, CATEGORIES, PRIORITIES, PRIORITY_LABEL, CONTACT_METHODS,
-  AGENTS, TECHNICIANS, CLOSED_STATUSES,
+  AGENTS, TECHNICIANS, CLOSED_STATUSES, getSupportSettings, subscribeSupportSettings,
 } from '../data/ticketsStore'
 import { findActiveOutageForArea } from '../data/outagesStore'
 
@@ -154,13 +154,15 @@ export default function TicketCreate() {
 
   const [duplicateChoice, setDuplicateChoice] = useState(null) // { mode: 'duplicate'|'new', ticketId?, reason? }
   const [newReason, setNewReason] = useState('')
+  const [supportSettings, setSupportSettings] = useState(getSupportSettings)
+  useEffect(() => subscribeSupportSettings(setSupportSettings), [])
 
   const primaryOpenTicket = openTickets[0] ?? null
   const showDuplicateWarning = !!primaryOpenTicket && !duplicateChoice
 
   const step2Resolved = !primaryOpenTicket ||
     duplicateChoice?.mode === 'duplicate' ||
-    (duplicateChoice?.mode === 'new' && newReason.trim())
+    (duplicateChoice?.mode === 'new' && (supportSettings.allowMultipleOpenComplaints || newReason.trim()))
 
   // ── Step 3 — Complaint Details ────────────────────────────────────────────
   const [category, setCategory] = useState('')
@@ -170,6 +172,7 @@ export default function TicketCreate() {
   const [priority, setPriority] = useState('')
   const [attachments, setAttachments] = useState([])
   const [preferredVisitTime, setPreferredVisitTime] = useState('')
+  const [nextFollowup, setNextFollowup] = useState('')
   const [customerNote, setCustomerNote] = useState('')
   const [internalNote, setInternalNote] = useState('')
   const fileInputRef = useRef()
@@ -269,6 +272,7 @@ export default function TicketCreate() {
       description: description.trim(),
       contactMethod,
       preferredVisitTime,
+      nextFollowup: nextFollowup ? new Date(nextFollowup).toISOString() : null,
       customerNote,
       internalNote,
       attachments: attachments.map(a => a.name),
@@ -391,7 +395,7 @@ export default function TicketCreate() {
                 <div className="flex items-start gap-2.5">
                   <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">A similar complaint already exists</p>
+                    <p className="text-sm font-semibold text-amber-800">A complaint already exists</p>
                     <p className="text-xs text-amber-700 mt-0.5">
                       <span className="font-mono">{primaryOpenTicket.id}</span> is still open for this customer ({primaryOpenTicket.status}).
                     </p>
@@ -419,11 +423,18 @@ export default function TicketCreate() {
             )}
 
             {duplicateChoice?.mode === 'new' && (
-              <FormField label="Reason for creating a new ticket" required
-                hint="Required since an open complaint already exists for this customer.">
-                <Textarea value={newReason} onChange={e => setNewReason(e.target.value)} rows={2}
-                  placeholder="Explain why this needs a separate ticket…" />
-              </FormField>
+              supportSettings.allowMultipleOpenComplaints ? (
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 flex items-center justify-between gap-2">
+                  <span>Creating a new ticket even though an open complaint exists — allowed by current Support Configuration settings.</span>
+                  <button onClick={() => setDuplicateChoice(null)} className="text-blue-400 hover:text-blue-700"><X size={13} /></button>
+                </div>
+              ) : (
+                <FormField label="Reason for creating a new ticket" required
+                  hint="Required since an open complaint already exists for this customer.">
+                  <Textarea value={newReason} onChange={e => setNewReason(e.target.value)} rows={2}
+                    placeholder="Explain why this needs a separate ticket…" />
+                </FormField>
+              )
             )}
 
             <div className="grid grid-cols-2 gap-4">
@@ -451,9 +462,10 @@ export default function TicketCreate() {
                   <div className="space-y-1.5">
                     {last5Tickets.map(t => (
                       <div key={t.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-gray-50 border border-surface-border">
-                        <span className="font-mono text-gray-600">{t.id}</span>
-                        <span className="text-gray-400">{formatDateTime(t.createdAt).split(',')[0]}</span>
-                        <Badge variant="gray" size="sm">{t.status}</Badge>
+                        <span className="font-mono text-gray-600 shrink-0">{t.id}</span>
+                        <span className="text-gray-500 truncate mx-2 flex-1">{t.category}</span>
+                        <span className="text-gray-400 shrink-0">{formatDateTime(t.createdAt).split(',')[0]}</span>
+                        <Badge variant="gray" size="sm" className="ml-2 shrink-0">{t.status}</Badge>
                       </div>
                     ))}
                   </div>
@@ -562,10 +574,12 @@ export default function TicketCreate() {
             </FormField>
           </div>
 
-          <FormField label="Preferred Visit Time" hint="Optional">
+          <FormField label="Preferred Visit Date/Time" hint="Optional">
             <Input type="datetime-local" value={preferredVisitTime} onChange={e => setPreferredVisitTime(e.target.value)} />
           </FormField>
-          <div />
+          <FormField label="Next Follow-up" hint="Optional">
+            <Input type="datetime-local" value={nextFollowup} onChange={e => setNextFollowup(e.target.value)} />
+          </FormField>
           <FormField label="Customer-visible Note" hint="Optional — shown to the customer">
             <Textarea value={customerNote} onChange={e => setCustomerNote(e.target.value)} rows={2} />
           </FormField>
