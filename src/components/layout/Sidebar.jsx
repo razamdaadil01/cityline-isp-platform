@@ -30,12 +30,14 @@ import {
   Phone,
   PackageSearch,
   Zap,
+  ShieldCheck,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { label: 'Dashboard',        icon: LayoutDashboard, to: '/',              exact: true },
   { label: 'Customers',        icon: Users,           to: '/customers'                 },
   { label: 'Installations',    icon: Wrench,          to: '/installations'             },
+  { label: 'Approvals',        icon: ShieldCheck,     to: '/approvals'                 },
   {
     label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,
     children: [
