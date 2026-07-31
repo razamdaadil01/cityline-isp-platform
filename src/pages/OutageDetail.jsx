@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Ticket as TicketIcon, Bell, Send, Plus, Pencil, ChevronDown, Search, X, Upload, Paperclip } from 'lucide-react'
+import {
+  ArrowLeft, CheckCircle2, Ticket as TicketIcon, Bell, Send, Plus, Pencil, ChevronDown, Search, X, Upload, Paperclip,
+  FileText, UserCog, MapPin, Users,
+} from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import Card, { CardHeader } from '../components/ui/Card'
 import NasPortMultiSelect from '../components/ui/NasPortMultiSelect'
 import AssignmentOverviewCard from '../components/ui/AssignmentOverviewCard'
 import AssignTeamModal from '../components/ui/AssignTeamModal'
@@ -32,6 +34,14 @@ const TICKET_STATUS_BADGE = { New: 'blue', Assigned: 'cyan', 'In Progress': 'ora
 const PRIORITY_BADGE = { P1: 'red', P2: 'orange', P3: 'yellow', P4: 'gray' }
 const CONNECTION_STATUS_LABEL = { active: 'Connected', suspended: 'Suspended', inactive: 'Disconnected', expired: 'Disconnected' }
 const CONNECTION_STATUS_BADGE = { active: 'green', suspended: 'yellow', inactive: 'gray', expired: 'red' }
+
+// Same tab-nav pattern as Ticket Detail's middle-column tabs.
+const OUTAGE_TABS = [
+  { key: 'incident', label: 'Incident Details', icon: FileText },
+  { key: 'linked-tickets', label: 'Linked Tickets', icon: TicketIcon },
+  { key: 'assignment', label: 'Assignment', icon: UserCog },
+  { key: 'resolution', label: 'Resolution', icon: CheckCircle2 },
+]
 
 function formatDateTime(iso) {
   if (!iso) return '—'
@@ -299,6 +309,7 @@ export default function OutageDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [outage, setOutage] = useState(() => getOutage(id))
+  const [activeTab, setActiveTab] = useState('incident')
   const [resolveOpen, setResolveOpen] = useState(false)
   const [customersOpen, setCustomersOpen] = useState(false)
   const [linkModalOpen, setLinkModalOpen] = useState(false)
@@ -354,8 +365,9 @@ export default function OutageDetail() {
   }
 
   return (
-    <div className="p-6 space-y-5 max-w-5xl mx-auto">
+    <div className="p-6 space-y-5 max-w-6xl mx-auto">
 
+      {/* Header — unchanged */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/support/outages')}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0">
@@ -373,172 +385,254 @@ export default function OutageDetail() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader title="Outage Details"
-          action={
-            <Button size="xs" variant="secondary" icon={<Pencil size={12} />} onClick={() => setEditPortsOpen(true)}>
-              Edit NAS Ports/Equipment
-            </Button>
-          }
-        />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-4">
-          <InfoField label="Outage Number"><span className="font-mono">{outage.id}</span></InfoField>
-          <InfoField label="Outage Type">{outage.type}</InfoField>
-          <InfoField label="Severity"><Badge variant={SEVERITY_BADGE[outage.severity]} size="sm" dot>{outage.severity}</Badge></InfoField>
-          <InfoField label="Status">
-            {isGated ? (
-              <Badge variant={STATUS_BADGE[outage.status]} size="sm">{outage.status}</Badge>
-            ) : (
-              <Select value={outage.status} onChange={e => updateOutageStatus(outage.id, e.target.value, CURRENT_USER)}>
-                {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            )}
-          </InfoField>
-          <InfoField label="Affected NAS Port ID(s)"><span className="font-mono">{(outage.affectedNasPorts ?? []).join(', ') || '—'}</span></InfoField>
-          <InfoField label="Affected Equipment">{outage.affectedEquipment}</InfoField>
-          <InfoField label="Server ID">{outage.serverId || '—'}</InfoField>
-          <InfoField label="Start Time">{formatDateTime(outage.startTime)}</InfoField>
-          <InfoField label="Expected Restoration">{formatDateTime(outage.expectedRestorationTime)}</InfoField>
-          <InfoField label="Affected Customers">
-            <button type="button" onClick={() => setCustomersOpen(o => !o)}
-              className="inline-flex items-center gap-1 text-brand-blue hover:underline">
-              {outage.affectedCustomerCount}
-              <ChevronDown size={12} className={`transition-transform ${customersOpen ? 'rotate-180' : ''}`} />
-            </button>
-          </InfoField>
-          <InfoField label="Linked Tickets">{linkedTickets.length}</InfoField>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        {customersOpen && (
-          <div className="mt-4 pt-4 border-t border-surface-border">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Affected Customers ({affectedCustomers.length})
-            </p>
-            {affectedCustomers.length === 0 ? (
-              <p className="text-sm text-gray-400">No customers found in the affected area(s).</p>
-            ) : (
-              <div className="border border-surface-border rounded-lg divide-y divide-surface-border max-h-64 overflow-y-auto">
-                {affectedCustomers.map(c => (
-                  <div key={c.id} className="flex items-center justify-between px-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{c.name}</p>
-                      <p className="text-xs text-gray-400 font-mono">{c.id} · {c.phone}</p>
-                    </div>
-                    <Badge variant={CONNECTION_STATUS_BADGE[c.status] ?? 'gray'} size="sm">
-                      {CONNECTION_STATUS_LABEL[c.status] ?? c.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* ── MAIN: tabs ────────────────────────────────────────────────── */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
-        <div className="mt-4 pt-4 border-t border-surface-border space-y-4">
-          <InfoField label="Description"><p className="font-normal text-gray-700">{outage.description}</p></InfoField>
-          <InfoField label="Customer Message">
-            <p className="font-normal text-gray-700">{outage.customerMessage}</p>
-            {outage.sendViaWhatsApp && (
-              <p className="text-[11px] text-gray-400 mt-1">
-                Sent via WhatsApp template: {WHATSAPP_TEMPLATES.find(t => t.id === outage.templateId)?.label ?? '—'}
-              </p>
-            )}
-          </InfoField>
-          {(outage.hardwareRequirement ?? []).length > 0 && (
-            <InfoField label="Hardware Requirement">
-              <div className="flex flex-wrap gap-1.5 mt-0.5">
-                {outage.hardwareRequirement.map((h, i) => (
-                  <Badge key={i} variant="gray" size="sm">{h.name} × {h.quantity}</Badge>
-                ))}
-              </div>
-            </InfoField>
-          )}
-        </div>
-      </Card>
-
-      <AssignmentOverviewCard entity={outage} branch={branchesForNasPorts(outage.affectedNasPorts).join(', ')}
-        onAssign={() => setAssignTeamOpen(true)} />
-
-      <Card padding={false}>
-        <div className="px-5 py-4 border-b border-surface-border flex items-center gap-2">
-          <TicketIcon size={15} className="text-brand-blue" />
-          <h3 className="text-sm font-semibold text-gray-800">Linked Tickets</h3>
-          <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{linkedTickets.length}</span>
-          <Button size="xs" variant="secondary" className="ml-auto" icon={<Plus size={12} />} onClick={() => setLinkModalOpen(true)}>
-            Link Ticket
-          </Button>
-        </div>
-        {linkedTickets.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">No tickets linked to this outage yet.</p>
-        ) : (
-          <div className="divide-y divide-surface-border">
-            {linkedTickets.map(t => (
-              <div key={t.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/support/tickets/${t.id}/overview`)}>
-                <div className="min-w-0">
-                  <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
-                  <span className="text-sm text-gray-700 ml-2 truncate">{t.customerName} · {t.category}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant={PRIORITY_BADGE[t.priority]} size="sm" dot>{PRIORITY_LABEL[t.priority]}</Badge>
-                  <Badge variant={TICKET_STATUS_BADGE[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card>
-        <CardHeader title="Resolution" />
-        <div className="space-y-4">
-          {outage.resolution ? (
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              <div className="col-span-2">
-                <InfoField label="Root Cause"><p className="font-normal text-gray-700">{outage.resolution.rootCause}</p></InfoField>
-              </div>
-              <div className="col-span-2">
-                <InfoField label="Solution"><p className="font-normal text-gray-700">{outage.resolution.solution}</p></InfoField>
-              </div>
-              <InfoField label="Actual Restoration Time">{formatDateTime(outage.resolution.actualRestorationTime)}</InfoField>
-              <InfoField label="Resolved By">{outage.resolution.resolvedBy}</InfoField>
-              <div className="col-span-2">
-                <InfoField label="Final Customer Message"><p className="font-normal text-gray-700">{outage.resolution.finalCustomerMessage}</p></InfoField>
-              </div>
+            {/* Tab nav — same pattern as Ticket Detail's middle-column tabs */}
+            <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none rounded-t-xl">
+              {OUTAGE_TABS.map(tab => {
+                const Icon = tab.icon
+                return (
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                    className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-xs font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                      ${activeTab === tab.key
+                        ? 'border-brand-blue text-brand-blue'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                      }`}>
+                    <Icon size={14} /> {tab.label}
+                  </button>
+                )
+              })}
             </div>
-          ) : (
-            <p className="text-sm text-gray-400">This outage has not been resolved yet.</p>
-          )}
-          <div className="pt-2 border-t border-surface-border">
-            <Button icon={<CheckCircle2 size={14} />} disabled={isGated} onClick={() => setResolveOpen(true)}>
-              Resolve Outage
-            </Button>
-          </div>
-        </div>
-      </Card>
 
-      <Card padding={false}>
-        <div className="px-5 py-4 border-b border-surface-border flex items-center gap-2">
-          <Bell size={15} className="text-brand-blue" />
-          <h3 className="text-sm font-semibold text-gray-800">Notification Log</h3>
-          <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{(outage.notificationLog ?? []).length}</span>
-        </div>
-        {(outage.notificationLog ?? []).length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-6">No notifications sent yet.</p>
-        ) : (
-          <div className="divide-y divide-surface-border">
-            {[...outage.notificationLog].reverse().map((n, i) => (
-              <div key={i} className="px-5 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-gray-700">Sent to {n.customerCount} customer{n.customerCount !== 1 ? 's' : ''}</span>
-                  <span className="text-[11px] text-gray-400 shrink-0">{formatDateTime(n.time)}</span>
+            <div className="p-5">
+
+              {/* ─── Incident Details ───────────────────────────────────── */}
+              {activeTab === 'incident' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-gray-400 uppercase tracking-wide">Outage Details</p>
+                    <Button size="xs" variant="secondary" icon={<Pencil size={12} />} onClick={() => setEditPortsOpen(true)}>
+                      Edit NAS Ports/Equipment
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-4">
+                    <InfoField label="Outage Number"><span className="font-mono">{outage.id}</span></InfoField>
+                    <InfoField label="Outage Type">{outage.type}</InfoField>
+                    <InfoField label="Severity"><Badge variant={SEVERITY_BADGE[outage.severity]} size="sm" dot>{outage.severity}</Badge></InfoField>
+                    <InfoField label="Status">
+                      {isGated ? (
+                        <Badge variant={STATUS_BADGE[outage.status]} size="sm">{outage.status}</Badge>
+                      ) : (
+                        <Select value={outage.status} onChange={e => updateOutageStatus(outage.id, e.target.value, CURRENT_USER)}>
+                          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                        </Select>
+                      )}
+                    </InfoField>
+                    <InfoField label="Affected NAS Port ID(s)"><span className="font-mono">{(outage.affectedNasPorts ?? []).join(', ') || '—'}</span></InfoField>
+                    <InfoField label="Affected Equipment">{outage.affectedEquipment}</InfoField>
+                    <InfoField label="Server ID">{outage.serverId || '—'}</InfoField>
+                    <InfoField label="Start Time">{formatDateTime(outage.startTime)}</InfoField>
+                    <InfoField label="Expected Restoration">{formatDateTime(outage.expectedRestorationTime)}</InfoField>
+                  </div>
+
+                  <div className="pt-4 border-t border-surface-border space-y-4">
+                    <InfoField label="Description"><p className="font-normal text-gray-700">{outage.description}</p></InfoField>
+                    <InfoField label="Customer Message">
+                      <p className="font-normal text-gray-700">{outage.customerMessage}</p>
+                      {outage.sendViaWhatsApp && (
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Sent via WhatsApp template: {WHATSAPP_TEMPLATES.find(t => t.id === outage.templateId)?.label ?? '—'}
+                        </p>
+                      )}
+                    </InfoField>
+                    <InfoField label="Hardware Requirement">
+                      {(outage.hardwareRequirement ?? []).length === 0 ? (
+                        <p className="text-sm text-gray-400 font-normal">No hardware requirement on file.</p>
+                      ) : (
+                        <div className="border border-surface-border rounded-lg overflow-hidden mt-1">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
+                                <th className="text-left px-3 py-2 font-semibold">Item</th>
+                                <th className="text-right px-3 py-2 font-semibold">Qty</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-border">
+                              {outage.hardwareRequirement.map((h, i) => (
+                                <tr key={i}>
+                                  <td className="px-3 py-2 text-gray-700">{h.name}</td>
+                                  <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </InfoField>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">{n.message}</p>
-              </div>
-            ))}
+              )}
+
+              {/* ─── Linked Tickets ─────────────────────────────────────── */}
+              {activeTab === 'linked-tickets' && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <TicketIcon size={15} className="text-brand-blue" />
+                      <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{linkedTickets.length} linked</span>
+                    </div>
+                    <Button size="xs" variant="secondary" icon={<Plus size={12} />} onClick={() => setLinkModalOpen(true)}>
+                      Link Ticket
+                    </Button>
+                  </div>
+                  {linkedTickets.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No tickets linked to this outage yet.</p>
+                  ) : (
+                    <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+                      {linkedTickets.map(t => (
+                        <div key={t.id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => navigate(`/support/tickets/${t.id}/overview`)}>
+                          <div className="min-w-0">
+                            <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
+                            <span className="text-sm text-gray-700 ml-2 truncate">{t.customerName} · {t.category}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant={PRIORITY_BADGE[t.priority]} size="sm" dot>{PRIORITY_LABEL[t.priority]}</Badge>
+                            <Badge variant={TICKET_STATUS_BADGE[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── Assignment ─────────────────────────────────────────── */}
+              {activeTab === 'assignment' && (
+                <AssignmentOverviewCard entity={outage} branch={branchesForNasPorts(outage.affectedNasPorts).join(', ')}
+                  onAssign={() => setAssignTeamOpen(true)} />
+              )}
+
+              {/* ─── Resolution ─────────────────────────────────────────── */}
+              {activeTab === 'resolution' && (
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[11px] text-gray-400 uppercase tracking-wide">Resolution</p>
+                      <Button icon={<CheckCircle2 size={14} />} disabled={isGated} onClick={() => setResolveOpen(true)}>
+                        Resolve Outage
+                      </Button>
+                    </div>
+                    {outage.resolution ? (
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                        <div className="col-span-2">
+                          <InfoField label="Root Cause"><p className="font-normal text-gray-700">{outage.resolution.rootCause}</p></InfoField>
+                        </div>
+                        <div className="col-span-2">
+                          <InfoField label="Solution"><p className="font-normal text-gray-700">{outage.resolution.solution}</p></InfoField>
+                        </div>
+                        <InfoField label="Actual Restoration Time">{formatDateTime(outage.resolution.actualRestorationTime)}</InfoField>
+                        <InfoField label="Resolved By">{outage.resolution.resolvedBy}</InfoField>
+                        <div className="col-span-2">
+                          <InfoField label="Final Customer Message"><p className="font-normal text-gray-700">{outage.resolution.finalCustomerMessage}</p></InfoField>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400">This outage has not been resolved yet.</p>
+                    )}
+                  </div>
+
+                  <div className="pt-5 border-t border-surface-border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Bell size={14} className="text-brand-blue" />
+                      <p className="text-[11px] text-gray-400 uppercase tracking-wide">Notification Log</p>
+                      <span className="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 font-medium">{(outage.notificationLog ?? []).length}</span>
+                    </div>
+                    {(outage.notificationLog ?? []).length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">No notifications sent yet.</p>
+                    ) : (
+                      <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+                        {[...outage.notificationLog].reverse().map((n, i) => (
+                          <div key={i} className="px-4 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-gray-700">Sent to {n.customerCount} customer{n.customerCount !== 1 ? 's' : ''}</span>
+                              <span className="text-[11px] text-gray-400 shrink-0">{formatDateTime(n.time)}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">{n.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
           </div>
-        )}
-      </Card>
+        </div>
+
+        {/* ── RIGHT SIDEBAR: Impact Summary — visual polish only, same data ── */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-4">Impact Summary</p>
+
+            <button type="button" onClick={() => setCustomersOpen(o => !o)}
+              className="w-full flex items-center gap-3 pb-4 mb-4 border-b border-surface-border text-left hover:opacity-80 transition-opacity">
+              <div className="w-10 h-10 rounded-xl bg-brand-blue/10 flex items-center justify-center shrink-0">
+                <Users size={18} className="text-brand-blue" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xl font-bold text-gray-900">{outage.affectedCustomerCount}</p>
+                <p className="text-[11px] text-gray-500">Affected Customer{outage.affectedCustomerCount !== 1 ? 's' : ''}</p>
+              </div>
+              <ChevronDown size={14} className={`text-gray-400 transition-transform shrink-0 ${customersOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {customersOpen && (
+              <div className="mb-4 -mt-2">
+                {affectedCustomers.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-3">No customers found in the affected area(s).</p>
+                ) : (
+                  <div className="border border-surface-border rounded-lg divide-y divide-surface-border max-h-64 overflow-y-auto">
+                    {affectedCustomers.map(c => (
+                      <div key={c.id} className="flex items-center justify-between px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{c.name}</p>
+                          <p className="text-[10px] text-gray-400 font-mono">{c.id} · {c.phone}</p>
+                        </div>
+                        <Badge variant={CONNECTION_STATUS_BADGE[c.status] ?? 'gray'} size="sm">
+                          {CONNECTION_STATUS_LABEL[c.status] ?? c.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-2">Affected NAS Port ID(s)</p>
+              {(outage.affectedNasPorts ?? []).length === 0 ? (
+                <p className="text-xs text-gray-300">—</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {outage.affectedNasPorts.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <MapPin size={12} className="text-brand-blue/60 shrink-0" />
+                      <span className="font-mono truncate">{p}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <ResolveOutageModal isOpen={resolveOpen} onClose={() => setResolveOpen(false)}
         onSubmit={data => { resolveOutage(outage.id, data, CURRENT_USER); setResolveOpen(false) }} />
