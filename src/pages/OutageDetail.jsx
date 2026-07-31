@@ -1,19 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Ticket as TicketIcon, Bell, Send, Plus, Pencil, ChevronDown, Search, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Ticket as TicketIcon, Bell, Send, Plus, Pencil, ChevronDown, Search, X, Upload, Paperclip } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Card, { CardHeader } from '../components/ui/Card'
-import AreaMultiSelect from '../components/ui/AreaMultiSelect'
+import NasPortMultiSelect from '../components/ui/NasPortMultiSelect'
+import AssignmentOverviewCard from '../components/ui/AssignmentOverviewCard'
+import AssignTeamModal from '../components/ui/AssignTeamModal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import {
   getOutage, subscribeOutages, updateOutageStatus, resolveOutage, getLinkedTickets,
-  getAffectedCustomers, updateOutageAreaEquipment, logNotification,
-  OUTAGE_STATUSES, GATED_OUTAGE_STATUSES,
+  getAffectedCustomers, updateOutageNasPortsEquipment, logNotification, assignOutageTeam,
+  OUTAGE_STATUSES, GATED_OUTAGE_STATUSES, WHATSAPP_TEMPLATES,
 } from '../data/outagesStore'
-import { getTickets, subscribeTickets, linkTicketsToOutage, CLOSED_STATUSES, PRIORITY_LABEL } from '../data/ticketsStore'
-import { getAllLocalitiesGrouped } from '../data/areaMappingStore'
+import { getTickets, subscribeTickets, linkTicketsToOutage, CLOSED_STATUSES, PRIORITY_LABEL, NAS_PORTS, branchesForNasPorts } from '../data/ticketsStore'
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 const CURRENT_USER = 'Admin User'
 
@@ -47,8 +54,18 @@ function ResolveOutageModal({ isOpen, onClose, onSubmit }) {
   const [solution, setSolution] = useState('')
   const [actualRestorationTime, setActualRestorationTime] = useState('')
   const [finalCustomerMessage, setFinalCustomerMessage] = useState('')
+  const [notificationTemplateId, setNotificationTemplateId] = useState('')
+  const [proofImages, setProofImages] = useState([])
+  const fileInputRef = useRef()
 
   const valid = rootCause.trim() && solution.trim() && actualRestorationTime && finalCustomerMessage.trim()
+
+  function handleUpload(fileList) {
+    const files = Array.from(fileList ?? [])
+    if (!files.length) return
+    setProofImages(a => [...a, ...files.map(f => ({ id: Date.now() + Math.random(), name: f.name, sizeLabel: fmtSize(f.size) }))])
+  }
+  function removeProofImage(id) { setProofImages(a => a.filter(x => x.id !== id)) }
 
   function handleSubmit() {
     if (!valid) return
@@ -56,9 +73,14 @@ function ResolveOutageModal({ isOpen, onClose, onSubmit }) {
       rootCause: rootCause.trim(), solution: solution.trim(),
       actualRestorationTime: new Date(actualRestorationTime).toISOString(),
       finalCustomerMessage: finalCustomerMessage.trim(),
+      notificationTemplateId: notificationTemplateId || null,
+      proofImages,
     })
     setRootCause(''); setSolution(''); setActualRestorationTime(''); setFinalCustomerMessage('')
+    setNotificationTemplateId(''); setProofImages([])
   }
+
+  const selectedTemplate = WHATSAPP_TEMPLATES.find(t => t.id === notificationTemplateId)
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Resolve Outage" size="md"
@@ -82,32 +104,64 @@ function ResolveOutageModal({ isOpen, onClose, onSubmit }) {
         <FormField label="Final Customer Message" required>
           <Textarea value={finalCustomerMessage} onChange={e => setFinalCustomerMessage(e.target.value)} rows={2} placeholder="What should customers be told now that this is resolved?" />
         </FormField>
+        <FormField label="Notification Template" hint="Optional — pick a pre-approved template for the resolution push/WhatsApp notification instead of relying purely on freeform text">
+          <Select value={notificationTemplateId} onChange={e => setNotificationTemplateId(e.target.value)}>
+            <option value="">No template — use Final Customer Message only</option>
+            {WHATSAPP_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </Select>
+          {selectedTemplate && (
+            <div className="mt-2 p-3 rounded-lg bg-gray-50 border border-surface-border text-sm text-gray-600">
+              {selectedTemplate.text}
+            </div>
+          )}
+        </FormField>
+        <FormField label="Upload Proof" hint="Optional — image(s) showing the fix was completed">
+          <div className="space-y-2">
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { handleUpload(e.target.files); e.target.value = '' }} />
+            <button type="button" onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-brand-blue bg-brand-blue/5 hover:bg-brand-blue/10 border border-brand-blue/20 rounded-lg transition-colors">
+              <Upload size={13} /> Upload files
+            </button>
+            {proofImages.length > 0 && (
+              <div className="space-y-1.5">
+                {proofImages.map(a => (
+                  <div key={a.id} className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-surface-border bg-gray-50 text-xs">
+                    <Paperclip size={12} className="text-gray-400 shrink-0" />
+                    <span className="flex-1 truncate text-gray-700">{a.name}</span>
+                    <span className="text-gray-400">{a.sizeLabel}</span>
+                    <button onClick={() => removeProofImage(a.id)} className="text-gray-400 hover:text-red-500"><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </FormField>
       </div>
     </Modal>
   )
 }
 
-// ── Edit Affected Area(s) / Affected Equipment — re-runs the auto-link match on save ──
+// ── Edit Affected NAS Port(s) / Affected Equipment — re-runs the auto-link match on save ──
 
-function EditAreaEquipmentModal({ open, onClose, outage, areaGroups, onSave }) {
-  const [areas, setAreas] = useState([])
+function EditNasPortsEquipmentModal({ open, onClose, outage, onSave }) {
+  const [ports, setPorts] = useState([])
   const [equipment, setEquipment] = useState('')
 
   useEffect(() => {
     if (!open) return
-    setAreas(outage.affectedAreas)
+    setPorts(outage.affectedNasPorts ?? [])
     setEquipment(outage.affectedEquipment)
   }, [open, outage])
 
-  const valid = areas.length > 0 && equipment.trim()
+  const valid = ports.length > 0 && equipment.trim()
 
   function handleSave() {
     if (!valid) return
-    onSave(areas, equipment.trim())
+    onSave(ports, equipment.trim())
   }
 
   return (
-    <Modal isOpen={open} onClose={onClose} title="Edit Affected Area / Equipment" size="md"
+    <Modal isOpen={open} onClose={onClose} title="Edit Affected NAS Port(s) / Equipment" size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
@@ -116,8 +170,8 @@ function EditAreaEquipmentModal({ open, onClose, outage, areaGroups, onSave }) {
       }
     >
       <div className="space-y-4">
-        <FormField label="Affected Area(s)" required hint="Editing this re-runs the auto-link match against open tickets">
-          <AreaMultiSelect selected={areas} onChange={setAreas} groups={areaGroups} />
+        <FormField label="Affected NAS Port ID(s)" required hint="Editing this re-runs the auto-link match against open tickets">
+          <NasPortMultiSelect selected={ports} onChange={setPorts} ports={NAS_PORTS} />
         </FormField>
         <FormField label="Affected Equipment" required>
           <Input value={equipment} onChange={e => setEquipment(e.target.value)} placeholder="e.g. OLT-AW-02, Junction Box #23" />
@@ -249,7 +303,8 @@ export default function OutageDetail() {
   const [customersOpen, setCustomersOpen] = useState(false)
   const [linkModalOpen, setLinkModalOpen] = useState(false)
   const [notifyOpen, setNotifyOpen] = useState(false)
-  const [editAreaOpen, setEditAreaOpen] = useState(false)
+  const [editPortsOpen, setEditPortsOpen] = useState(false)
+  const [assignTeamOpen, setAssignTeamOpen] = useState(false)
   const [toast, setToast] = useState('')
 
   useEffect(() => setOutage(getOutage(id)), [id])
@@ -258,8 +313,6 @@ export default function OutageDetail() {
   // re-render on ticket changes too so "Linked Tickets" stays live.
   const [, forceTicketsTick] = useState(0)
   useEffect(() => subscribeTickets(() => forceTicketsTick(x => x + 1)), [])
-
-  const areaGroups = getAllLocalitiesGrouped()
 
   useEffect(() => {
     if (!toast) return
@@ -290,9 +343,14 @@ export default function OutageDetail() {
     setToast(`Notification sent to ${affectedCustomers.length} customer(s)`)
   }
 
-  function handleSaveAreaEquipment(areas, equipment) {
-    updateOutageAreaEquipment(outage.id, { affectedAreas: areas, affectedEquipment: equipment }, CURRENT_USER)
-    setEditAreaOpen(false)
+  function handleSaveNasPortsEquipment(ports, equipment) {
+    updateOutageNasPortsEquipment(outage.id, { affectedNasPorts: ports, affectedEquipment: equipment }, CURRENT_USER)
+    setEditPortsOpen(false)
+  }
+
+  function handleAssignTeam(agents, teams) {
+    assignOutageTeam(outage.id, { agents, teams }, CURRENT_USER)
+    setAssignTeamOpen(false)
   }
 
   return (
@@ -318,8 +376,8 @@ export default function OutageDetail() {
       <Card>
         <CardHeader title="Outage Details"
           action={
-            <Button size="xs" variant="secondary" icon={<Pencil size={12} />} onClick={() => setEditAreaOpen(true)}>
-              Edit Area/Equipment
+            <Button size="xs" variant="secondary" icon={<Pencil size={12} />} onClick={() => setEditPortsOpen(true)}>
+              Edit NAS Ports/Equipment
             </Button>
           }
         />
@@ -336,8 +394,9 @@ export default function OutageDetail() {
               </Select>
             )}
           </InfoField>
-          <InfoField label="Affected Area(s)">{outage.affectedAreas.join(', ')}</InfoField>
+          <InfoField label="Affected NAS Port ID(s)"><span className="font-mono">{(outage.affectedNasPorts ?? []).join(', ') || '—'}</span></InfoField>
           <InfoField label="Affected Equipment">{outage.affectedEquipment}</InfoField>
+          <InfoField label="Server ID">{outage.serverId || '—'}</InfoField>
           <InfoField label="Start Time">{formatDateTime(outage.startTime)}</InfoField>
           <InfoField label="Expected Restoration">{formatDateTime(outage.expectedRestorationTime)}</InfoField>
           <InfoField label="Affected Customers">
@@ -377,9 +436,28 @@ export default function OutageDetail() {
 
         <div className="mt-4 pt-4 border-t border-surface-border space-y-4">
           <InfoField label="Description"><p className="font-normal text-gray-700">{outage.description}</p></InfoField>
-          <InfoField label="Customer Message"><p className="font-normal text-gray-700">{outage.customerMessage}</p></InfoField>
+          <InfoField label="Customer Message">
+            <p className="font-normal text-gray-700">{outage.customerMessage}</p>
+            {outage.sendViaWhatsApp && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                Sent via WhatsApp template: {WHATSAPP_TEMPLATES.find(t => t.id === outage.templateId)?.label ?? '—'}
+              </p>
+            )}
+          </InfoField>
+          {(outage.hardwareRequirement ?? []).length > 0 && (
+            <InfoField label="Hardware Requirement">
+              <div className="flex flex-wrap gap-1.5 mt-0.5">
+                {outage.hardwareRequirement.map((h, i) => (
+                  <Badge key={i} variant="gray" size="sm">{h.name} × {h.quantity}</Badge>
+                ))}
+              </div>
+            </InfoField>
+          )}
         </div>
       </Card>
+
+      <AssignmentOverviewCard entity={outage} branch={branchesForNasPorts(outage.affectedNasPorts).join(', ')}
+        onAssign={() => setAssignTeamOpen(true)} />
 
       <Card padding={false}>
         <div className="px-5 py-4 border-b border-surface-border flex items-center gap-2">
@@ -465,8 +543,8 @@ export default function OutageDetail() {
       <ResolveOutageModal isOpen={resolveOpen} onClose={() => setResolveOpen(false)}
         onSubmit={data => { resolveOutage(outage.id, data, CURRENT_USER); setResolveOpen(false) }} />
 
-      <EditAreaEquipmentModal open={editAreaOpen} onClose={() => setEditAreaOpen(false)}
-        outage={outage} areaGroups={areaGroups} onSave={handleSaveAreaEquipment} />
+      <EditNasPortsEquipmentModal open={editPortsOpen} onClose={() => setEditPortsOpen(false)}
+        outage={outage} onSave={handleSaveNasPortsEquipment} />
 
       <LinkTicketModal open={linkModalOpen} onClose={() => setLinkModalOpen(false)}
         excludeIds={linkedTickets.map(t => t.id)}
@@ -474,6 +552,8 @@ export default function OutageDetail() {
 
       <NotifyModal open={notifyOpen} onClose={() => setNotifyOpen(false)}
         message={outage.customerMessage} customerCount={affectedCustomers.length} onSend={handleNotify} />
+
+      <AssignTeamModal open={assignTeamOpen} onClose={() => setAssignTeamOpen(false)} ticket={outage} onApply={handleAssignTeam} />
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2">

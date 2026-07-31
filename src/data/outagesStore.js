@@ -1,5 +1,8 @@
 import { getAllCustomers } from './customersData'
-import { getTickets, findTicketsForOutage, findTicketsForEquipment, linkTicketsToOutage } from './ticketsStore'
+import {
+  getTickets, findTicketsForOutage, findTicketsForEquipment, linkTicketsToOutage,
+  areaForNasPort, branchesForNasPorts,
+} from './ticketsStore'
 
 export const OUTAGE_TYPES = ['Fiber Cut', 'Power Failure', 'Equipment Failure', 'Planned Maintenance', 'Backbone Issue']
 
@@ -12,6 +15,40 @@ export const ACTIVE_OUTAGE_STATUSES = ['Confirmed', 'Work in Progress', 'Monitor
 // Resolved is only reachable through the Resolve Outage modal, never a plain
 // status-dropdown selection — same gating pattern as ticketsStore.js.
 export const GATED_OUTAGE_STATUSES = ['Resolved']
+
+// Pre-approved WhatsApp message templates — Meta requires outbound business
+// messages to use pre-approved templates rather than freeform text. Mocked
+// list for now; picking one just stores its text as the outage's message.
+export const WHATSAPP_TEMPLATES = [
+  { id: 'outage_confirmed', label: 'Outage Confirmed', text: 'We are aware of a network outage in your area and our team is working to restore service as soon as possible.' },
+  { id: 'outage_in_progress', label: 'Outage In Progress', text: 'Our technical team is actively working to resolve the outage affecting your connection. We appreciate your patience.' },
+  { id: 'outage_resolved', label: 'Outage Resolved', text: 'The network outage affecting your connection has been resolved. Please restart your router if you still experience issues.' },
+  { id: 'outage_delay', label: 'Outage Delay Update', text: 'Repair work is taking longer than expected. We are working to restore your connection at the earliest and will keep you updated.' },
+]
+
+// Admin-configurable Outage Detection thresholds, editable via Settings > Outage
+// Configuration. Config-storage only for now — no real-time ticket-counting /
+// incident-alert-triggering logic is wired up against these values yet.
+let _outageDetectionSettings = { ticketCountThreshold: 5, timeWindowMinutes: 60 }
+const _outageDetectionListeners = []
+
+function notifyOutageDetectionSettings() { _outageDetectionListeners.forEach(fn => fn({ ..._outageDetectionSettings })) }
+
+export function getOutageDetectionSettings() { return { ..._outageDetectionSettings } }
+
+export function saveOutageDetectionSettings(newSettings) {
+  _outageDetectionSettings = { ..._outageDetectionSettings, ...newSettings }
+  notifyOutageDetectionSettings()
+  return { ..._outageDetectionSettings }
+}
+
+export function subscribeOutageDetectionSettings(fn) {
+  _outageDetectionListeners.push(fn)
+  return () => {
+    const i = _outageDetectionListeners.indexOf(fn)
+    if (i !== -1) _outageDetectionListeners.splice(i, 1)
+  }
+}
 
 const H = 3600000
 const NOW = Date.now()
@@ -41,6 +78,7 @@ const SEED = [
     title: 'Fiber Cut Near Four Bungalows Junction',
     type: 'Fiber Cut',
     affectedAreas: ['Andheri West', 'Andheri East', 'Juhu', 'Versova'],
+    affectedNasPorts: ['OLT-ANW-01/PON-2/Port-05', 'OLT-ANW-01/PON-2/Port-08', 'OLT-ANW-02/PON-3/Port-12'],
     affectedEquipment: 'OLT-AW-02, Junction Box #23',
     severity: 'Critical',
     status: 'Work in Progress',
@@ -54,6 +92,7 @@ const SEED = [
     title: 'Scheduled OLT Firmware Upgrade',
     type: 'Planned Maintenance',
     affectedAreas: ['Bandra East'],
+    affectedNasPorts: ['OLT-BE-01/PON-1/Port-09'],
     affectedEquipment: 'OLT-BE-02',
     severity: 'Low',
     status: 'Monitoring',
@@ -67,6 +106,7 @@ const SEED = [
     title: 'Power Failure at Goregaon POP',
     type: 'Power Failure',
     affectedAreas: ['Goregaon'],
+    affectedNasPorts: ['OLT-ANW-01/PON-2/Port-11'],
     affectedEquipment: 'POP-GG-01 (mains + battery backup)',
     severity: 'High',
     status: 'Confirmed',
@@ -80,6 +120,7 @@ const SEED = [
     title: 'Backbone Fiber Damage — Versova / Andheri East Link',
     type: 'Backbone Issue',
     affectedAreas: ['Versova', 'Andheri East'],
+    affectedNasPorts: ['OLT-ANW-02/PON-3/Port-12'],
     affectedEquipment: 'Backbone link OLT-AE-02 <-> OLT-VE-01',
     severity: 'Critical',
     status: 'Resolved',
@@ -101,6 +142,7 @@ const SEED = [
     title: 'Equipment Failure — Mahim Router Card',
     type: 'Equipment Failure',
     affectedAreas: ['Mahim'],
+    affectedNasPorts: ['OLT-ANW-02/PON-3/Port-12'],
     affectedEquipment: 'Core router line card — POP-MH-01',
     severity: 'High',
     status: 'Confirmed',
@@ -111,6 +153,13 @@ const SEED = [
   },
 ].map(o => ({
   ...o,
+  affectedNasPorts: o.affectedNasPorts ?? [],
+  serverId: o.serverId ?? null,
+  hardwareRequirement: o.hardwareRequirement ?? [],
+  sendViaWhatsApp: o.sendViaWhatsApp ?? false,
+  templateId: o.templateId ?? null,
+  assignedAgents: o.assignedAgents ?? [], assignedAgent: o.assignedAgent ?? null,
+  assignedTeams: o.assignedTeams ?? [], officeTeam: o.officeTeam ?? null,
   affectedCustomerCount: o.affectedCustomerCount ?? affectedCustomerCountFor(o.affectedAreas),
   resolution: o.resolution ?? null,
   createdAt: o.createdAt ?? o.startTime,
@@ -168,14 +217,33 @@ export function updateOutageStatus(id, status, actor = 'Admin User') {
   })
 }
 
-export function resolveOutage(id, { rootCause, solution, actualRestorationTime, finalCustomerMessage }, actor = 'Admin User') {
+export function resolveOutage(id, { rootCause, solution, actualRestorationTime, finalCustomerMessage, notificationTemplateId, proofImages }, actor = 'Admin User') {
   const o = getOutage(id)
   if (!o) return null
   const now = new Date().toISOString()
-  const resolution = { rootCause, solution, actualRestorationTime, finalCustomerMessage, resolvedAt: now, resolvedBy: actor }
+  const resolution = {
+    rootCause, solution, actualRestorationTime, finalCustomerMessage,
+    notificationTemplateId: notificationTemplateId ?? null,
+    proofImages: proofImages ?? [],
+    resolvedAt: now, resolvedBy: actor,
+  }
   return saveOutage({
     ...o, status: 'Resolved', resolution, updatedAt: now,
     activityLog: appendActivity(o, 'Outage resolved', actor),
+  })
+}
+
+// Reuses the shared Individual/Team AssignTeamModal already built for tickets —
+// same assignedAgents/assignedAgent + assignedTeams/officeTeam shape.
+export function assignOutageTeam(id, { agents = [], teams = [] }, actor = 'Admin User') {
+  const o = getOutage(id)
+  if (!o) return null
+  return saveOutage({
+    ...o,
+    assignedAgents: agents, assignedAgent: agents[0] ?? null,
+    assignedTeams: teams, officeTeam: teams[0] ?? null,
+    updatedAt: new Date().toISOString(),
+    activityLog: appendActivity(o, `Assigned to ${[...agents, ...teams].join(', ') || 'nobody'}`, actor),
   })
 }
 
@@ -189,24 +257,28 @@ export function getLinkedTickets(outageId) {
   return getTickets().filter(t => t.outageId === outageId)
 }
 
-// Re-runs the auto-link match after Affected Area(s)/Affected Equipment are edited
-// on an existing outage — links any newly-matching open tickets that aren't already linked.
-export function updateOutageAreaEquipment(id, { affectedAreas, affectedEquipment }, actor = 'Admin User') {
+// Re-runs the auto-link match after Affected NAS Port(s)/Affected Equipment are
+// edited on an existing outage — links any newly-matching open tickets that
+// aren't already linked. Affected Area(s) is derived from the selected NAS Ports
+// (via ticketsStore's areaForNasPort) and kept internally for the existing
+// affected-customer-count and Create Ticket outage-banner matching logic.
+export function updateOutageNasPortsEquipment(id, { affectedNasPorts, affectedEquipment }, actor = 'Admin User') {
   const o = getOutage(id)
   if (!o) return null
   const now = new Date().toISOString()
+  const affectedAreas = [...new Set(affectedNasPorts.map(areaForNasPort).filter(Boolean))]
   const relatedTickets = computeRelatedTickets({ affectedAreas, affectedEquipment, startTime: o.startTime })
   const newlyLinked = relatedTickets.filter(t => t.outageId !== id)
   if (newlyLinked.length) linkTicketsToOutage(newlyLinked.map(t => t.id), id)
 
   const affectedCustomerCount = affectedCustomerCountFor(affectedAreas)
-  let activityLog = appendActivity(o, 'Affected area/equipment updated', actor)
+  let activityLog = appendActivity(o, 'Affected NAS Port(s)/equipment updated', actor)
   if (newlyLinked.length) {
     activityLog = [...activityLog, { time: now, actor: 'System', action: `Auto-linked ${newlyLinked.length} newly-matching open ticket(s).` }]
   }
 
   return saveOutage({
-    ...o, affectedAreas, affectedEquipment, affectedCustomerCount, updatedAt: now, activityLog,
+    ...o, affectedNasPorts, affectedAreas, affectedEquipment, affectedCustomerCount, updatedAt: now, activityLog,
   })
 }
 
@@ -226,11 +298,15 @@ export function logNotification(id, { customerCount, message }, actor = 'Admin U
 
 // Full "Create Outage" flow: generates the record, computes affected customers,
 // auto-links related open tickets, and logs the mock customer notification.
+// Affected Area(s) is derived from the selected NAS Port(s) (Affected Area(s) is
+// no longer collected directly on the Create Outage form) and kept internally
+// for the existing affected-customer-count and Create Ticket outage-banner logic.
 export function createOutage(data, actor = 'Admin User') {
   const id = nextOutageNumber()
   const now = new Date().toISOString()
-  const affectedCustomerCount = affectedCustomerCountFor(data.affectedAreas)
-  const relatedTickets = computeRelatedTickets({ affectedAreas: data.affectedAreas, affectedEquipment: data.affectedEquipment, startTime: data.startTime })
+  const affectedAreas = [...new Set(data.affectedNasPorts.map(areaForNasPort).filter(Boolean))]
+  const affectedCustomerCount = affectedCustomerCountFor(affectedAreas)
+  const relatedTickets = computeRelatedTickets({ affectedAreas, affectedEquipment: data.affectedEquipment, startTime: data.startTime })
   if (relatedTickets.length) linkTicketsToOutage(relatedTickets.map(t => t.id), id)
 
   const activityLog = [
@@ -245,14 +321,21 @@ export function createOutage(data, actor = 'Admin User') {
     id,
     title: data.title,
     type: data.type,
-    affectedAreas: data.affectedAreas,
+    affectedNasPorts: data.affectedNasPorts,
+    affectedAreas,
     affectedEquipment: data.affectedEquipment,
+    serverId: data.serverId ?? null,
     severity: data.severity,
     status: 'Confirmed',
     startTime: data.startTime,
     expectedRestorationTime: data.expectedRestorationTime,
     description: data.description,
     customerMessage: data.customerMessage,
+    sendViaWhatsApp: data.sendViaWhatsApp ?? false,
+    templateId: data.templateId ?? null,
+    hardwareRequirement: data.hardwareRequirement ?? [],
+    assignedAgents: [], assignedAgent: null,
+    assignedTeams: [], officeTeam: null,
     affectedCustomerCount,
     resolution: null,
     createdAt: now,

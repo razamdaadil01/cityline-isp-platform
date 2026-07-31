@@ -16,6 +16,7 @@ import {
   PRIORITIES, PRIORITY_LABEL, getSlaHours, saveSlaHours,
   getSupportSettings, saveSupportSettings,
 } from '../data/ticketsStore'
+import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data/outagesStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
   { id: 'sla',           label: 'SLA Configuration',      icon: Clock     },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
+  { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
   { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
   { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
   { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
@@ -399,6 +401,66 @@ function SupportConfigTab() {
 
       <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
         <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save</Button>
+      </div>
+    </div>
+  )
+}
+
+const TICKET_COUNT_THRESHOLD_OPTIONS = [4, 5, 10, 15, 20]
+
+function OutageConfigTab() {
+  const [settings, setSettings] = useState(getOutageDetectionSettings)
+  const [saved, setSaved] = useState(false)
+
+  function setField(k, v) {
+    setSettings(s => ({ ...s, [k]: v }))
+    setSaved(false)
+  }
+
+  function handleSave() {
+    saveOutageDetectionSettings({
+      ticketCountThreshold: Number(settings.ticketCountThreshold),
+      timeWindowMinutes: Number(settings.timeWindowMinutes),
+    })
+    setSaved(true)
+  }
+
+  const valid = TICKET_COUNT_THRESHOLD_OPTIONS.includes(Number(settings.ticketCountThreshold)) &&
+    Number(settings.timeWindowMinutes) > 0
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Outage Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Thresholds for detecting a possible network outage from a burst of tickets on the same NAS Port.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Ticket Count Threshold">
+          <Select value={settings.ticketCountThreshold} onChange={e => setField('ticketCountThreshold', e.target.value)}>
+            {TICKET_COUNT_THRESHOLD_OPTIONS.map(n => <option key={n} value={n}>{n} tickets</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Time Window (minutes)">
+          <Input type="number" min="1" value={settings.timeWindowMinutes} onChange={e => setField('timeWindowMinutes', e.target.value)} />
+        </FormField>
+      </div>
+
+      <p className="text-xs text-gray-500">
+        When this many tickets are created on the same NAS Port within the time window, an incident alert is shown on the Support Dashboard.
+      </p>
+
+      {saved && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          Outage detection settings saved.
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave} disabled={!valid}>Save</Button>
       </div>
     </div>
   )
@@ -1525,6 +1587,7 @@ export default function Settings() {
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'sla'           && <SlaConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
+          {activeTab === 'outage-configuration' && <OutageConfigTab />}
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'                && <RolesTab />}
