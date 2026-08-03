@@ -160,18 +160,25 @@ function ContactRow({ icon: Icon, children }) {
 
 // ── Resolve Ticket Modal ──────────────────────────────────────────────────────
 
-function ResolveModal({ isOpen, onClose, onSubmit }) {
+function ResolveModal({ isOpen, onClose, onSubmit, resetKey }) {
   const [rootCause, setRootCause] = useState('')
   const [resolutionDetails, setResolutionDetails] = useState('')
   const [resolutionType, setResolutionType] = useState('')
   const [customerUpdate, setCustomerUpdate] = useState('')
+
+  // Fields are cleared only when the parent bumps resetKey (full cancel or a
+  // completed resolution) — NOT on every submit, since submitting this form now
+  // only advances to the OTP step; if the agent cancels out of OTP verification
+  // they land back here with their notes intact.
+  useEffect(() => {
+    setRootCause(''); setResolutionDetails(''); setResolutionType(''); setCustomerUpdate('')
+  }, [resetKey])
 
   const valid = rootCause.trim() && resolutionDetails.trim() && resolutionType
 
   function handleSubmit() {
     if (!valid) return
     onSubmit({ rootCause: rootCause.trim(), resolutionDetails: resolutionDetails.trim(), resolutionType, customerUpdate: customerUpdate.trim() })
-    setRootCause(''); setResolutionDetails(''); setResolutionType(''); setCustomerUpdate('')
   }
 
   return (
@@ -199,6 +206,89 @@ function ResolveModal({ isOpen, onClose, onSubmit }) {
         <FormField label="Customer Update" hint="Becomes a customer-visible note in Communication History">
           <Textarea value={customerUpdate} onChange={e => setCustomerUpdate(e.target.value)} rows={2} placeholder="What should the customer be told?" />
         </FormField>
+      </div>
+    </Modal>
+  )
+}
+
+// Masks all but the first 5 digits of a phone number for the OTP-sent message,
+// e.g. '9876543210' -> '98765XXXXX'.
+function maskPhone(phone) {
+  const digits = String(phone ?? '')
+  return digits.length <= 5 ? digits : digits.slice(0, 5) + 'X'.repeat(digits.length - 5)
+}
+
+// ── Verify OTP Modal (second-step gate after the Resolve form) ────────────────
+// UI-only stub: no real SMS gateway is wired up. For demo purposes any OTP of at
+// least 4 digits is accepted as valid (mirrors the same "any code accepted"
+// convention already used by the eKYC OTP step in AddCustomer.jsx); only a
+// too-short/incomplete entry is rejected, so the inline error path is reachable.
+function VerifyOtpModal({ isOpen, phone, onCancel, onVerify }) {
+  const [otp, setOtp] = useState('')
+  const [error, setError] = useState('')
+  const [resendTimer, setResendTimer] = useState(30)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setOtp(''); setError(''); setResendTimer(30)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen || resendTimer <= 0) return
+    const t = setTimeout(() => setResendTimer(s => s - 1), 1000)
+    return () => clearTimeout(t)
+  }, [isOpen, resendTimer])
+
+  function handleResend() {
+    if (resendTimer > 0) return
+    setResendTimer(30)
+    setError('')
+  }
+
+  function handleVerify() {
+    if (otp.trim().length < 4) {
+      setError('Invalid OTP, please try again.')
+      return
+    }
+    setError('')
+    onVerify()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onCancel} title="Verify OTP" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          <Button onClick={handleVerify} disabled={otp.trim().length < 4}>Verify &amp; Resolve</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Ask the customer for the OTP sent to their phone and enter it below to confirm resolution.
+        </p>
+        <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-xl p-4 flex items-start gap-2">
+          <Phone size={15} className="text-brand-blue shrink-0 mt-0.5" />
+          <p className="text-sm text-brand-blue">
+            An OTP has been sent to the customer's registered mobile number ({maskPhone(phone)}).
+          </p>
+        </div>
+        <FormField label="Enter OTP" required error={error}>
+          <Input
+            value={otp}
+            onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
+            placeholder="Enter 4-6 digit OTP"
+            inputMode="numeric"
+          />
+        </FormField>
+        <button
+          type="button"
+          onClick={handleResend}
+          disabled={resendTimer > 0}
+          className={`text-xs font-medium ${resendTimer > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-brand-blue hover:underline'}`}
+        >
+          {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
+        </button>
       </div>
     </Modal>
   )
@@ -764,11 +854,48 @@ export default function SupportTicketDetail() {
 
   const [leftTab, setLeftTab] = useState('customer')
   const [resolveOpen, setResolveOpen] = useState(false)
+  // The Resolve flow is a two-step gate: the Resolve form only stages the
+  // resolution details; the ticket doesn't actually flip to Resolved until OTP
+  // verification succeeds. otpStep toggles which of the two modals is showing
+  // while resolveOpen stays true; pendingResolution holds the staged form data
+  // in between. resolveResetKey is bumped to clear the form's fields, but only
+  // on a full cancel or a completed resolution — not when backing out of OTP.
+  const [otpStep, setOtpStep] = useState(false)
+  const [pendingResolution, setPendingResolution] = useState(null)
+  const [resolveResetKey, setResolveResetKey] = useState(0)
+  const [toast, setToast] = useState('')
   const [reopenOpen, setReopenOpen] = useState(false)
   const [assignTeamOpen, setAssignTeamOpen] = useState(false)
   const [assignTechOpen, setAssignTechOpen] = useState(false)
   const [addHardwareOpen, setAddHardwareOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  function handleResolveFormSubmit(data) {
+    setPendingResolution(data)
+    setOtpStep(true)
+  }
+
+  function handleResolveCancel() {
+    setResolveOpen(false)
+    setOtpStep(false)
+    setPendingResolution(null)
+    setResolveResetKey(k => k + 1)
+  }
+
+  function handleOtpVerified() {
+    resolveTicket(ticket.id, pendingResolution, CURRENT_USER)
+    setResolveOpen(false)
+    setOtpStep(false)
+    setPendingResolution(null)
+    setResolveResetKey(k => k + 1)
+    setToast('Ticket marked as Resolved')
+  }
 
   // "Schedule Technician Visit" is deep-linkable via ?modal=schedule-visit instead of
   // local-only state. Opening pushes a new history entry (so browser back closes it);
@@ -859,7 +986,7 @@ export default function SupportTicketDetail() {
             onAssignTeam={() => setAssignTeamOpen(true)}
             onAssign={() => setAssignTechOpen(true)}
           />
-          <Button icon={<CheckCircle2 size={15} />} disabled={!canResolve} onClick={() => setResolveOpen(true)}>
+          <Button icon={<CheckCircle2 size={15} />} disabled={!canResolve} onClick={() => { setOtpStep(false); setResolveOpen(true) }}>
             Resolve
           </Button>
         </div>
@@ -1258,8 +1385,10 @@ export default function SupportTicketDetail() {
         </div>
       </div>
 
-      <ResolveModal isOpen={resolveOpen} onClose={() => setResolveOpen(false)}
-        onSubmit={data => { resolveTicket(ticket.id, data, CURRENT_USER); setResolveOpen(false) }} />
+      <ResolveModal isOpen={resolveOpen && !otpStep} onClose={handleResolveCancel}
+        onSubmit={handleResolveFormSubmit} resetKey={resolveResetKey} />
+      <VerifyOtpModal isOpen={resolveOpen && otpStep} phone={ticket.phone}
+        onCancel={() => setOtpStep(false)} onVerify={handleOtpVerified} />
       <ReopenModal isOpen={reopenOpen} onClose={() => setReopenOpen(false)}
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />
       <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={closeScheduleModal} ticket={ticket}
@@ -1267,6 +1396,12 @@ export default function SupportTicketDetail() {
       <AssignTechnicianModal isOpen={assignTechOpen} onClose={() => setAssignTechOpen(false)} ticket={ticket} />
       <AssignTeamModal open={assignTeamOpen} onClose={() => setAssignTeamOpen(false)} ticket={ticket} onApply={handleAssignTeam} />
       <AddHardwareModal open={addHardwareOpen} onClose={() => setAddHardwareOpen(false)} onAdd={handleAddHardware} />
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2">
+          <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> {toast}
+        </div>
+      )}
     </div>
   )
 }
