@@ -232,19 +232,77 @@ function ReopenModal({ isOpen, onClose, onSubmit }) {
   )
 }
 
+// ── Skill filter dropdown (multi-select popover, for Schedule Technician Visit) ──
+// "All Skills" is derived (checked whenever `selected` is empty), not independent
+// state — checking it always resets to no filter; checking/unchecking a specific
+// skill toggles that skill in the `selected` array. Stays open across checkbox
+// clicks; only closes on click-outside (or re-clicking the trigger).
+
+function SkillFilterDropdown({ selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function toggleSkill(skill) {
+    onChange(selected.includes(skill) ? selected.filter(s => s !== skill) : [...selected, skill])
+  }
+
+  const label = selected.length === 0
+    ? 'All Skills'
+    : selected.length === 1
+      ? selected[0]
+      : `${selected[0]} +${selected.length - 1}`
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors text-left">
+        <span className={`truncate ${selected.length === 0 ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>{label}</span>
+        <ChevronDown size={13} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-surface-border rounded-lg shadow-lg py-1 max-h-56 overflow-y-auto">
+          <label className={`flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer transition-colors ${selected.length === 0 ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+            <input type="checkbox" checked={selected.length === 0} onChange={() => onChange([])}
+              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+            <span className="text-gray-700 font-medium">All Skills</span>
+          </label>
+          <div className="border-t border-surface-border my-1" />
+          {TECHNICIAN_SKILLS.map(skill => {
+            const checked = selected.includes(skill)
+            return (
+              <label key={skill}
+                className={`flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer transition-colors ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                <input type="checkbox" checked={checked} onChange={() => toggleSkill(skill)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+                <span className="text-gray-700">{skill}</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Schedule Technician Visit Modal ────────────────────────────────────────────
 
 function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   const [technicians, setTechnicians] = useState([])
   const [techSearch, setTechSearch] = useState('')
-  const [techSkillFilter, setTechSkillFilter] = useState('')
+  const [techSkillFilter, setTechSkillFilter] = useState([])
   const [visitDate, setVisitDate] = useState('')
   const [visitTime, setVisitTime] = useState('')
   const [specialInstructions, setSpecialInstructions] = useState('')
   const [error, setError] = useState('')
 
   function reset() {
-    setTechnicians([]); setTechSearch(''); setTechSkillFilter(''); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
+    setTechnicians([]); setTechSearch(''); setTechSkillFilter([]); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
   }
 
   function handleClose() { reset(); onClose() }
@@ -278,7 +336,7 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   const todayStr = new Date().toISOString().slice(0, 10)
   const filteredTechnicians = TECHNICIAN_PROFILES.filter(p =>
     p.name.toLowerCase().includes(techSearch.toLowerCase()) &&
-    (!techSkillFilter || p.skills.includes(techSkillFilter))
+    (techSkillFilter.length === 0 || p.skills.some(s => techSkillFilter.includes(s)))
   )
 
   return (
@@ -310,10 +368,7 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
 
           <div className="mb-2">
             <FormField label="Filter by Skill">
-              <Select value={techSkillFilter} onChange={e => setTechSkillFilter(e.target.value)}>
-                <option value="">All Skills</option>
-                {TECHNICIAN_SKILLS.map(skill => <option key={skill} value={skill}>{skill}</option>)}
-              </Select>
+              <SkillFilterDropdown selected={techSkillFilter} onChange={setTechSkillFilter} />
             </FormField>
           </div>
 
