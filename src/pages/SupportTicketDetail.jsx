@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useParams, useNavigate, Navigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
@@ -324,6 +324,14 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   }
 
   function handleClose() { reset(); onClose() }
+
+  // Escape closes the modal same as Cancel/✕/click-outside — the shared Modal
+  // component doesn't handle this itself, so it's wired up locally here.
+  useEffect(() => {
+    function handleKey(e) { if (e.key === 'Escape') handleClose() }
+    if (isOpen) document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
 
   function toggleTechnician(name) {
     setTechnicians(t => t.includes(name) ? t.filter(x => x !== name) : [...t, name])
@@ -745,6 +753,7 @@ const MIDDLE_TABS = [
 export default function SupportTicketDetail() {
   const { id, tab: tabSlug } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [ticket, setTicket] = useState(() => getTicket(id))
 
   useEffect(() => setTicket(getTicket(id)), [id])
@@ -753,11 +762,33 @@ export default function SupportTicketDetail() {
   const [leftTab, setLeftTab] = useState('customer')
   const [resolveOpen, setResolveOpen] = useState(false)
   const [reopenOpen, setReopenOpen] = useState(false)
-  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [assignTeamOpen, setAssignTeamOpen] = useState(false)
   const [assignTechOpen, setAssignTechOpen] = useState(false)
   const [addHardwareOpen, setAddHardwareOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
+
+  // "Schedule Technician Visit" is deep-linkable via ?modal=schedule-visit instead of
+  // local-only state. Opening pushes a new history entry (so browser back closes it);
+  // closing replaces the current entry (no extra "closed" step left in the back stack).
+  // The functional-updater form of setSearchParams merges against whatever other query
+  // params are already present rather than clobbering them.
+  const scheduleOpen = searchParams.get('modal') === 'schedule-visit'
+
+  function openScheduleModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'schedule-visit')
+      return next
+    })
+  }
+
+  function closeScheduleModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    }, { replace: true })
+  }
 
   // Hardware Assignment list itself stays local to the ticket; each item added here also
   // raises a linked Hardware approval request in the Approvals store (see handleAddHardware).
@@ -1189,7 +1220,7 @@ export default function SupportTicketDetail() {
               <div className="text-center py-2">
                 <p className="text-xs text-gray-400 mb-3">Not Scheduled</p>
                 <span title={scheduleBlocked ? 'Cannot schedule a visit — ticket is Closed or Cancelled.' : undefined}>
-                  <Button size="sm" className="w-full" icon={<CalendarPlus size={13} />} disabled={scheduleBlocked} onClick={() => setScheduleOpen(true)}>
+                  <Button size="sm" className="w-full" icon={<CalendarPlus size={13} />} disabled={scheduleBlocked} onClick={openScheduleModal}>
                     Schedule Technician Visit
                   </Button>
                 </span>
@@ -1228,8 +1259,8 @@ export default function SupportTicketDetail() {
         onSubmit={data => { resolveTicket(ticket.id, data, CURRENT_USER); setResolveOpen(false) }} />
       <ReopenModal isOpen={reopenOpen} onClose={() => setReopenOpen(false)}
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />
-      <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={() => setScheduleOpen(false)} ticket={ticket}
-        onSubmit={data => { scheduleTechnicianVisit(ticket.id, data, CURRENT_USER); setScheduleOpen(false) }} />
+      <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={closeScheduleModal} ticket={ticket}
+        onSubmit={data => { scheduleTechnicianVisit(ticket.id, data, CURRENT_USER); closeScheduleModal() }} />
       <AssignTechnicianModal isOpen={assignTechOpen} onClose={() => setAssignTechOpen(false)} ticket={ticket} />
       <AssignTeamModal open={assignTeamOpen} onClose={() => setAssignTeamOpen(false)} ticket={ticket} onApply={handleAssignTeam} />
       <AddHardwareModal open={addHardwareOpen} onClose={() => setAddHardwareOpen(false)} onAdd={handleAddHardware} />
