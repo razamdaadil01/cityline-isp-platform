@@ -26,28 +26,40 @@ export const MOCK_OTT = [
 export const MOCK_BW_PACKAGES = [
   {
     id: 'BWP-001', type: 'Bandwidth', name: 'Sonic 100', zone: 'Residential',
+    code: 'SONIC100', radiusId: 'RAD-1001',
     rows: [
       { bandwidth: '100 Mbps', jazeId: 23, tenure: '1 Month',  price: 899,   ott: 'Cityline TV Basic' },
       { bandwidth: '100 Mbps', jazeId: 24, tenure: '3 Months', price: 2499,  ott: 'Cityline TV Basic' },
       { bandwidth: '100 Mbps', jazeId: 25, tenure: '1 Year',   price: 8999,  ott: 'Cityline TV Basic' },
     ],
-    editable: false, landline: false, offer: false, status: 'Active',
+    boundPackages: [
+      { name: 'Installation Charge', code: 'INSTALLATION_CHARGE', price: 999 },
+    ],
+    editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
   },
   {
     id: 'BWP-002', type: 'Bandwidth', name: 'Sonic 200', zone: 'Residential',
+    code: 'SONIC200', radiusId: 'RAD-2002',
     rows: [
       { bandwidth: '200 Mbps', jazeId: 30, tenure: '1 Month', price: 1499,  ott: 'Cityline TV Gold' },
       { bandwidth: '200 Mbps', jazeId: 31, tenure: '1 Year',  price: 14999, ott: 'Cityline TV Gold' },
     ],
-    editable: false, landline: true, offer: false, status: 'Active',
+    boundPackages: [
+      { name: 'Installation Charge', code: 'INSTALLATION_CHARGE', price: 1180 },
+    ],
+    editable: false, landline: true, staticIp: false, offer: false, status: 'Active',
   },
   {
     id: 'BWP-003', type: 'Bandwidth', name: 'Enterprise ILL 100', zone: 'Enterprise',
+    code: 'ENT_ILL100', radiusId: 'RAD-3003',
     rows: [
       { bandwidth: '100 Mbps', jazeId: 50, tenure: '1 Month', price: 15000,  ott: 'None' },
       { bandwidth: '100 Mbps', jazeId: 51, tenure: '1 Year',  price: 150000, ott: 'None' },
     ],
-    editable: true, landline: true, offer: false, status: 'Active',
+    boundPackages: [
+      { name: 'Installation Charge', code: 'INSTALLATION_CHARGE', price: 2500 },
+    ],
+    editable: true, landline: true, staticIp: true, offer: false, status: 'Active',
   },
 ]
 
@@ -79,8 +91,11 @@ function bwPackageToPlan(p) {
   return {
     id: p.id,
     name: p.name,
+    code: p.code ?? null,
+    radiusId: p.radiusId ?? null,
     serviceType: 'Bandwidth',
     billingType: row?.tenure === '1 Month' ? 'Monthly' : 'Annual',
+    tenure: row?.tenure ?? null,
     speed: row?.bandwidth ?? null,
     price: row?.price ?? 0,
     validity: null,
@@ -88,6 +103,10 @@ function bwPackageToPlan(p) {
     packageType: p.zone === 'Enterprise' ? 'Private' : 'Standard',
     offer: p.offer,
     ottBundle: !!(row?.ott && row.ott !== 'None'),
+    ottName: row?.ott && row.ott !== 'None' ? row.ott : null,
+    boundPackages: p.boundPackages ?? [],
+    landline: !!p.landline,
+    staticIp: !!p.staticIp,
     zone: p.zone,
     status: p.status,
   }
