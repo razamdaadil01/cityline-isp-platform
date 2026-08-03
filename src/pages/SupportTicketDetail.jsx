@@ -371,62 +371,64 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
       <div className="space-y-4">
         {error && <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">{error}</div>}
 
-        <FormField label="Technicians" required hint="Select one or more — across different skills if the visit needs it (e.g. one fiber tech + one splicing tech)">
-          {technicians.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {technicians.map(name => (
-                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
-                  {name}
-                  <button type="button" onClick={() => toggleTechnician(name)}
-                    className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
-                    <X size={11} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="mb-2">
-            <FormField label="Filter by Skill">
-              <SkillFilterDropdown selected={techSkillFilter} onChange={setTechSkillFilter} />
-            </FormField>
-          </div>
-
-          <div className="relative mb-1">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              value={techSearch}
-              onChange={e => setTechSearch(e.target.value)}
-              placeholder="Search technician..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
-            />
-          </div>
-
-          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[200px] overflow-y-auto">
-            {filteredTechnicians.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">No technicians found</p>
-            ) : filteredTechnicians.map(p => {
-              const selected = technicians.includes(p.name)
-              return (
-                <button key={p.name} type="button" onClick={() => toggleTechnician(p.name)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                  <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
-                    selected ? 'bg-brand-blue border-brand-blue' : 'border-gray-300 bg-white'
-                  }`}>
-                    {selected && <Check size={12} strokeWidth={3} className="text-white" />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm text-gray-700">{p.name}</span>
-                    <span className="text-xs text-gray-400"> — {p.skills.join(', ')}</span>
-                  </div>
-                  <span className="text-[10px] text-gray-400 shrink-0">
-                    {technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+        {/* ── Section 1: Filter by Skill — narrows the technician list below, no technician selection here ── */}
+        <FormField label="Filter by Skill">
+          <SkillFilterDropdown selected={techSkillFilter} onChange={setTechSkillFilter} />
         </FormField>
+
+        {/* ── Section 2: Select Technicians — the actual required field ── */}
+        <div className="pt-4 border-t border-surface-border">
+          <FormField label="Select Technicians" required hint="Select one or more — across different skills if the visit needs it (e.g. one fiber tech + one splicing tech)">
+            {technicians.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {technicians.map(name => (
+                  <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                    {name}
+                    <button type="button" onClick={() => toggleTechnician(name)}
+                      className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                      <X size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="relative mb-1">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                value={techSearch}
+                onChange={e => setTechSearch(e.target.value)}
+                placeholder="Search technician..."
+                className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+              />
+            </div>
+
+            <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[200px] overflow-y-auto">
+              {filteredTechnicians.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4">No technicians found</p>
+              ) : filteredTechnicians.map(p => {
+                const selected = technicians.includes(p.name)
+                return (
+                  <button key={p.name} type="button" onClick={() => toggleTechnician(p.name)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                    <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                      selected ? 'bg-brand-blue border-brand-blue' : 'border-gray-300 bg-white'
+                    }`}>
+                      {selected && <Check size={12} strokeWidth={3} className="text-white" />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm text-gray-700">{p.name}</span>
+                      <span className="text-xs text-gray-400"> — {p.skills.join(', ')}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 shrink-0">
+                      {technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </FormField>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Visit Date" required>
