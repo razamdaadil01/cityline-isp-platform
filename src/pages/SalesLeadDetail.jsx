@@ -958,66 +958,94 @@ const APPROVAL_LABEL = {
 
 const APPROVER_OPTIONS = ['Regional Manager', 'Zonal Manager', 'Director', 'Admin']
 
-function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onChange, onSave, onRemove }) {
+// Bound/add-on packages included with the plan itself — the OTT bundle row (if any)
+// plus whatever's modeled on the package (e.g. Installation Charge).
+function boundPackagesOf(plan) {
+  return [
+    ...(plan.ottName ? [{ name: plan.ottName, code: 'OTT_BUNDLE', price: 0 }] : []),
+    ...(plan.boundPackages ?? []),
+  ]
+}
+
+function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onSave, onRemove }) {
   const displayPrice = editPrice && customPriceVal !== ''
     ? (parseFloat(customPriceVal) || plan.price)
     : (pkg.customPrice ?? plan.price)
 
+  const boundPackages = boundPackagesOf(plan)
+  const boundPackagesTotal = boundPackages.reduce((sum, bp) => sum + (Number(bp.price) || 0), 0)
+  // No separate first-invoice/due-amount calculation exists elsewhere yet —
+  // both are base price + bound package charges, per the same formula.
+  const firstInvoiceAmount = displayPrice + boundPackagesTotal
+  const dueAmount = firstInvoiceAmount
+  const tenureLabel = plan.tenure ? plan.tenure.toUpperCase() : (plan.validity ? `${plan.validity} DAYS` : 'ONE-TIME')
+
   return (
     <div className="bg-white border border-surface-border rounded-xl shadow-card overflow-hidden">
-      {/* Header */}
-      <div className="p-4 pb-3 border-b border-surface-border">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <p className="text-sm font-semibold text-gray-900 leading-snug">{plan.name}</p>
-          <div className="flex items-center gap-3 shrink-0">
-            <button type="button" onClick={onChange}
-              className="flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium transition-colors">
-              <Edit3 size={11} /> Change Package
-            </button>
-            {onRemove && (
-              <button type="button" onClick={onRemove}
-                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
-                <XCircle size={11} /> Remove
-              </button>
-            )}
+      <div className="p-4 space-y-4">
+
+        {/* Package row */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm" className="uppercase tracking-wide">
+                {plan.serviceType}
+              </Badge>
+              <p className="text-base font-bold text-gray-900 leading-snug">{plan.name}</p>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Code: <span className="font-medium text-gray-700">{plan.code ?? '—'}</span>
+              <span className="mx-1.5 text-gray-300">|</span>
+              Speed: <span className="font-medium text-gray-700">{plan.speed ?? '—'}</span>
+              <span className="mx-1.5 text-gray-300">|</span>
+              Radius ID: <span className="font-medium text-gray-700">{plan.radiusId ?? '—'}</span>
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-xl font-bold text-gray-900">
+              ₹{displayPrice.toLocaleString('en-IN')}
+              {pkg.customPrice && !editPrice && (
+                <span className="ml-1 text-[10px] text-amber-600 font-normal align-top">(custom)</span>
+              )}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">PER {tenureLabel}</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Badge variant={SERVICE_BADGE[plan.serviceType] || 'gray'} size="sm">{plan.serviceType}</Badge>
-          <Badge variant="gray" size="sm">{plan.billingType}</Badge>
-          {plan.server && <Badge variant="gray" size="sm">{plan.server}</Badge>}
-          {plan.packageType === 'Private' && <Badge variant="navy" size="sm">Private</Badge>}
-          {plan.offer && <Badge variant="orange" size="sm">Offer</Badge>}
-        </div>
-      </div>
 
-      {/* Body */}
-      <div className="p-4 space-y-2.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Speed</span>
-          <span className="font-medium text-gray-800">{plan.speed || '—'}</span>
-        </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Validity</span>
-          <span className="font-medium text-gray-800">{plan.validity ? `${plan.validity} days` : 'One-time'}</span>
-        </div>
-        {plan.ottBundle && (
-          <div className="flex items-center gap-1.5 text-xs text-purple-700 font-medium bg-purple-50 rounded-lg px-2.5 py-1.5">
-            <span>📺</span> OTT Bundle Included
+        {/* Included bound packages */}
+        {boundPackages.length > 0 && (
+          <div className="pt-3 border-t border-gray-100">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Included Bound Packages</p>
+            <div className="space-y-1.5">
+              {boundPackages.map((bp, i) => (
+                <div key={i} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-800">
+                    <span className="font-medium">{bp.name}</span>{' '}
+                    <span className="text-gray-400 text-xs">({bp.code})</span>
+                  </span>
+                  <span className="font-semibold text-gray-800">
+                    {bp.price > 0 ? `₹${Number(bp.price).toLocaleString('en-IN')}` : 'Included'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Price + custom price toggle */}
-        <div className="pt-1.5 border-t border-gray-100 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Price</span>
-            <span className="font-bold text-gray-900">
-              ₹{displayPrice.toLocaleString('en-IN')}
-              {pkg.customPrice && !editPrice && (
-                <span className="ml-1 text-[10px] text-amber-600 font-normal">(custom)</span>
-              )}
-            </span>
+        {/* Footer row */}
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-1.5">
+            <Badge variant={plan.staticIp ? 'green' : 'gray'} size="sm">Static IP: {plan.staticIp ? 'Yes' : 'No'}</Badge>
+            <Badge variant={plan.landline ? 'green' : 'gray'} size="sm">Landline: {plan.landline ? 'Yes' : 'No'}</Badge>
           </div>
+          <div className="text-right">
+            <p className="text-xs font-semibold text-brand-blue">FIRST INVOICE: ₹{firstInvoiceAmount.toLocaleString('en-IN')}</p>
+            <p className="text-xs font-semibold text-red-500 mt-0.5">DUE AMOUNT: ₹{dueAmount.toLocaleString('en-IN')}</p>
+          </div>
+        </div>
+
+        {/* Custom price + remove — kept, tucked below the new layout */}
+        <div className="pt-3 border-t border-gray-100 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500">Use Custom Price</span>
             <button type="button" onClick={onToggleEditPrice}
@@ -1026,22 +1054,26 @@ function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggle
             </button>
           </div>
           {editPrice && (
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-              <input type="number" min="0" value={customPriceVal}
-                onChange={e => onCustomPriceChange(e.target.value)}
-                placeholder={String(plan.price)}
-                className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+            <div className="space-y-2">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                <input type="number" min="0" value={customPriceVal}
+                  onChange={e => onCustomPriceChange(e.target.value)}
+                  placeholder={String(plan.price)}
+                  className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+              </div>
+              <button type="button" onClick={onSave}
+                className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
+                Save
+              </button>
             </div>
           )}
-        </div>
-
-        {/* Action — always direct Save, no approval */}
-        <div className="pt-0.5">
-          <button type="button" onClick={onSave}
-            className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
-            Save
-          </button>
+          {onRemove && (
+            <button type="button" onClick={onRemove}
+              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
+              <XCircle size={11} /> Remove Package
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1792,6 +1824,7 @@ export default function SalesLeadDetail() {
   const [pkgModalOpen, setPkgModalOpen]     = useState(false)
   const [bwEditPrice, setBwEditPrice]       = useState(false)
   const [bwCustomPrice, setBwCustomPrice]   = useState('')
+  const [paymentLinkToast, setPaymentLinkToast] = useState(null)
   const [bwApprover, setBwApprover]         = useState('Regional Manager')
 
   // Package tab — Add-ons + Advance Payment (Residential/Custom pricing summary)
@@ -2255,6 +2288,12 @@ export default function SalesLeadDetail() {
     setBwEditPrice(false); setBwCustomPrice('')
   }
 
+  // Stub — no real SMS/payment-gateway provider is wired up yet.
+  function handleSendPaymentLink() {
+    setPaymentLinkToast(lead.phone)
+    setTimeout(() => setPaymentLinkToast(null), 3500)
+  }
+
   function handleAddAddon(addon) {
     const existing = lead.addons ?? []
     if (existing.some(a => a.id === addon.id)) return
@@ -2332,6 +2371,13 @@ export default function SalesLeadDetail() {
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle2 size={16} className="shrink-0" />
           Quotation sent successfully to {quotationToast}
+        </div>
+      )}
+      {/* Payment link sent toast */}
+      {paymentLinkToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          Payment link sent to {paymentLinkToast}
         </div>
       )}
       {/* Follow-up updated toast */}
@@ -3178,12 +3224,21 @@ export default function SalesLeadDetail() {
 
                       {/* Bandwidth Package */}
                       <Card padding={false}>
-                        <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                          <h3 className="text-sm font-semibold text-gray-800">Bandwidth Package</h3>
-                          {!lead.bandwidthPackage && (
+                        <div className="p-5 pb-4 flex items-center justify-between gap-3 flex-wrap border-b border-surface-border">
+                          <h3 className="text-sm font-semibold text-gray-800">Active Package Details</h3>
+                          {!lead.bandwidthPackage ? (
                             <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal()}>
                               Add Bandwidth Package
                             </Button>
+                          ) : (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Button size="sm" variant="secondary" icon={<Edit3 size={13} />} onClick={() => openPkgModal()}>
+                                Change Package
+                              </Button>
+                              <Button size="sm" icon={<CreditCard size={13} />} onClick={handleSendPaymentLink}>
+                                Send Payment Link
+                              </Button>
+                            </div>
                           )}
                         </div>
                         <div className="p-5">
@@ -3193,17 +3248,14 @@ export default function SalesLeadDetail() {
                               <p className="text-sm text-gray-400">No bandwidth package selected</p>
                             </div>
                           ) : bwPlan && (
-                            <div className="max-w-md">
-                              <ResidentialPackageCard
-                                plan={bwPlan} pkg={lead.bandwidthPackage}
-                                editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
-                                onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? bwPlan.price)) }}
-                                onCustomPriceChange={setBwCustomPrice}
-                                onChange={() => openPkgModal()}
-                                onSave={() => handleSaveResidentialPkg()}
-                                onRemove={() => handleRemovePkg()}
-                              />
-                            </div>
+                            <ResidentialPackageCard
+                              plan={bwPlan} pkg={lead.bandwidthPackage}
+                              editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
+                              onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? bwPlan.price)) }}
+                              onCustomPriceChange={setBwCustomPrice}
+                              onSave={() => handleSaveResidentialPkg()}
+                              onRemove={() => handleRemovePkg()}
+                            />
                           )}
                         </div>
                       </Card>
