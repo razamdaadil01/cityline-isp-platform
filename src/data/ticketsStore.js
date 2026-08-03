@@ -697,7 +697,7 @@ export function technicianWorkload(name) {
 // Accepts multiple technicians (possibly across different skills) for a single visit —
 // technicianVisit.technicians is the source of truth; .technician (first pick) and
 // assignedTechnician are kept in sync for older single-technician display surfaces.
-export function scheduleTechnicianVisit(id, { technicians, visitDate, visitTime, specialInstructions }, actor = 'Admin User') {
+export function scheduleTechnicianVisit(id, { technicians, visitDate, visitTime, alternatePhone, specialInstructions }, actor = 'Admin User') {
   const t = getTicket(id)
   if (!t || ['Closed', 'Cancelled'].includes(t.status)) return null
   const validTechnicians = (technicians ?? []).filter(name => {
@@ -710,6 +710,7 @@ export function scheduleTechnicianVisit(id, { technicians, visitDate, visitTime,
   const technicianVisit = {
     technicians: validTechnicians, technician: validTechnicians[0],
     visitDate, visitTime, visitStatus: 'Visit Scheduled',
+    alternatePhone: alternatePhone || '',
     specialInstructions,
     notes: '', diagnosis: '', photos: [], materialsUsed: [], completionDetails: '',
   }

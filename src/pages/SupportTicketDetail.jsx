@@ -314,11 +314,13 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   const [techSkillFilter, setTechSkillFilter] = useState([])
   const [visitDate, setVisitDate] = useState('')
   const [visitTime, setVisitTime] = useState('')
+  const [alternatePhone, setAlternatePhone] = useState('')
   const [specialInstructions, setSpecialInstructions] = useState('')
   const [error, setError] = useState('')
 
   function reset() {
-    setTechnicians([]); setTechSearch(''); setTechSkillFilter([]); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
+    setTechnicians([]); setTechSearch(''); setTechSkillFilter([]); setVisitDate(''); setVisitTime('')
+    setAlternatePhone(''); setSpecialInstructions(''); setError('')
   }
 
   function handleClose() { reset(); onClose() }
@@ -345,7 +347,7 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
       setError('Visit date/time cannot be in the past.')
       return
     }
-    onSubmit({ technicians, visitDate, visitTime, specialInstructions: specialInstructions.trim() })
+    onSubmit({ technicians, visitDate, visitTime, alternatePhone: alternatePhone.trim(), specialInstructions: specialInstructions.trim() })
     reset()
   }
 
@@ -441,6 +443,9 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
 
         <FormField label="Customer Address"><Input value={ticket.customerAddress ?? ticket.area ?? '—'} disabled /></FormField>
         <FormField label="Customer Phone Number"><Input value={ticket.phone} disabled /></FormField>
+        <FormField label="Alternate Phone Number" hint="Optional">
+          <Input type="tel" value={alternatePhone} onChange={e => setAlternatePhone(e.target.value)} placeholder="e.g. 9876543210" />
+        </FormField>
         <FormField label="Complaint Summary"><Textarea value={ticket.description} disabled rows={2} /></FormField>
 
         <FormField label="Special Instructions" hint="Optional">
