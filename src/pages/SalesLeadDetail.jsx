@@ -6,7 +6,8 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall, X, Eye,
+  Fingerprint, Search, FileText, PhoneCall, X,
+  // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { findEkycRecord } from '../data/ekycRecordsStore'
@@ -119,18 +120,21 @@ function formatEkycTimestamp(iso) {
   return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// PI-{year}-{6-digit sequence}, globally unique across all leads — same
-// incrementing pattern as nextInstallationId() in intercomInstallationsStore.js
-function nextPiNumber(allLeads) {
-  const year = new Date().getFullYear()
-  const nums = allLeads
-    .flatMap(l => l.proformaInvoices ?? [])
-    .map(pi => pi.piNumber.match(/^PI-(\d{4})-(\d+)$/))
-    .filter(Boolean)
-    .map(m => Number(m[2]))
-  const next = (nums.length ? Math.max(...nums) : 0) + 1
-  return `PI-${year}-${String(next).padStart(6, '0')}`
-}
+// PROFORMA INVOICE — disabled per request (Package tab). Only used by the
+// commented-out handleGeneratePi()/ProformaInvoicePreviewModal below.
+// Uncomment to re-enable.
+// // PI-{year}-{6-digit sequence}, globally unique across all leads — same
+// // incrementing pattern as nextInstallationId() in intercomInstallationsStore.js
+// function nextPiNumber(allLeads) {
+//   const year = new Date().getFullYear()
+//   const nums = allLeads
+//     .flatMap(l => l.proformaInvoices ?? [])
+//     .map(pi => pi.piNumber.match(/^PI-(\d{4})-(\d+)$/))
+//     .filter(Boolean)
+//     .map(m => Number(m[2]))
+//   const next = (nums.length ? Math.max(...nums) : 0) + 1
+//   return `PI-${year}-${String(next).padStart(6, '0')}`
+// }
 
 // ── OTPModal ──────────────────────────────────────────────────────────────────
 
@@ -1598,90 +1602,92 @@ function SendQuotationModal({ isOpen, onClose, lead, onSend }) {
   )
 }
 
-// ── ProformaInvoicePreviewModal ────────────────────────────────────────────────
-// Read-only snapshot viewer for a single PI history entry. Separate from
-// QuotationPreviewModal on purpose — quotations and PIs are distinct concepts.
-
-function ProformaInvoicePreviewModal({ isOpen, onClose, lead, pi }) {
-  if (!pi) return null
-  const effectivePrice = pi.customPrice ?? pi.basePrice
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Proforma Invoice" size="lg"
-      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
-    >
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden text-sm">
-        {/* Letterhead bar */}
-        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
-
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
-          <div>
-            <p className="text-base font-black text-navy tracking-tight">CITYLINE</p>
-            <p className="text-xs text-gray-400">Internet Service Provider</p>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-bold text-gray-800">PROFORMA INVOICE</p>
-            <p className="text-xs text-gray-400 mt-0.5 font-mono">{pi.piNumber}</p>
-          </div>
-        </div>
-
-        {/* Meta */}
-        <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <div className="flex gap-2">
-              <span className="text-gray-400 w-20 shrink-0">Lead ID</span>
-              <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{lead?.id}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-400 w-20 shrink-0">Customer</span>
-              <span className="text-gray-700">{lead?.companyName || lead?.name}</span>
-            </div>
-          </div>
-          <div className="text-right space-y-1.5">
-            <div>
-              <p className="text-gray-400 text-xs">Generated</p>
-              <p className="font-semibold text-gray-800">{formatEkycTimestamp(pi.generatedAt)}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-xs">Status</p>
-              <p className={`font-semibold ${pi.status === 'Current' ? 'text-emerald-600' : 'text-gray-400'}`}>{pi.status}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Package + add-on rows */}
-        <div className="px-6 py-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Package Details</p>
-          <div className="divide-y divide-gray-100">
-            <div className="flex items-start justify-between py-2.5">
-              <div>
-                <p className="font-semibold text-gray-800">{pi.packageName}</p>
-                <p className="text-xs text-gray-500 mt-0.5">Base Price ₹{pi.basePrice.toLocaleString('en-IN')}</p>
-                {pi.discount > 0 && (
-                  <p className="text-xs text-emerald-600 mt-0.5">Discount applied: ₹{pi.discount.toLocaleString('en-IN')}</p>
-                )}
-              </div>
-              <p className="font-bold text-gray-900 shrink-0 ml-4">₹{effectivePrice.toLocaleString('en-IN')}</p>
-            </div>
-            {(pi.addons ?? []).map(a => (
-              <div key={a.id} className="flex items-start justify-between py-2.5">
-                <p className="text-gray-700">{a.name}</p>
-                <p className="font-medium text-gray-800 shrink-0 ml-4">₹{a.price.toLocaleString('en-IN')}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Total */}
-        <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-          <span className="font-semibold text-gray-600">Total Amount</span>
-          <span className="text-xl font-black text-gray-900">₹{pi.totalAmount.toLocaleString('en-IN')}</span>
-        </div>
-      </div>
-    </Modal>
-  )
-}
+// PROFORMA INVOICE — disabled per request (Package tab). This whole component
+// is unused while disabled. Uncomment to re-enable.
+// // ── ProformaInvoicePreviewModal ────────────────────────────────────────────────
+// // Read-only snapshot viewer for a single PI history entry. Separate from
+// // QuotationPreviewModal on purpose — quotations and PIs are distinct concepts.
+//
+// function ProformaInvoicePreviewModal({ isOpen, onClose, lead, pi }) {
+//   if (!pi) return null
+//   const effectivePrice = pi.customPrice ?? pi.basePrice
+//
+//   return (
+//     <Modal isOpen={isOpen} onClose={onClose} title="Proforma Invoice" size="lg"
+//       footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+//     >
+//       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden text-sm">
+//         {/* Letterhead bar */}
+//         <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+//
+//         {/* Header */}
+//         <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+//           <div>
+//             <p className="text-base font-black text-navy tracking-tight">CITYLINE</p>
+//             <p className="text-xs text-gray-400">Internet Service Provider</p>
+//           </div>
+//           <div className="text-right">
+//             <p className="text-lg font-bold text-gray-800">PROFORMA INVOICE</p>
+//             <p className="text-xs text-gray-400 mt-0.5 font-mono">{pi.piNumber}</p>
+//           </div>
+//         </div>
+//
+//         {/* Meta */}
+//         <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-2 gap-4">
+//           <div className="space-y-1.5">
+//             <div className="flex gap-2">
+//               <span className="text-gray-400 w-20 shrink-0">Lead ID</span>
+//               <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{lead?.id}</span>
+//             </div>
+//             <div className="flex gap-2">
+//               <span className="text-gray-400 w-20 shrink-0">Customer</span>
+//               <span className="text-gray-700">{lead?.companyName || lead?.name}</span>
+//             </div>
+//           </div>
+//           <div className="text-right space-y-1.5">
+//             <div>
+//               <p className="text-gray-400 text-xs">Generated</p>
+//               <p className="font-semibold text-gray-800">{formatEkycTimestamp(pi.generatedAt)}</p>
+//             </div>
+//             <div>
+//               <p className="text-gray-400 text-xs">Status</p>
+//               <p className={`font-semibold ${pi.status === 'Current' ? 'text-emerald-600' : 'text-gray-400'}`}>{pi.status}</p>
+//             </div>
+//           </div>
+//         </div>
+//
+//         {/* Package + add-on rows */}
+//         <div className="px-6 py-4">
+//           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Package Details</p>
+//           <div className="divide-y divide-gray-100">
+//             <div className="flex items-start justify-between py-2.5">
+//               <div>
+//                 <p className="font-semibold text-gray-800">{pi.packageName}</p>
+//                 <p className="text-xs text-gray-500 mt-0.5">Base Price ₹{pi.basePrice.toLocaleString('en-IN')}</p>
+//                 {pi.discount > 0 && (
+//                   <p className="text-xs text-emerald-600 mt-0.5">Discount applied: ₹{pi.discount.toLocaleString('en-IN')}</p>
+//                 )}
+//               </div>
+//               <p className="font-bold text-gray-900 shrink-0 ml-4">₹{effectivePrice.toLocaleString('en-IN')}</p>
+//             </div>
+//             {(pi.addons ?? []).map(a => (
+//               <div key={a.id} className="flex items-start justify-between py-2.5">
+//                 <p className="text-gray-700">{a.name}</p>
+//                 <p className="font-medium text-gray-800 shrink-0 ml-4">₹{a.price.toLocaleString('en-IN')}</p>
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//
+//         {/* Total */}
+//         <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+//           <span className="font-semibold text-gray-600">Total Amount</span>
+//           <span className="text-xl font-black text-gray-900">₹{pi.totalAmount.toLocaleString('en-IN')}</span>
+//         </div>
+//       </div>
+//     </Modal>
+//   )
+// }
 
 // ── Tab routing ───────────────────────────────────────────────────────────────
 
@@ -1832,8 +1838,8 @@ export default function SalesLeadDetail() {
   const [pkgAdvanceAmount, setPkgAdvanceAmount] = useState('')
   const [pkgAdvanceNotRequired, setPkgAdvanceNotRequired] = useState(false)
 
-  // Package tab — Proforma Invoice
-  const [piPreview, setPiPreview] = useState(null)
+  // PROFORMA INVOICE — disabled per request (Package tab). Uncomment to re-enable.
+  // const [piPreview, setPiPreview] = useState(null)
 
   // eKYC tab — local (non-persisted) UI state; verification status/results live on lead.ekyc
   const [ekycIdentifier, setEkycIdentifier] = useState('')
@@ -2314,36 +2320,38 @@ export default function SalesLeadDetail() {
     })
   }
 
-  function handleGeneratePi() {
-    if (!lead.bandwidthPackage) return
-    const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
-    if (!plan) return
-
-    const basePrice = plan.price
-    const customPrice = lead.bandwidthPackage.customPrice ?? null
-    const effectivePrice = customPrice ?? basePrice
-    const discount = customPrice != null && customPrice < basePrice ? basePrice - customPrice : 0
-    const addons = (lead.addons ?? []).map(a => ({ id: a.id, name: a.name, price: Number(a.price) || 0 }))
-    const addonsTotal = addons.reduce((sum, a) => sum + a.price, 0)
-
-    const newPi = {
-      piNumber: nextPiNumber(leads),
-      generatedAt: new Date().toISOString(),
-      status: 'Current',
-      packageName: plan.name,
-      basePrice,
-      customPrice,
-      discount,
-      addons,
-      addonsTotal,
-      totalAmount: effectivePrice + addonsTotal,
-    }
-
-    const supersededHistory = (lead.proformaInvoices ?? []).map(pi =>
-      pi.status === 'Current' ? { ...pi, status: 'Superseded' } : pi
-    )
-    saveLead({ ...lead, proformaInvoices: [newPi, ...supersededHistory] })
-  }
+  // PROFORMA INVOICE — disabled per request (Package tab). Only called by the
+  // commented-out "Generate Proforma Invoice" buttons below. Uncomment to re-enable.
+  // function handleGeneratePi() {
+  //   if (!lead.bandwidthPackage) return
+  //   const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
+  //   if (!plan) return
+  //
+  //   const basePrice = plan.price
+  //   const customPrice = lead.bandwidthPackage.customPrice ?? null
+  //   const effectivePrice = customPrice ?? basePrice
+  //   const discount = customPrice != null && customPrice < basePrice ? basePrice - customPrice : 0
+  //   const addons = (lead.addons ?? []).map(a => ({ id: a.id, name: a.name, price: Number(a.price) || 0 }))
+  //   const addonsTotal = addons.reduce((sum, a) => sum + a.price, 0)
+  //
+  //   const newPi = {
+  //     piNumber: nextPiNumber(leads),
+  //     generatedAt: new Date().toISOString(),
+  //     status: 'Current',
+  //     packageName: plan.name,
+  //     basePrice,
+  //     customPrice,
+  //     discount,
+  //     addons,
+  //     addonsTotal,
+  //     totalAmount: effectivePrice + addonsTotal,
+  //   }
+  //
+  //   const supersededHistory = (lead.proformaInvoices ?? []).map(pi =>
+  //     pi.status === 'Current' ? { ...pi, status: 'Superseded' } : pi
+  //   )
+  //   saveLead({ ...lead, proformaInvoices: [newPi, ...supersededHistory] })
+  // }
 
   const TABS = [
     { key: 'overview',     path: 'overview',      label: 'Overview',      icon: User },
@@ -3304,7 +3312,12 @@ export default function SalesLeadDetail() {
                         </button>
                       )}
 
-                      {/* Proforma Invoice */}
+                      {/*
+                        PROFORMA INVOICE — commented out per request (Package tab).
+                        Uncomment this block (and the matching handleGeneratePi /
+                        ProformaInvoicePreviewModal / piPreview state / nextPiNumber
+                        above) to re-enable.
+
                       <Card padding={false}>
                         <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
                           <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
@@ -3347,6 +3360,7 @@ export default function SalesLeadDetail() {
                           )}
                         </div>
                       </Card>
+                      */}
                     </div>
 
                     {/* Right column — Pricing Summary (sticky) */}
@@ -3469,7 +3483,12 @@ export default function SalesLeadDetail() {
                     )
                   })()}
 
-                  {/* Proforma Invoice */}
+                  {/*
+                    PROFORMA INVOICE — commented out per request (Package tab).
+                    Uncomment this block (and the matching handleGeneratePi /
+                    ProformaInvoicePreviewModal / piPreview state / nextPiNumber
+                    above) to re-enable.
+
                   <Card padding={false}>
                     <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
                       <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
@@ -3512,6 +3531,7 @@ export default function SalesLeadDetail() {
                       )}
                     </div>
                   </Card>
+                  */}
                 </div>
               )}
             </div>
@@ -3635,13 +3655,18 @@ export default function SalesLeadDetail() {
         onSend={handleSendQuotation}
       />
 
-      {/* ── Proforma Invoice preview modal ────────────────────────────── */}
+      {/*
+        PROFORMA INVOICE — preview modal invocation commented out per request
+        (Package tab). Uncomment along with the rest of the PI feature above
+        to re-enable.
+
       <ProformaInvoicePreviewModal
         isOpen={!!piPreview}
         onClose={() => setPiPreview(null)}
         lead={lead}
         pi={piPreview}
       />
+      */}
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       <MoveStageModal
