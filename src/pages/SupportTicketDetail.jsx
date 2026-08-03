@@ -853,14 +853,15 @@ export default function SupportTicketDetail() {
   useEffect(() => subscribeTickets(() => setTicket(getTicket(id))), [id])
 
   const [leftTab, setLeftTab] = useState('customer')
-  const [resolveOpen, setResolveOpen] = useState(false)
   // The Resolve flow is a two-step gate: the Resolve form only stages the
   // resolution details; the ticket doesn't actually flip to Resolved until OTP
-  // verification succeeds. otpStep toggles which of the two modals is showing
-  // while resolveOpen stays true; pendingResolution holds the staged form data
-  // in between. resolveResetKey is bumped to clear the form's fields, but only
-  // on a full cancel or a completed resolution — not when backing out of OTP.
-  const [otpStep, setOtpStep] = useState(false)
+  // verification succeeds. Both steps are deep-linkable via the same shared
+  // ?modal= param used by Schedule Technician Visit below (?modal=resolve-ticket,
+  // ?modal=verify-otp), so only one of the three modals can ever be the "current"
+  // one from the URL's point of view. pendingResolution holds the staged form
+  // data in between steps; resolveResetKey is bumped to clear the form's fields,
+  // but only on a full cancel or a completed resolution — not when backing out
+  // of OTP back to the form.
   const [pendingResolution, setPendingResolution] = useState(null)
   const [resolveResetKey, setResolveResetKey] = useState(0)
   const [toast, setToast] = useState('')
@@ -876,33 +877,16 @@ export default function SupportTicketDetail() {
     return () => clearTimeout(t)
   }, [toast])
 
-  function handleResolveFormSubmit(data) {
-    setPendingResolution(data)
-    setOtpStep(true)
-  }
-
-  function handleResolveCancel() {
-    setResolveOpen(false)
-    setOtpStep(false)
-    setPendingResolution(null)
-    setResolveResetKey(k => k + 1)
-  }
-
-  function handleOtpVerified() {
-    resolveTicket(ticket.id, pendingResolution, CURRENT_USER)
-    setResolveOpen(false)
-    setOtpStep(false)
-    setPendingResolution(null)
-    setResolveResetKey(k => k + 1)
-    setToast('Ticket marked as Resolved')
-  }
-
-  // "Schedule Technician Visit" is deep-linkable via ?modal=schedule-visit instead of
-  // local-only state. Opening pushes a new history entry (so browser back closes it);
-  // closing replaces the current entry (no extra "closed" step left in the back stack).
-  // The functional-updater form of setSearchParams merges against whatever other query
-  // params are already present rather than clobbering them.
+  // "Schedule Technician Visit", "Resolve Ticket" and "Verify OTP" are all
+  // deep-linkable via the same ?modal= query param instead of local-only state.
+  // Opening/advancing a step pushes a new history entry (so browser back steps
+  // back through the flow); closing or backing out replaces the current entry
+  // (no extra "closed"/"previous step" entry left in the back stack). The
+  // functional-updater form of setSearchParams merges against whatever other
+  // query params are already present rather than clobbering them.
   const scheduleOpen = searchParams.get('modal') === 'schedule-visit'
+  const resolveOpen = searchParams.get('modal') === 'resolve-ticket'
+  const otpOpen = searchParams.get('modal') === 'verify-otp'
 
   function openScheduleModal() {
     setSearchParams(prev => {
@@ -918,6 +902,53 @@ export default function SupportTicketDetail() {
       next.delete('modal')
       return next
     }, { replace: true })
+  }
+
+  function openResolveModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'resolve-ticket')
+      return next
+    })
+  }
+
+  function closeResolveModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    }, { replace: true })
+    setPendingResolution(null)
+    setResolveResetKey(k => k + 1)
+  }
+
+  function handleResolveFormSubmit(data) {
+    setPendingResolution(data)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'verify-otp')
+      return next
+    })
+  }
+
+  function backToResolveForm() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'resolve-ticket')
+      return next
+    }, { replace: true })
+  }
+
+  function handleOtpVerified() {
+    resolveTicket(ticket.id, pendingResolution ?? {}, CURRENT_USER)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    }, { replace: true })
+    setPendingResolution(null)
+    setResolveResetKey(k => k + 1)
+    setToast('Ticket marked as Resolved')
   }
 
   // Hardware Assignment list itself stays local to the ticket; each item added here also
@@ -986,7 +1017,7 @@ export default function SupportTicketDetail() {
             onAssignTeam={() => setAssignTeamOpen(true)}
             onAssign={() => setAssignTechOpen(true)}
           />
-          <Button icon={<CheckCircle2 size={15} />} disabled={!canResolve} onClick={() => { setOtpStep(false); setResolveOpen(true) }}>
+          <Button icon={<CheckCircle2 size={15} />} disabled={!canResolve} onClick={openResolveModal}>
             Resolve
           </Button>
         </div>
@@ -1385,10 +1416,10 @@ export default function SupportTicketDetail() {
         </div>
       </div>
 
-      <ResolveModal isOpen={resolveOpen && !otpStep} onClose={handleResolveCancel}
+      <ResolveModal isOpen={resolveOpen} onClose={closeResolveModal}
         onSubmit={handleResolveFormSubmit} resetKey={resolveResetKey} />
-      <VerifyOtpModal isOpen={resolveOpen && otpStep} phone={ticket.phone}
-        onCancel={() => setOtpStep(false)} onVerify={handleOtpVerified} />
+      <VerifyOtpModal isOpen={otpOpen} phone={ticket.phone}
+        onCancel={backToResolveForm} onVerify={handleOtpVerified} />
       <ReopenModal isOpen={reopenOpen} onClose={() => setReopenOpen(false)}
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />
       <ScheduleTechnicianModal isOpen={scheduleOpen} onClose={closeScheduleModal} ticket={ticket}
