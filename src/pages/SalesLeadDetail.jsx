@@ -1833,10 +1833,8 @@ export default function SalesLeadDetail() {
   const [paymentLinkToast, setPaymentLinkToast] = useState(null)
   const [bwApprover, setBwApprover]         = useState('Regional Manager')
 
-  // Package tab — Add-ons + Advance Payment (Residential/Custom pricing summary)
+  // Package tab — Add-ons
   const [addonModalOpen, setAddonModalOpen] = useState(false)
-  const [pkgAdvanceAmount, setPkgAdvanceAmount] = useState('')
-  const [pkgAdvanceNotRequired, setPkgAdvanceNotRequired] = useState(false)
 
   // PROFORMA INVOICE — disabled per request (Package tab). Uncomment to re-enable.
   // const [piPreview, setPiPreview] = useState(null)
@@ -1881,14 +1879,6 @@ export default function SalesLeadDetail() {
   // Prefill the eKYC identifier input from the lead's phone/email once, without clobbering user edits
   useEffect(() => {
     if (lead && !ekycIdentifier) setEkycIdentifier(lead.phone || lead.email || '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead?.id])
-
-  // Prefill the package Advance Payment fields from the lead record when it (first) loads
-  useEffect(() => {
-    if (!lead) return
-    setPkgAdvanceAmount(lead.packageAdvanceAmount != null ? String(lead.packageAdvanceAmount) : '')
-    setPkgAdvanceNotRequired(!!lead.packageAdvanceNotRequired)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id])
 
@@ -2310,16 +2300,6 @@ export default function SalesLeadDetail() {
     saveLead({ ...lead, addons: (lead.addons ?? []).filter(a => a.id !== addonId) })
   }
 
-  function handleSavePkgAdvance() {
-    saveLead({
-      ...lead,
-      packageAdvanceAmount: pkgAdvanceNotRequired || pkgAdvanceAmount.trim() === ''
-        ? null
-        : (parseFloat(pkgAdvanceAmount) || 0),
-      packageAdvanceNotRequired: pkgAdvanceNotRequired,
-    })
-  }
-
   // PROFORMA INVOICE — disabled per request (Package tab). Only called by the
   // commented-out "Generate Proforma Invoice" buttons below. Uncomment to re-enable.
   // function handleGeneratePi() {
@@ -2559,11 +2539,11 @@ export default function SalesLeadDetail() {
 
       {/* ── Tabs + content card ──
           Note: no overflow-hidden here — an ancestor with overflow other than
-          visible breaks position: sticky for descendants (e.g. the Package
-          tab's sticky Pricing Summary), since it becomes the containing block
-          instead of the page's real scroll container (<main> in Layout.jsx).
-          rounded-t-xl on the tab nav row below preserves the corner visual
-          that overflow-hidden used to enforce. */}
+          visible breaks position: sticky for any descendant that uses it,
+          since it becomes the containing block instead of the page's real
+          scroll container (<main> in Layout.jsx). rounded-t-xl on the tab
+          nav row below preserves the corner visual that overflow-hidden
+          used to enforce. */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
         {/* Tab nav */}
@@ -3212,201 +3192,149 @@ export default function SalesLeadDetail() {
           {activeTab === 'package' && (
             <div>
               {lead.pipeline !== 'Enterprise' ? (() => {
-                /* Residential / Custom — Bandwidth Package + Add-ons + Pricing Summary, no approval flow */
+                /* Residential / Custom — Bandwidth Package + Add-ons, no approval flow */
                 const bwPlan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
-                const packageBaseAmount = bwPlan ? (lead.bandwidthPackage.customPrice ?? bwPlan.price) : 0
                 const addons = lead.addons ?? []
-                const addonsTotal = addons.reduce((sum, a) => sum + (Number(a.price) || 0), 0)
-                const totalAmount = packageBaseAmount + addonsTotal
 
                 return (
-                  <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-3 gap-5">
+                  <div className="space-y-4">
 
-                    {/* Left column — Bandwidth Package + Add-ons */}
-                    <div className="lg:col-span-3 xl:col-span-2 space-y-4">
+                    {/* Invoice Preview */}
+                    <p className="text-xs text-gray-400">
+                      Will appear on invoice as: {bwPlan ? bwPlan.name : '— (select a package first)'}
+                    </p>
 
-                      {/* Invoice Preview */}
-                      <p className="text-xs text-gray-400">
-                        Will appear on invoice as: {bwPlan ? bwPlan.name : '— (select a package first)'}
-                      </p>
-
-                      {/* Bandwidth Package */}
-                      <Card padding={false}>
-                        <div className="p-5 pb-4 flex items-center justify-between gap-3 flex-wrap border-b border-surface-border">
-                          <h3 className="text-sm font-semibold text-gray-800">Active Package Details</h3>
-                          {!lead.bandwidthPackage ? (
-                            <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal()}>
-                              Add Bandwidth Package
+                    {/* Bandwidth Package */}
+                    <Card padding={false}>
+                      <div className="p-5 pb-4 flex items-center justify-between gap-3 flex-wrap border-b border-surface-border">
+                        <h3 className="text-sm font-semibold text-gray-800">Active Package Details</h3>
+                        {!lead.bandwidthPackage ? (
+                          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal()}>
+                            Add Bandwidth Package
+                          </Button>
+                        ) : (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button size="sm" variant="secondary" icon={<Edit3 size={13} />} onClick={() => openPkgModal()}>
+                              Change Package
                             </Button>
-                          ) : (
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Button size="sm" variant="secondary" icon={<Edit3 size={13} />} onClick={() => openPkgModal()}>
-                                Change Package
-                              </Button>
-                              <Button size="sm" icon={<CreditCard size={13} />} onClick={handleSendPaymentLink}>
-                                Send Payment Link
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-5">
-                          {!lead.bandwidthPackage ? (
-                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                              <Package size={18} className="mx-auto text-gray-300 mb-2" />
-                              <p className="text-sm text-gray-400">No bandwidth package selected</p>
-                            </div>
-                          ) : bwPlan && (
-                            <ResidentialPackageCard
-                              plan={bwPlan} pkg={lead.bandwidthPackage}
-                              editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
-                              onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? bwPlan.price)) }}
-                              onCustomPriceChange={setBwCustomPrice}
-                              onSave={() => handleSaveResidentialPkg()}
-                              onRemove={() => handleRemovePkg()}
-                            />
-                          )}
-                        </div>
-                      </Card>
-
-                      {/* Add-ons */}
-                      <Card padding={false}>
-                        <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                          <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
-                          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
-                            Add Add-on
-                          </Button>
-                        </div>
-                        <div className="p-5">
-                          {addons.length === 0 ? (
-                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                              <Package size={18} className="mx-auto text-gray-300 mb-2" />
-                              <p className="text-sm text-gray-400">No add-ons added</p>
-                            </div>
-                          ) : (
-                            <div className="max-w-md space-y-2">
-                              {addons.map(addon => (
-                                <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-800">{addon.name}</p>
-                                    <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
-                                  </div>
-                                  <button type="button" onClick={() => handleRemoveAddon(addon.id)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-
-                      {/* Generate Quotation — always enabled once a package is selected */}
-                      {lead.bandwidthPackage && (
-                        <button
-                          type="button"
-                          onClick={() => setQuotationOpen(true)}
-                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-blue text-white hover:bg-blue-700 transition-colors"
-                        >
-                          <span>📄</span> Generate Quotation
-                        </button>
-                      )}
-
-                      {/*
-                        PROFORMA INVOICE — commented out per request (Package tab).
-                        Uncomment this block (and the matching handleGeneratePi /
-                        ProformaInvoicePreviewModal / piPreview state / nextPiNumber
-                        above) to re-enable.
-
-                      <Card padding={false}>
-                        <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                          <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
-                          <Button size="sm" variant="secondary" icon={<FileText size={13} />} disabled={!lead.bandwidthPackage} onClick={handleGeneratePi}>
-                            Generate Proforma Invoice
-                          </Button>
-                        </div>
-                        <div className="p-5">
-                          {(lead.proformaInvoices ?? []).length === 0 ? (
-                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                              <FileText size={18} className="mx-auto text-gray-300 mb-2" />
-                              <p className="text-sm text-gray-400">No Proforma Invoice generated yet</p>
-                            </div>
-                          ) : (
-                            <div className="max-w-md space-y-2">
-                              {lead.proformaInvoices.map(pi => (
-                                <div key={pi.piNumber} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-mono text-xs font-semibold text-brand-blue">{pi.piNumber}</span>
-                                      <Badge variant={pi.status === 'Current' ? 'green' : 'gray'} size="sm">{pi.status}</Badge>
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-800 mt-1">
-                                      {pi.packageName} · ₹{(pi.customPrice ?? pi.basePrice).toLocaleString('en-IN')}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                      Generated {formatEkycTimestamp(pi.generatedAt)}
-                                      {pi.discount > 0 && (
-                                        <span className="text-emerald-600"> · ₹{pi.discount.toLocaleString('en-IN')} discount</span>
-                                      )}
-                                    </p>
-                                  </div>
-                                  <button type="button" onClick={() => setPiPreview(pi)}
-                                    className="shrink-0 flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium ml-3">
-                                    <Eye size={13} /> View
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                      */}
-                    </div>
-
-                    {/* Right column — Pricing Summary (sticky) */}
-                    <div className="lg:col-span-2 xl:col-span-1 lg:sticky lg:top-6 lg:self-start">
-                      <Card>
-                        <CardHeader title="Pricing Summary" />
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-500">Package Base Amount</span>
-                            <span className="font-medium text-gray-800">₹{packageBaseAmount.toLocaleString('en-IN')}</span>
+                            <Button size="sm" icon={<CreditCard size={13} />} onClick={handleSendPaymentLink}>
+                              Send Payment Link
+                            </Button>
                           </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-500">Add-ons Total</span>
-                            <span className="font-medium text-gray-800">₹{addonsTotal.toLocaleString('en-IN')}</span>
+                        )}
+                      </div>
+                      <div className="p-5">
+                        {!lead.bandwidthPackage ? (
+                          <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                            <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm text-gray-400">No bandwidth package selected</p>
                           </div>
+                        ) : bwPlan && (
+                          <ResidentialPackageCard
+                            plan={bwPlan} pkg={lead.bandwidthPackage}
+                            editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
+                            onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? bwPlan.price)) }}
+                            onCustomPriceChange={setBwCustomPrice}
+                            onSave={() => handleSaveResidentialPkg()}
+                            onRemove={() => handleRemovePkg()}
+                          />
+                        )}
+                      </div>
+                    </Card>
 
-                          <div className="pt-3 border-t border-gray-100 space-y-2">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input type="checkbox" checked={pkgAdvanceNotRequired}
-                                onChange={e => setPkgAdvanceNotRequired(e.target.checked)}
-                                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-                              <span className="text-sm text-gray-700">Advance Payment Not Required</span>
-                            </label>
-                            <FormField label="Advance Payment" required={!pkgAdvanceNotRequired}>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-                                <input type="number" min="0" value={pkgAdvanceAmount}
-                                  onChange={e => setPkgAdvanceAmount(e.target.value)}
-                                  disabled={pkgAdvanceNotRequired}
-                                  placeholder="e.g. 1000"
-                                  className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50 disabled:text-gray-400" />
+                    {/* Add-ons */}
+                    <Card padding={false}>
+                      <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
+                        <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
+                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
+                          Add Add-on
+                        </Button>
+                      </div>
+                      <div className="p-5">
+                        {addons.length === 0 ? (
+                          <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                            <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm text-gray-400">No add-ons added</p>
+                          </div>
+                        ) : (
+                          <div className="max-w-md space-y-2">
+                            {addons.map(addon => (
+                              <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-800">{addon.name}</p>
+                                  <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
+                                </div>
+                                <button type="button" onClick={() => handleRemoveAddon(addon.id)}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                  <X size={14} />
+                                </button>
                               </div>
-                            </FormField>
-                            <button type="button" onClick={handleSavePkgAdvance}
-                              className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
-                              Save
-                            </button>
+                            ))}
                           </div>
+                        )}
+                      </div>
+                    </Card>
 
-                          <div className="flex items-center justify-between text-sm pt-3 border-t border-gray-100">
-                            <span className="font-semibold text-gray-700">Total Amount</span>
-                            <span className="font-bold text-gray-900 text-base">₹{totalAmount.toLocaleString('en-IN')}</span>
+                    {/* Generate Quotation — always enabled once a package is selected */}
+                    {lead.bandwidthPackage && (
+                      <button
+                        type="button"
+                        onClick={() => setQuotationOpen(true)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-blue text-white hover:bg-blue-700 transition-colors"
+                      >
+                        <span>📄</span> Generate Quotation
+                      </button>
+                    )}
+
+                    {/*
+                      PROFORMA INVOICE — commented out per request (Package tab).
+                      Uncomment this block (and the matching handleGeneratePi /
+                      ProformaInvoicePreviewModal / piPreview state / nextPiNumber
+                      above) to re-enable.
+
+                    <Card padding={false}>
+                      <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
+                        <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
+                        <Button size="sm" variant="secondary" icon={<FileText size={13} />} disabled={!lead.bandwidthPackage} onClick={handleGeneratePi}>
+                          Generate Proforma Invoice
+                        </Button>
+                      </div>
+                      <div className="p-5">
+                        {(lead.proformaInvoices ?? []).length === 0 ? (
+                          <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                            <FileText size={18} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm text-gray-400">No Proforma Invoice generated yet</p>
                           </div>
-                        </div>
-                      </Card>
-                    </div>
+                        ) : (
+                          <div className="max-w-md space-y-2">
+                            {lead.proformaInvoices.map(pi => (
+                              <div key={pi.piNumber} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-xs font-semibold text-brand-blue">{pi.piNumber}</span>
+                                    <Badge variant={pi.status === 'Current' ? 'green' : 'gray'} size="sm">{pi.status}</Badge>
+                                  </div>
+                                  <p className="text-sm font-medium text-gray-800 mt-1">
+                                    {pi.packageName} · ₹{(pi.customPrice ?? pi.basePrice).toLocaleString('en-IN')}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Generated {formatEkycTimestamp(pi.generatedAt)}
+                                    {pi.discount > 0 && (
+                                      <span className="text-emerald-600"> · ₹{pi.discount.toLocaleString('en-IN')} discount</span>
+                                    )}
+                                  </p>
+                                </div>
+                                <button type="button" onClick={() => setPiPreview(pi)}
+                                  className="shrink-0 flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium ml-3">
+                                  <Eye size={13} /> View
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                    */}
                   </div>
                 )
               })() : (
