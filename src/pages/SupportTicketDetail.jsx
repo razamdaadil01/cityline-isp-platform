@@ -19,7 +19,7 @@ import {
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
   findTicketsOnSamePort, assignTechnician, assignTeamMembers,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
-  TECHNICIAN_PROFILES, TECHNICIANS, slaStatusOf,
+  TECHNICIAN_PROFILES, TECHNICIANS, TECHNICIAN_SKILLS, slaStatusOf,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
@@ -237,13 +237,14 @@ function ReopenModal({ isOpen, onClose, onSubmit }) {
 function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   const [technicians, setTechnicians] = useState([])
   const [techSearch, setTechSearch] = useState('')
+  const [techSkillFilter, setTechSkillFilter] = useState('')
   const [visitDate, setVisitDate] = useState('')
   const [visitTime, setVisitTime] = useState('')
   const [specialInstructions, setSpecialInstructions] = useState('')
   const [error, setError] = useState('')
 
   function reset() {
-    setTechnicians([]); setTechSearch(''); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
+    setTechnicians([]); setTechSearch(''); setTechSkillFilter(''); setVisitDate(''); setVisitTime(''); setSpecialInstructions(''); setError('')
   }
 
   function handleClose() { reset(); onClose() }
@@ -275,7 +276,10 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   }
 
   const todayStr = new Date().toISOString().slice(0, 10)
-  const filteredTechnicians = TECHNICIAN_PROFILES.filter(p => p.name.toLowerCase().includes(techSearch.toLowerCase()))
+  const filteredTechnicians = TECHNICIAN_PROFILES.filter(p =>
+    p.name.toLowerCase().includes(techSearch.toLowerCase()) &&
+    (!techSkillFilter || p.skills.includes(techSkillFilter))
+  )
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Schedule Technician Visit" size="md"
@@ -303,6 +307,15 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
               ))}
             </div>
           )}
+
+          <div className="mb-2">
+            <FormField label="Filter by Skill">
+              <Select value={techSkillFilter} onChange={e => setTechSkillFilter(e.target.value)}>
+                <option value="">All Skills</option>
+                {TECHNICIAN_SKILLS.map(skill => <option key={skill} value={skill}>{skill}</option>)}
+              </Select>
+            </FormField>
+          </div>
 
           <div className="relative mb-1">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
