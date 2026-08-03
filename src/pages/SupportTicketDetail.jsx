@@ -286,7 +286,7 @@ function SkillFilterDropdown({ selected, onChange }) {
             <button type="button" onClick={() => onChange([])}
               className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 text-sm text-left transition-colors ${selected.length === 0 ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
               <span className="text-gray-700 font-medium">All Skills</span>
-              {selected.length === 0 && <Check size={14} className="text-brand-blue shrink-0" />}
+              {selected.length === 0 && <Check size={15} strokeWidth={3} className="text-brand-blue shrink-0" />}
             </button>
             <div className="border-t border-surface-border my-1" />
             {TECHNICIAN_SKILLS.map(skill => {
@@ -295,7 +295,7 @@ function SkillFilterDropdown({ selected, onChange }) {
                 <button key={skill} type="button" onClick={() => toggleSkill(skill)}
                   className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 text-sm text-left transition-colors ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                   <span className="text-gray-700">{skill}</span>
-                  {checked && <Check size={14} className="text-brand-blue shrink-0" />}
+                  {checked && <Check size={15} strokeWidth={3} className="text-brand-blue shrink-0" />}
                 </button>
               )
             })}
@@ -410,8 +410,10 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
               return (
                 <button key={p.name} type="button" onClick={() => toggleTechnician(p.name)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                  <span className="w-4 h-4 flex items-center justify-center shrink-0">
-                    {selected && <Check size={14} className="text-brand-blue" />}
+                  <span className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                    selected ? 'bg-brand-blue border-brand-blue' : 'border-gray-300 bg-white'
+                  }`}>
+                    {selected && <Check size={12} strokeWidth={3} className="text-white" />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm text-gray-700">{p.name}</span>
