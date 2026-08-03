@@ -1368,6 +1368,26 @@ export default function SupportTicketDetail() {
             )}
           </div>
 
+          {/* Resolution */}
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Resolution</p>
+              {ticket.resolution && <Badge variant="green" size="sm">Resolved</Badge>}
+            </div>
+            {ticket.resolution ? (
+              <div className="space-y-1">
+                <InfoRow label="Root Cause" value={ticket.resolution.rootCause} />
+                <InfoRow label="Resolution Details" value={ticket.resolution.resolutionDetails} />
+                <InfoRow label="Resolution Type" value={ticket.resolution.resolutionType} />
+                <InfoRow label="Customer-Visible Note" value={ticket.resolution.customerUpdate} />
+                <InfoRow label="Resolved Date/Time" value={formatDateTime(ticket.resolution.resolvedAt)} />
+                <InfoRow label="Resolved By" value={ticket.resolution.resolvedBy} />
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">This ticket has not been resolved yet.</p>
+            )}
+          </div>
+
           {/* Technician Visit */}
           <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
             <div className="flex items-center gap-2.5 mb-3">
