@@ -3199,11 +3199,6 @@ export default function SalesLeadDetail() {
                 return (
                   <div className="space-y-4">
 
-                    {/* Invoice Preview */}
-                    <p className="text-xs text-gray-400">
-                      Will appear on invoice as: {bwPlan ? bwPlan.name : '— (select a package first)'}
-                    </p>
-
                     {/* Bandwidth Package */}
                     <Card padding={false}>
                       <div className="p-5 pb-4 flex items-center justify-between gap-3 flex-wrap border-b border-surface-border">
