@@ -99,12 +99,14 @@ export const TECHNICIAN_SKILLS = [
 // Richer per-technician profile (skills/active flag) for the Schedule Technician
 // Visit flow. TECHNICIANS above stays a plain name list so existing dropdowns
 // (Ticket List bulk-assign, Create Ticket) are unaffected.
+// distanceFromCustomer is static mock data (km) for demo purposes — not a real
+// GPS/routing calculation.
 export const TECHNICIAN_PROFILES = [
-  { name: 'Suresh Iyer', skills: ['Fiber Splicing', 'OLT/Network Diagnostics'], active: true },
-  { name: 'Prakash Yadav', skills: ['Cabling & Wiring', 'General Troubleshooting'], active: true },
-  { name: 'Manoj Verma', skills: ['ONU Replacement', 'Fiber Splicing'], active: true },
-  { name: 'Dinesh Kumar', skills: ['Router Configuration', 'General Troubleshooting'], active: true },
-  { name: 'Vikram Singh', skills: ['Fiber Splicing', 'General Troubleshooting'], active: true },
+  { name: 'Suresh Iyer', skills: ['Fiber Splicing', 'OLT/Network Diagnostics'], active: true, distanceFromCustomer: 1.5 },
+  { name: 'Prakash Yadav', skills: ['Cabling & Wiring', 'General Troubleshooting'], active: true, distanceFromCustomer: 0.8 },
+  { name: 'Manoj Verma', skills: ['ONU Replacement', 'Fiber Splicing'], active: true, distanceFromCustomer: 5.1 },
+  { name: 'Dinesh Kumar', skills: ['Router Configuration', 'General Troubleshooting'], active: true, distanceFromCustomer: 2.4 },
+  { name: 'Vikram Singh', skills: ['Fiber Splicing', 'General Troubleshooting'], active: true, distanceFromCustomer: 3.7 },
 ]
 
 // NAS Port ID reference table — the exact port IDs already used by tickets'

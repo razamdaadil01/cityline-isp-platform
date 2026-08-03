@@ -16,7 +16,7 @@ import { HARDWARE_CATALOG } from '../data/hardwareCatalog'
 import { createHardwareApproval, getApprovals, subscribeApprovals } from '../data/approvalsStore'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
-  resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit, technicianWorkload,
+  resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit,
   findTicketsOnSamePort, assignTechnician, assignTeamMembers,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
   TECHNICIAN_PROFILES, TECHNICIANS, TECHNICIAN_SKILLS, slaStatusOf,
@@ -362,12 +362,15 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   const todayStr = new Date().toISOString().slice(0, 10)
   // Derived only from the search text and skill filter — deliberately NOT from
   // `technicians` (the checked-technician selection), so toggling a checkbox can
-  // never recompute or reorder this list. TECHNICIAN_PROFILES' own order (and each
-  // row's stable p.name key) is preserved as-is; nothing here sorts by selection.
-  const filteredTechnicians = useMemo(() => TECHNICIAN_PROFILES.filter(p =>
-    p.name.toLowerCase().includes(techSearch.toLowerCase()) &&
-    (techSkillFilter.length === 0 || p.skills.some(s => techSkillFilter.includes(s)))
-  ), [techSearch, techSkillFilter])
+  // never recompute or reorder this list; sorting by distance only happens here,
+  // never as a side effect of selection. Each row's stable p.name key is unaffected.
+  const filteredTechnicians = useMemo(() => TECHNICIAN_PROFILES
+    .filter(p =>
+      p.name.toLowerCase().includes(techSearch.toLowerCase()) &&
+      (techSkillFilter.length === 0 || p.skills.some(s => techSkillFilter.includes(s)))
+    )
+    .sort((a, b) => a.distanceFromCustomer - b.distanceFromCustomer)
+  , [techSearch, techSkillFilter])
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Schedule Technician Visit" size="md"
@@ -431,7 +434,7 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
                       <span className="text-xs text-gray-400"> — {p.skills.join(', ')}</span>
                     </div>
                     <span className="text-[10px] text-gray-400 shrink-0">
-                      {technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''}
+                      {p.distanceFromCustomer} km away
                     </span>
                   </button>
                 )
