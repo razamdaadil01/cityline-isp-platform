@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
@@ -334,10 +334,14 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
   }
 
   const todayStr = new Date().toISOString().slice(0, 10)
-  const filteredTechnicians = TECHNICIAN_PROFILES.filter(p =>
+  // Derived only from the search text and skill filter — deliberately NOT from
+  // `technicians` (the checked-technician selection), so toggling a checkbox can
+  // never recompute or reorder this list. TECHNICIAN_PROFILES' own order (and each
+  // row's stable p.name key) is preserved as-is; nothing here sorts by selection.
+  const filteredTechnicians = useMemo(() => TECHNICIAN_PROFILES.filter(p =>
     p.name.toLowerCase().includes(techSearch.toLowerCase()) &&
     (techSkillFilter.length === 0 || p.skills.some(s => techSkillFilter.includes(s)))
-  )
+  ), [techSearch, techSkillFilter])
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Schedule Technician Visit" size="md"
