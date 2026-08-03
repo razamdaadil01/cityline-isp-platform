@@ -4,7 +4,7 @@ import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
   Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
-  Music, Edit2, Search, X, Plus,
+  Music, Edit2, Search, X, Plus, Check,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -232,60 +232,76 @@ function ReopenModal({ isOpen, onClose, onSubmit }) {
   )
 }
 
-// ── Skill filter dropdown (multi-select popover, for Schedule Technician Visit) ──
-// "All Skills" is derived (checked whenever `selected` is empty), not independent
-// state — checking it always resets to no filter; checking/unchecking a specific
-// skill toggles that skill in the `selected` array. Stays open across checkbox
-// clicks; only closes on click-outside (or re-clicking the trigger).
+// ── Skill filter dropdown (dropdown-with-chips, for Schedule Technician Visit) ──
+// Selected skills render as removable chips above the trigger, same chip pattern
+// as the Technicians selector. "All Skills" is derived (implicitly "selected"
+// whenever `selected` is empty), not independent state — picking it always resets
+// to no filter; picking/re-picking a specific skill toggles it in the `selected`
+// array and shows a checkmark (not a checkbox) next to it in the open list. The
+// list stays open across picks; it only closes on click-outside or Escape.
 
 function SkillFilterDropdown({ selected, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
   useEffect(() => {
-    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    function handleKey(e) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [])
 
   function toggleSkill(skill) {
     onChange(selected.includes(skill) ? selected.filter(s => s !== skill) : [...selected, skill])
   }
 
-  const label = selected.length === 0
-    ? 'All Skills'
-    : selected.length === 1
-      ? selected[0]
-      : `${selected[0]} +${selected.length - 1}`
-
   return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors text-left">
-        <span className={`truncate ${selected.length === 0 ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>{label}</span>
-        <ChevronDown size={13} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-surface-border rounded-lg shadow-lg py-1 max-h-56 overflow-y-auto">
-          <label className={`flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer transition-colors ${selected.length === 0 ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-            <input type="checkbox" checked={selected.length === 0} onChange={() => onChange([])}
-              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-            <span className="text-gray-700 font-medium">All Skills</span>
-          </label>
-          <div className="border-t border-surface-border my-1" />
-          {TECHNICIAN_SKILLS.map(skill => {
-            const checked = selected.includes(skill)
-            return (
-              <label key={skill}
-                className={`flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer transition-colors ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                <input type="checkbox" checked={checked} onChange={() => toggleSkill(skill)}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-                <span className="text-gray-700">{skill}</span>
-              </label>
-            )
-          })}
+    <div ref={ref}>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selected.map(skill => (
+            <span key={skill} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+              {skill}
+              <button type="button" onClick={() => toggleSkill(skill)}
+                className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                <X size={11} />
+              </button>
+            </span>
+          ))}
         </div>
       )}
+
+      <div className="relative">
+        <button type="button" onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors text-left">
+          <span className="truncate text-gray-500">{selected.length === 0 ? 'All Skills' : 'Add more skills…'}</span>
+          <ChevronDown size={13} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 z-20 mt-1 bg-white border border-surface-border rounded-lg shadow-lg py-1 max-h-56 overflow-y-auto">
+            <button type="button" onClick={() => onChange([])}
+              className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 text-sm text-left transition-colors ${selected.length === 0 ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+              <span className="text-gray-700 font-medium">All Skills</span>
+              {selected.length === 0 && <Check size={14} className="text-brand-blue shrink-0" />}
+            </button>
+            <div className="border-t border-surface-border my-1" />
+            {TECHNICIAN_SKILLS.map(skill => {
+              const checked = selected.includes(skill)
+              return (
+                <button key={skill} type="button" onClick={() => toggleSkill(skill)}
+                  className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 text-sm text-left transition-colors ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <span className="text-gray-700">{skill}</span>
+                  {checked && <Check size={14} className="text-brand-blue shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -392,13 +408,11 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
             ) : filteredTechnicians.map(p => {
               const selected = technicians.includes(p.name)
               return (
-                <label key={p.name}
-                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                  <input type="checkbox"
-                    checked={selected}
-                    onChange={() => toggleTechnician(p.name)}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                  />
+                <button key={p.name} type="button" onClick={() => toggleTechnician(p.name)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <span className="w-4 h-4 flex items-center justify-center shrink-0">
+                    {selected && <Check size={14} className="text-brand-blue" />}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <span className="text-sm text-gray-700">{p.name}</span>
                     <span className="text-xs text-gray-400"> — {p.skills.join(', ')}</span>
@@ -406,7 +420,7 @@ function ScheduleTechnicianModal({ isOpen, onClose, onSubmit, ticket }) {
                   <span className="text-[10px] text-gray-400 shrink-0">
                     {technicianWorkload(p.name)} active job{technicianWorkload(p.name) !== 1 ? 's' : ''}
                   </span>
-                </label>
+                </button>
               )
             })}
           </div>
