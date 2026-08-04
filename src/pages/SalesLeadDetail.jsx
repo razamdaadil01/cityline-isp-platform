@@ -584,10 +584,7 @@ function ActivationSuccessModal({ isOpen, onClose, data }) {
 
 // ── MoveStageModal ─────────────────────────────────────────────────────────────
 
-function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage = '', title }) {
-  const pl = PIPELINES[lead?.pipeline] ?? PIPELINES.B2C
-  const availableStages = pl.stages.filter(s => s !== lead?.stage)
-  const [targetStage, setTargetStage]         = useState(initialStage)
+function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, targetStage = '', title }) {
   const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
   const [fuForm, setFuForm]                   = useState({ date: '', time: '10:00', note: '', notifyTo: [] })
@@ -595,12 +592,11 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
 
   useEffect(() => {
     if (isOpen) {
-      setTargetStage(initialStage ?? '')
       // Pre-fill the Feasibility stage fields (s4-f*, see stageFieldsStore.js) from the
       // lead's own address data when this modal is opened specifically to check
       // feasibility — same field IDs handleMoveStage already reads when it builds the
       // feasibility request, so this only seeds fields that overlap with lead data.
-      setFieldVals(initialStage === 'Feasibility' && lead ? {
+      setFieldVals(targetStage === 'Feasibility' && lead ? {
         's4-f1': lead.locality ?? lead.area ?? '',
         's4-f2': lead.subLocality ?? '',
         's4-f3': lead.address ?? '',
@@ -610,7 +606,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
       setFollowupEnabled(false)
       setFuForm({ date: '', time: '10:00', note: '', notifyTo: [] })
     }
-  }, [isOpen, initialStage, lead])
+  }, [isOpen, targetStage, lead])
 
   const needsFeasConfirm = false
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
@@ -650,24 +646,6 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
       }
     >
       <div className="space-y-5">
-
-        {/* Stage selectors */}
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Current Stage">
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-surface-border">
-              <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead?.stage]?.dot ?? 'bg-gray-400'}`} />
-              <span className="text-sm text-gray-600 font-medium">{lead?.stage}</span>
-            </div>
-          </FormField>
-          <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}) }}>
-              <option value="">Select target stage…</option>
-              {availableStages.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </Select>
-          </FormField>
-        </div>
 
         {/* Dynamic stage fields */}
         {!needsFeasConfirm && targetStage && targetStage !== 'New Inquiry' && stageFields.length > 0 && (
@@ -3905,9 +3883,9 @@ export default function SalesLeadDetail() {
         onClose={closeMoveStage}
         lead={lead}
         pipelines={pipelines}
-        initialStage={moveStageInitial}
+        targetStage={moveStageInitial}
         onSave={handleMoveStage}
-        title={moveStageInitial === 'Feasibility' ? `Check for Feasibility — ${lead?.name}` : undefined}
+        title={moveStageInitial === 'Feasibility' ? `Feasibility Details — ${lead?.name}` : undefined}
       />
       <SetFollowupModal
         isOpen={followupOpen}
