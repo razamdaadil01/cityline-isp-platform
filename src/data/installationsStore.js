@@ -266,3 +266,12 @@ export function subscribeInstallations(fn) {
   _listeners.push(fn)
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
 }
+
+export function nextInstallationId() {
+  const nums = _installations
+    .map(i => i.id.match(/^INS-(\d+)$/))
+    .filter(Boolean)
+    .map(m => Number(m[1]))
+  const next = (nums.length ? Math.max(...nums) : 0) + 1
+  return `INS-${String(next).padStart(3, '0')}`
+}
