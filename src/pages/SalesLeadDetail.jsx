@@ -609,6 +609,9 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, targetStage 
   }, [isOpen, targetStage, lead])
 
   const needsFeasConfirm = false
+  // Only the fixed Feasibility context (Check for Feasibility) gets the shorter
+  // "Set follow-up" / "Submit" labels — Mark as Won/Lost keep the originals.
+  const isFeasibility  = targetStage === 'Feasibility'
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
   const stageMeta      = targetStageId ? getStageMeta(targetStageId) : {}
   const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
@@ -640,7 +643,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, targetStage 
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button icon={loading ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
             onClick={handleMove} disabled={!targetStage || loading || !requiredFilled}>
-            {loading ? 'Moving…' : 'Move Stage'}
+            {isFeasibility ? (loading ? 'Submitting…' : 'Submit') : (loading ? 'Moving…' : 'Move Stage')}
           </Button>
         </>
       }
@@ -690,7 +693,7 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, targetStage 
             className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
             <div className="flex items-center gap-2">
               <Bell size={14} className="text-brand-orange" />
-              Set a follow-up after moving
+              {isFeasibility ? 'Set follow-up' : 'Set a follow-up after moving'}
             </div>
             <div className={`w-9 h-5 rounded-full transition-colors relative ${followupEnabled ? 'bg-brand-blue' : 'bg-gray-300'}`}>
               <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${followupEnabled ? 'left-4' : 'left-0.5'}`} />
