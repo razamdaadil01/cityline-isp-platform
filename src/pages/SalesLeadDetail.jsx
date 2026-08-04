@@ -6,7 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall, X, Trash2,
+  Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
@@ -1295,40 +1295,44 @@ function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggle
           </div>
         </div>
 
-        {/* Custom price + remove — hidden for Residential; more customer-type-specific
-            behavior for this block is coming for Enterprise/other customer types. */}
-        {customerType !== 'Residential' && (
-          <div className="pt-3 border-t border-gray-100 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Use Custom Price</span>
-              <button type="button" onClick={onToggleEditPrice}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${editPrice ? 'bg-brand-blue' : 'bg-gray-300'}`}>
-                <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${editPrice ? 'translate-x-4' : 'translate-x-0.5'}`} />
+        {/*
+          USE CUSTOM PRICE / REMOVE PACKAGE — commented out per request. Previously
+          shown for any customerType !== 'Residential' (i.e. Enterprise); now hidden
+          for every customer type, same treatment as the Add-ons section above.
+          Uncomment and re-add a customerType condition here to re-enable for a
+          future customer type.
+
+        <div className="pt-3 border-t border-gray-100 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">Use Custom Price</span>
+            <button type="button" onClick={onToggleEditPrice}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${editPrice ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${editPrice ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          {editPrice && (
+            <div className="space-y-2">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                <input type="number" min="0" value={customPriceVal}
+                  onChange={e => onCustomPriceChange(e.target.value)}
+                  placeholder={String(plan.price)}
+                  className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+              </div>
+              <button type="button" onClick={onSave}
+                className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
+                Save
               </button>
             </div>
-            {editPrice && (
-              <div className="space-y-2">
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-                  <input type="number" min="0" value={customPriceVal}
-                    onChange={e => onCustomPriceChange(e.target.value)}
-                    placeholder={String(plan.price)}
-                    className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
-                </div>
-                <button type="button" onClick={onSave}
-                  className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
-                  Save
-                </button>
-              </div>
-            )}
-            {onRemove && (
-              <button type="button" onClick={onRemove}
-                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
-                <XCircle size={11} /> Remove Package
-              </button>
-            )}
-          </div>
-        )}
+          )}
+          {onRemove && (
+            <button type="button" onClick={onRemove}
+              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
+              <XCircle size={11} /> Remove Package
+            </button>
+          )}
+        </div>
+        */}
       </div>
     </div>
   )
@@ -2026,6 +2030,137 @@ function EditFuModal({ isOpen, onClose, fu, onSave }) {
   )
 }
 
+// ── InvoiceModal ─────────────────────────────────────────────────────────────
+// Simple read-only invoice summary for the Active Package Details card (Enterprise
+// "Invoice" button) — pulls the same displayPrice/boundPackages/firstInvoice/dueAmount
+// figures already shown in the card, via the same boundPackagesOf() helper. Download/
+// Print is a UI stub for now, no real PDF generation.
+
+function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
+  if (!plan || !pkg) return null
+  const displayPrice = pkg.customPrice ?? plan.price
+  const boundPackages = boundPackagesOf(plan)
+  const boundPackagesTotal = boundPackages.reduce((sum, bp) => sum + (Number(bp.price) || 0), 0)
+  const firstInvoiceAmount = displayPrice + boundPackagesTotal
+  const dueAmount = firstInvoiceAmount
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Invoice — ${lead?.name ?? ''}`} size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          <Button icon={<FileText size={14} />} onClick={() => {}}>
+            Download / Print
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-start justify-between pb-3 border-b border-gray-100">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{plan.code ? `${plan.code} · ` : ''}{plan.speed}</p>
+          </div>
+          <p className="text-sm font-bold text-gray-900">₹{displayPrice.toLocaleString('en-IN')}</p>
+        </div>
+
+        {boundPackages.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Included Bound Packages</p>
+            <div className="space-y-1.5">
+              {boundPackages.map((bp, i) => (
+                <div key={i} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-800">
+                    <span className="font-medium">{bp.name}</span>{' '}
+                    <span className="text-gray-400 text-xs">({bp.code})</span>
+                  </span>
+                  <span className="font-semibold text-gray-800">
+                    {bp.price > 0 ? `₹${Number(bp.price).toLocaleString('en-IN')}` : 'Included'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs font-semibold text-brand-blue">FIRST INVOICE</span>
+          <span className="text-sm font-bold text-brand-blue">₹{firstInvoiceAmount.toLocaleString('en-IN')}</span>
+        </div>
+        <div className="flex items-center justify-between -mt-2">
+          <span className="text-xs font-semibold text-red-500">DUE AMOUNT</span>
+          <span className="text-sm font-bold text-red-500">₹{dueAmount.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── AddPaymentModal ──────────────────────────────────────────────────────────
+// Fields mirror the Payment table's own columns (Package tab, Enterprise). Receipt
+// No. is auto-generated by the caller on save, not editable here.
+
+const PAYMENT_MODES = ['Bank Transfer', 'Online', 'Cash', 'Cheque']
+const PAYMENT_STATUSES = ['Complete', 'Pending']
+
+function AddPaymentModal({ isOpen, onClose, onSave, nextReceiptNo }) {
+  const [form, setForm] = useState({ invoiceNo: '', paymentDate: TODAY, mode: 'Bank Transfer', total: '', paid: '', status: 'Complete', orderNo: '' })
+
+  useEffect(() => {
+    if (isOpen) setForm({ invoiceNo: '', paymentDate: TODAY, mode: 'Bank Transfer', total: '', paid: '', status: 'Complete', orderNo: '' })
+  }, [isOpen])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  const valid = form.paymentDate && form.total !== '' && form.paid !== ''
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Payment" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSave(form)} disabled={!valid}>Save Payment</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Receipt No.">
+          <Input value={nextReceiptNo} disabled />
+        </FormField>
+        <FormField label="Invoice No.">
+          <Input value={form.invoiceNo} onChange={e => set('invoiceNo', e.target.value)} placeholder="Optional" />
+        </FormField>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Payment Date" required>
+            <Input type="date" value={form.paymentDate} onChange={e => set('paymentDate', e.target.value)} />
+          </FormField>
+          <FormField label="Mode">
+            <Select value={form.mode} onChange={e => set('mode', e.target.value)}>
+              {PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
+            </Select>
+          </FormField>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Total Amount" required>
+            <Input type="number" min="0" value={form.total} onChange={e => set('total', e.target.value)} placeholder="0" />
+          </FormField>
+          <FormField label="Paid Amount" required>
+            <Input type="number" min="0" value={form.paid} onChange={e => set('paid', e.target.value)} placeholder="0" />
+          </FormField>
+        </div>
+        <FormField label="Payment Status">
+          <Select value={form.status} onChange={e => set('status', e.target.value)}>
+            {PAYMENT_STATUSES.map(s => <option key={s}>{s}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Order No. / Cheque No.">
+          <Input value={form.orderNo} onChange={e => set('orderNo', e.target.value)} placeholder="Optional" />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
@@ -2088,6 +2223,13 @@ export default function SalesLeadDetail() {
   // Package tab — Add-ons
   const [addonModalOpen, setAddonModalOpen] = useState(false)
 
+  // Package tab — Enterprise Payment table, Invoice modal, Add Payment
+  const [leadPayments, setLeadPayments]     = useState([])
+  const [invoiceOpen, setInvoiceOpen]       = useState(false)
+  const [paymentMenuOpen, setPaymentMenuOpen] = useState(false)
+  const paymentMenuRef = useRef(null)
+  const [addPaymentOpen, setAddPaymentOpen] = useState(false)
+
   // PROFORMA INVOICE — disabled per request (Package tab). Uncomment to re-enable.
   // const [piPreview, setPiPreview] = useState(null)
 
@@ -2124,6 +2266,16 @@ export default function SalesLeadDetail() {
     return () => document.removeEventListener('mousedown', handler)
   }, [actionsOpen])
 
+  // Close the Payment table's "⋮" menu on outside click
+  useEffect(() => {
+    if (!paymentMenuOpen) return
+    function handler(e) {
+      if (!paymentMenuRef.current?.contains(e.target)) setPaymentMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [paymentMenuOpen])
+
   const lead = leads.find(l => l.id === id)
 
   // eKYC status derives from the persisted lead.ekyc object, not local state
@@ -2135,6 +2287,42 @@ export default function SalesLeadDetail() {
     if (lead && !ekycIdentifier) setEkycIdentifier(lead.phone || lead.email || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id])
+
+  // Seed the Package tab's Payment table (Enterprise only) with representative mock
+  // rows when the lead changes, so "Add Payment" can append to real state instead of
+  // recomputing fresh mock data (and losing anything added) on every render.
+  useEffect(() => {
+    if (!lead) return
+    const plan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
+    setLeadPayments([
+      { id: 1, receiptNo: `RC-${lead.id}-01`, invoiceNo: plan ? `ENT/26-27/${lead.id}` : '—', paymentDate: TODAY, date: `${TODAY} 11:20:00`, mode: 'Bank Transfer', total: plan?.price ?? 0, paid: plan?.price ?? 0, status: 'Complete', orderNo: `ORD-${lead.id}-01`, chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Complete' },
+      { id: 2, receiptNo: `RC-${lead.id}-02`, invoiceNo: '—', paymentDate: TODAY, date: `${TODAY} 09:05:00`, mode: 'Online', total: 0, paid: 0, status: 'Pending', orderNo: '—', chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Awaiting confirmation' },
+    ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id])
+
+  function handleAddPayment(form) {
+    if (!lead) return
+    const nextNo = String(leadPayments.length + 1).padStart(2, '0')
+    setLeadPayments(p => [...p, {
+      id: Date.now(),
+      receiptNo: `RC-${lead.id}-${nextNo}`,
+      invoiceNo: form.invoiceNo.trim() || '—',
+      paymentDate: form.paymentDate,
+      date: `${form.paymentDate} ${new Date().toTimeString().slice(0, 8)}`,
+      mode: form.mode,
+      total: parseFloat(form.total) || 0,
+      paid: parseFloat(form.paid) || 0,
+      status: form.status,
+      orderNo: form.orderNo.trim() || '—',
+      chequeBCh: 0,
+      addBy: lead.assigned ?? 'Admin',
+      comment: form.status,
+    }])
+    setAddPaymentOpen(false)
+    setLinkToast('Payment added successfully')
+    setTimeout(() => setLinkToast(null), 3000)
+  }
 
   function handleSendToEkyc() {
     if (!lead || !ekycIdentifier.trim()) return
@@ -3503,6 +3691,11 @@ export default function SalesLeadDetail() {
                           </Button>
                         ) : (
                           <div className="flex items-center gap-2 shrink-0">
+                            {customerType === 'Enterprise' && (
+                              <Button size="sm" variant="secondary" icon={<Download size={13} />} onClick={() => setInvoiceOpen(true)}>
+                                Invoice
+                              </Button>
+                            )}
                             <Button size="sm" variant="secondary" icon={<Edit3 size={13} />} onClick={() => openPkgModal()}>
                               Change Package
                             </Button>
@@ -3513,6 +3706,23 @@ export default function SalesLeadDetail() {
                               <Button size="sm" icon={<FileText size={13} />} onClick={() => setQuotationOpen(true)}>
                                 Generate Quotation
                               </Button>
+                            )}
+                            {customerType === 'Enterprise' && (
+                              <div className="relative" ref={paymentMenuRef}>
+                                <button type="button" onClick={() => setPaymentMenuOpen(v => !v)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                                  <MoreVertical size={14} />
+                                </button>
+                                {paymentMenuOpen && (
+                                  <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-40">
+                                    <button
+                                      onClick={() => { setAddPaymentOpen(true); setPaymentMenuOpen(false) }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                                      <Plus size={13} className="text-gray-400 shrink-0" /> Add Payment
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
@@ -3541,14 +3751,10 @@ export default function SalesLeadDetail() {
                         styling of Customer Detail's Finance tab -> Payments section
                         (CustomerDetail.jsx's FinanceTab, MOCK_PAYMENTS/payRows table) -
                         that tab itself is untouched, this just reuses its pattern.
-                        Leads don't have a linked customer payment history yet, so this
-                        uses representative mock data shaped the same way. */}
-                    {customerType === 'Enterprise' && (() => {
-                      const leadPayments = [
-                        { id: 1, receiptNo: `RC-${lead.id}-01`, invoiceNo: bwPlan ? `ENT/26-27/${lead.id}` : '—', paymentDate: TODAY, date: `${TODAY} 11:20:00`, mode: 'Bank Transfer', total: bwPlan?.price ?? 0, paid: bwPlan?.price ?? 0, status: 'Complete', orderNo: `ORD-${lead.id}-01`, chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Complete' },
-                        { id: 2, receiptNo: `RC-${lead.id}-02`, invoiceNo: '—', paymentDate: TODAY, date: `${TODAY} 09:05:00`, mode: 'Online', total: 0, paid: 0, status: 'Pending', orderNo: '—', chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Awaiting confirmation' },
-                      ]
-                      return (
+                        leadPayments is real component state (seeded per-lead by the
+                        effect above) rather than recomputed mock data, so "Add Payment"
+                        can append a row that survives re-renders. */}
+                    {customerType === 'Enterprise' && (
                         <Card padding={false}>
                           <div className="p-5 pb-4 border-b border-surface-border">
                             <h3 className="text-sm font-semibold text-gray-800">Payment</h3>
@@ -3597,8 +3803,7 @@ export default function SalesLeadDetail() {
                             <span>Total {leadPayments.length}</span>
                           </div>
                         </Card>
-                      )
-                    })()}
+                    )}
 
                     {/*
                       ADD-ONS — commented out per request (Package tab). Previously shown
@@ -3858,6 +4063,19 @@ export default function SalesLeadDetail() {
           setLinkToast('Installation scheduled')
           setTimeout(() => setLinkToast(null), 3000)
         }}
+      />
+      <InvoiceModal
+        isOpen={invoiceOpen}
+        onClose={() => setInvoiceOpen(false)}
+        lead={lead}
+        pkg={lead?.bandwidthPackage}
+        plan={lead?.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null}
+      />
+      <AddPaymentModal
+        isOpen={addPaymentOpen}
+        onClose={() => setAddPaymentOpen(false)}
+        onSave={handleAddPayment}
+        nextReceiptNo={lead ? `RC-${lead.id}-${String(leadPayments.length + 1).padStart(2, '0')}` : ''}
       />
       {wonConversionLead && (
         <WonConversionModal
