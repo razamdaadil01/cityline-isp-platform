@@ -6,7 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical,
+  Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical, RotateCcw,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
@@ -1291,7 +1291,11 @@ function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggle
           </div>
           <div className="text-right">
             <p className="text-xs font-semibold text-brand-blue">FIRST INVOICE: ₹{firstInvoiceAmount.toLocaleString('en-IN')}</p>
-            <p className="text-xs font-semibold text-red-500 mt-0.5">DUE AMOUNT: ₹{dueAmount.toLocaleString('en-IN')}</p>
+            {/* Due Amount moved to the Payment section's header for Enterprise
+                (see the Package tab's "Payment" card) — kept here for Residential/Custom. */}
+            {customerType !== 'Enterprise' && (
+              <p className="text-xs font-semibold text-red-500 mt-0.5">DUE AMOUNT: ₹{dueAmount.toLocaleString('en-IN')}</p>
+            )}
           </div>
         </div>
 
@@ -2161,6 +2165,46 @@ function AddPaymentModal({ isOpen, onClose, onSave, nextReceiptNo }) {
   )
 }
 
+// ── RefundPaymentModal ───────────────────────────────────────────────────────
+// Opened from a Payment row's "⋮" -> Refund. Refund Amount is prefilled from that
+// row's Paid amount but editable. Confirming sets the row's status to 'Refunded'.
+
+function RefundPaymentModal({ isOpen, onClose, payment, onConfirm }) {
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+
+  useEffect(() => {
+    if (isOpen && payment) {
+      setAmount(String(payment.paid ?? ''))
+      setReason('')
+    }
+  }, [isOpen, payment])
+
+  const valid = amount !== '' && parseFloat(amount) > 0
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Refund Payment ${payment?.receiptNo ?? ''}?`} size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" onClick={() => onConfirm(parseFloat(amount) || 0, reason.trim())} disabled={!valid}>
+            Confirm Refund
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Refund Amount" required>
+          <Input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} />
+        </FormField>
+        <FormField label="Reason">
+          <Textarea rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="Why is this payment being refunded?" />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
@@ -2230,6 +2274,12 @@ export default function SalesLeadDetail() {
   const paymentMenuRef = useRef(null)
   const [addPaymentOpen, setAddPaymentOpen] = useState(false)
 
+  // Payment table row "⋮" menu (Refund) — only one row's menu open at a time,
+  // same single-ref click-outside pattern as paymentMenuRef above.
+  const [refundMenuId, setRefundMenuId]     = useState(null)
+  const refundMenuRef = useRef(null)
+  const [refundTarget, setRefundTarget]     = useState(null)
+
   // PROFORMA INVOICE — disabled per request (Package tab). Uncomment to re-enable.
   // const [piPreview, setPiPreview] = useState(null)
 
@@ -2276,6 +2326,16 @@ export default function SalesLeadDetail() {
     return () => document.removeEventListener('mousedown', handler)
   }, [paymentMenuOpen])
 
+  // Close a Payment row's "⋮" (Refund) menu on outside click
+  useEffect(() => {
+    if (!refundMenuId) return
+    function handler(e) {
+      if (!refundMenuRef.current?.contains(e.target)) setRefundMenuId(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [refundMenuId])
+
   const lead = leads.find(l => l.id === id)
 
   // eKYC status derives from the persisted lead.ekyc object, not local state
@@ -2321,6 +2381,16 @@ export default function SalesLeadDetail() {
     }])
     setAddPaymentOpen(false)
     setLinkToast('Payment added successfully')
+    setTimeout(() => setLinkToast(null), 3000)
+  }
+
+  function handleConfirmRefund(refundAmount, reason) {
+    if (!refundTarget) return
+    setLeadPayments(p => p.map(pay => pay.id === refundTarget.id
+      ? { ...pay, status: 'Refunded', refundAmount, refundReason: reason, comment: 'Refunded' }
+      : pay))
+    setRefundTarget(null)
+    setLinkToast('Payment refunded successfully')
     setTimeout(() => setLinkToast(null), 3000)
   }
 
@@ -3677,6 +3747,12 @@ export default function SalesLeadDetail() {
                 const bwPlan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
                 const addons = lead.addons ?? []
                 const customerType = PIPELINE_LABEL[lead.pipeline]
+                // Same displayPrice + boundPackagesTotal formula as ResidentialPackageCard's
+                // own dueAmount, computed here too so the Payment section's header (Enterprise)
+                // can show it without reaching into that card's internals.
+                const bwDueAmount = bwPlan
+                  ? (lead.bandwidthPackage.customPrice ?? bwPlan.price) + boundPackagesOf(bwPlan).reduce((sum, bp) => sum + (Number(bp.price) || 0), 0)
+                  : 0
 
                 return (
                   <div className="space-y-4">
@@ -3706,23 +3782,6 @@ export default function SalesLeadDetail() {
                               <Button size="sm" icon={<FileText size={13} />} onClick={() => setQuotationOpen(true)}>
                                 Generate Quotation
                               </Button>
-                            )}
-                            {customerType === 'Enterprise' && (
-                              <div className="relative" ref={paymentMenuRef}>
-                                <button type="button" onClick={() => setPaymentMenuOpen(v => !v)}
-                                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
-                                  <MoreVertical size={14} />
-                                </button>
-                                {paymentMenuOpen && (
-                                  <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-40">
-                                    <button
-                                      onClick={() => { setAddPaymentOpen(true); setPaymentMenuOpen(false) }}
-                                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                                      <Plus size={13} className="text-gray-400 shrink-0" /> Add Payment
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
                             )}
                           </div>
                         )}
@@ -3756,14 +3815,32 @@ export default function SalesLeadDetail() {
                         can append a row that survives re-renders. */}
                     {customerType === 'Enterprise' && (
                         <Card padding={false}>
-                          <div className="p-5 pb-4 border-b border-surface-border">
+                          <div className="p-5 pb-4 border-b border-surface-border flex items-center justify-between gap-3 flex-wrap">
                             <h3 className="text-sm font-semibold text-gray-800">Payment</h3>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-semibold text-red-500">Due Amount: ₹{bwDueAmount.toLocaleString('en-IN')}</span>
+                              <div className="relative" ref={paymentMenuRef}>
+                                <button type="button" onClick={() => setPaymentMenuOpen(v => !v)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                                  <MoreVertical size={14} />
+                                </button>
+                                {paymentMenuOpen && (
+                                  <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-40">
+                                    <button
+                                      onClick={() => { setAddPaymentOpen(true); setPaymentMenuOpen(false) }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                                      <Plus size={13} className="text-gray-400 shrink-0" /> Add Payment
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="bg-gray-50/60 border-b border-surface-border">
-                                  {['Receipt No', 'Invoice No', 'Payment Date', 'Date', 'Mode', 'Total', 'Paid', 'Payment Status', 'Order No / Cheque No', 'Cheque B CH', 'Add By', 'Comment'].map(h => (
+                                  {['Receipt No', 'Payment Date', 'Mode', 'Total', 'Paid', 'Payment Status', 'Order No / Cheque No', 'Cheque B CH', 'Add By', 'Comment', 'Action'].map(h => (
                                     <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                                   ))}
                                 </tr>
@@ -3772,9 +3849,7 @@ export default function SalesLeadDetail() {
                                 {leadPayments.map(pay => (
                                   <tr key={pay.id} className="hover:bg-gray-50/50">
                                     <td className="px-3 py-3 font-mono text-xs text-brand-blue font-semibold whitespace-nowrap">{pay.receiptNo}</td>
-                                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.invoiceNo}</td>
                                     <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
-                                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.date}</td>
                                     <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.mode}</td>
                                     <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.total.toFixed(2)}</td>
                                     <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.paid.toFixed(2)}</td>
@@ -3782,6 +3857,7 @@ export default function SalesLeadDetail() {
                                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                         pay.status === 'Complete' ? 'bg-green-100 text-green-700' :
                                         pay.status === 'Failed'   ? 'bg-red-100 text-red-600'    :
+                                        pay.status === 'Refunded' ? 'bg-gray-200 text-gray-600'   :
                                         'bg-orange-100 text-orange-600'
                                       }`}>{pay.status}</span>
                                     </td>
@@ -3789,10 +3865,27 @@ export default function SalesLeadDetail() {
                                     <td className="px-3 py-3 text-xs text-gray-500">{pay.chequeBCh}</td>
                                     <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.addBy}</td>
                                     <td className="px-3 py-3 text-xs text-gray-500">{pay.comment}</td>
+                                    <td className="px-3 py-3">
+                                      <div className="relative" ref={refundMenuId === pay.id ? refundMenuRef : null}>
+                                        <button type="button" onClick={() => setRefundMenuId(v => v === pay.id ? null : pay.id)}
+                                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                                          <MoreVertical size={14} />
+                                        </button>
+                                        {refundMenuId === pay.id && (
+                                          <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-32">
+                                            <button
+                                              onClick={() => { setRefundTarget(pay); setRefundMenuId(null) }}
+                                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">
+                                              <RotateCcw size={13} className="shrink-0" /> Refund
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
                                   </tr>
                                 ))}
                                 {leadPayments.length === 0 && (
-                                  <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-400 text-sm">No payments found.</td></tr>
+                                  <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-400 text-sm">No payments found.</td></tr>
                                 )}
                               </tbody>
                             </table>
@@ -4076,6 +4169,12 @@ export default function SalesLeadDetail() {
         onClose={() => setAddPaymentOpen(false)}
         onSave={handleAddPayment}
         nextReceiptNo={lead ? `RC-${lead.id}-${String(leadPayments.length + 1).padStart(2, '0')}` : ''}
+      />
+      <RefundPaymentModal
+        isOpen={!!refundTarget}
+        onClose={() => setRefundTarget(null)}
+        payment={refundTarget}
+        onConfirm={handleConfirmRefund}
       />
       {wonConversionLead && (
         <WonConversionModal
