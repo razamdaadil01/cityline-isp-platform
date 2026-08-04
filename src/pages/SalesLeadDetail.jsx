@@ -3497,7 +3497,7 @@ export default function SalesLeadDetail() {
                     <Card padding={false}>
                       <div className="p-5 pb-4 flex items-center justify-between gap-3 flex-wrap border-b border-surface-border">
                         <h3 className="text-sm font-semibold text-gray-800">Active Package Details</h3>
-                        {!lead.bandwidthPackage ? (
+                        {!bwPlan ? (
                           <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal()}>
                             Add Bandwidth Package
                           </Button>
@@ -3509,16 +3509,21 @@ export default function SalesLeadDetail() {
                             <Button size="sm" icon={<CreditCard size={13} />} onClick={handleSendPaymentLink}>
                               Send Payment Link
                             </Button>
+                            {customerType !== 'Residential' && (
+                              <Button size="sm" icon={<FileText size={13} />} onClick={() => setQuotationOpen(true)}>
+                                Generate Quotation
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>
                       <div className="p-5">
-                        {!lead.bandwidthPackage ? (
+                        {!bwPlan ? (
                           <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
                             <Package size={18} className="mx-auto text-gray-300 mb-2" />
                             <p className="text-sm text-gray-400">No bandwidth package selected</p>
                           </div>
-                        ) : bwPlan && (
+                        ) : (
                           <ResidentialPackageCard
                             plan={bwPlan} pkg={lead.bandwidthPackage}
                             editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
@@ -3595,53 +3600,44 @@ export default function SalesLeadDetail() {
                       )
                     })()}
 
-                    {/* Add-ons — hidden for Residential; more customer-type-specific
-                        behavior for this section is coming for Enterprise/other customer types. */}
-                    {customerType !== 'Residential' && (
-                      <Card padding={false}>
-                        <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                          <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
-                          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
-                            Add Add-on
-                          </Button>
-                        </div>
-                        <div className="p-5">
-                          {addons.length === 0 ? (
-                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                              <Package size={18} className="mx-auto text-gray-300 mb-2" />
-                              <p className="text-sm text-gray-400">No add-ons added</p>
-                            </div>
-                          ) : (
-                            <div className="max-w-md space-y-2">
-                              {addons.map(addon => (
-                                <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-800">{addon.name}</p>
-                                    <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
-                                  </div>
-                                  <button type="button" onClick={() => handleRemoveAddon(addon.id)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                    )}
+                    {/*
+                      ADD-ONS — commented out per request (Package tab). Previously shown
+                      for any customerType !== 'Residential'; now hidden for every customer
+                      type (Residential and Enterprise alike). Uncomment and re-add a
+                      customerType condition here to re-enable for a future customer type.
 
-                    {/* Generate Quotation — always enabled once a package is selected;
-                        hidden for Residential, same as Add-ons above. */}
-                    {customerType !== 'Residential' && lead.bandwidthPackage && (
-                      <button
-                        type="button"
-                        onClick={() => setQuotationOpen(true)}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-blue text-white hover:bg-blue-700 transition-colors"
-                      >
-                        <span>📄</span> Generate Quotation
-                      </button>
-                    )}
+                    <Card padding={false}>
+                      <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
+                        <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
+                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
+                          Add Add-on
+                        </Button>
+                      </div>
+                      <div className="p-5">
+                        {addons.length === 0 ? (
+                          <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                            <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                            <p className="text-sm text-gray-400">No add-ons added</p>
+                          </div>
+                        ) : (
+                          <div className="max-w-md space-y-2">
+                            {addons.map(addon => (
+                              <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-800">{addon.name}</p>
+                                  <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
+                                </div>
+                                <button type="button" onClick={() => handleRemoveAddon(addon.id)}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                    */}
 
                     {/*
                       PROFORMA INVOICE — commented out per request (Package tab).
