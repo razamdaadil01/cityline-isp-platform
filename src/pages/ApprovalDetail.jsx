@@ -24,7 +24,7 @@ function formatDateTime(iso) {
 function relatedRoute(approval) {
   if (!approval.relatedId) return null
   return approval.relatedType === 'ticket'
-    ? `/support/tickets/${approval.relatedId}/overview`
+    ? `/support/tickets/${approval.relatedId}/documents`
     : `/customers/${approval.relatedId}`
 }
 

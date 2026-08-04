@@ -322,7 +322,7 @@ export default function TicketCreate() {
     }
 
     const saved = saveTicket(ticket)
-    navigate(`/support/tickets/${saved.id}/overview`)
+    navigate(`/support/tickets/${saved.id}/documents`)
   }
 
   return (
@@ -465,7 +465,7 @@ export default function TicketCreate() {
                   <div className="space-y-1.5">
                     {historyTickets.map(t => (
                       <div key={t.id} className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-white border border-surface-border">
-                        <button type="button" onClick={() => navigate(`/support/tickets/${t.id}/overview`)}
+                        <button type="button" onClick={() => navigate(`/support/tickets/${t.id}/documents`)}
                           className="font-mono text-brand-blue font-semibold hover:underline shrink-0">
                           {t.id}
                         </button>
@@ -497,7 +497,7 @@ export default function TicketCreate() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="xs" variant="secondary" onClick={() => navigate(`/support/tickets/${primaryOpenTicket.id}/overview`)}>
+                  <Button size="xs" variant="secondary" onClick={() => navigate(`/support/tickets/${primaryOpenTicket.id}/documents`)}>
                     Open Existing Ticket
                   </Button>
                   <Button size="xs" variant="secondary" onClick={() => setDuplicateChoice({ mode: 'duplicate', ticketId: primaryOpenTicket.id })}>

@@ -4,7 +4,7 @@ import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
   Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
-  Music, Edit2, Search, X, Plus, Check, Folder, Upload,
+  Edit2, Search, X, Plus, Check, Folder, Upload,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -89,33 +89,11 @@ function slaRemainingLabel(ticket) {
   return `${hh}h ${mm}m ${diff >= 0 ? 'Left' : 'Over'}`
 }
 
-// Deterministic mock size label for attachments seeded as plain filenames (no real file bytes on hand).
-function mockFileSize(name) {
-  const sum = [...name].reduce((a, c) => a + c.charCodeAt(0), 0)
-  const kb = 40 + (sum % 900)
-  return kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`
-}
-
-// Real byte-size formatter for Documents tab uploads (actual File objects from the
-// picker), as opposed to mockFileSize() above which fakes a size from a filename.
+// Real byte-size formatter for Documents tab uploads (actual File objects from the picker).
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function isAudioName(name) { return /\.(mp3|wav|m4a|ogg)$/i.test(name ?? '') }
-
-// Static CSS-bar waveform stub — visual only, not driven by real audio data.
-const WAVEFORM_HEIGHTS = [30, 55, 40, 70, 50, 90, 60, 45, 75, 55, 35, 65, 50, 80, 40, 60, 45, 70, 55, 35]
-function Waveform({ className = '' }) {
-  return (
-    <div className={`flex items-end gap-[2px] h-5 ${className}`}>
-      {WAVEFORM_HEIGHTS.map((h, i) => (
-        <span key={i} className="w-[2px] bg-purple-300 rounded-full shrink-0" style={{ height: `${h}%` }} />
-      ))}
-    </div>
-  )
 }
 
 // Mock hardware catalog reusing the same item names already seen in the Installation
@@ -844,11 +822,10 @@ function AddHardwareModal({ open, onClose, onAdd }) {
 // ── Middle-column tabs ──────────────────────────────────────────────────────
 
 const MIDDLE_TABS = [
-  { key: 'overview', slug: 'overview', label: 'Overview', icon: User },
+  { key: 'documents', slug: 'documents', label: 'Documents', icon: Folder },
   { key: 'communication', slug: 'communication', label: 'Communication', icon: MessageSquare },
   { key: 'internal', slug: 'internal-notes', label: 'Notes', icon: Lock },
   { key: 'activity', slug: 'activity-log', label: 'Activity Log', icon: Activity },
-  { key: 'documents', slug: 'documents', label: 'Documents', icon: Folder },
 ]
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
@@ -968,7 +945,7 @@ export default function SupportTicketDetail() {
 
   // Documents tab — uploadingDocs is transient client-side state driving the
   // progress-bar/checkmark animation only; the persisted list lives on
-  // ticket.documents (separate from the Overview tab's ticket.attachments).
+  // ticket.documents (a distinct field from ticket.attachments in the data model).
   const [uploadingDocs, setUploadingDocs] = useState([])
   const documentInputRef = useRef(null)
 
@@ -995,10 +972,10 @@ export default function SupportTicketDetail() {
   }
 
   if (!tabSlug) {
-    return <Navigate to={`/support/tickets/${id}/overview`} replace />
+    return <Navigate to={`/support/tickets/${id}/documents`} replace />
   }
 
-  const activeTab = MIDDLE_TABS.find(t => t.slug === tabSlug)?.key ?? 'overview'
+  const activeTab = MIDDLE_TABS.find(t => t.slug === tabSlug)?.key ?? 'documents'
 
   if (!ticket) {
     return (
@@ -1164,91 +1141,6 @@ export default function SupportTicketDetail() {
             </div>
 
             <div className="p-5">
-
-              {/* ─── Overview (Complaint Information) ───────────────────── */}
-              {activeTab === 'overview' && (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Description</p>
-                    <p className="text-sm text-gray-700">{ticket.description}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Latest Call Recording</p>
-                    {/* TODO: wire to real recording fetch once developer confirms CDN/IVR integration */}
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-purple-200 bg-purple-50">
-                      <button
-                        type="button"
-                        onClick={() => console.log('Recording playback coming soon')}
-                        className="w-8 h-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center shrink-0 transition-colors"
-                      >
-                        <Play size={14} className="fill-current ml-0.5" />
-                      </button>
-                      <Waveform className="flex-1" />
-                      <span className="text-xs font-mono text-purple-700 shrink-0">00:00 / 03:12</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Attachments / Screenshots</p>
-                    {(ticket.attachments ?? []).length === 0 ? (
-                      <p className="text-sm text-gray-400">No attachments.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {ticket.attachments.map((name, i) => {
-                          const isAudio = isAudioName(name)
-                          return (
-                            <div key={i} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-gray-50">
-                              {isAudio ? (
-                                <div className="relative w-8 h-8 shrink-0">
-                                  <div className="absolute inset-0 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center group-hover:opacity-0 transition-opacity">
-                                    <Music size={14} />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => console.log('Recording playback coming soon')}
-                                    className="absolute inset-0 rounded-full bg-purple-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <Play size={13} className="fill-current ml-0.5" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <FileText size={16} className="text-gray-400 shrink-0" />
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-gray-700 truncate">{name}</p>
-                                {isAudio ? (
-                                  <Waveform className="mt-1" />
-                                ) : (
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[10px] text-gray-400 shrink-0">{mockFileSize(name)}</span>
-                                    <div className="flex-1 h-1 max-w-[100px] bg-gray-200 rounded-full overflow-hidden">
-                                      <div className="h-full bg-emerald-500" style={{ width: '100%' }} />
-                                    </div>
-                                    <span className="text-[10px] text-emerald-600 font-semibold shrink-0">100%</span>
-                                  </div>
-                                )}
-                              </div>
-                              <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                              <button
-                                type="button"
-                                onClick={() => console.log('Remove attachment — coming soon')}
-                                className="text-gray-400 hover:text-red-500 shrink-0 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-1">Customer-visible Note</p>
-                    <p className="text-sm text-gray-700">{ticket.customerNote?.trim() || <span className="text-gray-400">None on file.</span>}</p>
-                  </div>
-                </div>
-              )}
 
               {/* ─── Communication ──────────────────────────────────────── */}
               {activeTab === 'communication' && (
@@ -1450,7 +1342,7 @@ export default function SupportTicketDetail() {
             ) : (
               <div className="space-y-2">
                 {relatedOnPort.map(t => (
-                  <button key={t.id} onClick={() => navigate(`/support/tickets/${t.id}/overview`)}
+                  <button key={t.id} onClick={() => navigate(`/support/tickets/${t.id}/documents`)}
                     className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-surface-border hover:bg-gray-100 transition-colors text-left">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT_COLOR[STATUS_BADGE[t.status]] ?? 'bg-gray-300'}`} />
