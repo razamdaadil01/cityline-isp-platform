@@ -1906,6 +1906,7 @@ export default function Sales() {
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
                     <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>
                     <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Branch</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>
                     <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>
@@ -1917,7 +1918,7 @@ export default function Sales() {
                 <tbody className="divide-y divide-surface-border">
                   {pageLeads.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
+                      <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
                     </tr>
                   )}
                   {pageLeads.map(lead => {
@@ -1936,6 +1937,9 @@ export default function Sales() {
                         </td>
                         <td className="px-4 py-3 overflow-hidden" title={customerType}>
                           <span className="block truncate text-xs text-gray-700">{customerType}</span>
+                        </td>
+                        <td className="px-4 py-3 overflow-hidden" title={lead.branchCode}>
+                          <span className="block truncate font-mono text-xs text-gray-600">{lead.branchCode ?? '—'}</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <button
