@@ -1218,7 +1218,7 @@ function boundPackagesOf(plan) {
   ]
 }
 
-function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onSave, onRemove }) {
+function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggleEditPrice, onCustomPriceChange, onSave, onRemove, customerType }) {
   const displayPrice = editPrice && customPriceVal !== ''
     ? (parseFloat(customPriceVal) || plan.price)
     : (pkg.customPrice ?? plan.price)
@@ -1295,37 +1295,40 @@ function ResidentialPackageCard({ plan, pkg, editPrice, customPriceVal, onToggle
           </div>
         </div>
 
-        {/* Custom price + remove — kept, tucked below the new layout */}
-        <div className="pt-3 border-t border-gray-100 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">Use Custom Price</span>
-            <button type="button" onClick={onToggleEditPrice}
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${editPrice ? 'bg-brand-blue' : 'bg-gray-300'}`}>
-              <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${editPrice ? 'translate-x-4' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
-          {editPrice && (
-            <div className="space-y-2">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-                <input type="number" min="0" value={customPriceVal}
-                  onChange={e => onCustomPriceChange(e.target.value)}
-                  placeholder={String(plan.price)}
-                  className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
-              </div>
-              <button type="button" onClick={onSave}
-                className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Save
+        {/* Custom price + remove — hidden for Residential; more customer-type-specific
+            behavior for this block is coming for Enterprise/other customer types. */}
+        {customerType !== 'Residential' && (
+          <div className="pt-3 border-t border-gray-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Use Custom Price</span>
+              <button type="button" onClick={onToggleEditPrice}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${editPrice ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+                <span className={`block h-4 w-4 rounded-full bg-white shadow transition-transform ${editPrice ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </button>
             </div>
-          )}
-          {onRemove && (
-            <button type="button" onClick={onRemove}
-              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
-              <XCircle size={11} /> Remove Package
-            </button>
-          )}
-        </div>
+            {editPrice && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
+                  <input type="number" min="0" value={customPriceVal}
+                    onChange={e => onCustomPriceChange(e.target.value)}
+                    placeholder={String(plan.price)}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+                </div>
+                <button type="button" onClick={onSave}
+                  className="w-full py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  Save
+                </button>
+              </div>
+            )}
+            {onRemove && (
+              <button type="button" onClick={onRemove}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium transition-colors">
+                <XCircle size={11} /> Remove Package
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -3520,6 +3523,7 @@ export default function SalesLeadDetail() {
                             onCustomPriceChange={setBwCustomPrice}
                             onSave={() => handleSaveResidentialPkg()}
                             onRemove={() => handleRemovePkg()}
+                            customerType={PIPELINE_LABEL[lead.pipeline]}
                           />
                         )}
                       </div>
