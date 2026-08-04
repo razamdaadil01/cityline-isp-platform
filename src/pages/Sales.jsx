@@ -1145,6 +1145,12 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
 // ── Move Stage Modal ──────────────────────────────────────────────────────────
 
 function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initialStage = '' }) {
+  // A non-empty initialStage means the action that opened this modal already implied
+  // a specific target stage (a Kanban drag-and-drop, or a dedicated "Mark as Won/Lost"
+  // menu action) — in that case the stage is fixed and the Current Stage/Move to Stage
+  // selectors are hidden. The Table view's plain "Move Stage" menu item opens this with
+  // no initialStage, so it keeps the free-choice dropdown as before.
+  const isFixed = Boolean(initialStage)
   const [targetStage, setTargetStage]         = useState(initialStage)
   const [fieldVals, setFieldVals]             = useState({})
   const [followupEnabled, setFollowupEnabled] = useState(false)
@@ -1191,7 +1197,9 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   }
 
   return (
-    <Modal isOpen onClose={onClose} title={`Move Stage — ${lead.name}`} size="lg"
+    <Modal isOpen onClose={onClose}
+      title={isFixed && targetStage === 'Feasibility' ? `Feasibility Details — ${lead.name}` : `Move Stage — ${lead.name}`}
+      size="lg"
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
@@ -1206,23 +1214,26 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
       }
     >
       <div className="space-y-5">
-        {/* Stage selectors */}
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Current Stage">
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-surface-border">
-              <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead.stage]?.colorBar ?? 'bg-gray-400'}`} />
-              <span className="text-sm text-gray-600 font-medium">{lead.stage}</span>
-            </div>
-          </FormField>
-          <FormField label="Move to Stage" required>
-            <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setWonNote('') }}>
-              <option value="">Select target stage…</option>
-              {availableStages.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </Select>
-          </FormField>
-        </div>
+        {/* Stage selectors — only shown when the target stage isn't already fixed by
+            whatever triggered this modal (see isFixed above) */}
+        {!isFixed && (
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Current Stage">
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-surface-border">
+                <span className={`w-2 h-2 rounded-full ${STAGE_STYLES[lead.stage]?.colorBar ?? 'bg-gray-400'}`} />
+                <span className="text-sm text-gray-600 font-medium">{lead.stage}</span>
+              </div>
+            </FormField>
+            <FormField label="Move to Stage" required>
+              <Select value={targetStage} onChange={e => { setTargetStage(e.target.value); setFieldVals({}); setWonNote('') }}>
+                <option value="">Select target stage…</option>
+                {availableStages.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+        )}
 
         {/* Won — simple closing UI */}
         {isWon && targetStage && (
