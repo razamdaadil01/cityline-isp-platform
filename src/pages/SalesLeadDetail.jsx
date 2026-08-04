@@ -6,13 +6,19 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall, X,
+  Fingerprint, Search, FileText, PhoneCall, X, Trash2,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { findEkycRecord } from '../data/ekycRecordsStore'
-import { saveFeasibilityRequest, getFeasibilityRequests } from '../data/feasibilityStore'
-import { getInstallations, subscribeInstallations } from '../data/installationsStore'
+import {
+  saveFeasibilityRequest, getFeasibilityRequests, subscribeFeasibility,
+  FEASIBILITY_ENGINEERS, FEASIBILITY_BRANCHES,
+} from '../data/feasibilityStore'
+import {
+  getInstallations, subscribeInstallations, saveInstallation, nextInstallationId,
+  FIELD_ENGINEERS, INSTALLATION_TEAMS,
+} from '../data/installationsStore'
 import { MOCK_PLANS, SERVICE_BADGE, BILLING_TYPES, MOCK_ADDONS } from '../data/packagesStore'
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
@@ -737,6 +743,523 @@ function MoveStageModal({ isOpen, onClose, lead, pipelines, onSave, initialStage
             </div>
           )}
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── CheckFeasibilityModal ───────────────────────────────────────────────────────
+// Combines the Feasibility module's location fields, searchable Assign Engineer
+// picker, and Hardware Requirements toggle (FeasibilityRequests.jsx) into a single
+// creation flow — that module never exposed them as one modal, only as separate
+// per-record Edit / Assign Engineer / Hardware Requirements modals.
+
+const FEAS_HW_SUGGESTIONS   = ['ONT Device', 'Drop Wire', 'Splitter', 'ONU', 'Patch Cord', 'Other']
+const FEAS_WIRE_SUGGESTIONS = ['Ethernet Cat6', 'Fiber Cable', 'Drop Wire', 'Other']
+function newFeasHwRow(name = '', qty = '', unit = 'pcs') { return { id: Date.now() + Math.random(), name, qty, unit } }
+function newFeasWireRow(name = '', qty = '', unit = 'm')  { return { id: Date.now() + Math.random(), name, qty, unit } }
+
+function CheckFeasibilityModal({ isOpen, onClose, lead, onCreated }) {
+  const [form, setForm] = useState({
+    localityName: '', subLocalityName: '', completeAddress: '', landmark: '',
+    connectionType: '', assignedBranch: '', fiberRequired: '', priority: 'Medium',
+    customerRequirementNotes: '', internalRemarks: '', engineers: [],
+  })
+  const [engSearch, setEngSearch] = useState('')
+  const [hwToggle, setHwToggle] = useState(false)
+  const [hwItems, setHwItems] = useState([])
+  const [wireItems, setWireItems] = useState([])
+
+  useEffect(() => {
+    if (!isOpen || !lead) return
+    setForm({
+      localityName: lead.locality ?? lead.area ?? '', subLocalityName: lead.subLocality ?? '',
+      completeAddress: lead.address ?? '', landmark: '', connectionType: lead.siteType ?? '',
+      assignedBranch: lead.branchCode ?? '', fiberRequired: '', priority: 'Medium',
+      customerRequirementNotes: '', internalRemarks: '', engineers: [],
+    })
+    setEngSearch(''); setHwToggle(false); setHwItems([]); setWireItems([])
+  }, [isOpen, lead])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+  function toggleEngineer(name) {
+    setForm(f => ({ ...f, engineers: f.engineers.includes(name) ? f.engineers.filter(e => e !== name) : [...f.engineers, name] }))
+  }
+  function addHwItem()   { setHwItems(r => [...r, newFeasHwRow()]) }
+  function addWireItem() { setWireItems(r => [...r, newFeasWireRow()]) }
+  function removeHwItem(rid)   { setHwItems(r => r.filter(x => x.id !== rid)) }
+  function removeWireItem(rid) { setWireItems(r => r.filter(x => x.id !== rid)) }
+  function updateHwItem(rid, field, val)   { setHwItems(r => r.map(x => x.id === rid ? { ...x, [field]: val } : x)) }
+  function updateWireItem(rid, field, val) { setWireItems(r => r.map(x => x.id === rid ? { ...x, [field]: val } : x)) }
+
+  const filteredEngineers = FEASIBILITY_ENGINEERS.filter(e => e.name.toLowerCase().includes(engSearch.toLowerCase()))
+
+  function handleCreate() {
+    const now = new Date().toLocaleString('sv-SE', { hour12: false }).slice(0, 16).replace('T', ' ')
+    const actor = lead.assigned ?? 'Arjun Kumar'
+    saveFeasibilityRequest({
+      leadId: lead.id,
+      customerName: lead.name,
+      mobile: lead.phone,
+      email: lead.email || '',
+      pipeline: PIPELINES[lead.pipeline]?.label ?? lead.pipeline,
+      stage: 'Feasibility Check',
+      createdBy: actor,
+      area: lead.area ?? '',
+      localityName: form.localityName,
+      subLocalityName: form.subLocalityName,
+      completeAddress: form.completeAddress,
+      landmark: form.landmark,
+      connectionType: form.connectionType,
+      assignedBranch: form.assignedBranch,
+      feasibilityStatus: form.engineers.length ? 'Assigned' : 'Pending',
+      customerRequirementNotes: form.customerRequirementNotes,
+      internalRemarks: form.internalRemarks,
+      assignedEngineer: form.engineers.join(', '),
+      fiberRequired: form.fiberRequired,
+      priority: form.priority,
+      hwItems: hwToggle ? hwItems : [],
+      wireItems: hwToggle ? wireItems : [],
+      timeline: [
+        { action: 'Created', by: actor, at: now, note: `Feasibility request raised from lead ${lead.id}` },
+        ...(form.engineers.length ? [{ action: 'Assigned', by: actor, at: now, note: `Assigned to ${form.engineers.join(', ')}` }] : []),
+      ],
+    })
+    onCreated()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Check for Feasibility — ${lead?.name ?? ''}`} size="lg"
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={handleCreate}>Create Feasibility Request</Button>
+      </>}
+    >
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Locality Name">
+            <Input value={form.localityName} onChange={e => set('localityName', e.target.value)} placeholder="Enter locality name" />
+          </FormField>
+          <FormField label="Sub Locality Name">
+            <Input value={form.subLocalityName} onChange={e => set('subLocalityName', e.target.value)} placeholder="Enter sub locality name" />
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Complete Address">
+              <Textarea rows={2} value={form.completeAddress} onChange={e => set('completeAddress', e.target.value)} placeholder="Full address…" />
+            </FormField>
+          </div>
+          <FormField label="Landmark">
+            <Input value={form.landmark} onChange={e => set('landmark', e.target.value)} placeholder="Nearby landmark" />
+          </FormField>
+          <FormField label="Expected Connection Type">
+            <Select value={form.connectionType} onChange={e => set('connectionType', e.target.value)}>
+              <option value="">Select…</option>
+              {['FTTH', 'Sector', 'Village'].map(t => <option key={t}>{t}</option>)}
+            </Select>
+          </FormField>
+          <div className="col-span-2">
+            <FormField label="Customer Requirement">
+              <Textarea rows={2} value={form.customerRequirementNotes} onChange={e => set('customerRequirementNotes', e.target.value)} placeholder="Customer's requirements…" />
+            </FormField>
+          </div>
+          <FormField label="Assigned Branch">
+            <Select value={form.assignedBranch} onChange={e => set('assignedBranch', e.target.value)}>
+              <option value="">Select…</option>
+              {FEASIBILITY_BRANCHES.map(b => <option key={b}>{b}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Fiber Req (M)">
+            <Input type="number" min="0" value={form.fiberRequired} onChange={e => set('fiberRequired', e.target.value)} placeholder="e.g. 250" />
+          </FormField>
+          <FormField label="Priority" required>
+            <Select value={form.priority} onChange={e => set('priority', e.target.value)}>
+              {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
+            </Select>
+          </FormField>
+        </div>
+
+        <div className="pt-4 border-t border-surface-border">
+          <p className="text-xs font-medium text-gray-700 mb-2">Assign Engineer</p>
+          {form.engineers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {form.engineers.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                  {name}
+                  <button type="button" onClick={() => toggleEngineer(name)}
+                    className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="relative mb-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              value={engSearch}
+              onChange={e => setEngSearch(e.target.value)}
+              placeholder="Search engineer..."
+              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+            />
+          </div>
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[160px] overflow-y-auto">
+            {filteredEngineers.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No engineers found</p>
+            ) : filteredEngineers.map(eng => {
+              const selected = form.engineers.includes(eng.name)
+              return (
+                <label key={eng.name}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <input type="checkbox" checked={selected} onChange={() => toggleEngineer(eng.name)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+                  <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                    {eng.initials}
+                  </div>
+                  <span className="text-sm text-gray-700">{eng.name}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="border border-surface-border rounded-xl overflow-hidden">
+          <button type="button" onClick={() => setHwToggle(p => !p)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-2">
+              <Wrench size={14} className="text-gray-500" />
+              Add Hardware Requirements
+            </div>
+            <div className={`w-9 h-5 rounded-full transition-colors relative ${hwToggle ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${hwToggle ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+          {hwToggle && (
+            <div className="px-4 pb-4 pt-1 border-t border-surface-border space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-2 pt-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Hardware Items</p>
+                  <button type="button" onClick={addHwItem}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                    <Plus size={12} /> Add Item
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_64px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                    <span>Item Name</span><span>QTY</span><span>Unit</span><span />
+                  </div>
+                  {hwItems.map(row => (
+                    <div key={row.id} className="grid grid-cols-[1fr_64px_64px_28px] gap-2 items-center">
+                      <input value={row.name} onChange={e => updateHwItem(row.id, 'name', e.target.value)}
+                        placeholder="e.g. ONT Device" list="lead-feas-hw-suggestions"
+                        className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800" />
+                      <input type="number" min="0" value={row.qty} onChange={e => updateHwItem(row.id, 'qty', e.target.value)}
+                        placeholder="0"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <input value={row.unit} onChange={e => updateHwItem(row.id, 'unit', e.target.value)}
+                        placeholder="pcs"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <button type="button" onClick={() => removeHwItem(row.id)}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {hwItems.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2 border-2 border-dashed border-gray-200 rounded-lg">No items added</p>
+                  )}
+                </div>
+                <datalist id="lead-feas-hw-suggestions">
+                  {FEAS_HW_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Wire / Cable</p>
+                  <button type="button" onClick={addWireItem}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                    <Plus size={12} /> Add Wire
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_64px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                    <span>Cable Name</span><span>QTY</span><span>Unit</span><span />
+                  </div>
+                  {wireItems.map(row => (
+                    <div key={row.id} className="grid grid-cols-[1fr_64px_64px_28px] gap-2 items-center">
+                      <input value={row.name} onChange={e => updateWireItem(row.id, 'name', e.target.value)}
+                        placeholder="e.g. Ethernet Cat6" list="lead-feas-wire-suggestions"
+                        className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800" />
+                      <input type="number" min="0" value={row.qty} onChange={e => updateWireItem(row.id, 'qty', e.target.value)}
+                        placeholder="0"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <input value={row.unit} onChange={e => updateWireItem(row.id, 'unit', e.target.value)}
+                        placeholder="m"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <button type="button" onClick={() => removeWireItem(row.id)}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {wireItems.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2 border-2 border-dashed border-gray-200 rounded-lg">No wires added</p>
+                  )}
+                </div>
+                <datalist id="lead-feas-wire-suggestions">
+                  {FEAS_WIRE_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── VisitInstallationModal ───────────────────────────────────────────────────────
+// Reuses the exact same searchable Assign-Engineer picker + Hardware-toggle pattern
+// as Installations.jsx's "Assign Team" modal ("Internet Assign Team Modal"), as a
+// creation flow for scheduling an installation directly from a lead. If a
+// Feasibility request is already linked to this lead, its hardware list pre-fills
+// here too — mirroring how Installations.jsx's own Assign Team modal pre-fills
+// hardware from a linked feasibilityId.
+
+const INST_HW_SUGGESTIONS   = ['ONT Device', 'Drop Wire', 'Splitter', 'ONU', 'Patch Cord', 'Other']
+const INST_WIRE_SUGGESTIONS = ['Ethernet Cat6', 'Fiber Cable', 'Drop Wire', 'Other']
+function newInstHwRow(name = '', qty = '', unit = 'pcs') { return { id: Date.now() + Math.random(), name, qty, unit } }
+function newInstWireRow(name = '', qty = '', unit = 'm')  { return { id: Date.now() + Math.random(), name, qty, unit } }
+
+function VisitInstallationModal({ isOpen, onClose, lead, linkedFeasibility, onCreated }) {
+  const [form, setForm] = useState({ slotDate: '', slot: 'Morning', team: '', engineers: [], notes: '' })
+  const [engSearch, setEngSearch] = useState('')
+  const [hwToggle, setHwToggle] = useState(false)
+  const [hwItems, setHwItems] = useState([])
+  const [wireItems, setWireItems] = useState([])
+
+  useEffect(() => {
+    if (!isOpen) return
+    setForm({ slotDate: '', slot: 'Morning', team: '', engineers: [], notes: '' })
+    setEngSearch('')
+    const preHw   = linkedFeasibility?.hwItems?.length ? linkedFeasibility.hwItems : []
+    const preWire = linkedFeasibility?.wireItems?.length ? linkedFeasibility.wireItems : []
+    setHwItems(preHw); setWireItems(preWire); setHwToggle(preHw.length > 0 || preWire.length > 0)
+  }, [isOpen, linkedFeasibility])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+  function toggleEngineer(name) {
+    setForm(f => ({ ...f, engineers: f.engineers.includes(name) ? f.engineers.filter(e => e !== name) : [...f.engineers, name] }))
+  }
+  function addHwItem()   { setHwItems(r => [...r, newInstHwRow()]) }
+  function addWireItem() { setWireItems(r => [...r, newInstWireRow()]) }
+  function removeHwItem(rid)   { setHwItems(r => r.filter(x => x.id !== rid)) }
+  function removeWireItem(rid) { setWireItems(r => r.filter(x => x.id !== rid)) }
+  function updateHwItem(rid, field, val)   { setHwItems(r => r.map(x => x.id === rid ? { ...x, [field]: val } : x)) }
+  function updateWireItem(rid, field, val) { setWireItems(r => r.map(x => x.id === rid ? { ...x, [field]: val } : x)) }
+
+  const filteredEngineers = FIELD_ENGINEERS.filter(e => e.name.toLowerCase().includes(engSearch.toLowerCase()))
+  const canCreate = form.slotDate && form.engineers.length > 0
+
+  function handleCreate() {
+    const actor = lead.assigned ?? 'Arjun Kumar'
+    const primaryEngineer = FIELD_ENGINEERS.find(e => e.name === form.engineers[0])
+    const slotTime = form.slot === 'Morning' ? '09:00' : form.slot === 'Afternoon' ? '14:00' : '18:00'
+    saveInstallation({
+      id: nextInstallationId(),
+      leadId: lead.id,
+      feasibilityId: linkedFeasibility?.id ?? null,
+      customerName: lead.name, customerPhone: lead.phone, mobile: lead.phone,
+      address: lead.address ?? '', area: lead.area ?? '', locality: lead.locality ?? lead.area ?? '',
+      city: lead.city ?? '', pincode: lead.pincode ?? '',
+      plan: lead.plan ?? '',
+      slotDate: form.slotDate, slotTime, slot: form.slot,
+      assignedTeam: form.team,
+      engineerId: primaryEngineer?.id ?? '',
+      engineerName: form.engineers.join(', '),
+      branch: lead.branchCode ?? '',
+      createdBy: actor,
+      priority: lead.priority ? lead.priority[0].toUpperCase() + lead.priority.slice(1) : 'Medium',
+      status: 'Assigned',
+      hardwareRequired: hwToggle,
+      hardware: hwToggle ? hwItems.map(r => ({ name: r.name, qty: r.qty })) : [],
+      wireRequired: hwToggle,
+      wires: hwToggle ? wireItems.map(r => ({ name: r.name, qty: r.qty })) : [],
+      notes: form.notes,
+      createdAt: TODAY,
+      timeline: [
+        { status: 'Scheduled', date: TODAY, by: actor, note: `Installation scheduled from lead ${lead.id}` },
+        { status: 'Assigned', date: TODAY, by: actor, note: `Assigned to ${form.engineers.join(', ')}` },
+      ],
+    })
+    onCreated()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Visit Installation — ${lead?.name ?? ''}`} size="md"
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button onClick={handleCreate} disabled={!canCreate}>Schedule Installation</Button>
+      </>}
+    >
+      <div className="space-y-4">
+        <FormField label="Installation Date" required>
+          <Input type="date" value={form.slotDate} onChange={e => set('slotDate', e.target.value)} />
+        </FormField>
+
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">Slot</p>
+          <div className="flex gap-3">
+            {['Morning', 'Afternoon', 'Evening'].map(s => (
+              <label key={s} className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="lead-inst-slot" value={s} checked={form.slot === s}
+                  onChange={() => set('slot', s)} className="w-4 h-4 text-brand-blue focus:ring-brand-blue/30" />
+                <span className="text-sm text-gray-700">{s}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <FormField label="Team">
+          <Select value={form.team} onChange={e => set('team', e.target.value)}>
+            <option value="">Select…</option>
+            {INSTALLATION_TEAMS.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+
+        <div>
+          <p className="text-xs font-medium text-gray-700 mb-2">Engineers <span className="text-red-500">*</span></p>
+          {form.engineers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {form.engineers.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+                  {name}
+                  <button type="button" onClick={() => toggleEngineer(name)}
+                    className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="relative mb-1">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input value={engSearch} onChange={e => setEngSearch(e.target.value)} placeholder="Search engineer..."
+              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800" />
+          </div>
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[160px] overflow-y-auto">
+            {filteredEngineers.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No engineers found</p>
+            ) : filteredEngineers.map(eng => {
+              const selected = form.engineers.includes(eng.name)
+              return (
+                <label key={eng.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                  <input type="checkbox" checked={selected} onChange={() => toggleEngineer(eng.name)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+                  <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
+                    {eng.initials}
+                  </div>
+                  <span className="text-sm text-gray-700">{eng.name}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="border border-surface-border rounded-xl overflow-hidden">
+          <button type="button" onClick={() => setHwToggle(p => !p)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-2">
+              <Wrench size={14} className="text-gray-500" />
+              Add Hardware Requirements
+            </div>
+            <div className={`w-9 h-5 rounded-full transition-colors relative ${hwToggle ? 'bg-brand-blue' : 'bg-gray-300'}`}>
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${hwToggle ? 'left-4' : 'left-0.5'}`} />
+            </div>
+          </button>
+          {hwToggle && (
+            <div className="px-4 pb-4 pt-1 border-t border-surface-border space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-2 pt-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Hardware Items</p>
+                  <button type="button" onClick={addHwItem}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                    <Plus size={12} /> Add Item
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_64px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                    <span>Item Name</span><span>QTY</span><span>Unit</span><span />
+                  </div>
+                  {hwItems.map(row => (
+                    <div key={row.id} className="grid grid-cols-[1fr_64px_64px_28px] gap-2 items-center">
+                      <input value={row.name} onChange={e => updateHwItem(row.id, 'name', e.target.value)}
+                        placeholder="e.g. ONT Device" list="lead-inst-hw-suggestions"
+                        className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800" />
+                      <input type="number" min="0" value={row.qty} onChange={e => updateHwItem(row.id, 'qty', e.target.value)}
+                        placeholder="0"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <input value={row.unit} onChange={e => updateHwItem(row.id, 'unit', e.target.value)}
+                        placeholder="pcs"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <button type="button" onClick={() => removeHwItem(row.id)}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {hwItems.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2 border-2 border-dashed border-gray-200 rounded-lg">No items added</p>
+                  )}
+                </div>
+                <datalist id="lead-inst-hw-suggestions">
+                  {INST_HW_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Wire / Cable</p>
+                  <button type="button" onClick={addWireItem}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-blue hover:text-blue-700 transition-colors">
+                    <Plus size={12} /> Add Wire
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_64px_64px_28px] gap-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
+                    <span>Cable Name</span><span>QTY</span><span>Unit</span><span />
+                  </div>
+                  {wireItems.map(row => (
+                    <div key={row.id} className="grid grid-cols-[1fr_64px_64px_28px] gap-2 items-center">
+                      <input value={row.name} onChange={e => updateWireItem(row.id, 'name', e.target.value)}
+                        placeholder="e.g. Ethernet Cat6" list="lead-inst-wire-suggestions"
+                        className="px-2.5 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue text-gray-800" />
+                      <input type="number" min="0" value={row.qty} onChange={e => updateWireItem(row.id, 'qty', e.target.value)}
+                        placeholder="0"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <input value={row.unit} onChange={e => updateWireItem(row.id, 'unit', e.target.value)}
+                        placeholder="m"
+                        className="px-2 py-1.5 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 text-gray-800 text-center" />
+                      <button type="button" onClick={() => removeWireItem(row.id)}
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {wireItems.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2 border-2 border-dashed border-gray-200 rounded-lg">No wires added</p>
+                  )}
+                </div>
+                <datalist id="lead-inst-wire-suggestions">
+                  {INST_WIRE_SUGGESTIONS.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <FormField label="Notes">
+          <Textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any notes for the engineers…" />
+        </FormField>
       </div>
     </Modal>
   )
@@ -1783,6 +2306,7 @@ export default function SalesLeadDetail() {
   const navigate = useNavigate()
   const [leads, setLeads]             = useState(getLeads)
   const [installations, setInstallations] = useState(getInstallations)
+  const [feasibilityRequests, setFeasibilityRequests] = useState(getFeasibilityRequests)
   const [pipelines, setPipelines]   = useState(getPipelines)
   const activeTab = TAB_PATH_TO_KEY[tabParam] ?? 'overview'
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -1805,6 +2329,8 @@ export default function SalesLeadDetail() {
   const [followupOpen, setFollowupOpen]       = useState(false)
   const [reopenOpen, setReopenOpen]           = useState(false)
   const [reopenToast, setReopenToast]         = useState(false)
+  const [checkFeasibilityOpen, setCheckFeasibilityOpen] = useState(false)
+  const [visitInstallationOpen, setVisitInstallationOpen] = useState(false)
   const [expandedStages, setExpandedStages] = useState({})
   const [newComment, setNewComment] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -1848,9 +2374,11 @@ export default function SalesLeadDetail() {
   const [remarkInputs, setRemarkInputs] = useState({})
   const [callModal, setCallModal] = useState({ open: false, name: '', phone: '' })
   const [callToast, setCallToast] = useState(null)
+  const [linkToast, setLinkToast] = useState(null)
 
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribeInstallations(setInstallations), [])
+  useEffect(() => subscribeFeasibility(setFeasibilityRequests), [])
   useEffect(() => subscribePipelines(setPipelines), [])
 
   // Live installation timer
@@ -1951,6 +2479,7 @@ export default function SalesLeadDetail() {
   const engineerName  = installVisitEntry?.fields?.['s5d-f3'] ?? 'Ravi Technician (ENG-001)'
 
   const linkedInstallation = lead ? installations.find(i => i.leadId === lead.id) : null
+  const linkedFeasibility  = lead ? feasibilityRequests.find(r => r.leadId === lead.id) : null
 
 
   // Mock follow-ups for this lead
@@ -2483,9 +3012,14 @@ export default function SalesLeadDetail() {
                       <Edit3 size={14} className="text-gray-400" /> Edit Lead
                     </button>
                     <button
-                      onClick={() => { openMoveStage(); setActionsOpen(false) }}
+                      onClick={() => { setCheckFeasibilityOpen(true); setActionsOpen(false) }}
                       className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <TrendingUp size={14} className="text-gray-400" /> Move Stage
+                      <Search size={14} className="text-gray-400" /> Check for Feasibility
+                    </button>
+                    <button
+                      onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Wrench size={14} className="text-gray-400" /> Visit Installation
                     </button>
                     <button
                       onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
@@ -2534,6 +3068,43 @@ export default function SalesLeadDetail() {
               {lead.convertedFromIntercomId}
             </button>
           </p>
+        </div>
+      )}
+
+      {/* ── Linked Feasibility / Installation status badges ──
+          Same cross-module link banner pattern as "Converted from Intercom" above,
+          shown whenever a Feasibility request and/or Installation record already
+          exists for this lead (created either from here or from those modules directly). */}
+      {(linkedFeasibility || linkedInstallation) && (
+        <div className="flex flex-wrap items-center gap-3">
+          {linkedFeasibility && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2.5">
+              <Badge variant="yellow" size="sm">Feasibility</Badge>
+              <p className="text-sm text-amber-800">
+                {linkedFeasibility.feasibilityStatus}:{' '}
+                <button
+                  onClick={() => navigate(`/sales/feasibility-requests/${linkedFeasibility.id}`)}
+                  className="font-semibold text-brand-blue hover:underline"
+                >
+                  {linkedFeasibility.id}
+                </button>
+              </p>
+            </div>
+          )}
+          {linkedInstallation && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-center gap-2.5">
+              <Badge variant="orange" size="sm">Installation</Badge>
+              <p className="text-sm text-orange-800">
+                {linkedInstallation.status}:{' '}
+                <button
+                  onClick={() => navigate(`/installations/${linkedInstallation.id}`)}
+                  className="font-semibold text-brand-blue hover:underline"
+                >
+                  {linkedInstallation.id}
+                </button>
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -3606,6 +4177,41 @@ export default function SalesLeadDetail() {
         lead={lead}
         onSave={handleSaveFollowup}
       />
+      <CheckFeasibilityModal
+        isOpen={checkFeasibilityOpen}
+        onClose={() => setCheckFeasibilityOpen(false)}
+        lead={lead}
+        onCreated={() => {
+          setCheckFeasibilityOpen(false)
+          saveLead({
+            ...lead,
+            activityLog: [
+              { id: Date.now(), icon: '🔍', text: 'Feasibility check requested', user: lead.assigned ?? 'Arjun Kumar', time: 'just now' },
+              ...(lead.activityLog ?? []),
+            ],
+          })
+          setLinkToast('Feasibility request created')
+          setTimeout(() => setLinkToast(null), 3000)
+        }}
+      />
+      <VisitInstallationModal
+        isOpen={visitInstallationOpen}
+        onClose={() => setVisitInstallationOpen(false)}
+        lead={lead}
+        linkedFeasibility={linkedFeasibility}
+        onCreated={() => {
+          setVisitInstallationOpen(false)
+          saveLead({
+            ...lead,
+            activityLog: [
+              { id: Date.now(), icon: '🔧', text: 'Installation visit scheduled', user: lead.assigned ?? 'Arjun Kumar', time: 'just now' },
+              ...(lead.activityLog ?? []),
+            ],
+          })
+          setLinkToast('Installation scheduled')
+          setTimeout(() => setLinkToast(null), 3000)
+        }}
+      />
       {wonConversionLead && (
         <WonConversionModal
           isOpen={!!wonConversionLead}
@@ -3667,6 +4273,12 @@ export default function SalesLeadDetail() {
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle2 size={16} className="shrink-0" />
           {callToast}
+        </div>
+      )}
+      {linkToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          {linkToast}
         </div>
       )}
     </div>

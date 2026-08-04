@@ -8,7 +8,10 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
-import { getFeasibilityRequests, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest } from '../data/feasibilityStore'
+import {
+  getFeasibilityRequests, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
+  FEASIBILITY_ENGINEERS as ENGINEERS, FEASIBILITY_BRANCHES as BRANCHES,
+} from '../data/feasibilityStore'
 
 /* ── Constants ───────────────────────────────────────────────── */
 
@@ -21,19 +24,6 @@ const STATUS_VARIANT = {
   Approved:     'green',
   Rejected:     'red',
 }
-
-const ENGINEERS = [
-  { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'  },
-  { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500'  },
-  { name: 'Anita Sharma',  initials: 'AS', color: 'bg-teal-500'    },
-  { name: 'Suresh Babu',   initials: 'SB', color: 'bg-emerald-600' },
-  { name: 'Ravi Menon',    initials: 'RM', color: 'bg-orange-500'  },
-]
-
-const BRANCHES = [
-  'CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005',
-  'CNPL-006','CNPL-007','CNPL-008','CNPL-009','CNPL-010','CNPL-011',
-]
 
 const REJECTION_REASONS = [
   'Not Feasible — Too Far from Network',

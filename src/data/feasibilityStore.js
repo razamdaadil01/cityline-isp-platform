@@ -1,3 +1,16 @@
+export const FEASIBILITY_ENGINEERS = [
+  { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'  },
+  { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500'  },
+  { name: 'Anita Sharma',  initials: 'AS', color: 'bg-teal-500'    },
+  { name: 'Suresh Babu',   initials: 'SB', color: 'bg-emerald-600' },
+  { name: 'Ravi Menon',    initials: 'RM', color: 'bg-orange-500'  },
+]
+
+export const FEASIBILITY_BRANCHES = [
+  'CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005',
+  'CNPL-006','CNPL-007','CNPL-008','CNPL-009','CNPL-010','CNPL-011',
+]
+
 const SEED = [
   {
     id: 'FR-001', leadId: 'LD-301', customerName: 'Rakesh Verma', mobile: '9812345678',
