@@ -1905,13 +1905,11 @@ export default function Sales() {
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
                     <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 180 }}>Lead Name</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer</th>
+                    <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>
                     <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>
                     <th className="px-4 py-3 text-left" style={{ width: 130 }}>Follow-up</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 90 }}>Status</th>
                     <th className="px-4 py-3 text-left" style={{ width: 110 }}>Created</th>
                     <th className="px-4 py-3 text-left" style={{ width: 100 }}>Actions</th>
                   </tr>
@@ -1919,38 +1917,25 @@ export default function Sales() {
                 <tbody className="divide-y divide-surface-border">
                   {pageLeads.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
+                      <td colSpan={8} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
                     </tr>
                   )}
                   {pageLeads.map(lead => {
                     const ss = STAGE_STYLES[lead.stage] ?? STAGE_STYLES['New Inquiry']
-                    const status = lead.stage === 'Won' ? 'Won' : lead.stage === 'Lost' ? 'Lost' : 'Open'
                     const fuOverdue = lead.followUp && lead.followUp < TODAY_STR
-                    const STATUS_STYLE = { Won: 'bg-emerald-100 text-emerald-700', Lost: 'bg-red-100 text-red-600', Open: 'bg-blue-100 text-blue-700' }
-                    const leadTitle = `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`
+                    const customerType = PIPELINES[lead.pipeline]?.label ?? lead.pipeline
                     return (
                       <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 overflow-hidden" title={lead.id}>
-                          <span className="block truncate font-mono text-xs text-gray-500 font-semibold">{lead.id}</span>
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden" title={leadTitle}>
                           <button
                             onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                            className="block w-full truncate font-semibold text-brand-blue hover:underline text-left text-xs"
+                            className="block truncate font-mono text-xs text-brand-blue font-semibold hover:underline text-left"
                           >
-                            {leadTitle}
+                            {lead.id}
                           </button>
-                          {lead.sourceType === 'Intercom Conversion' && lead.convertedFromIntercomId && (
-                            <button
-                              onClick={e => { e.stopPropagation(); navigate(`/intercom/customers/${lead.convertedFromIntercomId}/profile`) }}
-                              className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors"
-                            >
-                              Converted from Intercom
-                            </button>
-                          )}
                         </td>
-                        <td className="px-4 py-3 overflow-hidden" title={lead.name}>
-                          <span className="block truncate text-xs text-gray-700">{lead.name}</span>
+                        <td className="px-4 py-3 overflow-hidden" title={customerType}>
+                          <span className="block truncate text-xs text-gray-700">{customerType}</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <button
@@ -1980,9 +1965,6 @@ export default function Sales() {
                             ? <span className={`text-xs font-medium ${fuOverdue ? 'text-red-500' : 'text-gray-700'}`}>{lead.followUp}{fuOverdue && ' ⚠'}</span>
                             : <span className="text-gray-300 text-xs">—</span>
                           }
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_STYLE[status]}`}>{status}</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
                         <td className="px-4 py-3">
