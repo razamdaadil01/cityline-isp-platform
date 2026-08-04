@@ -181,6 +181,10 @@ const SEED = [
     description: 'Customer reports complete loss of internet since this morning. ONU signal light is red.',
     customerAddress: 'Andheri West', plan: 'FTTH 100Mbps', billingStatus: 'Paid up to date', connectionStatus: 'Connected',
     attachments: ['onu_status_screenshot.jpg', 'call_recording_9821.mp3'],
+    documents: [
+      { name: 'ID_Proof.pdf', size: '312 KB', uploadedAt: new Date(NOW - 5.8 * H).toISOString(), uploadedBy: 'Ravi T.' },
+      { name: 'Signed_Agreement.pdf', size: '1.1 MB', uploadedAt: new Date(NOW - 5.6 * H).toISOString(), uploadedBy: 'Ravi T.' },
+    ],
     activityLog: [
       { time: new Date(NOW - 6 * H).toISOString(), actor: 'System', action: 'Ticket created' },
       { time: new Date(NOW - 5.5 * H).toISOString(), actor: 'System', action: 'Status changed to Assigned' },
@@ -621,6 +625,27 @@ export function addCommunication(id, { channel, text }, actor = 'Admin User') {
     firstResponseAt: t.firstResponseAt ?? now,
     updatedAt: now,
     activityLog: appendActivity(t, `${channel} message sent to customer`, actor),
+  })
+}
+
+// Documents tab — separate from `attachments` (Overview tab's Attachments/Screenshots).
+export function addTicketDocument(id, { name, size }, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t) return null
+  const now = new Date().toISOString()
+  const entry = { name, size, uploadedAt: now, uploadedBy: actor }
+  return saveTicket({
+    ...t, documents: [...(t.documents ?? []), entry],
+    updatedAt: now,
+  })
+}
+
+export function removeTicketDocument(id, docIndex) {
+  const t = getTicket(id)
+  if (!t) return null
+  return saveTicket({
+    ...t, documents: (t.documents ?? []).filter((_, i) => i !== docIndex),
+    updatedAt: new Date().toISOString(),
   })
 }
 

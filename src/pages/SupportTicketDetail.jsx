@@ -4,7 +4,7 @@ import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
   Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
-  Music, Edit2, Search, X, Plus, Check,
+  Music, Edit2, Search, X, Plus, Check, Folder, Upload,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -18,6 +18,7 @@ import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit,
   findTicketsOnSamePort, assignTechnician, assignTeamMembers,
+  addTicketDocument, removeTicketDocument,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
   TECHNICIAN_PROFILES, TECHNICIANS, TECHNICIAN_SKILLS, slaStatusOf,
 } from '../data/ticketsStore'
@@ -93,6 +94,14 @@ function mockFileSize(name) {
   const sum = [...name].reduce((a, c) => a + c.charCodeAt(0), 0)
   const kb = 40 + (sum % 900)
   return kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`
+}
+
+// Real byte-size formatter for Documents tab uploads (actual File objects from the
+// picker), as opposed to mockFileSize() above which fakes a size from a filename.
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function isAudioName(name) { return /\.(mp3|wav|m4a|ogg)$/i.test(name ?? '') }
@@ -839,6 +848,7 @@ const MIDDLE_TABS = [
   { key: 'communication', slug: 'communication', label: 'Communication', icon: MessageSquare },
   { key: 'internal', slug: 'internal-notes', label: 'Notes', icon: Lock },
   { key: 'activity', slug: 'activity-log', label: 'Activity Log', icon: Activity },
+  { key: 'documents', slug: 'documents', label: 'Documents', icon: Folder },
 ]
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
@@ -955,6 +965,34 @@ export default function SupportTicketDetail() {
   // raises a linked Hardware approval request in the Approvals store (see handleAddHardware).
   const [hardwareAssignments, setHardwareAssignments] = useState(() => getTicket(id)?.hardwareAssignments ?? [])
   useEffect(() => setHardwareAssignments(getTicket(id)?.hardwareAssignments ?? []), [id])
+
+  // Documents tab — uploadingDocs is transient client-side state driving the
+  // progress-bar/checkmark animation only; the persisted list lives on
+  // ticket.documents (separate from the Overview tab's ticket.attachments).
+  const [uploadingDocs, setUploadingDocs] = useState([])
+  const documentInputRef = useRef(null)
+
+  function handleDocumentFilesSelected(e) {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    files.forEach(file => {
+      const uploadId = `${Date.now()}-${Math.random()}`
+      const size = formatBytes(file.size)
+      setUploadingDocs(prev => [...prev, { id: uploadId, name: file.name, size, progress: 0 }])
+      const interval = setInterval(() => {
+        setUploadingDocs(prev => {
+          const next = prev.map(d => d.id === uploadId ? { ...d, progress: Math.min(100, d.progress + 25) } : d)
+          const current = next.find(d => d.id === uploadId)
+          if (current && current.progress >= 100) {
+            clearInterval(interval)
+            addTicketDocument(id, { name: file.name, size }, CURRENT_USER)
+            return next.filter(d => d.id !== uploadId)
+          }
+          return next
+        })
+      }, 200)
+    })
+  }
 
   if (!tabSlug) {
     return <Navigate to={`/support/tickets/${id}/overview`} replace />
@@ -1283,6 +1321,63 @@ export default function SupportTicketDetail() {
                     ))}
                   </div>
                 )
+              )}
+
+              {/* ─── Documents ───────────────────────────────────────────── */}
+              {activeTab === 'documents' && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-bold text-gray-800">Documents</p>
+                    <Button size="sm" variant="secondary" icon={<Upload size={13} />} onClick={() => documentInputRef.current?.click()}>
+                      Upload Document
+                    </Button>
+                    <input ref={documentInputRef} type="file" multiple className="hidden" onChange={handleDocumentFilesSelected} />
+                  </div>
+
+                  {uploadingDocs.length === 0 && (ticket.documents ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No documents uploaded yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {uploadingDocs.map(doc => (
+                        <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-gray-50">
+                          <FileText size={16} className="text-gray-400 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-gray-700 truncate">{doc.name}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] text-gray-400 shrink-0">{doc.size}</span>
+                              <div className="flex-1 h-1 max-w-[100px] bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${doc.progress}%` }} />
+                              </div>
+                              <span className="text-[10px] text-emerald-600 font-semibold shrink-0">{doc.progress}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {(ticket.documents ?? [])
+                        .map((doc, i) => ({ doc, i }))
+                        .reverse()
+                        .map(({ doc, i }) => (
+                          <div key={i} className="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-surface-border bg-gray-50">
+                            <FileText size={16} className="text-gray-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-gray-700 truncate">{doc.name}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {doc.size} · Uploaded {formatDate(doc.uploadedAt)} by {doc.uploadedBy}
+                              </p>
+                            </div>
+                            <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                            <button
+                              type="button"
+                              onClick={() => removeTicketDocument(id, i)}
+                              className="text-gray-400 hover:text-red-500 shrink-0 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
