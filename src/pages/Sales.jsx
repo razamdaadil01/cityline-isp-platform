@@ -1169,6 +1169,10 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
   const targetStageId     = targetSC?.id ?? null
   const isWon             = targetSC?.statusType === 'Won' || targetStage === 'Won'
   const needsFeasConfirm  = false
+  // Only the fixed Feasibility context (Kanban drag-to-Feasibility) gets the shorter
+  // "Set follow-up" / "Submit" labels — every other context (Won/Lost, and the
+  // free-choice dropdown) keeps the original labels.
+  const isFeasibilityFixed = isFixed && targetStage === 'Feasibility'
   const stageMeta         = targetStageId ? getStageMeta(targetStageId) : {}
   const stageFields       = (!isWon && targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
   const visibleFields     = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
@@ -1208,7 +1212,11 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
             onClick={handleMove}
             disabled={!targetStage || loading || !requiredFilled}
           >
-            {loading ? (isWon ? 'Converting…' : 'Moving…') : (isWon ? 'Mark as Won' : 'Move Stage')}
+            {isWon
+              ? (loading ? 'Converting…' : 'Mark as Won')
+              : isFeasibilityFixed
+                ? (loading ? 'Submitting…' : 'Submit')
+                : (loading ? 'Moving…' : 'Move Stage')}
           </Button>
         </>
       }
@@ -1298,7 +1306,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
               className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
               <div className="flex items-center gap-2">
                 <Bell size={14} className="text-brand-orange" />
-                Set a follow-up after moving
+                {isFeasibilityFixed ? 'Set follow-up' : 'Set a follow-up after moving'}
               </div>
               <div className={`w-9 h-5 rounded-full transition-colors relative ${followupEnabled ? 'bg-brand-blue' : 'bg-gray-300'}`}>
                 <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${followupEnabled ? 'left-4' : 'left-0.5'}`} />
