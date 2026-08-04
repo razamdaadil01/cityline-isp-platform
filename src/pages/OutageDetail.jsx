@@ -502,7 +502,7 @@ export default function OutageDetail() {
                     <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
                       {linkedTickets.map(t => (
                         <div key={t.id} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                          onClick={() => navigate(`/support/tickets/${t.id}/overview`)}>
+                          onClick={() => navigate(`/support/tickets/${t.id}/documents`)}>
                           <div className="min-w-0">
                             <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
                             <span className="text-sm text-gray-700 ml-2 truncate">{t.customerName} · {t.category}</span>

@@ -266,7 +266,7 @@ export default function SupportDashboard() {
                   ) : oldestUnresolved.map(t => (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-2.5 whitespace-nowrap">
-                        <Link to={`/support/tickets/${t.id}/overview`} className="text-xs font-mono font-semibold text-brand-blue hover:underline">
+                        <Link to={`/support/tickets/${t.id}/documents`} className="text-xs font-mono font-semibold text-brand-blue hover:underline">
                           {t.id}
                         </Link>
                       </td>

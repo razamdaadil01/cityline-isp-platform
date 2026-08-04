@@ -458,7 +458,7 @@ export default function TicketList() {
                 const sla = slaStatusOf(t)
                 return (
                   <tr key={t.id} className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/support/tickets/${t.id}/overview`)}>
+                    onClick={() => navigate(`/support/tickets/${t.id}/documents`)}>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleOne(t.id)}
                         className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
