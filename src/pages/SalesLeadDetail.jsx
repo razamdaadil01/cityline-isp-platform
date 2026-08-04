@@ -3004,27 +3004,27 @@ export default function SalesLeadDetail() {
                 {actionsOpen && (
                   <div
                     style={{ top: actionsPos.top, right: actionsPos.right }}
-                    className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden w-48"
+                    className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
                   >
                     <button
                       onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <Edit3 size={14} className="text-gray-400" /> Edit Lead
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
                     </button>
                     <button
                       onClick={() => { setCheckFeasibilityOpen(true); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <Search size={14} className="text-gray-400" /> Check for Feasibility
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
                     </button>
                     <button
                       onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <Wrench size={14} className="text-gray-400" /> Visit Installation
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
                     </button>
                     <button
                       onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <Bell size={14} className="text-gray-400" /> Add Follow-up
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
                     </button>
                   </div>
                 )}
