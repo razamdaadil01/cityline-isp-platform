@@ -3486,6 +3486,7 @@ export default function SalesLeadDetail() {
                 /* Residential / Custom — Bandwidth Package + Add-ons, no approval flow */
                 const bwPlan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
                 const addons = lead.addons ?? []
+                const customerType = PIPELINE_LABEL[lead.pipeline]
 
                 return (
                   <div className="space-y-4">
@@ -3523,47 +3524,51 @@ export default function SalesLeadDetail() {
                             onCustomPriceChange={setBwCustomPrice}
                             onSave={() => handleSaveResidentialPkg()}
                             onRemove={() => handleRemovePkg()}
-                            customerType={PIPELINE_LABEL[lead.pipeline]}
+                            customerType={customerType}
                           />
                         )}
                       </div>
                     </Card>
 
-                    {/* Add-ons */}
-                    <Card padding={false}>
-                      <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                        <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
-                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
-                          Add Add-on
-                        </Button>
-                      </div>
-                      <div className="p-5">
-                        {addons.length === 0 ? (
-                          <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                            <Package size={18} className="mx-auto text-gray-300 mb-2" />
-                            <p className="text-sm text-gray-400">No add-ons added</p>
-                          </div>
-                        ) : (
-                          <div className="max-w-md space-y-2">
-                            {addons.map(addon => (
-                              <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-800">{addon.name}</p>
-                                  <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
+                    {/* Add-ons — hidden for Residential; more customer-type-specific
+                        behavior for this section is coming for Enterprise/other customer types. */}
+                    {customerType !== 'Residential' && (
+                      <Card padding={false}>
+                        <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
+                          <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
+                          <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
+                            Add Add-on
+                          </Button>
+                        </div>
+                        <div className="p-5">
+                          {addons.length === 0 ? (
+                            <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                              <Package size={18} className="mx-auto text-gray-300 mb-2" />
+                              <p className="text-sm text-gray-400">No add-ons added</p>
+                            </div>
+                          ) : (
+                            <div className="max-w-md space-y-2">
+                              {addons.map(addon => (
+                                <div key={addon.id} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-800">{addon.name}</p>
+                                    <p className="text-xs text-gray-500">₹{Number(addon.price).toLocaleString('en-IN')}/month</p>
+                                  </div>
+                                  <button type="button" onClick={() => handleRemoveAddon(addon.id)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                    <X size={14} />
+                                  </button>
                                 </div>
-                                <button type="button" onClick={() => handleRemoveAddon(addon.id)}
-                                  className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </Card>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    )}
 
-                    {/* Generate Quotation — always enabled once a package is selected */}
-                    {lead.bandwidthPackage && (
+                    {/* Generate Quotation — always enabled once a package is selected;
+                        hidden for Residential, same as Add-ons above. */}
+                    {customerType !== 'Residential' && lead.bandwidthPackage && (
                       <button
                         type="button"
                         onClick={() => setQuotationOpen(true)}
