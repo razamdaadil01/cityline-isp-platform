@@ -5,8 +5,13 @@ import Header from './Header'
 
 // Ticket Detail gets more room by auto-collapsing the sidebar while it's open;
 // the user's manual collapsed/expanded preference (`collapsed`) is left untouched
-// so leaving the page restores exactly what it was before.
-const AUTO_COLLAPSE_PATTERN = /^\/support\/tickets\/[^/]+\/(overview|communication|internal-notes|activity-log)/
+// so leaving the page restores exactly what it was before. Matches any
+// /support/tickets/:ticketId/:tab sub-route (Overview, Communication, Notes,
+// Activity Log, Documents, and any future tab) rather than an enumerated list of
+// tab slugs, so adding a new tab can't silently fall outside this pattern again.
+// Does NOT match /support/tickets (list) or /support/tickets/new (create), which
+// have no second path segment.
+const AUTO_COLLAPSE_PATTERN = /^\/support\/tickets\/[^/]+\/[^/]+/
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
