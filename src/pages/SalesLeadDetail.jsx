@@ -3482,8 +3482,10 @@ export default function SalesLeadDetail() {
           {/* ─── PACKAGE ──────────────────────────────────────────────── */}
           {activeTab === 'package' && (
             <div>
-              {lead.pipeline !== 'Enterprise' ? (() => {
-                /* Residential / Custom — Bandwidth Package + Add-ons, no approval flow */
+              {(() => {
+                /* Same base Active Package Details card for every customer type;
+                   customerType-gated sections below add/remove pieces per type
+                   (see customerType checks throughout this block). */
                 const bwPlan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
                 const addons = lead.addons ?? []
                 const customerType = PIPELINE_LABEL[lead.pipeline]
@@ -3529,6 +3531,69 @@ export default function SalesLeadDetail() {
                         )}
                       </div>
                     </Card>
+
+                    {/* Payment — Enterprise only. Mirrors the exact table structure/
+                        styling of Customer Detail's Finance tab -> Payments section
+                        (CustomerDetail.jsx's FinanceTab, MOCK_PAYMENTS/payRows table) -
+                        that tab itself is untouched, this just reuses its pattern.
+                        Leads don't have a linked customer payment history yet, so this
+                        uses representative mock data shaped the same way. */}
+                    {customerType === 'Enterprise' && (() => {
+                      const leadPayments = [
+                        { id: 1, receiptNo: `RC-${lead.id}-01`, invoiceNo: bwPlan ? `ENT/26-27/${lead.id}` : '—', paymentDate: TODAY, date: `${TODAY} 11:20:00`, mode: 'Bank Transfer', total: bwPlan?.price ?? 0, paid: bwPlan?.price ?? 0, status: 'Complete', orderNo: `ORD-${lead.id}-01`, chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Complete' },
+                        { id: 2, receiptNo: `RC-${lead.id}-02`, invoiceNo: '—', paymentDate: TODAY, date: `${TODAY} 09:05:00`, mode: 'Online', total: 0, paid: 0, status: 'Pending', orderNo: '—', chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Awaiting confirmation' },
+                      ]
+                      return (
+                        <Card padding={false}>
+                          <div className="p-5 pb-4 border-b border-surface-border">
+                            <h3 className="text-sm font-semibold text-gray-800">Payment</h3>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-gray-50/60 border-b border-surface-border">
+                                  {['Receipt No', 'Invoice No', 'Payment Date', 'Date', 'Mode', 'Total', 'Paid', 'Payment Status', 'Order No / Cheque No', 'Cheque B CH', 'Add By', 'Comment'].map(h => (
+                                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-surface-border">
+                                {leadPayments.map(pay => (
+                                  <tr key={pay.id} className="hover:bg-gray-50/50">
+                                    <td className="px-3 py-3 font-mono text-xs text-brand-blue font-semibold whitespace-nowrap">{pay.receiptNo}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.invoiceNo}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.date}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.mode}</td>
+                                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.total.toFixed(2)}</td>
+                                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.paid.toFixed(2)}</td>
+                                    <td className="px-3 py-3">
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        pay.status === 'Complete' ? 'bg-green-100 text-green-700' :
+                                        pay.status === 'Failed'   ? 'bg-red-100 text-red-600'    :
+                                        'bg-orange-100 text-orange-600'
+                                      }`}>{pay.status}</span>
+                                    </td>
+                                    <td className="px-3 py-3 font-mono text-xs text-gray-500 whitespace-nowrap">{pay.orderNo}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-500">{pay.chequeBCh}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.addBy}</td>
+                                    <td className="px-3 py-3 text-xs text-gray-500">{pay.comment}</td>
+                                  </tr>
+                                ))}
+                                {leadPayments.length === 0 && (
+                                  <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-400 text-sm">No payments found.</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="px-5 py-3 border-t border-surface-border flex items-center gap-3 text-xs text-gray-500">
+                            <span>Page 1 of 1</span>
+                            <span className="text-gray-400">|</span>
+                            <span>Total {leadPayments.length}</span>
+                          </div>
+                        </Card>
+                      )
+                    })()}
 
                     {/* Add-ons — hidden for Residential; more customer-type-specific
                         behavior for this section is coming for Enterprise/other customer types. */}
@@ -3629,131 +3694,7 @@ export default function SalesLeadDetail() {
                     */}
                   </div>
                 )
-              })() : (
-                /* Enterprise — Bandwidth Package only, with approval flow */
-                <div className="max-w-md space-y-4">
-                  {/* Invoice Preview */}
-                  <p className="text-xs text-gray-400">
-                    Will appear on invoice as: {lead.bandwidthPackage ? (MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)?.name ?? '—') : '— (select a package first)'}
-                  </p>
-
-                  <Card padding={false}>
-                    <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                      <h3 className="text-sm font-semibold text-gray-800">Bandwidth Package</h3>
-                      {!lead.bandwidthPackage && (
-                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openPkgModal()}>
-                          Add Bandwidth Package
-                        </Button>
-                      )}
-                    </div>
-                    <div className="p-5">
-                      {!lead.bandwidthPackage ? (
-                        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                          <Package size={18} className="mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm text-gray-400">No bandwidth package selected</p>
-                        </div>
-                      ) : (() => {
-                        const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
-                        if (!plan) return null
-                        return (
-                          <EnterprisePackageCard
-                            plan={plan} pkg={lead.bandwidthPackage}
-                            editPrice={bwEditPrice} customPriceVal={bwCustomPrice}
-                            onToggleEditPrice={() => { setBwEditPrice(v => !v); setBwCustomPrice(String(lead.bandwidthPackage.customPrice ?? plan.price)) }}
-                            onCustomPriceChange={setBwCustomPrice}
-                            onChange={() => openPkgModal()}
-                            onSave={() => handleSaveEnterprisePkg(false)}
-                            onSendApproval={() => handleSaveEnterprisePkg(true)}
-                            approverVal={bwApprover}
-                            onApproverChange={setBwApprover}
-                          />
-                        )
-                      })()}
-                    </div>
-                  </Card>
-
-                  {/* Generate Quotation button */}
-                  {lead.bandwidthPackage && (() => {
-                    const pkg = lead.bandwidthPackage
-                    const pendingPkg = pkg.approvalStatus === 'Pending' || pkg.approvalStatus === 'Rejected' ? pkg : null
-                    const allApproved = pkg.approvalStatus === 'Approved'
-                    const pendingPlan = pendingPkg ? MOCK_PLANS.find(p => p.id === pendingPkg.packageId) : null
-                    const tooltipText = pendingPkg
-                      ? `Approval pending for ${pendingPlan?.name ?? 'package'}`
-                      : ''
-                    return (
-                      <div>
-                        <button
-                          type="button"
-                          disabled={!allApproved}
-                          title={tooltipText}
-                          onClick={() => setQuotationOpen(true)}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-                            allApproved
-                              ? 'bg-brand-blue text-white hover:bg-blue-700'
-                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          <span>📄</span> Generate Quotation
-                        </button>
-                        {!allApproved && tooltipText && (
-                          <p className="mt-1.5 text-xs text-amber-600">{tooltipText}</p>
-                        )}
-                      </div>
-                    )
-                  })()}
-
-                  {/*
-                    PROFORMA INVOICE — commented out per request (Package tab).
-                    Uncomment this block (and the matching handleGeneratePi /
-                    ProformaInvoicePreviewModal / piPreview state / nextPiNumber
-                    above) to re-enable.
-
-                  <Card padding={false}>
-                    <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
-                      <h3 className="text-sm font-semibold text-gray-800">Proforma Invoice</h3>
-                      <Button size="sm" variant="secondary" icon={<FileText size={13} />} disabled={!lead.bandwidthPackage} onClick={handleGeneratePi}>
-                        Generate Proforma Invoice
-                      </Button>
-                    </div>
-                    <div className="p-5">
-                      {(lead.proformaInvoices ?? []).length === 0 ? (
-                        <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
-                          <FileText size={18} className="mx-auto text-gray-300 mb-2" />
-                          <p className="text-sm text-gray-400">No Proforma Invoice generated yet</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {lead.proformaInvoices.map(pi => (
-                            <div key={pi.piNumber} className="flex items-center justify-between px-4 py-3 bg-white border border-surface-border rounded-xl shadow-card">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono text-xs font-semibold text-brand-blue">{pi.piNumber}</span>
-                                  <Badge variant={pi.status === 'Current' ? 'green' : 'gray'} size="sm">{pi.status}</Badge>
-                                </div>
-                                <p className="text-sm font-medium text-gray-800 mt-1">
-                                  {pi.packageName} · ₹{(pi.customPrice ?? pi.basePrice).toLocaleString('en-IN')}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                  Generated {formatEkycTimestamp(pi.generatedAt)}
-                                  {pi.discount > 0 && (
-                                    <span className="text-emerald-600"> · ₹{pi.discount.toLocaleString('en-IN')} discount</span>
-                                  )}
-                                </p>
-                              </div>
-                              <button type="button" onClick={() => setPiPreview(pi)}
-                                className="shrink-0 flex items-center gap-1 text-xs text-brand-blue hover:text-blue-700 font-medium ml-3">
-                                <Eye size={13} /> View
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                  */}
-                </div>
-              )}
+              })()}
             </div>
           )}
 
