@@ -88,7 +88,9 @@ function colorFor(name) {
 const EMPTY_RESIDENT_FORM = {
   branch: '', firstName: '', lastName: '', primaryNumber: '', alternativeNumber: '', email: '',
   serviceTags: [], salesExecutive: '', leadSource: '',
-  connectionType: { ...EMPTY_CONNECTION_TYPE },
+  // Own is the default Connection Type for Resident, so the Entity dropdown
+  // shows immediately without requiring the user to click "Own" first.
+  connectionType: { ...EMPTY_CONNECTION_TYPE, connectionType: 'Own' },
   address: { ...EMPTY_ADDRESS_SECTION },
   package: null,
 }
@@ -621,16 +623,18 @@ export default function SalesNewLead() {
                     />
                   </FormField>
                 </div>
-                <FormField label="Email" required={req('Email')}>
-                  <Input type="email" value={rForm.email} onChange={e => setR('email', e.target.value)} placeholder="rajan@email.com" />
-                </FormField>
-                <FormField label="Lead Source" required={req('Lead Source')}>
-                  <Select value={rForm.leadSource} onChange={e => setR('leadSource', e.target.value)}>
-                    <option value="">Select...</option>
-                    {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </Select>
-                </FormField>
-                <FormField label="Service Tag" required={req('Service Tag')} hint="Resident-mapped, Active tags only (BR-2)">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Email" required={req('Email')}>
+                    <Input type="email" value={rForm.email} onChange={e => setR('email', e.target.value)} placeholder="rajan@email.com" />
+                  </FormField>
+                  <FormField label="Lead Source" required={req('Lead Source')}>
+                    <Select value={rForm.leadSource} onChange={e => setR('leadSource', e.target.value)}>
+                      <option value="">Select...</option>
+                      {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </Select>
+                  </FormField>
+                </div>
+                <FormField label="Service Tag" required={req('Service Tag')}>
                   <div className="flex flex-wrap gap-2">
                     {residentTags.map(tag => {
                       const selected = rForm.serviceTags.includes(tag.id)
