@@ -52,16 +52,14 @@ export default function PackageSelectionStep({ customerType, value, onChange, bl
       )}
 
       <div className="relative">
-        <Search size={13} className={`absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${blocked ? 'text-gray-300' : 'text-gray-400'}`} />
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
         <input
-          disabled={blocked}
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search package name or speed..."
           className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white
             focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue
-            placeholder-gray-400 text-gray-800
-            disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+            placeholder-gray-400 text-gray-800"
         />
       </div>
 
@@ -76,18 +74,17 @@ export default function PackageSelectionStep({ customerType, value, onChange, bl
             <button
               key={plan.id}
               type="button"
-              disabled={blocked}
               onClick={() => onChange({ packageId: plan.id })}
               className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
-                ${blocked ? 'bg-gray-50 cursor-not-allowed' : selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
             >
-              <span className={`text-sm font-medium flex-1 min-w-0 truncate ${blocked ? 'text-gray-400' : 'text-gray-800'}`}>{plan.name}</span>
-              <span className={`text-xs shrink-0 ${blocked ? 'text-gray-400' : 'text-gray-500'}`}>{plan.speed ? plan.speed : plan.serviceType}</span>
-              <span className={`text-xs shrink-0 ${blocked ? 'text-gray-400' : 'text-gray-500'}`}>
+              <span className="text-sm font-medium flex-1 min-w-0 truncate text-gray-800">{plan.name}</span>
+              <span className="text-xs shrink-0 text-gray-500">{plan.speed ? plan.speed : plan.serviceType}</span>
+              <span className="text-xs shrink-0 text-gray-500">
                 ₹{plan.price.toLocaleString('en-IN')}/{plan.billingType === 'Monthly' ? 'mo' : 'yr'}
               </span>
               <span className="w-4 shrink-0">
-                {selected && <CheckCircle2 size={16} className={blocked ? 'text-gray-400' : 'text-brand-blue'} />}
+                {selected && <CheckCircle2 size={16} className="text-brand-blue" />}
               </span>
             </button>
           )
