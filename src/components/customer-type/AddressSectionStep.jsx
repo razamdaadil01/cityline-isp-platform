@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, ExternalLink } from 'lucide-react'
 import { FormField, Input, Select, Textarea } from '../ui/FormInputs'
+import Badge from '../ui/Badge'
+import DynamicFieldInput from '../ui/DynamicFieldInput'
 import { getStates, getDistricts, getAreasList, getLocalities, getSubLocalities } from '../../data/areaMappingStore'
 import { getFeasibilityRequests, saveFeasibilityRequest, subscribeFeasibility } from '../../data/feasibilityStore'
+import { getStageFields, subscribeStageFields } from '../../data/stageFieldsStore'
 
 // TODO: confirm exact FR-9 spec with BA — section referenced in PRD but not
 // present in document body. Built from the field-table note ("State → City →
@@ -20,6 +23,7 @@ export const EMPTY_ADDRESS_SECTION = {
   installation: { ...EMPTY_ADDRESS_BLOCK },
   sameAsBilling: false,
   feasibilityEnabled: false,
+  feasibilityFields: {}, // keyed by Feasibility stage field id (s4-f1..s4-f8), see stageFieldsStore
 }
 
 export function isAddressBlockFilled(block) {
@@ -129,6 +133,15 @@ export default function AddressSectionStep({ value, onChange, leadId, customerNa
     setFeasibilityRecord(getFeasibilityRequests().find(r => r.leadId === leadId) ?? null)
   }), [leadId])
 
+  // Reuses the "Feasibility" stage's own field set (stageFieldsStore's 's4'
+  // stage) — the same fields shown in the Kanban "Move Stage" modal and Lead
+  // Detail's "Check for Feasibility" action — rather than a separate,
+  // duplicated field list.
+  const [, setStageFieldsTick] = useState(0)
+  useEffect(() => subscribeStageFields(() => setStageFieldsTick(n => n + 1)), [])
+  const feasibilityFieldDefs = getStageFields('s4')
+  const feasibilityFieldDef = id => feasibilityFieldDefs.find(f => f.id === id)
+
   function setBilling(block) {
     const next = { ...value, billing: block }
     if (value.sameAsBilling) next.installation = block
@@ -143,9 +156,7 @@ export default function AddressSectionStep({ value, onChange, leadId, customerNa
     onChange({ ...value, sameAsBilling: checked, installation: checked ? value.billing : value.installation })
   }
 
-  function toggleFeasibility(checked) {
-    onChange({ ...value, feasibilityEnabled: checked })
-    if (!checked) return
+  function saveLinkedFeasibilityRecord(fields) {
     const existing = getFeasibilityRequests().find(r => r.leadId === leadId)
     saveFeasibilityRequest({
       ...(existing ?? {}),
@@ -155,13 +166,51 @@ export default function AddressSectionStep({ value, onChange, leadId, customerNa
       pipeline,
       stage: 'Feasibility Check',
       feasibilityStatus: existing?.feasibilityStatus ?? 'Pending',
-      localityName: value.installation.locality || value.billing.locality || '',
-      subLocalityName: value.installation.subLocality || value.billing.subLocality || '',
-      completeAddress: value.installation.addressLine || value.billing.addressLine || '',
-      landmark: value.installation.landmark || value.billing.landmark || '',
-      connectionType: 'FTTH',
-      assignedBranch: branch || '',
+      localityName: fields['s4-f1'] || '',
+      subLocalityName: fields['s4-f2'] || '',
+      completeAddress: fields['s4-f3'] || '',
+      landmark: fields['s4-f4'] || '',
+      connectionType: fields['s4-f5'] || 'FTTH',
+      customerRequirementNotes: fields['s4-f6'] || '',
+      assignedBranch: fields['s4-f7'] || branch || '',
+      internalRemarks: fields['s4-f8'] || '',
     })
+  }
+
+  function toggleFeasibility(checked) {
+    if (!checked) {
+      onChange({ ...value, feasibilityEnabled: false })
+      return
+    }
+    // Pre-fill from the Address Section's already-entered data where fields
+    // overlap (installation address takes priority, falling back to billing).
+    const prefilled = {
+      ...value.feasibilityFields,
+      's4-f1': value.feasibilityFields?.['s4-f1'] || value.installation.locality || value.billing.locality || '',
+      's4-f2': value.feasibilityFields?.['s4-f2'] || value.installation.subLocality || value.billing.subLocality || '',
+      's4-f3': value.feasibilityFields?.['s4-f3'] || value.installation.addressLine || value.billing.addressLine || '',
+      's4-f4': value.feasibilityFields?.['s4-f4'] || value.installation.landmark || value.billing.landmark || '',
+      's4-f5': value.feasibilityFields?.['s4-f5'] || 'FTTH',
+      's4-f7': value.feasibilityFields?.['s4-f7'] || branch || '',
+    }
+    onChange({ ...value, feasibilityEnabled: true, feasibilityFields: prefilled })
+    saveLinkedFeasibilityRecord(prefilled)
+  }
+
+  function setFeasibilityField(id, fieldValue) {
+    const nextFields = { ...value.feasibilityFields, [id]: fieldValue }
+    onChange({ ...value, feasibilityFields: nextFields })
+    saveLinkedFeasibilityRecord(nextFields)
+  }
+
+  function feasibilityFieldRow(id) {
+    const def = feasibilityFieldDef(id)
+    if (!def) return null
+    return (
+      <FormField label={def.label} required={def.required}>
+        <DynamicFieldInput field={def} value={value.feasibilityFields?.[id]} onChange={v => setFeasibilityField(id, v)} />
+      </FormField>
+    )
   }
 
   return (
@@ -180,30 +229,52 @@ export default function AddressSectionStep({ value, onChange, leadId, customerNa
 
       <AddressBlock title="Installation Address" value={value.installation} onChange={setInstallation} disabled={value.sameAsBilling} />
 
-      <div className="flex items-start justify-between gap-4 p-3 rounded-lg border border-surface-border">
-        <div>
-          <p className="text-sm font-medium text-gray-800">Feasibility Required</p>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Enable if a site feasibility check is needed before installation. Creates a linked Feasibility Work
-            Order — Package Selection is blocked until it's Approved (BR-14).
-          </p>
-          {value.feasibilityEnabled && feasibilityRecord && (
-            <div className="mt-2 flex items-center gap-2">
-              {feasibilityRecord.feasibilityStatus !== 'Approved' && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
-              <span className={`text-xs font-medium ${feasibilityRecord.feasibilityStatus === 'Approved' ? 'text-green-600' : 'text-amber-600'}`}>
-                {feasibilityRecord.id} — {feasibilityRecord.feasibilityStatus}
-              </span>
-              <button
-                type="button"
-                onClick={() => navigate(`/sales/feasibility-requests/${feasibilityRecord.id}`)}
-                className="inline-flex items-center gap-1 text-xs font-medium text-brand-blue hover:underline"
-              >
-                View <ExternalLink size={11} />
-              </button>
-            </div>
-          )}
+      <div className="p-3 rounded-lg border border-surface-border space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-gray-800">Feasibility Required</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Enable if a site feasibility check is needed before installation. Creates a linked Feasibility Work
+              Order — Package Selection is blocked until it's Approved (BR-14).
+            </p>
+            {value.feasibilityEnabled && feasibilityRecord && (
+              <div className="mt-2 flex items-center gap-2">
+                {feasibilityRecord.feasibilityStatus !== 'Approved' && <AlertTriangle size={12} className="text-amber-500 shrink-0" />}
+                <span className={`text-xs font-medium ${feasibilityRecord.feasibilityStatus === 'Approved' ? 'text-green-600' : 'text-amber-600'}`}>
+                  {feasibilityRecord.id} — {feasibilityRecord.feasibilityStatus}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sales/feasibility-requests/${feasibilityRecord.id}`)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-brand-blue hover:underline"
+                >
+                  View <ExternalLink size={11} />
+                </button>
+              </div>
+            )}
+          </div>
+          <Toggle checked={value.feasibilityEnabled} onChange={toggleFeasibility} />
         </div>
-        <Toggle checked={value.feasibilityEnabled} onChange={toggleFeasibility} />
+
+        {value.feasibilityEnabled && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
+            <div className="grid grid-cols-2 gap-4">
+              {feasibilityFieldRow('s4-f1')}
+              {feasibilityFieldRow('s4-f2')}
+              <div className="col-span-2">{feasibilityFieldRow('s4-f3')}</div>
+              {feasibilityFieldRow('s4-f4')}
+              {feasibilityFieldRow('s4-f5')}
+              <div className="col-span-2">{feasibilityFieldRow('s4-f6')}</div>
+              <div className="col-span-2">{feasibilityFieldRow('s4-f7')}</div>
+              <div className="col-span-2">{feasibilityFieldRow('s4-f8')}</div>
+              <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
+                <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
+                <Badge variant="yellow" size="sm">Pending</Badge>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
