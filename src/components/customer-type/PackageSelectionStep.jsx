@@ -51,45 +51,49 @@ export default function PackageSelectionStep({ customerType, value, onChange, bl
         </div>
       )}
 
-      <div className="relative">
-        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search package name or speed..."
-          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white
-            focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue
-            placeholder-gray-400 text-gray-800"
-        />
-      </div>
+      {!blocked && (
+        <>
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search package name or speed..."
+              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white
+                focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue
+                placeholder-gray-400 text-gray-800"
+            />
+          </div>
 
-      <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[280px] overflow-y-auto">
-        {filtered.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-6">
-            {plans.length === 0 ? 'No active packages available for this customer type.' : 'No packages found'}
-          </p>
-        ) : filtered.map(plan => {
-          const selected = value?.packageId === plan.id
-          return (
-            <button
-              key={plan.id}
-              type="button"
-              onClick={() => onChange({ packageId: plan.id })}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
-                ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-            >
-              <span className="text-sm font-medium flex-1 min-w-0 truncate text-gray-800">{plan.name}</span>
-              <span className="text-xs shrink-0 text-gray-500">{plan.speed ? plan.speed : plan.serviceType}</span>
-              <span className="text-xs shrink-0 text-gray-500">
-                ₹{plan.price.toLocaleString('en-IN')}/{plan.billingType === 'Monthly' ? 'mo' : 'yr'}
-              </span>
-              <span className="w-4 shrink-0">
-                {selected && <CheckCircle2 size={16} className="text-brand-blue" />}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[280px] overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-6">
+                {plans.length === 0 ? 'No active packages available for this customer type.' : 'No packages found'}
+              </p>
+            ) : filtered.map(plan => {
+              const selected = value?.packageId === plan.id
+              return (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => onChange({ packageId: plan.id })}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
+                    ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                >
+                  <span className="text-sm font-medium flex-1 min-w-0 truncate text-gray-800">{plan.name}</span>
+                  <span className="text-xs shrink-0 text-gray-500">{plan.speed ? plan.speed : plan.serviceType}</span>
+                  <span className="text-xs shrink-0 text-gray-500">
+                    ₹{plan.price.toLocaleString('en-IN')}/{plan.billingType === 'Monthly' ? 'mo' : 'yr'}
+                  </span>
+                  <span className="w-4 shrink-0">
+                    {selected && <CheckCircle2 size={16} className="text-brand-blue" />}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }
