@@ -22,28 +22,6 @@ export default function PackageSelectionStep({ customerType, value, onChange, bl
     () => getPlans().filter(p => p.status === 'Active' && (p.zone === zone || p.zone === 'Both')),
     [zone])
 
-  if (blocked) {
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center space-y-3">
-        <Lock size={22} className="mx-auto text-amber-500" />
-        <p className="text-sm font-semibold text-amber-800">Package Selection is blocked</p>
-        <p className="text-xs text-amber-700 max-w-md mx-auto">
-          A Feasibility Work Order linked to this address hasn't been approved yet (BR-14).
-          {feasibilityRecord && ` Current status: ${feasibilityRecord.feasibilityStatus}.`}
-        </p>
-        {feasibilityRecord && (
-          <button
-            type="button"
-            onClick={() => navigate(`/sales/feasibility-requests/${feasibilityRecord.id}`)}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue hover:underline"
-          >
-            View Feasibility Request <ExternalLink size={13} />
-          </button>
-        )}
-      </div>
-    )
-  }
-
   const q = search.trim().toLowerCase()
   const filtered = q
     ? plans.filter(p => p.name.toLowerCase().includes(q) || (p.speed ?? p.serviceType ?? '').toLowerCase().includes(q))
@@ -53,13 +31,37 @@ export default function PackageSelectionStep({ customerType, value, onChange, bl
     <div className="space-y-3">
       <p className="text-sm text-gray-500">Select a package to complete this Customer Type record (BR-1 — Customer Type locks after this step).</p>
 
+      {blocked && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center space-y-3">
+          <Lock size={22} className="mx-auto text-amber-500" />
+          <p className="text-sm font-semibold text-amber-800">Package Selection is blocked</p>
+          <p className="text-xs text-amber-700 max-w-md mx-auto">
+            A Feasibility Work Order linked to this address hasn't been approved yet (BR-14).
+            {feasibilityRecord && ` Current status: ${feasibilityRecord.feasibilityStatus}.`}
+          </p>
+          {feasibilityRecord && (
+            <button
+              type="button"
+              onClick={() => navigate(`/sales/feasibility-requests/${feasibilityRecord.id}`)}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue hover:underline"
+            >
+              View Feasibility Request <ExternalLink size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="relative">
-        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <Search size={13} className={`absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${blocked ? 'text-gray-300' : 'text-gray-400'}`} />
         <input
+          disabled={blocked}
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search package name or speed..."
-          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white
+            focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue
+            placeholder-gray-400 text-gray-800
+            disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -74,16 +76,18 @@ export default function PackageSelectionStep({ customerType, value, onChange, bl
             <button
               key={plan.id}
               type="button"
+              disabled={blocked}
               onClick={() => onChange({ packageId: plan.id })}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors
+                ${blocked ? 'bg-gray-50 cursor-not-allowed' : selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
             >
-              <span className="text-sm text-gray-800 font-medium flex-1 min-w-0 truncate">{plan.name}</span>
-              <span className="text-xs text-gray-500 shrink-0">{plan.speed ? plan.speed : plan.serviceType}</span>
-              <span className="text-xs text-gray-500 shrink-0">
+              <span className={`text-sm font-medium flex-1 min-w-0 truncate ${blocked ? 'text-gray-400' : 'text-gray-800'}`}>{plan.name}</span>
+              <span className={`text-xs shrink-0 ${blocked ? 'text-gray-400' : 'text-gray-500'}`}>{plan.speed ? plan.speed : plan.serviceType}</span>
+              <span className={`text-xs shrink-0 ${blocked ? 'text-gray-400' : 'text-gray-500'}`}>
                 ₹{plan.price.toLocaleString('en-IN')}/{plan.billingType === 'Monthly' ? 'mo' : 'yr'}
               </span>
               <span className="w-4 shrink-0">
-                {selected && <CheckCircle2 size={16} className="text-brand-blue" />}
+                {selected && <CheckCircle2 size={16} className={blocked ? 'text-gray-400' : 'text-brand-blue'} />}
               </span>
             </button>
           )
