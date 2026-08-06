@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
@@ -6,10 +6,12 @@ import {
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
+import Accordion from '../components/ui/Accordion'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { MOCK_LANDLINES, MOCK_STATIC_IPS } from '../data/packagesStore'
 import {
@@ -17,6 +19,20 @@ import {
   getSupportSettings, saveSupportSettings,
 } from '../data/ticketsStore'
 import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data/outagesStore'
+import { getCustomerTypes, subscribeCustomerTypes, setCustomerTypeStatus } from '../data/customerTypes'
+import {
+  getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
+  reorderServiceTags, nextDisplayOrder, isTagNameTaken, countServiceTagsForType,
+} from '../data/serviceTags'
+import { getFieldConfig, subscribeFieldConfig, setFieldMandatory, getFieldCount } from '../data/fieldConfigStore'
+import {
+  getCompanyEntities, subscribeCompanyEntities, saveCompanyEntity, setCompanyEntityStatus,
+  isValidGstin, PG_CONNECTIONS,
+} from '../data/companyEntities'
+import {
+  getPartners, subscribePartners, savePartner, setPartnerStatus,
+  isValidContactNumber, formatShareValue, SHARE_TYPES,
+} from '../data/partners'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -1553,6 +1569,917 @@ function MasterConfigTab() {
   )
 }
 
+// ── System Configuration: shared toggle ────────────────────────────────────────
+
+function SysConfigToggle({ checked, onChange, disabled }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative shrink-0 w-10 h-5 rounded-full transition-colors duration-200
+        ${checked ? 'bg-brand-blue' : 'bg-gray-200'}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+    </button>
+  )
+}
+
+// ── System Configuration: Customer Type ─────────────────────────────────────────
+
+function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields }) {
+  const [types, setTypes] = useState(getCustomerTypes)
+
+  useEffect(() => subscribeCustomerTypes(setTypes), [])
+
+  function handleToggle(type, next) {
+    setCustomerTypeStatus(type.id, next ? 'Active' : 'Inactive')
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Customer Type</h2>
+        <p className="text-xs text-gray-500 mt-0.5">Resident and Corporate are system-seeded and cannot be added or removed</p>
+      </div>
+
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-surface-border">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer Type Name</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mapped Service Tags</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Fields Configured</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {types.map(t => {
+              const tagCount = countServiceTagsForType(t.id)
+              const fieldCount = getFieldCount(t.id)
+              return (
+                <tr key={t.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3.5 font-medium text-gray-900">{t.name}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <SysConfigToggle checked={t.status === 'Active'} onChange={v => handleToggle(t, v)} />
+                      <span className={`text-xs font-medium whitespace-nowrap ${t.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{t.status}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <button
+                      onClick={() => onOpenServiceTags(t.id)}
+                      className="inline-flex items-center gap-1.5 text-brand-blue hover:underline font-medium"
+                    >
+                      <Tags size={13} />
+                      {tagCount} {tagCount === 1 ? 'tag' : 'tags'}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <button
+                      onClick={() => onOpenFields(t.id)}
+                      className="inline-flex items-center gap-1.5 text-brand-blue hover:underline font-medium"
+                    >
+                      <ListChecks size={13} />
+                      {fieldCount} fields
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+const CT_TAG_BADGE_VARIANT = { resident: 'blue', corporate: 'purple' }
+
+function ctEmptyTagForm(defaultType) {
+  return { name: '', customerType: defaultType, status: 'Active', displayOrder: nextDisplayOrder(defaultType) }
+}
+
+function ServiceTagsPanel({ initialFilterType, onBack }) {
+  const customerTypes = getCustomerTypes()
+  const [filterType, setFilterType] = useState(() =>
+    customerTypes.some(t => t.id === initialFilterType) ? initialFilterType : 'all')
+
+  const [tags, setTags] = useState(getServiceTags)
+  const [modalTag, setModalTag] = useState(null) // existing tag being edited, or null
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState(() => ctEmptyTagForm(customerTypes[0]?.id))
+  const [error, setError] = useState('')
+  const [toast, setToast] = useState('')
+  const [dragIndex, setDragIndex] = useState(null)
+  const [overIndex, setOverIndex] = useState(null)
+
+  useEffect(() => subscribeServiceTags(setTags), [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  const filtered = filterType === 'all' ? tags : tags.filter(t => t.customerType === filterType)
+
+  function setField(k, v) {
+    setForm(f => {
+      const next = { ...f, [k]: v }
+      if (k === 'customerType') next.displayOrder = nextDisplayOrder(v, modalTag?.id)
+      return next
+    })
+    setError('')
+  }
+
+  function openAdd() {
+    const defaultType = filterType !== 'all' ? filterType : customerTypes[0]?.id
+    setModalTag(null)
+    setForm(ctEmptyTagForm(defaultType))
+    setError('')
+    setShowModal(true)
+  }
+
+  function openEdit(tag) {
+    setModalTag(tag)
+    setForm({ name: tag.name, customerType: tag.customerType, status: tag.status, displayOrder: tag.displayOrder })
+    setError('')
+    setShowModal(true)
+  }
+
+  function closeModal() {
+    setShowModal(false)
+    setModalTag(null)
+  }
+
+  function handleSave() {
+    const name = form.name.trim()
+    if (!name) { setError('Tag name is required.'); return }
+    if (isTagNameTaken(name, form.customerType, modalTag?.id)) {
+      setError('A service tag with this name already exists for the selected customer type.')
+      return
+    }
+    saveServiceTag({
+      id: modalTag?.id,
+      name,
+      customerType: form.customerType,
+      status: form.status,
+      displayOrder: Number(form.displayOrder) || nextDisplayOrder(form.customerType, modalTag?.id),
+    })
+    setToast(modalTag ? 'Service tag updated successfully' : 'Service tag added successfully')
+    closeModal()
+  }
+
+  function handleStatusToggle(tag, checked) {
+    setServiceTagStatus(tag.id, checked ? 'Active' : 'Inactive')
+  }
+
+  function handleDrop(dropIdx) {
+    if (dragIndex === null || dragIndex === dropIdx) { setDragIndex(null); setOverIndex(null); return }
+    const reordered = [...filtered]
+    const [moved] = reordered.splice(dragIndex, 1)
+    reordered.splice(dropIdx, 0, moved)
+    reorderServiceTags(reordered.map(t => t.id))
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand-blue">
+        <ChevronLeft size={13} /> Back to Customer Type
+      </button>
+
+      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Service Tags</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Customer Type — Service Tag Master</p>
+        </div>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Service Tag</Button>
+      </div>
+
+      {/* Filter */}
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium text-gray-600 shrink-0">Customer Type</label>
+        <Select className="w-52" value={filterType} onChange={e => setFilterType(e.target.value)}>
+          <option value="all">All</option>
+          {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </Select>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-surface-border">
+              <th className="px-3 py-3 w-8" />
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Tag Name</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Applicable Customer Type</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Display Order</th>
+              <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {filtered.map((tag, idx) => (
+              <tr
+                key={tag.id}
+                draggable
+                onDragStart={() => setDragIndex(idx)}
+                onDragOver={e => { e.preventDefault(); setOverIndex(idx) }}
+                onDrop={() => handleDrop(idx)}
+                onDragEnd={() => { setDragIndex(null); setOverIndex(null) }}
+                className={`transition-colors select-none
+                  ${dragIndex === idx ? 'opacity-40' : 'hover:bg-gray-50/50'}
+                  ${overIndex === idx && dragIndex !== null && dragIndex !== idx ? 'bg-blue-50/60' : ''}`}
+              >
+                <td className="px-3 py-3 text-gray-300 cursor-grab active:cursor-grabbing">
+                  <GripVertical size={15} />
+                </td>
+                <td className="px-3 py-3 font-medium text-gray-900">{tag.name}</td>
+                <td className="px-3 py-3">
+                  <Badge variant={CT_TAG_BADGE_VARIANT[tag.customerType] || 'gray'} size="sm">
+                    {customerTypes.find(t => t.id === tag.customerType)?.name || tag.customerType}
+                  </Badge>
+                </td>
+                <td className="px-3 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <SysConfigToggle checked={tag.status === 'Active'} onChange={v => handleStatusToggle(tag, v)} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${tag.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{tag.status}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-3 text-gray-600">{tag.displayOrder}</td>
+                <td className="px-3 py-3 text-right">
+                  <button
+                    onClick={() => openEdit(tag)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Edit2 size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No service tags for this customer type yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add / Edit modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={modalTag ? `Edit Service Tag — ${modalTag.name}` : 'Add Service Tag'}
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
+          <Button size="sm" onClick={handleSave}>{modalTag ? 'Save Changes' : 'Save'}</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FormField label="Tag Name" required error={error}>
+            <Input placeholder="e.g. Broadband" value={form.name} onChange={e => setField('name', e.target.value)} />
+          </FormField>
+          <FormField label="Applicable Customer Type" required>
+            <Select value={form.customerType} onChange={e => setField('customerType', e.target.value)}>
+              {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select>
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Display Order">
+              <Input type="number" min="1" value={form.displayOrder} onChange={e => setField('displayOrder', e.target.value)} />
+            </FormField>
+            <FormField label="Status">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.status === 'Active'} onChange={v => setField('status', v ? 'Active' : 'Inactive')} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.status}</span>
+              </div>
+            </FormField>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Success toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FieldConfigPanel({ type, onSwitchType, onBack }) {
+  const customerTypes = getCustomerTypes()
+  const activeType = customerTypes.some(t => t.id === type) ? type : customerTypes[0]?.id
+
+  const [fields, setFields] = useState(() => getFieldConfig(activeType))
+
+  useEffect(() => {
+    setFields(getFieldConfig(activeType))
+    return subscribeFieldConfig(() => setFields(getFieldConfig(activeType)))
+  }, [activeType])
+
+  function handleToggle(field, next) {
+    if (field.locked) return
+    setFieldMandatory(activeType, field.fieldName, next)
+  }
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand-blue">
+        <ChevronLeft size={13} /> Back to Customer Type
+      </button>
+
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Field Configuration</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Customer Type — control which fields are Mandatory or Optional on the Lead/Customer creation form
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-surface-border">
+        {customerTypes.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onSwitchType(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
+              ${activeType === t.id ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-500">
+        Changes apply going forward to new Lead/Customer entries; existing records are not retro-validated.
+      </p>
+
+      {/* Table */}
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-surface-border">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Field Name</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mandatory</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {fields.map(field => (
+              <tr key={field.fieldName} className="hover:bg-gray-50/50">
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900">{field.fieldName}</span>
+                    {field.conditional && <Badge variant="yellow" size="sm">Conditional</Badge>}
+                    {field.locked && (
+                      <Lock
+                        size={12}
+                        className="text-gray-400 shrink-0"
+                        aria-label="System-default-mandatory field — cannot be made optional"
+                        title="System-default-mandatory field — cannot be made optional"
+                      />
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <SysConfigToggle checked={field.mandatory} disabled={field.locked} onChange={v => handleToggle(field, v)} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${field.mandatory ? 'text-green-600' : 'text-gray-400'}`}>
+                      {field.mandatory ? 'Mandatory' : 'Optional'}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function CustomerTypeTab() {
+  const [view, setView] = useState({ mode: 'list' })
+
+  if (view.mode === 'service-tags') {
+    return <ServiceTagsPanel initialFilterType={view.filterType} onBack={() => setView({ mode: 'list' })} />
+  }
+  if (view.mode === 'fields') {
+    return (
+      <FieldConfigPanel
+        type={view.fieldsType}
+        onSwitchType={t => setView({ mode: 'fields', fieldsType: t })}
+        onBack={() => setView({ mode: 'list' })}
+      />
+    )
+  }
+  return (
+    <CustomerTypeListPanel
+      onOpenServiceTags={type => setView({ mode: 'service-tags', filterType: type })}
+      onOpenFields={type => setView({ mode: 'fields', fieldsType: type })}
+    />
+  )
+}
+
+// ── System Configuration: Company / Entity ──────────────────────────────────────
+
+const CE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function ceEmptyForm() {
+  return {
+    name: '', gstin: '', email: '', address: '',
+    bankName: '', accountNo: '', ifsc: '', branch: '',
+    pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
+  }
+}
+
+function ceToForm(entity) {
+  return {
+    name: entity.name, gstin: entity.gstin, email: entity.email, address: entity.address,
+    bankName: entity.bank?.bankName || '', accountNo: entity.bank?.accountNo || '',
+    ifsc: entity.bank?.ifsc || '', branch: entity.bank?.branch || '',
+    pgId: entity.pgId, pgConnection: entity.pgConnection, status: entity.status,
+  }
+}
+
+function CompanyEntityTab() {
+  const [entities, setEntities] = useState(getCompanyEntities)
+  const [modalEntity, setModalEntity] = useState(null)
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState(ceEmptyForm)
+  const [errors, setErrors] = useState({})
+  const [toast, setToast] = useState('')
+
+  useEffect(() => subscribeCompanyEntities(setEntities), [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  function setField(k, v) {
+    setForm(f => ({ ...f, [k]: v }))
+    setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function openAdd() {
+    setModalEntity(null)
+    setForm(ceEmptyForm())
+    setErrors({})
+    setShowModal(true)
+  }
+
+  function openEdit(entity) {
+    setModalEntity(entity)
+    setForm(ceToForm(entity))
+    setErrors({})
+    setShowModal(true)
+  }
+
+  function closeModal() {
+    setShowModal(false)
+    setModalEntity(null)
+  }
+
+  function validate() {
+    const errs = {}
+    if (!form.name.trim()) errs.name = 'Legal company name is required.'
+    if (!form.gstin.trim()) errs.gstin = 'GSTIN is required.'
+    else if (!isValidGstin(form.gstin)) errs.gstin = 'Enter a valid 15-character GSTIN (e.g. 27AABCU9603R1ZM).'
+    if (!form.email.trim()) errs.email = 'Email is required.'
+    else if (!CE_EMAIL_REGEX.test(form.email.trim())) errs.email = 'Enter a valid email address.'
+    if (!form.address.trim()) errs.address = 'Address is required.'
+    if (!form.bankName.trim()) errs.bankName = 'Bank name is required.'
+    if (!form.accountNo.trim()) errs.accountNo = 'Account number is required.'
+    if (!form.ifsc.trim()) errs.ifsc = 'IFSC code is required.'
+    if (!form.branch.trim()) errs.branch = 'Branch is required.'
+    if (!form.pgId.trim()) errs.pgId = 'PG ID is required.'
+    return errs
+  }
+
+  function handleSave() {
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    saveCompanyEntity({
+      id: modalEntity?.id,
+      name: form.name.trim(),
+      gstin: form.gstin.trim().toUpperCase(),
+      email: form.email.trim(),
+      address: form.address.trim(),
+      bank: { bankName: form.bankName.trim(), accountNo: form.accountNo.trim(), ifsc: form.ifsc.trim().toUpperCase(), branch: form.branch.trim() },
+      pgId: form.pgId.trim(),
+      pgConnection: form.pgConnection,
+      status: form.status,
+    })
+    setToast(modalEntity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
+    closeModal()
+  }
+
+  function handleStatusToggle(entity, checked) {
+    setCompanyEntityStatus(entity.id, checked ? 'Active' : 'Inactive')
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Company / Entity</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Legal billing entities used under Connection Type = Own</p>
+        </div>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Company/Entity</Button>
+      </div>
+
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-surface-border">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Legal Company Name</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">GSTIN</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">PG Connection</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {entities.map(entity => (
+              <tr key={entity.id} className="hover:bg-gray-50/50">
+                <td className="px-4 py-3.5 font-medium text-gray-900">{entity.name}</td>
+                <td className="px-4 py-3.5 font-mono text-xs text-gray-600">{entity.gstin}</td>
+                <td className="px-4 py-3.5 text-gray-600">{entity.email}</td>
+                <td className="px-4 py-3.5 text-gray-600">{entity.pgConnection}</td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <SysConfigToggle checked={entity.status === 'Active'} onChange={v => handleStatusToggle(entity, v)} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${entity.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{entity.status}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5 text-right">
+                  <button
+                    onClick={() => openEdit(entity)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Edit2 size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {entities.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No companies/entities added yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add / Edit modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={modalEntity ? `Edit Company/Entity — ${modalEntity.name}` : 'Add Company/Entity'}
+        size="lg"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
+          <Button size="sm" onClick={handleSave}>{modalEntity ? 'Save Changes' : 'Save'}</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Legal Company Name" required error={errors.name}>
+              <Input placeholder="e.g. Cityline Networks Pvt Ltd" value={form.name} onChange={e => setField('name', e.target.value)} />
+            </FormField>
+            <FormField label="GSTIN" required error={errors.gstin} hint={!errors.gstin ? '15-character GSTIN, e.g. 27AABCU9603R1ZM' : undefined}>
+              <Input
+                placeholder="27AABCU9603R1ZM"
+                value={form.gstin}
+                maxLength={15}
+                onChange={e => setField('gstin', e.target.value.toUpperCase())}
+                className="font-mono uppercase"
+              />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Email" required error={errors.email}>
+              <Input type="email" placeholder="accounts@company.in" value={form.email} onChange={e => setField('email', e.target.value)} />
+            </FormField>
+            <FormField label="Status">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.status === 'Active'} onChange={v => setField('status', v ? 'Active' : 'Inactive')} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.status}</span>
+              </div>
+            </FormField>
+          </div>
+          <FormField label="Address" required error={errors.address}>
+            <Textarea rows={2} placeholder="Registered address" value={form.address} onChange={e => setField('address', e.target.value)} />
+          </FormField>
+
+          <Accordion title="Bank Details & PG Connection" subtitle="Payout account and payment gateway used for this entity">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Bank Name" required error={errors.bankName}>
+                <Input placeholder="e.g. HDFC Bank" value={form.bankName} onChange={e => setField('bankName', e.target.value)} />
+              </FormField>
+              <FormField label="Account No." required error={errors.accountNo}>
+                <Input placeholder="Account number" value={form.accountNo} onChange={e => setField('accountNo', e.target.value)} />
+              </FormField>
+              <FormField label="IFSC" required error={errors.ifsc}>
+                <Input placeholder="e.g. HDFC0001234" value={form.ifsc} onChange={e => setField('ifsc', e.target.value.toUpperCase())} className="font-mono uppercase" />
+              </FormField>
+              <FormField label="Branch" required error={errors.branch}>
+                <Input placeholder="e.g. Andheri West" value={form.branch} onChange={e => setField('branch', e.target.value)} />
+              </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="PG ID" required error={errors.pgId}>
+                <Input placeholder="e.g. rzp_live_XXXXXXXX" value={form.pgId} onChange={e => setField('pgId', e.target.value)} />
+              </FormField>
+              <FormField label="PG Connection" required hint="Illustrative list — depends on integrations built">
+                <Select value={form.pgConnection} onChange={e => setField('pgConnection', e.target.value)}>
+                  {PG_CONNECTIONS.map(pg => <option key={pg} value={pg}>{pg}</option>)}
+                </Select>
+              </FormField>
+            </div>
+          </Accordion>
+        </div>
+      </Modal>
+
+      {/* Success toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── System Configuration: Partner ────────────────────────────────────────────────
+
+const PARTNER_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PARTNER_SHARE_TYPE_VARIANT = { Percentage: 'blue', Fixed: 'orange' }
+
+function partnerEmptyForm() {
+  return {
+    name: '', shareType: 'Percentage', shareValue: '', contactNumber: '', email: '', address: '',
+    bankName: '', accountNo: '', ifsc: '', status: 'Active',
+  }
+}
+
+function partnerToForm(partner) {
+  return {
+    name: partner.name, shareType: partner.shareType, shareValue: partner.shareValue,
+    contactNumber: partner.contactNumber, email: partner.email, address: partner.address || '',
+    bankName: partner.bank?.bankName || '', accountNo: partner.bank?.accountNo || '', ifsc: partner.bank?.ifsc || '',
+    status: partner.status,
+  }
+}
+
+function PartnerTab() {
+  const [partners, setPartners] = useState(getPartners)
+  const [modalPartner, setModalPartner] = useState(null)
+  const [showModal, setShowModal] = useState(false)
+  const [form, setForm] = useState(partnerEmptyForm)
+  const [errors, setErrors] = useState({})
+  const [toast, setToast] = useState('')
+
+  useEffect(() => subscribePartners(setPartners), [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  function setField(k, v) {
+    setForm(f => ({ ...f, [k]: v }))
+    setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function openAdd() {
+    setModalPartner(null)
+    setForm(partnerEmptyForm())
+    setErrors({})
+    setShowModal(true)
+  }
+
+  function openEdit(partner) {
+    setModalPartner(partner)
+    setForm(partnerToForm(partner))
+    setErrors({})
+    setShowModal(true)
+  }
+
+  function closeModal() {
+    setShowModal(false)
+    setModalPartner(null)
+  }
+
+  function validate() {
+    const errs = {}
+    if (!form.name.trim()) errs.name = 'Partner name is required.'
+    const value = Number(form.shareValue)
+    if (form.shareValue === '' || Number.isNaN(value)) errs.shareValue = 'Share value is required.'
+    else if (form.shareType === 'Percentage' && (value < 0 || value > 100)) errs.shareValue = 'Percentage share must be between 0 and 100.'
+    else if (form.shareType === 'Fixed' && value <= 0) errs.shareValue = 'Fixed share must be a positive amount.'
+    if (!form.contactNumber.trim()) errs.contactNumber = 'Contact number is required.'
+    else if (!isValidContactNumber(form.contactNumber)) errs.contactNumber = 'Enter a valid 10-digit contact number.'
+    if (!form.email.trim()) errs.email = 'Email is required.'
+    else if (!PARTNER_EMAIL_REGEX.test(form.email.trim())) errs.email = 'Enter a valid email address.'
+    return errs
+  }
+
+  function handleSave() {
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    savePartner({
+      id: modalPartner?.id,
+      name: form.name.trim(),
+      shareType: form.shareType,
+      shareValue: Number(form.shareValue),
+      contactNumber: form.contactNumber.trim(),
+      email: form.email.trim(),
+      address: form.address.trim(),
+      bank: { bankName: form.bankName.trim(), accountNo: form.accountNo.trim(), ifsc: form.ifsc.trim().toUpperCase() },
+      status: form.status,
+    })
+    setToast(modalPartner ? 'Partner updated successfully' : 'Partner added successfully')
+    closeModal()
+  }
+
+  function handleStatusToggle(partner, checked) {
+    setPartnerStatus(partner.id, checked ? 'Active' : 'Inactive')
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Partner</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Reseller/channel entities used under Connection Type = Partner</p>
+        </div>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Partner</Button>
+      </div>
+
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/80 border-b border-surface-border">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Partner Name</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Share Type</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Share Value</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Number</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {partners.map(partner => (
+              <tr key={partner.id} className="hover:bg-gray-50/50">
+                <td className="px-4 py-3.5 font-medium text-gray-900">{partner.name}</td>
+                <td className="px-4 py-3.5">
+                  <Badge variant={PARTNER_SHARE_TYPE_VARIANT[partner.shareType] || 'gray'} size="sm">{partner.shareType}</Badge>
+                </td>
+                <td className="px-4 py-3.5 text-gray-600">{formatShareValue(partner)}</td>
+                <td className="px-4 py-3.5 font-mono text-xs text-gray-600">{partner.contactNumber}</td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <SysConfigToggle checked={partner.status === 'Active'} onChange={v => handleStatusToggle(partner, v)} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${partner.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{partner.status}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5 text-right">
+                  <button
+                    onClick={() => openEdit(partner)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Edit2 size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {partners.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No partners added yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add / Edit modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={modalPartner ? `Edit Partner — ${modalPartner.name}` : 'Add Partner'}
+        size="lg"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
+          <Button size="sm" onClick={handleSave}>{modalPartner ? 'Save Changes' : 'Save'}</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Partner Name" required error={errors.name}>
+              <Input placeholder="e.g. Metro Broadband Partners" value={form.name} onChange={e => setField('name', e.target.value)} />
+            </FormField>
+            <FormField label="Status">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.status === 'Active'} onChange={v => setField('status', v ? 'Active' : 'Inactive')} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.status}</span>
+              </div>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Share Type" required>
+              <div className="inline-flex rounded-lg border border-surface-border p-0.5 bg-gray-50">
+                {SHARE_TYPES.map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setField('shareType', opt)}
+                    className={`px-3.5 py-1.5 text-sm font-medium rounded-md transition-all
+                      ${form.shareType === opt ? 'bg-white shadow-sm text-brand-blue' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </FormField>
+            <FormField label="Share Value" required error={errors.shareValue}>
+              <div className="relative">
+                {form.shareType === 'Fixed' && (
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
+                )}
+                <Input
+                  type="number"
+                  min={0}
+                  max={form.shareType === 'Percentage' ? 100 : undefined}
+                  step={form.shareType === 'Percentage' ? 1 : 0.01}
+                  placeholder={form.shareType === 'Percentage' ? 'e.g. 15' : 'e.g. 500'}
+                  value={form.shareValue}
+                  onChange={e => setField('shareValue', e.target.value)}
+                  className={form.shareType === 'Fixed' ? 'pl-7' : 'pr-8'}
+                />
+                {form.shareType === 'Percentage' && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">%</span>
+                )}
+              </div>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Contact Number" required error={errors.contactNumber}>
+              <Input type="tel" placeholder="10-digit mobile number" maxLength={10} value={form.contactNumber} onChange={e => setField('contactNumber', e.target.value.replace(/\D/g, ''))} />
+            </FormField>
+            <FormField label="Email" required error={errors.email}>
+              <Input type="email" placeholder="partner@company.in" value={form.email} onChange={e => setField('email', e.target.value)} />
+            </FormField>
+          </div>
+
+          <FormField label="Address">
+            <Textarea rows={2} placeholder="Address (optional)" value={form.address} onChange={e => setField('address', e.target.value)} />
+          </FormField>
+
+          <Accordion title="Bank Details" subtitle="Mandatory if payouts are disbursed via bank transfer" defaultOpen={false}>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Bank Name">
+                <Input placeholder="e.g. Axis Bank" value={form.bankName} onChange={e => setField('bankName', e.target.value)} />
+              </FormField>
+              <FormField label="Account No.">
+                <Input placeholder="Account number" value={form.accountNo} onChange={e => setField('accountNo', e.target.value)} />
+              </FormField>
+              <FormField label="IFSC">
+                <Input placeholder="e.g. UTIB0000123" value={form.ifsc} onChange={e => setField('ifsc', e.target.value.toUpperCase())} className="font-mono uppercase" />
+              </FormField>
+            </div>
+          </Accordion>
+        </div>
+      </Modal>
+
+      {/* Success toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -1588,10 +2515,12 @@ export default function Settings() {
 
             <p className="px-3 pt-4 pb-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">System Configuration</p>
             {SYSTEM_CONFIG_TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => navigate(`/settings/${id}`)}
-                className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
-                  text-gray-600 hover:bg-gray-100 hover:text-gray-900">
-                <Icon size={15} className="text-gray-400" />
+              <button key={id} onClick={() => { navigate('/settings'); setActiveTab(id) }}
+                className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
+                  ${activeTab === id
+                    ? 'bg-brand-blue text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+                <Icon size={15} className={activeTab === id ? 'text-blue-200' : 'text-gray-400'} />
                 {label}
               </button>
             ))}
@@ -1612,6 +2541,9 @@ export default function Settings() {
           {activeTab === 'sales-configuration' && <SalesConfigTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}
+          {activeTab === 'customer-type'       && <CustomerTypeTab />}
+          {activeTab === 'company-entity'      && <CompanyEntityTab />}
+          {activeTab === 'partner'             && <PartnerTab />}
           {false && activeTab === 'landline-numbers' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
