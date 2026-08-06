@@ -1859,8 +1859,7 @@ function ceToForm(entity) {
 
 function CompanyEntityTab() {
   const [entities, setEntities] = useState(getCompanyEntities)
-  const [modalEntity, setModalEntity] = useState(null)
-  const [showModal, setShowModal] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [form, setForm] = useState(ceEmptyForm)
   const [errors, setErrors] = useState({})
   const [toast, setToast] = useState('')
@@ -1874,28 +1873,57 @@ function CompanyEntityTab() {
     }
   }, [toast])
 
+  // Add/Edit modal is deep-linkable via ?modal=add-company-entity or
+  // ?modal=edit-company-entity&id=<entityId>, merged with the outer
+  // ?section=company-entity (and any other existing params) rather than
+  // clobbering them — same push-to-open/replace-to-close convention as the
+  // ?modal= pattern used elsewhere (e.g. Support Ticket Detail's
+  // schedule-visit/resolve-ticket/verify-otp modals).
+  const modalParam = searchParams.get('modal')
+  const editId = searchParams.get('id')
+  const modalEntity = modalParam === 'edit-company-entity' ? entities.find(e => e.id === editId) ?? null : null
+  const showModal = modalParam === 'add-company-entity' || (modalParam === 'edit-company-entity' && !!modalEntity)
+
+  // Populate the form whenever the modal opens (including directly on page
+  // load/refresh from a deep-linked URL) so add vs. edit pre-fill correctly.
+  useEffect(() => {
+    if (showModal) {
+      setForm(modalEntity ? ceToForm(modalEntity) : ceEmptyForm())
+      setErrors({})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, modalEntity?.id])
+
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
   }
 
   function openAdd() {
-    setModalEntity(null)
-    setForm(ceEmptyForm())
-    setErrors({})
-    setShowModal(true)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-company-entity')
+      next.delete('id')
+      return next
+    })
   }
 
   function openEdit(entity) {
-    setModalEntity(entity)
-    setForm(ceToForm(entity))
-    setErrors({})
-    setShowModal(true)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit-company-entity')
+      next.set('id', entity.id)
+      return next
+    })
   }
 
   function closeModal() {
-    setShowModal(false)
-    setModalEntity(null)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('id')
+      return next
+    }, { replace: true })
   }
 
   function validate() {
