@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams, Navigate } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
@@ -40,12 +40,12 @@ const TABS = [
   { id: 'general',       label: 'General',               icon: Building2 },
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
-  { id: 'sla',           label: 'SLA Configuration',      icon: Clock     },
+  { id: 'sla-configuration', label: 'SLA Configuration',  icon: Clock     },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
-  { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
-  { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
-  { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
+  { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
+  { id: 'zoho-books',          label: 'Zoho Books',            icon: BookOpen  },
+  { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
   { id: 'zone',                label: 'Zone',                  icon: Map       },
   { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
@@ -1463,10 +1463,8 @@ function ctEmptyTagForm(defaultType) {
   return { name: '', customerType: defaultType, status: 'Active', displayOrder: nextDisplayOrder(defaultType) }
 }
 
-function ServiceTagsPanel({ initialFilterType, onBack }) {
+function ServiceTagsPanel({ filterType, onFilterChange, onBack }) {
   const customerTypes = getCustomerTypes()
-  const [filterType, setFilterType] = useState(() =>
-    customerTypes.some(t => t.id === initialFilterType) ? initialFilterType : 'all')
 
   const [tags, setTags] = useState(getServiceTags)
   const [modalTag, setModalTag] = useState(null) // existing tag being edited, or null
@@ -1566,7 +1564,7 @@ function ServiceTagsPanel({ initialFilterType, onBack }) {
       {/* Filter */}
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-600 shrink-0">Customer Type</label>
-        <Select className="w-52" value={filterType} onChange={e => setFilterType(e.target.value)}>
+        <Select className="w-52" value={filterType} onChange={e => onFilterChange(e.target.value)}>
           <option value="all">All</option>
           {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </Select>
@@ -1768,25 +1766,72 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
   )
 }
 
+// Customer Type's drill-down (Service Tags / Field Configuration) is
+// deep-linkable via ?view= and ?type= on top of the outer ?section=
+// customer-type — entering a sub-view pushes a new history entry (so back
+// steps out of it); backing out or switching the active filter/tab within a
+// sub-view replaces the current entry, same push/replace convention as the
+// ?modal= pattern elsewhere in the app.
 function CustomerTypeTab() {
-  const [view, setView] = useState({ mode: 'list' })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const customerTypes = getCustomerTypes()
+  const view = searchParams.get('view')
+  const rawType = searchParams.get('type')
+  const type = customerTypes.some(t => t.id === rawType) ? rawType : null
 
-  if (view.mode === 'service-tags') {
-    return <ServiceTagsPanel initialFilterType={view.filterType} onBack={() => setView({ mode: 'list' })} />
+  function openView(nextView, nextType) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('section', 'customer-type')
+      next.set('view', nextView)
+      if (nextType) next.set('type', nextType)
+      else next.delete('type')
+      return next
+    })
   }
-  if (view.mode === 'fields') {
+
+  function switchType(nextView, nextType) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('section', 'customer-type')
+      next.set('view', nextView)
+      if (nextType && nextType !== 'all') next.set('type', nextType)
+      else next.delete('type')
+      return next
+    }, { replace: true })
+  }
+
+  function backToList() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('view')
+      next.delete('type')
+      return next
+    }, { replace: true })
+  }
+
+  if (view === 'service-tags') {
+    return (
+      <ServiceTagsPanel
+        filterType={type ?? 'all'}
+        onFilterChange={next => switchType('service-tags', next)}
+        onBack={backToList}
+      />
+    )
+  }
+  if (view === 'fields') {
     return (
       <FieldConfigPanel
-        type={view.fieldsType}
-        onSwitchType={t => setView({ mode: 'fields', fieldsType: t })}
-        onBack={() => setView({ mode: 'list' })}
+        type={type}
+        onSwitchType={next => switchType('fields', next)}
+        onBack={backToList}
       />
     )
   }
   return (
     <CustomerTypeListPanel
-      onOpenServiceTags={type => setView({ mode: 'service-tags', filterType: type })}
-      onOpenFields={type => setView({ mode: 'fields', fieldsType: type })}
+      onOpenServiceTags={t => openView('service-tags', t)}
+      onOpenFields={t => openView('fields', t)}
     />
   )
 }
@@ -2284,10 +2329,41 @@ function PartnerTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// master-config and area-mapping are excluded — they use their own dedicated
+// routes (see the comment in Settings() below) and have no content-panel
+// render line here, so they're not valid ?section= values.
+const ALL_SETTINGS_SECTION_IDS = new Set(
+  [...TABS, ...SYSTEM_CONFIG_TABS]
+    .map(t => t.id)
+    .filter(id => id !== 'master-config' && id !== 'area-mapping')
+)
+
 export default function Settings() {
   const { tab } = useParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState(() => tab !== undefined ? 'master-config' : 'general')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Master Configuration and Area Mapping keep their own dedicated routes
+  // (/settings/master-config/:tab, /settings/area-mapping) — they were
+  // already deep-linkable/back-forward-friendly via the path before this
+  // change, so they're excluded from the ?section= scheme rather than
+  // forcing them into a second, redundant URL mechanism.
+  const sectionParam = searchParams.get('section')
+  const activeTab = tab !== undefined
+    ? 'master-config'
+    : (sectionParam && ALL_SETTINGS_SECTION_IDS.has(sectionParam) ? sectionParam : 'general')
+
+  function selectSection(id) {
+    if (id === 'master-config') { navigate('/settings/master-config/tenure'); return }
+    if (id === 'area-mapping') { navigate('/settings/area-mapping'); return }
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('section', id)
+      next.delete('view')
+      next.delete('type')
+      return next
+    })
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -2301,11 +2377,7 @@ export default function Settings() {
         <div className="w-52 shrink-0">
           <nav className="space-y-1">
             {TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => {
-                if (id === 'master-config') { navigate('/settings/master-config/tenure'); setActiveTab(id) }
-                else if (id === 'area-mapping') navigate('/settings/area-mapping')
-                else { navigate('/settings'); setActiveTab(id) }
-              }}
+              <button key={id} onClick={() => selectSection(id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
@@ -2317,7 +2389,7 @@ export default function Settings() {
 
             <p className="px-3 pt-4 pb-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">System Configuration</p>
             {SYSTEM_CONFIG_TABS.map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => { navigate('/settings'); setActiveTab(id) }}
+              <button key={id} onClick={() => selectSection(id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
                   ${activeTab === id
                     ? 'bg-brand-blue text-white shadow-sm'
@@ -2334,12 +2406,12 @@ export default function Settings() {
           {activeTab === 'general'       && <GeneralTab />}
           {activeTab === 'billing'       && <BillingTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
-          {activeTab === 'sla'           && <SlaConfigTab />}
+          {activeTab === 'sla-configuration' && <SlaConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
           {activeTab === 'outage-configuration' && <OutageConfigTab />}
-          {activeTab === 'jaze'          && <JazeServersTab />}
-          {activeTab === 'zoho'          && <ZohoBooksTab />}
-          {activeTab === 'roles'                && <RolesTab />}
+          {activeTab === 'jaze-servers'  && <JazeServersTab />}
+          {activeTab === 'zoho-books'    && <ZohoBooksTab />}
+          {activeTab === 'roles-permissions'   && <RolesTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}
           {activeTab === 'customer-type'       && <CustomerTypeTab />}
