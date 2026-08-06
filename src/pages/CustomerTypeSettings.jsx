@@ -9,9 +9,9 @@ function Toggle({ checked, onChange }) {
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${checked ? 'bg-brand-blue' : 'bg-gray-200'}`}
+      className={`relative shrink-0 w-10 h-5 rounded-full transition-colors duration-200 ${checked ? 'bg-brand-blue' : 'bg-gray-200'}`}
     >
-      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
 }
@@ -60,9 +60,9 @@ export default function CustomerTypeSettings() {
                 <tr key={t.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3.5 font-medium text-gray-900">{t.name}</td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <Toggle checked={t.status === 'Active'} onChange={v => handleToggle(t, v)} />
-                      <span className={`text-xs font-medium ${t.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{t.status}</span>
+                      <span className={`text-xs font-medium whitespace-nowrap ${t.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{t.status}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3.5">

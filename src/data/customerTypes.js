@@ -4,7 +4,7 @@
 // "Add Type" action) without a data-model change.
 let _customerTypes = [
   { id: 'resident', name: 'Resident', status: 'Active', systemSeeded: true, fieldsConfiguredCount: 14 },
-  { id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true, fieldsConfiguredCount: 18 },
+  { id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true, fieldsConfiguredCount: 21 },
 ]
 
 const _listeners = []
