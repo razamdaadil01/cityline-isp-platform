@@ -58,7 +58,7 @@ import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
 import CustomerTypeSettings from './pages/CustomerTypeSettings'
 import ServiceTagSettings from './pages/ServiceTagSettings'
-import CustomerTypeFieldsPlaceholder from './pages/CustomerTypeFieldsPlaceholder'
+import FieldConfigSettings from './pages/FieldConfigSettings'
 import CompanyEntitySettings from './pages/CompanyEntitySettings'
 import PartnerSettings from './pages/PartnerSettings'
 import Resellers from './pages/Resellers'
@@ -155,7 +155,7 @@ export default function App() {
           <Route path="/settings/roles" element={<RolesSettings />} />
           <Route path="/settings/customer-type" element={<CustomerTypeSettings />} />
           <Route path="/settings/customer-type/service-tags" element={<ServiceTagSettings />} />
-          <Route path="/settings/customer-type/:type/fields" element={<CustomerTypeFieldsPlaceholder />} />
+          <Route path="/settings/customer-type/:type/fields" element={<FieldConfigSettings />} />
           <Route path="/settings/company-entity" element={<CompanyEntitySettings />} />
           <Route path="/settings/partner" element={<PartnerSettings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
