@@ -3,7 +3,7 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
+  BookOpen, Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
   Tags, ListChecks, GripVertical, Lock, CheckCircle2,
@@ -45,7 +45,6 @@ const TABS = [
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
   { id: 'jaze',          label: 'Jaze Servers',          icon: Server    },
   { id: 'zoho',                label: 'Zoho Books',            icon: BookOpen  },
-  { id: 'sales-configuration', label: 'Sales Configuration',   icon: Layers    },
   { id: 'roles',               label: 'Roles & Permissions',   icon: Shield    },
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
   { id: 'zone',                label: 'Zone',                  icon: Map       },
@@ -753,203 +752,6 @@ function RolesTab() {
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Sales Configuration mock data ────────────────────────────────────────────
-
-const INIT_LEAD_SOURCES = [
-  { id: 1, name: 'Walk-in',       active: true  },
-  { id: 2, name: 'Website',       active: true  },
-  { id: 3, name: 'Referral',      active: true  },
-  { id: 4, name: 'Social Media',  active: true  },
-  { id: 5, name: 'Cold Call',     active: false },
-  { id: 6, name: 'Partner',       active: true  },
-]
-
-const INIT_LEAD_STAGES = [
-  { id: 1, name: 'New Lead',           order: 1, color: '#6366f1' },
-  { id: 2, name: 'Contacted',          order: 2, color: '#0A8DCD' },
-  { id: 3, name: 'Site Survey',        order: 3, color: '#f59e0b' },
-  { id: 4, name: 'Proposal Sent',      order: 4, color: '#8b5cf6' },
-  { id: 5, name: 'Negotiation',        order: 5, color: '#ec4899' },
-  { id: 6, name: 'Won',               order: 6, color: '#22c55e' },
-  { id: 7, name: 'Lost',              order: 7, color: '#ef4444' },
-]
-
-function SalesConfigTab() {
-  const [sources, setSources] = useState(INIT_LEAD_SOURCES)
-  const [stages, setStages]   = useState(INIT_LEAD_STAGES)
-  const [addSourceModal, setAddSourceModal] = useState(false)
-  const [addStageModal,  setAddStageModal]  = useState(false)
-  const [newSource, setNewSource] = useState('')
-  const [newStage,  setNewStage]  = useState({ name: '', color: '#0A8DCD' })
-  const [pipeline, setPipeline] = useState({ name: 'Default Pipeline', autoAssign: true, notifyOnMove: true, wonStage: 'Won', lostStage: 'Lost' })
-
-  return (
-    <div className="space-y-6">
-      <div className="pb-4 border-b border-surface-border">
-        <h2 className="text-base font-semibold text-gray-900">Sales Configuration</h2>
-        <p className="text-xs text-gray-500 mt-1">Manage lead sources, stages and pipeline settings</p>
-      </div>
-
-      {/* Lead Sources */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-800">Lead Sources</h3>
-          <button onClick={() => setAddSourceModal(true)}
-            className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
-            <Plus size={13} /> Add Source
-          </button>
-        </div>
-        <div className="rounded-xl border border-surface-border overflow-hidden">
-          <div className="grid grid-cols-[1fr_auto_auto] bg-gray-50/80 border-b border-surface-border px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide gap-4">
-            <span>Source Name</span><span>Active</span><span>Actions</span>
-          </div>
-          <div className="divide-y divide-surface-border">
-            {sources.map(s => (
-              <div key={s.id} className="grid grid-cols-[1fr_auto_auto] items-center px-4 py-3 gap-4 hover:bg-gray-50/50">
-                <span className="text-sm text-gray-700">{s.name}</span>
-                <Toggle checked={s.active} onChange={v => setSources(prev => prev.map(x => x.id === s.id ? { ...x, active: v } : x))} />
-                <button onClick={() => setSources(prev => prev.filter(x => x.id !== s.id))}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Lead Stages */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-800">Lead Stages</h3>
-          <button onClick={() => setAddStageModal(true)}
-            className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
-            <Plus size={13} /> Add Stage
-          </button>
-        </div>
-        <div className="rounded-xl border border-surface-border overflow-hidden">
-          <div className="grid grid-cols-[auto_1fr_auto_auto] bg-gray-50/80 border-b border-surface-border px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide gap-4">
-            <span>#</span><span>Stage Name</span><span>Color</span><span>Actions</span>
-          </div>
-          <div className="divide-y divide-surface-border">
-            {stages.map(s => (
-              <div key={s.id} className="grid grid-cols-[auto_1fr_auto_auto] items-center px-4 py-3 gap-4 hover:bg-gray-50/50">
-                <span className="text-xs text-gray-400 w-5 text-center">{s.order}</span>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
-                  <span className="text-sm text-gray-700">{s.name}</span>
-                </div>
-                <input type="color" value={s.color}
-                  onChange={e => setStages(prev => prev.map(x => x.id === s.id ? { ...x, color: e.target.value } : x))}
-                  className="w-7 h-7 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                <button onClick={() => setStages(prev => prev.filter(x => x.id !== s.id))}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Pipeline Settings */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-800 mb-3">Pipeline Settings</h3>
-        <div className="rounded-xl border border-surface-border p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Pipeline Name">
-              <Input value={pipeline.name} onChange={e => setPipeline(p => ({ ...p, name: e.target.value }))} />
-            </FormField>
-            <FormField label="Won Stage">
-              <Select value={pipeline.wonStage} onChange={e => setPipeline(p => ({ ...p, wonStage: e.target.value }))}>
-                {stages.map(s => <option key={s.id}>{s.name}</option>)}
-              </Select>
-            </FormField>
-          </div>
-          {[
-            { key: 'autoAssign',   label: 'Auto-assign leads to available agents',  desc: 'Round-robin assignment when lead is created' },
-            { key: 'notifyOnMove', label: 'Notify agent when lead moves stages',    desc: 'Push notification + email on stage change' },
-          ].map(({ key, label, desc }) => (
-            <div key={key} className="flex items-center justify-between p-3 rounded-lg border border-surface-border">
-              <div>
-                <p className="text-sm font-medium text-gray-800">{label}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-              </div>
-              <Toggle checked={pipeline[key]} onChange={v => setPipeline(p => ({ ...p, [key]: v }))} />
-            </div>
-          ))}
-          <div className="flex justify-end pt-2">
-            <Button size="sm" icon={<Save size={14} />}>Save Pipeline</Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Add Source Modal */}
-      {addSourceModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Add Lead Source</h2>
-              <button onClick={() => setAddSourceModal(false)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Source Name *</label>
-                <input value={newSource} onChange={e => setNewSource(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]"
-                  placeholder="e.g. WhatsApp" />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setAddSourceModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
-                <button onClick={() => {
-                  if (!newSource.trim()) return
-                  setSources(prev => [...prev, { id: Date.now(), name: newSource.trim(), active: true }])
-                  setNewSource('')
-                  setAddSourceModal(false)
-                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Stage Modal */}
-      {addStageModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Add Lead Stage</h2>
-              <button onClick={() => setAddStageModal(false)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Stage Name *</label>
-                <input value={newStage.name} onChange={e => setNewStage(s => ({ ...s, name: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]"
-                  placeholder="e.g. Follow-up" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Color</label>
-                <input type="color" value={newStage.color} onChange={e => setNewStage(s => ({ ...s, color: e.target.value }))}
-                  className="w-10 h-10 rounded cursor-pointer border border-gray-200" />
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setAddStageModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
-                <button onClick={() => {
-                  if (!newStage.name.trim()) return
-                  setStages(prev => [...prev, { id: Date.now(), name: newStage.name.trim(), color: newStage.color, order: prev.length + 1 }])
-                  setNewStage({ name: '', color: '#0A8DCD' })
-                  setAddStageModal(false)
-                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -2538,7 +2340,6 @@ export default function Settings() {
           {activeTab === 'jaze'          && <JazeServersTab />}
           {activeTab === 'zoho'          && <ZohoBooksTab />}
           {activeTab === 'roles'                && <RolesTab />}
-          {activeTab === 'sales-configuration' && <SalesConfigTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}
           {activeTab === 'customer-type'       && <CustomerTypeTab />}
