@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, X, AlertTriangle, ChevronDown, Calendar,
   User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2, Check,
@@ -59,6 +59,13 @@ const STAFF = [
 const NOTIFY_USERS = STAFF.map(s => s.name)
 const ASSIGNEES = STAFF.map(s => s.name) // Corporate "Assigned To/Sales Executive"
 
+// The Customer Type Master uses ids 'resident'/'corporate', but the
+// ?customerType= URL param uses 'residential'/'corporate' — kept distinct
+// from the internal id so the URL reads naturally without renaming the
+// Master's own ids everywhere they're used.
+const CUSTOMER_TYPE_URL_SLUG = { resident: 'residential', corporate: 'corporate' }
+const CUSTOMER_TYPE_FROM_SLUG = { residential: 'resident', corporate: 'corporate' }
+
 const BRANCHES = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
 const LEAD_SOURCES = ['Referral', 'Walk-in', 'Website', 'Field Survey', 'Campaign'] // FR-6
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -99,7 +106,9 @@ const EMPTY_CORPORATE_FORM = {
   contactPersonName: '', contactPersonEmail: '', primaryNumber: '',
   accountsEmail: '', accountsName: '', accountsPhone: '',
   technicalEmail: '', technicalName: '', technicalPhone: '',
-  connectionType: { ...EMPTY_CONNECTION_TYPE },
+  // Own is the default Connection Type for Corporate too, so the Entity
+  // dropdown shows immediately without requiring the user to click "Own" first.
+  connectionType: { ...EMPTY_CONNECTION_TYPE, connectionType: 'Own' },
   serviceTags: [], assignedTo: '',
   address: { ...EMPTY_ADDRESS_SECTION },
   package: null,
@@ -205,11 +214,35 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
 
 export default function SalesNewLead() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [leadId] = useState(() => nextSalesLeadId())
 
   const customerTypes = useMemo(() => getCustomerTypes().filter(t => t.status === 'Active'), [])
-  const [customerType, setCustomerType] = useState(() => customerTypes[0]?.id ?? 'resident')
+
+  // Customer Type is driven by ?customerType= (residential|corporate) rather
+  // than local-only state, so it's shareable/refresh-safe and survives
+  // back/forward — same merge-safe setSearchParams(prev => new
+  // URLSearchParams(prev)) pattern used by ?modal=/?step= elsewhere.
+  const customerTypeSlug = searchParams.get('customerType')
+  const customerTypeFromSlug = CUSTOMER_TYPE_FROM_SLUG[customerTypeSlug]
+  const customerType = customerTypes.some(t => t.id === customerTypeFromSlug)
+    ? customerTypeFromSlug
+    : (customerTypes[0]?.id ?? 'resident')
   const isCorporate = customerType === 'corporate'
+
+  // On first load, if there's no (or an invalid) ?customerType= param,
+  // default to Residential and write it into the URL via a history replace
+  // (not push) so it doesn't add an extra back-button entry.
+  useEffect(() => {
+    if (!CUSTOMER_TYPE_FROM_SLUG[searchParams.get('customerType')]) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.set('customerType', CUSTOMER_TYPE_URL_SLUG[customerType])
+        return next
+      }, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [rForm, setRForm] = useState(EMPTY_RESIDENT_FORM)
   const [cForm, setCForm] = useState(EMPTY_CORPORATE_FORM)
@@ -217,8 +250,12 @@ export default function SalesNewLead() {
   const [attempted, setAttempted] = useState(false)
 
   function handleCustomerTypeChange(next) {
-    setCustomerType(next)
     setAttempted(false)
+    setSearchParams(prev => {
+      const nextParams = new URLSearchParams(prev)
+      nextParams.set('customerType', CUSTOMER_TYPE_URL_SLUG[next] ?? next)
+      return nextParams
+    })
   }
 
   // ── Field Configuration (live, both types kept warm) ──────────────────────
