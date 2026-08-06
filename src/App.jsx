@@ -5,6 +5,8 @@ import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
 import AddPayment from './pages/AddPayment'
 import AddCustomer from './pages/AddCustomer'
+import CustomerNewResident from './pages/CustomerNewResident'
+import CustomerNewCorporate from './pages/CustomerNewCorporate'
 import Sales from './pages/Sales'
 import SalesToday from './pages/SalesToday'
 import SalesFollowups from './pages/SalesFollowups'
@@ -77,6 +79,8 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/new" element={<AddCustomer />} />
+          <Route path="/customers/new/resident" element={<CustomerNewResident />} />
+          <Route path="/customers/new/corporate" element={<CustomerNewCorporate />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/customers/:id/:tab" element={<CustomerDetail />} />
           <Route path="/customers/:customerId/finance/payments/add" element={<AddPayment />} />

@@ -155,6 +155,7 @@ export default function Customers() {
   }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draft,      setDraft]      = useState(EMPTY_DRAFT)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
 
   function openDrawer() {
     setDraft({
@@ -271,7 +272,37 @@ export default function Customers() {
           {selected.size === 0 && (
             <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
           )}
-          <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
+          <div className="relative">
+            <Button size="sm" icon={<UserPlus size={14} />} iconRight={<ChevronDown size={13} />} onClick={() => setAddMenuOpen(o => !o)}>
+              Add Customer
+            </Button>
+            {addMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1.5 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-56"
+                onMouseLeave={() => setAddMenuOpen(false)}
+              >
+                <button
+                  onClick={() => { setAddMenuOpen(false); navigate('/customers/new/resident') }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Resident (Customer Type)
+                </button>
+                <button
+                  onClick={() => { setAddMenuOpen(false); navigate('/customers/new/corporate') }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Corporate (Customer Type)
+                </button>
+                <div className="my-1 border-t border-gray-100" />
+                <button
+                  onClick={() => { setAddMenuOpen(false); navigate('/customers/new') }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:bg-gray-50"
+                >
+                  Quick Add (legacy form)
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
