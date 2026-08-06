@@ -5,7 +5,7 @@ import {
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
-  ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users,
+  ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -40,6 +40,8 @@ const TABS = [
 // Type is the first item; Company/Entity and Partner are added here later.
 const SYSTEM_CONFIG_TABS = [
   { id: 'customer-type', label: 'Customer Type', icon: Users },
+  { id: 'company-entity', label: 'Company / Entity', icon: Building2 },
+  { id: 'partner', label: 'Partner', icon: Handshake },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
