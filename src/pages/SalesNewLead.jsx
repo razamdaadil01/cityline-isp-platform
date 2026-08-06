@@ -1,36 +1,54 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, X, MapPin, AlertTriangle, ChevronDown, Calendar } from 'lucide-react'
-import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
-import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
-  getStates, getDistricts, getAreasList, getLocalities, getSubLocalities, lookupSubLocality,
-} from '../data/areaMappingStore'
-import { saveFeasibilityRequest } from '../data/feasibilityStore'
+  ArrowLeft, X, AlertTriangle, ChevronDown, Calendar,
+  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2,
+  ChevronLeft, ChevronRight, Check,
+} from 'lucide-react'
+import Button from '../components/ui/Button'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
+import StepProgress from '../components/customer-type/StepProgress'
+import ConnectionTypeStep, { EMPTY_CONNECTION_TYPE, isConnectionTypeValid } from '../components/customer-type/ConnectionTypeStep'
+import AddressSectionStep, { EMPTY_ADDRESS_SECTION, isAddressSectionValid, isPackageStepBlocked } from '../components/customer-type/AddressSectionStep'
+import PackageSelectionStep from '../components/customer-type/PackageSelectionStep'
+import { getCustomerTypes } from '../data/customerTypes'
+import { getFieldConfig, subscribeFieldConfig } from '../data/fieldConfigStore'
+import { getServiceTagsForType } from '../data/serviceTags'
+import { getLeads, saveLead, nextSalesLeadId } from '../data/leadsStore'
+import { getFeasibilityRequests, subscribeFeasibility } from '../data/feasibilityStore'
 import { saveFollowup } from '../data/followupStore'
-import { getLeads, saveLead } from '../data/leadsStore'
-import { getPipelines, subscribePipelines } from '../data/pipelineStore'
-import { getFormModules } from '../data/customFormStore'
-import { getStageFields, getStageMeta, subscribeStageFields } from '../data/stageFieldsStore'
-import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
+import { getPlans } from '../data/packagesStore'
+import { GSTIN_REGEX } from '../data/companyEntities'
+import { lookupGstin } from '../data/gstLookup'
 
-// ── Shared constants (mirrors Sales.jsx) ────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// This page used to be a single long form covering Residential/Enterprise/
+// Custom pipeline leads generically (Pipeline Builder-driven Stage Fields,
+// an area-mapping "unmapped sub-locality → feasibility required" auto-trigger,
+// a Zone picker, etc). It's been restructured into the Resident/Corporate
+// Customer Type wizard (FR-6/FR-7), reusing the exact step components,
+// validation and GST auto-fetch logic originally built for the (now unrouted)
+// CustomerNewResident.jsx / CustomerNewCorporate.jsx.
+//
+// TODO(BA/PM confirmation needed) — things dropped or changed in this pass,
+// not explicitly addressed by the restructure request:
+//  - "Zone" (custType-driven Cityline/Partner → Zone list) has no equivalent
+//    in FR-6/FR-7's field list. Dropped rather than kept as a parallel,
+//    undocumented field — Address Section's cascading
+//    State→District→Area→Locality→Sub-Locality hierarchy plus each form's
+//    "Branch" field appear to cover the same ground.
+//  - "Customer Service Type" (Residential/Enterprise) and the "Custom"
+//    pipeline + its Pipeline-Builder-driven Stage Fields are no longer
+//    reachable from this page — Customer Type (Resident/Corporate) now
+//    determines the pipeline (B2C/Enterprise) directly. There is currently no
+//    page for creating a "Custom"-pipeline lead.
+//  - The old auto-detect (Site Type/Branch Code from a mapped sub-locality)
+//    and its "sub-locality not in mapping → Feasibility Required" auto-trigger
+//    are replaced by AddressSectionStep's manual Feasibility toggle — feasibility
+//    is now admin-opted-in rather than automatically inferred from area mapping.
+// ────────────────────────────────────────────────────────────────────────────
 
-const PIPELINES = {
-  B2C: {
-    label: 'Residential', labelFull: 'Residential',
-    stages: ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost'],
-  },
-  Custom: {
-    label: 'Custom', labelFull: 'Custom Pipeline',
-    stages: ['New Inquiry', 'Contacted', 'Quotation', 'Won', 'Lost'],
-  },
-  Enterprise: {
-    label: 'Enterprise', labelFull: 'Enterprise Pipeline',
-    stages: ['New Inquiry Filed', 'Discussion', 'Follow-up', 'Proposal', 'Won', 'Lost'],
-  },
-}
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const STAFF = [
   { name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'   },
@@ -38,52 +56,69 @@ const STAFF = [
   { name: 'Suresh Babu',  initials: 'SB', color: 'bg-emerald-500'  },
   { name: 'Anita Sharma', initials: 'AS', color: 'bg-brand-orange' },
 ]
+const NOTIFY_USERS = STAFF.map(s => s.name)
+const ASSIGNEES = STAFF.map(s => s.name) // Corporate "Assigned To/Sales Executive"
 
-const SOURCES         = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
-const PLANS           = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
-const CONNECTION_TYPES = ['FTTH', 'Sector', 'Village']
-const BRANCHES        = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
-const NOTIFY_USERS    = STAFF.map(s => s.name)
+const BRANCHES = ['CNPL-001', 'CNPL-002', 'CNPL-WHI-01', 'CNPL-MAR-01', 'CNPL-IND-01', 'CNPL-NOI-01']
+const LEAD_SOURCES = ['Referral', 'Walk-in', 'Website', 'Field Survey', 'Campaign'] // FR-6
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_REGEX = /^\d{10}$/
+const COLOR_PALETTE = ['bg-brand-blue', 'bg-purple-500', 'bg-emerald-500', 'bg-brand-orange', 'bg-teal-500', 'bg-pink-500']
 
-const INIT_FORM = {
-  custServiceType: 'Residential',
-  custType: 'Cityline',
-  zone: '',
-  pipeline: 'B2C',
-  startingStage: PIPELINES.B2C.stages[0],
-  leadName: '',
-  name: '', phone: '', alternatePhone: '', email: '',
-  addressLine: '', pincode: '',
-  state: '', district: '', area: '', locality: '', subLocality: '',
-  source: '', plan: '', assigned: '',
-  notes: '',
-  // Follow-up
-  followUpEnabled: false,
-  followUp: '',
-  followUpTime: '',
-  followUpNotes: '',
-  followUpNotify: [],
-  kycDocs: {},
-  // Feasibility
-  feasibilityRequired: false,
-  feasibilityLocalityName: '', feasibilitySubLocalityName: '',
-  feasibilityAddress: '', feasibilityLandmark: '',
-  feasibilityRequirement: '', feasibilityRemarks: '',
-  feasibilityConnectionType: 'FTTH', feasibilityBranch: '',
-  // Enterprise
-  companyName: '', gstRegistered: false, gstNumber: '', companyAddress: '',
+// TODO: exact Branch → Sales Executive mapping isn't specified in the PRD
+// (FR-6's note only says "filtered by selected Branch") — this mock mapping
+// is a placeholder; confirm the real assignment rule with the BA.
+const SALES_EXECUTIVES_BY_BRANCH = {
+  'CNPL-001':    ['Arjun Kumar', 'Preethi Nair'],
+  'CNPL-002':    ['Suresh Babu', 'Anita Sharma'],
+  'CNPL-WHI-01': ['Arjun Kumar', 'Suresh Babu'],
+  'CNPL-MAR-01': ['Preethi Nair', 'Anita Sharma'],
+  'CNPL-IND-01': ['Arjun Kumar', 'Anita Sharma'],
+  'CNPL-NOI-01': ['Suresh Babu', 'Preethi Nair'],
 }
 
-const ZONES_BY_CUST_TYPE = {
-  Cityline: ['Andheri West', 'Versova', 'Goregaon', 'MIDC Andheri'],
-  Partner:  ['Bandra East'],
+const RESIDENT_STEPS = [
+  { id: 1, label: 'Basic Details',   icon: User },
+  { id: 2, label: 'Connection Type', icon: Link2 },
+  { id: 3, label: 'Address',         icon: MapPin },
+  { id: 4, label: 'Package',         icon: Package },
+]
+const CORPORATE_STEPS = [
+  { id: 1, label: 'Company/GST',     icon: Building2 },
+  { id: 2, label: 'Contacts',        icon: Users },
+  { id: 3, label: 'Connection Type', icon: Link2 },
+  { id: 4, label: 'Address',         icon: MapPin },
+  { id: 5, label: 'Package',         icon: Package },
+]
+
+function initialsOf(name) {
+  return (name || '??').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+function colorFor(name) {
+  const idx = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % COLOR_PALETTE.length
+  return COLOR_PALETTE[idx] || COLOR_PALETTE[0]
 }
 
-const CUST_SERVICE_TO_PIPELINE = { Residential: 'B2C', Enterprise: 'Enterprise' }
-const PIPELINE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
+const EMPTY_RESIDENT_FORM = {
+  branch: '', firstName: '', lastName: '', primaryNumber: '', alternativeNumber: '', email: '',
+  serviceTags: [], salesExecutive: '', leadSource: '',
+  connectionType: { ...EMPTY_CONNECTION_TYPE },
+  address: { ...EMPTY_ADDRESS_SECTION },
+  package: null,
+}
+const EMPTY_CORPORATE_FORM = {
+  branch: '', gstNumber: '', gstType: '', pan: '', legalName: '',
+  contactPersonName: '', contactPersonEmail: '', primaryNumber: '',
+  accountsEmail: '', accountsName: '', accountsPhone: '',
+  technicalEmail: '', technicalName: '', technicalPhone: '',
+  connectionType: { ...EMPTY_CONNECTION_TYPE },
+  serviceTags: [], assignedTo: '',
+  address: { ...EMPTY_ADDRESS_SECTION },
+  package: null,
+}
+const EMPTY_FOLLOWUP = { enabled: false, date: '', time: '', notes: '', notify: [] }
 
-
-// ── Duplicate Warning Banner ──────────────────────────────────────────────────
+// ── Duplicate Warning Banner (kept from the previous single-page form) ──────
 
 function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
   const PIPELINE_LABEL = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
@@ -100,25 +135,16 @@ function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={onView}
-          className="px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-        >
+        <button type="button" onClick={onView}
+          className="px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors">
           View Existing Lead
         </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          className="px-3 py-1.5 text-xs font-semibold border border-amber-400 text-amber-700 bg-white rounded-lg hover:bg-amber-100 transition-colors"
-        >
+        <button type="button" onClick={onContinue}
+          className="px-3 py-1.5 text-xs font-semibold border border-amber-400 text-amber-700 bg-white rounded-lg hover:bg-amber-100 transition-colors">
           Continue Anyway
         </button>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-amber-500 hover:bg-amber-100 transition-colors"
-        >
+        <button type="button" onClick={onDismiss}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-amber-500 hover:bg-amber-100 transition-colors">
           <X size={14} />
         </button>
       </div>
@@ -126,7 +152,7 @@ function DuplicateBanner({ lead, fieldLabel, onView, onContinue, onDismiss }) {
   )
 }
 
-// ── Multi-Select Dropdown ─────────────────────────────────────────────────────
+// ── Multi-Select Dropdown (kept, used by Follow-up "Notify Users") ─────────
 
 function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Select…' }) {
   const [open, setOpen] = useState(false)
@@ -152,11 +178,8 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition-colors"
-      >
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue transition-colors">
         <span className={value.length === 0 ? 'text-gray-400' : 'text-gray-800'}>
           {displayText ?? placeholder}
         </span>
@@ -166,12 +189,8 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
         <div className="absolute top-full mt-1 left-0 right-0 z-20 bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden">
           {options.map(option => (
             <label key={option} className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={value.includes(option)}
-                onChange={() => toggle(option)}
-                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-              />
+              <input type="checkbox" checked={value.includes(option)} onChange={() => toggle(option)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
               <span className="text-sm text-gray-700">{option}</span>
             </label>
           ))}
@@ -181,225 +200,335 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page ────────────────────────────────────────────────────────────────────
 
 export default function SalesNewLead() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [form, setForm]             = useState({
-    ...INIT_FORM,
-    feasibilityRequired: searchParams.get('feasibility') === 'true',
-  })
-  const [errors, setErrors]         = useState({})
-  const [submitted, setSubmitted]   = useState(false)
-  const [pipelines, setPipelines]   = useState(getPipelines)
-  const [stageFieldVals, setStageFieldVals] = useState({})
-  const [stageErrors, setStageErrors]       = useState({})
-  const [, setSfTick]               = useState(0)
-  const [phoneDup, setPhoneDup]         = useState(null)
-  const [altPhoneDup, setAltPhoneDup]   = useState(null)
+  const [leadId] = useState(() => nextSalesLeadId())
+
+  const customerTypes = useMemo(() => getCustomerTypes().filter(t => t.status === 'Active'), [])
+  const [customerType, setCustomerType] = useState(() => customerTypes[0]?.id ?? 'resident')
+  const isCorporate = customerType === 'corporate'
+  const STEPS = isCorporate ? CORPORATE_STEPS : RESIDENT_STEPS
+  const maxStep = STEPS.length
+
+  const [rForm, setRForm] = useState(EMPTY_RESIDENT_FORM)
+  const [cForm, setCForm] = useState(EMPTY_CORPORATE_FORM)
+  const [followUp, setFollowUp] = useState(EMPTY_FOLLOWUP)
+  const [attempted, setAttempted] = useState(false)
+
+  function handleCustomerTypeChange(next) {
+    setCustomerType(next)
+    setAttempted(false)
+    setSearchParams({ step: '1' })
+  }
+
+  // ── Field Configuration (live, both types kept warm) ──────────────────────
+  const [residentFieldConfig, setResidentFieldConfig] = useState(() =>
+    Object.fromEntries(getFieldConfig('resident').map(f => [f.fieldName, f])))
+  const [corporateFieldConfig, setCorporateFieldConfig] = useState(() =>
+    Object.fromEntries(getFieldConfig('corporate').map(f => [f.fieldName, f])))
+  useEffect(() => subscribeFieldConfig(() => {
+    setResidentFieldConfig(Object.fromEntries(getFieldConfig('resident').map(f => [f.fieldName, f])))
+    setCorporateFieldConfig(Object.fromEntries(getFieldConfig('corporate').map(f => [f.fieldName, f])))
+  }), [])
+  const fieldConfig = isCorporate ? corporateFieldConfig : residentFieldConfig
+  function req(fieldName) { return fieldConfig[fieldName]?.mandatory !== false }
+
+  // ── Feasibility (shared leadId across both forms) ─────────────────────────
+  const [feasibilityRecord, setFeasibilityRecord] = useState(() =>
+    getFeasibilityRequests().find(r => r.leadId === leadId) ?? null)
+  useEffect(() => subscribeFeasibility(() => {
+    setFeasibilityRecord(getFeasibilityRequests().find(r => r.leadId === leadId) ?? null)
+  }), [leadId])
+
+  // ── Active Service Tags ────────────────────────────────────────────────────
+  const residentTags = useMemo(() => getServiceTagsForType('resident').filter(t => t.status === 'Active'), [])
+  const corporateTags = useMemo(() => getServiceTagsForType('corporate').filter(t => t.status === 'Active'), [])
+  const activeTags = isCorporate ? corporateTags : residentTags
+
+  // ── Duplicate phone detection (kept) ──────────────────────────────────────
+  const [phoneDup, setPhoneDup]   = useState(null)
+  const [altPhoneDup, setAltPhoneDup] = useState(null)
   const [phoneContinued, setPhoneContinued]       = useState(false)
   const [altPhoneContinued, setAltPhoneContinued] = useState(false)
-
-  useEffect(() => subscribePipelines(setPipelines), [])
-  useEffect(() => subscribeStageFields(() => setSfTick(n => n + 1)), [])
-
-  function set(f, v) {
-    if (f === 'custServiceType') {
-      const key = CUST_SERVICE_TO_PIPELINE[v] ?? 'B2C'
-      setForm(p => ({ ...p, [f]: v, pipeline: key, startingStage: PIPELINES[key].stages[0] }))
-      setStageFieldVals({})
-      setStageErrors({})
-      return
-    }
-    if (f === 'custType') {
-      setForm(p => ({ ...p, [f]: v, zone: '' }))
-      return
-    }
-    setForm(p => ({ ...p, [f]: v }))
-    if (f === 'pipeline') { setStageFieldVals({}); setStageErrors({}) }
-  }
 
   function findDuplicate(phoneNum) {
     if (!phoneNum || phoneNum.length !== 10) return null
     return getLeads().find(l => l.phone === phoneNum || l.alternateMobile === phoneNum) ?? null
   }
-
-  function handlePhoneBlur() {
-    if (form.phone.length === 10) {
-      setPhoneDup(findDuplicate(form.phone))
-      setPhoneContinued(false)
-    }
+  function handlePhoneBlur(phone) {
+    if (phone.length === 10) { setPhoneDup(findDuplicate(phone)); setPhoneContinued(false) }
+  }
+  function handleAltPhoneBlur(phone) {
+    if (phone.length === 10) { setAltPhoneDup(findDuplicate(phone)); setAltPhoneContinued(false) }
   }
 
-  function handleAltPhoneBlur() {
-    if (form.alternatePhone.length === 10) {
-      setAltPhoneDup(findDuplicate(form.alternatePhone))
-      setAltPhoneContinued(false)
-    }
-  }
+  // ── GST auto-fetch (Corporate only) — UI Checklist #7, AC-2/AC-4 ─────────
+  const [gstStatus, setGstStatus] = useState('idle') // idle | loading | success | error
+  const [gstError, setGstError]   = useState('')
+  const [duplicateGstWarning, setDuplicateGstWarning] = useState(null) // { lead, overrideReason } | null
+  const [panError, setPanError]   = useState('')
 
-  const PIPELINE_STORE_IDS = { B2C: 'PL-001', Enterprise: 'PL-003' }
-  const activePipelineKeys = Object.keys(PIPELINES).filter(key => {
-    const pid = PIPELINE_STORE_IDS[key]
-    if (!pid) return true
-    const p = pipelines.find(pl => pl.id === pid)
-    return !p || p.active !== false
-  })
-
-  const pl = PIPELINES[form.pipeline]
-  const activePipeline = pipelines.find(p => p.id === (PIPELINE_MAP[form.pipeline] ?? ''))
-  const selectedStageName = form.startingStage || pl.stages[0]
-  const firstStage = activePipeline?.stages.find(s => s.name === selectedStageName)
-    ?? activePipeline?.stages[0]
-  const firstStageFields = firstStage
-    ? getStageFields(firstStage.id).filter(f => f.active !== false)
-    : []
-  const visibleStageFields = firstStageFields.filter(f =>
-    !f.conditionalOn || stageFieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value
-  )
-
-  function validate() {
-    const e = {}
-    if (!form.zone)                    e.zone     = 'Zone is required'
-    if (!form.leadName.trim())         e.leadName = 'Lead name is required'
-    if (!form.name.trim())             e.name     = form.pipeline === 'Enterprise' ? 'Contact person is required' : 'Full name is required'
-    if (!form.phone.match(/^\d{10}$/)) e.phone    = 'Enter a valid 10-digit number'
-    if (form.alternatePhone && !form.alternatePhone.match(/^\d{10}$/))
-                                       e.alternatePhone = 'Enter a valid 10-digit number'
-    if (form.pincode && !form.pincode.match(/^\d{6}$/))
-                                       e.pincode = 'Enter a valid 6-digit pincode'
-    if (form.pipeline === 'Enterprise') {
-      if (!form.companyName.trim())    e.companyName = 'Company name is required'
-      if (!form.source)                e.source      = 'Lead source is required'
-      if (form.gstRegistered) {
-        if (!form.gstNumber.trim())    e.gstNumber      = 'GST number is required'
-        if (!form.companyAddress.trim()) e.companyAddress = 'Company address is required'
+  useEffect(() => {
+    let cancelled = false
+    if (cForm.gstNumber.length !== 15) { setGstStatus('idle'); return }
+    setGstStatus('loading')
+    lookupGstin(cForm.gstNumber).then(result => {
+      if (cancelled) return
+      if (!result.success) {
+        setGstStatus('error')
+        setGstError(result.error)
+        return
       }
-    }
-
-    if (form.followUpEnabled) {
-      if (!form.followUp)     e.followUp     = 'Follow-up date is required'
-      if (!form.followUpTime) e.followUpTime = 'Follow-up time is required'
-      if (form.followUp && form.followUpTime) {
-        const dt = new Date(`${form.followUp}T${form.followUpTime}`)
-        if (dt <= new Date()) e.followUp = 'Date and time cannot be in the past'
-      }
-    }
-
-    const se = {}
-    visibleStageFields.filter(f => f.required).forEach(f => {
-      if (!isFieldFilled(f, stageFieldVals[f.id])) se[f.id] = `${f.label} is required`
+      setGstStatus('success')
+      setCForm(f => ({ ...f, gstType: result.data.gstType, pan: result.data.pan, legalName: result.data.legalName }))
+      const match = getLeads().find(l =>
+        l.pipeline === 'Enterprise' && l.gstNumber && l.gstNumber.toUpperCase() === cForm.gstNumber && l.stage !== 'Lost')
+      setDuplicateGstWarning(match ? { lead: match, overrideReason: '' } : null) // BR-3
     })
-    setStageErrors(se)
-    return { ...e, ...se }
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cForm.gstNumber])
+
+  useEffect(() => {
+    if (cForm.pan && cForm.gstNumber.length === 15) {
+      const expected = cForm.gstNumber.slice(2, 12)
+      setPanError(cForm.pan.toUpperCase() !== expected ? 'PAN does not match characters 3–12 of the GSTIN (BR-4).' : '')
+    } else {
+      setPanError('')
+    }
+  }, [cForm.pan, cForm.gstNumber])
+
+  // ── Step param ─────────────────────────────────────────────────────────────
+  const stepParam = Number(searchParams.get('step'))
+  const step = STEPS.some(s => s.id === stepParam) ? stepParam : 1
+
+  function setR(k, v) { setRForm(f => ({ ...f, [k]: v })) }
+  function setC(k, v) { setCForm(f => ({ ...f, [k]: v })) }
+
+  // ── Validation — Resident (FR-6) ───────────────────────────────────────────
+  function isRStep1Valid() {
+    if (req('Branch') && !rForm.branch) return false
+    if (req('First Name') && !rForm.firstName.trim()) return false
+    if (req('Last Name') && !rForm.lastName.trim()) return false
+    if (!PHONE_REGEX.test(rForm.primaryNumber)) return false // BR-5, locked
+    if (rForm.alternativeNumber && !PHONE_REGEX.test(rForm.alternativeNumber)) return false
+    if (req('Alternative Number') && !rForm.alternativeNumber) return false
+    if (rForm.email && !EMAIL_REGEX.test(rForm.email)) return false // BR-6
+    if (req('Email') && !rForm.email) return false
+    if (req('Service Tag') && rForm.serviceTags.length === 0) return false
+    if (req('Sales Executive') && !rForm.salesExecutive) return false
+    if (req('Lead Source') && !rForm.leadSource) return false
+    return true
+  }
+  function isRStep2Valid() { return isConnectionTypeValid(rForm.connectionType) }
+  function isRStep3Valid() { return !req('Address Section') || isAddressSectionValid(rForm.address) }
+  const rPackageBlocked = isPackageStepBlocked(rForm.address, feasibilityRecord)
+  function isRStep4Valid() { return !rPackageBlocked && (!req('Package Selection') || !!rForm.package) }
+  const rStepValid = { 1: isRStep1Valid(), 2: isRStep2Valid(), 3: isRStep3Valid(), 4: isRStep4Valid() }
+
+  // ── Validation — Corporate (FR-7) ──────────────────────────────────────────
+  function isCStep1Valid() {
+    if (req('Branch') && !cForm.branch) return false
+    if (req('GST Number') && !GSTIN_REGEX.test(cForm.gstNumber)) return false
+    if (cForm.gstNumber && gstStatus === 'error') return false
+    if (panError) return false
+    if (req('GST Type') && !cForm.gstType) return false
+    if (req('PAN') && !cForm.pan) return false
+    if (req('Legal Company Name') && !cForm.legalName.trim()) return false
+    return true
+  }
+  function isCStep2Valid() {
+    if (req('Contact Person Name') && !cForm.contactPersonName.trim()) return false
+    if (cForm.contactPersonEmail && !EMAIL_REGEX.test(cForm.contactPersonEmail)) return false
+    if (req('Contact Person Email') && !cForm.contactPersonEmail) return false
+    if (!PHONE_REGEX.test(cForm.primaryNumber)) return false // locked, BR-5
+    if (cForm.accountsEmail && !EMAIL_REGEX.test(cForm.accountsEmail)) return false
+    if (req('Accounts Email') && !cForm.accountsEmail) return false
+    if (req('Accounts Name') && !cForm.accountsName.trim()) return false
+    if (cForm.accountsPhone && !PHONE_REGEX.test(cForm.accountsPhone)) return false
+    if (req('Accounts Phone') && !cForm.accountsPhone) return false
+    if (cForm.technicalEmail && !EMAIL_REGEX.test(cForm.technicalEmail)) return false
+    if (req('Technical Email') && !cForm.technicalEmail) return false
+    if (req('Technical Name') && !cForm.technicalName.trim()) return false
+    if (cForm.technicalPhone && !PHONE_REGEX.test(cForm.technicalPhone)) return false
+    if (req('Technical Phone') && !cForm.technicalPhone) return false
+    return true
+  }
+  function isCStep3Valid() {
+    if (!isConnectionTypeValid(cForm.connectionType)) return false // locked, BR-7/BR-8
+    if (req('Service Tag') && cForm.serviceTags.length === 0) return false
+    if (req('Assigned To/Sales Executive') && !cForm.assignedTo) return false
+    return true
+  }
+  function isCStep4Valid() { return !req('Address Section') || isAddressSectionValid(cForm.address) }
+  const cPackageBlocked = isPackageStepBlocked(cForm.address, feasibilityRecord)
+  function isCStep5Valid() { return !cPackageBlocked && (!req('Package Selection') || !!cForm.package) }
+  const cStepValid = { 1: isCStep1Valid(), 2: isCStep2Valid(), 3: isCStep3Valid(), 4: isCStep4Valid(), 5: isCStep5Valid() }
+
+  const stepValid = isCorporate ? cStepValid : rStepValid
+
+  function isReachable(id) {
+    if (id === 1) return true
+    for (let i = 1; i < id; i++) if (!stepValid[i]) return false
+    return true
+  }
+  function goTo(id) { setAttempted(false); setSearchParams({ step: String(id) }) }
+  function goNext() {
+    if (!stepValid[step]) { setAttempted(true); return }
+    setAttempted(false)
+    setSearchParams({ step: String(Math.min(step + 1, maxStep)) })
+  }
+  function goBack() { setAttempted(false); setSearchParams({ step: String(Math.max(step - 1, 1)) }) }
+
+  // ── Follow-up (kept, orthogonal to Customer Type) ─────────────────────────
+  function isFollowUpValid() {
+    if (!followUp.enabled) return true
+    if (!followUp.date || !followUp.time) return false
+    return new Date(`${followUp.date}T${followUp.time}`) > new Date()
+  }
+  function submitFollowUp(leadName, phone, assignedTo, stage, pipelineLabel) {
+    if (followUp.enabled && followUp.date) {
+      saveFollowup({
+        id: `FU-${Date.now()}`, leadId, leadName, customer: leadName, pipeline: pipelineLabel,
+        phone, date: followUp.date, time: followUp.time, note: followUp.notes,
+        stage, assignedTo: assignedTo || '', notifyTo: followUp.notify, priority: 'medium', status: 'Pending',
+      })
+    }
   }
 
-  const states      = getStates()
-  const districts   = form.state ? getDistricts(form.state) : []
-  const areas       = form.state && form.district ? getAreasList(form.state, form.district) : []
-  const localities  = form.state && form.district && form.area
-    ? getLocalities(form.state, form.district, form.area) : []
-  const subLocalities = form.state && form.district && form.area && form.locality
-    ? getSubLocalities(form.state, form.district, form.area, form.locality)
-    : []
+  const hasDuplicate = (phoneDup && phoneContinued) || (altPhoneDup && altPhoneContinued)
+  function activityLogForDuplicate() {
+    return hasDuplicate
+      ? [{ id: Date.now(), icon: '⚠️', text: 'Created despite duplicate mobile number warning', user: 'Admin User', time: 'just now' }]
+      : []
+  }
 
-  const showFollowUp = getFormModules()[form.pipeline]?.includeFollowUp !== false
-
-  const isOther = form.subLocality === '__other__'
-  const mappedSubLocality = form.subLocality && !isOther
-    ? lookupSubLocality(form.state, form.district, form.area, form.locality, form.subLocality)
-    : null
-
-  // Fix 1: show auto-detected fields when a mapped sub locality is selected
-  const showAutoDetect = !!form.subLocality && !isOther
-
-  // Fix 2: show feasibility banner when sub locality is not in mapping
-  const showFeasibilityBanner = isOther
-
-  const submitBlocked = showFeasibilityBanner && !form.feasibilityRequired
-
-  function handleCreate() {
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
-    const hasDuplicate = (phoneDup && phoneContinued) || (altPhoneDup && altPhoneContinued)
-
-    const leadId = `LD-${Date.now()}`
-
-    if (form.feasibilityRequired && isOther) {
-      saveFeasibilityRequest({
-        leadId,
-        customerName: form.name,
-        phone: form.phone,
-        area: form.area,
-        localityName: form.feasibilityLocalityName || form.locality,
-        subLocalityName: form.feasibilitySubLocalityName || form.subLocality,
-        connectionType: form.feasibilityConnectionType,
-        assignedBranch: form.feasibilityBranch,
-        feasibilityStatus: 'Pending',
-      })
-    }
-
-    if (form.followUpEnabled && form.followUp) {
-      saveFollowup({
-        id: `FU-${Date.now()}`,
-        leadId,
-        leadName: form.leadName || form.name,
-        customer: form.name,
-        pipeline: { B2C: 'Residential', Enterprise: 'Enterprise' }[form.pipeline] ?? 'Custom',
-        phone: form.phone,
-        date: form.followUp,
-        time: form.followUpTime,
-        note: form.followUpNotes,
-        stage: selectedStageName,
-        assignedTo: form.assigned || '',
-        notifyTo: form.followUpNotify,
-        priority: 'medium',
-        status: 'Pending',
-      })
-    }
-
-    const staff = STAFF.find(s => s.name === form.assigned)
+  function submitResident() {
     const today = new Date().toISOString().slice(0, 10)
+    const tagNames = residentTags.filter(t => rForm.serviceTags.includes(t.id)).map(t => t.name)
+    const planName = getPlans().find(p => p.id === rForm.package?.packageId)?.name || ''
+    const name = `${rForm.firstName} ${rForm.lastName}`.trim()
+
     const newLead = {
-      ...form,
-      id:               leadId,
-      alternateMobile:  form.alternatePhone,
-      ...(form.pipeline === 'Enterprise' ? { contactPerson: form.name } : {}),
-      stage:            selectedStageName,
-      daysInStage:      0,
-      lastActivity:     'Lead created',
-      createdAt:        today,
-      createdBy:        'Admin User',
-      assignedInitials: staff?.initials ?? '??',
-      assignedColor:    staff?.color ?? 'bg-gray-400',
-      priority:         'medium',
-      ekycStatus:       null,
-      hwAssigned:       null,
-      stageHistory: [{
-        stage:   selectedStageName,
-        date:    today,
-        movedBy: 'Admin User',
-        fields:  Object.keys(stageFieldVals).length > 0 ? stageFieldVals : {},
-      }],
-      activityLog: hasDuplicate ? [{
-        id:   Date.now(),
-        icon: '⚠️',
-        text: 'Created despite duplicate mobile number warning',
-        user: 'Admin User',
-        time: 'just now',
-      }] : [],
+      id: leadId,
+      customerType: 'Resident',
+      pipeline: 'B2C',
+      stage: 'New Inquiry',
+      name,
+      phone: rForm.primaryNumber,
+      alternateMobile: rForm.alternativeNumber,
+      email: rForm.email,
+      branchCode: rForm.branch,
+      serviceTags: tagNames,
+      source: rForm.leadSource,
+      assigned: rForm.salesExecutive,
+      assignedInitials: initialsOf(rForm.salesExecutive),
+      assignedColor: colorFor(rForm.salesExecutive),
+      daysInStage: 0,
+      lastActivity: 'Lead created',
+      followUp: followUp.enabled ? followUp.date : '',
+      priority: 'medium',
+      ekycStatus: null,
+      hwAssigned: null,
+      createdAt: today,
+      createdBy: 'Admin User',
+      connectionType: rForm.connectionType.connectionType,
+      entityId: rForm.connectionType.connectionType === 'Own' ? rForm.connectionType.entityId : null,
+      partnerId: rForm.connectionType.connectionType === 'Partner' ? rForm.connectionType.partnerId : null,
+      billingTo: rForm.connectionType.connectionType === 'Partner' ? rForm.connectionType.billingTo : null,
+      address: rForm.address,
+      state: rForm.address.billing.state,
+      district: rForm.address.billing.district,
+      area: rForm.address.billing.area,
+      locality: rForm.address.billing.locality,
+      subLocality: rForm.address.billing.subLocality,
+      pincode: rForm.address.billing.pincode,
+      selectedPackage: rForm.package,
+      plan: planName,
+      stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: 'Admin User', fields: {} }],
+      activityLog: activityLogForDuplicate(),
     }
     saveLead(newLead)
+    submitFollowUp(name, rForm.primaryNumber, rForm.salesExecutive, 'New Inquiry', 'Residential')
     navigate(`/sales/leads/${leadId}`)
   }
+
+  function submitCorporate() {
+    const today = new Date().toISOString().slice(0, 10)
+    const tagNames = corporateTags.filter(t => cForm.serviceTags.includes(t.id)).map(t => t.name)
+    const planName = getPlans().find(p => p.id === cForm.package?.packageId)?.name || ''
+    const billing = cForm.address.billing
+    const companyAddress = [billing.addressLine, billing.locality, billing.area, billing.district, billing.state, billing.pincode]
+      .filter(Boolean).join(', ')
+
+    const newLead = {
+      id: leadId,
+      customerType: 'Corporate',
+      pipeline: 'Enterprise',
+      stage: 'New Inquiry Filed',
+      name: cForm.contactPersonName,
+      companyName: cForm.legalName,
+      contactPerson: cForm.contactPersonName,
+      phone: cForm.primaryNumber,
+      email: cForm.contactPersonEmail,
+      branchCode: cForm.branch,
+      serviceTags: tagNames,
+      assigned: cForm.assignedTo,
+      assignedInitials: initialsOf(cForm.assignedTo),
+      assignedColor: colorFor(cForm.assignedTo),
+      daysInStage: 0,
+      lastActivity: 'Lead created',
+      followUp: followUp.enabled ? followUp.date : '',
+      priority: 'medium',
+      ekycStatus: null,
+      hwAssigned: null,
+      createdAt: today,
+      createdBy: 'Admin User',
+      gstRegistered: true,
+      gstNumber: cForm.gstNumber,
+      gstType: cForm.gstType,
+      pan: cForm.pan,
+      gstOverrideReason: duplicateGstWarning ? duplicateGstWarning.overrideReason : '',
+      companyAddress,
+      accountsContact: { email: cForm.accountsEmail, name: cForm.accountsName, phone: cForm.accountsPhone },
+      technicalContact: { email: cForm.technicalEmail, name: cForm.technicalName, phone: cForm.technicalPhone },
+      connectionType: cForm.connectionType.connectionType,
+      entityId: cForm.connectionType.connectionType === 'Own' ? cForm.connectionType.entityId : null,
+      partnerId: cForm.connectionType.connectionType === 'Partner' ? cForm.connectionType.partnerId : null,
+      billingTo: cForm.connectionType.connectionType === 'Partner' ? cForm.connectionType.billingTo : null,
+      address: cForm.address,
+      state: billing.state,
+      district: billing.district,
+      area: billing.area,
+      locality: billing.locality,
+      subLocality: billing.subLocality,
+      pincode: billing.pincode,
+      selectedPackage: cForm.package,
+      plan: planName,
+      stageHistory: [{ stage: 'New Inquiry Filed', date: today, movedBy: 'Admin User', fields: {} }],
+      activityLog: activityLogForDuplicate(),
+    }
+    saveLead(newLead)
+    submitFollowUp(cForm.legalName || cForm.contactPersonName, cForm.primaryNumber, cForm.assignedTo, 'New Inquiry Filed', 'Enterprise')
+    navigate(`/sales/leads/${leadId}`)
+  }
+
+  function handleSubmit() {
+    if (!stepValid[maxStep] || !isFollowUpValid()) { setAttempted(true); return }
+    if (isCorporate) submitCorporate(); else submitResident()
+  }
+
+  const branchExecutives = rForm.branch ? (SALES_EXECUTIVES_BY_BRANCH[rForm.branch] || []) : []
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="px-6 pt-6 pb-5 shrink-0 bg-white border-b border-surface-border">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-5">
           <button
             onClick={() => navigate('/sales')}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
@@ -408,9 +537,10 @@ export default function SalesNewLead() {
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">Create New Lead</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Fill in the details to add a new lead to the pipeline</p>
+            <p className="text-sm text-gray-500 mt-0.5">Fill in the details to add a new lead to the pipeline · Lead ID {leadId}</p>
           </div>
         </div>
+        <StepProgress steps={STEPS} current={step} isReachable={isReachable} onSelect={goTo} />
       </div>
 
       {/* ── Duplicate banners ───────────────────────────────────────────── */}
@@ -434,547 +564,417 @@ export default function SalesNewLead() {
       )}
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto p-6 space-y-5">
 
-        {/* ── Service & Zone card ─────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <p className="text-sm font-bold text-gray-700 mb-4">Service Configuration</p>
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-
-            <FormField label="Customer Service Type" required>
-              <Select value={form.custServiceType} onChange={e => set('custServiceType', e.target.value)}>
-                <option value="Residential">Residential</option>
-                <option value="Enterprise">Enterprise</option>
-              </Select>
-            </FormField>
-
-            <FormField label="Customer Type" required>
-              <Select value={form.custType} onChange={e => set('custType', e.target.value)}>
-                <option value="Cityline">Cityline</option>
-                <option value="Partner">Partner</option>
-              </Select>
-            </FormField>
-
-            <FormField label="Zone" required>
-              <Select value={form.zone} onChange={e => { set('zone', e.target.value); setErrors(p => ({ ...p, zone: '' })) }}
-                className={errors.zone ? 'border-red-400 focus:ring-red-400/30' : ''}>
-                <option value="">Select zone…</option>
-                {(ZONES_BY_CUST_TYPE[form.custType] ?? []).map(z => (
-                  <option key={z} value={z}>{z}</option>
-                ))}
-              </Select>
-              {errors.zone && <p className="text-xs text-red-500 mt-1">{errors.zone}</p>}
-            </FormField>
-
-            <FormField label="Starting Stage">
-              <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
-                <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
-                <span className="text-sm font-medium text-gray-700">New Inquiry</span>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Lead will start at New Inquiry stage</p>
-            </FormField>
-
+          {/* Service Configuration card */}
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <p className="text-sm font-bold text-gray-700 mb-1">Service Configuration</p>
+            <p className="text-xs text-gray-400 mb-4">
+              Customer Type determines which field set below applies (FR-6 for Resident, FR-7 for Corporate).
+            </p>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+              <FormField label="Customer Type" required hint="From Settings > System Configuration > Customer Type (Active only)">
+                <Select value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
+                  {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Starting Stage">
+                <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
+                  <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span>
+                </div>
+              </FormField>
+            </div>
           </div>
-        </div>
 
-        {/* Lead details card */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <p className="text-sm font-bold text-gray-700 mb-4">Lead Details</p>
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-
-            <div className="col-span-2">
-              <FormField label="Lead Name" required>
-                <Input
-                  value={form.leadName}
-                  onChange={e => { set('leadName', e.target.value); setErrors(p => ({ ...p, leadName: '' })) }}
-                  placeholder="e.g. Customer Name — Plan Interest"
-                  className={errors.leadName ? 'border-red-400 focus:ring-red-400/30' : ''}
-                />
-                {errors.leadName && <p className="text-xs text-red-500 mt-1">{errors.leadName}</p>}
-              </FormField>
-            </div>
-
-            {/* Enterprise: Company Name + GST fields */}
-            {form.pipeline === 'Enterprise' && (
-              <>
-                <div className="col-span-2">
-                  <FormField label="Company Name" required>
-                    <Input
-                      value={form.companyName}
-                      onChange={e => { set('companyName', e.target.value); setErrors(p => ({ ...p, companyName: '' })) }}
-                      placeholder="e.g. Acme Technologies Pvt Ltd"
-                      className={errors.companyName ? 'border-red-400 focus:ring-red-400/30' : ''}
-                    />
-                    {errors.companyName && <p className="text-xs text-red-500 mt-1">{errors.companyName}</p>}
-                  </FormField>
-                </div>
-                <div className="col-span-2 flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-surface-border rounded-lg">
-                  <span className="text-sm font-medium text-gray-700">GST Registered <span className="text-red-400">*</span></span>
-                  <button
-                    type="button"
-                    onClick={() => { set('gstRegistered', !form.gstRegistered); setErrors(p => ({ ...p, gstNumber: '', companyAddress: '' })) }}
-                    className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${form.gstRegistered ? 'bg-brand-blue' : 'bg-gray-200'}`}
-                  >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${form.gstRegistered ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-                {form.gstRegistered && (
-                  <>
-                    <FormField label="GST Number" required>
-                      <Input
-                        value={form.gstNumber}
-                        onChange={e => { set('gstNumber', e.target.value.toUpperCase()); setErrors(p => ({ ...p, gstNumber: '' })) }}
-                        placeholder="e.g. 29AABCT1332L1ZB"
-                        className={`font-mono ${errors.gstNumber ? 'border-red-400 focus:ring-red-400/30' : ''}`}
-                      />
-                      {errors.gstNumber && <p className="text-xs text-red-500 mt-1">{errors.gstNumber}</p>}
-                    </FormField>
-                    <div className="col-span-2">
-                      <FormField label="Company Address" required>
-                        <Textarea
-                          value={form.companyAddress}
-                          onChange={e => { set('companyAddress', e.target.value); setErrors(p => ({ ...p, companyAddress: '' })) }}
-                          placeholder="Registered company address"
-                          rows={2}
-                          className={errors.companyAddress ? 'border-red-400 focus:ring-red-400/30' : ''}
-                        />
-                        {errors.companyAddress && <p className="text-xs text-red-500 mt-1">{errors.companyAddress}</p>}
-                      </FormField>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-
-            <FormField label={form.pipeline === 'Enterprise' ? 'Contact Person' : 'Full Name'} required>
-              <Input
-                value={form.name}
-                onChange={e => { set('name', e.target.value); setErrors(p => ({ ...p, name: '' })) }}
-                placeholder={form.pipeline === 'Enterprise' ? 'Primary contact name' : 'Ramesh Nair'}
-                className={errors.name ? 'border-red-400 focus:ring-red-400/30' : ''}
-              />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-            </FormField>
-
-            <FormField label="Phone Number" required>
-              <Input
-                type="tel"
-                value={form.phone}
-                onChange={e => {
-                  set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))
-                  setErrors(p => ({ ...p, phone: '' }))
-                  setPhoneDup(null)
-                  setPhoneContinued(false)
-                }}
-                onBlur={handlePhoneBlur}
-                placeholder="9876543210"
-                className={errors.phone ? 'border-red-400 focus:ring-red-400/30' : phoneDup && !phoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
-              />
-              {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
-            </FormField>
-
-            <FormField label="Alternate Number">
-              <Input
-                type="tel"
-                value={form.alternatePhone}
-                onChange={e => {
-                  set('alternatePhone', e.target.value.replace(/\D/g, '').slice(0, 10))
-                  setErrors(p => ({ ...p, alternatePhone: '' }))
-                  setAltPhoneDup(null)
-                  setAltPhoneContinued(false)
-                }}
-                onBlur={handleAltPhoneBlur}
-                placeholder="9876543210"
-                className={errors.alternatePhone ? 'border-red-400 focus:ring-red-400/30' : altPhoneDup && !altPhoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
-              />
-              {errors.alternatePhone && <p className="text-xs text-red-500 mt-1">{errors.alternatePhone}</p>}
-            </FormField>
-
-            <FormField label="Email Address">
-              <Input type="email" value={form.email}
-                onChange={e => set('email', e.target.value)} placeholder="ramesh@email.com" />
-            </FormField>
-
-            {/* ── Address Section ─────────────────────────────────────────── */}
-
-            <div className="col-span-2">
-              <FormField label="Address Line">
-                <Textarea
-                  value={form.addressLine}
-                  onChange={e => set('addressLine', e.target.value)}
-                  placeholder={"House/Flat no., Street, Building name"}
-                  rows={2}
-                />
-              </FormField>
-            </div>
-
-            <FormField label="Pincode">
-              <Input
-                value={form.pincode}
-                onChange={e => {
-                  set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))
-                  setErrors(p => ({ ...p, pincode: '' }))
-                }}
-                placeholder="e.g. 560076"
-                className={errors.pincode ? 'border-red-400 focus:ring-red-400/30' : ''}
-              />
-              {errors.pincode && <p className="text-xs text-red-500 mt-1">{errors.pincode}</p>}
-            </FormField>
-
-            <FormField label="State">
-              <Select value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value, district: '', area: '', locality: '', subLocality: '', feasibilityRequired: false }))}>
-                <option value="">Select state…</option>
-                {states.map(s => <option key={s}>{s}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="District">
-              <Select value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value, area: '', locality: '', subLocality: '', feasibilityRequired: false }))} disabled={!form.state}>
-                <option value="">Select district…</option>
-                {districts.map(d => <option key={d}>{d}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Area">
-              <Select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value, locality: '', subLocality: '', feasibilityRequired: false }))} disabled={!form.district}>
-                <option value="">Select area…</option>
-                {areas.map(a => <option key={a}>{a}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Locality">
-              <Select value={form.locality} onChange={e => setForm(f => ({ ...f, locality: e.target.value, subLocality: '', feasibilityRequired: false }))} disabled={!form.area}>
-                <option value="">Select locality…</option>
-                {localities.map(l => <option key={l}>{l}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Sub Locality">
-              <Select value={form.subLocality} onChange={e => setForm(f => ({ ...f, subLocality: e.target.value, feasibilityRequired: false }))} disabled={!form.locality}>
-                <option value="">Select sub locality…</option>
-                {subLocalities.map(sl => <option key={sl.subLocality}>{sl.subLocality}</option>)}
-                <option value="__other__">Other (not in list)</option>
-              </Select>
-            </FormField>
-
-            {/* ── Fix 1: Auto-detected Site Type + Branch Code ────────────── */}
-            {showAutoDetect && (
-              <div className="col-span-2 space-y-2">
-                <p className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-                  <MapPin size={11} className="text-brand-blue" />
-                  Auto-detected from area mapping
-                </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Site Type">
-                    <Input
-                      value={mappedSubLocality?.siteType ?? 'Not mapped'}
-                      disabled
-                      readOnly
-                      className="bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200"
-                    />
-                  </FormField>
-                  <FormField label="Branch Code">
-                    <Input
-                      value={mappedSubLocality?.branchCode ?? 'Not mapped'}
-                      disabled
-                      readOnly
-                      className="bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200 font-mono"
-                    />
-                  </FormField>
-                </div>
+          {/* Step card */}
+          <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
+            {attempted && !stepValid[step] && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                Please complete all mandatory fields correctly before continuing.
               </div>
             )}
 
-            {/* ── Fix 2: Feasibility Required Banner ──────────────────────── */}
-            {showFeasibilityBanner && (
-              <div className="col-span-2 space-y-3">
-                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
-                  <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-amber-800">This area is not fully mapped.</p>
-                    <p className="text-xs text-amber-700 mt-0.5">Feasibility check is required before creating this lead.</p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer shrink-0 mt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={form.feasibilityRequired}
-                      onChange={e => {
-                        set('feasibilityRequired', e.target.checked)
-                        if (e.target.checked) {
-                          setSearchParams({ feasibility: 'true' })
-                        } else {
-                          setSearchParams({})
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-400/30"
-                    />
-                    <span className="text-sm font-semibold text-amber-800">
-                      Feasibility Required <span className="text-red-500">*</span>
-                    </span>
-                  </label>
+            {/* ── Resident steps ──────────────────────────────────────────── */}
+            {!isCorporate && step === 1 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Branch" required={req('Branch')}>
+                    <Select value={rForm.branch} onChange={e => { setR('branch', e.target.value); setR('salesExecutive', '') }}>
+                      <option value="">Select branch...</option>
+                      {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Sales Executive" required={req('Sales Executive')} hint={!rForm.branch ? 'Select a branch first' : undefined}>
+                    <Select disabled={!rForm.branch} value={rForm.salesExecutive} onChange={e => setR('salesExecutive', e.target.value)}>
+                      <option value="">Select...</option>
+                      {branchExecutives.map(n => <option key={n} value={n}>{n}</option>)}
+                    </Select>
+                  </FormField>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="First Name" required={req('First Name')}>
+                    <Input value={rForm.firstName} onChange={e => setR('firstName', e.target.value)} placeholder="Rajan" />
+                  </FormField>
+                  <FormField label="Last Name" required={req('Last Name')}>
+                    <Input value={rForm.lastName} onChange={e => setR('lastName', e.target.value)} placeholder="Mehta" />
+                  </FormField>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Primary Number" required>
+                    <Input
+                      value={rForm.primaryNumber}
+                      maxLength={10}
+                      placeholder="9876543210"
+                      className={phoneDup && !phoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
+                      onChange={e => { setR('primaryNumber', e.target.value.replace(/\D/g, '')); setPhoneDup(null); setPhoneContinued(false) }}
+                      onBlur={() => handlePhoneBlur(rForm.primaryNumber)}
+                    />
+                  </FormField>
+                  <FormField label="Alternative Number" required={req('Alternative Number')}>
+                    <Input
+                      value={rForm.alternativeNumber}
+                      maxLength={10}
+                      placeholder="9876543211"
+                      className={altPhoneDup && !altPhoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
+                      onChange={e => { setR('alternativeNumber', e.target.value.replace(/\D/g, '')); setAltPhoneDup(null); setAltPhoneContinued(false) }}
+                      onBlur={() => handleAltPhoneBlur(rForm.alternativeNumber)}
+                    />
+                  </FormField>
+                </div>
+                <FormField label="Email" required={req('Email')}>
+                  <Input type="email" value={rForm.email} onChange={e => setR('email', e.target.value)} placeholder="rajan@email.com" />
+                </FormField>
+                <FormField label="Lead Source" required={req('Lead Source')}>
+                  <Select value={rForm.leadSource} onChange={e => setR('leadSource', e.target.value)}>
+                    <option value="">Select...</option>
+                    {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </Select>
+                </FormField>
+                <FormField label="Service Tag" required={req('Service Tag')} hint="Resident-mapped, Active tags only (BR-2)">
+                  <div className="flex flex-wrap gap-2">
+                    {residentTags.map(tag => {
+                      const selected = rForm.serviceTags.includes(tag.id)
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => setR('serviceTags', selected
+                            ? rForm.serviceTags.filter(id => id !== tag.id)
+                            : [...rForm.serviceTags, tag.id])}
+                          className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors
+                            ${selected ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-gray-600 border-surface-border hover:border-brand-blue/40'}`}
+                        >
+                          {tag.name}
+                        </button>
+                      )
+                    })}
+                    {residentTags.length === 0 && <p className="text-xs text-gray-400">No active Resident service tags configured.</p>}
+                  </div>
+                </FormField>
+              </div>
+            )}
 
-                {!form.feasibilityRequired && (
-                  <p className="text-xs text-amber-700 flex items-center gap-1.5">
-                    <AlertTriangle size={11} className="text-amber-500 shrink-0" />
-                    Feasibility check is required for this area. Please mark it as Feasibility Required to proceed.
+            {!isCorporate && step === 2 && (
+              <ConnectionTypeStep value={rForm.connectionType} onChange={v => setR('connectionType', v)} />
+            )}
+
+            {!isCorporate && step === 3 && (
+              <AddressSectionStep
+                value={rForm.address}
+                onChange={v => setR('address', v)}
+                leadId={leadId}
+                customerName={`${rForm.firstName} ${rForm.lastName}`.trim() || 'Unnamed'}
+                phone={rForm.primaryNumber}
+                pipeline="B2C"
+                branch={rForm.branch}
+              />
+            )}
+
+            {!isCorporate && step === 4 && (
+              <PackageSelectionStep
+                customerType="resident"
+                value={rForm.package}
+                onChange={v => setR('package', v)}
+                blocked={rPackageBlocked}
+                feasibilityRecord={feasibilityRecord}
+              />
+            )}
+
+            {/* ── Corporate steps ─────────────────────────────────────────── */}
+            {isCorporate && step === 1 && (
+              <div className="space-y-4">
+                <FormField label="Branch" required={req('Branch')}>
+                  <Select value={cForm.branch} onChange={e => setC('branch', e.target.value)}>
+                    <option value="">Select branch...</option>
+                    {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField
+                  label="GSTIN"
+                  required={req('GST Number')}
+                  error={gstStatus === 'error' ? gstError : undefined}
+                  hint={gstStatus !== 'error' ? '15-character GSTIN — GST Type, PAN and Legal Company Name auto-fill on a valid entry' : undefined}
+                >
+                  <Input
+                    value={cForm.gstNumber}
+                    maxLength={15}
+                    placeholder="27AABCU9603R1ZM"
+                    className="font-mono uppercase"
+                    onChange={e => setC('gstNumber', e.target.value.toUpperCase())}
+                  />
+                </FormField>
+                {gstStatus === 'loading' && (
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5 -mt-2">
+                    <Loader2 size={12} className="animate-spin" /> Fetching GST details...
+                  </p>
+                )}
+                {gstStatus === 'success' && (
+                  <p className="text-xs text-green-600 flex items-center gap-1.5 -mt-2">
+                    <CheckCircle2 size={12} /> GST details fetched — fields below are editable.
                   </p>
                 )}
 
-                {form.feasibilityRequired && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-4">
-                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Feasibility Details</p>
-                    <div className="grid grid-cols-2 gap-4">
-
-                      <FormField label="Enter Locality Name" required>
-                        <Input value={form.feasibilityLocalityName}
-                          onChange={e => set('feasibilityLocalityName', e.target.value)}
-                          placeholder={form.locality || 'Locality name'} />
-                      </FormField>
-
-                      <FormField label="Enter Sub Locality Name">
-                        <Input value={form.feasibilitySubLocalityName}
-                          onChange={e => set('feasibilitySubLocalityName', e.target.value)}
-                          placeholder="Sub locality name" />
-                      </FormField>
-
-                      <div className="col-span-2">
-                        <FormField label="Complete Address" required>
-                          <Textarea value={form.feasibilityAddress}
-                            onChange={e => set('feasibilityAddress', e.target.value)}
-                            placeholder="Full address" rows={2} />
-                        </FormField>
-                      </div>
-
-                      <FormField label="Landmark">
-                        <Input value={form.feasibilityLandmark}
-                          onChange={e => set('feasibilityLandmark', e.target.value)}
-                          placeholder="Nearby landmark" />
-                      </FormField>
-
-                      <FormField label="Expected Connection Type">
-                        <Select value={form.feasibilityConnectionType}
-                          onChange={e => set('feasibilityConnectionType', e.target.value)}>
-                          {CONNECTION_TYPES.map(t => <option key={t}>{t}</option>)}
-                        </Select>
-                      </FormField>
-
-                      <div className="col-span-2">
-                        <FormField label="Customer Requirement">
-                          <Textarea value={form.feasibilityRequirement}
-                            onChange={e => set('feasibilityRequirement', e.target.value)}
-                            placeholder="Describe connectivity needs" rows={2} />
-                        </FormField>
-                      </div>
-
-                      <FormField label="Assigned Branch">
-                        <Select value={form.feasibilityBranch}
-                          onChange={e => set('feasibilityBranch', e.target.value)}>
-                          <option value="">Select branch…</option>
-                          {BRANCHES.map(b => <option key={b}>{b}</option>)}
-                        </Select>
-                      </FormField>
-
-                      <div className="col-span-2">
-                        <FormField label="Remarks">
-                          <Textarea value={form.feasibilityRemarks}
-                            onChange={e => set('feasibilityRemarks', e.target.value)}
-                            placeholder="Any Remarks" rows={2} />
-                        </FormField>
-                      </div>
-
-                      <div className="col-span-2 flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg">
-                        <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
-                        <Badge variant="yellow" size="sm">Pending</Badge>
-                      </div>
-
-                    </div>
+                {duplicateGstWarning && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                    <p className="text-xs text-amber-800 flex items-start gap-1.5">
+                      <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                      This GSTIN is already registered to an active customer
+                      ({duplicateGstWarning.lead.companyName || duplicateGstWarning.lead.name}, {duplicateGstWarning.lead.id}).
+                      BR-3 allows proceeding with an override reason instead of a hard block.
+                    </p>
+                    <Input
+                      placeholder="Override reason (e.g. new branch registration)"
+                      value={duplicateGstWarning.overrideReason}
+                      onChange={e => setDuplicateGstWarning(w => ({ ...w, overrideReason: e.target.value }))}
+                    />
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="GST Type" required={req('GST Type')}>
+                    <Select value={cForm.gstType} onChange={e => setC('gstType', e.target.value)}>
+                      <option value="">Select...</option>
+                      <option value="Regular">Regular</option>
+                      <option value="Composition">Composition</option>
+                    </Select>
+                  </FormField>
+                  <FormField label="PAN" required={req('PAN')} error={panError}>
+                    <Input value={cForm.pan} maxLength={10} className="font-mono uppercase" placeholder="AABCU9603R"
+                      onChange={e => setC('pan', e.target.value.toUpperCase())} />
+                  </FormField>
+                </div>
+                <FormField label="Legal Company Name" required={req('Legal Company Name')}>
+                  <Input value={cForm.legalName} onChange={e => setC('legalName', e.target.value)} placeholder="Acme Technologies Pvt Ltd" />
+                </FormField>
               </div>
             )}
 
-            {/* Lead meta */}
-            <FormField label="Lead Source">
-              <Select value={form.source} onChange={e => set('source', e.target.value)}>
-                <option value="">Select source…</option>
-                {SOURCES.map(s => <option key={s}>{s}</option>)}
-              </Select>
-            </FormField>
+            {isCorporate && step === 2 && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Contact Person Name" required={req('Contact Person Name')}>
+                    <Input value={cForm.contactPersonName} onChange={e => setC('contactPersonName', e.target.value)} placeholder="Sunil Mehta" />
+                  </FormField>
+                  <FormField label="Contact Person Email" required={req('Contact Person Email')}>
+                    <Input type="email" value={cForm.contactPersonEmail} onChange={e => setC('contactPersonEmail', e.target.value)} placeholder="sunil@company.in" />
+                  </FormField>
+                </div>
+                <FormField label="Primary Number" required>
+                  <Input
+                    value={cForm.primaryNumber}
+                    maxLength={10}
+                    placeholder="9812340001"
+                    className={phoneDup && !phoneContinued ? 'border-amber-400 focus:ring-amber-400/30' : ''}
+                    onChange={e => { setC('primaryNumber', e.target.value.replace(/\D/g, '')); setPhoneDup(null); setPhoneContinued(false) }}
+                    onBlur={() => handlePhoneBlur(cForm.primaryNumber)}
+                  />
+                </FormField>
 
-            <FormField label="Interested Plan">
-              <Select value={form.plan} onChange={e => set('plan', e.target.value)}>
-                <option value="">Select plan…</option>
-                {PLANS.map(p => <option key={p}>{p}</option>)}
-              </Select>
-            </FormField>
-
-            <div className="col-span-2">
-              <FormField label="Assigned To">
-                <Select value={form.assigned} onChange={e => set('assigned', e.target.value)}>
-                  <option value="">Select sales rep…</option>
-                  {STAFF.map(s => <option key={s.name}>{s.name}</option>)}
-                </Select>
-              </FormField>
-            </div>
-
-          </div>
-        </div>
-
-        {/* Stage Fields card — dynamic fields for first stage */}
-        {firstStageFields.length > 0 && selectedStageName !== 'New Inquiry' && (
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-sm font-bold text-gray-700">
-                  Fields for{' '}
-                  <span className="text-brand-blue">{firstStage?.name}</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Configured in Pipeline Builder · {visibleStageFields.filter(f => f.required).length} required
-                </p>
-              </div>
-              <span className="text-[11px] text-gray-500 font-medium bg-surface rounded-full px-2.5 py-1 border border-surface-border">
-                {visibleStageFields.filter(f => isFieldFilled(f, stageFieldVals[f.id])).length}/{visibleStageFields.length} filled
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              {visibleStageFields.map(f => {
-                const isWide = ['Textarea', 'Multi-select', 'Radio', 'File Upload'].includes(f.type)
-                return (
-                  <div key={f.id} className={isWide ? 'col-span-2' : ''}>
-                    <FormField
-                      label={f.label}
-                      required={f.required}
-                      hint={f.help || undefined}
-                      error={stageErrors[f.id]}
-                    >
-                      <DynamicFieldInput
-                        field={f}
-                        value={stageFieldVals[f.id]}
-                        onChange={val => {
-                          setStageFieldVals(p => ({ ...p, [f.id]: val }))
-                          if (stageErrors[f.id]) setStageErrors(p => ({ ...p, [f.id]: '' }))
-                        }}
-                      />
+                <div className="border border-surface-border rounded-xl p-4 space-y-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Accounts Contact</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField label="Accounts Name" required={req('Accounts Name')}>
+                      <Input value={cForm.accountsName} onChange={e => setC('accountsName', e.target.value)} />
+                    </FormField>
+                    <FormField label="Accounts Email" required={req('Accounts Email')}>
+                      <Input type="email" value={cForm.accountsEmail} onChange={e => setC('accountsEmail', e.target.value)} />
                     </FormField>
                   </div>
-                )
-              })}
+                  <FormField label="Accounts Phone" required={req('Accounts Phone')}>
+                    <Input value={cForm.accountsPhone} maxLength={10}
+                      onChange={e => setC('accountsPhone', e.target.value.replace(/\D/g, ''))} />
+                  </FormField>
+                </div>
+
+                <div className="border border-surface-border rounded-xl p-4 space-y-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Technical Contact</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField label="Technical Name" required={req('Technical Name')}>
+                      <Input value={cForm.technicalName} onChange={e => setC('technicalName', e.target.value)} />
+                    </FormField>
+                    <FormField label="Technical Email" required={req('Technical Email')}>
+                      <Input type="email" value={cForm.technicalEmail} onChange={e => setC('technicalEmail', e.target.value)} />
+                    </FormField>
+                  </div>
+                  <FormField label="Technical Phone" required={req('Technical Phone')}>
+                    <Input value={cForm.technicalPhone} maxLength={10}
+                      onChange={e => setC('technicalPhone', e.target.value.replace(/\D/g, ''))} />
+                  </FormField>
+                </div>
+              </div>
+            )}
+
+            {isCorporate && step === 3 && (
+              <div className="space-y-5">
+                <ConnectionTypeStep value={cForm.connectionType} onChange={v => setC('connectionType', v)} />
+
+                <FormField label="Service Tag" required={req('Service Tag')} hint="Corporate-mapped, Active tags only (BR-2/AC-5)">
+                  <div className="flex flex-wrap gap-2">
+                    {corporateTags.map(tag => {
+                      const selected = cForm.serviceTags.includes(tag.id)
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => setC('serviceTags', selected
+                            ? cForm.serviceTags.filter(id => id !== tag.id)
+                            : [...cForm.serviceTags, tag.id])}
+                          className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors
+                            ${selected ? 'bg-brand-blue text-white border-brand-blue' : 'bg-white text-gray-600 border-surface-border hover:border-brand-blue/40'}`}
+                        >
+                          {tag.name}
+                        </button>
+                      )
+                    })}
+                    {corporateTags.length === 0 && <p className="text-xs text-gray-400">No active Corporate service tags configured.</p>}
+                  </div>
+                </FormField>
+
+                <FormField label="Assigned To / Sales Executive" required={req('Assigned To/Sales Executive')}>
+                  <Select value={cForm.assignedTo} onChange={e => setC('assignedTo', e.target.value)}>
+                    <option value="">Select...</option>
+                    {ASSIGNEES.map(n => <option key={n} value={n}>{n}</option>)}
+                  </Select>
+                </FormField>
+              </div>
+            )}
+
+            {isCorporate && step === 4 && (
+              <AddressSectionStep
+                value={cForm.address}
+                onChange={v => setC('address', v)}
+                leadId={leadId}
+                customerName={cForm.legalName || cForm.contactPersonName || 'Unnamed'}
+                phone={cForm.primaryNumber}
+                pipeline="Enterprise"
+                branch={cForm.branch}
+              />
+            )}
+
+            {isCorporate && step === 5 && (
+              <PackageSelectionStep
+                customerType="corporate"
+                value={cForm.package}
+                onChange={v => setC('package', v)}
+                blocked={cPackageBlocked}
+                feasibilityRecord={feasibilityRecord}
+              />
+            )}
+          </div>
+
+          {/* Follow-up card — kept from the previous form, orthogonal to Customer Type */}
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
+                  <Calendar size={15} className="text-brand-blue" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={followUp.enabled}
+                onClick={() => setFollowUp(f => f.enabled ? EMPTY_FOLLOWUP : { ...f, enabled: true })}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
+                  followUp.enabled ? 'bg-brand-blue' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    followUp.enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
-            {firstStage && getStageMeta(firstStage.id).showFeasibilityBanner && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 rounded-lg mt-4">
-                <span className="text-xs text-amber-700 font-medium">Feasibility Status will be set to:</span>
-                <Badge variant="yellow" size="sm">Pending</Badge>
+
+            {followUp.enabled && (
+              <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
+                <FormField label="Follow-up Date" required>
+                  <Input type="date" value={followUp.date} onChange={e => setFollowUp(f => ({ ...f, date: e.target.value }))} />
+                </FormField>
+                <FormField label="Follow-up Time" required>
+                  <Input type="time" value={followUp.time} onChange={e => setFollowUp(f => ({ ...f, time: e.target.value }))} />
+                </FormField>
+                {attempted && (!followUp.date || !followUp.time) && (
+                  <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date and time are required.</p>
+                )}
+                {attempted && followUp.date && followUp.time && new Date(`${followUp.date}T${followUp.time}`) <= new Date() && (
+                  <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date/time cannot be in the past.</p>
+                )}
+                <div className="col-span-2">
+                  <FormField label="Notes">
+                    <Textarea value={followUp.notes} onChange={e => setFollowUp(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Follow-up agenda or notes…" rows={2} />
+                  </FormField>
+                </div>
+                <div className="col-span-2">
+                  <FormField label="Notify Users">
+                    <MultiSelectDropdown
+                      options={NOTIFY_USERS}
+                      value={followUp.notify}
+                      onChange={v => setFollowUp(f => ({ ...f, notify: v }))}
+                      placeholder="Select team members to notify…"
+                    />
+                    {followUp.notify.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                        <AlertTriangle size={11} className="shrink-0" />
+                        No notifiers selected — at least one is recommended
+                      </p>
+                    )}
+                  </FormField>
+                </div>
               </div>
             )}
           </div>
-        )}
 
-        {/* Set Follow-up section */}
-        {showFollowUp && <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
-                <Calendar size={15} className="text-brand-blue" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
-                <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
-              </div>
-            </div>
-            {/* Toggle switch */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={form.followUpEnabled}
-              onClick={() => {
-                if (form.followUpEnabled) {
-                  setForm(p => ({ ...p, followUpEnabled: false, followUp: '', followUpTime: '', followUpNotes: '', followUpNotify: [] }))
-                  setErrors(p => ({ ...p, followUp: '', followUpTime: '' }))
-                } else {
-                  set('followUpEnabled', true)
-                }
-              }}
-              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
-                form.followUpEnabled ? 'bg-brand-blue' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                  form.followUpEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-
-          {form.followUpEnabled && (
-            <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
-
-              <FormField label="Follow-up Date" required>
-                <Input
-                  type="date"
-                  value={form.followUp}
-                  onChange={e => { set('followUp', e.target.value); setErrors(p => ({ ...p, followUp: '' })) }}
-                  className={errors.followUp ? 'border-red-400 focus:ring-red-400/30' : ''}
-                />
-                {errors.followUp && <p className="text-xs text-red-500 mt-1">{errors.followUp}</p>}
-              </FormField>
-
-              <FormField label="Follow-up Time" required>
-                <Input
-                  type="time"
-                  value={form.followUpTime}
-                  onChange={e => { set('followUpTime', e.target.value); setErrors(p => ({ ...p, followUpTime: '' })) }}
-                  className={errors.followUpTime ? 'border-red-400 focus:ring-red-400/30' : ''}
-                />
-                {errors.followUpTime && <p className="text-xs text-red-500 mt-1">{errors.followUpTime}</p>}
-              </FormField>
-
-              <div className="col-span-2">
-                <FormField label="Notes">
-                  <Textarea
-                    value={form.followUpNotes}
-                    onChange={e => set('followUpNotes', e.target.value)}
-                    placeholder="Follow-up agenda or notes…"
-                    rows={2}
-                  />
-                </FormField>
-              </div>
-
-              <div className="col-span-2">
-                <FormField label="Notify Users">
-                  <MultiSelectDropdown
-                    options={NOTIFY_USERS}
-                    value={form.followUpNotify}
-                    onChange={v => set('followUpNotify', v)}
-                    placeholder="Select team members to notify…"
-                  />
-                  {form.followUpNotify.length === 0 && (
-                    <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                      <AlertTriangle size={11} className="shrink-0" />
-                      No notifiers selected — at least one is recommended
-                    </p>
-                  )}
-                </FormField>
-              </div>
-
-            </div>
-          )}
-        </div>}
-
+        </div>
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <div className="px-6 py-4 shrink-0 bg-white border-t border-surface-border flex items-center justify-between">
-        <p className="text-xs text-gray-400">
-          Fields marked <span className="text-red-400 font-semibold">*</span> are required
-        </p>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={() => navigate('/sales')}>Cancel</Button>
-          <span title={submitBlocked ? 'Complete feasibility details to create this lead' : undefined}>
-            <Button onClick={handleCreate} disabled={submitBlocked}>Create Lead</Button>
-          </span>
+          {step > 1 && (
+            <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
+          )}
+          <p className="text-xs text-gray-400">
+            Fields marked <span className="text-red-400 font-semibold">*</span> are required
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" size="sm" onClick={() => navigate('/sales')}>Cancel</Button>
+          {step < maxStep ? (
+            <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Continue</Button>
+          ) : (
+            <Button size="sm" icon={<Check size={14} />} onClick={handleSubmit} disabled={!stepValid[maxStep]}>Create Lead</Button>
+          )}
         </div>
       </div>
 
