@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Tags, ListChecks } from 'lucide-react'
 import { getCustomerTypes, subscribeCustomerTypes, setCustomerTypeStatus } from '../data/customerTypes'
 import { countServiceTagsForType } from '../data/serviceTags'
+import { getFieldCount } from '../data/fieldConfigStore'
 
 function Toggle({ checked, onChange }) {
   return (
@@ -56,6 +57,7 @@ export default function CustomerTypeSettings() {
           <tbody className="divide-y divide-surface-border">
             {types.map(t => {
               const tagCount = countServiceTagsForType(t.id)
+              const fieldCount = getFieldCount(t.id)
               return (
                 <tr key={t.id} className="hover:bg-gray-50/50">
                   <td className="px-4 py-3.5 font-medium text-gray-900">{t.name}</td>
@@ -80,7 +82,7 @@ export default function CustomerTypeSettings() {
                       className="inline-flex items-center gap-1.5 text-brand-blue hover:underline font-medium"
                     >
                       <ListChecks size={13} />
-                      {t.fieldsConfiguredCount} fields
+                      {fieldCount} fields
                     </button>
                   </td>
                 </tr>

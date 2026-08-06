@@ -3,8 +3,8 @@
 // record shape intentionally leaves room for more types (e.g. a future
 // "Add Type" action) without a data-model change.
 let _customerTypes = [
-  { id: 'resident', name: 'Resident', status: 'Active', systemSeeded: true, fieldsConfiguredCount: 14 },
-  { id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true, fieldsConfiguredCount: 21 },
+  { id: 'resident', name: 'Resident', status: 'Active', systemSeeded: true },
+  { id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true },
 ]
 
 const _listeners = []
