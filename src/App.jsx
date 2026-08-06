@@ -56,11 +56,6 @@ import Inventory from './pages/Inventory'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
-import CustomerTypeSettings from './pages/CustomerTypeSettings'
-import ServiceTagSettings from './pages/ServiceTagSettings'
-import FieldConfigSettings from './pages/FieldConfigSettings'
-import CompanyEntitySettings from './pages/CompanyEntitySettings'
-import PartnerSettings from './pages/PartnerSettings'
 import Resellers from './pages/Resellers'
 import ResellerDetail from './pages/ResellerDetail'
 import AuditLog from './pages/AuditLog'
@@ -153,11 +148,6 @@ export default function App() {
           <Route path="/settings/area-mapping/locality" element={<AreaMapping />} />
           <Route path="/settings/area-mapping/sub-locality" element={<AreaMapping />} />
           <Route path="/settings/roles" element={<RolesSettings />} />
-          <Route path="/settings/customer-type" element={<CustomerTypeSettings />} />
-          <Route path="/settings/customer-type/service-tags" element={<ServiceTagSettings />} />
-          <Route path="/settings/customer-type/:type/fields" element={<FieldConfigSettings />} />
-          <Route path="/settings/company-entity" element={<CompanyEntitySettings />} />
-          <Route path="/settings/partner" element={<PartnerSettings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />
