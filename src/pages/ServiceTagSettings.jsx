@@ -18,9 +18,9 @@ function Toggle({ checked, onChange }) {
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${checked ? 'bg-brand-blue' : 'bg-gray-200'}`}
+      className={`relative shrink-0 w-10 h-5 rounded-full transition-colors duration-200 ${checked ? 'bg-brand-blue' : 'bg-gray-200'}`}
     >
-      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
 }
@@ -190,9 +190,9 @@ export default function ServiceTagSettings() {
                   </Badge>
                 </td>
                 <td className="px-3 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <Toggle checked={tag.status === 'Active'} onChange={v => handleStatusToggle(tag, v)} />
-                    <span className={`text-xs font-medium ${tag.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{tag.status}</span>
+                    <span className={`text-xs font-medium whitespace-nowrap ${tag.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{tag.status}</span>
                   </div>
                 </td>
                 <td className="px-3 py-3 text-gray-600">{tag.displayOrder}</td>
@@ -240,9 +240,9 @@ export default function ServiceTagSettings() {
               <Input type="number" min="1" value={form.displayOrder} onChange={e => setField('displayOrder', e.target.value)} />
             </FormField>
             <FormField label="Status">
-              <div className="flex items-center gap-2 h-[38px]">
+              <div className="flex items-center gap-2.5 h-[38px]">
                 <Toggle checked={form.status === 'Active'} onChange={v => setField('status', v ? 'Active' : 'Inactive')} />
-                <span className="text-sm text-gray-600">{form.status}</span>
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.status}</span>
               </div>
             </FormField>
           </div>
