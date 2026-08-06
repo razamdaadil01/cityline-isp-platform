@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, X, AlertTriangle, ChevronDown, Calendar,
-  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2,
-  ChevronLeft, ChevronRight, Check,
+  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2, Check,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import StepProgress from '../components/customer-type/StepProgress'
 import ConnectionTypeStep, { EMPTY_CONNECTION_TYPE, isConnectionTypeValid } from '../components/customer-type/ConnectionTypeStep'
 import AddressSectionStep, { EMPTY_ADDRESS_SECTION, isAddressSectionValid, isPackageStepBlocked } from '../components/customer-type/AddressSectionStep'
 import PackageSelectionStep from '../components/customer-type/PackageSelectionStep'
@@ -25,13 +23,15 @@ import { lookupGstin } from '../data/gstLookup'
 // This page used to be a single long form covering Residential/Enterprise/
 // Custom pipeline leads generically (Pipeline Builder-driven Stage Fields,
 // an area-mapping "unmapped sub-locality → feasibility required" auto-trigger,
-// a Zone picker, etc). It's been restructured into the Resident/Corporate
-// Customer Type wizard (FR-6/FR-7), reusing the exact step components,
-// validation and GST auto-fetch logic originally built for the (now unrouted)
+// a Zone picker, etc), then briefly became a multi-step wizard. It's now a
+// single continuous scrolling page again (matching the original layout),
+// restructured around the Resident/Corporate Customer Type field sets
+// (FR-6/FR-7) — reusing the exact section components, validation and GST
+// auto-fetch logic originally built for the (now unrouted)
 // CustomerNewResident.jsx / CustomerNewCorporate.jsx.
 //
-// TODO(BA/PM confirmation needed) — things dropped or changed in this pass,
-// not explicitly addressed by the restructure request:
+// TODO(BA/PM confirmation needed) — things dropped or changed by the Customer
+// Type restructure, not explicitly addressed by that request:
 //  - "Zone" (custType-driven Cityline/Partner → Zone list) has no equivalent
 //    in FR-6/FR-7's field list. Dropped rather than kept as a parallel,
 //    undocumented field — Address Section's cascading
@@ -77,20 +77,6 @@ const SALES_EXECUTIVES_BY_BRANCH = {
   'CNPL-NOI-01': ['Suresh Babu', 'Preethi Nair'],
 }
 
-const RESIDENT_STEPS = [
-  { id: 1, label: 'Basic Details',   icon: User },
-  { id: 2, label: 'Connection Type', icon: Link2 },
-  { id: 3, label: 'Address',         icon: MapPin },
-  { id: 4, label: 'Package',         icon: Package },
-]
-const CORPORATE_STEPS = [
-  { id: 1, label: 'Company/GST',     icon: Building2 },
-  { id: 2, label: 'Contacts',        icon: Users },
-  { id: 3, label: 'Connection Type', icon: Link2 },
-  { id: 4, label: 'Address',         icon: MapPin },
-  { id: 5, label: 'Package',         icon: Package },
-]
-
 function initialsOf(name) {
   return (name || '??').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
@@ -117,6 +103,19 @@ const EMPTY_CORPORATE_FORM = {
   package: null,
 }
 const EMPTY_FOLLOWUP = { enabled: false, date: '', time: '', notes: '', notify: [] }
+
+// ── Section header (icon badge + title, matches the Follow-up card's style) ─
+
+function SectionHeader({ icon: Icon, title }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-4">
+      <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
+        <Icon size={15} className="text-brand-blue" />
+      </div>
+      <p className="text-sm font-bold text-gray-700">{title}</p>
+    </div>
+  )
+}
 
 // ── Duplicate Warning Banner (kept from the previous single-page form) ──────
 
@@ -204,14 +203,11 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
 
 export default function SalesNewLead() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [leadId] = useState(() => nextSalesLeadId())
 
   const customerTypes = useMemo(() => getCustomerTypes().filter(t => t.status === 'Active'), [])
   const [customerType, setCustomerType] = useState(() => customerTypes[0]?.id ?? 'resident')
   const isCorporate = customerType === 'corporate'
-  const STEPS = isCorporate ? CORPORATE_STEPS : RESIDENT_STEPS
-  const maxStep = STEPS.length
 
   const [rForm, setRForm] = useState(EMPTY_RESIDENT_FORM)
   const [cForm, setCForm] = useState(EMPTY_CORPORATE_FORM)
@@ -221,7 +217,6 @@ export default function SalesNewLead() {
   function handleCustomerTypeChange(next) {
     setCustomerType(next)
     setAttempted(false)
-    setSearchParams({ step: '1' })
   }
 
   // ── Field Configuration (live, both types kept warm) ──────────────────────
@@ -246,7 +241,6 @@ export default function SalesNewLead() {
   // ── Active Service Tags ────────────────────────────────────────────────────
   const residentTags = useMemo(() => getServiceTagsForType('resident').filter(t => t.status === 'Active'), [])
   const corporateTags = useMemo(() => getServiceTagsForType('corporate').filter(t => t.status === 'Active'), [])
-  const activeTags = isCorporate ? corporateTags : residentTags
 
   // ── Duplicate phone detection (kept) ──────────────────────────────────────
   const [phoneDup, setPhoneDup]   = useState(null)
@@ -301,15 +295,11 @@ export default function SalesNewLead() {
     }
   }, [cForm.pan, cForm.gstNumber])
 
-  // ── Step param ─────────────────────────────────────────────────────────────
-  const stepParam = Number(searchParams.get('step'))
-  const step = STEPS.some(s => s.id === stepParam) ? stepParam : 1
-
   function setR(k, v) { setRForm(f => ({ ...f, [k]: v })) }
   function setC(k, v) { setCForm(f => ({ ...f, [k]: v })) }
 
   // ── Validation — Resident (FR-6) ───────────────────────────────────────────
-  function isRStep1Valid() {
+  function isRBasicValid() {
     if (req('Branch') && !rForm.branch) return false
     if (req('First Name') && !rForm.firstName.trim()) return false
     if (req('Last Name') && !rForm.lastName.trim()) return false
@@ -323,14 +313,14 @@ export default function SalesNewLead() {
     if (req('Lead Source') && !rForm.leadSource) return false
     return true
   }
-  function isRStep2Valid() { return isConnectionTypeValid(rForm.connectionType) }
-  function isRStep3Valid() { return !req('Address Section') || isAddressSectionValid(rForm.address) }
+  function isRConnectionValid() { return isConnectionTypeValid(rForm.connectionType) }
+  function isRAddressValid() { return !req('Address Section') || isAddressSectionValid(rForm.address) }
   const rPackageBlocked = isPackageStepBlocked(rForm.address, feasibilityRecord)
-  function isRStep4Valid() { return !rPackageBlocked && (!req('Package Selection') || !!rForm.package) }
-  const rStepValid = { 1: isRStep1Valid(), 2: isRStep2Valid(), 3: isRStep3Valid(), 4: isRStep4Valid() }
+  function isRPackageValid() { return !rPackageBlocked && (!req('Package Selection') || !!rForm.package) }
+  const residentValid = isRBasicValid() && isRConnectionValid() && isRAddressValid() && isRPackageValid()
 
   // ── Validation — Corporate (FR-7) ──────────────────────────────────────────
-  function isCStep1Valid() {
+  function isCCompanyValid() {
     if (req('Branch') && !cForm.branch) return false
     if (req('GST Number') && !GSTIN_REGEX.test(cForm.gstNumber)) return false
     if (cForm.gstNumber && gstStatus === 'error') return false
@@ -340,7 +330,7 @@ export default function SalesNewLead() {
     if (req('Legal Company Name') && !cForm.legalName.trim()) return false
     return true
   }
-  function isCStep2Valid() {
+  function isCContactsValid() {
     if (req('Contact Person Name') && !cForm.contactPersonName.trim()) return false
     if (cForm.contactPersonEmail && !EMAIL_REGEX.test(cForm.contactPersonEmail)) return false
     if (req('Contact Person Email') && !cForm.contactPersonEmail) return false
@@ -357,31 +347,16 @@ export default function SalesNewLead() {
     if (req('Technical Phone') && !cForm.technicalPhone) return false
     return true
   }
-  function isCStep3Valid() {
+  function isCConnectionValid() {
     if (!isConnectionTypeValid(cForm.connectionType)) return false // locked, BR-7/BR-8
     if (req('Service Tag') && cForm.serviceTags.length === 0) return false
     if (req('Assigned To/Sales Executive') && !cForm.assignedTo) return false
     return true
   }
-  function isCStep4Valid() { return !req('Address Section') || isAddressSectionValid(cForm.address) }
+  function isCAddressValid() { return !req('Address Section') || isAddressSectionValid(cForm.address) }
   const cPackageBlocked = isPackageStepBlocked(cForm.address, feasibilityRecord)
-  function isCStep5Valid() { return !cPackageBlocked && (!req('Package Selection') || !!cForm.package) }
-  const cStepValid = { 1: isCStep1Valid(), 2: isCStep2Valid(), 3: isCStep3Valid(), 4: isCStep4Valid(), 5: isCStep5Valid() }
-
-  const stepValid = isCorporate ? cStepValid : rStepValid
-
-  function isReachable(id) {
-    if (id === 1) return true
-    for (let i = 1; i < id; i++) if (!stepValid[i]) return false
-    return true
-  }
-  function goTo(id) { setAttempted(false); setSearchParams({ step: String(id) }) }
-  function goNext() {
-    if (!stepValid[step]) { setAttempted(true); return }
-    setAttempted(false)
-    setSearchParams({ step: String(Math.min(step + 1, maxStep)) })
-  }
-  function goBack() { setAttempted(false); setSearchParams({ step: String(Math.max(step - 1, 1)) }) }
+  function isCPackageValid() { return !cPackageBlocked && (!req('Package Selection') || !!cForm.package) }
+  const corporateValid = isCCompanyValid() && isCContactsValid() && isCConnectionValid() && isCAddressValid() && isCPackageValid()
 
   // ── Follow-up (kept, orthogonal to Customer Type) ─────────────────────────
   function isFollowUpValid() {
@@ -398,6 +373,9 @@ export default function SalesNewLead() {
       })
     }
   }
+
+  const canSubmit = (isCorporate ? corporateValid : residentValid) && isFollowUpValid()
+  const packageBlocked = isCorporate ? cPackageBlocked : rPackageBlocked
 
   const hasDuplicate = (phoneDup && phoneContinued) || (altPhoneDup && altPhoneContinued)
   function activityLogForDuplicate() {
@@ -517,7 +495,7 @@ export default function SalesNewLead() {
   }
 
   function handleSubmit() {
-    if (!stepValid[maxStep] || !isFollowUpValid()) { setAttempted(true); return }
+    if (!canSubmit) { setAttempted(true); return }
     if (isCorporate) submitCorporate(); else submitResident()
   }
 
@@ -528,7 +506,7 @@ export default function SalesNewLead() {
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="px-6 pt-6 pb-5 shrink-0 bg-white border-b border-surface-border">
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/sales')}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
@@ -540,7 +518,6 @@ export default function SalesNewLead() {
             <p className="text-sm text-gray-500 mt-0.5">Fill in the details to add a new lead to the pipeline · Lead ID {leadId}</p>
           </div>
         </div>
-        <StepProgress steps={STEPS} current={step} isReachable={isReachable} onSelect={goTo} />
       </div>
 
       {/* ── Duplicate banners ───────────────────────────────────────────── */}
@@ -564,41 +541,41 @@ export default function SalesNewLead() {
       )}
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 
-          {/* Service Configuration card */}
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-            <p className="text-sm font-bold text-gray-700 mb-1">Service Configuration</p>
-            <p className="text-xs text-gray-400 mb-4">
-              Customer Type determines which field set below applies (FR-6 for Resident, FR-7 for Corporate).
-            </p>
-            <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-              <FormField label="Customer Type" required hint="From Settings > System Configuration > Customer Type (Active only)">
-                <Select value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
-                  {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Starting Stage">
-                <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
-                  <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span>
-                </div>
-              </FormField>
-            </div>
-          </div>
-
-          {/* Step card */}
-          <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
-            {attempted && !stepValid[step] && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                Please complete all mandatory fields correctly before continuing.
+        {/* Service Configuration card */}
+        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+          <p className="text-sm font-bold text-gray-700 mb-1">Service Configuration</p>
+          <p className="text-xs text-gray-400 mb-4">
+            Customer Type determines which field set below applies (FR-6 for Resident, FR-7 for Corporate).
+          </p>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+            <FormField label="Customer Type" required hint="From Settings > System Configuration > Customer Type (Active only)">
+              <Select value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
+                {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Starting Stage">
+              <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
+                <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
+                <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span>
               </div>
-            )}
+            </FormField>
+          </div>
+        </div>
 
-            {/* ── Resident steps ──────────────────────────────────────────── */}
-            {!isCorporate && step === 1 && (
+        {attempted && !canSubmit && (
+          <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            Please complete all mandatory fields correctly before creating this lead.
+          </div>
+        )}
+
+        {/* ── Resident sections ────────────────────────────────────────────── */}
+        {!isCorporate && (
+          <>
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={User} title="Basic Details" />
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Branch" required={req('Branch')}>
@@ -675,13 +652,15 @@ export default function SalesNewLead() {
                   </div>
                 </FormField>
               </div>
-            )}
+            </div>
 
-            {!isCorporate && step === 2 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={Link2} title="Connection Type" />
               <ConnectionTypeStep value={rForm.connectionType} onChange={v => setR('connectionType', v)} />
-            )}
+            </div>
 
-            {!isCorporate && step === 3 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={MapPin} title="Address" />
               <AddressSectionStep
                 value={rForm.address}
                 onChange={v => setR('address', v)}
@@ -691,9 +670,10 @@ export default function SalesNewLead() {
                 pipeline="B2C"
                 branch={rForm.branch}
               />
-            )}
+            </div>
 
-            {!isCorporate && step === 4 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={Package} title="Package Selection" />
               <PackageSelectionStep
                 customerType="resident"
                 value={rForm.package}
@@ -701,10 +681,15 @@ export default function SalesNewLead() {
                 blocked={rPackageBlocked}
                 feasibilityRecord={feasibilityRecord}
               />
-            )}
+            </div>
+          </>
+        )}
 
-            {/* ── Corporate steps ─────────────────────────────────────────── */}
-            {isCorporate && step === 1 && (
+        {/* ── Corporate sections ───────────────────────────────────────────── */}
+        {isCorporate && (
+          <>
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={Building2} title="Company / GST Details" />
               <div className="space-y-4">
                 <FormField label="Branch" required={req('Branch')}>
                   <Select value={cForm.branch} onChange={e => setC('branch', e.target.value)}>
@@ -771,9 +756,10 @@ export default function SalesNewLead() {
                   <Input value={cForm.legalName} onChange={e => setC('legalName', e.target.value)} placeholder="Acme Technologies Pvt Ltd" />
                 </FormField>
               </div>
-            )}
+            </div>
 
-            {isCorporate && step === 2 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={Users} title="Contacts" />
               <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Contact Person Name" required={req('Contact Person Name')}>
@@ -826,9 +812,10 @@ export default function SalesNewLead() {
                   </FormField>
                 </div>
               </div>
-            )}
+            </div>
 
-            {isCorporate && step === 3 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={Link2} title="Connection Type" />
               <div className="space-y-5">
                 <ConnectionTypeStep value={cForm.connectionType} onChange={v => setC('connectionType', v)} />
 
@@ -861,9 +848,10 @@ export default function SalesNewLead() {
                   </Select>
                 </FormField>
               </div>
-            )}
+            </div>
 
-            {isCorporate && step === 4 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={MapPin} title="Address" />
               <AddressSectionStep
                 value={cForm.address}
                 onChange={v => setC('address', v)}
@@ -873,9 +861,10 @@ export default function SalesNewLead() {
                 pipeline="Enterprise"
                 branch={cForm.branch}
               />
-            )}
+            </div>
 
-            {isCorporate && step === 5 && (
+            <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+              <SectionHeader icon={Package} title="Package Selection" />
               <PackageSelectionStep
                 customerType="corporate"
                 value={cForm.package}
@@ -883,98 +872,102 @@ export default function SalesNewLead() {
                 blocked={cPackageBlocked}
                 feasibilityRecord={feasibilityRecord}
               />
-            )}
-          </div>
-
-          {/* Follow-up card — kept from the previous form, orthogonal to Customer Type */}
-          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
-                  <Calendar size={15} className="text-brand-blue" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={followUp.enabled}
-                onClick={() => setFollowUp(f => f.enabled ? EMPTY_FOLLOWUP : { ...f, enabled: true })}
-                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
-                  followUp.enabled ? 'bg-brand-blue' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                    followUp.enabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
             </div>
+          </>
+        )}
 
-            {followUp.enabled && (
-              <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
-                <FormField label="Follow-up Date" required>
-                  <Input type="date" value={followUp.date} onChange={e => setFollowUp(f => ({ ...f, date: e.target.value }))} />
-                </FormField>
-                <FormField label="Follow-up Time" required>
-                  <Input type="time" value={followUp.time} onChange={e => setFollowUp(f => ({ ...f, time: e.target.value }))} />
-                </FormField>
-                {attempted && (!followUp.date || !followUp.time) && (
-                  <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date and time are required.</p>
-                )}
-                {attempted && followUp.date && followUp.time && new Date(`${followUp.date}T${followUp.time}`) <= new Date() && (
-                  <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date/time cannot be in the past.</p>
-                )}
-                <div className="col-span-2">
-                  <FormField label="Notes">
-                    <Textarea value={followUp.notes} onChange={e => setFollowUp(f => ({ ...f, notes: e.target.value }))}
-                      placeholder="Follow-up agenda or notes…" rows={2} />
-                  </FormField>
-                </div>
-                <div className="col-span-2">
-                  <FormField label="Notify Users">
-                    <MultiSelectDropdown
-                      options={NOTIFY_USERS}
-                      value={followUp.notify}
-                      onChange={v => setFollowUp(f => ({ ...f, notify: v }))}
-                      placeholder="Select team members to notify…"
-                    />
-                    {followUp.notify.length === 0 && (
-                      <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                        <AlertTriangle size={11} className="shrink-0" />
-                        No notifiers selected — at least one is recommended
-                      </p>
-                    )}
-                  </FormField>
-                </div>
+        {/* Follow-up card — kept from the previous form, orthogonal to Customer Type */}
+        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
+                <Calendar size={15} className="text-brand-blue" />
               </div>
-            )}
+              <div>
+                <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
+                <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={followUp.enabled}
+              onClick={() => setFollowUp(f => f.enabled ? EMPTY_FOLLOWUP : { ...f, enabled: true })}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
+                followUp.enabled ? 'bg-brand-blue' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                  followUp.enabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
 
+          {followUp.enabled && (
+            <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
+              <FormField label="Follow-up Date" required>
+                <Input type="date" value={followUp.date} onChange={e => setFollowUp(f => ({ ...f, date: e.target.value }))} />
+              </FormField>
+              <FormField label="Follow-up Time" required>
+                <Input type="time" value={followUp.time} onChange={e => setFollowUp(f => ({ ...f, time: e.target.value }))} />
+              </FormField>
+              {attempted && (!followUp.date || !followUp.time) && (
+                <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date and time are required.</p>
+              )}
+              {attempted && followUp.date && followUp.time && new Date(`${followUp.date}T${followUp.time}`) <= new Date() && (
+                <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date/time cannot be in the past.</p>
+              )}
+              <div className="col-span-2">
+                <FormField label="Notes">
+                  <Textarea value={followUp.notes} onChange={e => setFollowUp(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Follow-up agenda or notes…" rows={2} />
+                </FormField>
+              </div>
+              <div className="col-span-2">
+                <FormField label="Notify Users">
+                  <MultiSelectDropdown
+                    options={NOTIFY_USERS}
+                    value={followUp.notify}
+                    onChange={v => setFollowUp(f => ({ ...f, notify: v }))}
+                    placeholder="Select team members to notify…"
+                  />
+                  {followUp.notify.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                      <AlertTriangle size={11} className="shrink-0" />
+                      No notifiers selected — at least one is recommended
+                    </p>
+                  )}
+                </FormField>
+              </div>
+            </div>
+          )}
         </div>
+
       </div>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <div className="px-6 py-4 shrink-0 bg-white border-t border-surface-border flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {step > 1 && (
-            <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
-          )}
+        <div>
           <p className="text-xs text-gray-400">
             Fields marked <span className="text-red-400 font-semibold">*</span> are required
           </p>
+          {packageBlocked && (
+            <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+              <AlertTriangle size={11} className="shrink-0" />
+              Package Selection is blocked by a pending Feasibility Work Order.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" size="sm" onClick={() => navigate('/sales')}>Cancel</Button>
-          {step < maxStep ? (
-            <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Continue</Button>
-          ) : (
-            <Button size="sm" icon={<Check size={14} />} onClick={handleSubmit} disabled={!stepValid[maxStep]}>Create Lead</Button>
-          )}
+          <Button variant="secondary" onClick={() => navigate('/sales')}>Cancel</Button>
+          <span
+            title={!canSubmit ? (packageBlocked ? 'Package Selection is blocked until Feasibility is approved' : 'Complete all mandatory fields to create this lead') : undefined}
+            onClick={() => !canSubmit && setAttempted(true)}
+          >
+            <Button icon={<Check size={14} />} onClick={handleSubmit} disabled={!canSubmit}>Create Lead</Button>
+          </span>
         </div>
       </div>
 
