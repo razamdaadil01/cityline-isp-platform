@@ -5,7 +5,7 @@ import {
   Building2, Receipt, Shield, RefreshCw, Check,
   BookOpen, Webhook, Phone, Globe, Layers, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
-  ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones,
+  ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -34,6 +34,12 @@ const TABS = [
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
   { id: 'zone',                label: 'Zone',                  icon: Map       },
   { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
+]
+
+// System Configuration is a distinct sub-section within Settings — Customer
+// Type is the first item; Company/Entity and Partner are added here later.
+const SYSTEM_CONFIG_TABS = [
+  { id: 'customer-type', label: 'Customer Type', icon: Users },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -1574,6 +1580,16 @@ export default function Settings() {
                     ? 'bg-brand-blue text-white shadow-sm'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
                 <Icon size={15} className={activeTab === id ? 'text-blue-200' : 'text-gray-400'} />
+                {label}
+              </button>
+            ))}
+
+            <p className="px-3 pt-4 pb-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">System Configuration</p>
+            {SYSTEM_CONFIG_TABS.map(({ id, label, icon: Icon }) => (
+              <button key={id} onClick={() => navigate(`/settings/${id}`)}
+                className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5
+                  text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+                <Icon size={15} className="text-gray-400" />
                 {label}
               </button>
             ))}
