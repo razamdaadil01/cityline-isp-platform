@@ -4,7 +4,7 @@ import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
   Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
-  Edit2, Search, X, Plus, Check, Folder, Upload,
+  Edit2, Search, X, Plus, Check, Folder, Upload, Cpu,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -695,7 +695,7 @@ function HardwareAssignmentCard({ items, onAdd }) {
 
   const totalCost = items.reduce((sum, h) => sum + h.quantity * h.unitPrice, 0)
   return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
+    <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-bold text-gray-800">Hardware Assignment</p>
         <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={onAdd}>Add Hardware</Button>
@@ -826,6 +826,7 @@ const MIDDLE_TABS = [
   { key: 'communication', slug: 'communication', label: 'Communication', icon: MessageSquare },
   { key: 'internal', slug: 'internal-notes', label: 'Notes', icon: Lock },
   { key: 'activity', slug: 'activity-log', label: 'Activity Log', icon: Activity },
+  { key: 'hardware', slug: 'hardware', label: 'Hardware', icon: Cpu },
 ]
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
@@ -1119,8 +1120,6 @@ export default function SupportTicketDetail() {
 
           <AssignmentOverviewCard entity={ticket} onAssign={() => setAssignTeamOpen(true)} />
 
-          <HardwareAssignmentCard items={hardwareAssignments} onAdd={() => setAddHardwareOpen(true)} />
-
           <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
             {/* Tab nav */}
@@ -1270,6 +1269,11 @@ export default function SupportTicketDetail() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* ─── Hardware ────────────────────────────────────────────── */}
+              {activeTab === 'hardware' && (
+                <HardwareAssignmentCard items={hardwareAssignments} onAdd={() => setAddHardwareOpen(true)} />
               )}
             </div>
           </div>
