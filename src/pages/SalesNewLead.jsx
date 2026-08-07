@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, X, AlertTriangle, ChevronDown, Calendar,
-  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2, Check,
+  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2, Check, Camera,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -210,6 +210,62 @@ function MultiSelectDropdown({ options, value = [], onChange, placeholder = 'Sel
   )
 }
 
+function initialsFromName(fullName) {
+  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return ''
+  const first = parts[0][0] ?? ''
+  const last = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : ''
+  return (first + last).toUpperCase()
+}
+
+// Sits to the left of Customer Type/Starting Stage in the Service
+// Configuration card. Reuses the same FileReader.readAsDataURL upload
+// pattern as KycSection's Customer Photo (Sales.jsx) — stores
+// { name, size, type, preview } with preview as a data URL.
+function ProfilePictureUpload({ name, value, onChange }) {
+  const inputRef = useRef(null)
+  const initials = initialsFromName(name)
+
+  function handleFile(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev =>
+      onChange({ name: file.name, size: file.size, type: file.type, preview: ev.target.result })
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2 shrink-0 sm:w-32">
+      <div className="relative">
+        <div className="w-20 h-20 rounded-full border-2 border-brand-blue/40 bg-blue-50 flex items-center justify-center overflow-hidden">
+          {value?.preview ? (
+            <img src={value.preview} alt="Profile" className="w-full h-full object-cover" />
+          ) : initials ? (
+            <span className="text-lg font-semibold text-brand-blue">{initials}</span>
+          ) : (
+            <User size={28} className="text-brand-blue/50" />
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-brand-blue text-white flex items-center justify-center shadow-md border-2 border-white hover:bg-brand-blue/90 transition-colors"
+        >
+          <Camera size={13} />
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={e => { handleFile(e.target.files?.[0]); e.target.value = '' }}
+        />
+      </div>
+      <p className="text-xs text-gray-500">Profile Picture</p>
+    </div>
+  )
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function SalesNewLead() {
@@ -248,6 +304,10 @@ export default function SalesNewLead() {
   const [cForm, setCForm] = useState(EMPTY_CORPORATE_FORM)
   const [followUp, setFollowUp] = useState(EMPTY_FOLLOWUP)
   const [attempted, setAttempted] = useState(false)
+  // Lives above the Resident/Corporate fork (Service Configuration card), so
+  // it's kept as its own piece of state rather than duplicated into
+  // rForm/cForm — it shouldn't reset when the Customer Type dropdown changes.
+  const [profilePicture, setProfilePicture] = useState(null)
 
   function handleCustomerTypeChange(next) {
     setAttempted(false)
@@ -435,6 +495,7 @@ export default function SalesNewLead() {
       pipeline: 'B2C',
       stage: 'New Inquiry',
       name,
+      profilePicture,
       phone: rForm.primaryNumber,
       alternateMobile: rForm.alternativeNumber,
       email: rForm.email,
@@ -487,6 +548,7 @@ export default function SalesNewLead() {
       pipeline: 'Enterprise',
       stage: 'New Inquiry Filed',
       name: cForm.contactPersonName,
+      profilePicture,
       companyName: cForm.legalName,
       contactPerson: cForm.contactPersonName,
       phone: cForm.primaryNumber,
@@ -588,18 +650,26 @@ export default function SalesNewLead() {
           <p className="text-xs text-gray-400 mb-4">
             Customer Type determines which field set below applies (FR-6 for Resident, FR-7 for Corporate).
           </p>
-          <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-            <FormField label="Customer Type" required hint="From Settings > System Configuration > Customer Type (Active only)">
-              <Select value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
-                {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Starting Stage">
-              <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
-                <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
-                <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span>
-              </div>
-            </FormField>
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+            <ProfilePictureUpload
+              name={isCorporate ? cForm.contactPersonName : `${rForm.firstName} ${rForm.lastName}`}
+              value={profilePicture}
+              onChange={setProfilePicture}
+            />
+            <div className="hidden sm:block w-px self-stretch bg-surface-border shrink-0" />
+            <div className="grid grid-cols-2 gap-x-5 gap-y-4 flex-1 w-full">
+              <FormField label="Customer Type" required hint="From Settings > System Configuration > Customer Type (Active only)">
+                <Select value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
+                  {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Starting Stage">
+                <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
+                  <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span>
+                </div>
+              </FormField>
+            </div>
           </div>
         </div>
 
