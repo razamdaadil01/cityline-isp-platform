@@ -742,9 +742,19 @@ function AddHardwareModal({ open, onClose, onAdd }) {
   // Chargeable/Non-Chargeable — a single submit can add items from both.
   const [selected, setSelected] = useState({})
 
+  // On open, pre-check the first 2 Chargeable + first 2 Non-Chargeable
+  // catalog items (both categories at once, since selection is shared
+  // across the tab toggle) rather than starting from an empty selection.
   useEffect(() => {
-    if (open) return
-    setCategory('chargeable'); setSearch(''); setSelected({})
+    if (!open) { setSelected({}); return }
+    setCategory('chargeable')
+    setSearch('')
+    const defaultItems = [
+      ...HARDWARE_CATALOG.filter(h => h.chargeable).slice(0, 2),
+      ...HARDWARE_CATALOG.filter(h => !h.chargeable).slice(0, 2),
+    ]
+    setSelected(Object.fromEntries(defaultItems.map(h =>
+      [h.name, { name: h.name, chargeable: h.chargeable, unitPrice: h.unitPrice, quantity: 1 }])))
   }, [open])
 
   const filtered = HARDWARE_CATALOG.filter(h =>
