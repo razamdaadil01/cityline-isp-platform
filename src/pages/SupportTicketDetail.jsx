@@ -736,7 +736,12 @@ const HARDWARE_CATEGORIES = [
 ]
 
 function AddHardwareModal({ open, onClose, onAdd }) {
-  const [category, setCategory] = useState('chargeable')
+  const [searchParams, setSearchParams] = useSearchParams()
+  // The Chargeable/Non-Chargeable sub-tab is deep-linkable via
+  // ?category= on top of ?modal=add-hardware — same merge-safe
+  // setSearchParams(prev => new URLSearchParams(prev)) pattern used by
+  // ?modal= itself. Switching the tab pushes a new history entry.
+  const category = searchParams.get('category') === 'non-chargeable' ? 'non-chargeable' : 'chargeable'
   const [search, setSearch] = useState('')
   // Keyed by item name so the same selection set carries across switching
   // Chargeable/Non-Chargeable — a single submit can add items from both.
@@ -745,9 +750,9 @@ function AddHardwareModal({ open, onClose, onAdd }) {
   // On open, pre-check the first 2 Chargeable + first 2 Non-Chargeable
   // catalog items (both categories at once, since selection is shared
   // across the tab toggle) rather than starting from an empty selection.
+  // Also reset the sub-tab back to its ?category=chargeable default.
   useEffect(() => {
     if (!open) { setSelected({}); return }
-    setCategory('chargeable')
     setSearch('')
     const defaultItems = [
       ...HARDWARE_CATALOG.filter(h => h.chargeable).slice(0, 2),
@@ -755,7 +760,21 @@ function AddHardwareModal({ open, onClose, onAdd }) {
     ]
     setSelected(Object.fromEntries(defaultItems.map(h =>
       [h.name, { name: h.name, chargeable: h.chargeable, unitPrice: h.unitPrice, quantity: 1 }])))
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('category', 'chargeable')
+      return next
+    }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  function switchCategory(key) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('category', key)
+      return next
+    })
+  }
 
   const filtered = HARDWARE_CATALOG.filter(h =>
     h.chargeable === (category === 'chargeable') && h.name.toLowerCase().includes(search.toLowerCase()))
@@ -794,14 +813,16 @@ function AddHardwareModal({ open, onClose, onAdd }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={selectedItems.length === 0}>Add Hardware</Button>
+          <Button onClick={handleSubmit} disabled={selectedItems.length === 0}>
+            {category === 'non-chargeable' ? 'Send for approval' : 'Add Hardware'}
+          </Button>
         </>
       }
     >
       <div className="space-y-4">
         <div className="flex gap-1">
           {HARDWARE_CATEGORIES.map(c => (
-            <button key={c.key} type="button" onClick={() => setCategory(c.key)}
+            <button key={c.key} type="button" onClick={() => switchCategory(c.key)}
               className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
                 category === c.key ? 'bg-brand-blue text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
               }`}>
@@ -938,6 +959,7 @@ export default function SupportTicketDetail() {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.delete('modal')
+      next.delete('category')
       return next
     }, { replace: true })
   }
