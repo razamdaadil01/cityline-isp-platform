@@ -4,7 +4,7 @@ import {
   ArrowLeft, MessageSquare, Lock, CheckCircle2, FileText, CalendarPlus,
   Phone, Mail, User, Activity, Wrench, PhoneCall,
   Globe, Play, ChevronDown, RefreshCw, UserCog, Trash2,
-  Edit2, Search, X, Plus, Check, Folder, Upload, Cpu,
+  Edit2, Search, X, Plus, Minus, Check, Folder, Upload, Cpu,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -13,7 +13,7 @@ import AssignTeamModal from '../components/ui/AssignTeamModal'
 import AssignmentOverviewCard from '../components/ui/AssignmentOverviewCard'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { HARDWARE_CATALOG } from '../data/hardwareCatalog'
-import { createHardwareApproval, getApprovals, subscribeApprovals } from '../data/approvalsStore'
+import { createHardwareApproval } from '../data/approvalsStore'
 import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit,
@@ -685,15 +685,8 @@ function NetworkStatusCard({ ticket }) {
 
 // ── Hardware Assignment card ─────────────────────────────────────────────────────
 
-const APPROVAL_STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
-const APPROVAL_STATUS_LABEL = { Pending: 'Pending Approval', Approved: 'Approved', Rejected: 'Rejected' }
-
-function HardwareAssignmentCard({ items, onAdd }) {
-  const navigate = useNavigate()
-  const [approvals, setApprovals] = useState(getApprovals)
-  useEffect(() => subscribeApprovals(setApprovals), [])
-
-  const totalCost = items.reduce((sum, h) => sum + h.quantity * h.unitPrice, 0)
+function HardwareAssignmentCard({ items, onAdd, onRemove }) {
+  const chargeableTotal = items.reduce((sum, h) => sum + (h.chargeable ? h.quantity * h.unitPrice : 0), 0)
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -703,117 +696,164 @@ function HardwareAssignmentCard({ items, onAdd }) {
       {items.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-4">No hardware assigned to this ticket yet.</p>
       ) : (
-        <div className="border border-surface-border rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-3 py-2 font-semibold">Item</th>
-                <th className="text-right px-3 py-2 font-semibold">Qty</th>
-                <th className="text-right px-3 py-2 font-semibold">Unit Price</th>
-                <th className="text-right px-3 py-2 font-semibold">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {items.map((h, i) => {
-                const approval = h.approvalId ? approvals.find(a => a.id === h.approvalId) : null
-                return (
-                  <tr key={i}>
-                    <td className="px-3 py-2 text-gray-700">
-                      <button
-                        type="button"
-                        disabled={!approval}
-                        onClick={() => approval && navigate(`/approvals/${approval.id}`)}
-                        className={approval ? 'hover:underline text-left' : 'text-left'}
-                      >
-                        {h.name}
-                      </button>
-                      {h.expired && <Badge variant="red" size="sm" className="ml-1.5">Expired</Badge>}
-                      {approval && (
-                        <Badge variant={APPROVAL_STATUS_BADGE[approval.status]} size="sm" className="ml-1.5">
-                          {APPROVAL_STATUS_LABEL[approval.status]}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
-                    <td className="px-3 py-2 text-right text-gray-600">₹{h.unitPrice.toLocaleString('en-IN')}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-gray-800">₹{(h.quantity * h.unitPrice).toLocaleString('en-IN')}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-surface-border bg-gray-50">
-                <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Total Cost</td>
-                <td className="px-3 py-2 text-right text-sm font-bold text-gray-900">₹{totalCost.toLocaleString('en-IN')}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <>
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+            {items.map((h, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="flex-1 min-w-0 truncate text-sm text-gray-700">{h.name}</span>
+                <Badge variant={h.chargeable ? 'orange' : 'gray'} size="sm" className="shrink-0">
+                  {h.chargeable ? 'Chargeable' : 'Non-Chargeable'}
+                </Badge>
+                <span className="w-16 shrink-0 text-right text-xs text-gray-500">Qty {h.quantity}</span>
+                <span className="w-20 shrink-0 text-right text-xs font-semibold text-gray-800">
+                  {h.chargeable ? `₹${(h.quantity * h.unitPrice).toLocaleString('en-IN')}` : 'Free'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(i)}
+                  className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          {chargeableTotal > 0 && (
+            <div className="flex items-center justify-end gap-2 mt-3">
+              <span className="text-xs font-semibold text-gray-500">Total Cost</span>
+              <span className="text-sm font-bold text-gray-900">₹{chargeableTotal.toLocaleString('en-IN')}</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
 }
 
+const HARDWARE_CATEGORIES = [
+  { key: 'chargeable', label: 'Chargeable' },
+  { key: 'non-chargeable', label: 'Non-Chargeable' },
+]
+
 function AddHardwareModal({ open, onClose, onAdd }) {
+  const [category, setCategory] = useState('chargeable')
   const [search, setSearch] = useState('')
-  const [selectedItem, setSelectedItem] = useState(null)
-  const [quantity, setQuantity] = useState(1)
-  const [expired, setExpired] = useState(false)
+  // Keyed by item name so the same selection set carries across switching
+  // Chargeable/Non-Chargeable — a single submit can add items from both.
+  const [selected, setSelected] = useState({})
 
   useEffect(() => {
     if (open) return
-    setSearch(''); setSelectedItem(null); setQuantity(1); setExpired(false)
+    setCategory('chargeable'); setSearch(''); setSelected({})
   }, [open])
 
-  const filtered = HARDWARE_CATALOG.filter(h => h.name.toLowerCase().includes(search.toLowerCase()))
-  const valid = !!selectedItem && Number(quantity) > 0
+  const filtered = HARDWARE_CATALOG.filter(h =>
+    h.chargeable === (category === 'chargeable') && h.name.toLowerCase().includes(search.toLowerCase()))
+
+  function toggleItem(h) {
+    setSelected(prev => {
+      const next = { ...prev }
+      if (next[h.name]) delete next[h.name]
+      else next[h.name] = { name: h.name, chargeable: h.chargeable, unitPrice: h.unitPrice, quantity: 1 }
+      return next
+    })
+  }
+
+  function setPrice(name, value) {
+    setSelected(prev => prev[name] ? { ...prev, [name]: { ...prev[name], unitPrice: Number(value) || 0 } } : prev)
+  }
+
+  function stepQty(name, delta) {
+    setSelected(prev => {
+      const item = prev[name]
+      if (!item) return prev
+      const quantity = Math.max(1, item.quantity + delta)
+      return { ...prev, [name]: { ...item, quantity } }
+    })
+  }
+
+  const selectedItems = Object.values(selected)
 
   function handleSubmit() {
-    if (!valid) return
-    onAdd({ name: selectedItem.name, quantity: Number(quantity), unitPrice: selectedItem.unitPrice, expired })
+    if (selectedItems.length === 0) return
+    onAdd(selectedItems)
   }
 
   return (
-    <Modal isOpen={open} onClose={onClose} title="Add Hardware" size="sm"
+    <Modal isOpen={open} onClose={onClose} title="Add Hardware" size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!valid}>Add</Button>
+          <Button onClick={handleSubmit} disabled={selectedItems.length === 0}>Add Hardware</Button>
         </>
       }
     >
       <div className="space-y-4">
-        <FormField label="Hardware Item" required>
-          <div className="relative">
-            <input
-              value={selectedItem ? selectedItem.name : search}
-              onChange={e => { setSearch(e.target.value); setSelectedItem(null) }}
-              placeholder="Search hardware item…"
-              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-            />
-            {!selectedItem && filtered.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg overflow-hidden shadow-lg bg-white max-h-48 overflow-y-auto">
-                {filtered.map(h => (
-                  <button key={h.name} type="button" onClick={() => { setSelectedItem(h); setSearch('') }}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-brand-blue/5 transition-colors border-b border-surface-border last:border-0">
-                    <span className="text-gray-800">{h.name}</span>
-                    <span className="text-xs text-gray-400 font-mono">₹{h.unitPrice.toLocaleString('en-IN')}</span>
-                  </button>
-                ))}
+        <div className="flex gap-1">
+          {HARDWARE_CATEGORIES.map(c => (
+            <button key={c.key} type="button" onClick={() => setCategory(c.key)}
+              className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                category === c.key ? 'bg-brand-blue text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+              }`}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search hardware item…"
+            className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
+          />
+        </div>
+
+        <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-64 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-6">No items found</p>
+          ) : filtered.map(h => {
+            const sel = selected[h.name]
+            return (
+              <div key={h.name} className="flex items-center gap-3 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={!!sel}
+                  onChange={() => toggleItem(h)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 shrink-0"
+                />
+                <span className="flex-1 min-w-0 truncate text-sm text-gray-700">{h.name}</span>
+                {h.chargeable && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-xs text-gray-400">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={sel ? sel.unitPrice : h.unitPrice}
+                      onChange={e => setPrice(h.name, e.target.value)}
+                      disabled={!sel}
+                      className="w-16 text-xs border border-surface-border rounded-md px-1.5 py-1 text-right focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50 disabled:text-gray-400"
+                    />
+                  </div>
+                )}
+                {sel && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button type="button" onClick={() => stepQty(h.name, -1)}
+                      className="w-6 h-6 rounded-md border border-surface-border flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
+                      <Minus size={11} />
+                    </button>
+                    <span className="w-5 text-center text-xs font-semibold text-gray-700">{sel.quantity}</span>
+                    <button type="button" onClick={() => stepQty(h.name, 1)}
+                      className="w-6 h-6 rounded-md border border-surface-border flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors">
+                      <Plus size={11} />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </FormField>
-
-        <FormField label="Quantity" required>
-          <Input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)} />
-        </FormField>
-
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" checked={expired} onChange={e => setExpired(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-          Expired Hardware — being replaced, not newly added
-        </label>
+            )
+          })}
+        </div>
       </div>
     </Modal>
   )
@@ -856,7 +896,6 @@ export default function SupportTicketDetail() {
   const [reopenOpen, setReopenOpen] = useState(false)
   const [assignTeamOpen, setAssignTeamOpen] = useState(false)
   const [assignTechOpen, setAssignTechOpen] = useState(false)
-  const [addHardwareOpen, setAddHardwareOpen] = useState(false)
   const [internalText, setInternalText] = useState('')
 
   useEffect(() => {
@@ -875,6 +914,23 @@ export default function SupportTicketDetail() {
   const scheduleOpen = searchParams.get('modal') === 'schedule-visit'
   const resolveOpen = searchParams.get('modal') === 'resolve-ticket'
   const otpOpen = searchParams.get('modal') === 'verify-otp'
+  const addHardwareOpen = searchParams.get('modal') === 'add-hardware'
+
+  function openAddHardwareModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-hardware')
+      return next
+    })
+  }
+
+  function closeAddHardwareModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    }, { replace: true })
+  }
 
   function openScheduleModal() {
     setSearchParams(prev => {
@@ -1007,10 +1063,15 @@ export default function SupportTicketDetail() {
     setInternalText('')
   }
 
-  function handleAddHardware(item) {
-    const approval = createHardwareApproval({ ticketId: ticket.id, items: [item] }, CURRENT_USER)
-    setHardwareAssignments(items => [...items, { ...item, approvalId: approval.id }])
-    setAddHardwareOpen(false)
+  function handleAddHardware(items) {
+    if (items.length === 0) return
+    const approval = createHardwareApproval({ ticketId: ticket.id, items }, CURRENT_USER)
+    setHardwareAssignments(prev => [...prev, ...items.map(it => ({ ...it, approvalId: approval.id }))])
+    closeAddHardwareModal()
+  }
+
+  function handleRemoveHardware(index) {
+    setHardwareAssignments(prev => prev.filter((_, i) => i !== index))
   }
 
   function handleAssignTeam(agents, teams) {
@@ -1273,7 +1334,7 @@ export default function SupportTicketDetail() {
 
               {/* ─── Hardware ────────────────────────────────────────────── */}
               {activeTab === 'hardware' && (
-                <HardwareAssignmentCard items={hardwareAssignments} onAdd={() => setAddHardwareOpen(true)} />
+                <HardwareAssignmentCard items={hardwareAssignments} onAdd={openAddHardwareModal} onRemove={handleRemoveHardware} />
               )}
             </div>
           </div>
@@ -1437,7 +1498,7 @@ export default function SupportTicketDetail() {
         onSubmit={data => { scheduleTechnicianVisit(ticket.id, data, CURRENT_USER); closeScheduleModal() }} />
       <AssignTechnicianModal isOpen={assignTechOpen} onClose={() => setAssignTechOpen(false)} ticket={ticket} />
       <AssignTeamModal open={assignTeamOpen} onClose={() => setAssignTeamOpen(false)} ticket={ticket} onApply={handleAssignTeam} />
-      <AddHardwareModal open={addHardwareOpen} onClose={() => setAddHardwareOpen(false)} onAdd={handleAddHardware} />
+      <AddHardwareModal open={addHardwareOpen} onClose={closeAddHardwareModal} onAdd={handleAddHardware} />
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2">
