@@ -440,12 +440,6 @@ export default function FeasibilityDetail() {
                   ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
                   : <p className="text-sm font-medium text-gray-800">—</p>}
               </div>
-              <div>
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement</p>
-                {(req.customerRequirementNotes || req.customerRequirement)
-                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.customerRequirementNotes || req.customerRequirement}</p>
-                  : <p className="text-sm font-medium text-gray-800">—</p>}
-              </div>
             </div>
           </Card>
         )}
@@ -484,7 +478,7 @@ export default function FeasibilityDetail() {
                     <div>
                       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement Notes</p>
                       <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                        {req.customerRequirementNotes || '—'}
+                        {req.customerRequirementNotes || req.customerRequirement || '—'}
                       </p>
                     </div>
                     <div>
