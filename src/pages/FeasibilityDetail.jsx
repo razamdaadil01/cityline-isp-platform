@@ -3,11 +3,13 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
   Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, Check, ExternalLink,
+  Plus, Trash2,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
+import AddHardwareModal from '../components/hardware/AddHardwareModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
@@ -152,7 +154,7 @@ const STEPS = [
 // and whichever step matches the tab bar's current selection below, shown
 // in blue instead of green.
 function Stepper({ req, activeStep }) {
-  const hasData = step => step.key !== 3 || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
+  const hasData = step => step.key !== 3 || (req.hwItems?.length > 0 || req.wireItems?.length > 0 || req.hardwareItems?.length > 0)
 
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
@@ -276,6 +278,7 @@ export default function FeasibilityDetail() {
   const [showAssign,  setShowAssign]  = useState(false)
   const [showApprove, setShowApprove] = useState(false)
   const [showReject,  setShowReject]  = useState(false)
+  const [showAddHardware, setShowAddHardware] = useState(false)
 
   const [assignForm,  setAssignForm]  = useState({ engineer: '', date: '', priority: 'Medium', notes: '' })
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
@@ -357,6 +360,17 @@ export default function FeasibilityDetail() {
     })
     setShowReject(false)
     setToast('Feasibility rejected')
+  }
+
+  function handleAddHardware(items) {
+    if (items.length === 0) return
+    saveFeasibilityRequest({ ...req, hardwareItems: [...(req.hardwareItems ?? []), ...items] })
+    setShowAddHardware(false)
+    setToast('Hardware added successfully')
+  }
+
+  function handleRemoveHardware(index) {
+    saveFeasibilityRequest({ ...req, hardwareItems: (req.hardwareItems ?? []).filter((_, i) => i !== index) })
   }
 
   if (!req) {
@@ -610,11 +624,47 @@ export default function FeasibilityDetail() {
 
         {/* Hardware */}
         {activeTab === 'hardware' && (
-              <Card title="Hardware Requirements" icon={Wrench}>
-                {(!req.hwItems?.length && !req.wireItems?.length) ? (
+              <Card
+                title="Hardware Requirements"
+                icon={Wrench}
+                headerAction={
+                  <button
+                    onClick={() => setShowAddHardware(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Plus size={13} /> Add Hardware
+                  </button>
+                }
+              >
+                {(!req.hwItems?.length && !req.wireItems?.length && !req.hardwareItems?.length) ? (
                   <p className="text-sm text-gray-400 text-center py-4">No hardware requirements added yet</p>
                 ) : (
                   <div className="space-y-6">
+                    {/* Added Hardware (Chargeable/Non-Chargeable, via Add Hardware modal) */}
+                    {req.hardwareItems?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Added Hardware</p>
+                        <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+                          {req.hardwareItems.map((h, i) => (
+                            <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                              <span className="flex-1 min-w-0 truncate text-sm text-gray-700">{h.name}</span>
+                              <Badge variant={h.chargeable ? 'orange' : 'gray'} size="sm" className="shrink-0">
+                                {h.chargeable ? 'Chargeable' : 'Non-Chargeable'}
+                              </Badge>
+                              <span className="w-16 shrink-0 text-right text-xs text-gray-500">Qty {h.quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveHardware(i)}
+                                className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Hardware Items table */}
                     {req.hwItems?.length > 0 && (
                       <div>
@@ -836,6 +886,13 @@ export default function FeasibilityDetail() {
           </FormField>
         </div>
       </Modal>
+
+      {/* ── Add Hardware Modal (shared Chargeable/Non-Chargeable picker) ── */}
+      <AddHardwareModal
+        open={showAddHardware}
+        onClose={() => setShowAddHardware(false)}
+        onAdd={handleAddHardware}
+      />
 
       {toast && <Toast msg={toast} onDone={() => setToast('')} />}
     </div>
