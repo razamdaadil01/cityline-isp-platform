@@ -12,8 +12,22 @@ import {
   getFeasibilityRequests, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
   FEASIBILITY_ENGINEERS as ENGINEERS, FEASIBILITY_BRANCHES as BRANCHES,
 } from '../data/feasibilityStore'
+import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
 
 /* ── Constants ───────────────────────────────────────────────── */
+
+// Feasibility Requests table's Show/Hide Columns default set. Customer Name
+// is locked so the table can never end up with zero identifying columns visible.
+const FEASIBILITY_TABLE_COLUMNS = [
+  { key: 'requestId',        label: 'Request ID',        visible: true, defaultVisible: true },
+  { key: 'customerName',     label: 'Customer Name',     visible: true, defaultVisible: true, locked: true },
+  { key: 'address',          label: 'Address',           visible: true, defaultVisible: true },
+  { key: 'assignedEngineer', label: 'Assigned Engineer', visible: true, defaultVisible: true },
+  { key: 'connectionType',   label: 'Connection Type',   visible: true, defaultVisible: true },
+  { key: 'status',           label: 'Status',            visible: true, defaultVisible: true },
+  { key: 'created',          label: 'Created',           visible: true, defaultVisible: true },
+  { key: 'actions',          label: 'Actions',           visible: true, defaultVisible: true },
+]
 
 const STATUSES = ['Pending', 'Assigned', 'In Progress', 'Approved', 'Rejected']
 
@@ -58,6 +72,10 @@ export default function FeasibilityRequests() {
   const menuRef  = useRef(null)
 
   const [requests, setRequests] = useState(getFeasibilityRequests())
+
+  // Manage Columns
+  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:feasibilityTable', FEASIBILITY_TABLE_COLUMNS)
+  const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   // Search (stays in main page)
   const [search, setSearch] = useState('')
@@ -339,6 +357,7 @@ export default function FeasibilityRequests() {
                 Clear all
               </button>
             )}
+            <ColumnManager columns={tableColumns} onChange={setTableColumns} />
             <span className="text-xs text-gray-400 shrink-0">{visible.length} request{visible.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
@@ -354,37 +373,61 @@ export default function FeasibilityRequests() {
               <table className="w-full" style={{ minWidth: 1500 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {['Req ID','Lead ID','Customer Name','Mobile','Connection Type','Area','Locality','Sub Locality',
-                      'Assigned Engineer','Fiber Req (M)','Priority','Status','Created Date','Branch','Actions']
-                      .map((h, i) => (
-                        <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-6' : ''}`}>{h}</th>
-                      ))}
+                    {visibleCols.has('requestId') && <th className="px-4 py-3 text-left whitespace-nowrap pl-6">Req ID</th>}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Lead ID</th>
+                    {visibleCols.has('customerName') && <th className="px-4 py-3 text-left whitespace-nowrap">Customer Name</th>}
+                    {visibleCols.has('address') && <th className="px-4 py-3 text-left whitespace-nowrap">Address</th>}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Mobile</th>
+                    {visibleCols.has('connectionType') && <th className="px-4 py-3 text-left whitespace-nowrap">Connection Type</th>}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Area</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Locality</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Sub Locality</th>
+                    {visibleCols.has('assignedEngineer') && <th className="px-4 py-3 text-left whitespace-nowrap">Assigned Engineer</th>}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Fiber Req (M)</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Priority</th>
+                    {visibleCols.has('status') && <th className="px-4 py-3 text-left whitespace-nowrap">Status</th>}
+                    {visibleCols.has('created') && <th className="px-4 py-3 text-left whitespace-nowrap">Created Date</th>}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Branch</th>
+                    {visibleCols.has('actions') && <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {paged.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="pl-6 pr-4 py-3 whitespace-nowrap">
-                        <button onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
-                          className="font-mono text-xs font-semibold text-brand-blue hover:underline transition-colors">
-                          {r.id}
-                        </button>
-                      </td>
+                      {visibleCols.has('requestId') && (
+                        <td className="pl-6 pr-4 py-3 whitespace-nowrap">
+                          <button onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
+                            className="font-mono text-xs font-semibold text-brand-blue hover:underline transition-colors">
+                            {r.id}
+                          </button>
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <button onClick={() => navigate(`/sales/leads/${r.leadId}/overview`)}
                           className="font-mono text-xs font-semibold text-gray-600 hover:text-brand-blue hover:underline transition-colors">
                           {r.leadId}
                         </button>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs font-semibold text-gray-900">{r.customerName}</span>
-                      </td>
+                      {visibleCols.has('customerName') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs font-semibold text-gray-900">{r.customerName}</span>
+                        </td>
+                      )}
+                      {visibleCols.has('address') && (
+                        <td className="px-4 py-3 max-w-[220px] truncate" title={r.completeAddress || [r.subLocalityName, r.localityName, r.area].filter(Boolean).join(', ')}>
+                          <span className="text-xs text-gray-700">
+                            {r.completeAddress || [r.subLocalityName, r.localityName, r.area].filter(Boolean).join(', ') || '—'}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="font-mono text-xs text-gray-600">{r.mobile || '—'}</span>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700">{r.connectionType || '—'}</span>
-                      </td>
+                      {visibleCols.has('connectionType') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-700">{r.connectionType || '—'}</span>
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs text-gray-700">{r.area}</span>
                       </td>
@@ -394,11 +437,13 @@ export default function FeasibilityRequests() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs text-gray-700">{r.subLocalityName}</span>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {r.assignedEngineer
-                          ? <span className="text-xs text-gray-800 font-medium">{r.assignedEngineer}</span>
-                          : <span className="text-gray-300 text-xs">Unassigned</span>}
-                      </td>
+                      {visibleCols.has('assignedEngineer') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {r.assignedEngineer
+                            ? <span className="text-xs text-gray-800 font-medium">{r.assignedEngineer}</span>
+                            : <span className="text-gray-300 text-xs">Unassigned</span>}
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap text-center">
                         <span className="text-xs text-gray-700">{r.fiberRequired ? `${r.fiberRequired} m` : '—'}</span>
                       </td>
@@ -407,28 +452,34 @@ export default function FeasibilityRequests() {
                           ? <Badge variant={PRIORITY_VARIANT[r.priority] || 'gray'} size="sm">{r.priority}</Badge>
                           : <span className="text-gray-300 text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <Badge variant={STATUS_VARIANT[r.feasibilityStatus] ?? 'gray'} size="sm">
-                          {r.feasibilityStatus}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-500">{r.createdAt}</span>
-                      </td>
+                      {visibleCols.has('status') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <Badge variant={STATUS_VARIANT[r.feasibilityStatus] ?? 'gray'} size="sm">
+                            {r.feasibilityStatus}
+                          </Badge>
+                        </td>
+                      )}
+                      {visibleCols.has('created') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-500">{r.createdAt}</span>
+                        </td>
+                      )}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {r.assignedBranch
                           ? <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r.assignedBranch}</span>
                           : <span className="text-gray-300 text-xs">—</span>}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <button
-                          onClick={e => openMenu(e, r.id)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                            menuId === r.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-                          }`}>
-                          <MoreVertical size={15} />
-                        </button>
-                      </td>
+                      {visibleCols.has('actions') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <button
+                            onClick={e => openMenu(e, r.id)}
+                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                              menuId === r.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                            }`}>
+                            <MoreVertical size={15} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

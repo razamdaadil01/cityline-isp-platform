@@ -20,6 +20,21 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
+import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
+
+// Installations table's Show/Hide Columns default set. Customer Name is
+// locked so the table can never end up with zero identifying columns visible.
+const INSTALLATIONS_COLUMNS = [
+  { key: 'workOrderId',      label: 'Installation ID',   visible: true, defaultVisible: true },
+  { key: 'customerName',     label: 'Customer Name',     visible: true, defaultVisible: true, locked: true },
+  { key: 'address',          label: 'Address',           visible: true, defaultVisible: true },
+  { key: 'assignedEngineer', label: 'Assigned Engineer', visible: true, defaultVisible: true },
+  { key: 'status',           label: 'Status',            visible: true, defaultVisible: true },
+  { key: 'installationDate', label: 'Scheduled Date',    visible: true, defaultVisible: true },
+  { key: 'hardware',         label: 'Hardware',          visible: true, defaultVisible: true },
+  { key: 'createdDate',      label: 'Created',           visible: true, defaultVisible: true },
+  { key: 'actions',          label: 'Actions',           visible: true, defaultVisible: true },
+]
 
 /* ── Type badge — follows the "Internet + Intercom" / "Intercom Only" pattern ── */
 const TYPE_BADGE = {
@@ -90,8 +105,11 @@ function buildUnifiedRows(internet, intercom) {
     customerName:     inst.customerName,
     mobile:           inst.mobile || inst.customerPhone || '—',
     areaLocality:     [inst.area, inst.locality].filter(Boolean).join(' — ') || '—',
+    address:          inst.address || '—',
     assignedEngineer: inst.engineerName || '—',
     installationDate: formatDate(inst.slotDate, 'iso'),
+    hardware:         inst.hardware?.length ? inst.hardware.map(h => `${h.name} × ${h.qty}`).join(', ') : '—',
+    createdDate:      formatDate(inst.createdAt, 'iso'),
     status:           inst.status,
     normalizedStatus: normalizeInternetStatus(inst.status),
   }))
@@ -106,8 +124,11 @@ function buildUnifiedRows(internet, intercom) {
     customerName:     o.customer,
     mobile:           o.phone || '—',
     areaLocality:     o.zone || '—',
+    address:          '—',
     assignedEngineer: o.engineer || '—',
     installationDate: formatDate(o.installDate, 'dmy'),
+    hardware:         '—',
+    createdDate:      formatDate(o.createdDate, 'dmy'),
     status:           INTERCOM_STATUS_LABEL[o.status] ?? o.status,
     normalizedStatus: normalizeIntercomStatus(o.status),
   }))
@@ -401,6 +422,9 @@ export default function Installations() {
   const [pageSize,     setPageSize]     = useState(10)
 
   const [toast, setToast] = useState('')
+
+  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:installationTable', INSTALLATIONS_COLUMNS)
+  const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   /* ── Internet (Sales & Leads) row actions ──────────────────────────────── */
   const netMenuRef = useRef(null)
@@ -699,6 +723,8 @@ export default function Installations() {
             <span className="text-xs text-gray-400 shrink-0">
               {visible.length} work order{visible.length !== 1 ? 's' : ''}
             </span>
+
+            <ColumnManager columns={tableColumns} onChange={setTableColumns} />
           </div>
 
           {/* Table */}
@@ -713,12 +739,37 @@ export default function Installations() {
               <table className="w-full" style={{ minWidth: 1400 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {['Work Order ID', 'Type', 'Lead ID', 'Customer Name', 'Mobile', 'Area / Locality',
-                      'Assigned Engineer', 'Installation Date', 'Status', 'Actions'].map((h, i) => (
-                      <th key={h} className={`px-4 py-3 text-left whitespace-nowrap ${i === 0 ? 'pl-6' : ''}`}>
-                        {h}
-                      </th>
-                    ))}
+                    {visibleCols.has('workOrderId') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap pl-6">Work Order ID</th>
+                    )}
+                    <th className={`px-4 py-3 text-left whitespace-nowrap ${!visibleCols.has('workOrderId') ? 'pl-6' : ''}`}>Type</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Lead ID</th>
+                    {visibleCols.has('customerName') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Customer Name</th>
+                    )}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Mobile</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Area / Locality</th>
+                    {visibleCols.has('address') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Address</th>
+                    )}
+                    {visibleCols.has('assignedEngineer') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Assigned Engineer</th>
+                    )}
+                    {visibleCols.has('installationDate') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Installation Date</th>
+                    )}
+                    {visibleCols.has('hardware') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Hardware</th>
+                    )}
+                    {visibleCols.has('createdDate') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Created</th>
+                    )}
+                    {visibleCols.has('status') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Status</th>
+                    )}
+                    {visibleCols.has('actions') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
@@ -727,14 +778,16 @@ export default function Installations() {
                       className="hover:bg-gray-50/60 transition-colors cursor-pointer">
 
                       {/* WORK ORDER ID */}
-                      <td className="pl-6 pr-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs font-semibold text-brand-blue hover:underline">
-                          {row.workOrderId}
-                        </span>
-                      </td>
+                      {visibleCols.has('workOrderId') && (
+                        <td className="pl-6 pr-4 py-3 whitespace-nowrap">
+                          <span className="font-mono text-xs font-semibold text-brand-blue hover:underline">
+                            {row.workOrderId}
+                          </span>
+                        </td>
+                      )}
 
                       {/* TYPE */}
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className={`px-4 py-3 whitespace-nowrap ${!visibleCols.has('workOrderId') ? 'pl-6' : ''}`}>
                         <Badge variant={TYPE_BADGE[row.type] ?? 'gray'} size="sm">{row.type}</Badge>
                       </td>
 
@@ -749,9 +802,11 @@ export default function Installations() {
                       </td>
 
                       {/* CUSTOMER NAME */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs font-semibold text-gray-900">{row.customerName}</span>
-                      </td>
+                      {visibleCols.has('customerName') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs font-semibold text-gray-900">{row.customerName}</span>
+                        </td>
+                      )}
 
                       {/* MOBILE */}
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -763,41 +818,70 @@ export default function Installations() {
                         <span className="text-xs text-gray-700">{row.areaLocality}</span>
                       </td>
 
+                      {/* ADDRESS */}
+                      {visibleCols.has('address') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-700">{row.address}</span>
+                        </td>
+                      )}
+
                       {/* ASSIGNED ENGINEER */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700">{row.assignedEngineer}</span>
-                      </td>
+                      {visibleCols.has('assignedEngineer') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-700">{row.assignedEngineer}</span>
+                        </td>
+                      )}
 
                       {/* INSTALLATION DATE */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700 font-medium">{row.installationDate}</span>
-                      </td>
+                      {visibleCols.has('installationDate') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-700 font-medium">{row.installationDate}</span>
+                        </td>
+                      )}
+
+                      {/* HARDWARE */}
+                      {visibleCols.has('hardware') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-700">{row.hardware}</span>
+                        </td>
+                      )}
+
+                      {/* CREATED */}
+                      {visibleCols.has('createdDate') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-gray-700">{row.createdDate}</span>
+                        </td>
+                      )}
 
                       {/* STATUS */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <Badge variant={STATUS_BADGE[row.status] ?? 'gray'} size="sm">{row.status}</Badge>
-                      </td>
+                      {visibleCols.has('status') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <Badge variant={STATUS_BADGE[row.status] ?? 'gray'} size="sm">{row.status}</Badge>
+                        </td>
+                      )}
 
                       {/* ACTIONS */}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {row.type === 'Internet' ? (
-                          <button
-                            onClick={e => openNetMenu(e, row.workOrderId)}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                              netMenuId === row.workOrderId ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-                            }`}>
-                            <MoreVertical size={15} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={e => openIcMenu(e, row.workOrderId)}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                              icMenuId === row.workOrderId ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                            }`}>
-                            <MoreVertical size={15} />
-                          </button>
-                        )}
-                      </td>
+                      {visibleCols.has('actions') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {row.type === 'Internet' ? (
+                            <button
+                              onClick={e => openNetMenu(e, row.workOrderId)}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                                netMenuId === row.workOrderId ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                              }`}>
+                              <MoreVertical size={15} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={e => openIcMenu(e, row.workOrderId)}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                                icMenuId === row.workOrderId ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                              }`}>
+                              <MoreVertical size={15} />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
