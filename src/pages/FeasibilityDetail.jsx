@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, Check,
+  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, Check, ExternalLink,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -41,6 +41,20 @@ function fmtDate(d) {
   const parts = d.split('-')
   if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
   return d
+}
+
+// Parses the "28.6293° N, 77.3649° E" GPS Location format (every
+// feasibility request record uses it — see feasibilityStore.js) into
+// signed decimal { lat, lng }, so it works for any record, not just one.
+function parseGpsLocation(gps) {
+  if (!gps) return null
+  const m = gps.match(/(-?\d+(?:\.\d+)?)\s*°?\s*([NS])\s*,\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EW])/i)
+  if (!m) return null
+  const [, latRaw, latDir, lngRaw, lngDir] = m
+  const lat = parseFloat(latRaw) * (latDir.toUpperCase() === 'S' ? -1 : 1)
+  const lng = parseFloat(lngRaw) * (lngDir.toUpperCase() === 'W' ? -1 : 1)
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null
+  return { lat, lng }
 }
 
 /* ── Sub-components ─────────────────────────────────────────────── */
@@ -98,6 +112,58 @@ function AttachmentSlot({ label, icon: Icon }) {
         <p className="text-[10px] text-gray-300">PNG, JPG, PDF up to 10 MB</p>
       </div>
     </div>
+  )
+}
+
+/* ── Map preview ───────────────────────────────────────────────── */
+// No Google Maps API key is configured in this project's env vars, so this
+// always renders the clickable fallback card below — kept as a real branch
+// (rather than only building the fallback) so a future VITE_GOOGLE_MAPS_API_KEY
+// gets an embedded map for free instead of silently doing nothing.
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+
+function MapPreview({ req }) {
+  const coords = parseGpsLocation(req.gpsLocation)
+  if (!coords) return null
+
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`
+
+  if (GOOGLE_MAPS_API_KEY) {
+    return (
+      <div className="rounded-xl overflow-hidden border border-surface-border">
+        <iframe
+          title="Location map"
+          width="100%"
+          height="220"
+          style={{ border: 0, display: 'block' }}
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          src={`https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${coords.lat},${coords.lng}`}
+        />
+      </div>
+    )
+  }
+
+  const addressSummary = [req.village, req.area, req.localityName].filter(Boolean).join(', ')
+
+  return (
+    <a
+      href={mapsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 rounded-xl border border-surface-border bg-gray-50 hover:bg-blue-50/40 hover:border-brand-blue/30 transition-colors px-4 py-3.5 group"
+    >
+      <div className="w-10 h-10 rounded-lg bg-white border border-surface-border flex items-center justify-center shrink-0 group-hover:border-brand-blue/40 transition-colors">
+        <MapPin size={18} className="text-gray-400 group-hover:text-brand-blue transition-colors" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-800 truncate">{addressSummary || 'View location'}</p>
+        <p className="text-xs text-gray-400 font-mono">{req.gpsLocation}</p>
+      </div>
+      <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue shrink-0">
+        View on Google Maps <ExternalLink size={12} />
+      </span>
+    </a>
   )
 }
 
@@ -439,6 +505,7 @@ export default function FeasibilityDetail() {
                     ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
                     : <p className="text-sm font-medium text-gray-800">—</p>}
                 </div>
+                <MapPreview req={req} />
               </div>
             </Card>
           </div>
