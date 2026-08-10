@@ -22,6 +22,23 @@ import Modal from '../components/ui/Modal'
 import CallModal from '../components/ui/CallModal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import DynamicFieldInput, { isFieldFilled } from '../components/ui/DynamicFieldInput'
+import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
+
+// Leads table's Show/Hide Columns default set (proof of concept for
+// ColumnManager — a generic, reusable component). Customer Name is locked
+// so the table can never end up with zero identifying columns visible.
+const SALES_LEADS_COLUMNS = [
+  { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
+  { key: 'leadId',       label: 'Lead ID',        visible: true, defaultVisible: true },
+  { key: 'customerType', label: 'Customer Type',  visible: true, defaultVisible: true },
+  { key: 'branch',       label: 'Branch',         visible: true, defaultVisible: true },
+  { key: 'mobile',       label: 'Mobile',         visible: true, defaultVisible: true },
+  { key: 'stage',        label: 'Stage',          visible: true, defaultVisible: true },
+  { key: 'assigned',     label: 'Assigned',       visible: true, defaultVisible: true },
+  { key: 'followUp',     label: 'Follow-up',      visible: true, defaultVisible: true },
+  { key: 'created',      label: 'Created',        visible: true, defaultVisible: true },
+  { key: 'actions',      label: 'Actions',        visible: true, defaultVisible: true },
+]
 
 // ── Pipeline definitions ──────────────────────────────────────────────────────
 
@@ -1371,6 +1388,8 @@ export default function Sales() {
   const [ekycLead, setEkycLead]         = useState(null)
   const [hwLead, setHwLead]             = useState(null)
   const [search, setSearch]             = useState('')
+  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:salesLeadsTable', SALES_LEADS_COLUMNS)
+  const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
   const [requiredStageWarning, setRequiredStageWarning] = useState(null) // { stageName }
   const [formModules, setFormModules]   = useState(getFormModules())
   const [wonConversionLead, setWonConversionLead] = useState(null)
@@ -1854,6 +1873,9 @@ export default function Sales() {
               )}
             </div>
 
+            {/* Columns (table view only) */}
+            {viewMode === 'table' && <ColumnManager columns={tableColumns} onChange={setTableColumns} />}
+
             {/* Add Lead */}
             <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')} className="shrink-0">
               Add Lead
@@ -1923,21 +1945,22 @@ export default function Sales() {
               <table className="text-sm table-fixed w-full" style={{ minWidth: 1250 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                    <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Branch</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 130 }}>Follow-up</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 110 }}>Created</th>
-                    <th className="px-4 py-3 text-left" style={{ width: 100 }}>Actions</th>
+                    {visibleCols.has('customerName') && <th className="px-4 py-3 text-left" style={{ width: 160 }}>Customer Name</th>}
+                    {visibleCols.has('leadId') && <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>}
+                    {visibleCols.has('customerType') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>}
+                    {visibleCols.has('branch') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Branch</th>}
+                    {visibleCols.has('mobile') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>}
+                    {visibleCols.has('stage') && <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>}
+                    {visibleCols.has('assigned') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>}
+                    {visibleCols.has('followUp') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Follow-up</th>}
+                    {visibleCols.has('created') && <th className="px-4 py-3 text-left" style={{ width: 110 }}>Created</th>}
+                    {visibleCols.has('actions') && <th className="px-4 py-3 text-left" style={{ width: 100 }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {pageLeads.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
+                      <td colSpan={visibleCols.size} className="py-12 text-center text-gray-400 text-sm">No leads found</td>
                     </tr>
                   )}
                   {pageLeads.map(lead => {
@@ -1946,70 +1969,98 @@ export default function Sales() {
                     const customerType = PIPELINES[lead.pipeline]?.label ?? lead.pipeline
                     return (
                       <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 overflow-hidden" title={lead.id}>
-                          <button
-                            onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                            className="block truncate font-mono text-xs text-brand-blue font-semibold hover:underline text-left"
-                          >
-                            {lead.id}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden" title={customerType}>
-                          <span className="block truncate text-xs text-gray-700">{customerType}</span>
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden" title={lead.branchCode}>
-                          <span className="block truncate font-mono text-xs text-gray-600">{lead.branchCode ?? '—'}</span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <button
-                            onClick={e => { e.stopPropagation(); setCallModal({ open: true, name: lead.name, phone: lead.phone }) }}
-                            className="flex items-center gap-1.5 font-mono text-xs text-gray-600 hover:text-emerald-600 transition-colors group"
-                          >
-                            <Phone size={11} className="text-gray-400 group-hover:text-emerald-500 shrink-0" />
-                            {lead.phone}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden" title={lead.stage}>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${ss.chip}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ss.colorBar}`} />
-                            <span className="truncate">{lead.stage}</span>
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 overflow-hidden" title={lead.assigned}>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
-                              {lead.assignedInitials}
+                        {visibleCols.has('customerName') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.name}>
+                            <button
+                              onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                              className="block truncate text-xs font-semibold text-gray-800 hover:text-brand-blue hover:underline text-left"
+                            >
+                              {lead.name}
+                            </button>
+                          </td>
+                        )}
+                        {visibleCols.has('leadId') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.id}>
+                            <button
+                              onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                              className="block truncate font-mono text-xs text-brand-blue font-semibold hover:underline text-left"
+                            >
+                              {lead.id}
+                            </button>
+                          </td>
+                        )}
+                        {visibleCols.has('customerType') && (
+                          <td className="px-4 py-3 overflow-hidden" title={customerType}>
+                            <span className="block truncate text-xs text-gray-700">{customerType}</span>
+                          </td>
+                        )}
+                        {visibleCols.has('branch') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.branchCode}>
+                            <span className="block truncate font-mono text-xs text-gray-600">{lead.branchCode ?? '—'}</span>
+                          </td>
+                        )}
+                        {visibleCols.has('mobile') && (
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <button
+                              onClick={e => { e.stopPropagation(); setCallModal({ open: true, name: lead.name, phone: lead.phone }) }}
+                              className="flex items-center gap-1.5 font-mono text-xs text-gray-600 hover:text-emerald-600 transition-colors group"
+                            >
+                              <Phone size={11} className="text-gray-400 group-hover:text-emerald-500 shrink-0" />
+                              {lead.phone}
+                            </button>
+                          </td>
+                        )}
+                        {visibleCols.has('stage') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.stage}>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${ss.chip}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ss.colorBar}`} />
+                              <span className="truncate">{lead.stage}</span>
+                            </span>
+                          </td>
+                        )}
+                        {visibleCols.has('assigned') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.assigned}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
+                                {lead.assignedInitials}
+                              </div>
+                              <span className="truncate text-xs text-gray-700">{lead.assigned}</span>
                             </div>
-                            <span className="truncate text-xs text-gray-700">{lead.assigned}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {lead.followUp
-                            ? <span className={`text-xs font-medium ${fuOverdue ? 'text-red-500' : 'text-gray-700'}`}>{lead.followUp}{fuOverdue && ' ⚠'}</span>
-                            : <span className="text-gray-300 text-xs">—</span>
-                          }
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={e => {
-                              const rect = e.currentTarget.getBoundingClientRect()
-                              const menuH = 220
-                              setTableMenuPos({
-                                top: window.innerHeight - rect.bottom < menuH ? rect.top - menuH : rect.bottom + 4,
-                                right: window.innerWidth - rect.right,
-                              })
-                              setTableMenuId(prev => prev === lead.id ? null : lead.id)
-                            }}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                              tableMenuId === lead.id
-                                ? 'bg-gray-100 text-gray-700'
-                                : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                            }`}
-                          >
-                            <MoreVertical size={15} />
-                          </button>
-                        </td>
+                          </td>
+                        )}
+                        {visibleCols.has('followUp') && (
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {lead.followUp
+                              ? <span className={`text-xs font-medium ${fuOverdue ? 'text-red-500' : 'text-gray-700'}`}>{lead.followUp}{fuOverdue && ' ⚠'}</span>
+                              : <span className="text-gray-300 text-xs">—</span>
+                            }
+                          </td>
+                        )}
+                        {visibleCols.has('created') && (
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{lead.createdAt ?? '—'}</td>
+                        )}
+                        {visibleCols.has('actions') && (
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={e => {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                const menuH = 220
+                                setTableMenuPos({
+                                  top: window.innerHeight - rect.bottom < menuH ? rect.top - menuH : rect.bottom + 4,
+                                  right: window.innerWidth - rect.right,
+                                })
+                                setTableMenuId(prev => prev === lead.id ? null : lead.id)
+                              }}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
+                                tableMenuId === lead.id
+                                  ? 'bg-gray-100 text-gray-700'
+                                  : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                              }`}
+                            >
+                              <MoreVertical size={15} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
