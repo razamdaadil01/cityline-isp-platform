@@ -21,6 +21,15 @@ import { saveFollowup } from '../data/followupStore'
 
 const ENGINEERS = ['Arjun Kumar', 'Preethi Nair', 'Anita Sharma', 'Suresh Babu']
 
+// Feasibility requests store their pipeline as the display name ("Residential",
+// "Enterprise" — see feasibilityStore.js), but MoveStageModal's findStageId
+// (shared from the Leads flow) looks pipelines up by the short key a lead
+// record carries in lead.pipeline ("B2C", "Enterprise" — see PIPELINE_MAP in
+// MoveStageModal.jsx). Without this translation, findStageId can't resolve a
+// stage id, stageFields comes back empty, and the modal silently falls back
+// to rendering nothing but its follow-up toggle.
+const PIPELINE_NAME_TO_KEY = { Residential: 'B2C', Enterprise: 'Enterprise' }
+
 const REJECTION_REASONS = [
   'Not Feasible — Too Far from Network',
   'Not Feasible — No Fiber Route',
@@ -424,7 +433,7 @@ export default function FeasibilityDetail() {
   // — using this request's own location/requirement data instead of a lead's.
   const stageFieldsLead = {
     name:                req.customerName,
-    pipeline:            req.pipeline,
+    pipeline:            PIPELINE_NAME_TO_KEY[req.pipeline] ?? req.pipeline,
     locality:            req.localityName,
     subLocality:         req.subLocalityName,
     address:             req.completeAddress,
