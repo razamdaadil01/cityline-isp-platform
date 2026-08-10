@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, Clock, FileText, Image, Upload, Wrench, Edit2, Check,
+  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, Check,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -85,36 +85,6 @@ function Toast({ msg, onDone }) {
   )
 }
 
-/* ── Timeline entry ─────────────────────────────────────────────── */
-const TIMELINE_COLOR = {
-  Created:      { dot: 'bg-gray-400',    label: 'text-gray-700' },
-  Assigned:     { dot: 'bg-brand-blue',  label: 'text-brand-blue' },
-  'In Progress':{ dot: 'bg-purple-500',  label: 'text-purple-600' },
-  Approved:     { dot: 'bg-emerald-500', label: 'text-emerald-600' },
-  Rejected:     { dot: 'bg-red-500',     label: 'text-red-600' },
-}
-
-function TimelineEntry({ entry, isLast }) {
-  const c = TIMELINE_COLOR[entry.action] || TIMELINE_COLOR.Created
-  return (
-    <div className="flex gap-4">
-      <div className="flex flex-col items-center shrink-0">
-        <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${c.dot}`} />
-        {!isLast && <div className="w-px flex-1 bg-gray-200 mt-1" />}
-      </div>
-      <div className="pb-5 flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs font-semibold ${c.label}`}>{entry.action}</span>
-          <span className="text-[11px] text-gray-400">by {entry.by}</span>
-          <span className="text-[11px] text-gray-300">·</span>
-          <span className="text-[11px] text-gray-400">{entry.at}</span>
-        </div>
-        {entry.note && <p className="text-xs text-gray-500 mt-0.5">{entry.note}</p>}
-      </div>
-    </div>
-  )
-}
-
 /* ── Mock attachment placeholder ────────────────────────────────── */
 function AttachmentSlot({ label, icon: Icon }) {
   return (
@@ -131,74 +101,45 @@ function AttachmentSlot({ label, icon: Icon }) {
   )
 }
 
-/* ── Stepper ────────────────────────────────────────────────────── */
-const STEPS = [
-  { key: 1, label: 'Lead & Customer' },
-  { key: 2, label: 'Location Details' },
-  { key: 3, label: 'Requirement & Feasibility' },
-  { key: 4, label: 'Hardware' },
-  { key: 5, label: 'Attachments' },
+/* ── Tab bar ────────────────────────────────────────────────────── */
+const TABS = [
+  { key: 'lead-customer',            label: 'Lead & Customer' },
+  { key: 'location-details',         label: 'Location Details' },
+  { key: 'requirement-feasibility',  label: 'Requirement & Feasibility' },
+  { key: 'hardware',                 label: 'Hardware' },
+  { key: 'attachments',              label: 'Attachments' },
 ]
 
-// All steps default to "completed" (this is existing data being viewed, not
-// a create wizard), except Hardware — which shows a muted/no-data state when
-// neither hardware nor wire items exist — and whichever step is currently
-// active, shown in blue instead of green. Steps are freely clickable (no
-// sequential lock), same as the Previous/Next buttons underneath each step.
-function Stepper({ req, activeStep, onStepClick }) {
-  const hasData = step => step.key !== 4 || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
+// Same underline tab-bar pattern as Customer Detail's Profile/Package
+// Details/Finance tabs. Every tab is independently clickable — no
+// completion gating. A small checkmark marks sections that already have
+// data (all of them, except Hardware when neither hardware nor wire items
+// exist) — purely informational, not a requirement to navigate.
+function TabBar({ req, activeTab, onTabClick }) {
+  const hasData = tab => tab.key !== 'hardware' || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
 
   return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
-      <div className="flex items-center">
-        {STEPS.map((step, i) => {
-          const isActive = step.key === activeStep
-          const isLast = i === STEPS.length - 1
-          const done = hasData(step)
+    <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+      <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
+        {TABS.map(tab => {
+          const isActive = tab.key === activeTab
+          const done = hasData(tab)
           return (
-            <div key={step.key} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
-              <button
-                type="button"
-                onClick={() => onStepClick(step.key)}
-                className="flex flex-col items-center gap-1.5 shrink-0 group"
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                  isActive
-                    ? 'bg-brand-blue border-brand-blue text-white'
-                    : done
-                      ? 'bg-emerald-500 border-emerald-500 text-white group-hover:bg-emerald-600'
-                      : 'bg-white border-gray-300 text-gray-400 group-hover:border-gray-400'
-                }`}>
-                  {isActive ? step.key : done ? <Check size={14} /> : step.key}
-                </div>
-                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
-                  isActive ? 'text-brand-blue' : done ? 'text-gray-700 group-hover:text-gray-900' : 'text-gray-400 group-hover:text-gray-500'
-                }`}>
-                  {step.label}
-                </span>
-              </button>
-              {!isLast && (
-                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
-              )}
-            </div>
+            <button
+              key={tab.key}
+              onClick={() => onTabClick(tab.key)}
+              className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                ${isActive
+                  ? 'border-brand-blue text-brand-blue'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                }`}
+            >
+              {done && <Check size={13} className={isActive ? 'text-brand-blue' : 'text-emerald-500'} />}
+              {tab.label}
+            </button>
           )
         })}
       </div>
-    </div>
-  )
-}
-
-// Previous/Next as an alternative to clicking the stepper directly — hidden
-// (not just disabled) on the first/last step respectively.
-function StepNav({ activeStep, onStepClick }) {
-  return (
-    <div className="flex items-center justify-end gap-3">
-      {activeStep > 1 && (
-        <Button variant="secondary" size="sm" onClick={() => onStepClick(activeStep - 1)}>Previous</Button>
-      )}
-      {activeStep < STEPS.length && (
-        <Button variant="secondary" size="sm" onClick={() => onStepClick(activeStep + 1)}>Next</Button>
-      )}
     </div>
   )
 }
@@ -217,29 +158,30 @@ export default function FeasibilityDetail() {
     })
   }, [id])
 
-  // ?step=1..5 tracks which section is showing, consistent with the
-  // ?section=/?tab=-style URL-param navigation used elsewhere in the app —
-  // clicking a step or Next/Previous pushes a new history entry so
-  // back/forward moves through the steps; an invalid/missing param is
-  // corrected to step 1 via a history replace on load.
-  const stepParam = Number(searchParams.get('step'))
-  const activeStep = STEPS.some(s => s.key === stepParam) ? stepParam : 1
+  // ?tab=lead-customer|location-details|requirement-feasibility|hardware|
+  // attachments tracks which section is showing, consistent with the
+  // ?section=/?modal=-style URL-param navigation used elsewhere in the app —
+  // clicking a tab pushes a new history entry so back/forward moves through
+  // them; an invalid/missing param is corrected to the first tab via a
+  // history replace on load.
+  const tabParam = searchParams.get('tab')
+  const activeTab = TABS.some(t => t.key === tabParam) ? tabParam : TABS[0].key
 
   useEffect(() => {
-    if (!STEPS.some(s => s.key === Number(searchParams.get('step')))) {
+    if (!TABS.some(t => t.key === searchParams.get('tab'))) {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev)
-        next.set('step', '1')
+        next.set('tab', TABS[0].key)
         return next
       }, { replace: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function goToStep(step) {
+  function goToTab(tab) {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
-      next.set('step', String(step))
+      next.set('tab', tab)
       return next
     })
   }
@@ -408,71 +350,61 @@ export default function FeasibilityDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="space-y-6">
 
-        {/* Left — main sections */}
-        <div className="xl:col-span-2 space-y-6">
+        <TabBar req={req} activeTab={activeTab} onTabClick={goToTab} />
 
-          <Stepper req={req} activeStep={activeStep} onStepClick={goToStep} />
+        {/* Lead & Customer */}
+        {activeTab === 'lead-customer' && (
+          <Card title="Lead & Customer Info" icon={User}>
+            <InfoGrid>
+              <InfoRow label="Lead ID"      value={req.leadId}        mono />
+              <InfoRow label="Customer Name" value={req.customerName} />
+              <InfoRow label="Mobile"       value={req.mobile}        mono />
+              <InfoRow label="Email"        value={req.email} />
+              <InfoRow label="Pipeline"     value={req.pipeline} />
+              <InfoRow label="Stage"        value={req.stage} />
+              <InfoRow label="Created By"   value={req.createdBy} />
+              <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
+            </InfoGrid>
+          </Card>
+        )}
 
-          {/* Step 1 — Lead & Customer */}
-          {activeStep === 1 && (
-            <>
-              <Card title="Lead & Customer Info" icon={User}>
-                <InfoGrid>
-                  <InfoRow label="Lead ID"      value={req.leadId}        mono />
-                  <InfoRow label="Customer Name" value={req.customerName} />
-                  <InfoRow label="Mobile"       value={req.mobile}        mono />
-                  <InfoRow label="Email"        value={req.email} />
-                  <InfoRow label="Pipeline"     value={req.pipeline} />
-                  <InfoRow label="Stage"        value={req.stage} />
-                  <InfoRow label="Created By"   value={req.createdBy} />
-                  <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
-                </InfoGrid>
-              </Card>
-              <StepNav activeStep={activeStep} onStepClick={goToStep} />
-            </>
-          )}
+        {/* Location Details */}
+        {activeTab === 'location-details' && (
+          <Card title="Location Details" icon={MapPin}>
+            <div className="space-y-5">
+              <InfoGrid>
+                <InfoRow label="Village / Society" value={req.village} />
+                <InfoRow label="Area"              value={req.area} />
+                <InfoRow label="Locality"          value={req.localityName} />
+                <InfoRow label="Sub Locality"      value={req.subLocalityName} />
+                <InfoRow label="Landmark"          value={req.landmark} />
+                <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
+                <InfoRow label="Connection Type"   value={req.connectionType} />
+                <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
+              </InfoGrid>
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
+                {req.completeAddress
+                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
+                  : <p className="text-sm font-medium text-gray-800">—</p>}
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement</p>
+                {(req.customerRequirementNotes || req.customerRequirement)
+                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.customerRequirementNotes || req.customerRequirement}</p>
+                  : <p className="text-sm font-medium text-gray-800">—</p>}
+              </div>
+            </div>
+          </Card>
+        )}
 
-          {/* Step 2 — Location Details */}
-          {activeStep === 2 && (
-            <>
-              <Card title="Location Details" icon={MapPin}>
-                <div className="space-y-5">
-                  <InfoGrid>
-                    <InfoRow label="Village / Society" value={req.village} />
-                    <InfoRow label="Area"              value={req.area} />
-                    <InfoRow label="Locality"          value={req.localityName} />
-                    <InfoRow label="Sub Locality"      value={req.subLocalityName} />
-                    <InfoRow label="Landmark"          value={req.landmark} />
-                    <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
-                    <InfoRow label="Connection Type"   value={req.connectionType} />
-                    <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
-                  </InfoGrid>
-                  <div>
-                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
-                    {req.completeAddress
-                      ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
-                      : <p className="text-sm font-medium text-gray-800">—</p>}
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement</p>
-                    {(req.customerRequirementNotes || req.customerRequirement)
-                      ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.customerRequirementNotes || req.customerRequirement}</p>
-                      : <p className="text-sm font-medium text-gray-800">—</p>}
-                  </div>
-                </div>
-              </Card>
-              <StepNav activeStep={activeStep} onStepClick={goToStep} />
-            </>
-          )}
-
-          {/* Step 3 — Requirement & Feasibility (Feasibility Details merged
-              with the Customer Requirement content, plus the
-              Assignment/Approval/Rejection outcome cards, which aren't
-              named in any other step) */}
-          {activeStep === 3 && (
-            <>
+        {/* Requirement & Feasibility (Feasibility Details merged with the
+            Customer Requirement content, plus the Assignment/Approval/
+            Rejection outcome cards, which aren't named as their own tab) */}
+        {activeTab === 'requirement-feasibility' && (
+          <div className="space-y-6">
               <Card title="Feasibility Details" icon={FileText}>
                 <div className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5">
@@ -592,14 +524,11 @@ export default function FeasibilityDetail() {
                   )}
                 </Card>
               )}
+          </div>
+        )}
 
-              <StepNav activeStep={activeStep} onStepClick={goToStep} />
-            </>
-          )}
-
-          {/* Step 4 — Hardware */}
-          {activeStep === 4 && (
-            <>
+        {/* Hardware */}
+        {activeTab === 'hardware' && (
               <Card title="Hardware Requirements" icon={Wrench}>
                 {(!req.hwItems?.length && !req.wireItems?.length) ? (
                   <p className="text-sm text-gray-400 text-center py-4">No hardware requirements added yet</p>
@@ -661,47 +590,19 @@ export default function FeasibilityDetail() {
                   </div>
                 )}
               </Card>
-              <StepNav activeStep={activeStep} onStepClick={goToStep} />
-            </>
-          )}
+        )}
 
-          {/* Step 5 — Attachments */}
-          {activeStep === 5 && (
-            <>
-              <Card title="Attachments" icon={Image}>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <AttachmentSlot label="Site Images"           icon={Image} />
-                  <AttachmentSlot label="Location Photos"       icon={MapPin} />
-                  <AttachmentSlot label="Supporting Documents"  icon={FileText} />
-                </div>
-              </Card>
-              <StepNav activeStep={activeStep} onStepClick={goToStep} />
-            </>
-          )}
+        {/* Attachments */}
+        {activeTab === 'attachments' && (
+          <Card title="Attachments" icon={Image}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <AttachmentSlot label="Site Images"           icon={Image} />
+              <AttachmentSlot label="Location Photos"       icon={MapPin} />
+              <AttachmentSlot label="Supporting Documents"  icon={FileText} />
+            </div>
+          </Card>
+        )}
 
-        </div>
-
-        {/* Right column — Activity Timeline (sticky so it stays in view
-            regardless of which step is active on the left) */}
-        <div className="space-y-6">
-          <div className="sticky top-24">
-            <Card title="Activity Timeline" icon={Clock}>
-              {(req.timeline?.length ?? 0) === 0 ? (
-                <p className="text-xs text-gray-400">No activity yet.</p>
-              ) : (
-                <div>
-                  {req.timeline.map((entry, i) => (
-                    <TimelineEntry
-                      key={i}
-                      entry={entry}
-                      isLast={i === req.timeline.length - 1}
-                    />
-                  ))}
-                </div>
-              )}
-            </Card>
-          </div>
-        </div>
       </div>
 
       {/* ── Edit Modal ───────────────────────────────────────────── */}
