@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Columns3, X } from 'lucide-react'
+import { Columns3, X, GripVertical, Lock, RotateCcw } from 'lucide-react'
 
 // Generic, table-agnostic column show/hide control (Zoho Projects-style).
 // A column entry looks like: { key, label, visible, defaultVisible, locked }
@@ -32,6 +32,8 @@ export default function ColumnManager({ columns, onChange }) {
     onChange(columns.map(c => ({ ...c, visible: c.locked ? true : (c.defaultVisible ?? true) })))
   }
 
+  const visibleCount = columns.filter(c => c.visible).length
+
   return (
     <>
       <button
@@ -56,37 +58,53 @@ export default function ColumnManager({ columns, onChange }) {
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border shrink-0">
-            <div className="flex items-center gap-2">
-              <Columns3 size={15} className="text-brand-blue" />
-              <h2 className="text-sm font-bold text-gray-900">Manage Columns</h2>
+          <div className="px-5 py-4 border-b border-surface-border shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Columns3 size={15} className="text-brand-blue" />
+                <h2 className="text-sm font-bold text-gray-900">Manage Columns</h2>
+              </div>
+              <button
+                onClick={() => setOpen(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <X size={15} />
+              </button>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <X size={15} />
-            </button>
+            <p className="text-xs text-gray-400 mt-1">Choose which columns to display in the table</p>
+            <p className="text-[11px] font-semibold text-brand-blue mt-1.5">{visibleCount} of {columns.length} columns visible</p>
           </div>
 
           {/* Scrollable body — locked columns (e.g. Customer Name) are always
-              visible and can't be unchecked, so they're left out of the list
-              entirely rather than shown as a disabled row. */}
+              visible; they show a lock icon and dimmed text instead of a toggle. */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            <div className="space-y-1">
-              {columns.filter(c => !c.locked).map(c => (
-                <label
+            <div className="space-y-2">
+              {columns.map(c => (
+                <button
                   key={c.key}
-                  className="flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm cursor-pointer hover:bg-gray-50 transition-colors"
+                  type="button"
+                  disabled={c.locked}
+                  onClick={() => toggle(c.key)}
+                  className={`w-full flex items-center gap-2.5 rounded-lg border py-2.5 px-3 text-left transition-colors ${
+                    c.locked
+                      ? 'border-gray-100 opacity-60 cursor-not-allowed'
+                      : 'border-gray-100 hover:bg-gray-50 hover:border-gray-200'
+                  }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={c.visible}
-                    onChange={() => toggle(c.key)}
-                    className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                  />
-                  <span className="text-gray-700">{c.label}</span>
-                </label>
+                  <GripVertical size={14} className="text-gray-300 shrink-0" />
+                  <span className={`flex-1 min-w-0 truncate text-sm ${c.locked ? 'text-gray-400' : 'text-gray-700'}`}>{c.label}</span>
+                  {c.locked ? (
+                    <Lock size={13} className="text-gray-300 shrink-0" />
+                  ) : (
+                    <span
+                      role="switch"
+                      aria-checked={c.visible}
+                      className={`relative shrink-0 w-9 h-5 rounded-full transition-colors duration-200 ${c.visible ? 'bg-brand-blue' : 'bg-gray-200'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${c.visible ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </span>
+                  )}
+                </button>
               ))}
             </div>
           </div>
@@ -96,9 +114,9 @@ export default function ColumnManager({ columns, onChange }) {
             <button
               type="button"
               onClick={resetToDefault}
-              className="w-full text-center text-sm font-semibold text-brand-blue hover:text-brand-blue-dark transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-surface-border rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors"
             >
-              Reset to Default
+              <RotateCcw size={13} /> Reset to Default
             </button>
           </div>
         </div>
