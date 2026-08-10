@@ -10,12 +10,28 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import CallModal from '../components/ui/CallModal'
 import AssignTeamModal from '../components/ui/AssignTeamModal'
+import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
 import {
   getTickets, subscribeTickets, assignTechnician, changePriority, addCommunication, assignTeamMembers, slaStatusOf,
   TICKET_STATUSES, CLOSED_STATUSES, PRIORITIES, PRIORITY_LABEL, CATEGORIES, AREAS, AGENTS, TECHNICIANS,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
+
+// Ticket List table's Show/Hide Columns default set. Ticket No is locked
+// (unlike the other tables in this rollout) so the table can never end up
+// with no ticket identifier visible.
+const SUPPORT_TICKETS_COLUMNS = [
+  { key: 'ticketNo',      label: 'Ticket No',      visible: true, defaultVisible: true, locked: true },
+  { key: 'customerName',  label: 'Customer Name',  visible: true, defaultVisible: true },
+  { key: 'category',      label: 'Category',       visible: true, defaultVisible: true },
+  { key: 'priority',      label: 'Priority',       visible: true, defaultVisible: true },
+  { key: 'status',        label: 'Status',         visible: true, defaultVisible: true },
+  { key: 'assignedAgent', label: 'Assigned Agent', visible: true, defaultVisible: true },
+  { key: 'branch',        label: 'Branch',         visible: true, defaultVisible: true },
+  { key: 'created',       label: 'Created',        visible: true, defaultVisible: true },
+  { key: 'actions',       label: 'Actions',        visible: true, defaultVisible: true },
+]
 
 const STATUS_BADGE = {
   'New': 'blue',
@@ -171,6 +187,8 @@ export default function TicketList() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:supportTicketsTable', SUPPORT_TICKETS_COLUMNS)
+  const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   const [fStatus, setFStatus] = useState(() => qp('status', TICKET_STATUSES))
   const [fPriority, setFPriority] = useState(() => qp('priority', PRIORITIES))
@@ -378,6 +396,7 @@ export default function TicketList() {
             <Button variant="secondary" size="sm" icon={<Download size={13} />} onClick={handleExport}>
               Export
             </Button>
+            <ColumnManager columns={tableColumns} onChange={setTableColumns} />
           </div>
         </div>
 
@@ -443,16 +462,27 @@ export default function TicketList() {
                   <input type="checkbox" checked={allPagedSelected} onChange={toggleAll}
                     className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
                 </th>
-                {['Ticket Number', 'Description', 'Customer Name', 'Phone Number', 'Category', 'Branch', 'Customer Type', 'Priority', 'Status', 'Area', 'Created Date', 'Last Update', 'SLA Deadline'].map(h => (
-                  <th key={h} className={`text-left px-4 py-3 whitespace-nowrap ${h === 'Description' ? 'w-72' : ''}`}>{h}</th>
-                ))}
-                <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
+                {visibleCols.has('ticketNo') && <th className="text-left px-4 py-3 whitespace-nowrap">Ticket Number</th>}
+                <th className="text-left px-4 py-3 whitespace-nowrap w-72">Description</th>
+                {visibleCols.has('customerName') && <th className="text-left px-4 py-3 whitespace-nowrap">Customer Name</th>}
+                <th className="text-left px-4 py-3 whitespace-nowrap">Phone Number</th>
+                {visibleCols.has('category') && <th className="text-left px-4 py-3 whitespace-nowrap">Category</th>}
+                {visibleCols.has('branch') && <th className="text-left px-4 py-3 whitespace-nowrap">Branch</th>}
+                <th className="text-left px-4 py-3 whitespace-nowrap">Customer Type</th>
+                {visibleCols.has('priority') && <th className="text-left px-4 py-3 whitespace-nowrap">Priority</th>}
+                {visibleCols.has('status') && <th className="text-left px-4 py-3 whitespace-nowrap">Status</th>}
+                {visibleCols.has('assignedAgent') && <th className="text-left px-4 py-3 whitespace-nowrap">Assigned Agent</th>}
+                <th className="text-left px-4 py-3 whitespace-nowrap">Area</th>
+                {visibleCols.has('created') && <th className="text-left px-4 py-3 whitespace-nowrap">Created Date</th>}
+                <th className="text-left px-4 py-3 whitespace-nowrap">Last Update</th>
+                <th className="text-left px-4 py-3 whitespace-nowrap">SLA Deadline</th>
+                {visibleCols.has('actions') && <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
+                  <td colSpan={7 + visibleCols.size} className="text-center py-12 text-gray-400 text-sm">No tickets match your filters.</td>
                 </tr>
               ) : paged.map(t => {
                 const sla = slaStatusOf(t)
@@ -463,14 +493,18 @@ export default function TicketList() {
                       <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleOne(t.id)}
                         className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer" />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
-                      {t.reopened && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Reopened</p>}
-                    </td>
+                    {visibleCols.has('ticketNo') && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="font-mono text-xs font-bold text-brand-blue">{t.id}</span>
+                        {t.reopened && <p className="text-[10px] text-red-500 font-semibold mt-0.5">Reopened</p>}
+                      </td>
+                    )}
                     <td className="px-4 py-3 w-72 max-w-72">
                       <span className="block text-xs text-gray-600 truncate" title={t.description}>{t.description}</span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">{t.customerName}</td>
+                    {visibleCols.has('customerName') && (
+                      <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">{t.customerName}</td>
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={() => setCallModal({ open: true, name: t.customerName, phone: t.phone })}
@@ -480,36 +514,51 @@ export default function TicketList() {
                         {t.phone}
                       </button>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="text-xs text-gray-700 font-medium">{t.category}</p>
-                      <p className="text-[11px] text-gray-400">{t.subcategory}</p>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.branch ?? '—'}</td>
+                    {visibleCols.has('category') && (
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-gray-700 font-medium">{t.category}</p>
+                        <p className="text-[11px] text-gray-400">{t.subcategory}</p>
+                      </td>
+                    )}
+                    {visibleCols.has('branch') && (
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.branch ?? '—'}</td>
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Badge variant={t.customerType === 'Enterprise' ? 'purple' : 'blue'} size="sm">{t.customerType ?? '—'}</Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={PRIORITY_BADGE[t.priority]} size="sm" dot>{t.priority}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={STATUS_BADGE[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
-                    </td>
+                    {visibleCols.has('priority') && (
+                      <td className="px-4 py-3">
+                        <Badge variant={PRIORITY_BADGE[t.priority]} size="sm" dot>{t.priority}</Badge>
+                      </td>
+                    )}
+                    {visibleCols.has('status') && (
+                      <td className="px-4 py-3">
+                        <Badge variant={STATUS_BADGE[t.status] ?? 'gray'} size="sm">{t.status}</Badge>
+                      </td>
+                    )}
+                    {visibleCols.has('assignedAgent') && (
+                      <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.assignedAgent ?? '—'}</td>
+                    )}
                     <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.area}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(t.createdAt)}</td>
+                    {visibleCols.has('created') && (
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(t.createdAt)}</td>
+                    )}
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDate(t.updatedAt)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-xs text-gray-500">{formatDate(t.slaDeadline)}</p>
                       <Badge variant={SLA_BADGE[sla]} size="sm" className="mt-0.5">{sla}</Badge>
                     </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <RowActionsMenu
-                        ticket={t}
-                        onAssignTeam={openAssignTeamFor}
-                        onAssignTechnician={openAssignTechFor}
-                        onChangePriority={openChangePriorityFor}
-                        onSendMessage={openSendMessageFor}
-                      />
-                    </td>
+                    {visibleCols.has('actions') && (
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <RowActionsMenu
+                          ticket={t}
+                          onAssignTeam={openAssignTeamFor}
+                          onAssignTechnician={openAssignTechFor}
+                          onChangePriority={openChangePriorityFor}
+                          onSendMessage={openSendMessageFor}
+                        />
+                      </td>
+                    )}
                   </tr>
                 )
               })}

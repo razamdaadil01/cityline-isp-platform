@@ -6,6 +6,25 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
+
+// Customer List table's Show/Hide Columns default set. Customer Name is
+// locked so the table can never end up with zero identifying columns visible.
+// Email, Branch and Created are not part of the mock customer record shape
+// (no such fields exist anywhere on CUSTOMERS) and are intentionally omitted
+// rather than invented. Customer Type and Connection are derived from
+// existing fields (id prefix, network) the same way Sales.jsx derives its
+// Customer Type column from the lead's pipeline.
+const CUSTOMER_TABLE_COLUMNS = [
+  { key: 'customerId',   label: 'Customer ID',   visible: true, defaultVisible: true },
+  { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
+  { key: 'customerType', label: 'Customer Type', visible: true, defaultVisible: true },
+  { key: 'phone',        label: 'Phone',         visible: true, defaultVisible: true },
+  { key: 'plan',         label: 'Plan',          visible: true, defaultVisible: true },
+  { key: 'status',       label: 'Status',        visible: true, defaultVisible: true },
+  { key: 'connection',   label: 'Connection',    visible: true, defaultVisible: true },
+  { key: 'actions',      label: 'Actions',       visible: true, defaultVisible: true },
+]
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 
@@ -110,6 +129,9 @@ export default function Customers() {
   const [menuId,          setMenuId]          = useState(null)
   const [menuPos,         setMenuPos]         = useState({ top: 0, right: 0 })
   const menuRef = useRef(null)
+
+  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:customerTable', CUSTOMER_TABLE_COLUMNS)
+  const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   useEffect(() => {
     if (!menuId) return
@@ -271,6 +293,7 @@ export default function Customers() {
           {selected.size === 0 && (
             <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
           )}
+          <ColumnManager columns={tableColumns} onChange={setTableColumns} />
           <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
         </div>
       </div>
@@ -527,21 +550,23 @@ export default function Customers() {
                     className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[148px]">Customer ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Phone</th>
+                {visibleCols.has('customerId') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[148px]">Customer ID</th>}
+                {visibleCols.has('customerName') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Name</th>}
+                {visibleCols.has('customerType') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Customer Type</th>}
+                {visibleCols.has('phone') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Phone</th>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[200px]">Services</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Plan</th>
+                {visibleCols.has('plan') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Plan</th>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Zone</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[100px]">Expiry</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">Status</th>
-                <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                {visibleCols.has('status') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">Status</th>}
+                {visibleCols.has('connection') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Connection</th>}
+                {visibleCols.has('actions') && <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-14 text-center text-sm text-gray-400">
+                  <td colSpan={4 + visibleCols.size} className="px-4 py-14 text-center text-sm text-gray-400">
                     <Users size={32} className="mx-auto mb-2 text-gray-200" />
                     No customers found
                   </td>
@@ -549,6 +574,7 @@ export default function Customers() {
               ) : paginated.map(c => {
                 const cfg = STATUS_CFG[c.status] ?? STATUS_CFG.inactive
                 const isSelected = selected.has(c.id)
+                const customerType = c.id.startsWith('ENT') ? 'Corporate' : 'Individual'
                 return (
                   <tr
                     key={c.id}
@@ -563,39 +589,57 @@ export default function Customers() {
                         className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 cursor-pointer"
                       />
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs text-brand-blue font-semibold">{c.id}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {c.name.charAt(0)}
+                    {visibleCols.has('customerId') && (
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs text-brand-blue font-semibold">{c.id}</span>
+                      </td>
+                    )}
+                    {visibleCols.has('customerName') && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xs font-bold shrink-0">
+                            {c.name.charAt(0)}
+                          </div>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">{c.name}</span>
                         </div>
-                        <span className="font-medium text-gray-800 whitespace-nowrap">{c.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs font-mono">{c.phone}</td>
+                      </td>
+                    )}
+                    {visibleCols.has('customerType') && (
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{customerType}</td>
+                    )}
+                    {visibleCols.has('phone') && (
+                      <td className="px-4 py-3 text-gray-600 text-xs font-mono">{c.phone}</td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {c.services.map(s => <ServicePill key={s} service={s} />)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.plan}</td>
+                    {visibleCols.has('plan') && (
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.plan}</td>
+                    )}
                     <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.zone}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{c.expiry}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
-                    </td>
-                    <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={e => openMenu(e, c.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${
-                          menuId === c.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        <MoreVertical size={15} />
-                      </button>
-                    </td>
+                    {visibleCols.has('status') && (
+                      <td className="px-4 py-3">
+                        <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
+                      </td>
+                    )}
+                    {visibleCols.has('connection') && (
+                      <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{c.network}</td>
+                    )}
+                    {visibleCols.has('actions') && (
+                      <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => openMenu(e, c.id)}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${
+                            menuId === c.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 )
               })}

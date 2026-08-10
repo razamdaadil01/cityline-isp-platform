@@ -4,6 +4,7 @@ import { Package, CheckCircle, Wifi, Box, Plus, Search, Filter, MoreVertical, X,
 import {
   MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES,
 } from '../data/packagesStore'
+import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
 
 // ── Shared UI ────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,18 @@ function FilterDrawer({ open, onClose, filters, onChange, onApply, onReset, tab 
 
 const TABS = ['Bandwidth Packages', 'Other Packages']
 
+// Manageable columns for the primary (Bandwidth Packages) list table.
+const PACKAGE_TABLE_COLUMNS = [
+  { key: 'packageId',   label: 'Package ID',   visible: true, defaultVisible: true },
+  { key: 'packageName', label: 'Package Name', visible: true, defaultVisible: true, locked: true },
+  { key: 'type',        label: 'Type',         visible: true, defaultVisible: true },
+  { key: 'speedValue',  label: 'Speed/Value',  visible: true, defaultVisible: true },
+  { key: 'price',       label: 'Price',        visible: true, defaultVisible: true },
+  { key: 'validity',    label: 'Validity',     visible: true, defaultVisible: true },
+  { key: 'status',      label: 'Status',       visible: true, defaultVisible: true },
+  { key: 'actions',     label: 'Actions',      visible: true, defaultVisible: true },
+]
+
 export default function Packages() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -163,6 +176,10 @@ export default function Packages() {
   const [bwFilters, setBwFilters]         = useState(EMPTY_BW_FILTERS)
   const [bwPendingFilters, setBwPending]  = useState(EMPTY_BW_FILTERS)
   const [bwDrawer, setBwDrawer]           = useState(false)
+
+  // Column visibility (Bandwidth Packages table — the primary list view)
+  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:packageTable', PACKAGE_TABLE_COLUMNS)
+  const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   // Other packages state
   const [othPkgs, setOthPkgs] = useState(MOCK_OTHER_PACKAGES)
@@ -332,6 +349,7 @@ export default function Packages() {
               <button onClick={() => { setBwFilters(EMPTY_BW_FILTERS); setBwPending(EMPTY_BW_FILTERS) }}
                 className="text-xs text-[#0A8DCD] hover:underline shrink-0">Clear</button>
             )}
+            <ColumnManager columns={tableColumns} onChange={setTableColumns} />
           </>
         )}
         {activeTab === 'Other Packages' && (
@@ -385,33 +403,46 @@ export default function Packages() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Package Name','Zone','Bandwidth','Jaze ID','Tenure','Price','OTT','Editable','Landline','Offer','Status','Actions'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                    ))}
+                    {visibleCols.has('packageId') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Package ID</th>}
+                    {visibleCols.has('packageName') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Package Name</th>}
+                    {visibleCols.has('type') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Zone</th>
+                    {visibleCols.has('speedValue') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Bandwidth</th>}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Jaze ID</th>
+                    {visibleCols.has('validity') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Tenure</th>}
+                    {visibleCols.has('price') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Price</th>}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">OTT</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Editable</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Landline</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Offer</th>
+                    {visibleCols.has('status') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>}
+                    {visibleCols.has('actions') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredBw.length === 0 ? (
-                    <tr><td colSpan={12} className="text-center py-10 text-gray-400">No packages found</td></tr>
+                    <tr><td colSpan={6 + visibleCols.size} className="text-center py-10 text-gray-400">No packages found</td></tr>
                   ) : pagedBw.map(pkg =>
                     pkg.rows.map((row, ri) => (
                       <tr key={`${pkg.id}-${ri}`} className="hover:bg-gray-50">
-                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">
+                        {ri === 0 && visibleCols.has('packageId') && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-mono text-xs text-gray-600 align-top border-r border-gray-100">{pkg.id}</td>}
+                        {ri === 0 && visibleCols.has('packageName') && <td rowSpan={pkg.rows.length} className="px-4 py-3 font-semibold text-[#0F2744] align-top border-r border-gray-100">
                           <button onClick={() => navigate(`/packages/${pkg.id}`)} className="hover:text-[#0A8DCD] hover:underline text-left">{pkg.name}</button>
                         </td>}
+                        {ri === 0 && visibleCols.has('type') && <td rowSpan={pkg.rows.length} className="px-4 py-3 text-gray-600 align-top border-r border-gray-100">{pkg.type}</td>}
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 text-gray-600 align-top border-r border-gray-100">
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
                         </td>}
-                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.bandwidth}</td>
+                        {visibleCols.has('speedValue') && <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.bandwidth}</td>}
                         <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.jazeId}</td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.tenure}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">&#8377;{row.price.toLocaleString('en-IN')}</td>
+                        {visibleCols.has('validity') && <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.tenure}</td>}
+                        {visibleCols.has('price') && <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">&#8377;{row.price.toLocaleString('en-IN')}</td>}
                         <td className="px-4 py-3 text-gray-600 text-xs">{row.ott !== 'None' ? row.ott : <span className="text-gray-400">&mdash;</span>}</td>
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.editable} yesClass="bg-amber-100 text-amber-700" /></td>}
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.landline} yesClass="bg-blue-100 text-blue-700" /></td>}
                         {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><YN value={pkg.offer} yesClass="bg-orange-100 text-orange-700" /></td>}
-                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><StatusBadge status={pkg.status} /></td>}
-                        {ri === 0 && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top">
+                        {ri === 0 && visibleCols.has('status') && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top"><StatusBadge status={pkg.status} /></td>}
+                        {ri === 0 && visibleCols.has('actions') && <td rowSpan={pkg.rows.length} className="px-4 py-3 align-top">
                           <ThreeDotMenu items={[
                             { label: 'View Details', onClick: () => navigate(`/packages/${pkg.id}`) },
                             { label: 'Edit Package', onClick: () => navigate(`/packages/${pkg.id}/edit`) },
