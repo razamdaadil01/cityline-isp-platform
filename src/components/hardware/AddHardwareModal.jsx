@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Search, Minus, Plus } from 'lucide-react'
 import Modal from '../ui/Modal'
@@ -28,13 +28,37 @@ export default function AddHardwareModal({ open, onClose, onAdd }) {
   // Keyed by item name so the same selection set carries across switching
   // Chargeable/Non-Chargeable — a single submit can add items from both.
   const [selected, setSelected] = useState({})
+  // Tracks whether the modal was actually open on a previous render, so the
+  // close-cleanup effect below can tell "just closed" apart from "mounted
+  // hidden and never opened" — this component is always mounted by its
+  // host (Modal itself renders null while closed), so a plain `if (!open)`
+  // effect would otherwise fire on first mount too and wipe out a
+  // ?category= a host page had set for its own unrelated purposes.
+  const wasOpen = useRef(false)
 
   // On open, pre-check the first 2 Chargeable + first 2 Non-Chargeable
   // catalog items (both categories at once, since selection is shared
   // across the tab toggle) rather than starting from an empty selection.
-  // Also reset the sub-tab back to its ?category=chargeable default.
+  // Also reset the sub-tab back to its ?category=chargeable default. On
+  // close (but only if it was actually open — not on first mount),
+  // ?category= is removed entirely — it's this modal's own scratch param,
+  // and a host page may separately read the same ?category= key for its
+  // own purposes (e.g. filtering a hardware list), so it shouldn't linger
+  // in the URL once the modal isn't open to leak into that.
   useEffect(() => {
-    if (!open) { setSelected({}); return }
+    if (!open) {
+      setSelected({})
+      if (wasOpen.current) {
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev)
+          next.delete('category')
+          return next
+        }, { replace: true })
+      }
+      wasOpen.current = false
+      return
+    }
+    wasOpen.current = true
     setSearch('')
     const defaultItems = [
       ...HARDWARE_CATALOG.filter(h => h.chargeable).slice(0, 2),

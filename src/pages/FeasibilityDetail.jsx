@@ -393,6 +393,19 @@ export default function FeasibilityDetail() {
   const isApproved   = status === 'Approved'
   const isRejected   = status === 'Rejected'
 
+  // ?category=chargeable|non-chargeable filters the Hardware tab's Added
+  // Hardware list; absent (or any other value) shows everything. Original
+  // array index is kept alongside each item so removal still targets the
+  // right position in req.hardwareItems after filtering.
+  const hardwareCategoryFilter = searchParams.get('category')
+  const displayedHardwareItems = (req.hardwareItems ?? [])
+    .map((h, i) => ({ ...h, _index: i }))
+    .filter(h => {
+      if (hardwareCategoryFilter === 'chargeable') return h.chargeable
+      if (hardwareCategoryFilter === 'non-chargeable') return !h.chargeable
+      return true
+    })
+
   return (
     <div className="p-6 space-y-6">
 
@@ -640,13 +653,16 @@ export default function FeasibilityDetail() {
                   <p className="text-sm text-gray-400 text-center py-4">No hardware requirements added yet</p>
                 ) : (
                   <div className="space-y-6">
-                    {/* Added Hardware (Chargeable/Non-Chargeable, via Add Hardware modal) */}
+                    {/* Added Hardware (Chargeable/Non-Chargeable, via Add Hardware modal) —
+                        filtered by ?category= when present */}
                     {req.hardwareItems?.length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Added Hardware</p>
                         <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
-                          {req.hardwareItems.map((h, i) => (
-                            <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                          {displayedHardwareItems.length === 0 ? (
+                            <p className="text-xs text-gray-400 text-center py-4">No {hardwareCategoryFilter} items</p>
+                          ) : displayedHardwareItems.map(h => (
+                            <div key={h._index} className="flex items-center gap-3 px-3 py-2.5">
                               <span className="flex-1 min-w-0 truncate text-sm text-gray-700">{h.name}</span>
                               <Badge variant={h.chargeable ? 'orange' : 'gray'} size="sm" className="shrink-0">
                                 {h.chargeable ? 'Chargeable' : 'Non-Chargeable'}
@@ -654,7 +670,7 @@ export default function FeasibilityDetail() {
                               <span className="w-16 shrink-0 text-right text-xs text-gray-500">Qty {h.quantity}</span>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveHardware(i)}
+                                onClick={() => handleRemoveHardware(h._index)}
                                 className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 size={14} />

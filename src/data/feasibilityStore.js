@@ -28,6 +28,15 @@ const SEED = [
     internalRemarks: 'Check with infra team for OFC availability in Sector 78.',
     assignedEngineer: '', fiberRequired: '',
     priority: 'High',
+    // Seeded so the Hardware tab renders with data out of the box instead
+    // of the empty state — same { name, chargeable, unitPrice, quantity }
+    // shape the Add Hardware modal produces (see HARDWARE_CATALOG), items
+    // added via that modal get appended alongside these, not replace them.
+    hardwareItems: [
+      { name: 'Wall Mount Bracket', chargeable: false, unitPrice: 150, quantity: 1 },
+      { name: 'Patch Cord (LC-LC, 5m)', chargeable: false, unitPrice: 90, quantity: 2 },
+      { name: 'WiFi Router', chargeable: true, unitPrice: 1500, quantity: 1 },
+    ],
     timeline: [
       { action: 'Created', by: 'Salim Khan', at: '2026-05-18 10:23', note: 'Feasibility request raised from lead LD-301' },
     ],
