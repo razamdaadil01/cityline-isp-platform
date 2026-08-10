@@ -12,6 +12,7 @@ import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import AddHardwareModal from '../components/hardware/AddHardwareModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
+  FEASIBILITY_BRANCHES,
 } from '../data/feasibilityStore'
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -89,6 +90,54 @@ function InfoGrid({ children, cols = 3 }) {
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 ${cols === 3 ? 'xl:grid-cols-3' : ''} gap-x-6 gap-y-5`}>
       {children}
+    </div>
+  )
+}
+
+/* ── Inline-edit fields ────────────────────────────────────────────
+   Same click-Edit → fields-become-editable-in-place → Save/Cancel
+   mechanism as Customer Detail's Profile tab (EF/ESelect/EditActions),
+   styled to match this page's own InfoRow label treatment. */
+function EF({ label, value, onChange, type = 'text', mono }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{label}</p>
+      <input
+        type={type}
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className={`w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white ${mono ? 'font-mono' : ''}`}
+      />
+    </div>
+  )
+}
+
+function ESelect({ label, value, onChange, options }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{label}</p>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className="w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+      >
+        <option value="">Select…</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function ETextarea({ label, value, onChange }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">{label}</p>
+      <textarea
+        rows={2}
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className="w-full text-sm text-gray-700 border border-surface-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white leading-relaxed"
+      />
     </div>
   )
 }
@@ -265,6 +314,9 @@ export default function FeasibilityDetail() {
   }, [])
 
   function goToTab(tab) {
+    // Leaving the Lead & Customer tab mid-edit would otherwise strand the
+    // header's Save/Cancel buttons over unrelated tab content.
+    if (leadCustomerEditMode) cancelLeadCustomerEdit()
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.set('tab', tab)
@@ -285,6 +337,46 @@ export default function FeasibilityDetail() {
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
 
   const [toast, setToast] = useState('')
+
+  // Inline editing for the Lead & Customer tab's two cards (Lead & Customer
+  // Info + Location Details) — driven by the same top-right "Edit" button
+  // as the modal below, but only while that tab is active; on every other
+  // tab "Edit" still opens the modal (its priority/fiberRequired/
+  // customerRequirementNotes/etc. fields live outside this tab).
+  const [leadCustomerEditMode, setLeadCustomerEditMode] = useState(false)
+  const [leadCustomerDraft,    setLeadCustomerDraft]    = useState(null)
+
+  function startLeadCustomerEdit() {
+    setLeadCustomerDraft({
+      customerName:    req.customerName    || '',
+      mobile:           req.mobile           || '',
+      email:            req.email            || '',
+      pipeline:         req.pipeline         || '',
+      stage:            req.stage            || '',
+      village:          req.village          || '',
+      area:             req.area             || '',
+      localityName:     req.localityName     || '',
+      subLocalityName:  req.subLocalityName  || '',
+      landmark:         req.landmark         || '',
+      gpsLocation:      req.gpsLocation      || '',
+      connectionType:   req.connectionType   || '',
+      assignedBranch:   req.assignedBranch   || '',
+      completeAddress:  req.completeAddress  || '',
+    })
+    setLeadCustomerEditMode(true)
+  }
+
+  function saveLeadCustomerEdit() {
+    saveFeasibilityRequest({ ...req, ...leadCustomerDraft })
+    setLeadCustomerEditMode(false)
+    setLeadCustomerDraft(null)
+    setToast('Changes saved successfully')
+  }
+
+  function cancelLeadCustomerEdit() {
+    setLeadCustomerEditMode(false)
+    setLeadCustomerDraft(null)
+  }
 
   function openEdit() {
     setEditForm({
@@ -436,10 +528,23 @@ export default function FeasibilityDetail() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 ml-2 shrink-0">
-          <button onClick={openEdit}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 transition-colors">
-            <Edit2 size={13} /> Edit
-          </button>
+          {leadCustomerEditMode ? (
+            <>
+              <button onClick={cancelLeadCustomerEdit}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={saveLeadCustomerEdit}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 transition-colors">
+                Save
+              </button>
+            </>
+          ) : (
+            <button onClick={activeTab === 'lead-customer' ? startLeadCustomerEdit : openEdit}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+              <Edit2 size={13} /> Edit
+            </button>
+          )}
           {!isApproved && !isRejected && (
             <button onClick={openAssign}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-brand-blue/30 bg-blue-50 text-brand-blue hover:bg-blue-100 transition-colors">
@@ -470,43 +575,78 @@ export default function FeasibilityDetail() {
         {/* Lead & Customer (Lead & Customer Info, plus Location Details as
             its own distinct card underneath — merged into this tab rather
             than kept as a separate tab) */}
-        {activeTab === 'lead-customer' && (
-          <div className="space-y-6">
-            <Card title="Lead & Customer Info" icon={User}>
-              <InfoGrid>
-                <InfoRow label="Lead ID"      value={req.leadId}        mono />
-                <InfoRow label="Customer Name" value={req.customerName} />
-                <InfoRow label="Mobile"       value={req.mobile}        mono />
-                <InfoRow label="Email"        value={req.email} />
-                <InfoRow label="Pipeline"     value={req.pipeline} />
-                <InfoRow label="Stage"        value={req.stage} />
-                <InfoRow label="Created By"   value={req.createdBy} />
-                <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
-              </InfoGrid>
-            </Card>
+        {activeTab === 'lead-customer' && (() => {
+          const editing = leadCustomerEditMode
+          const d = leadCustomerDraft
+          function setDraft(key, value) { setLeadCustomerDraft(prev => ({ ...prev, [key]: value })) }
 
-            <Card title="Location Details" icon={MapPin} headerAction={<GoogleMapsLink req={req} />}>
-              <div className="space-y-5">
-                <InfoGrid>
-                  <InfoRow label="Village / Society" value={req.village} />
-                  <InfoRow label="Area"              value={req.area} />
-                  <InfoRow label="Locality"          value={req.localityName} />
-                  <InfoRow label="Sub Locality"      value={req.subLocalityName} />
-                  <InfoRow label="Landmark"          value={req.landmark} />
-                  <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
-                  <InfoRow label="Connection Type"   value={req.connectionType} />
-                  <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
-                </InfoGrid>
-                <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
-                  {req.completeAddress
-                    ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
-                    : <p className="text-sm font-medium text-gray-800">—</p>}
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
+          return (
+            <div className="space-y-6">
+              <Card title="Lead & Customer Info" icon={User}>
+                {!editing ? (
+                  <InfoGrid>
+                    <InfoRow label="Lead ID"      value={req.leadId}        mono />
+                    <InfoRow label="Customer Name" value={req.customerName} />
+                    <InfoRow label="Mobile"       value={req.mobile}        mono />
+                    <InfoRow label="Email"        value={req.email} />
+                    <InfoRow label="Pipeline"     value={req.pipeline} />
+                    <InfoRow label="Stage"        value={req.stage} />
+                    <InfoRow label="Created By"   value={req.createdBy} />
+                    <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
+                  </InfoGrid>
+                ) : (
+                  <InfoGrid>
+                    <InfoRow label="Lead ID"      value={req.leadId} mono />
+                    <EF label="Customer Name" value={d.customerName} onChange={v => setDraft('customerName', v)} />
+                    <EF label="Mobile"        value={d.mobile}       onChange={v => setDraft('mobile', v)} mono />
+                    <EF label="Email"         value={d.email}        onChange={v => setDraft('email', v)} type="email" />
+                    <EF label="Pipeline"      value={d.pipeline}     onChange={v => setDraft('pipeline', v)} />
+                    <EF label="Stage"         value={d.stage}        onChange={v => setDraft('stage', v)} />
+                    <InfoRow label="Created By"   value={req.createdBy} />
+                    <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
+                  </InfoGrid>
+                )}
+              </Card>
+
+              <Card title="Location Details" icon={MapPin} headerAction={!editing ? <GoogleMapsLink req={req} /> : null}>
+                {!editing ? (
+                  <div className="space-y-5">
+                    <InfoGrid>
+                      <InfoRow label="Village / Society" value={req.village} />
+                      <InfoRow label="Area"              value={req.area} />
+                      <InfoRow label="Locality"          value={req.localityName} />
+                      <InfoRow label="Sub Locality"      value={req.subLocalityName} />
+                      <InfoRow label="Landmark"          value={req.landmark} />
+                      <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
+                      <InfoRow label="Connection Type"   value={req.connectionType} />
+                      <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
+                    </InfoGrid>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
+                      {req.completeAddress
+                        ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
+                        : <p className="text-sm font-medium text-gray-800">—</p>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <InfoGrid>
+                      <EF label="Village / Society" value={d.village}         onChange={v => setDraft('village', v)} />
+                      <EF label="Area"               value={d.area}            onChange={v => setDraft('area', v)} />
+                      <EF label="Locality"           value={d.localityName}    onChange={v => setDraft('localityName', v)} />
+                      <EF label="Sub Locality"       value={d.subLocalityName} onChange={v => setDraft('subLocalityName', v)} />
+                      <EF label="Landmark"           value={d.landmark}        onChange={v => setDraft('landmark', v)} />
+                      <EF label="GPS Location"       value={d.gpsLocation}     onChange={v => setDraft('gpsLocation', v)} mono />
+                      <ESelect label="Connection Type" value={d.connectionType} onChange={v => setDraft('connectionType', v)} options={['FTTH', 'Sector', 'Village']} />
+                      <ESelect label="Assigned Branch" value={d.assignedBranch} onChange={v => setDraft('assignedBranch', v)} options={FEASIBILITY_BRANCHES} />
+                    </InfoGrid>
+                    <ETextarea label="Complete Address" value={d.completeAddress} onChange={v => setDraft('completeAddress', v)} />
+                  </div>
+                )}
+              </Card>
+            </div>
+          )
+        })()}
 
         {/* Requirement & Feasibility (Feasibility Details merged with the
             Customer Requirement content, plus the Assignment/Approval/
