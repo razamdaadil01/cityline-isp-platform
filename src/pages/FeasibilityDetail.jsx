@@ -10,9 +10,12 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import AddHardwareModal from '../components/hardware/AddHardwareModal'
+import MoveStageModal from '../components/leads/MoveStageModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
+import { getPipelines } from '../data/pipelineStore'
+import { saveFollowup } from '../data/followupStore'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
@@ -232,6 +235,7 @@ export default function FeasibilityDetail() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [req, setReq] = useState(() => getFeasibilityRequest(id))
+  const pipelines = getPipelines()
 
   useEffect(() => {
     return subscribeFeasibility(all => {
@@ -273,8 +277,6 @@ export default function FeasibilityDetail() {
   }
 
   // Modals
-  const [showEdit,    setShowEdit]    = useState(false)
-  const [editForm,    setEditForm]    = useState({})
   const [showAssign,  setShowAssign]  = useState(false)
   const [showApprove, setShowApprove] = useState(false)
   const [showReject,  setShowReject]  = useState(false)
@@ -286,24 +288,48 @@ export default function FeasibilityDetail() {
 
   const [toast, setToast] = useState('')
 
-  function openEdit() {
-    setEditForm({
-      localityName:             req.localityName             || '',
-      subLocalityName:          req.subLocalityName          || '',
-      completeAddress:          req.completeAddress          || '',
-      landmark:                 req.landmark                 || '',
-      connectionType:           req.connectionType           || '',
-      customerRequirementNotes: req.customerRequirementNotes || '',
-      assignedBranch:           req.assignedBranch           || '',
-      fiberRequired:            req.fiberRequired             || '',
-      priority:                 req.priority                 || 'Medium',
+  // ?modal=edit-stage-fields opens the same "Stage Fields — Feasibility"
+  // modal used by the Leads move-stage flow (/sales/leads/:leadId?action=
+  // move-stage) — reused as-is here, pre-filled from this feasibility
+  // request's own data instead of a lead's.
+  const stageFieldsOpen = searchParams.get('modal') === 'edit-stage-fields'
+
+  function openStageFieldsEdit() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit-stage-fields')
+      return next
     })
-    setShowEdit(true)
   }
 
-  function handleSaveEdit() {
-    saveFeasibilityRequest({ ...req, ...editForm })
-    setShowEdit(false)
+  function closeStageFieldsEdit() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+
+  function handleStageFieldsSave(targetStage, fieldVals, fuData) {
+    saveFeasibilityRequest({
+      ...req,
+      localityName:             fieldVals['s4-f1'] || req.localityName || '',
+      subLocalityName:          fieldVals['s4-f2'] || req.subLocalityName || '',
+      completeAddress:          fieldVals['s4-f3'] || req.completeAddress || '',
+      landmark:                 fieldVals['s4-f4'] || req.landmark || '',
+      connectionType:           fieldVals['s4-f5'] || req.connectionType || '',
+      customerRequirementNotes: fieldVals['s4-f6'] || req.customerRequirementNotes || '',
+      assignedBranch:           fieldVals['s4-f7'] || req.assignedBranch || '',
+      internalRemarks:          fieldVals['s4-f8'] || req.internalRemarks || '',
+    })
+    if (fuData?.date) {
+      saveFollowup({
+        id: `FU-${Date.now()}`, leadId: req.leadId, leadName: req.customerName, phone: req.mobile,
+        date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage,
+        assignedTo: req.assignedEngineer || '', notifyTo: fuData.notifyTo,
+        priority: req.priority ?? 'medium', status: 'Pending',
+      })
+    }
     setToast('Changes saved successfully')
   }
 
@@ -392,6 +418,22 @@ export default function FeasibilityDetail() {
   const isAssigned   = ['Assigned', 'In Progress', 'Approved'].includes(status)
   const isApproved   = status === 'Approved'
   const isRejected   = status === 'Rejected'
+
+  // Shaped to duck-type the subset of a lead's fields MoveStageModal reads
+  // to pre-fill the Feasibility stage fields (s4-f*, see stageFieldsStore.js)
+  // — using this request's own location/requirement data instead of a lead's.
+  const stageFieldsLead = {
+    name:                req.customerName,
+    pipeline:            req.pipeline,
+    locality:            req.localityName,
+    subLocality:         req.subLocalityName,
+    address:             req.completeAddress,
+    landmark:            req.landmark,
+    siteType:            req.connectionType,
+    customerRequirement: req.customerRequirementNotes,
+    branchCode:          req.assignedBranch,
+    remarks:             req.internalRemarks,
+  }
 
   // ?category=chargeable|non-chargeable filters the Hardware tab's Added
   // Hardware list; absent (or any other value) shows everything. Original
@@ -513,13 +555,9 @@ export default function FeasibilityDetail() {
                 title="Feasibility Details"
                 icon={FileText}
                 headerAction={
-                  <button
-                    type="button"
-                    onClick={openEdit}
-                    className="shrink-0 text-gray-400 hover:text-brand-blue transition-colors"
-                  >
-                    <Edit2 size={14} />
-                  </button>
+                  <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} onClick={openStageFieldsEdit}>
+                    Edit
+                  </Button>
                 }
               >
                 <div className="space-y-5">
@@ -760,59 +798,17 @@ export default function FeasibilityDetail() {
 
       </div>
 
-      {/* ── Edit Modal ───────────────────────────────────────────── */}
-      <Modal
-        isOpen={showEdit}
-        onClose={() => setShowEdit(false)}
-        title={`Edit — ${req.id}`}
-        size="md"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowEdit(false)}>Cancel</Button>
-          <Button size="sm" onClick={handleSaveEdit}>Save Changes</Button>
-        </>}
-      >
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Locality Name">
-            <Input value={editForm.localityName} onChange={e => setEditForm(f => ({ ...f, localityName: e.target.value }))} placeholder="Enter locality name" />
-          </FormField>
-          <FormField label="Sub Locality Name">
-            <Input value={editForm.subLocalityName} onChange={e => setEditForm(f => ({ ...f, subLocalityName: e.target.value }))} placeholder="Enter sub locality name" />
-          </FormField>
-          <div className="col-span-2">
-            <FormField label="Complete Address">
-              <Textarea rows={2} value={editForm.completeAddress} onChange={e => setEditForm(f => ({ ...f, completeAddress: e.target.value }))} placeholder="Full address…" />
-            </FormField>
-          </div>
-          <FormField label="Landmark">
-            <Input value={editForm.landmark} onChange={e => setEditForm(f => ({ ...f, landmark: e.target.value }))} placeholder="Nearby landmark" />
-          </FormField>
-          <FormField label="Expected Connection Type">
-            <Select value={editForm.connectionType} onChange={e => setEditForm(f => ({ ...f, connectionType: e.target.value }))}>
-              <option value="">Select…</option>
-              {['FTTH', 'Sector', 'Village'].map(t => <option key={t}>{t}</option>)}
-            </Select>
-          </FormField>
-          <div className="col-span-2">
-            <FormField label="Customer Requirement">
-              <Textarea rows={2} value={editForm.customerRequirementNotes} onChange={e => setEditForm(f => ({ ...f, customerRequirementNotes: e.target.value }))} placeholder="Customer's requirements…" />
-            </FormField>
-          </div>
-          <FormField label="Assigned Branch">
-            <Select value={editForm.assignedBranch} onChange={e => setEditForm(f => ({ ...f, assignedBranch: e.target.value }))}>
-              <option value="">Select…</option>
-              {['CNPL-001','CNPL-002','CNPL-003','CNPL-004','CNPL-005','CNPL-006','CNPL-007','CNPL-008','CNPL-009','CNPL-010','CNPL-011'].map(b => <option key={b}>{b}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Fiber Req (M)">
-            <Input type="number" min="0" value={editForm.fiberRequired} onChange={e => setEditForm(f => ({ ...f, fiberRequired: e.target.value }))} placeholder="e.g. 250" />
-          </FormField>
-          <FormField label="Priority" required>
-            <Select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: e.target.value }))}>
-              {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
-            </Select>
-          </FormField>
-        </div>
-      </Modal>
+      {/* ── Feasibility Details Edit Modal (shared Stage Fields modal, reused
+           as-is from the Leads move-stage flow) ──────────────────────── */}
+      <MoveStageModal
+        isOpen={stageFieldsOpen}
+        onClose={closeStageFieldsEdit}
+        lead={stageFieldsLead}
+        pipelines={pipelines}
+        targetStage="Feasibility"
+        onSave={handleStageFieldsSave}
+        title={`Feasibility Details — ${req.customerName}`}
+      />
 
       {/* ── Assign Engineer Modal ─────────────────────────────────── */}
       <Modal
