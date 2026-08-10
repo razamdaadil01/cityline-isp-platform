@@ -101,6 +101,59 @@ function AttachmentSlot({ label, icon: Icon }) {
   )
 }
 
+/* ── Step progress bar (read-only) ────────────────────────────────── */
+const STEPS = [
+  { key: 1, label: 'Lead & Customer' },
+  { key: 2, label: 'Location Details' },
+  { key: 3, label: 'Requirement & Feasibility' },
+  { key: 4, label: 'Hardware' },
+  { key: 5, label: 'Attachments' },
+]
+
+// Purely visual — not clickable, no Next/Previous. All steps default to
+// "completed" (this is existing data being viewed), except Hardware — which
+// shows a muted/no-data state when neither hardware nor wire items exist —
+// and whichever step matches the tab bar's current selection below, shown
+// in blue instead of green.
+function Stepper({ req, activeStep }) {
+  const hasData = step => step.key !== 4 || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
+
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
+      <div className="flex items-center">
+        {STEPS.map((step, i) => {
+          const isActive = step.key === activeStep
+          const isLast = i === STEPS.length - 1
+          const done = hasData(step)
+          return (
+            <div key={step.key} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
+              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
+                  isActive
+                    ? 'bg-brand-blue border-brand-blue text-white'
+                    : done
+                      ? 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'bg-white border-gray-300 text-gray-400'
+                }`}>
+                  {isActive ? step.key : done ? <Check size={14} /> : step.key}
+                </div>
+                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  isActive ? 'text-brand-blue' : done ? 'text-gray-700' : 'text-gray-400'
+                }`}>
+                  {step.label}
+                </span>
+              </div>
+              {!isLast && (
+                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* ── Tab bar ────────────────────────────────────────────────────── */
 const TABS = [
   { key: 'lead-customer',            label: 'Lead & Customer' },
@@ -110,35 +163,26 @@ const TABS = [
   { key: 'attachments',              label: 'Attachments' },
 ]
 
-// Same underline tab-bar pattern as Customer Detail's Profile/Package
-// Details/Finance tabs. Every tab is independently clickable — no
-// completion gating. A small checkmark marks sections that already have
-// data (all of them, except Hardware when neither hardware nor wire items
-// exist) — purely informational, not a requirement to navigate.
-function TabBar({ req, activeTab, onTabClick }) {
-  const hasData = tab => tab.key !== 'hardware' || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
-
+// Identical underline tab-bar pattern to Customer Detail's Profile/Package
+// Details/Finance tabs. Independent of the stepper above — every tab is
+// freely clickable regardless of step completion.
+function TabBar({ activeTab, onTabClick }) {
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
       <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
-        {TABS.map(tab => {
-          const isActive = tab.key === activeTab
-          const done = hasData(tab)
-          return (
-            <button
-              key={tab.key}
-              onClick={() => onTabClick(tab.key)}
-              className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
-                ${isActive
-                  ? 'border-brand-blue text-brand-blue'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
-                }`}
-            >
-              {done && <Check size={13} className={isActive ? 'text-brand-blue' : 'text-emerald-500'} />}
-              {tab.label}
-            </button>
-          )
-        })}
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => onTabClick(tab.key)}
+            className={`shrink-0 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+              ${activeTab === tab.key
+                ? 'border-brand-blue text-brand-blue'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+              }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -166,6 +210,10 @@ export default function FeasibilityDetail() {
   // history replace on load.
   const tabParam = searchParams.get('tab')
   const activeTab = TABS.some(t => t.key === tabParam) ? tabParam : TABS[0].key
+  // The read-only stepper above the tab bar highlights whichever step
+  // corresponds to the currently selected tab, purely as a visual echo —
+  // it has no click handler of its own.
+  const activeStep = TABS.findIndex(t => t.key === activeTab) + 1
 
   useEffect(() => {
     if (!TABS.some(t => t.key === searchParams.get('tab'))) {
@@ -352,7 +400,9 @@ export default function FeasibilityDetail() {
 
       <div className="space-y-6">
 
-        <TabBar req={req} activeTab={activeTab} onTabClick={goToTab} />
+        <Stepper req={req} activeStep={activeStep} />
+
+        <TabBar activeTab={activeTab} onTabClick={goToTab} />
 
         {/* Lead & Customer */}
         {activeTab === 'lead-customer' && (
