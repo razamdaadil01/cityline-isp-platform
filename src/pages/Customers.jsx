@@ -19,6 +19,7 @@ const CUSTOMER_TABLE_COLUMNS = [
   { key: 'customerId',   label: 'Customer ID',   visible: true, defaultVisible: true },
   { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
   { key: 'customerType', label: 'Customer Type', visible: true, defaultVisible: true },
+  { key: 'area',         label: 'Area',          visible: true, defaultVisible: true },
   { key: 'phone',        label: 'Phone',         visible: true, defaultVisible: true },
   { key: 'plan',         label: 'Plan',          visible: true, defaultVisible: true },
   { key: 'status',       label: 'Status',        visible: true, defaultVisible: true },
@@ -553,6 +554,7 @@ export default function Customers() {
                 {visibleCols.has('customerId') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[148px]">Customer ID</th>}
                 {visibleCols.has('customerName') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Name</th>}
                 {visibleCols.has('customerType') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Customer Type</th>}
+                {visibleCols.has('area') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Area</th>}
                 {visibleCols.has('phone') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Phone</th>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[200px]">Services</th>
                 {visibleCols.has('plan') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Plan</th>}
@@ -606,6 +608,9 @@ export default function Customers() {
                     )}
                     {visibleCols.has('customerType') && (
                       <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{customerType}</td>
+                    )}
+                    {visibleCols.has('area') && (
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.area}</td>
                     )}
                     {visibleCols.has('phone') && (
                       <td className="px-4 py-3 text-gray-600 text-xs font-mono">{c.phone}</td>
