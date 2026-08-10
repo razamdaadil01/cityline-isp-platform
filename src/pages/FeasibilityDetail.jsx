@@ -59,12 +59,15 @@ function parseGpsLocation(gps) {
 
 /* ── Sub-components ─────────────────────────────────────────────── */
 
-function Card({ title, icon: Icon, children, className = '' }) {
+function Card({ title, icon: Icon, headerAction, children, className = '' }) {
   return (
     <div className={`bg-white rounded-xl border border-surface-border shadow-card ${className}`}>
-      <div className="px-5 py-4 border-b border-surface-border flex items-center gap-2">
-        {Icon && <Icon size={15} className="text-gray-400 shrink-0" />}
-        <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+      <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {Icon && <Icon size={15} className="text-gray-400 shrink-0" />}
+          <h2 className="text-sm font-semibold text-gray-900 truncate">{title}</h2>
+        </div>
+        {headerAction}
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -115,54 +118,22 @@ function AttachmentSlot({ label, icon: Icon }) {
   )
 }
 
-/* ── Map preview ───────────────────────────────────────────────── */
-// No Google Maps API key is configured in this project's env vars, so this
-// always renders the clickable fallback card below — kept as a real branch
-// (rather than only building the fallback) so a future VITE_GOOGLE_MAPS_API_KEY
-// gets an embedded map for free instead of silently doing nothing.
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-
-function MapPreview({ req }) {
+/* ── Google Maps link ─────────────────────────────────────────────── */
+// Inline header-row action for the Location Details card — opens Google
+// Maps in a new tab at this record's parsed coordinates. Renders nothing
+// if the GPS Location string can't be parsed.
+function GoogleMapsLink({ req }) {
   const coords = parseGpsLocation(req.gpsLocation)
   if (!coords) return null
 
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`
-
-  if (GOOGLE_MAPS_API_KEY) {
-    return (
-      <div className="rounded-xl overflow-hidden border border-surface-border">
-        <iframe
-          title="Location map"
-          width="100%"
-          height="220"
-          style={{ border: 0, display: 'block' }}
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          src={`https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${coords.lat},${coords.lng}`}
-        />
-      </div>
-    )
-  }
-
-  const addressSummary = [req.village, req.area, req.localityName].filter(Boolean).join(', ')
-
   return (
     <a
-      href={mapsUrl}
+      href={`https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-3 rounded-xl border border-surface-border bg-gray-50 hover:bg-blue-50/40 hover:border-brand-blue/30 transition-colors px-4 py-3.5 group"
+      className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:underline shrink-0"
     >
-      <div className="w-10 h-10 rounded-lg bg-white border border-surface-border flex items-center justify-center shrink-0 group-hover:border-brand-blue/40 transition-colors">
-        <MapPin size={18} className="text-gray-400 group-hover:text-brand-blue transition-colors" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-800 truncate">{addressSummary || 'View location'}</p>
-        <p className="text-xs text-gray-400 font-mono">{req.gpsLocation}</p>
-      </div>
-      <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue shrink-0">
-        View on Google Maps <ExternalLink size={12} />
-      </span>
+      View on Google Maps <ExternalLink size={12} />
     </a>
   )
 }
@@ -487,7 +458,7 @@ export default function FeasibilityDetail() {
               </InfoGrid>
             </Card>
 
-            <Card title="Location Details" icon={MapPin}>
+            <Card title="Location Details" icon={MapPin} headerAction={<GoogleMapsLink req={req} />}>
               <div className="space-y-5">
                 <InfoGrid>
                   <InfoRow label="Village / Society" value={req.village} />
@@ -505,7 +476,6 @@ export default function FeasibilityDetail() {
                     ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
                     : <p className="text-sm font-medium text-gray-800">—</p>}
                 </div>
-                <MapPreview req={req} />
               </div>
             </Card>
           </div>
