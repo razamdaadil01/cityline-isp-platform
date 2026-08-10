@@ -104,10 +104,9 @@ function AttachmentSlot({ label, icon: Icon }) {
 /* ── Step progress bar (read-only) ────────────────────────────────── */
 const STEPS = [
   { key: 1, label: 'Lead & Customer' },
-  { key: 2, label: 'Location Details' },
-  { key: 3, label: 'Requirement & Feasibility' },
-  { key: 4, label: 'Hardware' },
-  { key: 5, label: 'Attachments' },
+  { key: 2, label: 'Requirement & Feasibility' },
+  { key: 3, label: 'Hardware' },
+  { key: 4, label: 'Attachments' },
 ]
 
 // Purely visual — not clickable, no Next/Previous. All steps default to
@@ -116,7 +115,7 @@ const STEPS = [
 // and whichever step matches the tab bar's current selection below, shown
 // in blue instead of green.
 function Stepper({ req, activeStep }) {
-  const hasData = step => step.key !== 4 || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
+  const hasData = step => step.key !== 3 || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
 
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
@@ -157,7 +156,6 @@ function Stepper({ req, activeStep }) {
 /* ── Tab bar ────────────────────────────────────────────────────── */
 const TABS = [
   { key: 'lead-customer',            label: 'Lead & Customer' },
-  { key: 'location-details',         label: 'Location Details' },
   { key: 'requirement-feasibility',  label: 'Requirement & Feasibility' },
   { key: 'hardware',                 label: 'Hardware' },
   { key: 'attachments',              label: 'Attachments' },
@@ -202,8 +200,9 @@ export default function FeasibilityDetail() {
     })
   }, [id])
 
-  // ?tab=lead-customer|location-details|requirement-feasibility|hardware|
-  // attachments tracks which section is showing, consistent with the
+  // ?tab=lead-customer|requirement-feasibility|hardware|attachments tracks
+  // which section is showing (Location Details lives inside the
+  // lead-customer tab rather than having its own), consistent with the
   // ?section=/?modal=-style URL-param navigation used elsewhere in the app —
   // clicking a tab pushes a new history entry so back/forward moves through
   // them; an invalid/missing param is corrected to the first tab via a
@@ -404,44 +403,45 @@ export default function FeasibilityDetail() {
 
         <TabBar activeTab={activeTab} onTabClick={goToTab} />
 
-        {/* Lead & Customer */}
+        {/* Lead & Customer (Lead & Customer Info, plus Location Details as
+            its own distinct card underneath — merged into this tab rather
+            than kept as a separate tab) */}
         {activeTab === 'lead-customer' && (
-          <Card title="Lead & Customer Info" icon={User}>
-            <InfoGrid>
-              <InfoRow label="Lead ID"      value={req.leadId}        mono />
-              <InfoRow label="Customer Name" value={req.customerName} />
-              <InfoRow label="Mobile"       value={req.mobile}        mono />
-              <InfoRow label="Email"        value={req.email} />
-              <InfoRow label="Pipeline"     value={req.pipeline} />
-              <InfoRow label="Stage"        value={req.stage} />
-              <InfoRow label="Created By"   value={req.createdBy} />
-              <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
-            </InfoGrid>
-          </Card>
-        )}
-
-        {/* Location Details */}
-        {activeTab === 'location-details' && (
-          <Card title="Location Details" icon={MapPin}>
-            <div className="space-y-5">
+          <div className="space-y-6">
+            <Card title="Lead & Customer Info" icon={User}>
               <InfoGrid>
-                <InfoRow label="Village / Society" value={req.village} />
-                <InfoRow label="Area"              value={req.area} />
-                <InfoRow label="Locality"          value={req.localityName} />
-                <InfoRow label="Sub Locality"      value={req.subLocalityName} />
-                <InfoRow label="Landmark"          value={req.landmark} />
-                <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
-                <InfoRow label="Connection Type"   value={req.connectionType} />
-                <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
+                <InfoRow label="Lead ID"      value={req.leadId}        mono />
+                <InfoRow label="Customer Name" value={req.customerName} />
+                <InfoRow label="Mobile"       value={req.mobile}        mono />
+                <InfoRow label="Email"        value={req.email} />
+                <InfoRow label="Pipeline"     value={req.pipeline} />
+                <InfoRow label="Stage"        value={req.stage} />
+                <InfoRow label="Created By"   value={req.createdBy} />
+                <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
               </InfoGrid>
-              <div>
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
-                {req.completeAddress
-                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
-                  : <p className="text-sm font-medium text-gray-800">—</p>}
+            </Card>
+
+            <Card title="Location Details" icon={MapPin}>
+              <div className="space-y-5">
+                <InfoGrid>
+                  <InfoRow label="Village / Society" value={req.village} />
+                  <InfoRow label="Area"              value={req.area} />
+                  <InfoRow label="Locality"          value={req.localityName} />
+                  <InfoRow label="Sub Locality"      value={req.subLocalityName} />
+                  <InfoRow label="Landmark"          value={req.landmark} />
+                  <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
+                  <InfoRow label="Connection Type"   value={req.connectionType} />
+                  <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
+                </InfoGrid>
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
+                  {req.completeAddress
+                    ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
+                    : <p className="text-sm font-medium text-gray-800">—</p>}
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         )}
 
         {/* Requirement & Feasibility (Feasibility Details merged with the
