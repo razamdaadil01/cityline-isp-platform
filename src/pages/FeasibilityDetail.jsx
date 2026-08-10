@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, Clock, FileText, Image, Upload, Wrench, Edit2,
+  Phone, Mail, Calendar, Clock, FileText, Image, Upload, Wrench, Edit2, Check,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -131,10 +131,83 @@ function AttachmentSlot({ label, icon: Icon }) {
   )
 }
 
+/* ── Stepper ────────────────────────────────────────────────────── */
+const STEPS = [
+  { key: 1, label: 'Lead & Customer' },
+  { key: 2, label: 'Location Details' },
+  { key: 3, label: 'Requirement & Feasibility' },
+  { key: 4, label: 'Hardware' },
+  { key: 5, label: 'Attachments' },
+]
+
+// All steps default to "completed" (this is existing data being viewed, not
+// a create wizard), except Hardware — which shows a muted/no-data state when
+// neither hardware nor wire items exist — and whichever step is currently
+// active, shown in blue instead of green. Steps are freely clickable (no
+// sequential lock), same as the Previous/Next buttons underneath each step.
+function Stepper({ req, activeStep, onStepClick }) {
+  const hasData = step => step.key !== 4 || (req.hwItems?.length > 0 || req.wireItems?.length > 0)
+
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
+      <div className="flex items-center">
+        {STEPS.map((step, i) => {
+          const isActive = step.key === activeStep
+          const isLast = i === STEPS.length - 1
+          const done = hasData(step)
+          return (
+            <div key={step.key} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
+              <button
+                type="button"
+                onClick={() => onStepClick(step.key)}
+                className="flex flex-col items-center gap-1.5 shrink-0 group"
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
+                  isActive
+                    ? 'bg-brand-blue border-brand-blue text-white'
+                    : done
+                      ? 'bg-emerald-500 border-emerald-500 text-white group-hover:bg-emerald-600'
+                      : 'bg-white border-gray-300 text-gray-400 group-hover:border-gray-400'
+                }`}>
+                  {isActive ? step.key : done ? <Check size={14} /> : step.key}
+                </div>
+                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  isActive ? 'text-brand-blue' : done ? 'text-gray-700 group-hover:text-gray-900' : 'text-gray-400 group-hover:text-gray-500'
+                }`}>
+                  {step.label}
+                </span>
+              </button>
+              {!isLast && (
+                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Previous/Next as an alternative to clicking the stepper directly — hidden
+// (not just disabled) on the first/last step respectively.
+function StepNav({ activeStep, onStepClick }) {
+  return (
+    <div className="flex items-center justify-end gap-3">
+      {activeStep > 1 && (
+        <Button variant="secondary" size="sm" onClick={() => onStepClick(activeStep - 1)}>Previous</Button>
+      )}
+      {activeStep < STEPS.length && (
+        <Button variant="secondary" size="sm" onClick={() => onStepClick(activeStep + 1)}>Next</Button>
+      )}
+    </div>
+  )
+}
+
 /* ── Main ───────────────────────────────────────────────────────── */
 export default function FeasibilityDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [req, setReq] = useState(() => getFeasibilityRequest(id))
 
@@ -143,6 +216,33 @@ export default function FeasibilityDetail() {
       setReq(all.find(r => r.id === id) ?? null)
     })
   }, [id])
+
+  // ?step=1..5 tracks which section is showing, consistent with the
+  // ?section=/?tab=-style URL-param navigation used elsewhere in the app —
+  // clicking a step or Next/Previous pushes a new history entry so
+  // back/forward moves through the steps; an invalid/missing param is
+  // corrected to step 1 via a history replace on load.
+  const stepParam = Number(searchParams.get('step'))
+  const activeStep = STEPS.some(s => s.key === stepParam) ? stepParam : 1
+
+  useEffect(() => {
+    if (!STEPS.some(s => s.key === Number(searchParams.get('step')))) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.set('step', '1')
+        return next
+      }, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function goToStep(step) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('step', String(step))
+      return next
+    })
+  }
 
   // Modals
   const [showEdit,    setShowEdit]    = useState(false)
@@ -313,263 +413,294 @@ export default function FeasibilityDetail() {
         {/* Left — main sections */}
         <div className="xl:col-span-2 space-y-6">
 
-          {/* Section 1 — Lead & Customer Info */}
-          <Card title="Lead & Customer Info" icon={User}>
-            <InfoGrid>
-              <InfoRow label="Lead ID"      value={req.leadId}        mono />
-              <InfoRow label="Customer Name" value={req.customerName} />
-              <InfoRow label="Mobile"       value={req.mobile}        mono />
-              <InfoRow label="Email"        value={req.email} />
-              <InfoRow label="Pipeline"     value={req.pipeline} />
-              <InfoRow label="Stage"        value={req.stage} />
-              <InfoRow label="Created By"   value={req.createdBy} />
-              <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
-            </InfoGrid>
-          </Card>
+          <Stepper req={req} activeStep={activeStep} onStepClick={goToStep} />
 
-          {/* Section 2 — Location Details */}
-          <Card title="Location Details" icon={MapPin}>
-            <div className="space-y-5">
-              <InfoGrid>
-                <InfoRow label="Village / Society" value={req.village} />
-                <InfoRow label="Area"              value={req.area} />
-                <InfoRow label="Locality"          value={req.localityName} />
-                <InfoRow label="Sub Locality"      value={req.subLocalityName} />
-                <InfoRow label="Landmark"          value={req.landmark} />
-                <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
-                <InfoRow label="Connection Type"   value={req.connectionType} />
-                <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
-              </InfoGrid>
-              <div>
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
-                {req.completeAddress
-                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
-                  : <p className="text-sm font-medium text-gray-800">—</p>}
-              </div>
-              <div>
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement</p>
-                {(req.customerRequirementNotes || req.customerRequirement)
-                  ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.customerRequirementNotes || req.customerRequirement}</p>
-                  : <p className="text-sm font-medium text-gray-800">—</p>}
-              </div>
-            </div>
-          </Card>
-
-          {/* Section 2b — Hardware Requirements */}
-          <Card title="Hardware Requirements" icon={Wrench}>
-            {(!req.hwItems?.length && !req.wireItems?.length) ? (
-              <p className="text-sm text-gray-400 text-center py-4">No hardware requirements added yet</p>
-            ) : (
-              <div className="space-y-6">
-                {/* Hardware Items table */}
-                {req.hwItems?.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Hardware Items</p>
-                    <div className="overflow-hidden rounded-lg border border-surface-border">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-surface-border">
-                            <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Item Name</th>
-                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">QTY</th>
-                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">Unit</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surface-border">
-                          {req.hwItems.map((row, i) => (
-                            <tr key={row.id ?? i} className="hover:bg-gray-50/60">
-                              <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">{row.name || '—'}</td>
-                              <td className="px-4 py-2.5 text-sm text-gray-700 text-center">{row.qty || '—'}</td>
-                              <td className="px-4 py-2.5 text-sm text-gray-500 text-center">{row.unit || '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Wire / Cable table */}
-                {req.wireItems?.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Wire / Cable</p>
-                    <div className="overflow-hidden rounded-lg border border-surface-border">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-surface-border">
-                            <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cable Name</th>
-                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">QTY</th>
-                            <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">Unit</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surface-border">
-                          {req.wireItems.map((row, i) => (
-                            <tr key={row.id ?? i} className="hover:bg-gray-50/60">
-                              <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">{row.name || '—'}</td>
-                              <td className="px-4 py-2.5 text-sm text-gray-700 text-center">{row.qty || '—'}</td>
-                              <td className="px-4 py-2.5 text-sm text-gray-500 text-center">{row.unit || '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
-
-          {/* Section 3 — Feasibility Details */}
-          <Card title="Feasibility Details" icon={FileText}>
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5">
-                <InfoRow label="Network Expansion Required"      value={req.networkExpansionRequired} />
-                <InfoRow label="Est. Fiber Requirement"          value={req.fiberRequired ? `${req.fiberRequired} m` : '—'} />
-                <InfoRow label="Est. Distance from Existing Fiber" value={req.estimatedDistanceFromFiber} />
-                <InfoRow label="Pole Requirement"                value={req.poleRequirement} />
-                <InfoRow label="Priority"
-                  value={
-                    req.priority
-                      ? <Badge variant={PRIORITY_VARIANT[req.priority] || 'gray'} size="sm">{req.priority}</Badge>
-                      : '—'
-                  }
-                />
-                <InfoRow label="Connection Type" value={req.connectionType} />
-                <InfoRow label="Branch" value={req.assignedBranch} mono />
-              </div>
-
-              {/* Full-width text fields */}
-              <div className="space-y-4 pt-1">
-                <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Feasibility Reason</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                    {req.feasibilityReason || '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement Notes</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                    {req.customerRequirementNotes || '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Internal Remarks</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                    {req.internalRemarks || '—'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Section 4 — Assignment Details (if assigned+) */}
-          {isAssigned && (
-            <Card title="Assignment Details" icon={UserCheck}>
-              <InfoGrid>
-                <InfoRow label="Assigned Engineer" value={req.assignedEngineer} />
-                <InfoRow label="Assignment Date"   value={fmtDate(req.assignmentDate)} />
-                <InfoRow label="Priority"
-                  value={
-                    req.priority
-                      ? <Badge variant={PRIORITY_VARIANT[req.priority] || 'gray'} size="sm">{req.priority}</Badge>
-                      : '—'
-                  }
-                />
-              </InfoGrid>
-              {req.assignmentNotes && (
-                <div className="mt-4">
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Internal Notes</p>
-                  <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                    {req.assignmentNotes}
-                  </p>
-                </div>
-              )}
-            </Card>
-          )}
-
-          {/* Section 5a — Approval Details */}
-          {isApproved && (
-            <Card title="Approval Details" icon={CheckCircle2}>
-              <InfoGrid cols={2}>
-                <InfoRow label="Approved By" value={req.approvedBy} />
-                <InfoRow label="Approved At" value={req.approvedAt} />
-              </InfoGrid>
-              <div className="space-y-4 mt-5">
-                <div>
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Approval Comment</p>
-                  <p className="text-sm text-gray-700 bg-emerald-50 rounded-lg px-4 py-3 border border-emerald-100 leading-relaxed">
-                    {req.approvalComment || '—'}
-                  </p>
-                </div>
-                <InfoGrid cols={2}>
-                  <InfoRow label="Estimated Fiber Requirement" value={req.fiberRequired ? `${req.fiberRequired} m` : '—'} />
+          {/* Step 1 — Lead & Customer */}
+          {activeStep === 1 && (
+            <>
+              <Card title="Lead & Customer Info" icon={User}>
+                <InfoGrid>
+                  <InfoRow label="Lead ID"      value={req.leadId}        mono />
+                  <InfoRow label="Customer Name" value={req.customerName} />
+                  <InfoRow label="Mobile"       value={req.mobile}        mono />
+                  <InfoRow label="Email"        value={req.email} />
+                  <InfoRow label="Pipeline"     value={req.pipeline} />
+                  <InfoRow label="Stage"        value={req.stage} />
+                  <InfoRow label="Created By"   value={req.createdBy} />
+                  <InfoRow label="Created Date" value={fmtDate(req.createdAt)} />
                 </InfoGrid>
-                {req.hardwareSummary && (
-                  <div>
-                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Hardware Summary</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                      {req.hardwareSummary}
-                    </p>
-                  </div>
-                )}
-                {req.installationNotes && (
-                  <div>
-                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Installation Notes</p>
-                    <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
-                      {req.installationNotes}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </Card>
+              </Card>
+              <StepNav activeStep={activeStep} onStepClick={goToStep} />
+            </>
           )}
 
-          {/* Section 5b — Rejection Details */}
-          {isRejected && (
-            <Card title="Rejection Details" icon={XCircle}>
-              <InfoGrid cols={2}>
-                <InfoRow label="Rejected By" value={req.rejectedBy} />
-                <InfoRow label="Rejected At" value={req.rejectedAt} />
-                <InfoRow label="Rejection Reason" value={req.rejectionReason} />
-              </InfoGrid>
-              {req.rejectionRemarks && (
-                <div className="mt-4">
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Remarks</p>
-                  <p className="text-sm text-gray-700 bg-red-50 rounded-lg px-4 py-3 border border-red-100 leading-relaxed">
-                    {req.rejectionRemarks}
-                  </p>
+          {/* Step 2 — Location Details */}
+          {activeStep === 2 && (
+            <>
+              <Card title="Location Details" icon={MapPin}>
+                <div className="space-y-5">
+                  <InfoGrid>
+                    <InfoRow label="Village / Society" value={req.village} />
+                    <InfoRow label="Area"              value={req.area} />
+                    <InfoRow label="Locality"          value={req.localityName} />
+                    <InfoRow label="Sub Locality"      value={req.subLocalityName} />
+                    <InfoRow label="Landmark"          value={req.landmark} />
+                    <InfoRow label="GPS Location"      value={req.gpsLocation} mono />
+                    <InfoRow label="Connection Type"   value={req.connectionType} />
+                    <InfoRow label="Assigned Branch"   value={req.assignedBranch} mono />
+                  </InfoGrid>
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Complete Address</p>
+                    {req.completeAddress
+                      ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.completeAddress}</p>
+                      : <p className="text-sm font-medium text-gray-800">—</p>}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement</p>
+                    {(req.customerRequirementNotes || req.customerRequirement)
+                      ? <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">{req.customerRequirementNotes || req.customerRequirement}</p>
+                      : <p className="text-sm font-medium text-gray-800">—</p>}
+                  </div>
                 </div>
-              )}
-            </Card>
+              </Card>
+              <StepNav activeStep={activeStep} onStepClick={goToStep} />
+            </>
           )}
 
-          {/* Section 6 — Attachments */}
-          <Card title="Attachments" icon={Image}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <AttachmentSlot label="Site Images"           icon={Image} />
-              <AttachmentSlot label="Location Photos"       icon={MapPin} />
-              <AttachmentSlot label="Supporting Documents"  icon={FileText} />
-            </div>
-          </Card>
+          {/* Step 3 — Requirement & Feasibility (Feasibility Details merged
+              with the Customer Requirement content, plus the
+              Assignment/Approval/Rejection outcome cards, which aren't
+              named in any other step) */}
+          {activeStep === 3 && (
+            <>
+              <Card title="Feasibility Details" icon={FileText}>
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5">
+                    <InfoRow label="Network Expansion Required"      value={req.networkExpansionRequired} />
+                    <InfoRow label="Est. Fiber Requirement"          value={req.fiberRequired ? `${req.fiberRequired} m` : '—'} />
+                    <InfoRow label="Est. Distance from Existing Fiber" value={req.estimatedDistanceFromFiber} />
+                    <InfoRow label="Pole Requirement"                value={req.poleRequirement} />
+                    <InfoRow label="Priority"
+                      value={
+                        req.priority
+                          ? <Badge variant={PRIORITY_VARIANT[req.priority] || 'gray'} size="sm">{req.priority}</Badge>
+                          : '—'
+                      }
+                    />
+                    <InfoRow label="Connection Type" value={req.connectionType} />
+                    <InfoRow label="Branch" value={req.assignedBranch} mono />
+                  </div>
+
+                  {/* Full-width text fields */}
+                  <div className="space-y-4 pt-1">
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Feasibility Reason</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
+                        {req.feasibilityReason || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Customer Requirement Notes</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
+                        {req.customerRequirementNotes || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Internal Remarks</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
+                        {req.internalRemarks || '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {isAssigned && (
+                <Card title="Assignment Details" icon={UserCheck}>
+                  <InfoGrid>
+                    <InfoRow label="Assigned Engineer" value={req.assignedEngineer} />
+                    <InfoRow label="Assignment Date"   value={fmtDate(req.assignmentDate)} />
+                    <InfoRow label="Priority"
+                      value={
+                        req.priority
+                          ? <Badge variant={PRIORITY_VARIANT[req.priority] || 'gray'} size="sm">{req.priority}</Badge>
+                          : '—'
+                      }
+                    />
+                  </InfoGrid>
+                  {req.assignmentNotes && (
+                    <div className="mt-4">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Internal Notes</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
+                        {req.assignmentNotes}
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              {isApproved && (
+                <Card title="Approval Details" icon={CheckCircle2}>
+                  <InfoGrid cols={2}>
+                    <InfoRow label="Approved By" value={req.approvedBy} />
+                    <InfoRow label="Approved At" value={req.approvedAt} />
+                  </InfoGrid>
+                  <div className="space-y-4 mt-5">
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Approval Comment</p>
+                      <p className="text-sm text-gray-700 bg-emerald-50 rounded-lg px-4 py-3 border border-emerald-100 leading-relaxed">
+                        {req.approvalComment || '—'}
+                      </p>
+                    </div>
+                    <InfoGrid cols={2}>
+                      <InfoRow label="Estimated Fiber Requirement" value={req.fiberRequired ? `${req.fiberRequired} m` : '—'} />
+                    </InfoGrid>
+                    {req.hardwareSummary && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Hardware Summary</p>
+                        <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
+                          {req.hardwareSummary}
+                        </p>
+                      </div>
+                    )}
+                    {req.installationNotes && (
+                      <div>
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Installation Notes</p>
+                        <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-3 border border-surface-border leading-relaxed">
+                          {req.installationNotes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {isRejected && (
+                <Card title="Rejection Details" icon={XCircle}>
+                  <InfoGrid cols={2}>
+                    <InfoRow label="Rejected By" value={req.rejectedBy} />
+                    <InfoRow label="Rejected At" value={req.rejectedAt} />
+                    <InfoRow label="Rejection Reason" value={req.rejectionReason} />
+                  </InfoGrid>
+                  {req.rejectionRemarks && (
+                    <div className="mt-4">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Remarks</p>
+                      <p className="text-sm text-gray-700 bg-red-50 rounded-lg px-4 py-3 border border-red-100 leading-relaxed">
+                        {req.rejectionRemarks}
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              <StepNav activeStep={activeStep} onStepClick={goToStep} />
+            </>
+          )}
+
+          {/* Step 4 — Hardware */}
+          {activeStep === 4 && (
+            <>
+              <Card title="Hardware Requirements" icon={Wrench}>
+                {(!req.hwItems?.length && !req.wireItems?.length) ? (
+                  <p className="text-sm text-gray-400 text-center py-4">No hardware requirements added yet</p>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Hardware Items table */}
+                    {req.hwItems?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Hardware Items</p>
+                        <div className="overflow-hidden rounded-lg border border-surface-border">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-surface-border">
+                                <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Item Name</th>
+                                <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">QTY</th>
+                                <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">Unit</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-border">
+                              {req.hwItems.map((row, i) => (
+                                <tr key={row.id ?? i} className="hover:bg-gray-50/60">
+                                  <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">{row.name || '—'}</td>
+                                  <td className="px-4 py-2.5 text-sm text-gray-700 text-center">{row.qty || '—'}</td>
+                                  <td className="px-4 py-2.5 text-sm text-gray-500 text-center">{row.unit || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Wire / Cable table */}
+                    {req.wireItems?.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Wire / Cable</p>
+                        <div className="overflow-hidden rounded-lg border border-surface-border">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-surface-border">
+                                <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Cable Name</th>
+                                <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">QTY</th>
+                                <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">Unit</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-border">
+                              {req.wireItems.map((row, i) => (
+                                <tr key={row.id ?? i} className="hover:bg-gray-50/60">
+                                  <td className="px-4 py-2.5 text-sm text-gray-800 font-medium">{row.name || '—'}</td>
+                                  <td className="px-4 py-2.5 text-sm text-gray-700 text-center">{row.qty || '—'}</td>
+                                  <td className="px-4 py-2.5 text-sm text-gray-500 text-center">{row.unit || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+              <StepNav activeStep={activeStep} onStepClick={goToStep} />
+            </>
+          )}
+
+          {/* Step 5 — Attachments */}
+          {activeStep === 5 && (
+            <>
+              <Card title="Attachments" icon={Image}>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <AttachmentSlot label="Site Images"           icon={Image} />
+                  <AttachmentSlot label="Location Photos"       icon={MapPin} />
+                  <AttachmentSlot label="Supporting Documents"  icon={FileText} />
+                </div>
+              </Card>
+              <StepNav activeStep={activeStep} onStepClick={goToStep} />
+            </>
+          )}
 
         </div>
 
-        {/* Right column — Activity Timeline */}
+        {/* Right column — Activity Timeline (sticky so it stays in view
+            regardless of which step is active on the left) */}
         <div className="space-y-6">
-          <Card title="Activity Timeline" icon={Clock}>
-            {(req.timeline?.length ?? 0) === 0 ? (
-              <p className="text-xs text-gray-400">No activity yet.</p>
-            ) : (
-              <div>
-                {req.timeline.map((entry, i) => (
-                  <TimelineEntry
-                    key={i}
-                    entry={entry}
-                    isLast={i === req.timeline.length - 1}
-                  />
-                ))}
-              </div>
-            )}
-          </Card>
+          <div className="sticky top-24">
+            <Card title="Activity Timeline" icon={Clock}>
+              {(req.timeline?.length ?? 0) === 0 ? (
+                <p className="text-xs text-gray-400">No activity yet.</p>
+              ) : (
+                <div>
+                  {req.timeline.map((entry, i) => (
+                    <TimelineEntry
+                      key={i}
+                      entry={entry}
+                      isLast={i === req.timeline.length - 1}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
 
