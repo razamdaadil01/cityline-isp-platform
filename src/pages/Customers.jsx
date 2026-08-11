@@ -38,6 +38,11 @@ const SERVICE_STYLE = {
   'Business BB':  'bg-emerald-100 text-emerald-700',
 }
 
+const CUSTOMER_TYPE_STYLE = {
+  Residential: 'bg-blue-50 text-blue-600',
+  Corporate:   'bg-fuchsia-50 text-fuchsia-600',
+}
+
 const STATUS_CFG = {
   active:    { variant: 'green',  label: 'Active' },
   suspended: { variant: 'yellow', label: 'Suspended' },
@@ -98,6 +103,14 @@ function ServicePill({ service }) {
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${SERVICE_STYLE[service] ?? 'bg-gray-100 text-gray-600'}`}>
       {service}
+    </span>
+  )
+}
+
+function CustomerTypePill({ type }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${CUSTOMER_TYPE_STYLE[type] ?? 'bg-gray-100 text-gray-600'}`}>
+      {type}
     </span>
   )
 }
@@ -576,7 +589,7 @@ export default function Customers() {
               ) : paginated.map(c => {
                 const cfg = STATUS_CFG[c.status] ?? STATUS_CFG.inactive
                 const isSelected = selected.has(c.id)
-                const customerType = c.id.startsWith('ENT') ? 'Corporate' : 'Individual'
+                const customerType = c.id.startsWith('ENT') ? 'Corporate' : 'Residential'
                 return (
                   <tr
                     key={c.id}
@@ -607,7 +620,9 @@ export default function Customers() {
                       </td>
                     )}
                     {visibleCols.has('customerType') && (
-                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{customerType}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <CustomerTypePill type={customerType} />
+                      </td>
                     )}
                     {visibleCols.has('area') && (
                       <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.area}</td>
