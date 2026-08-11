@@ -3159,53 +3159,50 @@ export default function SalesLeadDetail() {
 
           {/* ─── FOLLOW-UPS ───────────────────────────────────────────── */}
           {activeTab === 'followups' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-gray-700">All Follow-ups</h2>
+            <Card>
+              <CardHeader title="All Follow-ups" action={
                 <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
-              </div>
-              <div className="space-y-3">
+              } />
+              <div className="divide-y divide-surface-border">
                 {followups.map(fu => {
                   const remarkCount = fu.remarks?.length ?? 0
                   const isRemarksExpanded = expandedRemarks.has(fu.id)
                   return (
-                    <div key={fu.id} className="bg-white rounded-xl border border-surface-border shadow-card">
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <CalendarDays size={13} className="text-brand-blue shrink-0" />
-                              <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
-                            </div>
-                            {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
-                            <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                              <span>Assigned: {fu.assignedTo}</span>
-                              {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
-                            </div>
+                    <div key={fu.id} className="py-4 first:pt-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <CalendarDays size={13} className="text-brand-blue shrink-0" />
+                            <span className="text-sm font-semibold text-gray-900">{fu.date} at {fu.time}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${FU_STATUS_STYLE[fu.status] ?? 'bg-gray-100 text-gray-600'}`}>{fu.status}</span>
                           </div>
-                          {!['Completed','Cancelled'].includes(fu.status) && (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <Button size="xs" icon={<Edit3 size={10} />} variant="secondary" onClick={() => setEditingFu(fu)}>Edit</Button>
-                              <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
-                              <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
-                              <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
-                            </div>
-                          )}
+                          {fu.note && <p className="text-xs text-gray-600 mb-2">{fu.note}</p>}
+                          <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                            <span>Assigned: {fu.assignedTo}</span>
+                            {fu.notifyTo?.length > 0 && <span>Notifiers: {fu.notifyTo.join(', ')}</span>}
+                          </div>
                         </div>
+                        {!['Completed','Cancelled'].includes(fu.status) && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button size="xs" icon={<Edit3 size={10} />} variant="secondary" onClick={() => setEditingFu(fu)}>Edit</Button>
+                            <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
+                            <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                            <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Remarks */}
-                      <div className="border-t border-surface-border">
+                      <div className="mt-2">
                         <button
                           onClick={() => toggleRemarks(fu.id)}
-                          className="w-full flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+                          className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
                         >
                           <ChevronRight size={12} className={`transition-transform duration-150 ${isRemarksExpanded ? 'rotate-90' : ''}`} />
                           Remarks{remarkCount > 0 ? ` (${remarkCount})` : ''}
                         </button>
                         {isRemarksExpanded && (
-                          <div className="px-4 pb-4 space-y-2">
+                          <div className="pt-2 space-y-2">
                             {remarkCount === 0 && (
                               <p className="text-xs text-gray-400 py-1">No remarks yet.</p>
                             )}
@@ -3253,7 +3250,7 @@ export default function SalesLeadDetail() {
                   </div>
                 )}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* ─── COMMENTS ─────────────────────────────────────────────── */}
