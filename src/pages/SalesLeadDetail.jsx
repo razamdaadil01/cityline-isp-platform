@@ -3016,10 +3016,9 @@ export default function SalesLeadDetail() {
         {/* ── MAIN CONTENT ── */}
         <div className="flex-1 min-w-0 space-y-3">
 
-      {/* ── Content card (tab nav now lives in the top bar above) ── */}
-      <div className="bg-white rounded-xl border border-surface-border shadow-card">
-
-        <div className="p-5 lg:p-6 xl:p-8 2xl:p-10">
+      {/* ── Tab content (each card below renders its own white background;
+          this wrapper only handles layout, not a second nested card) ── */}
+      <div>
 
           {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
           {activeTab === 'overview' && (
@@ -3822,7 +3821,6 @@ export default function SalesLeadDetail() {
               </div>
             </div>
           )}
-        </div>
       </div>
 
         </div>
