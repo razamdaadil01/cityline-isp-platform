@@ -2744,6 +2744,100 @@ export default function SalesLeadDetail() {
   }
 
   return (
+    <>
+      {/* ── Top bar (white, full width, sits directly below the app header) ── */}
+      <div className="bg-white border-b border-surface-border shadow-sm px-6 lg:px-6 xl:px-8 2xl:px-12 py-3">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/sales')}
+            className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+            <ArrowLeft size={15} /> Back to leads
+          </button>
+
+          {/* Tab nav — scrolls horizontally instead of wrapping if it doesn't
+              fit alongside the back link and right-side buttons. */}
+          <div className="flex-1 min-w-0 flex overflow-x-auto scrollbar-none">
+            {TABS.map(tab => {
+              const Icon = tab.icon
+              return (
+                <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-3.5 lg:px-3 xl:px-4 text-xs lg:text-xs xl:text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                    ${activeTab === tab.key
+                      ? 'border-brand-blue text-brand-blue'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                    }`}>
+                  <Icon size={14} /> {tab.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
+              <Button variant="danger" size="sm" icon={<XCircle size={14} />}
+                onClick={() => openMoveStage('Lost')}>
+                Mark as Lost
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
+                onClick={() => setReopenOpen(true)}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                Reopen Lead
+              </Button>
+            )}
+            {/* More options — folds in what used to be the standalone "Send
+                Quotation" button and the "Actions" dropdown's items. */}
+            <div className="relative" ref={actionsRef}>
+              <button
+                onClick={() => {
+                  const rect = actionsRef.current.getBoundingClientRect()
+                  setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+                  setActionsOpen(v => !v)
+                }}
+                className="w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 transition-colors"
+                title="More options"
+              >
+                <MoreVertical size={16} />
+              </button>
+              {actionsOpen && (
+                <div
+                  style={{ top: actionsPos.top, right: actionsPos.right }}
+                  className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
+                >
+                  <span title={quotDisabledReason || undefined}>
+                    <button
+                      onClick={() => { setQuotationOpen(true); setActionsOpen(false) }}
+                      disabled={!!quotDisabledReason}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
+                      <FileText size={14} className="text-gray-400 shrink-0" /> Send Quotation
+                    </button>
+                  </span>
+                  <button
+                    onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                    <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
+                  </button>
+                  <button
+                    onClick={() => { openMoveStage('Feasibility'); setActionsOpen(false) }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                    <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
+                  </button>
+                  <button
+                    onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                    <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
+                  </button>
+                  <button
+                    onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                    <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
     <div className="pt-2 pb-6 px-6 lg:px-6 xl:px-8 2xl:px-12 space-y-3">
 
       {/* Quotation sent toast */}
@@ -2775,97 +2869,6 @@ export default function SalesLeadDetail() {
           Lead reopened and moved to {pl.stages[0]}
         </div>
       )}
-
-      {/* ── Top bar (also carries the main tab row, full width) ─────────── */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate('/sales')}
-          className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
-          <ArrowLeft size={15} /> Back to leads
-        </button>
-
-        {/* Tab nav — scrolls horizontally instead of wrapping if it doesn't
-            fit alongside the back link and right-side buttons. */}
-        <div className="flex-1 min-w-0 flex overflow-x-auto scrollbar-none">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            return (
-              <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-3.5 lg:px-3 xl:px-4 text-xs lg:text-xs xl:text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
-                  ${activeTab === tab.key
-                    ? 'border-brand-blue text-brand-blue'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
-                  }`}>
-                <Icon size={14} /> {tab.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
-            <Button variant="danger" size="sm" icon={<XCircle size={14} />}
-              onClick={() => openMoveStage('Lost')}>
-              Mark as Lost
-            </Button>
-          ) : (
-            <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
-              onClick={() => setReopenOpen(true)}
-              className="border-amber-300 text-amber-700 hover:bg-amber-50">
-              Reopen Lead
-            </Button>
-          )}
-          {/* More options — folds in what used to be the standalone "Send
-              Quotation" button and the "Actions" dropdown's items. */}
-          <div className="relative" ref={actionsRef}>
-            <button
-              onClick={() => {
-                const rect = actionsRef.current.getBoundingClientRect()
-                setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
-                setActionsOpen(v => !v)
-              }}
-              className="w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 transition-colors"
-              title="More options"
-            >
-              <MoreVertical size={16} />
-            </button>
-            {actionsOpen && (
-              <div
-                style={{ top: actionsPos.top, right: actionsPos.right }}
-                className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
-              >
-                <span title={quotDisabledReason || undefined}>
-                  <button
-                    onClick={() => { setQuotationOpen(true); setActionsOpen(false) }}
-                    disabled={!!quotDisabledReason}
-                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
-                    <FileText size={14} className="text-gray-400 shrink-0" /> Send Quotation
-                  </button>
-                </span>
-                <button
-                  onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                  <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
-                </button>
-                <button
-                  onClick={() => { openMoveStage('Feasibility'); setActionsOpen(false) }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                  <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
-                </button>
-                <button
-                  onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                  <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
-                </button>
-                <button
-                  onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
-                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                  <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* ── Converted from Intercom banner ── */}
       {lead.sourceType === 'Intercom Conversion' && lead.convertedFromIntercomId && (
@@ -4082,5 +4085,6 @@ export default function SalesLeadDetail() {
         </div>
       )}
     </div>
+    </>
   )
 }
