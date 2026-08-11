@@ -16,6 +16,7 @@ import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/l
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
 import { getStageFields, getStageMeta } from '../data/stageFieldsStore'
+import { getCustomerTypes, subscribeCustomerTypes } from '../data/customerTypes'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -28,8 +29,8 @@ import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager
 // ColumnManager — a generic, reusable component). Customer Name is locked
 // so the table can never end up with zero identifying columns visible.
 const SALES_LEADS_COLUMNS = [
-  { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
   { key: 'leadId',       label: 'Lead ID',        visible: true, defaultVisible: true },
+  { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
   { key: 'customerType', label: 'Customer Type',  visible: true, defaultVisible: true },
   { key: 'branch',       label: 'Branch',         visible: true, defaultVisible: true },
   { key: 'mobile',       label: 'Mobile',         visible: true, defaultVisible: true },
@@ -102,6 +103,17 @@ const PIPELINE_STORE_MAP = { B2C: 'PL-001', Enterprise: 'PL-003' }
 // URL slug ↔ pipeline key
 const PIPELINE_SLUG      = { B2C: 'residential', Custom: 'custom', Enterprise: 'enterprise' }
 const PIPELINE_FROM_SLUG = { residential: 'B2C', custom: 'Custom', enterprise: 'Enterprise' }
+
+// Bridges the pipeline keys above to Settings' live Customer Type ids
+// (customerTypes.js — 'resident'/'corporate'), so the top-right pipeline
+// dropdown and the table's Customer Type column can display the actual
+// configured type names instead of the hardcoded pipeline labels, without
+// touching how pipelines/stages/Kanban actually work under the hood.
+// 'Custom' has no Customer Type equivalent in Settings, so it falls back to
+// 'resident' for display purposes only.
+const PIPELINE_TO_CUSTOMER_TYPE = { B2C: 'resident', Custom: 'resident', Enterprise: 'corporate' }
+const CUSTOMER_TYPE_TO_PIPELINE = { resident: 'B2C', corporate: 'Enterprise' }
+const CUSTOMER_TYPE_STYLE = { resident: 'bg-blue-50 text-blue-600', corporate: 'bg-fuchsia-50 text-fuchsia-600' }
 
 function getStageConfig(pipelineKey, stageName, plStore) {
   const pid = PIPELINE_STORE_MAP[pipelineKey]
@@ -1378,6 +1390,7 @@ function MoveStageModal({ lead, availableStages, plStore, onClose, onMove, initi
 export default function Sales() {
   const [leads, setLeads]               = useState(getLeads)
   const [plStore, setPlStore]           = useState(getPipelines)
+  const [customerTypes, setCustomerTypes] = useState(getCustomerTypes)
   const [searchParams, setSearchParams] = useSearchParams()
   const activePipeline = PIPELINE_FROM_SLUG[searchParams.get('pipeline')] ?? 'B2C'
   const viewMode       = searchParams.get('view') === 'kanban' ? 'kanban' : 'table'
@@ -1390,6 +1403,7 @@ export default function Sales() {
   const [search, setSearch]             = useState('')
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:salesLeadsTable', SALES_LEADS_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
+  const activeCustomerTypes = customerTypes.filter(t => t.status === 'Active')
   const [requiredStageWarning, setRequiredStageWarning] = useState(null) // { stageName }
   const [formModules, setFormModules]   = useState(getFormModules())
   const [wonConversionLead, setWonConversionLead] = useState(null)
@@ -1429,6 +1443,7 @@ export default function Sales() {
   useEffect(() => subscribeFormModules(setFormModules), [])
   useEffect(() => subscribeLeads(setLeads), [])
   useEffect(() => subscribePipelines(setPlStore), [])
+  useEffect(() => subscribeCustomerTypes(setCustomerTypes), [])
   useEffect(() => subscribeSalesPermission(setSalesPerm), [])
 
   useEffect(() => {
@@ -1749,10 +1764,12 @@ export default function Sales() {
               </button>
             </div>
 
-            {/* ── Pipeline dropdown ──────────────────────────────── */}
+            {/* ── Customer Type dropdown (options sourced from Settings'
+                live Customer Type list, not the hardcoded pipeline labels) ── */}
             <div className="relative" ref={pipelineDropdownRef}>
               {(() => {
-                const label = PIPELINES[activePipeline]?.label ?? activePipeline
+                const activeType = activeCustomerTypes.find(t => CUSTOMER_TYPE_TO_PIPELINE[t.id] === activePipeline)
+                const label = activeType?.name ?? (PIPELINES[activePipeline]?.label ?? activePipeline)
                 const count = leads.filter(l => l.pipeline === activePipeline).length
                 return (
                   <button
@@ -1768,11 +1785,14 @@ export default function Sales() {
               })()}
               {pipelineDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1.5 bg-white border border-surface-border rounded-xl shadow-lg z-30 min-w-[180px] py-1 overflow-hidden">
-                  {Object.entries(PIPELINES).map(([key, cfg]) => ({
-                    key,
-                    label: cfg.label,
-                    count: leads.filter(l => l.pipeline === key).length,
-                  })).map(opt => (
+                  {activeCustomerTypes.map(t => {
+                    const pipelineKey = CUSTOMER_TYPE_TO_PIPELINE[t.id] ?? t.id
+                    return {
+                      key: pipelineKey,
+                      label: t.name,
+                      count: leads.filter(l => l.pipeline === pipelineKey).length,
+                    }
+                  }).map(opt => (
                     <button
                       key={opt.key}
                       onClick={() => { setSearchParams(p => { const n = new URLSearchParams(p); n.set('pipeline', PIPELINE_SLUG[opt.key] ?? opt.key); return n }); setSearch(''); setPipelineDropdownOpen(false) }}
@@ -1873,13 +1893,13 @@ export default function Sales() {
               )}
             </div>
 
-            {/* Columns (table view only) */}
-            {viewMode === 'table' && <ColumnManager columns={tableColumns} onChange={setTableColumns} />}
-
             {/* Add Lead */}
             <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/sales/leads/new')} className="shrink-0">
               Add Lead
             </Button>
+
+            {/* Columns (table view only) — rightmost/last in the toolbar */}
+            {viewMode === 'table' && <ColumnManager columns={tableColumns} onChange={setTableColumns} />}
           </div>
 
           {/* Active filter pills */}
@@ -1945,8 +1965,8 @@ export default function Sales() {
               <table className="text-sm table-fixed w-full" style={{ minWidth: 1250 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                    {visibleCols.has('customerName') && <th className="px-4 py-3 text-left" style={{ width: 160 }}>Customer Name</th>}
                     {visibleCols.has('leadId') && <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>}
+                    {visibleCols.has('customerName') && <th className="px-4 py-3 text-left" style={{ width: 160 }}>Customer Name</th>}
                     {visibleCols.has('customerType') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>}
                     {visibleCols.has('branch') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Branch</th>}
                     {visibleCols.has('mobile') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>}
@@ -1966,19 +1986,11 @@ export default function Sales() {
                   {pageLeads.map(lead => {
                     const ss = STAGE_STYLES[lead.stage] ?? STAGE_STYLES['New Inquiry']
                     const fuOverdue = lead.followUp && lead.followUp < TODAY_STR
-                    const customerType = PIPELINES[lead.pipeline]?.label ?? lead.pipeline
+                    const customerTypeId = PIPELINE_TO_CUSTOMER_TYPE[lead.pipeline] ?? lead.pipeline
+                    const customerType = activeCustomerTypes.find(t => t.id === customerTypeId)?.name
+                      ?? (PIPELINES[lead.pipeline]?.label ?? lead.pipeline)
                     return (
                       <tr key={lead.id} className="hover:bg-gray-50 transition-colors">
-                        {visibleCols.has('customerName') && (
-                          <td className="px-4 py-3 overflow-hidden" title={lead.name}>
-                            <button
-                              onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                              className="block truncate text-xs font-semibold text-gray-800 hover:text-brand-blue hover:underline text-left"
-                            >
-                              {lead.name}
-                            </button>
-                          </td>
-                        )}
                         {visibleCols.has('leadId') && (
                           <td className="px-4 py-3 overflow-hidden" title={lead.id}>
                             <button
@@ -1989,9 +2001,23 @@ export default function Sales() {
                             </button>
                           </td>
                         )}
+                        {visibleCols.has('customerName') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.name}>
+                            <button
+                              onClick={() => navigate(`/sales/leads/${lead.id}`)}
+                              className="block truncate text-xs font-semibold text-gray-800 hover:text-brand-blue hover:underline text-left"
+                            >
+                              {lead.name}
+                            </button>
+                          </td>
+                        )}
                         {visibleCols.has('customerType') && (
                           <td className="px-4 py-3 overflow-hidden" title={customerType}>
-                            <span className="block truncate text-xs text-gray-700">{customerType}</span>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${
+                              CUSTOMER_TYPE_STYLE[customerTypeId] ?? 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {customerType}
+                            </span>
                           </td>
                         )}
                         {visibleCols.has('branch') && (
