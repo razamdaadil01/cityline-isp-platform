@@ -3255,8 +3255,12 @@ export default function SalesLeadDetail() {
 
           {/* ─── COMMENTS ─────────────────────────────────────────────── */}
           {activeTab === 'comments' && (
-            <div>
-              <div className="bg-white rounded-xl border border-surface-border p-4 shadow-card mb-5 relative">
+            <Card>
+              <CardHeader title="All Comments" action={
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => commentRef.current?.focus()}>Add Comment</Button>
+              } />
+
+              <div className="relative pb-4 mb-4 border-b border-surface-border">
                 <textarea
                   ref={commentRef}
                   value={newComment}
@@ -3284,9 +3288,9 @@ export default function SalesLeadDetail() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="divide-y divide-surface-border">
                 {comments.map(c => (
-                  <div key={c.id} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                  <div key={c.id} className="py-4 first:pt-0 last:pb-0">
                     <div className="flex items-start gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${c.color}`}>
                         {c.initials}
@@ -3340,7 +3344,7 @@ export default function SalesLeadDetail() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* ─── STAGE HISTORY ────────────────────────────────────────── */}
