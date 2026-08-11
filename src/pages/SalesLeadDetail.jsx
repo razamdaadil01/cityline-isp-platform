@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Edit3, TrendingUp, Bell, MessageSquare,
+  Edit3, TrendingUp, Bell, MessageSquare, ArrowLeft,
   Activity, Plus, CheckCircle2, XCircle, CalendarDays,
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
@@ -985,6 +985,28 @@ function InfoRow({ label, value, highlight }) {
       <span className={`text-xs font-medium text-right ${highlight ? 'text-brand-blue' : 'text-gray-800'}`}>
         {value || <span className="text-gray-300">—</span>}
       </span>
+    </div>
+  )
+}
+
+// Overview cards' collapse/expand toggle — sits in CardHeader's action slot.
+function CardCollapseToggle({ collapsed, onClick }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="text-gray-400 hover:text-gray-600 transition-colors"
+      title={collapsed ? 'Expand' : 'Collapse'}>
+      <ChevronDown size={16} className={`transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+    </button>
+  )
+}
+
+// Left sidebar's compact key-value field — label above value (as opposed to
+// InfoRow's side-by-side layout), matching Customer Detail page's InfoField.
+function SidebarField({ label, value }) {
+  return (
+    <div>
+      <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
+      <p className="text-sm text-gray-800 font-bold mt-0.5">{value || <span className="text-gray-300 font-medium">—</span>}</p>
     </div>
   )
 }
@@ -2057,6 +2079,18 @@ export default function SalesLeadDetail() {
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsPos, setActionsPos]   = useState({ top: 0, right: 0 })
   const actionsRef = useRef(null)
+  // Overview tab's cards can each be collapsed independently — expanded by default.
+  const [collapsedCards, setCollapsedCards] = useState(new Set())
+  function toggleCardCollapsed(key) {
+    setCollapsedCards(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  // Left sidebar's compact "Basic Details" / "Address Info" summary sub-tabs.
+  const [sidebarSubTab, setSidebarSubTab] = useState('basic')
   const [searchParams, setSearchParams] = useSearchParams()
   const moveStageOpen = searchParams.get('action') === 'move-stage'
   const [moveStageInitial, setMoveStageInitial] = useState('')
@@ -2292,6 +2326,9 @@ export default function SalesLeadDetail() {
   }
 
   const PIPELINE_LABEL = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
+  // Same Customer Type pill treatment used on the Sales Pipeline table and
+  // Customer List table (Residential = blue, Corporate/Enterprise = fuchsia).
+  const customerTypePillStyle = lead.pipeline === 'Enterprise' ? 'bg-fuchsia-50 text-fuchsia-600' : 'bg-blue-50 text-blue-600'
 
   // Installation visit data from stage history
   const installVisitEntry = lead?.stageHistory?.find(sh => sh.stage === 'Installation Visit')
@@ -2739,142 +2776,74 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── Header card ── */}
-      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
-        {/* Breadcrumb */}
-        <div className="px-5 lg:px-6 xl:px-7 2xl:px-8 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
-          <button onClick={() => navigate('/sales')} className="text-gray-400 hover:underline transition-colors">
-            Sales Pipeline
-          </button>
-          <span className="text-gray-300">›</span>
-          <span className="text-gray-500 truncate">{leadDisplayName}</span>
-        </div>
-        <div className="border-t border-surface-border" />
-        <div className="p-5 lg:p-6 xl:p-7 2xl:p-8 pt-4">
-          <div className="flex flex-wrap items-start gap-5">
-
-            {/* Avatar — shows the profile picture captured at lead creation
-                (lead.profilePicture.preview, a data URL) when present, else
-                falls back to the existing colored-initials treatment. */}
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xl font-bold shrink-0 shadow-md overflow-hidden">
-              {lead.profilePicture?.preview
-                ? <img src={lead.profilePicture.preview} alt="" className="w-full h-full object-cover" />
-                : lead.name.charAt(0)}
-            </div>
-
-            {/* Core info */}
-            <div className="flex-1 min-w-0">
-              {/* Row 1: Lead name + stage badge */}
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-xl font-bold text-gray-900">{leadDisplayName}</h1>
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${stageStyle.chip}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
-                  {lead.stage}
-                </span>
-                {status !== 'Open' && (
-                  <Badge variant={status === 'Won' ? 'green' : 'red'} size="sm">{status}</Badge>
-                )}
-              </div>
-
-              {/* Subtitle: customer name */}
-              <p className="text-sm text-gray-500 font-medium mb-2">{lead.name}</p>
-
-              {/* Row 2: Phone | Email | Location | Created | Assigned | Pipeline */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-gray-500">
-                <button
-                  onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
-                  className="flex items-center gap-1.5 hover:text-brand-blue transition-colors group"
-                >
-                  <Phone size={13} />
-                  {lead.phone}
-                  <span className="hidden group-hover:inline-flex items-center gap-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
-                    Call
-                  </span>
-                </button>
-                {lead.email && <span className="flex items-center gap-1.5"><Mail size={13} />{lead.email}</span>}
-                {lead.area && <span className="flex items-center gap-1.5"><MapPin size={13} />{lead.area}</span>}
-                <span className="flex items-center gap-1.5"><CalendarDays size={13} />Created {lead.createdAt ?? 'N/A'}</span>
-                <span className="flex items-center gap-1.5">
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${staff?.color ?? 'bg-gray-400'}`}>
-                    {staff?.initials ?? '?'}
-                  </div>
-                  {lead.assigned}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold text-white shrink-0" style={{ backgroundColor: pl.color }}>
-                  {PIPELINE_LABEL[lead.pipeline]}
-                </span>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-
-              {/* Send Quotation — all pipelines */}
-              {(
+      {/* ── Top bar ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => navigate('/sales')}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+          <ArrowLeft size={15} /> Back to leads
+        </button>
+        <div className="flex items-center gap-2">
+          {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
+            <Button variant="danger" size="sm" icon={<XCircle size={14} />}
+              onClick={() => openMoveStage('Lost')}>
+              Mark as Lost
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
+              onClick={() => setReopenOpen(true)}
+              className="border-amber-300 text-amber-700 hover:bg-amber-50">
+              Reopen Lead
+            </Button>
+          )}
+          {/* More options — folds in what used to be the standalone "Send
+              Quotation" button and the "Actions" dropdown's items. */}
+          <div className="relative" ref={actionsRef}>
+            <button
+              onClick={() => {
+                const rect = actionsRef.current.getBoundingClientRect()
+                setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+                setActionsOpen(v => !v)
+              }}
+              className="w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 transition-colors"
+              title="More options"
+            >
+              <MoreVertical size={16} />
+            </button>
+            {actionsOpen && (
+              <div
+                style={{ top: actionsPos.top, right: actionsPos.right }}
+                className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
+              >
                 <span title={quotDisabledReason || undefined}>
-                  <Button size="sm" icon={<FileText size={14} />}
-                    onClick={() => setQuotationOpen(true)}
-                    disabled={!!quotDisabledReason}>
-                    Send Quotation
-                  </Button>
+                  <button
+                    onClick={() => { setQuotationOpen(true); setActionsOpen(false) }}
+                    disabled={!!quotDisabledReason}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
+                    <FileText size={14} className="text-gray-400 shrink-0" /> Send Quotation
+                  </button>
                 </span>
-              )}
-
-              {/* Actions dropdown */}
-              <div className="relative" ref={actionsRef}>
-                <Button variant="secondary" size="sm" iconRight={<ChevronDown size={13} />}
-                  onClick={() => {
-                    const rect = actionsRef.current.getBoundingClientRect()
-                    setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
-                    setActionsOpen(v => !v)
-                  }}>
-                  Actions
-                </Button>
-                {actionsOpen && (
-                  <div
-                    style={{ top: actionsPos.top, right: actionsPos.right }}
-                    className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
-                  >
-                    <button
-                      onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                      <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
-                    </button>
-                    <button
-                      onClick={() => { openMoveStage('Feasibility'); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                      <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
-                    </button>
-                    <button
-                      onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                      <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
-                    </button>
-                    <button
-                      onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                      <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
-                    </button>
-                  </div>
-                )}
+                <button
+                  onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                  <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
+                </button>
+                <button
+                  onClick={() => { openMoveStage('Feasibility'); setActionsOpen(false) }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                  <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
+                </button>
+                <button
+                  onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                  <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
+                </button>
+                <button
+                  onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
+                  className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                  <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
+                </button>
               </div>
-
-              {/* Prominent standalone buttons */}
-              {lead.stage !== 'Won' && lead.stage !== 'Lost' && (
-                <Button variant="danger" size="sm" icon={<XCircle size={14} />}
-                  onClick={() => openMoveStage('Lost')}>
-                  Mark as Lost
-                </Button>
-              )}
-              {(lead.stage === 'Won' || lead.stage === 'Lost') && (
-                <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
-                  onClick={() => setReopenOpen(true)}
-                  className="border-amber-300 text-amber-700 hover:bg-amber-50">
-                  Reopen Lead
-                </Button>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -2932,13 +2901,117 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── Tabs + content card ──
-          Note: no overflow-hidden here — an ancestor with overflow other than
-          visible breaks position: sticky for any descendant that uses it,
-          since it becomes the containing block instead of the page's real
-          scroll container (<main> in Layout.jsx). rounded-t-xl on the tab
-          nav row below preserves the corner visual that overflow-hidden
-          used to enforce. */}
+      {/* ── 3-column layout: left sidebar | main content | right sidebar ──
+          Note: no overflow-hidden on any ancestor here — it breaks position:
+          sticky for any descendant that uses it, since it becomes the
+          containing block instead of the page's real scroll container
+          (<main> in Layout.jsx). The right sidebar below relies on this. */}
+      <div className="flex flex-col lg:flex-row items-start gap-5">
+
+        {/* ── LEFT SIDEBAR ── */}
+        <div className="w-full lg:w-72 shrink-0 bg-white rounded-xl border border-surface-border shadow-card p-5">
+          <div className="flex flex-col items-center text-center">
+            {/* Avatar — shows the profile picture captured at lead creation
+                (lead.profilePicture.preview, a data URL) when present, else
+                falls back to the existing colored-initials treatment. */}
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md overflow-hidden">
+              {lead.profilePicture?.preview
+                ? <img src={lead.profilePicture.preview} alt="" className="w-full h-full object-cover" />
+                : lead.name.charAt(0)}
+            </div>
+            <h1 className="text-base font-bold text-gray-900 mt-3">{leadDisplayName}</h1>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold mt-2 ${customerTypePillStyle}`}>
+              {PIPELINE_LABEL[lead.pipeline]}
+            </span>
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold mt-2 ${stageStyle.chip}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
+              {lead.stage}
+            </span>
+            {status !== 'Open' && (
+              <Badge variant={status === 'Won' ? 'green' : 'red'} size="sm" className="mt-2">{status}</Badge>
+            )}
+          </div>
+
+          <div className="border-t border-surface-border my-4" />
+
+          {/* Contact block */}
+          <div className="space-y-2.5 text-sm text-gray-700">
+            <div className="flex items-center gap-2">
+              <User size={14} className="text-gray-400 shrink-0" />
+              <span className="truncate">{lead.name}</span>
+            </div>
+            <button
+              onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
+              className="flex items-center gap-2 hover:text-brand-blue transition-colors w-full text-left"
+            >
+              <Phone size={14} className="text-gray-400 shrink-0" />
+              <span className="truncate">{lead.phone}</span>
+            </button>
+            {lead.email && (
+              <div className="flex items-center gap-2">
+                <Mail size={14} className="text-gray-400 shrink-0" />
+                <span className="truncate">{lead.email}</span>
+              </div>
+            )}
+            {(lead.area || lead.city) && (
+              <div className="flex items-center gap-2">
+                <MapPin size={14} className="text-gray-400 shrink-0" />
+                <span className="truncate">{[lead.area, lead.city].filter(Boolean).join(', ')}</span>
+              </div>
+            )}
+            {lead.assigned && (
+              <div className="flex items-center gap-2">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${staff?.color ?? 'bg-gray-400'}`}>
+                  {staff?.initials ?? '?'}
+                </div>
+                <span className="truncate">{lead.assigned}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-surface-border my-4" />
+
+          {/* Sub-tabs */}
+          <div className="flex items-center gap-4 mb-3">
+            {[{ key: 'basic', label: 'Basic Details' }, { key: 'address', label: 'Address Info' }].map(t => (
+              <button key={t.key} onClick={() => setSidebarSubTab(t.key)}
+                className={`text-xs font-semibold pb-1.5 border-b-2 transition-colors ${
+                  sidebarSubTab === t.key
+                    ? 'border-brand-blue text-brand-blue'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {sidebarSubTab === 'basic' ? (
+            <div className="space-y-3">
+              <SidebarField label="Lead ID" value={lead.id} />
+              <SidebarField label="Assigned To" value={lead.assigned} />
+              <SidebarField label="Created On" value={lead.createdAt} />
+              <SidebarField label="Lead Source" value={lead.source} />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <SidebarField label="Address" value={leadAddressLine} />
+              <SidebarField label="Area" value={lead.area} />
+              <SidebarField label="Locality" value={lead.locality} />
+              <SidebarField label="Sub Locality" value={lead.subLocality} />
+              <SidebarField label="City" value={lead.city} />
+              <SidebarField label="District" value={lead.district} />
+              <SidebarField label="State" value={lead.state} />
+              <SidebarField label="Pincode" value={lead.pincode} />
+              <SidebarField label="Site Type" value={lead.siteType} />
+              <SidebarField label="Branch Code" value={lead.branchCode} />
+            </div>
+          )}
+        </div>
+
+        {/* ── MAIN CONTENT ── */}
+        <div className="flex-1 min-w-0 space-y-3">
+
+      {/* ── Tabs + content card ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card">
 
         {/* Tab nav */}
@@ -2962,321 +3035,156 @@ export default function SalesLeadDetail() {
 
           {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-3 gap-5">
-
-              {/* Left 60% → lg:60% / xl:66% */}
-              <div className="lg:col-span-3 xl:col-span-2 space-y-4">
-                <Card>
-                  <CardHeader title="Basic Details" />
-                  <InfoRow label="Lead ID"      value={lead.id} highlight />
-                  <InfoRow label="Lead Name"    value={leadDisplayName} />
-                  <InfoRow label="Lead Source"  value={lead.source} />
-                  <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
-                  <InfoRow label="Created Date" value={lead.createdAt} />
-                  <InfoRow label="Assigned To"  value={lead.assigned} />
-                  <InfoRow label="Customer Type"   value={lead.customerType} />
-                  <InfoRow label="Connection Type" value={lead.connectionType} />
-                  {lead.connectionType === 'Own' && lead.entityId != null && (
-                    <InfoRow label="Entity" value={getCompanyEntity(lead.entityId)?.name} />
-                  )}
-                  {lead.connectionType === 'Partner' && lead.partnerId != null && (
-                    <InfoRow label="Partner" value={getPartner(lead.partnerId)?.name} />
-                  )}
-                  {lead.connectionType === 'Partner' && lead.billingTo && (
-                    <InfoRow label="Billing To" value={lead.billingTo} />
-                  )}
-                  <InfoRow label="Package"         value={lead.plan} />
-                  <InfoRow label="Follow-up Date"  value={lead.followUp} />
-                </Card>
-
-                <Card>
-                  <CardHeader title="Customer Details" />
-                  <InfoRow label="Customer Name"    value={lead.name} />
-                  <InfoRow label="Service Tag"      value={lead.serviceTags?.length ? lead.serviceTags.join(', ') : undefined} />
-                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                    <span className="text-xs text-gray-500 shrink-0 w-36">Mobile Number</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-brand-blue">{lead.phone || <span className="text-gray-300">—</span>}</span>
-                      {lead.phone && (
-                        <button
-                          onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
-                        >
-                          <PhoneCall size={9} /> Call
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                    <span className="text-xs text-gray-500 shrink-0 w-36">Alternate Number</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-800">{lead.alternateMobile || <span className="text-gray-300">—</span>}</span>
-                      {lead.alternateMobile && (
-                        <button
-                          onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.alternateMobile })}
-                          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
-                        >
-                          <PhoneCall size={9} /> Call
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <InfoRow label="Email Address"    value={lead.email} />
-                </Card>
-
-                {lead.pipeline === 'Enterprise' && (
-                  <Card>
-                    <CardHeader title="Company Information" />
-                    <InfoRow label="Company Name"    value={lead.companyName} />
-                    <InfoRow label="Contact Person"  value={lead.contactPerson} />
-                    <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
-                      <span className="text-xs text-gray-500 shrink-0 w-36">GST Registered</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${lead.gstRegistered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {lead.gstRegistered ? 'Yes' : 'No'}
-                      </span>
-                    </div>
-                    {lead.gstRegistered && (
-                      <>
-                        <InfoRow label="GST Number"      value={lead.gstNumber} highlight />
-                        <InfoRow label="Company Address" value={lead.companyAddress} />
-                      </>
+            <div className="space-y-4">
+              <Card>
+                <CardHeader title="Basic Details" action={
+                  <CardCollapseToggle collapsed={collapsedCards.has('basic')} onClick={() => toggleCardCollapsed('basic')} />
+                } />
+                {!collapsedCards.has('basic') && (
+                  <>
+                    <InfoRow label="Lead ID"      value={lead.id} highlight />
+                    <InfoRow label="Lead Name"    value={leadDisplayName} />
+                    <InfoRow label="Lead Source"  value={lead.source} />
+                    <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
+                    <InfoRow label="Created Date" value={lead.createdAt} />
+                    <InfoRow label="Assigned To"  value={lead.assigned} />
+                    <InfoRow label="Customer Type"   value={lead.customerType} />
+                    <InfoRow label="Connection Type" value={lead.connectionType} />
+                    {lead.connectionType === 'Own' && lead.entityId != null && (
+                      <InfoRow label="Entity" value={getCompanyEntity(lead.entityId)?.name} />
                     )}
-                  </Card>
-                )}
-
-                <Card>
-                  <CardHeader title="Address Details" />
-                  {leadAddressLine  && <InfoRow label="Address"      value={leadAddressLine} />}
-                  {leadLandmark     && <InfoRow label="Landmark"     value={leadLandmark} />}
-                  {lead.area        && <InfoRow label="Area"         value={lead.area} />}
-                  {lead.locality    && <InfoRow label="Locality"     value={lead.locality} />}
-                  {lead.subLocality && <InfoRow label="Sub Locality" value={lead.subLocality} />}
-                  {lead.city        && <InfoRow label="City"         value={lead.city} />}
-                  {lead.district    && <InfoRow label="District"     value={lead.district} />}
-                  {lead.state       && <InfoRow label="State"        value={lead.state} />}
-                  {lead.pincode     && <InfoRow label="Pincode"      value={lead.pincode} />}
-                  {lead.siteType    && (
-                    <InfoRow label="Site Type" value={
-                      <span className="flex items-center gap-1.5">
-                        {lead.siteType}
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
-                      </span>
-                    } />
-                  )}
-                  {lead.branchCode  && (
-                    <InfoRow label="Branch Code" value={
-                      <span className="flex items-center gap-1.5">
-                        <span className="font-mono">{lead.branchCode}</span>
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
-                      </span>
-                    } />
-                  )}
-                </Card>
-              </div>
-
-              {/* Right 40% */}
-              {/* Right 40% → lg:40% / xl:34% */}
-              <div className="lg:col-span-2 xl:col-span-1 space-y-4">
-
-                <Card>
-                  <CardHeader title="Current Stage Info" />
-                  <InfoRow label="Pipeline" value={PIPELINE_LABEL[lead.pipeline]} />
-                  <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
-                    <span className="text-xs text-gray-500 shrink-0 w-36">Current Stage</span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
-                  </div>
-                  <InfoRow label="Stage Entered"
-                    value={(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()} />
-                  <InfoRow label="Days in Stage"
-                    value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
-                </Card>
-
-                {/* Installation Card — when lead is in Installation Visit stage */}
-                {lead.stage === 'Installation Visit' && linkedInstallation && (
-                  <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
-                        <Wrench size={14} className="text-orange-600" />
-                      </div>
-                      <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Installation</p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-                        <span className="text-xs text-gray-500 shrink-0">ID</span>
-                        <a
-                          href={`/installations/${linkedInstallation.id}`}
-                          className="text-xs font-semibold text-brand-blue hover:underline"
-                          onClick={e => { e.preventDefault(); navigate(`/installations/${linkedInstallation.id}`) }}
-                        >
-                          {linkedInstallation.id}
-                        </a>
-                      </div>
-                      <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-                        <span className="text-xs text-gray-500 shrink-0">Slot</span>
-                        <span className="text-xs font-medium text-gray-800 text-right">
-                          {linkedInstallation.slotDate} · {linkedInstallation.slotTime}
-                        </span>
-                      </div>
-                      <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-                        <span className="text-xs text-gray-500 shrink-0">Engineer</span>
-                        <span className="text-xs font-medium text-gray-800 text-right">
-                          {linkedInstallation.engineerName ?? '—'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <span className="text-xs text-gray-500">Status</span>
-                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${{
-                          'Pending':     'bg-gray-100 text-gray-500',
-                          'Assigned':    'bg-blue-100 text-blue-700',
-                          'Scheduled':   'bg-purple-100 text-purple-700',
-                          'In Progress': 'bg-amber-100 text-amber-700',
-                          'Completed':   'bg-emerald-100 text-emerald-700',
-                          'Cancelled':   'bg-red-100 text-red-600',
-                        }[linkedInstallation.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {linkedInstallation.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Installation Actions — only in Installation Visit stage */}
-                {false && lead.stage === 'Installation Visit' && (
-                  <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Wrench size={15} className="text-purple-600" />
-                      </div>
-                      <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Installation Actions</p>
-                    </div>
-
-                    {installStatus === 'not_started' && (
-                      <>
-                        <div className="space-y-0 mb-3">
-                          <InfoRow label="Install Date" value={installDate} />
-                          <InfoRow label="Install Time" value={installTime} />
-                          <InfoRow label="Engineer"     value={engineerName} />
-                        </div>
-                        <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg">
-                          <span className="text-xs font-medium text-gray-600">Installation Status</span>
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-gray-200 text-gray-500">Not Started</span>
-                        </div>
-                        <p className="text-[11px] text-gray-400 text-center mt-2">Managed by Field Engineer app</p>
-                      </>
+                    {lead.connectionType === 'Partner' && lead.partnerId != null && (
+                      <InfoRow label="Partner" value={getPartner(lead.partnerId)?.name} />
                     )}
+                    {lead.connectionType === 'Partner' && lead.billingTo && (
+                      <InfoRow label="Billing To" value={lead.billingTo} />
+                    )}
+                    <InfoRow label="Package"         value={lead.plan} />
+                    <InfoRow label="Follow-up Date"  value={lead.followUp} />
+                  </>
+                )}
+              </Card>
 
-                    {installStatus === 'in_progress' && (
-                      <>
-                        <div className="text-center py-4 mb-3 bg-purple-50 border border-purple-100 rounded-xl">
-                          <p className="text-3xl font-mono font-bold text-purple-700 tabular-nums">{formatTimer(elapsed)}</p>
-                          <p className="text-xs text-purple-500 mt-1">Installation in progress</p>
-                        </div>
-                        <div className="space-y-0 mb-3">
-                          <InfoRow label="Started at" value={installStartedAt} />
-                          <InfoRow label="Engineer"   value={engineerName} />
-                        </div>
-                        <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg mb-3">
-                          <span className="text-xs font-medium text-amber-700">Installation Status</span>
-                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-200 text-amber-700">In Progress</span>
-                        </div>
-                        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-xs font-medium ${
-                          ekycStatus === 'verified'
-                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                            : 'bg-amber-50 border border-amber-200 text-amber-700'
-                        }`}>
-                          {ekycStatus === 'verified'
-                            ? <CheckCircle size={13} className="shrink-0" />
-                            : <AlertTriangle size={13} className="shrink-0" />
-                          }
-                          {ekycStatus === 'verified' ? '✅ eKYC Verified' : '⚠️ Complete eKYC before marking done'}
-                        </div>
-                        <button
-                          disabled={ekycStatus !== 'verified'}
-                          onClick={() => setHwModalOpen(true)}
-                          className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400/40 ${
-                            ekycStatus === 'verified'
-                              ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm cursor-pointer'
-                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          <CheckCircle2 size={14} />
-                          Installation Done
-                        </button>
-                        {ekycStatus !== 'verified' && (
-                          <p className="text-xs text-amber-600 text-center mt-2">Complete eKYC to enable this button</p>
+              <Card>
+                <CardHeader title="Customer Details" action={
+                  <CardCollapseToggle collapsed={collapsedCards.has('customer')} onClick={() => toggleCardCollapsed('customer')} />
+                } />
+                {!collapsedCards.has('customer') && (
+                  <>
+                    <InfoRow label="Customer Name"    value={lead.name} />
+                    <InfoRow label="Service Tag"      value={lead.serviceTags?.length ? lead.serviceTags.join(', ') : undefined} />
+                    <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                      <span className="text-xs text-gray-500 shrink-0 w-36">Mobile Number</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-brand-blue">{lead.phone || <span className="text-gray-300">—</span>}</span>
+                        {lead.phone && (
+                          <button
+                            onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                          >
+                            <PhoneCall size={9} /> Call
+                          </button>
                         )}
-                        <p className="text-[11px] text-gray-400 text-center mt-2">Managed by Field Engineer app</p>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* eKYC Verification — see the dedicated eKYC tab for the full flow */}
-                <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
-                  <div className="flex items-center justify-between gap-2.5 mb-1">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Fingerprint size={15} className="text-purple-600" />
                       </div>
-                      <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
                     </div>
-                    <Badge variant={EKYC_TAB_STATUS_BADGE[ekycStatus] ?? 'gray'} size="sm">{ekycStatus}</Badge>
-                  </div>
-                  {ekycStatus === 'Verified' && ekycVerifiedAt && (
-                    <p className="text-xs text-gray-500 mt-2">Verified {formatEkycTimestamp(ekycVerifiedAt)}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/sales/leads/${id}/ekyc`)}
-                    className="text-xs font-medium text-brand-blue hover:underline mt-3"
-                  >
-                    Go to eKYC tab →
-                  </button>
-                </div>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                      <span className="text-xs text-gray-500 shrink-0 w-36">Alternate Number</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-800">{lead.alternateMobile || <span className="text-gray-300">—</span>}</span>
+                        {lead.alternateMobile && (
+                          <button
+                            onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.alternateMobile })}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
+                          >
+                            <PhoneCall size={9} /> Call
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <InfoRow label="Email Address"    value={lead.email} />
+                  </>
+                )}
+              </Card>
 
-                {/* <Card> */}
-                {false && <Card>
-                  <CardHeader title="Active Follow-up"
-                    action={<Button size="xs" variant="ghost" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Add</Button>} />
-                  {lead.followUp ? (
+              {lead.pipeline === 'Enterprise' && (
+                <Card>
+                  <CardHeader title="Company Information" action={
+                    <CardCollapseToggle collapsed={collapsedCards.has('company')} onClick={() => toggleCardCollapsed('company')} />
+                  } />
+                  {!collapsedCards.has('company') && (
                     <>
-                      <div className="flex items-center gap-2 mb-3">
-                        <CalendarDays size={14} className={isOverdue ? 'text-red-500' : 'text-brand-blue'} />
-                        <span className={`text-sm font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-                          {lead.followUp} {isOverdue && '⚠ Overdue'}
+                      <InfoRow label="Company Name"    value={lead.companyName} />
+                      <InfoRow label="Contact Person"  value={lead.contactPerson} />
+                      <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+                        <span className="text-xs text-gray-500 shrink-0 w-36">GST Registered</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${lead.gstRegistered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {lead.gstRegistered ? 'Yes' : 'No'}
                         </span>
                       </div>
-                      <InfoRow label="Time"        value="10:00 AM" />
-                      <InfoRow label="Assigned to" value={lead.assigned} />
-                      <InfoRow label="Notifiers"   value="Arjun Kumar" />
-                      <div className="flex gap-2 mt-3">
-                        <Button size="xs" className="flex-1" onClick={() => setFollowupOpen(true)}>Mark Complete</Button>
-                        <Button size="xs" variant="secondary" className="flex-1" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
-                      </div>
+                      {lead.gstRegistered && (
+                        <>
+                          <InfoRow label="GST Number"      value={lead.gstNumber} highlight />
+                          <InfoRow label="Company Address" value={lead.companyAddress} />
+                        </>
+                      )}
                     </>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-xs text-gray-400 mb-3">No active follow-up</p>
-                      <Button size="xs" icon={<Plus size={12} />} onClick={() => setFollowupOpen(true)}>Set Follow-up</Button>
-                    </div>
                   )}
-                </Card>}
+                </Card>
+              )}
 
-                {false && <Card>
-                  <CardHeader title="Quick Stats" />
-                  {[
-                    { label: 'Total Follow-ups',   value: followups.length },
-                    { label: 'Completed',          value: followups.filter(f => f.status === 'Completed').length },
-                    { label: 'Pending',            value: followups.filter(f => ['Upcoming','Due Today','Overdue'].includes(f.status)).length },
-                    { label: 'Days Since Created', value: daysCreated },
-                  ].map(stat => (
-                    <div key={stat.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <span className="text-xs text-gray-500">{stat.label}</span>
-                      <span className="text-sm font-bold text-gray-900">{stat.value}</span>
+              <Card>
+                <CardHeader title="Address Details" action={
+                  <CardCollapseToggle collapsed={collapsedCards.has('address')} onClick={() => toggleCardCollapsed('address')} />
+                } />
+                {!collapsedCards.has('address') && (
+                  <>
+                    {leadAddressLine  && <InfoRow label="Address"      value={leadAddressLine} />}
+                    {leadLandmark     && <InfoRow label="Landmark"     value={leadLandmark} />}
+                    {lead.area        && <InfoRow label="Area"         value={lead.area} />}
+                    {lead.locality    && <InfoRow label="Locality"     value={lead.locality} />}
+                    {lead.subLocality && <InfoRow label="Sub Locality" value={lead.subLocality} />}
+                    {lead.city        && <InfoRow label="City"         value={lead.city} />}
+                    {lead.district    && <InfoRow label="District"     value={lead.district} />}
+                    {lead.state       && <InfoRow label="State"        value={lead.state} />}
+                    {lead.pincode     && <InfoRow label="Pincode"      value={lead.pincode} />}
+                    {lead.siteType    && (
+                      <InfoRow label="Site Type" value={
+                        <span className="flex items-center gap-1.5">
+                          {lead.siteType}
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
+                        </span>
+                      } />
+                    )}
+                    {lead.branchCode  && (
+                      <InfoRow label="Branch Code" value={
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-mono">{lead.branchCode}</span>
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
+                        </span>
+                      } />
+                    )}
+                  </>
+                )}
+              </Card>
+
+              <Card>
+                <CardHeader title="Current Stage Info" action={
+                  <CardCollapseToggle collapsed={collapsedCards.has('stage')} onClick={() => toggleCardCollapsed('stage')} />
+                } />
+                {!collapsedCards.has('stage') && (
+                  <>
+                    <InfoRow label="Pipeline" value={PIPELINE_LABEL[lead.pipeline]} />
+                    <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
+                      <span className="text-xs text-gray-500 shrink-0 w-36">Current Stage</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
                     </div>
-                  ))}
-                </Card>}
-              </div>
+                    <InfoRow label="Stage Entered"
+                      value={(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()} />
+                    <InfoRow label="Days in Stage"
+                      value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
+                  </>
+                )}
+              </Card>
             </div>
           )}
 
@@ -3945,6 +3853,92 @@ export default function SalesLeadDetail() {
             </div>
           )}
         </div>
+      </div>
+
+        </div>
+
+        {/* ── RIGHT SIDEBAR ── */}
+        <div className="w-full lg:w-80 shrink-0 space-y-4 lg:sticky lg:top-4">
+
+          {/* Installation — when lead is in Installation Visit stage */}
+          {lead.stage === 'Installation Visit' && linkedInstallation && (
+            <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
+                  <Wrench size={14} className="text-orange-600" />
+                </div>
+                <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Installation</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 shrink-0">ID</span>
+                  <a
+                    href={`/installations/${linkedInstallation.id}`}
+                    className="text-xs font-semibold text-brand-blue hover:underline"
+                    onClick={e => { e.preventDefault(); navigate(`/installations/${linkedInstallation.id}`) }}
+                  >
+                    {linkedInstallation.id}
+                  </a>
+                </div>
+                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 shrink-0">Slot</span>
+                  <span className="text-xs font-medium text-gray-800 text-right">
+                    {linkedInstallation.slotDate} · {linkedInstallation.slotTime}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 shrink-0">Engineer</span>
+                  <span className="text-xs font-medium text-gray-800 text-right">
+                    {linkedInstallation.engineerName ?? '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-gray-500">Status</span>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${{
+                    'Pending':     'bg-gray-100 text-gray-500',
+                    'Assigned':    'bg-blue-100 text-blue-700',
+                    'Scheduled':   'bg-purple-100 text-purple-700',
+                    'In Progress': 'bg-amber-100 text-amber-700',
+                    'Completed':   'bg-emerald-100 text-emerald-700',
+                    'Cancelled':   'bg-red-100 text-red-600',
+                  }[linkedInstallation.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    {linkedInstallation.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* eKYC Verification — see the dedicated eKYC tab for the full flow */}
+          <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
+            <div className="flex items-center justify-between gap-2.5 mb-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+                  <Fingerprint size={15} className="text-purple-600" />
+                </div>
+                <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
+              </div>
+              <Badge variant={EKYC_TAB_STATUS_BADGE[ekycStatus] ?? 'gray'} size="sm">{ekycStatus}</Badge>
+            </div>
+            {ekycStatus === 'Verified' && ekycVerifiedAt ? (
+              <p className="text-xs text-gray-500 mt-2">Verified {formatEkycTimestamp(ekycVerifiedAt)}</p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sales/leads/${id}/ekyc`)}
+                  className="w-full mt-3 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-brand-blue hover:bg-brand-blue-dark text-white shadow-sm transition-colors"
+                >
+                  Start eKYC
+                </button>
+                <p className="text-[11px] text-gray-400 text-center mt-2">
+                  eKYC must be completed before Installation Done can be marked.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* ── Package selection modal ─────────────────────────────────────── */}
