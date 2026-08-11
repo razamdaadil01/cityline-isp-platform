@@ -2865,7 +2865,7 @@ export default function SalesLeadDetail() {
   return (
     <>
       {/* ── Top bar (white, full width, sits directly below the app header) ── */}
-      <div className="bg-white border-b border-surface-border shadow-sm px-6 lg:px-6 xl:px-8 2xl:px-12 py-2">
+      <div className="bg-white border-b border-surface-border shadow-sm px-4 py-2">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/sales')}
             className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
@@ -2957,7 +2957,7 @@ export default function SalesLeadDetail() {
         </div>
       </div>
 
-    <div className="pt-2 pb-6 px-6 lg:px-6 xl:px-8 2xl:px-12 space-y-3">
+    <div className="pt-2 pb-6 px-4 space-y-3">
 
       {/* Quotation sent toast */}
       {quotationToast && (
@@ -3033,10 +3033,10 @@ export default function SalesLeadDetail() {
           sticky for any descendant that uses it, since it becomes the
           containing block instead of the page's real scroll container
           (<main> in Layout.jsx). The right sidebar below relies on this. */}
-      <div className="flex flex-col lg:flex-row items-start gap-5">
+      <div className="flex flex-col lg:flex-row items-start gap-4">
 
         {/* ── LEFT SIDEBAR ── */}
-        <div className="w-full lg:w-72 shrink-0 bg-white rounded-xl border border-surface-border shadow-card p-5">
+        <div className="w-full lg:w-72 shrink-0 bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
           <div className="flex flex-col items-center text-center">
             {/* Avatar — shows the profile picture captured at lead creation
                 (lead.profilePicture.preview, a data URL) when present, else
@@ -3145,7 +3145,7 @@ export default function SalesLeadDetail() {
           {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
           {activeTab === 'overview' && (
             <div className="space-y-4">
-              <Card>
+              <Card className="px-4">
                 <CardHeader title="Basic Details" action={
                   <CardCollapseToggle collapsed={collapsedCards.has('basic')} onClick={() => toggleCardCollapsed('basic')} />
                 } />
@@ -3174,7 +3174,7 @@ export default function SalesLeadDetail() {
                 )}
               </Card>
 
-              <Card>
+              <Card className="px-4">
                 <CardHeader title="Customer Details" action={
                   <CardCollapseToggle collapsed={collapsedCards.has('customer')} onClick={() => toggleCardCollapsed('customer')} />
                 } />
@@ -3216,7 +3216,7 @@ export default function SalesLeadDetail() {
               </Card>
 
               {lead.pipeline === 'Enterprise' && (
-                <Card>
+                <Card className="px-4">
                   <CardHeader title="Company Information" action={
                     <CardCollapseToggle collapsed={collapsedCards.has('company')} onClick={() => toggleCardCollapsed('company')} />
                   } />
@@ -3241,7 +3241,7 @@ export default function SalesLeadDetail() {
                 </Card>
               )}
 
-              <Card>
+              <Card className="px-4">
                 <CardHeader title="Address Details" action={
                   <CardCollapseToggle collapsed={collapsedCards.has('address')} onClick={() => toggleCardCollapsed('address')} />
                 } />
@@ -3857,11 +3857,11 @@ export default function SalesLeadDetail() {
         </div>
 
         {/* ── RIGHT SIDEBAR ── */}
-        <div className="w-full lg:w-80 shrink-0 space-y-4 lg:sticky lg:top-4">
+        <div className="w-full lg:w-72 shrink-0 space-y-4 lg:sticky lg:top-4">
 
           {/* Installation — when lead is in Installation Visit stage */}
           {lead.stage === 'Installation Visit' && linkedInstallation && (
-            <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+            <div className="bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
               <div className="flex items-center gap-2.5 mb-3">
                 <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
                   <Wrench size={14} className="text-orange-600" />
@@ -3909,7 +3909,7 @@ export default function SalesLeadDetail() {
           )}
 
           {/* Current Stage Info — moved here from the main content column */}
-          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+          <div className="bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
             <div className="flex items-center gap-2.5 mb-3">
               <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
                 <TrendingUp size={14} className="text-blue-600" />
@@ -3941,7 +3941,7 @@ export default function SalesLeadDetail() {
           </div>
 
           {/* eKYC Verification — opens the "Send eKYC" popup for the full flow */}
-          <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
+          <div className="bg-white rounded-xl border-2 border-purple-200 shadow-card py-5 px-4">
             <div className="flex items-center justify-between gap-2.5 mb-1">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
