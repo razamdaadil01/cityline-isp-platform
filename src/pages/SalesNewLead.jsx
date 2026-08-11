@@ -403,10 +403,18 @@ export default function SalesNewLead({ lead = null } = {}) {
   // In edit mode Customer Type is locked to whatever the lead already is
   // (it drives Pipeline, which can't change after creation), so it's read
   // straight off the lead instead — the /edit route never carries this param.
+  // `pipeline` ('B2C' | 'Enterprise') is checked first, not `customerType`
+  // alone: every lead has `pipeline` (it's set by the Sales Kanban, Move
+  // Stage, and every other lead-creation path this app has ever had), while
+  // `customerType` ('Resident' | 'Corporate') only exists on leads created
+  // via this Customer-Type-driven form. Keying off `customerType` alone left
+  // every pre-existing Enterprise lead (which has no `customerType` field at
+  // all) falling through to the 'resident' default — showing/prefilling the
+  // wrong (Resident) field set for a Corporate lead like LD-305.
   const customerTypeSlug = searchParams.get('customerType')
   const customerTypeFromSlug = CUSTOMER_TYPE_FROM_SLUG[customerTypeSlug]
   const customerType = isEdit
-    ? (lead.customerType === 'Corporate' ? 'corporate' : 'resident')
+    ? (lead.pipeline === 'Enterprise' || lead.customerType === 'Corporate' ? 'corporate' : 'resident')
     : (customerTypes.some(t => t.id === customerTypeFromSlug)
         ? customerTypeFromSlug
         : (customerTypes[0]?.id ?? 'resident'))
@@ -428,8 +436,11 @@ export default function SalesNewLead({ lead = null } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [rForm, setRForm] = useState(() => isEdit ? residentFormFromLead(lead) : EMPTY_RESIDENT_FORM)
-  const [cForm, setCForm] = useState(() => isEdit ? corporateFormFromLead(lead) : EMPTY_CORPORATE_FORM)
+  // Only the matching mapper ever touches the lead's data — prefilling the
+  // *other* type's form from a mismatched-shape lead is both pointless
+  // (that form never renders) and unnecessary risk, so it stays untouched.
+  const [rForm, setRForm] = useState(() => isEdit && !isCorporate ? residentFormFromLead(lead) : EMPTY_RESIDENT_FORM)
+  const [cForm, setCForm] = useState(() => isEdit && isCorporate ? corporateFormFromLead(lead) : EMPTY_CORPORATE_FORM)
   const [followUp, setFollowUp] = useState(EMPTY_FOLLOWUP)
   const [attempted, setAttempted] = useState(false)
   // Lives above the Resident/Corporate fork (Service Configuration card), so
