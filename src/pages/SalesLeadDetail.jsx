@@ -2746,7 +2746,7 @@ export default function SalesLeadDetail() {
   return (
     <>
       {/* ── Top bar (white, full width, sits directly below the app header) ── */}
-      <div className="bg-white border-b border-surface-border shadow-sm px-6 lg:px-6 xl:px-8 2xl:px-12 py-2.5">
+      <div className="bg-white border-b border-surface-border shadow-sm px-6 lg:px-6 xl:px-8 2xl:px-12 py-2">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/sales')}
             className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
