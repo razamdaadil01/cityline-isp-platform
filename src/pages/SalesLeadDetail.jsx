@@ -20,6 +20,8 @@ import { MOCK_PLANS, SERVICE_BADGE, BILLING_TYPES, MOCK_ADDONS } from '../data/p
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
+import { getCompanyEntity } from '../data/companyEntities'
+import { getPartner } from '../data/partners'
 import { displayFieldValue } from '../components/ui/DynamicFieldInput'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -2367,6 +2369,14 @@ export default function SalesLeadDetail() {
   const staff = STAFF.find(s => s.name === lead.assigned)
   const leadDisplayName = lead.leadName || `${lead.name}${lead.plan ? ` — ${lead.plan}` : ''}`
 
+  // lead.address is a plain string on older/seeded leads, but the Residential
+  // Create Lead form (SalesNewLead.jsx) saves the whole nested billing/
+  // installation address object instead — read the billing address line out
+  // of either shape so Address Details always renders text, never an object.
+  const billingAddress  = lead.address && typeof lead.address === 'object' ? lead.address.billing : null
+  const leadAddressLine = billingAddress ? billingAddress.addressLine : (typeof lead.address === 'string' ? lead.address : undefined)
+  const leadLandmark    = billingAddress?.landmark
+
   // Quotation button state
   const allPkgs = [lead.bandwidthPackage].filter(Boolean)
   const quotDisabledReason = lead.pipeline === 'Enterprise'
@@ -2739,9 +2749,13 @@ export default function SalesLeadDetail() {
         <div className="p-5 lg:p-6 xl:p-7 2xl:p-8 pt-4">
           <div className="flex flex-wrap items-start gap-5">
 
-            {/* Avatar */}
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xl font-bold shrink-0 shadow-md">
-              {lead.name.charAt(0)}
+            {/* Avatar — shows the profile picture captured at lead creation
+                (lead.profilePicture.preview, a data URL) when present, else
+                falls back to the existing colored-initials treatment. */}
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-xl font-bold shrink-0 shadow-md overflow-hidden">
+              {lead.profilePicture?.preview
+                ? <img src={lead.profilePicture.preview} alt="" className="w-full h-full object-cover" />
+                : lead.name.charAt(0)}
             </div>
 
             {/* Core info */}
@@ -2955,11 +2969,25 @@ export default function SalesLeadDetail() {
                   <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
                   <InfoRow label="Created Date" value={lead.createdAt} />
                   <InfoRow label="Assigned To"  value={lead.assigned} />
+                  <InfoRow label="Customer Type"   value={lead.customerType} />
+                  <InfoRow label="Connection Type" value={lead.connectionType} />
+                  {lead.connectionType === 'Own' && lead.entityId != null && (
+                    <InfoRow label="Entity" value={getCompanyEntity(lead.entityId)?.name} />
+                  )}
+                  {lead.connectionType === 'Partner' && lead.partnerId != null && (
+                    <InfoRow label="Partner" value={getPartner(lead.partnerId)?.name} />
+                  )}
+                  {lead.connectionType === 'Partner' && lead.billingTo && (
+                    <InfoRow label="Billing To" value={lead.billingTo} />
+                  )}
+                  <InfoRow label="Package"         value={lead.plan} />
+                  <InfoRow label="Follow-up Date"  value={lead.followUp} />
                 </Card>
 
                 <Card>
                   <CardHeader title="Customer Details" />
                   <InfoRow label="Customer Name"    value={lead.name} />
+                  <InfoRow label="Service Tag"      value={lead.serviceTags?.length ? lead.serviceTags.join(', ') : undefined} />
                   <div className="flex items-center justify-between py-2 border-b border-gray-50">
                     <span className="text-xs text-gray-500 shrink-0 w-36">Mobile Number</span>
                     <div className="flex items-center gap-2">
@@ -3013,7 +3041,8 @@ export default function SalesLeadDetail() {
 
                 <Card>
                   <CardHeader title="Address Details" />
-                  {lead.address     && <InfoRow label="Address"      value={lead.address} />}
+                  {leadAddressLine  && <InfoRow label="Address"      value={leadAddressLine} />}
+                  {leadLandmark     && <InfoRow label="Landmark"     value={leadLandmark} />}
                   {lead.area        && <InfoRow label="Area"         value={lead.area} />}
                   {lead.locality    && <InfoRow label="Locality"     value={lead.locality} />}
                   {lead.subLocality && <InfoRow label="Sub Locality" value={lead.subLocality} />}
