@@ -1416,8 +1416,6 @@ export default function Sales() {
   const activeCustomerTypes = customerTypes.filter(t => t.status === 'Active')
   const [requiredStageWarning, setRequiredStageWarning] = useState(null) // { stageName }
   const [formModules, setFormModules]   = useState(getFormModules())
-  const [wonConversionLead, setWonConversionLead] = useState(null)
-  const [wonSuccessData, setWonSuccessData]       = useState(null)
   const [feasibilityLead, setFeasibilityLead]     = useState(null)
   const [followupLead, setFollowupLead]           = useState(null)
   const [inventoryToast, setInventoryToast]       = useState(false)
@@ -1434,6 +1432,7 @@ export default function Sales() {
   const [tablePage, setTablePage]                 = useState(1)
   const [showExportMenu, setShowExportMenu]     = useState(false)
   const [exportToast, setExportToast]           = useState('')
+  const [wonBlockedNotice, setWonBlockedNotice] = useState('')
   const [pipelineDropdownOpen, setPipelineDropdownOpen] = useState(false)
   const [callModal, setCallModal]               = useState({ open: false, name: '', phone: '' })
   const [callToast, setCallToast]               = useState(null)
@@ -1551,11 +1550,22 @@ export default function Sales() {
           return
         }
 
-        // Intercept Won/Lost drops — route through MoveStageModal for field capture
+        // Won can only be set automatically when the lead's linked
+        // Installation is marked Completed — block manually dragging a
+        // card into the Won column.
         const dropSC = getStageConfig(lead.pipeline, targetStage, plStore)
-        const isWonDrop  = targetStage === 'Won'  || dropSC?.statusType === 'Won'
+        const isWonDrop = targetStage === 'Won' || dropSC?.statusType === 'Won'
+        if (isWonDrop) {
+          setWonBlockedNotice('Won can only be set automatically when the linked Installation is marked Completed')
+          setTimeout(() => setWonBlockedNotice(''), 3000)
+          setDraggingId(null)
+          setDragOverStage(null)
+          return
+        }
+
+        // Intercept Lost drops — route through MoveStageModal for field capture
         const isLostDrop = targetStage === 'Lost' || dropSC?.statusType === 'Lost'
-        if (isWonDrop || isLostDrop) {
+        if (isLostDrop) {
           setMoveStageLeadId(lead.id)
           setMoveStageInitial(targetStage)
           setDraggingId(null)
@@ -1721,6 +1731,14 @@ export default function Sales() {
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-brand-blue text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <Download size={16} className="shrink-0" />
           {exportToast}
+        </div>
+      )}
+
+      {/* ── Won-blocked toast ───────────────────────────────────────────── */}
+      {wonBlockedNotice && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-amber-500 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <AlertTriangle size={16} className="shrink-0" />
+          {wonBlockedNotice}
         </div>
       )}
 
@@ -2240,26 +2258,6 @@ export default function Sales() {
           stageName={requiredStageWarning.stageName}
         />
       )}
-      {wonConversionLead && (
-        <WonConversionModal
-          isOpen={!!wonConversionLead}
-          onClose={() => setWonConversionLead(null)}
-          lead={wonConversionLead}
-          onConfirm={data => {
-            saveLeadToStore({ ...wonConversionLead, lastActivity: 'Converted to Customer' })
-            setWonSuccessData({ ...data, leadRef: wonConversionLead })
-            setWonConversionLead(null)
-          }}
-        />
-      )}
-      {wonSuccessData && (
-        <WonSuccessModal
-          isOpen={!!wonSuccessData}
-          onClose={() => setWonSuccessData(null)}
-          lead={wonSuccessData.leadRef}
-          data={wonSuccessData}
-        />
-      )}
       {feasibilityLead && (
         <FeasibilityModal
           isOpen={!!feasibilityLead}
@@ -2280,11 +2278,15 @@ export default function Sales() {
         const msLead = leads.find(l => l.id === moveStageLeadId)
         if (!msLead) return null
         const pl2 = PIPELINES[msLead.pipeline] ?? PIPELINES.B2C
-        // Filter out inactive stages and current stage
+        // Filter out inactive stages, the current stage, and Won — Won is no
+        // longer a manually-selectable target stage; it's only ever set
+        // automatically when the lead's linked Installation is marked
+        // Completed (see installationsStore.js's updateInstallationStatus).
         const availableStages = pl2.stages.filter(s => {
           if (s === msLead.stage) return false
+          if (s === 'Won') return false
           const sc = getStageConfig(msLead.pipeline, s, plStore)
-          if (sc?.active === false) return false
+          if (sc?.active === false || sc?.statusType === 'Won') return false
           return true
         })
         return (
@@ -2295,8 +2297,6 @@ export default function Sales() {
             initialStage={moveStageInitial}
             onClose={() => { setMoveStageLeadId(null); setMoveStageInitial('') }}
             onMove={(targetStage, fieldVals, fuData) => {
-              const sc = getStageConfig(msLead.pipeline, targetStage, plStore)
-              const isWonMove = targetStage === 'Won' || sc?.statusType === 'Won'
               const updatedLead = {
                 ...msLead,
                 stage: targetStage,
@@ -2309,7 +2309,6 @@ export default function Sales() {
               }
               if (fuData?.date) updatedLead.followUp = fuData.date
               saveLeadToStore(updatedLead)
-              if (isWonMove) setWonConversionLead(updatedLead)
               setMoveStageLeadId(null)
               setMoveStageInitial('')
             }}
@@ -2512,12 +2511,6 @@ export default function Sales() {
             {!isWon && !isLost && (
               <>
                 <div className="my-1 border-t border-surface-border" />
-                <button
-                  onClick={() => { setMoveStageLeadId(lead.id); setMoveStageInitial('Won'); setTableMenuId(null) }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-emerald-700 hover:bg-emerald-50 transition-colors"
-                >
-                  <CheckCircle2 size={13} className="shrink-0" /> Mark as Won
-                </button>
                 <button
                   onClick={() => { setMoveStageLeadId(lead.id); setMoveStageInitial('Lost'); setTableMenuId(null) }}
                   className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"

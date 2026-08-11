@@ -544,9 +544,9 @@ export default function Installations() {
   }
 
   function handleNetComplete() {
-    updateInstallationStatus(netCompleteInst.id, 'Completed', { _note: 'Installation completed' })
+    const customer = updateInstallationStatus(netCompleteInst.id, 'Completed', { _note: 'Installation completed' })
     setNetCompleteInst(null)
-    setToast('Installation marked as Completed')
+    setToast(customer ? `Installation completed — Customer record created: ${customer.id}` : 'Installation marked as Completed')
   }
 
   function handleNetCancel() {

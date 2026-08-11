@@ -1,3 +1,7 @@
+import { getLeads, saveLead } from './leadsStore'
+import { addCustomer } from './customersData'
+import { buildCustomerFromLead } from './leadConversion'
+
 export const FIELD_ENGINEERS = [
   { id: 'eng-001', name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'  },
   { id: 'eng-002', name: 'Preethi Nair', initials: 'PN', color: 'bg-emerald-500' },
@@ -254,12 +258,45 @@ export function saveInstallation(inst) {
 export function updateInstallationStatus(id, status, extra = {}) {
   const now = new Date().toISOString().split('T')[0]
   const { _by, _note, ...cleanExtra } = extra
+  let createdCustomer = null
+
   _installations = _installations.map(inst => {
     if (inst.id !== id) return inst
     const entry = { status, date: now, by: _by || 'Admin', note: _note || '' }
-    return { ...inst, status, ...cleanExtra, timeline: [...(inst.timeline || []), entry] }
+    const patch = { ...cleanExtra }
+    if (status === 'Completed' && inst.leadId) {
+      createdCustomer = convertLeadToCustomer(inst.leadId, _by)
+      if (createdCustomer) patch.customerId = createdCustomer.id
+    }
+    return { ...inst, status, ...patch, timeline: [...(inst.timeline || []), entry] }
   })
   notify()
+  return createdCustomer
+}
+
+// Lead -> Won and Lead -> Customer only ever happen this way now — the moment
+// an installation linked to a lead is marked Completed (whether from the
+// Installation List's bulk action or Installation Detail's status action;
+// both funnel through this same function). Manually setting a lead's stage
+// to Won from the Sales pages was removed. Guarded by
+// lead.convertedToCustomerId so re-toggling an installation's status
+// Completed -> something else -> Completed again never creates a second
+// customer record for the same lead.
+function convertLeadToCustomer(leadId, by) {
+  const lead = getLeads().find(l => l.id === leadId)
+  if (!lead || lead.convertedToCustomerId) return null
+  const customer = buildCustomerFromLead(lead)
+  addCustomer(customer)
+  const now = new Date().toISOString().split('T')[0]
+  saveLead({
+    ...lead,
+    stage: 'Won',
+    daysInStage: 0,
+    lastActivity: 'Installation completed — converted to customer',
+    convertedToCustomerId: customer.id,
+    stageHistory: [...(lead.stageHistory ?? []), { stage: 'Won', date: now, movedBy: by || 'Admin', fields: {} }],
+  })
+  return customer
 }
 
 export function subscribeInstallations(fn) {
