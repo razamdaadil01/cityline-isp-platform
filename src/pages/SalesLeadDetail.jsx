@@ -2776,13 +2776,32 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── Top bar ──────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+      {/* ── Top bar (also carries the main tab row, full width) ─────────── */}
+      <div className="flex items-center gap-4">
         <button onClick={() => navigate('/sales')}
-          className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+          className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
           <ArrowLeft size={15} /> Back to leads
         </button>
-        <div className="flex items-center gap-2">
+
+        {/* Tab nav — scrolls horizontally instead of wrapping if it doesn't
+            fit alongside the back link and right-side buttons. */}
+        <div className="flex-1 min-w-0 flex overflow-x-auto scrollbar-none">
+          {TABS.map(tab => {
+            const Icon = tab.icon
+            return (
+              <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-3.5 lg:px-3 xl:px-4 text-xs lg:text-xs xl:text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                  ${activeTab === tab.key
+                    ? 'border-brand-blue text-brand-blue'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                  }`}>
+                <Icon size={14} /> {tab.label}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
             <Button variant="danger" size="sm" icon={<XCircle size={14} />}
               onClick={() => openMoveStage('Lost')}>
@@ -2997,25 +3016,8 @@ export default function SalesLeadDetail() {
         {/* ── MAIN CONTENT ── */}
         <div className="flex-1 min-w-0 space-y-3">
 
-      {/* ── Tabs + content card ── */}
+      {/* ── Content card (tab nav now lives in the top bar above) ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card">
-
-        {/* Tab nav */}
-        <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none rounded-t-xl">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            return (
-              <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-3.5 lg:px-3 xl:px-4 text-xs lg:text-xs xl:text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
-                  ${activeTab === tab.key
-                    ? 'border-brand-blue text-brand-blue'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
-                  }`}>
-                <Icon size={14} /> {tab.label}
-              </button>
-            )
-          })}
-        </div>
 
         <div className="p-5 lg:p-6 xl:p-8 2xl:p-10">
 
