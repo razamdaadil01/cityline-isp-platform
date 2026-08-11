@@ -2872,9 +2872,10 @@ export default function SalesLeadDetail() {
             <ArrowLeft size={15} /> Back to leads
           </button>
 
-          {/* Tab nav — scrolls horizontally instead of wrapping if it doesn't
-              fit alongside the back link and right-side buttons. */}
-          <div className="flex-1 min-w-0 flex overflow-x-auto scrollbar-none">
+          {/* Tab nav — centered within the space between the back link and the
+              right-side buttons; scrolls horizontally instead of wrapping if
+              it doesn't fit. */}
+          <div className="flex-1 min-w-0 flex justify-center overflow-x-auto scrollbar-none">
             {TABS.map(tab => {
               const Icon = tab.icon
               return (
