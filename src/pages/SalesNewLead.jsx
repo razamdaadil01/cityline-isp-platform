@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, X, AlertTriangle, ChevronDown, Calendar,
-  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2, Check, Camera,
+  User, Building2, Users, Link2, MapPin, Package, Loader2, CheckCircle2, Check, Camera, Lock,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -18,6 +18,31 @@ import { saveFollowup } from '../data/followupStore'
 import { getPlans } from '../data/packagesStore'
 import { GSTIN_REGEX } from '../data/companyEntities'
 import { lookupGstin } from '../data/gstLookup'
+
+// ── Edit-mode locked Pipeline/Stage pill styling ──────────────────────────────
+// Same lookup tables the previous, now-retired standalone SalesEditLead form
+// used for its "Pipeline & Stage" locked card — reused verbatim here since
+// this page now serves both Create and Edit.
+const PIPELINE_COLORS = { B2C: '#0A8DCD', Enterprise: '#0ea5e9', Custom: '#E8541A' }
+const PIPELINE_LABELS = { B2C: 'Residential', Enterprise: 'Enterprise', Custom: 'Custom Pipeline' }
+const STAGE_CHIP = {
+  'New Inquiry':           'bg-blue-100 text-blue-700',
+  'Contacted':             'bg-cyan-100 text-cyan-700',
+  'Follow-up':             'bg-purple-100 text-purple-700',
+  'Site Survey':           'bg-amber-100 text-amber-700',
+  'Quotation Sent':        'bg-orange-100 text-orange-700',
+  'Negotiation':           'bg-pink-100 text-pink-700',
+  'Installation Visit':    'bg-purple-100 text-purple-700',
+  'Won':                   'bg-emerald-100 text-emerald-700',
+  'Lost':                  'bg-red-100 text-red-600',
+  'Meeting Scheduled':     'bg-sky-100 text-sky-700',
+  'Requirement Analysis':  'bg-indigo-100 text-indigo-700',
+  'Technical Feasibility': 'bg-teal-100 text-teal-700',
+  'Commercial Proposal':   'bg-orange-100 text-orange-600',
+  'Legal/Agreement':       'bg-slate-100 text-slate-700',
+  'Quotation':             'bg-amber-100 text-amber-700',
+  'New Inquiry Filed':     'bg-blue-100 text-blue-700',
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // This page used to be a single long form covering Residential/Enterprise/
@@ -114,6 +139,97 @@ const EMPTY_CORPORATE_FORM = {
   package: null,
 }
 const EMPTY_FOLLOWUP = { enabled: false, date: '', time: '', notes: '', notify: [] }
+
+// ── Edit-mode prefill — reverse-maps an existing lead record back into this
+// form's rForm/cForm shape (the mirror image of submitResident/submitCorporate
+// below). Kept next to the EMPTY_*_FORM constants they parallel. ──────────────
+
+function addressSectionFromLead(lead) {
+  // Leads created via this page already store `address` in
+  // AddressSectionStep's own { billing, installation, ... } shape — reuse it
+  // directly. Older/legacy leads only have flat state/district/area/locality/
+  // subLocality/pincode fields (no nested `address` object, or `address` as a
+  // plain string) — best-effort backfill those into a single Billing block
+  // rather than losing them entirely.
+  if (lead.address && typeof lead.address === 'object' && lead.address.billing) {
+    return lead.address
+  }
+  const flatBlock = {
+    ...EMPTY_ADDRESS_SECTION.billing,
+    state:       lead.state       || '',
+    district:    lead.district    || '',
+    area:        lead.area        || '',
+    locality:    lead.locality    || '',
+    subLocality: lead.subLocality || '',
+    addressLine: typeof lead.address === 'string' ? lead.address : '',
+    pincode:     lead.pincode     || '',
+  }
+  return { ...EMPTY_ADDRESS_SECTION, billing: flatBlock, installation: flatBlock, sameAsBilling: true }
+}
+
+function connectionTypeFromLead(lead) {
+  return {
+    connectionType: lead.connectionType || '',
+    entityId:       lead.entityId       || '',
+    partnerId:      lead.partnerId      || '',
+    billingTo:      lead.billingTo      || '',
+  }
+}
+
+// serviceTags is stored on the lead as tag NAMES (see submitResident/
+// submitCorporate), but rForm/cForm.serviceTags is a list of tag IDs (what
+// the Service Tag buttons toggle against) — map back via the same Active-tags
+// list the buttons render from. A tag that's since been deactivated won't
+// resolve to an id (it won't show as a selectable button either), so it's
+// dropped from the id list here; it's only lost from the record if the form
+// is then saved without re-selecting it.
+function serviceTagIdsFromNames(names, tags) {
+  return (names || []).map(name => tags.find(t => t.name === name)?.id).filter(Boolean)
+}
+
+function residentFormFromLead(lead) {
+  const tagIds = serviceTagIdsFromNames(lead.serviceTags, getServiceTagsForType('resident'))
+  const [firstName, ...rest] = (lead.name || '').trim().split(/\s+/)
+  return {
+    branch:             lead.branchCode      || '',
+    firstName:          firstName            || '',
+    lastName:           rest.join(' '),
+    primaryNumber:      lead.phone           || '',
+    alternativeNumber:  lead.alternateMobile || '',
+    email:              lead.email           || '',
+    serviceTags:        tagIds,
+    salesExecutive:     lead.assigned        || '',
+    leadSource:         lead.source          || '',
+    connectionType:     connectionTypeFromLead(lead),
+    address:            addressSectionFromLead(lead),
+    package:            lead.selectedPackage || null,
+  }
+}
+
+function corporateFormFromLead(lead) {
+  const tagIds = serviceTagIdsFromNames(lead.serviceTags, getServiceTagsForType('corporate'))
+  return {
+    branch:             lead.branchCode                 || '',
+    gstNumber:          lead.gstNumber                  || '',
+    gstType:            lead.gstType                     || '',
+    pan:                lead.pan                         || '',
+    legalName:          lead.companyName                 || '',
+    contactPersonName:  lead.contactPerson || lead.name  || '',
+    contactPersonEmail: lead.email                        || '',
+    primaryNumber:      lead.phone                        || '',
+    accountsEmail:      lead.accountsContact?.email      || '',
+    accountsName:       lead.accountsContact?.name       || '',
+    accountsPhone:      lead.accountsContact?.phone      || '',
+    technicalEmail:     lead.technicalContact?.email     || '',
+    technicalName:      lead.technicalContact?.name      || '',
+    technicalPhone:     lead.technicalContact?.phone     || '',
+    connectionType:     connectionTypeFromLead(lead),
+    serviceTags:        tagIds,
+    assignedTo:         lead.assigned                     || '',
+    address:            addressSectionFromLead(lead),
+    package:            lead.selectedPackage              || null,
+  }
+}
 
 // ── Section header (icon badge + title, matches the Follow-up card's style) ─
 
@@ -268,10 +384,15 @@ function ProfilePictureUpload({ name, value, onChange }) {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-export default function SalesNewLead() {
+// `lead` is passed by SalesEditLead when editing an existing lead — its
+// presence is the sole edit/create switch (isEdit = !!lead) so both routes
+// render this exact same component/structure per the FR-6/FR-7 Customer Type
+// field sets, instead of Edit maintaining its own separate, drifted form.
+export default function SalesNewLead({ lead = null } = {}) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [leadId] = useState(() => nextSalesLeadId())
+  const isEdit = !!lead
+  const [leadId] = useState(() => lead?.id ?? nextSalesLeadId())
 
   const customerTypes = useMemo(() => getCustomerTypes().filter(t => t.status === 'Active'), [])
 
@@ -279,17 +400,24 @@ export default function SalesNewLead() {
   // than local-only state, so it's shareable/refresh-safe and survives
   // back/forward — same merge-safe setSearchParams(prev => new
   // URLSearchParams(prev)) pattern used by ?modal=/?step= elsewhere.
+  // In edit mode Customer Type is locked to whatever the lead already is
+  // (it drives Pipeline, which can't change after creation), so it's read
+  // straight off the lead instead — the /edit route never carries this param.
   const customerTypeSlug = searchParams.get('customerType')
   const customerTypeFromSlug = CUSTOMER_TYPE_FROM_SLUG[customerTypeSlug]
-  const customerType = customerTypes.some(t => t.id === customerTypeFromSlug)
-    ? customerTypeFromSlug
-    : (customerTypes[0]?.id ?? 'resident')
+  const customerType = isEdit
+    ? (lead.customerType === 'Corporate' ? 'corporate' : 'resident')
+    : (customerTypes.some(t => t.id === customerTypeFromSlug)
+        ? customerTypeFromSlug
+        : (customerTypes[0]?.id ?? 'resident'))
   const isCorporate = customerType === 'corporate'
 
   // On first load, if there's no (or an invalid) ?customerType= param,
   // default to Residential and write it into the URL via a history replace
-  // (not push) so it doesn't add an extra back-button entry.
+  // (not push) so it doesn't add an extra back-button entry. Skipped in edit
+  // mode — Customer Type there comes from the lead, not the URL.
   useEffect(() => {
+    if (isEdit) return
     if (!CUSTOMER_TYPE_FROM_SLUG[searchParams.get('customerType')]) {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev)
@@ -300,14 +428,14 @@ export default function SalesNewLead() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [rForm, setRForm] = useState(EMPTY_RESIDENT_FORM)
-  const [cForm, setCForm] = useState(EMPTY_CORPORATE_FORM)
+  const [rForm, setRForm] = useState(() => isEdit ? residentFormFromLead(lead) : EMPTY_RESIDENT_FORM)
+  const [cForm, setCForm] = useState(() => isEdit ? corporateFormFromLead(lead) : EMPTY_CORPORATE_FORM)
   const [followUp, setFollowUp] = useState(EMPTY_FOLLOWUP)
   const [attempted, setAttempted] = useState(false)
   // Lives above the Resident/Corporate fork (Service Configuration card), so
   // it's kept as its own piece of state rather than duplicated into
   // rForm/cForm — it shouldn't reset when the Customer Type dropdown changes.
-  const [profilePicture, setProfilePicture] = useState(null)
+  const [profilePicture, setProfilePicture] = useState(() => lead?.profilePicture ?? null)
 
   function handleCustomerTypeChange(next) {
     setAttempted(false)
@@ -349,7 +477,10 @@ export default function SalesNewLead() {
 
   function findDuplicate(phoneNum) {
     if (!phoneNum || phoneNum.length !== 10) return null
-    return getLeads().find(l => l.phone === phoneNum || l.alternateMobile === phoneNum) ?? null
+    // Excludes the lead being edited itself — in create mode leadId is a
+    // freshly-generated id that can't collide with anything, so this is a
+    // no-op there.
+    return getLeads().find(l => l.id !== leadId && (l.phone === phoneNum || l.alternateMobile === phoneNum)) ?? null
   }
   function handlePhoneBlur(phone) {
     if (phone.length === 10) { setPhoneDup(findDuplicate(phone)); setPhoneContinued(false) }
@@ -364,9 +495,21 @@ export default function SalesNewLead() {
   const [duplicateGstWarning, setDuplicateGstWarning] = useState(null) // { lead, overrideReason } | null
   const [panError, setPanError]   = useState('')
 
+  // In edit mode, cForm.gstNumber starts prefilled from the lead's own saved
+  // GSTIN — without this guard, the effect below would immediately "auto-
+  // fetch" on mount and overwrite the lead's actual gstType/pan/legalName
+  // with lookupGstin's mock data (which falls back to a generic "Registered
+  // Business (<PAN>)" placeholder for any GSTIN it doesn't specifically know
+  // about). Skips exactly the first run of the effect; any GSTIN the user
+  // then actually types triggers the normal auto-fetch, same as create mode.
+  const skipInitialGstFetch = useRef(isEdit)
+
   useEffect(() => {
     let cancelled = false
+    const skipThisRun = skipInitialGstFetch.current
+    skipInitialGstFetch.current = false
     if (cForm.gstNumber.length !== 15) { setGstStatus('idle'); return }
+    if (skipThisRun) { setGstStatus('idle'); return }
     setGstStatus('loading')
     lookupGstin(cForm.gstNumber).then(result => {
       if (cancelled) return
@@ -378,7 +521,7 @@ export default function SalesNewLead() {
       setGstStatus('success')
       setCForm(f => ({ ...f, gstType: result.data.gstType, pan: result.data.pan, legalName: result.data.legalName }))
       const match = getLeads().find(l =>
-        l.pipeline === 'Enterprise' && l.gstNumber && l.gstNumber.toUpperCase() === cForm.gstNumber && l.stage !== 'Lost')
+        l.id !== leadId && l.pipeline === 'Enterprise' && l.gstNumber && l.gstNumber.toUpperCase() === cForm.gstNumber && l.stage !== 'Lost')
       setDuplicateGstWarning(match ? { lead: match, overrideReason: '' } : null) // BR-3
     })
     return () => { cancelled = true }
@@ -483,17 +626,16 @@ export default function SalesNewLead() {
       : []
   }
 
-  function submitResident() {
-    const today = new Date().toISOString().slice(0, 10)
+  // The fields this form actually controls, for either mode — everything
+  // else on an existing lead (pipeline, stage, stageHistory, ekycStatus,
+  // hwAssigned, daysInStage, priority, createdAt/createdBy, customerType,
+  // etc.) is preserved untouched by spreading `...lead` as the base in edit
+  // mode below, rather than replacing the whole record.
+  function residentPayload() {
     const tagNames = residentTags.filter(t => rForm.serviceTags.includes(t.id)).map(t => t.name)
     const planName = getPlans().find(p => p.id === rForm.package?.packageId)?.name || ''
     const name = `${rForm.firstName} ${rForm.lastName}`.trim()
-
-    const newLead = {
-      id: leadId,
-      customerType: 'Resident',
-      pipeline: 'B2C',
-      stage: 'New Inquiry',
+    return {
       name,
       profilePicture,
       phone: rForm.primaryNumber,
@@ -505,14 +647,6 @@ export default function SalesNewLead() {
       assigned: rForm.salesExecutive,
       assignedInitials: initialsOf(rForm.salesExecutive),
       assignedColor: colorFor(rForm.salesExecutive),
-      daysInStage: 0,
-      lastActivity: 'Lead created',
-      followUp: followUp.enabled ? followUp.date : '',
-      priority: 'medium',
-      ekycStatus: null,
-      hwAssigned: null,
-      createdAt: today,
-      createdBy: 'Admin User',
       connectionType: rForm.connectionType.connectionType,
       entityId: rForm.connectionType.connectionType === 'Own' ? rForm.connectionType.entityId : null,
       partnerId: rForm.connectionType.connectionType === 'Partner' ? rForm.connectionType.partnerId : null,
@@ -526,27 +660,16 @@ export default function SalesNewLead() {
       pincode: rForm.address.billing.pincode,
       selectedPackage: rForm.package,
       plan: planName,
-      stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: 'Admin User', fields: {} }],
-      activityLog: activityLogForDuplicate(),
     }
-    saveLead(newLead)
-    submitFollowUp(name, rForm.primaryNumber, rForm.salesExecutive, 'New Inquiry', 'Residential')
-    navigate(`/sales/leads/${leadId}`)
   }
 
-  function submitCorporate() {
-    const today = new Date().toISOString().slice(0, 10)
+  function corporatePayload() {
     const tagNames = corporateTags.filter(t => cForm.serviceTags.includes(t.id)).map(t => t.name)
     const planName = getPlans().find(p => p.id === cForm.package?.packageId)?.name || ''
     const billing = cForm.address.billing
     const companyAddress = [billing.addressLine, billing.locality, billing.area, billing.district, billing.state, billing.pincode]
       .filter(Boolean).join(', ')
-
-    const newLead = {
-      id: leadId,
-      customerType: 'Corporate',
-      pipeline: 'Enterprise',
-      stage: 'New Inquiry Filed',
+    return {
       name: cForm.contactPersonName,
       profilePicture,
       companyName: cForm.legalName,
@@ -558,14 +681,6 @@ export default function SalesNewLead() {
       assigned: cForm.assignedTo,
       assignedInitials: initialsOf(cForm.assignedTo),
       assignedColor: colorFor(cForm.assignedTo),
-      daysInStage: 0,
-      lastActivity: 'Lead created',
-      followUp: followUp.enabled ? followUp.date : '',
-      priority: 'medium',
-      ekycStatus: null,
-      hwAssigned: null,
-      createdAt: today,
-      createdBy: 'Admin User',
       gstRegistered: true,
       gstNumber: cForm.gstNumber,
       gstType: cForm.gstType,
@@ -587,10 +702,70 @@ export default function SalesNewLead() {
       pincode: billing.pincode,
       selectedPackage: cForm.package,
       plan: planName,
+    }
+  }
+
+  function saveEdit(payload) {
+    const activityEntry = {
+      id: Date.now(), icon: '✏️', text: 'Lead details updated by Admin User', user: 'Admin User', time: 'just now',
+    }
+    saveLead({
+      ...lead,
+      ...payload,
+      lastActivity: 'Lead details updated',
+      activityLog: [activityEntry, ...(lead.activityLog ?? [])],
+    })
+    navigate(`/sales/leads/${leadId}`)
+  }
+
+  function submitResident() {
+    const payload = residentPayload()
+    if (isEdit) { saveEdit(payload); return }
+
+    const today = new Date().toISOString().slice(0, 10)
+    saveLead({
+      id: leadId,
+      customerType: 'Resident',
+      pipeline: 'B2C',
+      stage: 'New Inquiry',
+      ...payload,
+      daysInStage: 0,
+      lastActivity: 'Lead created',
+      followUp: followUp.enabled ? followUp.date : '',
+      priority: 'medium',
+      ekycStatus: null,
+      hwAssigned: null,
+      createdAt: today,
+      createdBy: 'Admin User',
+      stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: 'Admin User', fields: {} }],
+      activityLog: activityLogForDuplicate(),
+    })
+    submitFollowUp(payload.name, rForm.primaryNumber, rForm.salesExecutive, 'New Inquiry', 'Residential')
+    navigate(`/sales/leads/${leadId}`)
+  }
+
+  function submitCorporate() {
+    const payload = corporatePayload()
+    if (isEdit) { saveEdit(payload); return }
+
+    const today = new Date().toISOString().slice(0, 10)
+    saveLead({
+      id: leadId,
+      customerType: 'Corporate',
+      pipeline: 'Enterprise',
+      stage: 'New Inquiry Filed',
+      ...payload,
+      daysInStage: 0,
+      lastActivity: 'Lead created',
+      followUp: followUp.enabled ? followUp.date : '',
+      priority: 'medium',
+      ekycStatus: null,
+      hwAssigned: null,
+      createdAt: today,
+      createdBy: 'Admin User',
       stageHistory: [{ stage: 'New Inquiry Filed', date: today, movedBy: 'Admin User', fields: {} }],
       activityLog: activityLogForDuplicate(),
-    }
-    saveLead(newLead)
+    })
     submitFollowUp(cForm.legalName || cForm.contactPersonName, cForm.primaryNumber, cForm.assignedTo, 'New Inquiry Filed', 'Enterprise')
     navigate(`/sales/leads/${leadId}`)
   }
@@ -609,14 +784,18 @@ export default function SalesNewLead() {
       <div className="px-6 pt-6 pb-5 shrink-0 bg-white border-b border-surface-border">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/sales')}
+            onClick={() => navigate(isEdit ? `/sales/leads/${leadId}` : '/sales')}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
           >
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Create New Lead</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Fill in the details to add a new lead to the pipeline · Lead ID {leadId}</p>
+            <h1 className="text-xl font-bold text-gray-900">{isEdit ? 'Edit Lead' : 'Create New Lead'}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {isEdit
+                ? `Update lead information · ${lead.id}`
+                : `Fill in the details to add a new lead to the pipeline · Lead ID ${leadId}`}
+            </p>
           </div>
         </div>
       </div>
@@ -644,6 +823,32 @@ export default function SalesNewLead() {
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 
+        {/* Pipeline & Stage — locked, edit mode only. The Create form doesn't
+            have this section (Pipeline/Stage aren't chosen the same way at
+            creation), so it's added at the top only when editing, reusing the
+            exact locked-pill treatment the previous standalone Edit Lead form
+            used. */}
+        {isEdit && (
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <p className="text-sm font-bold text-gray-700 mb-3">Pipeline &amp; Stage</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-surface-border rounded-lg">
+                <Lock size={12} className="text-gray-400" />
+                <span className="text-sm font-semibold" style={{ color: PIPELINE_COLORS[lead.pipeline] ?? '#0A8DCD' }}>
+                  {PIPELINE_LABELS[lead.pipeline] ?? lead.pipeline}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-surface-border rounded-lg">
+                <Lock size={12} className="text-gray-400" />
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STAGE_CHIP[lead.stage] ?? 'bg-gray-100 text-gray-700'}`}>
+                  {lead.stage}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 italic">Pipeline and stage cannot be changed after creation</p>
+            </div>
+          </div>
+        )}
+
         {/* Service Configuration card */}
         <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
           <p className="text-sm font-bold text-gray-700 mb-1">Service Configuration</p>
@@ -658,15 +863,18 @@ export default function SalesNewLead() {
             />
             <div className="hidden sm:block w-px self-stretch bg-surface-border shrink-0" />
             <div className="grid grid-cols-2 gap-x-5 gap-y-4 flex-1 w-full">
-              <FormField label="Customer Type" required hint="From Settings > System Configuration > Customer Type (Active only)">
-                <Select value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
+              <FormField label="Customer Type" required
+                hint={isEdit ? 'Locked — cannot be changed after creation' : 'From Settings > System Configuration > Customer Type (Active only)'}>
+                <Select disabled={isEdit} value={customerType} onChange={e => handleCustomerTypeChange(e.target.value)}>
                   {customerTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Select>
               </FormField>
-              <FormField label="Starting Stage">
+              <FormField label={isEdit ? 'Current Stage' : 'Starting Stage'}>
                 <div className="flex items-center gap-2 h-[38px] px-3 bg-gray-50 border border-surface-border rounded-lg">
-                  <span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span>
+                  {isEdit
+                    ? <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STAGE_CHIP[lead.stage] ?? 'bg-gray-100 text-gray-700'}`}>{lead.stage}</span>
+                    : <><span className="w-2 h-2 rounded-full bg-brand-blue shrink-0" />
+                        <span className="text-sm font-medium text-gray-700">{isCorporate ? 'New Inquiry Filed' : 'New Inquiry'}</span></>}
                 </div>
               </FormField>
             </div>
@@ -987,74 +1195,80 @@ export default function SalesNewLead() {
           </>
         )}
 
-        {/* Follow-up card — kept from the previous form, orthogonal to Customer Type */}
-        <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
-                <Calendar size={15} className="text-brand-blue" />
+        {/* Follow-up card — kept from the previous form, orthogonal to Customer
+            Type. Only shown at creation — editing a lead has its own
+            dedicated Follow-ups flow on the Lead Detail page, so this stays
+            hidden in edit mode rather than risk creating a duplicate
+            follow-up record every time the form is saved. */}
+        {!isEdit && (
+          <div className="bg-white rounded-2xl border border-surface-border shadow-card p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center shrink-0">
+                  <Calendar size={15} className="text-brand-blue" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-bold text-gray-700">Set Follow-up</p>
-                <p className="text-xs text-gray-400 mt-0.5">Schedule a follow-up reminder for this lead</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={followUp.enabled}
-              onClick={() => setFollowUp(f => f.enabled ? EMPTY_FOLLOWUP : { ...f, enabled: true })}
-              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
-                followUp.enabled ? 'bg-brand-blue' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                  followUp.enabled ? 'translate-x-5' : 'translate-x-0'
+              <button
+                type="button"
+                role="switch"
+                aria-checked={followUp.enabled}
+                onClick={() => setFollowUp(f => f.enabled ? EMPTY_FOLLOWUP : { ...f, enabled: true })}
+                className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
+                  followUp.enabled ? 'bg-brand-blue' : 'bg-gray-200'
                 }`}
-              />
-            </button>
-          </div>
-
-          {followUp.enabled && (
-            <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
-              <FormField label="Follow-up Date" required>
-                <Input type="date" value={followUp.date} onChange={e => setFollowUp(f => ({ ...f, date: e.target.value }))} />
-              </FormField>
-              <FormField label="Follow-up Time" required>
-                <Input type="time" value={followUp.time} onChange={e => setFollowUp(f => ({ ...f, time: e.target.value }))} />
-              </FormField>
-              {attempted && (!followUp.date || !followUp.time) && (
-                <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date and time are required.</p>
-              )}
-              {attempted && followUp.date && followUp.time && new Date(`${followUp.date}T${followUp.time}`) <= new Date() && (
-                <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date/time cannot be in the past.</p>
-              )}
-              <div className="col-span-2">
-                <FormField label="Notes">
-                  <Textarea value={followUp.notes} onChange={e => setFollowUp(f => ({ ...f, notes: e.target.value }))}
-                    placeholder="Follow-up agenda or notes…" rows={2} />
-                </FormField>
-              </div>
-              <div className="col-span-2">
-                <FormField label="Notify Users">
-                  <MultiSelectDropdown
-                    options={NOTIFY_USERS}
-                    value={followUp.notify}
-                    onChange={v => setFollowUp(f => ({ ...f, notify: v }))}
-                    placeholder="Select team members to notify…"
-                  />
-                  {followUp.notify.length === 0 && (
-                    <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                      <AlertTriangle size={11} className="shrink-0" />
-                      No notifiers selected — at least one is recommended
-                    </p>
-                  )}
-                </FormField>
-              </div>
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    followUp.enabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
-          )}
-        </div>
+
+            {followUp.enabled && (
+              <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-2 gap-x-5 gap-y-4">
+                <FormField label="Follow-up Date" required>
+                  <Input type="date" value={followUp.date} onChange={e => setFollowUp(f => ({ ...f, date: e.target.value }))} />
+                </FormField>
+                <FormField label="Follow-up Time" required>
+                  <Input type="time" value={followUp.time} onChange={e => setFollowUp(f => ({ ...f, time: e.target.value }))} />
+                </FormField>
+                {attempted && (!followUp.date || !followUp.time) && (
+                  <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date and time are required.</p>
+                )}
+                {attempted && followUp.date && followUp.time && new Date(`${followUp.date}T${followUp.time}`) <= new Date() && (
+                  <p className="col-span-2 text-xs text-red-500 -mt-2">Follow-up date/time cannot be in the past.</p>
+                )}
+                <div className="col-span-2">
+                  <FormField label="Notes">
+                    <Textarea value={followUp.notes} onChange={e => setFollowUp(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Follow-up agenda or notes…" rows={2} />
+                  </FormField>
+                </div>
+                <div className="col-span-2">
+                  <FormField label="Notify Users">
+                    <MultiSelectDropdown
+                      options={NOTIFY_USERS}
+                      value={followUp.notify}
+                      onChange={v => setFollowUp(f => ({ ...f, notify: v }))}
+                      placeholder="Select team members to notify…"
+                    />
+                    {followUp.notify.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                        <AlertTriangle size={11} className="shrink-0" />
+                        No notifiers selected — at least one is recommended
+                      </p>
+                    )}
+                  </FormField>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 
@@ -1072,12 +1286,12 @@ export default function SalesNewLead() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" onClick={() => navigate('/sales')}>Cancel</Button>
+          <Button variant="secondary" onClick={() => navigate(isEdit ? `/sales/leads/${leadId}` : '/sales')}>Cancel</Button>
           <span
             title={!canSubmit ? (packageBlocked ? 'Package Selection is blocked until Feasibility is approved' : 'Complete all mandatory fields to create this lead') : undefined}
             onClick={() => !canSubmit && setAttempted(true)}
           >
-            <Button icon={<Check size={14} />} onClick={handleSubmit} disabled={!canSubmit}>Create Lead</Button>
+            <Button icon={<Check size={14} />} onClick={handleSubmit} disabled={!canSubmit}>{isEdit ? 'Save Changes' : 'Create Lead'}</Button>
           </span>
         </div>
       </div>
