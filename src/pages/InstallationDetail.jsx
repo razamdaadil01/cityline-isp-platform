@@ -88,6 +88,16 @@ function InfoRow({ label, value, children }) {
   )
 }
 
+function Toast({ msg, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t) }, [onDone])
+  return (
+    <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-gray-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-xl">
+      <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+      {msg}
+    </div>
+  )
+}
+
 /* ── Assign Team Modal ──────────────────────────────────────────── */
 
 function AssignTeamModal({ isOpen, onClose, inst, onSave }) {
@@ -371,6 +381,7 @@ export default function InstallationDetail() {
   const navigate = useNavigate()
   const [installations, setInstallations] = useState(getInstallations)
   const [noteText, setNoteText] = useState('')
+  const [toast, setToast] = useState('')
 
   /* Modal open state */
   const [assignOpen,    setAssignOpen]    = useState(false)
@@ -402,7 +413,7 @@ export default function InstallationDetail() {
   function save(updated) { saveInstallation(updated) }
 
   function doStatus(status, extra = {}) {
-    updateInstallationStatus(inst.id, status, extra)
+    return updateInstallationStatus(inst.id, status, extra)
   }
 
   function handleAddNote() {
@@ -563,6 +574,14 @@ export default function InstallationDetail() {
                 <Link to={`/sales/leads/${inst.leadId}/overview`}
                   className="text-brand-blue hover:underline font-medium flex items-center justify-end gap-1">
                   {inst.leadId} <ChevronRight size={12} />
+                </Link>
+              </InfoRow>
+            )}
+            {inst.customerId && (
+              <InfoRow label="Customer">
+                <Link to={`/customers/${inst.customerId}/profile`}
+                  className="text-brand-blue hover:underline font-medium flex items-center justify-end gap-1">
+                  {inst.customerId} <ChevronRight size={12} />
                 </Link>
               </InfoRow>
             )}
@@ -844,7 +863,11 @@ export default function InstallationDetail() {
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setCompleteOpen(false)}>Cancel</Button>
           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => { doStatus('Completed', { _note: 'Installation completed successfully' }); setCompleteOpen(false) }}>
+            onClick={() => {
+              const customer = doStatus('Completed', { _note: 'Installation completed successfully' })
+              setCompleteOpen(false)
+              setToast(customer ? `Installation completed — Customer record created: ${customer.id}` : 'Installation marked as Completed')
+            }}>
             <CheckCircle2 size={13} className="mr-1" /> Mark Completed
           </Button>
         </>}
@@ -898,6 +921,8 @@ export default function InstallationDetail() {
           </div>
         </div>
       </Modal>
+
+      {toast && <Toast msg={toast} onDone={() => setToast('')} />}
     </div>
   )
 }

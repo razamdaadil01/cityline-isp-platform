@@ -2069,8 +2069,6 @@ export default function SalesLeadDetail() {
     setMoveStageInitial('')
     setSearchParams({})
   }
-  const [wonConversionLead, setWonConversionLead] = useState(null)
-  const [wonSuccessData, setWonSuccessData]   = useState(null)
   const [followupOpen, setFollowupOpen]       = useState(false)
   const [reopenOpen, setReopenOpen]           = useState(false)
   const [reopenToast, setReopenToast]         = useState(false)
@@ -2461,9 +2459,6 @@ export default function SalesLeadDetail() {
     }
     if (fuData?.date) {
       saveFollowup({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage, assignedTo: lead.assigned, notifyTo: fuData.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
-    }
-    if (targetStage === 'Won') {
-      setWonConversionLead(updatedLead)
     }
   }
 
@@ -4042,26 +4037,6 @@ export default function SalesLeadDetail() {
         payment={refundTarget}
         onConfirm={handleConfirmRefund}
       />
-      {wonConversionLead && (
-        <WonConversionModal
-          isOpen={!!wonConversionLead}
-          onClose={() => setWonConversionLead(null)}
-          lead={wonConversionLead}
-          onConfirm={data => {
-            saveLead({ ...wonConversionLead, lastActivity: 'Converted to Customer' })
-            setWonSuccessData({ ...data, leadRef: wonConversionLead })
-            setWonConversionLead(null)
-          }}
-        />
-      )}
-      {wonSuccessData && (
-        <WonSuccessModal
-          isOpen={!!wonSuccessData}
-          onClose={() => setWonSuccessData(null)}
-          lead={wonSuccessData.leadRef}
-          data={wonSuccessData}
-        />
-      )}
       <HardwareAssignmentModal
         isOpen={hwModalOpen}
         onClose={() => setHwModalOpen(false)}
