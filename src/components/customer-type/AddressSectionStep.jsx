@@ -101,7 +101,7 @@ function AddressBlock({ title, value, onChange, disabled }) {
         <FormField label="Sub-Locality">
           <Select disabled={disabled || !value.locality} value={value.subLocality} onChange={e => set('subLocality', e.target.value)}>
             <option value="">Select...</option>
-            {subLocalities.map(sl => <option key={sl} value={sl}>{sl}</option>)}
+            {subLocalities.map(sl => <option key={sl.id} value={sl.subLocality}>{sl.subLocality}</option>)}
           </Select>
         </FormField>
         <FormField label="Pincode" required>
