@@ -76,3 +76,16 @@ export function nextIntercomCustomerId() {
   const next = (nums.length ? Math.max(...nums) : 0) + 1
   return `IC-CUST-${year}-${String(next).padStart(6, '0')}`
 }
+
+// Used when converting a Won lead into a customer record (see
+// leadConversion.js) — mirrors the CL-104x scheme the Won-conversion modal
+// used to fabricate as a display-only placeholder, but sequential and
+// actually unique now that it's used as a real, persisted customer id.
+export function nextCustomerId() {
+  const nums = getAllCustomers()
+    .map(c => c.id.match(/^CL-(\d+)$/))
+    .filter(Boolean)
+    .map(m => Number(m[1]))
+  const next = (nums.length ? Math.max(...nums) : 1039) + 1
+  return `CL-${next}`
+}

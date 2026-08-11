@@ -139,26 +139,40 @@ function makeCustomerFromBase(id) {
   // ENT- customers are Corporate accounts and carry a GST No. + verification
   // status (customersData.js); Residential (RES-) customers have neither, so
   // customerType/gstNo/gstVerified are left unset for them — unchanged from
-  // today's behavior (Customer Type/GST No. fields render as "—").
-  const isCorporate = base.id.startsWith('ENT')
+  // today's behavior (Customer Type/GST No. fields render as "—"). Customers
+  // converted from a Won lead (leadConversion.js) carry their own
+  // customerType ('Individual'/'Corporate') directly on the base record.
+  const isCorporate = base.id.startsWith('ENT') || base.customerType === 'Corporate'
   return {
     id: base.id,
     name: base.name,
     phone: base.phone.replace(/(\d{5})(\d{5})/, '$1 $2'),
-    altPhone: '—',
-    email: `${slug}@email.com`,
-    dob: '—',
-    gender: '—',
-    ...(isCorporate ? { customerType: 'Corporate', gstNo: base.gstNo ?? '—', gstVerified: !!base.gstVerified } : {}),
+    altPhone: base.altPhone ?? '—',
+    email: base.email ?? `${slug}@email.com`,
+    dob: base.dob ?? '—',
+    gender: base.gender ?? '—',
+    sonOf: base.sonOf,
+    panCard: base.panCard,
+    profilePicture: base.profilePicture,
+    sourceLeadId: base.sourceLeadId ?? null,
+    ...(isCorporate
+      ? { customerType: 'Corporate', gstNo: base.gstNo ?? '—', gstVerified: !!base.gstVerified }
+      : (base.customerType ? { customerType: base.customerType } : {})),
     status: base.status,
     online: base.status === 'active',
     services: base.services ?? [],
     circuit: base.circuit ?? null,
     outstandingDues: 0,
     ekyc: base.status === 'active' ? 'verified' : 'pending',
-    accountManager: 'Admin User',
-    createdOn: '01 Jan 2023',
-    address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
+    accountManager: base.accountManager ?? 'Admin User',
+    createdOn: base.createdOn ?? '01 Jan 2023',
+    // Customers converted from a lead (leadConversion.js) carry a real
+    // address/connection/sales object — pass it through as-is; base-only
+    // customersData.js rows never have these, so the placeholder defaults
+    // below are unchanged for them.
+    address: base.address ?? { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
+    connection: base.connection ?? {},
+    sales: base.sales ?? {},
     payment: { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
     radius: {
       jazeUserId: idSlug,
@@ -616,15 +630,18 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
               <div className="border-t border-surface-border my-4" />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area Address</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-                <InfoField label="Area"     value={cust.address.area} />
-                <InfoField label="Sub Area" value={cust.address.subArea} />
-                <InfoField label="Box"      value={cust.address.box} mono />
-                <InfoField label="Street"   value={cust.address.street} />
-                <InfoField label="OLT"      value={cust.address.olt} mono />
-                <InfoField label="Splitter" value={cust.address.splitter} mono />
-                <InfoField label="Port"     value={cust.address.port} />
-                <InfoField label="Building" value={cust.address.building} />
-                <InfoField label="Zone"     value={cust.address.zone} />
+                <InfoField label="Area"        value={cust.address.area} />
+                <InfoField label="Sub Area"    value={cust.address.subArea} />
+                <InfoField label="Locality"    value={cust.address.locality} />
+                <InfoField label="District"    value={cust.address.district} />
+                <InfoField label="Box"         value={cust.address.box} mono />
+                <InfoField label="Street"      value={cust.address.street} />
+                <InfoField label="OLT"         value={cust.address.olt} mono />
+                <InfoField label="Splitter"    value={cust.address.splitter} mono />
+                <InfoField label="Port"        value={cust.address.port} />
+                <InfoField label="Building"    value={cust.address.building} />
+                <InfoField label="Zone"        value={cust.address.zone} />
+                <InfoField label="Branch Code" value={cust.address.branchCode} mono />
               </div>
             </>
           ) : (
@@ -653,15 +670,18 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
               <div className="border-t border-surface-border my-4" />
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area Address</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
-                <EF label="Area"     value={p4.draft.area}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, area: v } }))} />
-                <EF label="Sub Area" value={p4.draft.subArea}  onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, subArea: v } }))} />
-                <EF label="Box"      value={p4.draft.box}      onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, box: v } }))} mono />
-                <EF label="Street"   value={p4.draft.street}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, street: v } }))} />
-                <EF label="OLT"      value={p4.draft.olt}      onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, olt: v } }))} mono />
-                <EF label="Splitter" value={p4.draft.splitter} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, splitter: v } }))} mono />
-                <EF label="Port"     value={p4.draft.port}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, port: v } }))} />
-                <EF label="Building" value={p4.draft.building} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, building: v } }))} />
-                <EF label="Zone"     value={p4.draft.zone}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, zone: v } }))} />
+                <EF label="Area"        value={p4.draft.area}       onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, area: v } }))} />
+                <EF label="Sub Area"    value={p4.draft.subArea}    onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, subArea: v } }))} />
+                <EF label="Locality"    value={p4.draft.locality}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, locality: v } }))} />
+                <EF label="District"    value={p4.draft.district}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, district: v } }))} />
+                <EF label="Box"         value={p4.draft.box}        onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, box: v } }))} mono />
+                <EF label="Street"      value={p4.draft.street}     onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, street: v } }))} />
+                <EF label="OLT"         value={p4.draft.olt}        onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, olt: v } }))} mono />
+                <EF label="Splitter"    value={p4.draft.splitter}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, splitter: v } }))} mono />
+                <EF label="Port"        value={p4.draft.port}       onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, port: v } }))} />
+                <EF label="Building"    value={p4.draft.building}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, building: v } }))} />
+                <EF label="Zone"        value={p4.draft.zone}       onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, zone: v } }))} />
+                <EF label="Branch Code" value={p4.draft.branchCode} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, branchCode: v } }))} mono />
               </div>
               <EditActions onSave={saveP4} onCancel={() => cancelEdit(setP4)} />
             </>
@@ -2095,9 +2115,14 @@ export default function CustomerDetail() {
         <div className="border-t border-surface-border" />
         <div className="p-5 sm:p-6">
           <div className="flex flex-wrap items-start gap-5">
-            {/* Avatar */}
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md">
-              {customer.name.charAt(0)}
+            {/* Avatar — shows the profile picture captured at lead creation
+                (customer.profilePicture.preview, a data URL, carried over by
+                leadConversion.js) when present, else falls back to the
+                existing colored-initials treatment. */}
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md overflow-hidden">
+              {customer.profilePicture?.preview
+                ? <img src={customer.profilePicture.preview} alt="" className="w-full h-full object-cover" />
+                : customer.name.charAt(0)}
             </div>
 
             {/* Core info */}

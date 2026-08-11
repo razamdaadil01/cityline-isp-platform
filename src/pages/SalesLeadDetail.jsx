@@ -22,6 +22,8 @@ import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
 import { getCompanyEntity } from '../data/companyEntities'
 import { getPartner } from '../data/partners'
+import { addCustomer } from '../data/customersData'
+import { buildCustomerFromLead } from '../data/leadConversion'
 import { displayFieldValue } from '../components/ui/DynamicFieldInput'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -895,9 +897,11 @@ function WonConversionModal({ isOpen, onClose, lead, onConfirm }) {
       setLoading(false)
       const docs = lead?.kycDocs ?? {}
       const kycComplete = ['aadhaar', 'panCard', 'customerPhoto'].every(k => docs[k])
+      const customer = buildCustomerFromLead(lead)
+      addCustomer(customer)
       onConfirm({
-        customerName: lead?.name ?? '',
-        customerId:   `CL-${1040 + Math.floor(Math.random() * 20)}`,
+        customerName: customer.name,
+        customerId:   customer.id,
         ticketId:     `TK-${2880 + Math.floor(Math.random() * 50)}`,
         kycStatus:    kycComplete ? 'Completed' : 'Pending',
       })
@@ -937,6 +941,7 @@ function WonConversionModal({ isOpen, onClose, lead, onConfirm }) {
 }
 
 function WonSuccessModal({ isOpen, onClose, lead, data }) {
+  const navigate = useNavigate()
   const cards = [
     { title: 'Customer Created',    desc: `${data?.customerName ?? ''} — ${data?.customerId ?? ''}`,   action: 'View Customer', bg: 'bg-blue-50 border-blue-200'    },
     { title: 'CAF Form',            desc: 'Ready to fill',                                              action: 'Open CAF',      bg: 'bg-purple-50 border-purple-200' },
@@ -958,7 +963,12 @@ function WonSuccessModal({ isOpen, onClose, lead, data }) {
           <div key={card.title} className={`border rounded-xl p-4 ${card.bg}`}>
             <p className="font-semibold text-sm text-gray-900 mb-1">{card.title}</p>
             <p className="text-xs text-gray-600 mb-3 break-words">{card.desc}</p>
-            <Button variant="secondary" size="sm" className="w-full">{card.action}</Button>
+            <Button
+              variant="secondary" size="sm" className="w-full"
+              onClick={card.title === 'Customer Created' ? () => navigate(`/customers/${data?.customerId}/profile`) : undefined}
+            >
+              {card.action}
+            </Button>
           </div>
         ))}
       </div>
