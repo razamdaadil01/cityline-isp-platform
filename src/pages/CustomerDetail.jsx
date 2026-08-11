@@ -136,6 +136,11 @@ function makeCustomerFromBase(id) {
   }
   const slug = base.name.toLowerCase().replace(/\s+/g, '.')
   const idSlug = base.id.replace('-', '').toLowerCase()
+  // ENT- customers are Corporate accounts and carry a GST No. + verification
+  // status (customersData.js); Residential (RES-) customers have neither, so
+  // customerType/gstNo/gstVerified are left unset for them — unchanged from
+  // today's behavior (Customer Type/GST No. fields render as "—").
+  const isCorporate = base.id.startsWith('ENT')
   return {
     id: base.id,
     name: base.name,
@@ -144,6 +149,7 @@ function makeCustomerFromBase(id) {
     email: `${slug}@email.com`,
     dob: '—',
     gender: '—',
+    ...(isCorporate ? { customerType: 'Corporate', gstNo: base.gstNo ?? '—', gstVerified: !!base.gstVerified } : {}),
     status: base.status,
     online: base.status === 'active',
     services: base.services ?? [],
@@ -346,11 +352,12 @@ function EditActions({ onSave, onCancel }) {
 
 // ── Tab: Profile ─────────────────────────────────────────────────────────────
 
-function InfoField({ label, value, mono }) {
+function InfoField({ label, value, mono, children }) {
   return (
     <div>
       <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
       <p className={`text-sm text-gray-800 font-medium mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? '—'}</p>
+      {children}
     </div>
   )
 }
@@ -430,7 +437,16 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
               <InfoField label="Date of Birth"  value={cust.dob} />
               <InfoField label="Gender"         value={cust.gender} />
               <InfoField label="Customer Type"  value={cust.customerType} />
-              <InfoField label="GST No."        value={cust.gstNo} mono />
+              <InfoField label="GST No." value={cust.gstNo} mono>
+                {cust.customerType === 'Corporate' && (
+                  <span className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                    cust.gstVerified ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
+                  }`}>
+                    {cust.gstVerified ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
+                    {cust.gstVerified ? 'GST Verified' : 'GST Not Verified'}
+                  </span>
+                )}
+              </InfoField>
               <InfoField label="PAN Card"       value={cust.panCard} mono />
               <InfoField label="Customer Since" value={cust.createdOn} />
             </div>
