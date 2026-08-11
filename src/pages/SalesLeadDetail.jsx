@@ -3155,24 +3155,6 @@ export default function SalesLeadDetail() {
                 )}
               </Card>
 
-              <Card>
-                <CardHeader title="Current Stage Info" action={
-                  <CardCollapseToggle collapsed={collapsedCards.has('stage')} onClick={() => toggleCardCollapsed('stage')} />
-                } />
-                {!collapsedCards.has('stage') && (
-                  <>
-                    <InfoRow label="Pipeline" value={PIPELINE_LABEL[lead.pipeline]} />
-                    <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
-                      <span className="text-xs text-gray-500 shrink-0 w-36">Current Stage</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
-                    </div>
-                    <InfoRow label="Stage Entered"
-                      value={(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()} />
-                    <InfoRow label="Days in Stage"
-                      value={`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`} />
-                  </>
-                )}
-              </Card>
             </div>
           )}
 
@@ -3896,6 +3878,38 @@ export default function SalesLeadDetail() {
               </div>
             </div>
           )}
+
+          {/* Current Stage Info — moved here from the main content column */}
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                <TrendingUp size={14} className="text-blue-600" />
+              </div>
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Current Stage Info</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                <span className="text-xs text-gray-500 shrink-0">Pipeline</span>
+                <span className="text-xs font-medium text-gray-800 text-right">{PIPELINE_LABEL[lead.pipeline]}</span>
+              </div>
+              <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                <span className="text-xs text-gray-500 shrink-0">Current Stage</span>
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${stageStyle.chip}`}>{lead.stage}</span>
+              </div>
+              <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                <span className="text-xs text-gray-500 shrink-0">Stage Entered</span>
+                <span className="text-xs font-medium text-gray-800 text-right">
+                  {(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-xs text-gray-500">Days in Stage</span>
+                <span className="text-xs font-medium text-gray-800">
+                  {`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`}
+                </span>
+              </div>
+            </div>
+          </div>
 
           {/* eKYC Verification — see the dedicated eKYC tab for the full flow */}
           <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
