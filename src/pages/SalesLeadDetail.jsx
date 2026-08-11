@@ -1053,6 +1053,106 @@ function ReopenModal({ isOpen, onClose, lead, firstStage, onConfirm }) {
   )
 }
 
+// ── EkycModal ──────────────────────────────────────────────────────────────────
+// The "Send eKYC" popup opened from the right sidebar's eKYC Verification card —
+// carries the exact same send/verify + check-existing flow that used to live on
+// its own eKYC tab, just presented in a modal instead of a page.
+
+function EkycModal({
+  isOpen, onClose, leadName,
+  identifier, onIdentifierChange,
+  status, sentAt, verifiedAt, docType, docNumberMasked,
+  onSend, onMarkVerified,
+  checkResult, onCheckExisting, onReuseVerification,
+}) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`eKYC Verification — ${leadName}`}
+      size="md"
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}
+    >
+      <div className="space-y-5">
+        <div>
+          <FormField label="Mobile Number or Email">
+            <Input
+              value={identifier}
+              onChange={e => onIdentifierChange(e.target.value)}
+              placeholder="e.g. 9876001122 or name@email.com"
+              disabled={status !== 'Not Started'}
+            />
+          </FormField>
+
+          <div className="flex items-center gap-2 mt-3 mb-4">
+            <span className="text-xs font-medium text-gray-500">Status:</span>
+            <Badge variant={EKYC_TAB_STATUS_BADGE[status] ?? 'gray'} size="sm">{status}</Badge>
+            {status === 'Link Sent' && sentAt && (
+              <span className="text-[11px] text-gray-400">sent {formatEkycTimestamp(sentAt)}</span>
+            )}
+            {status === 'Verified' && verifiedAt && (
+              <span className="text-[11px] text-gray-400">verified {formatEkycTimestamp(verifiedAt)}</span>
+            )}
+          </div>
+
+          {status === 'Not Started' && (
+            <Button className="w-full" icon={<Send size={14} />} disabled={!identifier.trim()} onClick={onSend}>
+              Send to eKYC
+            </Button>
+          )}
+
+          {status === 'Link Sent' && (
+            <Button className="w-full" icon={<CheckCircle2 size={14} />} onClick={onMarkVerified}>
+              Mark as Verified
+            </Button>
+          )}
+
+          {status === 'Verified' && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs text-emerald-700 font-semibold">
+                <CheckCircle size={13} /> Document Fetched
+              </div>
+              <p className="text-xs text-gray-600">
+                Document Type: <span className="font-semibold text-gray-800">{docType ?? 'Aadhaar'}</span>
+              </p>
+              <p className="text-xs text-gray-600">
+                Document Number: <span className="font-mono font-semibold text-gray-800">{docNumberMasked ?? 'XXXX-XXXX-1234'}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-4 border-t border-surface-border">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Check Existing eKYC</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Look up whether this mobile number or email already has a verified eKYC record on file from a previous verification.
+          </p>
+          <Button variant="secondary" className="w-full" icon={<Search size={14} />} disabled={!identifier.trim()} onClick={onCheckExisting}>
+            Check Existing eKYC
+          </Button>
+
+          {checkResult && (
+            <div className="mt-3">
+              {checkResult.found ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
+                  <p className="text-xs text-emerald-700">
+                    Existing Verification Found — Verified on {formatEkycTimestamp(checkResult.record.verifiedAt)}, Document: {checkResult.record.docType} {checkResult.record.docNumberMasked}
+                  </p>
+                  <Button size="sm" className="w-full" icon={<CheckCircle2 size={13} />} onClick={onReuseVerification}>
+                    Reuse This Verification
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No existing verification found for this identifier.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Package components ────────────────────────────────────────────────────────
 
 const APPROVAL_CHIP = {
@@ -1817,7 +1917,6 @@ const TAB_PATH_TO_KEY = {
   'stage-history': 'stageHistory',
   'activity-log':  'activity',
   'package':       'package',
-  'ekyc':          'ekyc',
 }
 
 // ── EditFuModal ────────────────────────────────────────────────────────────────
@@ -2102,6 +2201,27 @@ export default function SalesLeadDetail() {
   function closeMoveStage() {
     setMoveStageInitial('')
     setSearchParams({})
+  }
+
+  // ?modal=send-ekyc opens the eKYC Verification popup (formerly a
+  // dedicated tab) from the right sidebar's eKYC card — same
+  // merge-with-existing-params pattern as FeasibilityDetail's
+  // ?modal=edit-stage-fields, so it doesn't clobber other query params.
+  const ekycModalOpen = searchParams.get('modal') === 'send-ekyc'
+
+  function openEkycModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'send-ekyc')
+      return next
+    })
+  }
+  function closeEkycModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
   }
   const [followupOpen, setFollowupOpen]       = useState(false)
   const [reopenOpen, setReopenOpen]           = useState(false)
@@ -2732,7 +2852,6 @@ export default function SalesLeadDetail() {
     { key: 'stageHistory', path: 'stage-history', label: 'Stage History', icon: TrendingUp },
     { key: 'activity',     path: 'activity-log',  label: 'Activity Log',  icon: Activity },
     { key: 'package',      path: 'package',       label: 'Package',       icon: Package },
-    { key: 'ekyc',         path: 'ekyc',          label: 'eKYC',          icon: Fingerprint },
   ]
 
   const FU_STATUS_STYLE = {
@@ -3733,98 +3852,6 @@ export default function SalesLeadDetail() {
               })()}
             </div>
           )}
-
-          {activeTab === 'ekyc' && (
-            <div className="max-w-xl space-y-5">
-
-              {/* Send / Verify flow */}
-              <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                    <Fingerprint size={15} className="text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
-                    <p className="text-[11px] text-gray-400">Aadhaar-based identity verification via Digio</p>
-                  </div>
-                </div>
-
-                <FormField label="Mobile Number or Email">
-                  <Input
-                    value={ekycIdentifier}
-                    onChange={e => setEkycIdentifier(e.target.value)}
-                    placeholder="e.g. 9876001122 or name@email.com"
-                    disabled={ekycStatus !== 'Not Started'}
-                  />
-                </FormField>
-
-                <div className="flex items-center gap-2 mt-3 mb-4">
-                  <span className="text-xs font-medium text-gray-500">Status:</span>
-                  <Badge variant={EKYC_TAB_STATUS_BADGE[ekycStatus] ?? 'gray'} size="sm">{ekycStatus}</Badge>
-                  {ekycStatus === 'Link Sent' && lead.ekyc?.sentAt && (
-                    <span className="text-[11px] text-gray-400">sent {formatEkycTimestamp(lead.ekyc.sentAt)}</span>
-                  )}
-                  {ekycStatus === 'Verified' && ekycVerifiedAt && (
-                    <span className="text-[11px] text-gray-400">verified {formatEkycTimestamp(ekycVerifiedAt)}</span>
-                  )}
-                </div>
-
-                {ekycStatus === 'Not Started' && (
-                  <Button className="w-full" icon={<Send size={14} />} disabled={!ekycIdentifier.trim()} onClick={handleSendToEkyc}>
-                    Send to eKYC
-                  </Button>
-                )}
-
-                {ekycStatus === 'Link Sent' && (
-                  <Button className="w-full" icon={<CheckCircle2 size={14} />} onClick={handleMarkEkycVerified}>
-                    Mark as Verified
-                  </Button>
-                )}
-
-                {ekycStatus === 'Verified' && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-1.5">
-                    <div className="flex items-center gap-2 text-xs text-emerald-700 font-semibold">
-                      <CheckCircle size={13} /> Document Fetched
-                    </div>
-                    <p className="text-xs text-gray-600">
-                      Document Type: <span className="font-semibold text-gray-800">{lead.ekyc?.docType ?? 'Aadhaar'}</span>
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      Document Number: <span className="font-mono font-semibold text-gray-800">{lead.ekyc?.docNumberMasked ?? 'XXXX-XXXX-1234'}</span>
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Check Existing eKYC */}
-              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Check Existing eKYC</p>
-                <p className="text-xs text-gray-500 mb-3">
-                  Look up whether this mobile number or email already has a verified eKYC record on file from a previous verification.
-                </p>
-                <Button variant="secondary" className="w-full" icon={<Search size={14} />} disabled={!ekycIdentifier.trim()} onClick={handleCheckExistingEkyc}>
-                  Check Existing eKYC
-                </Button>
-
-                {ekycCheckResult && (
-                  <div className="mt-3">
-                    {ekycCheckResult.found ? (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 space-y-2">
-                        <p className="text-xs text-emerald-700">
-                          Existing Verification Found — Verified on {formatEkycTimestamp(ekycCheckResult.record.verifiedAt)}, Document: {ekycCheckResult.record.docType} {ekycCheckResult.record.docNumberMasked}
-                        </p>
-                        <Button size="sm" className="w-full" icon={<CheckCircle2 size={13} />} onClick={handleReuseEkycVerification}>
-                          Reuse This Verification
-                        </Button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-gray-500">No existing verification found for this identifier.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
       </div>
 
         </div>
@@ -3913,7 +3940,7 @@ export default function SalesLeadDetail() {
             </div>
           </div>
 
-          {/* eKYC Verification — see the dedicated eKYC tab for the full flow */}
+          {/* eKYC Verification — opens the "Send eKYC" popup for the full flow */}
           <div className="bg-white rounded-xl border-2 border-purple-200 p-5 shadow-card">
             <div className="flex items-center justify-between gap-2.5 mb-1">
               <div className="flex items-center gap-2.5">
@@ -3930,10 +3957,10 @@ export default function SalesLeadDetail() {
               <>
                 <button
                   type="button"
-                  onClick={() => navigate(`/sales/leads/${id}/ekyc`)}
+                  onClick={openEkycModal}
                   className="w-full mt-3 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-brand-blue hover:bg-brand-blue-dark text-white shadow-sm transition-colors"
                 >
-                  Start eKYC
+                  Send eKYC
                 </button>
                 <p className="text-[11px] text-gray-400 text-center mt-2">
                   eKYC must be completed before Installation Done can be marked.
@@ -4063,6 +4090,23 @@ export default function SalesLeadDetail() {
         lead={lead}
         firstStage={pl.stages[0]}
         onConfirm={handleReopen}
+      />
+      <EkycModal
+        isOpen={ekycModalOpen}
+        onClose={closeEkycModal}
+        leadName={lead?.name}
+        identifier={ekycIdentifier}
+        onIdentifierChange={setEkycIdentifier}
+        status={ekycStatus}
+        sentAt={lead?.ekyc?.sentAt}
+        verifiedAt={ekycVerifiedAt}
+        docType={lead?.ekyc?.docType}
+        docNumberMasked={lead?.ekyc?.docNumberMasked}
+        onSend={handleSendToEkyc}
+        onMarkVerified={handleMarkEkycVerified}
+        checkResult={ekycCheckResult}
+        onCheckExisting={handleCheckExistingEkyc}
+        onReuseVerification={handleReuseEkycVerification}
       />
       <EditFuModal isOpen={!!editingFu} onClose={() => setEditingFu(null)} fu={editingFu} onSave={handleEditFuSave} />
       <CallModal
