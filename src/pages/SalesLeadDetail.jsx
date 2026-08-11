@@ -2864,40 +2864,26 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── Linked Feasibility / Installation status badges ──
+      {/* ── Linked Feasibility status badge ──
           Same cross-module link banner pattern as "Converted from Intercom" above,
-          shown whenever a Feasibility request and/or Installation record already
-          exists for this lead (created either from here or from those modules directly). */}
-      {(linkedFeasibility || linkedInstallation) && (
+          shown whenever a Feasibility request already exists for this lead
+          (created either from here or from the Feasibility module directly).
+          The equivalent Installation banner was removed — that data is already
+          shown in the right sidebar's Installation card. */}
+      {linkedFeasibility && (
         <div className="flex flex-wrap items-center gap-3">
-          {linkedFeasibility && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2.5">
-              <Badge variant="yellow" size="sm">Feasibility</Badge>
-              <p className="text-sm text-amber-800">
-                {linkedFeasibility.feasibilityStatus}:{' '}
-                <button
-                  onClick={() => navigate(`/sales/feasibility-requests/${linkedFeasibility.id}`)}
-                  className="font-semibold text-brand-blue hover:underline"
-                >
-                  {linkedFeasibility.id}
-                </button>
-              </p>
-            </div>
-          )}
-          {linkedInstallation && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-2.5 flex items-center gap-2.5">
-              <Badge variant="orange" size="sm">Installation</Badge>
-              <p className="text-sm text-orange-800">
-                {linkedInstallation.status}:{' '}
-                <button
-                  onClick={() => navigate(`/installations/${linkedInstallation.id}`)}
-                  className="font-semibold text-brand-blue hover:underline"
-                >
-                  {linkedInstallation.id}
-                </button>
-              </p>
-            </div>
-          )}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center gap-2.5">
+            <Badge variant="yellow" size="sm">Feasibility</Badge>
+            <p className="text-sm text-amber-800">
+              {linkedFeasibility.feasibilityStatus}:{' '}
+              <button
+                onClick={() => navigate(`/sales/feasibility-requests/${linkedFeasibility.id}`)}
+                className="font-semibold text-brand-blue hover:underline"
+              >
+                {linkedFeasibility.id}
+              </button>
+            </p>
+          </div>
         </div>
       )}
 
