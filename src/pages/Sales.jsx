@@ -1964,7 +1964,7 @@ export default function Sales() {
             <div className="overflow-x-auto">
               <table className="text-sm table-fixed w-full" style={{ minWidth: 1250 }}>
                 <thead>
-                  <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                  <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wide">
                     {visibleCols.has('leadId') && <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>}
                     {visibleCols.has('customerName') && <th className="px-4 py-3 text-left" style={{ width: 160 }}>Customer Name</th>}
                     {visibleCols.has('customerType') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>}
@@ -2005,7 +2005,7 @@ export default function Sales() {
                           <td className="px-4 py-3 overflow-hidden" title={lead.name}>
                             <button
                               onClick={() => navigate(`/sales/leads/${lead.id}`)}
-                              className="block truncate text-xs font-semibold text-gray-800 hover:text-brand-blue hover:underline text-left"
+                              className="block truncate text-sm font-medium text-gray-800 hover:text-brand-blue hover:underline text-left"
                             >
                               {lead.name}
                             </button>
@@ -2013,7 +2013,7 @@ export default function Sales() {
                         )}
                         {visibleCols.has('customerType') && (
                           <td className="px-4 py-3 overflow-hidden" title={customerType}>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
                               CUSTOMER_TYPE_STYLE[customerTypeId] ?? 'bg-gray-100 text-gray-600'
                             }`}>
                               {customerType}
@@ -2038,7 +2038,7 @@ export default function Sales() {
                         )}
                         {visibleCols.has('stage') && (
                           <td className="px-4 py-3 overflow-hidden" title={lead.stage}>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${ss.chip}`}>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${ss.chip}`}>
                               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ss.colorBar}`} />
                               <span className="truncate">{lead.stage}</span>
                             </span>
