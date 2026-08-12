@@ -26,7 +26,6 @@ const MOCK_CUSTOMERS = {
     dob: '15 Mar 1982',
     gender: 'Male',
     sonOf: 'Mohan Mehta',
-    gstNo: '27AABCM1234D1Z5',
     panCard: 'AABCM1234D',
     customerType: 'Residential',
     status: 'active',
@@ -503,16 +502,16 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                 </>
               )}
               <InfoField label="Customer Type"  value={cust.customerType} />
-              <InfoField label="GST No." value={cust.gstNo} mono>
-                {cust.customerType === 'Corporate' && (
+              {isCorporate && (
+                <InfoField label="GST No." value={cust.gstNo} mono>
                   <span className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                     cust.gstVerified ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'
                   }`}>
                     {cust.gstVerified ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
                     {cust.gstVerified ? 'GST Verified' : 'GST Not Verified'}
                   </span>
-                )}
-              </InfoField>
+                </InfoField>
+              )}
               {isCorporate && <InfoField label="GST Type" value={cust.gstType} />}
               <InfoField label="PAN Card"       value={cust.panCard} mono />
               <InfoField label="Customer Since" value={cust.createdOn} />
@@ -535,7 +534,9 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                   </>
                 )}
                 <ESelect label="Customer Type" value={p1.draft.customerType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, customerType: v } }))} options={['Residential', 'Corporate']} />
-                <EF label="GST No."       value={p1.draft.gstNo}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstNo: v } }))} mono />
+                {isCorporate && (
+                  <EF label="GST No."       value={p1.draft.gstNo}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstNo: v } }))} mono />
+                )}
                 {isCorporate && (
                   <ESelect label="GST Type" value={p1.draft.gstType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstType: v } }))} options={['Regular', 'Composition']} />
                 )}
