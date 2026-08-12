@@ -991,9 +991,9 @@ function InfoRow({ label, value, highlight }) {
 
 // Grid-cell variant of InfoRow — label above value instead of side-by-side —
 // used by the Overview tab's Basic/Customer/Address Details cards' 2-col grid.
-function InfoCell({ label, value, highlight }) {
+function InfoCell({ label, value, highlight, className = '' }) {
   return (
-    <div>
+    <div className={className}>
       <p className="text-xs text-gray-500">{label}</p>
       <p className={`text-xs font-medium mt-1 ${highlight ? 'text-brand-blue' : 'text-gray-800'}`}>
         {value || <span className="text-gray-300 font-normal">—</span>}
@@ -3212,22 +3212,22 @@ export default function SalesLeadDetail() {
                     <CardCollapseToggle collapsed={collapsedCards.has('company')} onClick={() => toggleCardCollapsed('company')} />
                   } />
                   {!collapsedCards.has('company') && (
-                    <>
-                      <InfoRow label="Company Name"    value={lead.companyName} />
-                      <InfoRow label="Contact Person"  value={lead.contactPerson} />
-                      <div className="flex items-start justify-between py-2 border-b border-gray-50 last:border-0">
-                        <span className="text-xs text-gray-500 shrink-0 w-36">GST Registered</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${lead.gstRegistered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                      <InfoCell label="Company Name"    value={lead.companyName} />
+                      <InfoCell label="Contact Person"  value={lead.contactPerson} />
+                      <div>
+                        <p className="text-xs text-gray-500">GST Registered</p>
+                        <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${lead.gstRegistered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                           {lead.gstRegistered ? 'Yes' : 'No'}
                         </span>
                       </div>
                       {lead.gstRegistered && (
                         <>
-                          <InfoRow label="GST Number"      value={lead.gstNumber} highlight />
-                          <InfoRow label="Company Address" value={lead.companyAddress} />
+                          <InfoCell label="GST Number"      value={lead.gstNumber} highlight />
+                          <InfoCell label="Company Address" value={lead.companyAddress} className="col-span-2" />
                         </>
                       )}
-                    </>
+                    </div>
                   )}
                 </Card>
               )}
