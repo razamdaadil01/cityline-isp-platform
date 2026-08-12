@@ -555,7 +555,7 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-              {['FU ID', 'Lead Name', 'Customer', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
+              {['FU ID', 'Lead Name', 'Customer', 'Contact No.', 'Date', 'Time', 'Assigned', 'Notifiers', 'Status', 'Actions'].map(h => (
                 <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -563,7 +563,7 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
           <tbody className="divide-y divide-surface-border">
             {followups.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
+                <td colSpan={10} className="text-center py-12 text-gray-400 text-sm">No follow-ups found</td>
               </tr>
             ) : (
               followups.map(fu => {
@@ -606,6 +606,22 @@ function TableView({ followups, onMarkDone, onReschedule, onEdit, onCancel }) {
                       {/* Customer */}
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                         {fu.customer || '—'}
+                      </td>
+
+                      {/* Contact No. */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {fu.phone ? (
+                          <a
+                            href={`tel:${fu.phone}`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 font-mono text-xs text-brand-blue hover:underline"
+                          >
+                            <Phone size={11} className="shrink-0" />
+                            {fu.phone}
+                          </a>
+                        ) : (
+                          <span className="font-mono text-xs text-gray-400">—</span>
+                        )}
                       </td>
 
                       {/* Date */}
