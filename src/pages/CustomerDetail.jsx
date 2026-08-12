@@ -134,7 +134,6 @@ function makeCustomerFromBase(id) {
       notes: '',
     }
   }
-  const slug = base.name.toLowerCase().replace(/\s+/g, '.')
   const idSlug = base.id.replace('-', '').toLowerCase()
   // ENT- customers are Corporate accounts and carry a GST No. + verification
   // status (customersData.js); Residential (RES-) customers have neither, so
@@ -148,7 +147,12 @@ function makeCustomerFromBase(id) {
     name: base.name,
     phone: base.phone.replace(/(\d{5})(\d{5})/, '$1 $2'),
     altPhone: base.altPhone ?? '—',
-    email: base.email ?? `${slug}@email.com`,
+    // Was silently fabricating a fake "<name-slug>@email.com" when the
+    // record had no real email — the 29 static RES- seed records never
+    // set one, so every one of them showed a made-up address as if it
+    // were real. Falls back to "—" now, consistent with every other
+    // missing field on this page.
+    email: base.email ?? '—',
     dob: base.dob ?? '—',
     gender: base.gender ?? '—',
     sonOf: base.sonOf,
@@ -183,11 +187,24 @@ function makeCustomerFromBase(id) {
     accountManager: base.accountManager ?? 'Admin User',
     createdOn: base.createdOn ?? '01 Jan 2023',
     // Customers converted from a lead (leadConversion.js) carry a real
-    // address/connection/sales object — pass it through as-is; base-only
-    // customersData.js rows never have these, so the placeholder defaults
-    // below are unchanged for them.
-    address: base.address ?? { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
+    // address object — pass it through as-is; base-only customersData.js
+    // rows never have one, so the placeholder defaults below are unchanged
+    // for them. `zone` is handled separately: the raw record's top-level
+    // `zone` (customersData.js, e.g. used by the Customers List table) was
+    // never actually read onto the returned customer object here, so it
+    // silently went unused on this page even though it's real, non-fake
+    // data — and buildCustomerFromLead sets a top-level `zone` on converted
+    // customers too, but never an `address.zone`. Chosen fix: fall back to
+    // it explicitly (base.address?.zone, then base.zone, then "—") rather
+    // than leave it dead — low risk since it only affects this one field,
+    // and an explicit address.zone (if one's ever set) still wins.
+    address: {
+      area: '—', subArea: '—', box: '—', street: '—', building: '—',
+      ...base.address,
+      zone: base.address?.zone ?? base.zone ?? '—',
+    },
     connection: base.connection ?? {},
+    ownership: base.ownership ?? {},
     sales: base.sales ?? {},
     payment: { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
     radius: {
@@ -409,6 +426,10 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const conn  = cust.connection ?? {}
   const sales = cust.sales ?? {}
   const kyc   = cust.kyc ?? {}
+  // Lead's Own/Partner ownership/billing-party data (leadConversion.js) —
+  // distinct from Connection Details' Connection Type above (physical
+  // provisioning technology); see the note near that field.
+  const ownership = cust.ownership ?? {}
   const isCorporate = cust.customerType === 'Corporate'
 
   /* ── Save helpers ── */
@@ -429,7 +450,12 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
     cancelEdit(setP4)
   }
   function saveP5() {
-    setCust(c => ({ ...c, sales: { ...c.sales, ...p5.draft } }))
+    const { ownershipType, ownershipEntity, ownershipPartner, ownershipBillingTo, ...salesDraft } = p5.draft
+    setCust(c => ({
+      ...c,
+      sales: { ...c.sales, ...salesDraft },
+      ownership: { ...c.ownership, type: ownershipType, entity: ownershipEntity, partner: ownershipPartner, billingTo: ownershipBillingTo },
+    }))
     cancelEdit(setP5)
   }
   function saveP7() {
@@ -581,6 +607,11 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
           } />
           {!p3.editing ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              {/* Note: this is physical provisioning type (FTTH/Sector/Village) —
+                  not to be confused with the Lead's Own/Partner ownership type,
+                  see "Ownership Type" in Sales & Account Info below. No current
+                  Lead form field maps to this one; it's filled in manually here,
+                  post-conversion (installation-stage), like the rest of this card. */}
               <InfoField label="Connection Type" value={conn.type} />
               <div>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1.5">Service Opted</p>
@@ -622,6 +653,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
+                {/* Physical provisioning type — see the display-mode note above */}
                 <ESelect label="Connection Type" value={p3.draft.conn.type} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, type: v } } }))} options={['FTTH', 'Sector', 'Village']} />
                 <div>
                   <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1.5">Service Opted</p>
@@ -752,7 +784,11 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
         <Card>
           <CardHeader title="Sales & Account Info" action={
             !p5.editing
-              ? editBtn(() => startEdit(setP5, { ...sales }))
+              ? editBtn(() => startEdit(setP5, {
+                  ...sales,
+                  ownershipType: ownership.type, ownershipEntity: ownership.entity,
+                  ownershipPartner: ownership.partner, ownershipBillingTo: ownership.billingTo,
+                }))
               : null
           } />
           {!p5.editing ? (
@@ -764,6 +800,18 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
               <InfoField label="Registration Date/Time"  value={sales.registrationDate} />
               <InfoField label="Due Days"                value={sales.dueDays != null ? `${sales.dueDays} day${sales.dueDays !== 1 ? 's' : ''}` : '—'} />
               <InfoField label="Lead Source"             value={sales.leadSource} />
+              {/* Note: this is the Lead's Own/Partner ownership & billing-party
+                  data (leadConversion.js) — not to be confused with Connection
+                  Details' "Connection Type" above (FTTH/Sector/Village physical
+                  provisioning technology). */}
+              <InfoField label="Ownership Type" value={ownership.type} />
+              {ownership.type === 'Own' && <InfoField label="Entity" value={ownership.entity} />}
+              {ownership.type === 'Partner' && (
+                <>
+                  <InfoField label="Partner"     value={ownership.partner} />
+                  <InfoField label="Billing To"  value={ownership.billingTo} />
+                </>
+              )}
               <div className="col-span-full"><InfoField label="Remark" value={sales.remark} /></div>
             </div>
           ) : (
@@ -776,6 +824,17 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                 <EF label="Registration Date/Time"  value={p5.draft.registrationDate}     onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, registrationDate: v } }))} />
                 <EF label="Due Days"                value={p5.draft.dueDays}              onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, dueDays: v } }))} type="number" />
                 <EF label="Lead Source"             value={p5.draft.leadSource}           onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, leadSource: v } }))} />
+                {/* Ownership type — see the display-mode note above */}
+                <ESelect label="Ownership Type" value={p5.draft.ownershipType} onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, ownershipType: v } }))} options={['Own', 'Partner']} />
+                {p5.draft.ownershipType === 'Own' && (
+                  <EF label="Entity" value={p5.draft.ownershipEntity} onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, ownershipEntity: v } }))} />
+                )}
+                {p5.draft.ownershipType === 'Partner' && (
+                  <>
+                    <EF label="Partner"    value={p5.draft.ownershipPartner}    onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, ownershipPartner: v } }))} />
+                    <EF label="Billing To" value={p5.draft.ownershipBillingTo} onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, ownershipBillingTo: v } }))} />
+                  </>
+                )}
                 <ETextarea label="Remark"           value={p5.draft.remark}               onChange={v => setP5(s => ({ ...s, draft: { ...s.draft, remark: v } }))} />
               </div>
               <EditActions onSave={saveP5} onCancel={() => cancelEdit(setP5)} />

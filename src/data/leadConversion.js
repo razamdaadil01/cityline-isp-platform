@@ -1,5 +1,7 @@
 import { getFeasibilityRequests } from './feasibilityStore'
 import { nextCustomerId } from './customersData'
+import { getCompanyEntity } from './companyEntities'
+import { getPartner } from './partners'
 
 // Maps a Won lead's captured fields onto a new Customer record, matching the
 // section/field layout CustomerDetail.jsx actually renders (address.billing*/
@@ -59,8 +61,26 @@ export function buildCustomerFromLead(lead) {
       district: lead.district,
       branchCode: lead.branchCode,
     },
-    connection: {
-      type: lead.siteType,
+    // Connection Details' "Connection Type" (FTTH/Sector/Village physical
+    // provisioning technology) has no equivalent field on the Lead form —
+    // it used to read the stale `lead.siteType` (a field only the old,
+    // pre-Customer-Type-restructure lead form ever set; the current
+    // SalesNewLead.jsx form never populates it), which left every newly
+    // converted customer's Connection Type silently blank anyway. Left
+    // unset here on purpose — it's filled in manually post-conversion,
+    // like the rest of Connection Details (RADIUS/Jaze, payment, etc).
+    connection: {},
+    // The Lead's Own/Partner ownership & billing-party data
+    // (ConnectionTypeStep, captured by both Resident and Corporate Create
+    // Lead forms) — previously dropped entirely on conversion. Distinct
+    // from connection.type above despite the similar "Connection Type"
+    // naming; see CustomerDetail.jsx's Sales & Account Info card, where
+    // this renders as "Ownership Type" alongside Entity/Partner/Billing To.
+    ownership: {
+      type: lead.connectionType || '',
+      entity: lead.connectionType === 'Own' ? (getCompanyEntity(lead.entityId)?.name ?? '') : '',
+      partner: lead.connectionType === 'Partner' ? (getPartner(lead.partnerId)?.name ?? '') : '',
+      billingTo: lead.connectionType === 'Partner' ? (lead.billingTo || '') : '',
     },
     sales: {
       executive: lead.assigned,
