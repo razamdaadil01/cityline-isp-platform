@@ -13,6 +13,7 @@ export function buildCustomerFromLead(lead) {
   const billing      = lead.address?.billing ?? {}
   const installation = lead.address?.sameAsBilling ? billing : (lead.address?.installation ?? {})
   const feasibility  = getFeasibilityRequests().find(f => f.leadId === lead.id)
+  const isCorporate  = lead.pipeline === 'Enterprise'
 
   return {
     id: nextCustomerId(),
@@ -21,12 +22,26 @@ export function buildCustomerFromLead(lead) {
     altPhone: lead.alternateMobile,
     email: lead.email,
     profilePicture: lead.profilePicture,
-    customerType: lead.pipeline === 'Enterprise' ? 'Corporate' : 'Individual',
+    customerType: isCorporate ? 'Corporate' : 'Individual',
     sourceLeadId: lead.id,
     status: 'active',
     plan: lead.plan,
     services: lead.serviceTags ?? [],
     zone: lead.branchCode || lead.area,
+    // Corporate-only — the Legal Company Name/GST Type/Contact Person/
+    // Accounts & Technical Contact fields the Corporate Create Lead form
+    // captures (SalesNewLead.jsx), so they survive Won-conversion instead
+    // of being silently dropped. accountsContact/technicalContact are
+    // already { name, email, phone } on the lead, matching what
+    // CustomerDetail.jsx's Business Contacts card expects.
+    ...(isCorporate ? {
+      companyName: lead.companyName,
+      contactPersonName: lead.contactPerson,
+      contactPersonEmail: lead.email,
+      gstType: lead.gstType,
+      accountsContact: lead.accountsContact,
+      technicalContact: lead.technicalContact,
+    } : {}),
     address: {
       billingState:    billing.state       || lead.state,
       billingCity:      billing.area        || lead.area,

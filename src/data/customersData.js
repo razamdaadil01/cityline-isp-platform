@@ -3,7 +3,7 @@ export const CUSTOMERS = [
   { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East'   },
   { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon'      },
   { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '9123456789', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Versova'       },
-  { id: 'ENT-2026-0001', name: 'Vikram Singh',       phone: '9011223344', plan: 'P2P 1Gbps',       status: 'active',    zone: 'MIDC Andheri', gstNo: '27AAACV5055K1ZP', gstVerified: true  },
+  { id: 'ENT-2026-0001', name: 'Vikram Singh',       companyName: 'Vikram Industries Pvt Ltd', phone: '9011223344', plan: 'P2P 1Gbps',       status: 'active',    zone: 'MIDC Andheri', gstNo: '27AAACV5055K1ZP', gstVerified: true  },
   { id: 'RES-2026-0005', name: 'Mohan Lal',          phone: '9765432198', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Andheri East'  },
   { id: 'RES-2026-0006', name: 'Deepa Nair',         phone: '9332144556', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Juhu'          },
   { id: 'RES-2026-0007', name: 'Rahul Patil',        phone: '9700112233', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Malad West'    },
@@ -30,8 +30,8 @@ export const CUSTOMERS = [
   { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Mira Road'     },
   { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'Powai'         },
   { id: 'IC-CUST-2026-000001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom' },
-  { id: 'ENT-2026-0002', name: 'Ashok Mehta',       phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true  },
-  { id: 'ENT-2026-0003', name: 'Farida Sheikh',     phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false },
+  { id: 'ENT-2026-0002', name: 'Ashok Mehta',       companyName: 'Mehta Infotech Pvt Ltd',    phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true  },
+  { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false },
 ]
 
 // ── Dynamically added customers (e.g. from Intercom Customer creation) ───────
