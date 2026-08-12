@@ -24,7 +24,7 @@ export function buildCustomerFromLead(lead) {
     altPhone: lead.alternateMobile,
     email: lead.email,
     profilePicture: lead.profilePicture,
-    customerType: isCorporate ? 'Corporate' : 'Individual',
+    customerType: isCorporate ? 'Corporate' : 'Residential',
     sourceLeadId: lead.id,
     status: 'active',
     plan: lead.plan,

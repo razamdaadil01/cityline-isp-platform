@@ -524,7 +524,7 @@ export default function TicketList() {
                       <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{t.branch ?? '—'}</td>
                     )}
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Badge variant={t.customerType === 'Enterprise' ? 'purple' : 'blue'} size="sm">{t.customerType ?? '—'}</Badge>
+                      <Badge variant={t.customerType === 'Corporate' ? 'purple' : 'blue'} size="sm">{t.customerType ?? '—'}</Badge>
                     </td>
                     {visibleCols.has('priority') && (
                       <td className="px-4 py-3">

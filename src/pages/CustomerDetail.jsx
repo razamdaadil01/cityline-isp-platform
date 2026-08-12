@@ -28,7 +28,7 @@ const MOCK_CUSTOMERS = {
     sonOf: 'Mohan Mehta',
     gstNo: '27AABCM1234D1Z5',
     panCard: 'AABCM1234D',
-    customerType: 'Individual',
+    customerType: 'Residential',
     status: 'active',
     online: true,
     services: ['Broadband', 'Landline', 'OTT'],
@@ -140,7 +140,7 @@ function makeCustomerFromBase(id) {
   // customerType/gstNo/gstVerified are left unset for them — unchanged from
   // today's behavior (Customer Type/GST No. fields render as "—"). Customers
   // converted from a Won lead (leadConversion.js) carry their own
-  // customerType ('Individual'/'Corporate') directly on the base record.
+  // customerType ('Residential'/'Corporate') directly on the base record.
   const isCorporate = base.id.startsWith('ENT') || base.customerType === 'Corporate'
   return {
     id: base.id,
@@ -534,7 +534,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                     <ESelect label="Gender"   value={p1.draft.gender}       onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gender: v } }))} options={['Male', 'Female', 'Other']} />
                   </>
                 )}
-                <ESelect label="Customer Type" value={p1.draft.customerType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, customerType: v } }))} options={['Individual', 'Corporate']} />
+                <ESelect label="Customer Type" value={p1.draft.customerType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, customerType: v } }))} options={['Residential', 'Corporate']} />
                 <EF label="GST No."       value={p1.draft.gstNo}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstNo: v } }))} mono />
                 {isCorporate && (
                   <ESelect label="GST Type" value={p1.draft.gstType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstType: v } }))} options={['Regular', 'Composition']} />
