@@ -4,7 +4,7 @@ import {
   Plus, Download, Search, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
   TrendingUp, Filter, History, IndianRupee, AlertCircle,
-  MoreVertical, CheckCircle2, AlertOctagon,
+  MoreVertical, CheckCircle2, RotateCcw,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -58,6 +58,43 @@ const SERVICE_TYPES = ['All', 'FTTH', 'FTTB', 'Wireless', 'P2P', 'ILL']
 const NETWORKS = ['All', 'OLT-ANW-01', 'OLT-ANW-02', 'OLT-BNW-01', 'OLT-MNW-01']
 
 const fmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// ─── Recharge Status mini-table (RECHARGE STATUS column) ────────────────────
+// Compact bordered 2-col widget: "Internet" | "OTT" header band, one status
+// row below — green check for 'success', amber warning + a clickable Retry
+// link stacked underneath for anything else (e.g. 'retry').
+function RechargeStatusIcon({ status }) {
+  if (status === 'success') {
+    return <CheckCircle2 size={14} className="text-emerald-500" />
+  }
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <AlertTriangle size={12} className="text-amber-500" />
+      <button className="flex items-center gap-0.5 text-[10px] text-brand-blue font-semibold hover:underline whitespace-nowrap">
+        <RotateCcw size={9} /> Retry
+      </button>
+    </div>
+  )
+}
+
+function RechargeStatusMiniTable({ internet, ott }) {
+  return (
+    <div className="inline-block border border-surface-border rounded-lg overflow-hidden bg-white">
+      <div className="grid grid-cols-2 bg-gray-50 border-b border-surface-border">
+        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">Internet</span>
+        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center">OTT</span>
+      </div>
+      <div className="grid grid-cols-2">
+        <div className="flex items-center justify-center px-2.5 py-1.5 border-r border-surface-border">
+          <RechargeStatusIcon status={internet} />
+        </div>
+        <div className="flex items-center justify-center px-2.5 py-1.5">
+          <RechargeStatusIcon status={ott} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── Record Payment Modal ───────────────────────────────────────────────────
 function RecordPaymentModal({ invoice, onClose }) {
@@ -585,15 +622,7 @@ export default function Billing() {
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex flex-col gap-1">
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-medium">
-                            <CheckCircle2 size={11} className="text-emerald-500" /> Internet
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-xs text-orange-600 font-medium">
-                            <AlertOctagon size={11} className="text-orange-500" /> OTT
-                            <button className="text-brand-blue underline text-xs ml-0.5">Retry</button>
-                          </span>
-                        </div>
+                        <RechargeStatusMiniTable internet={row.rechargeInternet} ott={row.rechargeOtt} />
                       </td>
                       <td className="px-3 py-3">
                         <a href="#" className="text-xs text-brand-blue font-semibold hover:underline">{row.userId}({row.userLink})</a>
