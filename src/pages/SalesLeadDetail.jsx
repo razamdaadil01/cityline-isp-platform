@@ -6,7 +6,7 @@ import {
   Phone, Mail, MapPin, User, Clock, ChevronDown, ChevronRight,
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
-  Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical, RotateCcw,
+  Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical, RotateCcw, Banknote,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
@@ -2178,6 +2178,101 @@ function RefundPaymentModal({ isOpen, onClose, payment, onConfirm }) {
   )
 }
 
+// ── ManualPaymentModal / PackageRefundModal ─────────────────────────────────
+// Opened from Active Package Details' "⋮" menu (next to Send Payment Link).
+// No backend to hook into yet, so Save/Confirm just closes the modal and
+// shows a placeholder success toast — same pattern as the Payment table's
+// Add Payment/Refund actions above.
+
+const PACKAGE_PAYMENT_MODES = ['Cash', 'Cheque', 'Bank Transfer', 'UPI']
+
+function ManualPaymentModal({ isOpen, onClose, onSave }) {
+  const [form, setForm] = useState({ amount: '', mode: 'Cash', date: TODAY, reference: '', notes: '' })
+
+  useEffect(() => {
+    if (isOpen) setForm({ amount: '', mode: 'Cash', date: TODAY, reference: '', notes: '' })
+  }, [isOpen])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  const valid = form.amount !== '' && parseFloat(form.amount) > 0 && !!form.date
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Record Manual Payment" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSave(form)} disabled={!valid}>Save</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Amount" required>
+            <Input type="number" min="0" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0" />
+          </FormField>
+          <FormField label="Payment Mode">
+            <Select value={form.mode} onChange={e => set('mode', e.target.value)}>
+              {PACKAGE_PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
+            </Select>
+          </FormField>
+        </div>
+        <FormField label="Payment Date" required>
+          <Input type="date" value={form.date} onChange={e => set('date', e.target.value)} />
+        </FormField>
+        <FormField label="Reference / Transaction ID">
+          <Input value={form.reference} onChange={e => set('reference', e.target.value)} placeholder="Optional" />
+        </FormField>
+        <FormField label="Notes">
+          <Textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any additional notes…" />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
+function PackageRefundModal({ isOpen, onClose, onConfirm }) {
+  const [form, setForm] = useState({ amount: '', reason: '', mode: 'Bank Transfer', notes: '' })
+
+  useEffect(() => {
+    if (isOpen) setForm({ amount: '', reason: '', mode: 'Bank Transfer', notes: '' })
+  }, [isOpen])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  const valid = form.amount !== '' && parseFloat(form.amount) > 0 && form.reason.trim() !== ''
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Process Refund" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" onClick={() => onConfirm(form)} disabled={!valid}>Confirm Refund</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Refund Amount" required>
+            <Input type="number" min="0" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0" />
+          </FormField>
+          <FormField label="Refund Mode">
+            <Select value={form.mode} onChange={e => set('mode', e.target.value)}>
+              {PACKAGE_PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
+            </Select>
+          </FormField>
+        </div>
+        <FormField label="Reason" required>
+          <Textarea rows={2} value={form.reason} onChange={e => set('reason', e.target.value)} placeholder="Why is this refund being issued?" />
+        </FormField>
+        <FormField label="Notes">
+          <Textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any additional notes…" />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SalesLeadDetail() {
@@ -2236,6 +2331,52 @@ export default function SalesLeadDetail() {
       return next
     })
   }
+
+  // ?modal=manual-payment / ?modal=refund-package — opened from Active Package
+  // Details' "⋮" menu, same merge-with-existing-params pattern as eKYC above.
+  const manualPaymentModalOpen = searchParams.get('modal') === 'manual-payment'
+  const packageRefundModalOpen = searchParams.get('modal') === 'refund-package'
+
+  function openManualPaymentModal() {
+    setPkgActionsOpen(false)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'manual-payment')
+      return next
+    })
+  }
+  function closeManualPaymentModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+  function openPackageRefundModal() {
+    setPkgActionsOpen(false)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'refund-package')
+      return next
+    })
+  }
+  function closePackageRefundModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+  function handleManualPayment() {
+    closeManualPaymentModal()
+    setLinkToast('Payment recorded')
+    setTimeout(() => setLinkToast(null), 3000)
+  }
+  function handlePackageRefund() {
+    closePackageRefundModal()
+    setLinkToast('Refund processed')
+    setTimeout(() => setLinkToast(null), 3000)
+  }
   const [followupOpen, setFollowupOpen]       = useState(false)
   const [reopenOpen, setReopenOpen]           = useState(false)
   const [reopenToast, setReopenToast]         = useState(false)
@@ -2284,6 +2425,10 @@ export default function SalesLeadDetail() {
   const refundMenuRef = useRef(null)
   const [refundTarget, setRefundTarget]     = useState(null)
 
+  // Active Package Details card's "⋮" menu (Manual Payment / Refund)
+  const [pkgActionsOpen, setPkgActionsOpen] = useState(false)
+  const pkgActionsRef = useRef(null)
+
   // PROFORMA INVOICE — disabled per request (Package tab). Uncomment to re-enable.
   // const [piPreview, setPiPreview] = useState(null)
 
@@ -2319,6 +2464,24 @@ export default function SalesLeadDetail() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [actionsOpen])
+
+  // Close Active Package Details' "⋮" menu (Manual Payment / Refund) on
+  // outside click or Escape
+  useEffect(() => {
+    if (!pkgActionsOpen) return
+    function handleClick(e) {
+      if (!pkgActionsRef.current?.contains(e.target)) setPkgActionsOpen(false)
+    }
+    function handleKey(e) {
+      if (e.key === 'Escape') setPkgActionsOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [pkgActionsOpen])
 
   // Close the Payment table's "⋮" menu on outside click
   useEffect(() => {
@@ -3630,6 +3793,30 @@ export default function SalesLeadDetail() {
                             <Button size="sm" icon={<CreditCard size={13} />} onClick={handleSendPaymentLink}>
                               Send Payment Link
                             </Button>
+                            <div className="relative" ref={pkgActionsRef}>
+                              <button
+                                type="button"
+                                onClick={() => setPkgActionsOpen(v => !v)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                                title="More payment options"
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                              {pkgActionsOpen && (
+                                <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-44">
+                                  <button
+                                    onClick={openManualPaymentModal}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                                    <Banknote size={13} className="text-gray-400 shrink-0" /> Manual Payment
+                                  </button>
+                                  <button
+                                    onClick={openPackageRefundModal}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                                    <RotateCcw size={13} className="text-gray-400 shrink-0" /> Refund
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             {customerType !== 'Residential' && (
                               <Button size="sm" icon={<FileText size={13} />} onClick={() => setQuotationOpen(true)}>
                                 Generate Quotation
@@ -4052,6 +4239,16 @@ export default function SalesLeadDetail() {
         onClose={() => setRefundTarget(null)}
         payment={refundTarget}
         onConfirm={handleConfirmRefund}
+      />
+      <ManualPaymentModal
+        isOpen={manualPaymentModalOpen}
+        onClose={closeManualPaymentModal}
+        onSave={handleManualPayment}
+      />
+      <PackageRefundModal
+        isOpen={packageRefundModalOpen}
+        onClose={closePackageRefundModal}
+        onConfirm={handlePackageRefund}
       />
       <HardwareAssignmentModal
         isOpen={hwModalOpen}
