@@ -947,9 +947,17 @@ export default function AreaMapping() {
   const [toast, setToast]   = useState(null)
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef(null)
 
   useEffect(() => subscribeAreas(setAreas), [])
   useEffect(() => subscribeHierarchy(() => setTick(t => t + 1)), [])
+  useEffect(() => { if (searchOpen) searchInputRef.current?.focus() }, [searchOpen])
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setSearch('')
+  }
 
   const tree = buildTree(areas)
   const trimmedSearch = search.trim()
@@ -1048,26 +1056,40 @@ export default function AreaMapping() {
 
         {/* Left: Hierarchy tree */}
         <div className="w-[360px] min-w-[320px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Hierarchy</p>
+          <div className="flex items-center px-2 mb-2 h-7">
+            <p className={`text-xs font-semibold text-gray-400 uppercase tracking-wide transition-opacity duration-200 ${searchOpen ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'}`}>
+              Hierarchy
+            </p>
 
-          <div className="relative px-2 mb-2">
-            <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search state, district, area..."
-              className="pl-8 pr-7 py-1.5 text-sm border border-surface-border rounded-lg bg-gray-50 w-full
-                focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white
-                placeholder-gray-400"
-            />
-            {isSearching && (
+            <div className={`relative transition-all duration-200 ease-out overflow-hidden ${searchOpen ? 'flex-1 opacity-100' : 'w-0 opacity-0'}`}>
+              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') closeSearch() }}
+                placeholder="Search state, district, area..."
+                className="pl-7 pr-7 py-1.5 text-sm border border-surface-border rounded-lg bg-gray-50 w-full
+                  focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white
+                  placeholder-gray-400"
+              />
               <button
-                onClick={() => setSearch('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                title="Clear search"
+                onClick={closeSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Close search"
               >
                 <X size={14} />
+              </button>
+            </div>
+
+            {!searchOpen && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="ml-auto w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors shrink-0"
+                title="Search hierarchy"
+              >
+                <Search size={14} />
               </button>
             )}
           </div>
