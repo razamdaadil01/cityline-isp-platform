@@ -6,7 +6,6 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Button from '../components/ui/Button'
-import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import {
@@ -80,8 +79,13 @@ function truncLabel(label) {
   return label.length > 25 ? label.slice(0, 22) + '…' : label
 }
 
-// Flat, editable rows for the landing tab list (State/District/Area/Locality levels).
-function listItemsForTab(tab) {
+// Flat, editable rows for the landing tab (one per hierarchy level, plus Sub Locality).
+function listItemsForTab(tab, areas) {
+  if (tab === 'Sub Locality') {
+    return areas.map(a => ({
+      key: a.id, name: a.subLocality, meta: `${a.locality} · ${a.area} · ${a.district}`, edit: a,
+    }))
+  }
   if (tab === 'State') {
     return getStates().map(s => ({ key: s, name: s, meta: '', edit: { type: 'State', name: s } }))
   }
@@ -539,7 +543,7 @@ function BulkUploadModal({ isOpen, onClose, onSuccess }) {
 
 // ── Area Form ─────────────────────────────────────────────────────────────────
 
-function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTab, onTabChange }) {
+function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTab, onTabChange, hideBackLink = false }) {
   const isEdit  = !!initial
   const isHEdit = !!hierarchyEdit
 
@@ -560,15 +564,17 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       ? { state: hierarchyEdit.state, district: hierarchyEdit.district, name: hierarchyEdit.name }
       : { state: '', district: '', name: '' }
   )
-  const [lf, setLf] = useState(
-    isHEdit && hierarchyEdit.type === 'Locality'
-      ? {
-          state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name,
-          siteType: 'FTTH', branchCode: '',
-          intercomSite: !!getLocalityInfo(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, hierarchyEdit.name)?.intercomSite,
-        }
-      : { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '', intercomSite: false }
-  )
+  const [lf, setLf] = useState(() => {
+    if (isHEdit && hierarchyEdit.type === 'Locality') {
+      const info = getLocalityInfo(hierarchyEdit.state, hierarchyEdit.district, hierarchyEdit.area, hierarchyEdit.name)
+      return {
+        state: hierarchyEdit.state, district: hierarchyEdit.district, area: hierarchyEdit.area, name: hierarchyEdit.name,
+        siteType: info?.siteType || 'FTTH', branchCode: info?.branchCode || '',
+        intercomSite: !!info?.intercomSite,
+      }
+    }
+    return { state: '', district: '', area: '', name: '', siteType: 'FTTH', branchCode: '', intercomSite: false }
+  })
   const [slForm, setSlForm] = useState(isEdit ? {
     id:          initial.id,
     state:       initial.state,
@@ -692,7 +698,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
   return (
     <div className="flex flex-col h-full">
       {/* Back to list — only when editing an existing hierarchy/sub-locality item */}
-      {isAnyEdit && (
+      {isAnyEdit && !hideBackLink && (
         <div className="px-5 pt-4 shrink-0">
           <button
             onClick={onCancel}
@@ -1005,6 +1011,8 @@ export default function AreaMapping() {
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef(null)
   const [listTab, setListTab] = useState('State')
+  const [landingSelection, setLandingSelection] = useState({})
+  const [landingResetTick, setLandingResetTick] = useState(0)
 
   useEffect(() => subscribeAreas(setAreas), [])
   useEffect(() => subscribeHierarchy(() => setTick(t => t + 1)), [])
@@ -1029,6 +1037,11 @@ export default function AreaMapping() {
     if (!activeUrlTab) setShowForm(false)
     setEditItem(null)
     setHierarchyEditItem(null)
+  }
+
+  // Landing form's "Cancel" — discards in-progress edits by remounting with fresh store data.
+  function cancelLandingEdit() {
+    setLandingResetTick(t => t + 1)
   }
 
   function handleSave(form) {
@@ -1075,8 +1088,9 @@ export default function AreaMapping() {
     showToast(`${type} deleted`)
   }
 
-  const feasVariant = { Feasible: 'green', 'Not Feasible': 'red', Pending: 'yellow' }
-  const listItems = listTab === 'Sub Locality' ? [] : listItemsForTab(listTab)
+  const landingItems = listItemsForTab(listTab, areas)
+  const landingKey = landingSelection[listTab] ?? landingItems[0]?.key ?? ''
+  const landingItem = landingItems.find(i => i.key === landingKey) ?? landingItems[0] ?? null
 
   const formKey = editItem?.id
     ?? (hierarchyEditItem ? `${hierarchyEditItem.type}-${hierarchyEditItem.name}` : 'new')
@@ -1231,7 +1245,7 @@ export default function AreaMapping() {
             />
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Landing tabs — edit-only browse of each hierarchy level */}
+              {/* Landing tabs — edit-only, one form per hierarchy level */}
               <div className="flex border-b border-surface-border px-6 pt-5 gap-0.5 shrink-0 bg-white">
                 {LANDING_TABS.map(t => (
                   <button
@@ -1248,100 +1262,53 @@ export default function AreaMapping() {
                 ))}
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6">
-                {listTab === 'Sub Locality' ? (
-                  <>
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-4 mb-6">
-                      {[
-                        { label: 'Total Sub Localities', value: areas.length,                                            color: 'text-brand-blue'  },
-                        { label: 'Feasible',              value: areas.filter(a => a.feasibility === 'Feasible').length, color: 'text-emerald-600' },
-                        { label: 'Pending Feasibility',   value: areas.filter(a => a.feasibility === 'Pending').length,  color: 'text-amber-600'   },
-                      ].map(s => (
-                        <div key={s.label} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                          <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                          <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-                        </div>
+              {landingItems.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <MapPin size={28} className="mx-auto mb-2 opacity-30" />
+                    <p className="text-sm">No entries yet. Use "Bulk Upload" to get started.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Entry selector — switch which existing item this tab edits, no list view */}
+                  <div className="px-5 pt-4 flex items-center gap-2 shrink-0">
+                    <label className="text-xs font-medium text-gray-500 shrink-0">Editing:</label>
+                    <select
+                      value={landingItem?.key ?? ''}
+                      onChange={e => setLandingSelection(s => ({ ...s, [listTab]: e.target.value }))}
+                      className="text-xs border border-surface-border rounded-lg px-2.5 py-1.5 bg-white text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                    >
+                      {landingItems.map(i => (
+                        <option key={i.key} value={i.key}>{i.name}{i.meta ? ` — ${i.meta}` : ''}</option>
                       ))}
-                    </div>
+                    </select>
+                  </div>
 
-                    {/* Table */}
-                    <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
-                      <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        <span>Location</span>
-                        <span>Branch Code</span>
-                        <span>Site Type</span>
-                        <span>Feasibility</span>
-                        <span>Actions</span>
-                      </div>
-                      {areas.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
-                          <MapPin size={28} className="mx-auto mb-2 opacity-30" />
-                          <p className="text-sm">No sub localities yet. Use "Bulk Upload" to get started.</p>
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-surface-border">
-                          {areas.map(a => (
-                            <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-gray-800">{a.subLocality}</p>
-                                <p className="text-xs text-gray-400">{a.locality} · {a.area} · {a.district}</p>
-                              </div>
-                              <span className="text-sm font-mono text-gray-700">{a.branchCode}</span>
-                              <Badge variant="blue" size="sm">{a.siteType}</Badge>
-                              <Badge variant={feasVariant[a.feasibility] || 'gray'} size="sm">{a.feasibility}</Badge>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleEdit(a)}
-                                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                                >
-                                  <Edit2 size={13} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(a.id, a.subLocality)}
-                                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
-                    <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      {LANDING_TABS.find(t => t.key === listTab)?.label}
-                    </div>
-                    {listItems.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400">
-                        <MapPin size={28} className="mx-auto mb-2 opacity-30" />
-                        <p className="text-sm">No entries yet.</p>
-                      </div>
+                  <div className="flex-1 overflow-hidden">
+                    {listTab === 'Sub Locality' ? (
+                      <AreaForm
+                        key={`landing-SubLocality-${landingItem?.key}-${landingResetTick}`}
+                        initial={landingItem?.edit ?? null}
+                        onSave={handleSave}
+                        onCancel={cancelLandingEdit}
+                        onToast={showToast}
+                        hideBackLink
+                      />
                     ) : (
-                      <div className="divide-y divide-surface-border">
-                        {listItems.map(item => (
-                          <div key={item.key} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-800">{item.name}</p>
-                              {item.meta && <p className="text-xs text-gray-400">{item.meta}</p>}
-                            </div>
-                            <button
-                              onClick={() => handleHierarchyEdit(item.edit)}
-                              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
-                              title="Edit"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      <AreaForm
+                        key={`landing-${listTab}-${landingItem?.key}-${landingResetTick}`}
+                        hierarchyEdit={landingItem?.edit ?? null}
+                        onSave={handleSave}
+                        onCancel={cancelLandingEdit}
+                        onToast={showToast}
+                        hideBackLink
+                      />
                     )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           )}
         </div>
