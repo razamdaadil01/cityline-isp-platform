@@ -156,7 +156,23 @@ function makeCustomerFromBase(id) {
     profilePicture: base.profilePicture,
     sourceLeadId: base.sourceLeadId ?? null,
     ...(isCorporate
-      ? { customerType: 'Corporate', gstNo: base.gstNo ?? '—', gstVerified: !!base.gstVerified }
+      ? {
+          customerType: 'Corporate',
+          gstNo: base.gstNo ?? '—',
+          gstVerified: !!base.gstVerified,
+          // Legal Company Name/Contact Person/GST Type/Accounts & Technical
+          // Contact — only ever present on customers converted from a Won
+          // Corporate lead (leadConversion.js) or a base record that's had
+          // them added directly; passed through as-is like address/
+          // connection/sales below, since InfoField already renders a
+          // missing value as "—".
+          companyName: base.companyName,
+          contactPersonName: base.contactPersonName,
+          contactPersonEmail: base.contactPersonEmail,
+          gstType: base.gstType,
+          accountsContact: base.accountsContact,
+          technicalContact: base.technicalContact,
+        }
       : (base.customerType ? { customerType: base.customerType } : {})),
     status: base.status,
     online: base.status === 'active',
@@ -393,6 +409,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const conn  = cust.connection ?? {}
   const sales = cust.sales ?? {}
   const kyc   = cust.kyc ?? {}
+  const isCorporate = cust.customerType === 'Corporate'
 
   /* ── Save helpers ── */
   function saveP1() {
@@ -435,15 +452,30 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
         <Card>
           <CardHeader title="Personal Details" action={
             !p1.editing
-              ? editBtn(() => startEdit(setP1, { name: cust.name, sonOf: cust.sonOf, dob: cust.dob, gender: cust.gender, customerType: cust.customerType, gstNo: cust.gstNo, panCard: cust.panCard, createdOn: cust.createdOn }))
+              ? editBtn(() => startEdit(setP1, {
+                  name: cust.name, sonOf: cust.sonOf, dob: cust.dob, gender: cust.gender,
+                  customerType: cust.customerType, gstNo: cust.gstNo, panCard: cust.panCard, createdOn: cust.createdOn,
+                  companyName: cust.companyName, contactPersonName: cust.contactPersonName,
+                  contactPersonEmail: cust.contactPersonEmail, gstType: cust.gstType,
+                }))
               : null
           } />
           {!p1.editing ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-              <InfoField label="Full Name"      value={cust.name} />
-              <InfoField label="S/o (Son of)"   value={cust.sonOf} />
-              <InfoField label="Date of Birth"  value={cust.dob} />
-              <InfoField label="Gender"         value={cust.gender} />
+              {isCorporate ? (
+                <>
+                  <InfoField label="Legal Company Name" value={cust.companyName} />
+                  <InfoField label="Contact Person Name"  value={cust.contactPersonName} />
+                  <InfoField label="Contact Person Email" value={cust.contactPersonEmail} />
+                </>
+              ) : (
+                <>
+                  <InfoField label="Full Name"      value={cust.name} />
+                  <InfoField label="S/o (Son of)"   value={cust.sonOf} />
+                  <InfoField label="Date of Birth"  value={cust.dob} />
+                  <InfoField label="Gender"         value={cust.gender} />
+                </>
+              )}
               <InfoField label="Customer Type"  value={cust.customerType} />
               <InfoField label="GST No." value={cust.gstNo} mono>
                 {cust.customerType === 'Corporate' && (
@@ -455,18 +487,32 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                   </span>
                 )}
               </InfoField>
+              {isCorporate && <InfoField label="GST Type" value={cust.gstType} />}
               <InfoField label="PAN Card"       value={cust.panCard} mono />
               <InfoField label="Customer Since" value={cust.createdOn} />
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
-                <EF label="Full Name"     value={p1.draft.name}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, name: v } }))} />
-                <EF label="S/o (Son of)" value={p1.draft.sonOf}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, sonOf: v } }))} />
-                <EF label="Date of Birth" value={p1.draft.dob}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, dob: v } }))} />
-                <ESelect label="Gender"   value={p1.draft.gender}       onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gender: v } }))} options={['Male', 'Female', 'Other']} />
+                {isCorporate ? (
+                  <>
+                    <EF label="Legal Company Name"    value={p1.draft.companyName}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, companyName: v } }))} />
+                    <EF label="Contact Person Name"    value={p1.draft.contactPersonName}   onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, contactPersonName: v } }))} />
+                    <EF label="Contact Person Email"   value={p1.draft.contactPersonEmail}  onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, contactPersonEmail: v } }))} type="email" />
+                  </>
+                ) : (
+                  <>
+                    <EF label="Full Name"     value={p1.draft.name}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, name: v } }))} />
+                    <EF label="S/o (Son of)" value={p1.draft.sonOf}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, sonOf: v } }))} />
+                    <EF label="Date of Birth" value={p1.draft.dob}         onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, dob: v } }))} />
+                    <ESelect label="Gender"   value={p1.draft.gender}       onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gender: v } }))} options={['Male', 'Female', 'Other']} />
+                  </>
+                )}
                 <ESelect label="Customer Type" value={p1.draft.customerType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, customerType: v } }))} options={['Individual', 'Corporate']} />
                 <EF label="GST No."       value={p1.draft.gstNo}        onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstNo: v } }))} mono />
+                {isCorporate && (
+                  <ESelect label="GST Type" value={p1.draft.gstType} onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, gstType: v } }))} options={['Regular', 'Composition']} />
+                )}
                 <EF label="PAN Card"      value={p1.draft.panCard}      onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, panCard: v } }))} mono />
                 <EF label="Customer Since" value={p1.draft.createdOn}   onChange={v => setP1(s => ({ ...s, draft: { ...s.draft, createdOn: v } }))} />
               </div>
@@ -501,6 +547,26 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
             </>
           )}
         </Card>
+
+        {/* Business Contacts — Corporate customers only */}
+        {isCorporate && (
+          <Card>
+            <CardHeader title="Business Contacts" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Accounts Contact</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-5">
+              <InfoField label="Name"  value={cust.accountsContact?.name} />
+              <InfoField label="Email" value={cust.accountsContact?.email} />
+              <InfoField label="Phone" value={cust.accountsContact?.phone} />
+            </div>
+            <div className="border-t border-surface-border my-4" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Technical Contact</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+              <InfoField label="Name"  value={cust.technicalContact?.name} />
+              <InfoField label="Email" value={cust.technicalContact?.email} />
+              <InfoField label="Phone" value={cust.technicalContact?.phone} />
+            </div>
+          </Card>
+        )}
 
         {/* SECTION 3 — Connection Details */}
         <Card>
