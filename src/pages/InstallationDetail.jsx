@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CalendarDays, Package, Wrench,
-  ChevronRight, ChevronDown, Plus, Trash2, CheckCircle2, Users, Truck,
-  RefreshCw, XCircle, Play, AlertTriangle, Clock,
+  ChevronRight, Plus, Trash2, CheckCircle2, Users, Truck,
+  RefreshCw, XCircle, Play, AlertTriangle, Clock, ExternalLink,
 } from 'lucide-react'
 import {
   getInstallations, saveInstallation, subscribeInstallations,
@@ -80,16 +80,24 @@ function SectionCard({ title, icon: Icon, iconBg, iconColor, children, action })
   )
 }
 
-// Collapse/expand chevron for the Card/CardHeader-based cards below — matches
-// Lead Detail's Basic Details card header exactly (SalesLeadDetail.jsx's
-// CardCollapseToggle): plain bold title + this chevron, no icon.
-function CardCollapseToggle({ collapsed, onClick }) {
+// Address Details' header-action Google Maps link — same technique as
+// FeasibilityDetail.jsx's GoogleMapsLink (google.com/maps/search deep link,
+// same icon/label styling, opens in a new tab), but built from the address
+// text fields since installation records don't carry GPS coordinates the
+// way feasibility requests do.
+function GoogleMapsLink({ inst }) {
+  const query = [inst.address, inst.locality, inst.area, inst.city, inst.pincode].filter(Boolean).join(', ')
+  if (!query) return null
+
   return (
-    <button type="button" onClick={onClick}
-      className="text-gray-400 hover:text-gray-600 transition-colors"
-      title={collapsed ? 'Expand' : 'Collapse'}>
-      <ChevronDown size={16} className={`transition-transform ${collapsed ? '' : 'rotate-180'}`} />
-    </button>
+    <a
+      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:underline shrink-0"
+    >
+      View on Google Map <ExternalLink size={12} />
+    </a>
   )
 }
 
@@ -403,19 +411,6 @@ export default function InstallationDetail() {
   const [noteText, setNoteText] = useState('')
   const [toast, setToast] = useState('')
 
-  // Main-content cards (Customer/Address/Team Details, Hardware Requirements,
-  // Notes) can each be collapsed independently — expanded by default, same
-  // pattern as Lead Detail's Overview tab cards.
-  const [collapsedCards, setCollapsedCards] = useState(new Set())
-  function toggleCardCollapsed(key) {
-    setCollapsedCards(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
   /* Modal open state */
   const [assignOpen,    setAssignOpen]    = useState(false)
   const [reschedOpen,   setReschedOpen]   = useState(false)
@@ -586,147 +581,129 @@ export default function InstallationDetail() {
 
           {/* Customer Details */}
           <Card className="px-4">
-            <CardHeader title="Customer Details" action={
-              <CardCollapseToggle collapsed={collapsedCards.has('customer')} onClick={() => toggleCardCollapsed('customer')} />
-            } />
-            {!collapsedCards.has('customer') && (
-              <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                <InfoCell label="Customer Name" value={inst.customerName} />
-                <InfoCell label="Phone">
-                  <a href={`tel:${inst.customerPhone}`} className="text-brand-blue hover:underline font-medium">{inst.customerPhone}</a>
+            <CardHeader title="Customer Details" />
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              <InfoCell label="Customer Name" value={inst.customerName} />
+              <InfoCell label="Phone">
+                <a href={`tel:${inst.customerPhone}`} className="text-brand-blue hover:underline font-medium">{inst.customerPhone}</a>
+              </InfoCell>
+              <InfoCell label="Plan" value={inst.plan} />
+              <InfoCell label="Priority">
+                <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  inst.priority === 'High'   ? 'bg-red-100 text-red-600' :
+                  inst.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                                               'bg-gray-100 text-gray-500'}`}>
+                  {inst.priority || '—'}
+                </span>
+              </InfoCell>
+              <InfoCell label="Branch" value={inst.branch} />
+              <InfoCell label="Created On" value={formatDate(inst.createdAt)} />
+              <InfoCell label="Created By" value={inst.createdBy} />
+              {inst.leadId && (
+                <InfoCell label="Lead ID">
+                  <Link to={`/sales/leads/${inst.leadId}/overview`}
+                    className="text-brand-blue hover:underline font-medium inline-flex items-center gap-1">
+                    {inst.leadId} <ChevronRight size={12} />
+                  </Link>
                 </InfoCell>
-                <InfoCell label="Plan" value={inst.plan} />
-                <InfoCell label="Priority">
-                  <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    inst.priority === 'High'   ? 'bg-red-100 text-red-600' :
-                    inst.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                                                 'bg-gray-100 text-gray-500'}`}>
-                    {inst.priority || '—'}
-                  </span>
+              )}
+              {inst.customerId && (
+                <InfoCell label="Customer">
+                  <Link to={`/customers/${inst.customerId}/profile`}
+                    className="text-brand-blue hover:underline font-medium inline-flex items-center gap-1">
+                    {inst.customerId} <ChevronRight size={12} />
+                  </Link>
                 </InfoCell>
-                <InfoCell label="Branch" value={inst.branch} />
-                <InfoCell label="Created On" value={formatDate(inst.createdAt)} />
-                <InfoCell label="Created By" value={inst.createdBy} />
-                {inst.leadId && (
-                  <InfoCell label="Lead ID">
-                    <Link to={`/sales/leads/${inst.leadId}/overview`}
-                      className="text-brand-blue hover:underline font-medium inline-flex items-center gap-1">
-                      {inst.leadId} <ChevronRight size={12} />
-                    </Link>
-                  </InfoCell>
-                )}
-                {inst.customerId && (
-                  <InfoCell label="Customer">
-                    <Link to={`/customers/${inst.customerId}/profile`}
-                      className="text-brand-blue hover:underline font-medium inline-flex items-center gap-1">
-                      {inst.customerId} <ChevronRight size={12} />
-                    </Link>
-                  </InfoCell>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </Card>
 
           {/* Address Details */}
           <Card className="px-4">
-            <CardHeader title="Address Details" action={
-              <CardCollapseToggle collapsed={collapsedCards.has('address')} onClick={() => toggleCardCollapsed('address')} />
-            } />
-            {!collapsedCards.has('address') && (
-              <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                <InfoCell label="Address"  value={inst.address} />
-                <InfoCell label="Locality" value={inst.locality} />
-                <InfoCell label="Area"     value={inst.area} />
-                <InfoCell label="City"     value={inst.city} />
-                <InfoCell label="Pincode"  value={inst.pincode} />
-              </div>
-            )}
+            <CardHeader title="Address Details" action={<GoogleMapsLink inst={inst} />} />
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              <InfoCell label="Address"  value={inst.address} />
+              <InfoCell label="Locality" value={inst.locality} />
+              <InfoCell label="Area"     value={inst.area} />
+              <InfoCell label="City"     value={inst.city} />
+              <InfoCell label="Pincode"  value={inst.pincode} />
+            </div>
           </Card>
 
           {/* Team Details (if assigned) */}
           {hasTeam && (
             <Card className="px-4">
               <CardHeader title="Team Details" action={
-                <div className="flex items-center gap-3">
-                  {!isDone && (
-                    <button onClick={() => setAssignOpen(true)}
-                      className="text-xs text-brand-blue hover:underline font-medium">
-                      Reassign
-                    </button>
-                  )}
-                  <CardCollapseToggle collapsed={collapsedCards.has('team')} onClick={() => toggleCardCollapsed('team')} />
-                </div>
+                !isDone && (
+                  <button onClick={() => setAssignOpen(true)}
+                    className="text-xs text-brand-blue hover:underline font-medium">
+                    Reassign
+                  </button>
+                )
               } />
-              {!collapsedCards.has('team') && (
-                <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-                  <InfoCell label="Installation Team"   value={inst.assignedTeam} />
-                  <InfoCell label="Assigned Engineer(s)" value={inst.engineerName} />
-                  <InfoCell label="Installation Date"   value={formatSlotDate(inst.slotDate)} />
-                  <InfoCell label="Installation Slot">
-                    {inst.slot && (
-                      <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        inst.slot === 'Morning'   ? 'bg-yellow-50 text-yellow-700' :
-                        inst.slot === 'Afternoon' ? 'bg-orange-50 text-orange-600' :
-                                                    'bg-indigo-50 text-indigo-600'}`}>
-                        {inst.slot}
-                      </span>
-                    )}
-                  </InfoCell>
-                  {inst.timeline?.filter(t => t.status === 'Assigned').slice(-1).map((t, i) => (
-                    <InfoCell key={i} label="Assigned By" value={`${t.by} · ${formatDate(t.date)}`} />
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                <InfoCell label="Installation Team"   value={inst.assignedTeam} />
+                <InfoCell label="Assigned Engineer(s)" value={inst.engineerName} />
+                <InfoCell label="Installation Date"   value={formatSlotDate(inst.slotDate)} />
+                <InfoCell label="Installation Slot">
+                  {inst.slot && (
+                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      inst.slot === 'Morning'   ? 'bg-yellow-50 text-yellow-700' :
+                      inst.slot === 'Afternoon' ? 'bg-orange-50 text-orange-600' :
+                                                  'bg-indigo-50 text-indigo-600'}`}>
+                      {inst.slot}
+                    </span>
+                  )}
+                </InfoCell>
+                {inst.timeline?.filter(t => t.status === 'Assigned').slice(-1).map((t, i) => (
+                  <InfoCell key={i} label="Assigned By" value={`${t.by} · ${formatDate(t.date)}`} />
+                ))}
+              </div>
             </Card>
           )}
 
           {/* Hardware Requirements */}
           <Card className="px-4">
             <CardHeader title="Hardware Requirements" action={
-              <div className="flex items-center gap-3">
+              !isDone && (
+                <button onClick={() => setHwOpen(true)}
+                  className="flex items-center gap-1 text-xs text-brand-blue hover:underline font-medium">
+                  <Plus size={11} /> Add Hardware
+                </button>
+              )
+            } />
+            {allHwItems.length === 0 ? (
+              <div className="text-center py-5">
+                <Package size={20} className="mx-auto text-gray-200 mb-2" />
+                <p className="text-xs text-gray-400">No hardware requirements added</p>
                 {!isDone && (
                   <button onClick={() => setHwOpen(true)}
-                    className="flex items-center gap-1 text-xs text-brand-blue hover:underline font-medium">
-                    <Plus size={11} /> Add Hardware
+                    className="mt-2 text-xs text-brand-blue hover:underline font-medium">
+                    + Add hardware
                   </button>
                 )}
-                <CardCollapseToggle collapsed={collapsedCards.has('hardware')} onClick={() => toggleCardCollapsed('hardware')} />
               </div>
-            } />
-            {!collapsedCards.has('hardware') && (
-              allHwItems.length === 0 ? (
-                <div className="text-center py-5">
-                  <Package size={20} className="mx-auto text-gray-200 mb-2" />
-                  <p className="text-xs text-gray-400">No hardware requirements added</p>
-                  {!isDone && (
-                    <button onClick={() => setHwOpen(true)}
-                      className="mt-2 text-xs text-brand-blue hover:underline font-medium">
-                      + Add hardware
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="border border-surface-border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-surface-border text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                        <th className="px-3 py-2 text-left">Item Name</th>
-                        <th className="px-3 py-2 text-center">Qty</th>
-                        <th className="px-3 py-2 text-left">Unit</th>
+            ) : (
+              <div className="border border-surface-border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-surface-border text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                      <th className="px-3 py-2 text-left">Item Name</th>
+                      <th className="px-3 py-2 text-center">Qty</th>
+                      <th className="px-3 py-2 text-left">Unit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {allHwItems.map((h, i) => (
+                      <tr key={i} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-2 text-xs text-gray-800 font-medium">{h.name}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600 text-center">{h.qty}</td>
+                        <td className="px-3 py-2 text-xs text-gray-500">{h.unit || 'pcs'}</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-surface-border">
-                      {allHwItems.map((h, i) => (
-                        <tr key={i} className="hover:bg-gray-50/50">
-                          <td className="px-3 py-2 text-xs text-gray-800 font-medium">{h.name}</td>
-                          <td className="px-3 py-2 text-xs text-gray-600 text-center">{h.qty}</td>
-                          <td className="px-3 py-2 text-xs text-gray-500">{h.unit || 'pcs'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Card>
 
@@ -762,25 +739,19 @@ export default function InstallationDetail() {
 
           {/* Notes */}
           <Card className="px-4">
-            <CardHeader title="Notes" action={
-              <CardCollapseToggle collapsed={collapsedCards.has('notes')} onClick={() => toggleCardCollapsed('notes')} />
-            } />
-            {!collapsedCards.has('notes') && (
-              <>
-                {inst.notes ? (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">{inst.notes}</p>
-                ) : (
-                  <p className="text-xs text-gray-400 mb-3">No notes added yet.</p>
-                )}
-                {!isDone && (
-                  <div className="flex gap-2">
-                    <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
-                      placeholder="Add a note…" rows={2}
-                      className="flex-1 px-3 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none" />
-                    <Button size="sm" onClick={handleAddNote} disabled={!noteText.trim()}>Add</Button>
-                  </div>
-                )}
-              </>
+            <CardHeader title="Notes" />
+            {inst.notes ? (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap mb-3">{inst.notes}</p>
+            ) : (
+              <p className="text-xs text-gray-400 mb-3">No notes added yet.</p>
+            )}
+            {!isDone && (
+              <div className="flex gap-2">
+                <textarea value={noteText} onChange={e => setNoteText(e.target.value)}
+                  placeholder="Add a note…" rows={2}
+                  className="flex-1 px-3 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none" />
+                <Button size="sm" onClick={handleAddNote} disabled={!noteText.trim()}>Add</Button>
+              </div>
             )}
           </Card>
         </div>
