@@ -1045,7 +1045,7 @@ export default function Installations() {
         isOpen={!!netAssignInst}
         onClose={() => setNetAssignInst(null)}
         title={`Assign Team — ${netAssignInst?.id}`}
-        size="sm"
+        size="lg"
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setNetAssignInst(null)}>Cancel</Button>
           <Button size="sm" onClick={handleNetAssign} disabled={netAssignForm.engineers.length === 0}>
