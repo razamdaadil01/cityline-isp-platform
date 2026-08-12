@@ -272,17 +272,14 @@ export default function PackageAdd() {
           <div className="space-y-3">
 
             {[
-              { key: 'editable', val: editable, set: setEditable, icon: '✏️', title: 'Is Package Editable?',        desc: 'Allow sales team to modify price during lead stage. If Yes → approval flow triggered' },
-              { key: 'landline', val: landline, set: setLandline, icon: '📞', title: 'Landline Number Applicable?', desc: 'Does this package support landline/VOIP assignment? If Yes → shown in lead form' },
-              { key: 'offer',    val: offer,    set: setOffer,    icon: '🎁', title: 'Is Offer Package?',           desc: 'Mark as introductory/special offer. Applicable once per customer only' },
+              { key: 'editable', val: editable, set: setEditable, icon: '✏️', title: 'Is Package Editable?' },
+              { key: 'landline', val: landline, set: setLandline, icon: '📞', title: 'Landline Number Applicable?' },
+              { key: 'offer',    val: offer,    set: setOffer,    icon: '🎁', title: 'Is Offer Package?' },
             ].map(opt => (
-              <div key={opt.key} className="flex items-start justify-between p-4 border border-gray-200 rounded-xl gap-3">
-                <div className="flex items-start gap-3">
-                  <span className="text-xl leading-none mt-0.5">{opt.icon}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{opt.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
-                  </div>
+              <div key={opt.key} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl leading-none">{opt.icon}</span>
+                  <p className="text-sm font-semibold text-gray-800">{opt.title}</p>
                 </div>
                 <Toggle value={opt.val} onChange={opt.set} />
               </div>
