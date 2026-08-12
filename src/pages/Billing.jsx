@@ -561,13 +561,6 @@ export default function Billing() {
         />
       ) : (
         <>
-          {/* ── Totals ── */}
-          <div className="text-xs text-gray-700 font-medium">
-            Admin Total: <span className="text-gray-900 font-bold">₹88,646.00</span>
-            <span className="mx-3 text-gray-300">|</span>
-            Reseller Total: <span className="text-gray-900 font-bold">₹0.00</span>
-          </div>
-
           {/* ── Search + Quick filters (same row) ── */}
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
@@ -599,19 +592,19 @@ export default function Billing() {
           {/* ── Table ── */}
           <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50/60">
                     <th className="px-3 py-3 w-8">
                       <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300 cursor-pointer" />
                     </th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">RECHARGE STATUS</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">USER/LINK ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">RECHARGE STATUS</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">USER/LINK ID</th>
                     {activeTab === 'tax-invoice' && (
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">INVOICE</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">INVOICE</th>
                     )}
                     {['PACKAGE', 'AMOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
-                      <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -621,15 +614,15 @@ export default function Billing() {
                       <td className="px-3 py-3">
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-6 py-3">
                         <RechargeStatusMiniTable internet={row.rechargeInternet} ott={row.rechargeOtt} />
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-6 py-3">
                         <a href="#" className="text-xs text-brand-blue font-semibold hover:underline">{row.userId}({row.userLink})</a>
                         <p className="text-xs text-gray-500 mt-0.5">{row.customerName}</p>
                       </td>
                       {activeTab === 'tax-invoice' && (
-                        <td className="px-3 py-3">
+                        <td className="px-6 py-3">
                           <button
                             onClick={() => navigate(`/billing/invoice/${encodeURIComponent(row.invoiceNo)}`)}
                             className="text-xs text-brand-blue font-semibold hover:underline whitespace-nowrap text-left"
@@ -638,19 +631,19 @@ export default function Billing() {
                           </button>
                         </td>
                       )}
-                      <td className="px-3 py-3 text-xs text-gray-700 max-w-[160px]">
+                      <td className="px-6 py-3 text-xs text-gray-700 max-w-[160px]">
                         <span className="line-clamp-2">{row.package}</span>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-6 py-3">
                         <span className="inline-block bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded">{row.amount}</span>
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{row.invoiceDate}</td>
-                      <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-6 py-3 text-xs text-gray-500 whitespace-nowrap">{row.invoiceDate}</td>
+                      <td className="px-6 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {row.durationFrom}<br />{row.durationTo}
                       </td>
-                      <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
-                      <td className="px-3 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
-                      <td className="px-3 py-3">
+                      <td className="px-6 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
+                      <td className="px-6 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
+                      <td className="px-6 py-3">
                         <ActionsDropdown />
                       </td>
                     </tr>
