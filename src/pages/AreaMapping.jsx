@@ -983,7 +983,7 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
       <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-white flex items-center justify-end gap-3">
         <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
         <Button size="sm" icon={<Save size={13} />} onClick={saveHandler}>
-          {isAnyEdit ? 'Update' : 'Save'}
+          {isAnyEdit ? 'Add' : 'Save'}
         </Button>
       </div>
     </div>
@@ -1011,7 +1011,6 @@ export default function AreaMapping() {
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef(null)
   const [listTab, setListTab] = useState('State')
-  const [landingSelection, setLandingSelection] = useState({})
   const [landingResetTick, setLandingResetTick] = useState(0)
 
   useEffect(() => subscribeAreas(setAreas), [])
@@ -1089,8 +1088,7 @@ export default function AreaMapping() {
   }
 
   const landingItems = listItemsForTab(listTab, areas)
-  const landingKey = landingSelection[listTab] ?? landingItems[0]?.key ?? ''
-  const landingItem = landingItems.find(i => i.key === landingKey) ?? landingItems[0] ?? null
+  const landingItem = landingItems[0] ?? null
 
   const formKey = editItem?.id
     ?? (hierarchyEditItem ? `${hierarchyEditItem.type}-${hierarchyEditItem.name}` : 'new')
@@ -1270,44 +1268,27 @@ export default function AreaMapping() {
                   </div>
                 </div>
               ) : (
-                <>
-                  {/* Entry selector — switch which existing item this tab edits, no list view */}
-                  <div className="px-5 pt-4 flex items-center gap-2 shrink-0">
-                    <label className="text-xs font-medium text-gray-500 shrink-0">Editing:</label>
-                    <select
-                      value={landingItem?.key ?? ''}
-                      onChange={e => setLandingSelection(s => ({ ...s, [listTab]: e.target.value }))}
-                      className="text-xs border border-surface-border rounded-lg px-2.5 py-1.5 bg-white text-gray-800
-                        focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-                    >
-                      {landingItems.map(i => (
-                        <option key={i.key} value={i.key}>{i.name}{i.meta ? ` — ${i.meta}` : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex-1 overflow-hidden">
-                    {listTab === 'Sub Locality' ? (
-                      <AreaForm
-                        key={`landing-SubLocality-${landingItem?.key}-${landingResetTick}`}
-                        initial={landingItem?.edit ?? null}
-                        onSave={handleSave}
-                        onCancel={cancelLandingEdit}
-                        onToast={showToast}
-                        hideBackLink
-                      />
-                    ) : (
-                      <AreaForm
-                        key={`landing-${listTab}-${landingItem?.key}-${landingResetTick}`}
-                        hierarchyEdit={landingItem?.edit ?? null}
-                        onSave={handleSave}
-                        onCancel={cancelLandingEdit}
-                        onToast={showToast}
-                        hideBackLink
-                      />
-                    )}
-                  </div>
-                </>
+                <div className="flex-1 overflow-hidden">
+                  {listTab === 'Sub Locality' ? (
+                    <AreaForm
+                      key={`landing-SubLocality-${landingItem?.key}-${landingResetTick}`}
+                      initial={landingItem?.edit ?? null}
+                      onSave={handleSave}
+                      onCancel={cancelLandingEdit}
+                      onToast={showToast}
+                      hideBackLink
+                    />
+                  ) : (
+                    <AreaForm
+                      key={`landing-${listTab}-${landingItem?.key}-${landingResetTick}`}
+                      hierarchyEdit={landingItem?.edit ?? null}
+                      onSave={handleSave}
+                      onCancel={cancelLandingEdit}
+                      onToast={showToast}
+                      hideBackLink
+                    />
+                  )}
+                </div>
               )}
             </div>
           )}
