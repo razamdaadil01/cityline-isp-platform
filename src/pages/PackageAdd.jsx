@@ -267,7 +267,7 @@ export default function PackageAdd() {
         </div>
 
         {/* ── RIGHT PANEL (40%) ────────────────────────────────── */}
-        <div className="flex-[2] min-w-0 bg-white rounded-xl border border-surface-border shadow-card p-6">
+        <div className="flex-[2] min-w-0 self-start bg-white rounded-xl border border-surface-border shadow-card p-6">
           <p className={sectionLabel}>Settings</p>
           <div className="space-y-3">
 
