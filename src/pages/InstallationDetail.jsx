@@ -79,11 +79,17 @@ function SectionCard({ title, icon: Icon, iconBg, iconColor, children, action })
   )
 }
 
-function InfoRow({ label, value, children }) {
+// Grid-cell field — label above value — matching the pattern already used
+// for Lead Detail's Basic/Customer/Address Details cards (SalesLeadDetail.jsx's
+// InfoCell): two cells side by side per row via a `grid grid-cols-2` wrapper
+// on the caller's side.
+function InfoCell({ label, value, children, className = '' }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-      <span className="text-xs text-gray-500 shrink-0 w-40">{label}</span>
-      <span className="text-xs font-medium text-gray-800 text-right flex-1">{children ?? value ?? '—'}</span>
+    <div className={className}>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-xs font-medium mt-1 text-gray-800">
+        {children ?? value ?? <span className="text-gray-300 font-normal">—</span>}
+      </p>
     </div>
   )
 }
@@ -553,47 +559,51 @@ export default function InstallationDetail() {
 
           {/* Customer Details */}
           <SectionCard title="Customer Details" icon={User} iconBg="bg-brand-blue/10" iconColor="text-brand-blue">
-            <InfoRow label="Customer Name" value={inst.customerName} />
-            <InfoRow label="Phone">
-              <a href={`tel:${inst.customerPhone}`} className="text-brand-blue hover:underline font-medium">{inst.customerPhone}</a>
-            </InfoRow>
-            <InfoRow label="Plan" value={inst.plan} />
-            <InfoRow label="Priority">
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                inst.priority === 'High'   ? 'bg-red-100 text-red-600' :
-                inst.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                                             'bg-gray-100 text-gray-500'}`}>
-                {inst.priority || '—'}
-              </span>
-            </InfoRow>
-            <InfoRow label="Branch" value={inst.branch} />
-            <InfoRow label="Created On" value={formatDate(inst.createdAt)} />
-            <InfoRow label="Created By" value={inst.createdBy} />
-            {inst.leadId && (
-              <InfoRow label="Lead ID">
-                <Link to={`/sales/leads/${inst.leadId}/overview`}
-                  className="text-brand-blue hover:underline font-medium flex items-center justify-end gap-1">
-                  {inst.leadId} <ChevronRight size={12} />
-                </Link>
-              </InfoRow>
-            )}
-            {inst.customerId && (
-              <InfoRow label="Customer">
-                <Link to={`/customers/${inst.customerId}/profile`}
-                  className="text-brand-blue hover:underline font-medium flex items-center justify-end gap-1">
-                  {inst.customerId} <ChevronRight size={12} />
-                </Link>
-              </InfoRow>
-            )}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              <InfoCell label="Customer Name" value={inst.customerName} />
+              <InfoCell label="Phone">
+                <a href={`tel:${inst.customerPhone}`} className="text-brand-blue hover:underline font-medium">{inst.customerPhone}</a>
+              </InfoCell>
+              <InfoCell label="Plan" value={inst.plan} />
+              <InfoCell label="Priority">
+                <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  inst.priority === 'High'   ? 'bg-red-100 text-red-600' :
+                  inst.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                                               'bg-gray-100 text-gray-500'}`}>
+                  {inst.priority || '—'}
+                </span>
+              </InfoCell>
+              <InfoCell label="Branch" value={inst.branch} />
+              <InfoCell label="Created On" value={formatDate(inst.createdAt)} />
+              <InfoCell label="Created By" value={inst.createdBy} />
+              {inst.leadId && (
+                <InfoCell label="Lead ID">
+                  <Link to={`/sales/leads/${inst.leadId}/overview`}
+                    className="text-brand-blue hover:underline font-medium inline-flex items-center gap-1">
+                    {inst.leadId} <ChevronRight size={12} />
+                  </Link>
+                </InfoCell>
+              )}
+              {inst.customerId && (
+                <InfoCell label="Customer">
+                  <Link to={`/customers/${inst.customerId}/profile`}
+                    className="text-brand-blue hover:underline font-medium inline-flex items-center gap-1">
+                    {inst.customerId} <ChevronRight size={12} />
+                  </Link>
+                </InfoCell>
+              )}
+            </div>
           </SectionCard>
 
           {/* Address Details */}
           <SectionCard title="Address Details" icon={MapPin} iconBg="bg-emerald-50" iconColor="text-emerald-600">
-            <InfoRow label="Address"  value={inst.address} />
-            <InfoRow label="Locality" value={inst.locality} />
-            <InfoRow label="Area"     value={inst.area} />
-            <InfoRow label="City"     value={inst.city} />
-            <InfoRow label="Pincode"  value={inst.pincode} />
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              <InfoCell label="Address"  value={inst.address} />
+              <InfoCell label="Locality" value={inst.locality} />
+              <InfoCell label="Area"     value={inst.area} />
+              <InfoCell label="City"     value={inst.city} />
+              <InfoCell label="Pincode"  value={inst.pincode} />
+            </div>
           </SectionCard>
 
           {/* Team Details (if assigned) */}
@@ -608,22 +618,24 @@ export default function InstallationDetail() {
                 )
               }
             >
-              <InfoRow label="Installation Team"   value={inst.assignedTeam} />
-              <InfoRow label="Assigned Engineer(s)" value={inst.engineerName} />
-              <InfoRow label="Installation Date"   value={formatSlotDate(inst.slotDate)} />
-              <InfoRow label="Installation Slot">
-                {inst.slot && (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    inst.slot === 'Morning'   ? 'bg-yellow-50 text-yellow-700' :
-                    inst.slot === 'Afternoon' ? 'bg-orange-50 text-orange-600' :
-                                                'bg-indigo-50 text-indigo-600'}`}>
-                    {inst.slot}
-                  </span>
-                )}
-              </InfoRow>
-              {inst.timeline?.filter(t => t.status === 'Assigned').slice(-1).map((t, i) => (
-                <InfoRow key={i} label="Assigned By" value={`${t.by} · ${formatDate(t.date)}`} />
-              ))}
+              <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                <InfoCell label="Installation Team"   value={inst.assignedTeam} />
+                <InfoCell label="Assigned Engineer(s)" value={inst.engineerName} />
+                <InfoCell label="Installation Date"   value={formatSlotDate(inst.slotDate)} />
+                <InfoCell label="Installation Slot">
+                  {inst.slot && (
+                    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      inst.slot === 'Morning'   ? 'bg-yellow-50 text-yellow-700' :
+                      inst.slot === 'Afternoon' ? 'bg-orange-50 text-orange-600' :
+                                                  'bg-indigo-50 text-indigo-600'}`}>
+                      {inst.slot}
+                    </span>
+                  )}
+                </InfoCell>
+                {inst.timeline?.filter(t => t.status === 'Assigned').slice(-1).map((t, i) => (
+                  <InfoCell key={i} label="Assigned By" value={`${t.by} · ${formatDate(t.date)}`} />
+                ))}
+              </div>
             </SectionCard>
           )}
 
