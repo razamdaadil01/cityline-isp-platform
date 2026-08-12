@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, ChevronRight, ChevronDown, Edit2, Trash2, Save, MapPin, CheckCircle2,
-  Upload, Download, FileSpreadsheet, AlertTriangle, X, CheckCircle, XCircle,
+  Upload, Download, FileSpreadsheet, AlertTriangle, X, CheckCircle, XCircle, Search,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Button from '../components/ui/Button'
@@ -72,6 +72,51 @@ function truncLabel(label) {
   return label.length > 25 ? label.slice(0, 22) + '…' : label
 }
 
+// Prunes the tree to branches that match `query` or contain a descendant match.
+// A matching node keeps its full subtree intact (so context stays visible).
+function filterTree(tree, query) {
+  const q = query.toLowerCase()
+  const result = {}
+  Object.entries(tree).forEach(([state, districts]) => {
+    if (state.toLowerCase().includes(q)) { result[state] = districts; return }
+    const districtsOut = {}
+    Object.entries(districts).forEach(([district, areasMap]) => {
+      if (district.toLowerCase().includes(q)) { districtsOut[district] = areasMap; return }
+      const areasOut = {}
+      Object.entries(areasMap).forEach(([area, localitiesMap]) => {
+        if (area.toLowerCase().includes(q)) { areasOut[area] = localitiesMap; return }
+        const localitiesOut = {}
+        Object.entries(localitiesMap).forEach(([locality, subItems]) => {
+          const localityMatch = locality.toLowerCase().includes(q)
+          const matchingItems = (subItems || []).filter(item => item.subLocality.toLowerCase().includes(q))
+          if (localityMatch) {
+            localitiesOut[locality] = subItems
+          } else if (matchingItems.length > 0) {
+            localitiesOut[locality] = matchingItems
+          }
+        })
+        if (Object.keys(localitiesOut).length > 0) areasOut[area] = localitiesOut
+      })
+      if (Object.keys(areasOut).length > 0) districtsOut[district] = areasOut
+    })
+    if (Object.keys(districtsOut).length > 0) result[state] = districtsOut
+  })
+  return result
+}
+
+function highlightMatch(text, query) {
+  if (!query) return text
+  const idx = text.toLowerCase().indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-200 text-inherit rounded-sm px-0.5">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
+
 // ── Toggle ────────────────────────────────────────────────────────────────────
 
 function Toggle({ checked, onChange }) {
@@ -88,8 +133,9 @@ function Toggle({ checked, onChange }) {
 
 // ── Tree Node ─────────────────────────────────────────────────────────────────
 
-function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditItem, onDeleteItem, intercomSite }) {
+function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditItem, onDeleteItem, intercomSite, forceOpen, query }) {
   const [open, setOpen] = useState(true)
+  const isOpen = forceOpen !== undefined ? forceOpen : open
   const hasChildren = (Array.isArray(children) ? children.length > 0 : !!children) || items?.length > 0
   const indent = level * 14
   const dotColor = level === 0 ? 'text-brand-blue' : level === 1 ? 'text-navy' : 'text-brand-orange'
@@ -110,13 +156,15 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
           className="flex-1 flex items-center gap-1.5 text-left py-1.5 min-w-0 pr-1"
         >
           {hasChildren
-            ? open
+            ? isOpen
               ? <ChevronDown size={13} className="text-gray-400 shrink-0" />
               : <ChevronRight size={13} className="text-gray-400 shrink-0" />
             : <span className="w-[13px] shrink-0" />
           }
           <MapPin size={12} className={`shrink-0 ${dotColor}`} />
-          <span className={`text-sm ${labelClass} whitespace-nowrap`} title={label}>{truncLabel(label)}</span>
+          <span className={`text-sm ${labelClass} whitespace-nowrap`} title={label}>
+            {query ? highlightMatch(label, query) : truncLabel(label)}
+          </span>
           {level === 3 && (
             <span
               className={`ml-1 shrink-0 inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-semibold ${
@@ -146,10 +194,10 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
         </div>
       </div>
 
-      {open && children}
+      {isOpen && children}
 
       {/* Sub-locality leaf items */}
-      {open && items?.map(item => (
+      {isOpen && items?.map(item => (
         <div
           key={item.id}
           className="group flex items-center rounded-lg hover:bg-gray-50 transition-colors"
@@ -158,7 +206,7 @@ function TreeNode({ label, level = 0, children, items, onEdit, onDelete, onEditI
           <div className="flex-1 flex items-center gap-1.5 py-1.5 min-w-0 pr-1">
             <span className="text-gray-300 text-xs shrink-0">•</span>
             <span className="text-sm text-gray-700 whitespace-nowrap" title={item.subLocality}>
-              {truncLabel(item.subLocality)}
+              {query ? highlightMatch(item.subLocality, query) : truncLabel(item.subLocality)}
             </span>
             <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-1">→ {item.siteType} · {item.branchCode}</span>
           </div>
@@ -898,11 +946,15 @@ export default function AreaMapping() {
   const [hierarchyDeleteItem, setHierarchyDeleteItem] = useState(null)
   const [toast, setToast]   = useState(null)
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
   useEffect(() => subscribeAreas(setAreas), [])
   useEffect(() => subscribeHierarchy(() => setTick(t => t + 1)), [])
 
   const tree = buildTree(areas)
+  const trimmedSearch = search.trim()
+  const isSearching = trimmedSearch.length > 0
+  const displayTree = isSearching ? filterTree(tree, trimmedSearch) : tree
 
   function showToast(msg) {
     setToast(msg)
@@ -997,17 +1049,47 @@ export default function AreaMapping() {
         {/* Left: Hierarchy tree */}
         <div className="w-[360px] min-w-[320px] shrink-0 border-r border-surface-border bg-white overflow-y-auto p-3">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Hierarchy</p>
+
+          <div className="relative px-2 mb-2">
+            <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search state, district, area..."
+              className="pl-8 pr-7 py-1.5 text-sm border border-surface-border rounded-lg bg-gray-50 w-full
+                focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white
+                placeholder-gray-400"
+            />
+            {isSearching && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
           {Object.keys(tree).length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <MapPin size={32} className="mx-auto mb-2 opacity-30" />
               <p className="text-sm">No areas added yet</p>
             </div>
+          ) : isSearching && Object.keys(displayTree).length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Search size={32} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No matches found</p>
+            </div>
           ) : (
-            Object.entries(tree).map(([state, districts]) => (
+            Object.entries(displayTree).map(([state, districts]) => (
               <TreeNode
                 key={state}
                 label={state}
                 level={0}
+                forceOpen={isSearching ? true : undefined}
+                query={isSearching ? trimmedSearch : ''}
                 onEdit={() => handleHierarchyEdit({ type: 'State', name: state })}
                 onDelete={() => handleHierarchyDelete({ type: 'State', name: state })}
               >
@@ -1016,6 +1098,8 @@ export default function AreaMapping() {
                     key={district}
                     label={district}
                     level={1}
+                    forceOpen={isSearching ? true : undefined}
+                    query={isSearching ? trimmedSearch : ''}
                     onEdit={() => handleHierarchyEdit({ type: 'District', state, name: district })}
                     onDelete={() => handleHierarchyDelete({ type: 'District', state, name: district })}
                   >
@@ -1024,6 +1108,8 @@ export default function AreaMapping() {
                         key={area}
                         label={area}
                         level={2}
+                        forceOpen={isSearching ? true : undefined}
+                        query={isSearching ? trimmedSearch : ''}
                         onEdit={() => handleHierarchyEdit({ type: 'Area', state, district, name: area })}
                         onDelete={() => handleHierarchyDelete({ type: 'Area', state, district, name: area })}
                       >
@@ -1033,6 +1119,8 @@ export default function AreaMapping() {
                             label={locality}
                             level={3}
                             items={subItems}
+                            forceOpen={isSearching ? true : undefined}
+                            query={isSearching ? trimmedSearch : ''}
                             intercomSite={!!getLocalityInfo(state, district, area, locality)?.intercomSite}
                             onEdit={() => handleHierarchyEdit({ type: 'Locality', state, district, area, name: locality })}
                             onDelete={() => handleHierarchyDelete({ type: 'Locality', state, district, area, name: locality })}
