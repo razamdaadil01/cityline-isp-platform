@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   CalendarDays, Clock, UserCheck, Loader2, CheckCircle2, RefreshCw, XCircle,
   Search, Wrench, ChevronDown, MoreVertical, Users, Package, Truck, Eye, List,
-  ArrowRight, AlertTriangle, X, Plus, Trash2, Edit2, UserCog,
+  ArrowRight, AlertTriangle, X, Plus, Trash2, Edit2, UserCog, Phone,
 } from 'lucide-react'
 import {
   getInstallations as getInternetInstallations,
@@ -22,17 +22,18 @@ import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
 
-// Installations table's Show/Hide Columns default set. Customer Name is
-// locked so the table can never end up with zero identifying columns visible.
+// Installations table's Show/Hide Columns default set — order matches the
+// table's left-to-right column order. Customer Name is locked so the table
+// can never end up with zero identifying columns visible.
 const INSTALLATIONS_COLUMNS = [
-  { key: 'workOrderId',      label: 'Installation ID',   visible: true, defaultVisible: true },
+  { key: 'workOrderId',      label: 'Work Order ID',     visible: true, defaultVisible: true },
   { key: 'customerName',     label: 'Customer Name',     visible: true, defaultVisible: true, locked: true },
+  { key: 'branch',           label: 'Branch',            visible: true, defaultVisible: true },
   { key: 'address',          label: 'Address',           visible: true, defaultVisible: true },
   { key: 'assignedEngineer', label: 'Assigned Engineer', visible: true, defaultVisible: true },
-  { key: 'status',           label: 'Status',            visible: true, defaultVisible: true },
-  { key: 'installationDate', label: 'Scheduled Date',    visible: true, defaultVisible: true },
-  { key: 'hardware',         label: 'Hardware',          visible: true, defaultVisible: true },
+  { key: 'installationDate', label: 'Installation Date', visible: true, defaultVisible: true },
   { key: 'createdDate',      label: 'Created',           visible: true, defaultVisible: true },
+  { key: 'status',           label: 'Status',            visible: true, defaultVisible: true },
   { key: 'actions',          label: 'Actions',           visible: true, defaultVisible: true },
 ]
 
@@ -93,6 +94,15 @@ function formatDate(raw, format) {
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+/* First assigned engineer's name + how many more are on the team, e.g.
+   "Arjun Kumar, Preethi Nair, Suresh Babu" ->
+   { assignedEngineer: 'Arjun Kumar', engineerExtraCount: 2, engineerExtraNames: [...] } */
+function splitEngineers(raw) {
+  const names = (raw || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (names.length === 0) return { assignedEngineer: '—', engineerExtraCount: 0, engineerExtraNames: [] }
+  return { assignedEngineer: names[0], engineerExtraCount: names.length - 1, engineerExtraNames: names.slice(1) }
+}
+
 /* ── Merge both stores into one unified row shape ─────────────────────────── */
 function buildUnifiedRows(internet, intercom) {
   const internetRows = internet.map(inst => ({
@@ -104,11 +114,11 @@ function buildUnifiedRows(internet, intercom) {
     detailHref:       `/installations/${inst.id}`,
     customerName:     inst.customerName,
     mobile:           inst.mobile || inst.customerPhone || '—',
-    areaLocality:     [inst.area, inst.locality].filter(Boolean).join(' — ') || '—',
+    area:             inst.area || '—',
+    branch:           inst.branch || '—',
     address:          inst.address || '—',
-    assignedEngineer: inst.engineerName || '—',
+    ...splitEngineers(inst.engineerName),
     installationDate: formatDate(inst.slotDate, 'iso'),
-    hardware:         inst.hardware?.length ? inst.hardware.map(h => `${h.name} × ${h.qty}`).join(', ') : '—',
     createdDate:      formatDate(inst.createdAt, 'iso'),
     status:           inst.status,
     normalizedStatus: normalizeInternetStatus(inst.status),
@@ -123,11 +133,11 @@ function buildUnifiedRows(internet, intercom) {
     detailHref:       `/intercom/installations/${o.id}`,
     customerName:     o.customer,
     mobile:           o.phone || '—',
-    areaLocality:     o.zone || '—',
+    area:             o.zone || '—',
+    branch:           '—',
     address:          '—',
-    assignedEngineer: o.engineer || '—',
+    ...splitEngineers(o.engineer),
     installationDate: formatDate(o.installDate, 'dmy'),
-    hardware:         '—',
     createdDate:      formatDate(o.createdDate, 'dmy'),
     status:           INTERCOM_STATUS_LABEL[o.status] ?? o.status,
     normalizedStatus: normalizeIntercomStatus(o.status),
@@ -627,7 +637,7 @@ export default function Installations() {
           !r.workOrderId.toLowerCase().includes(q) &&
           !(r.leadId || '').toLowerCase().includes(q) &&
           !r.mobile.toLowerCase().includes(q) &&
-          !r.areaLocality.toLowerCase().includes(q)) return false
+          !r.area.toLowerCase().includes(q)) return false
       return true
     })
   }, [rows, search, filterType, filterStatus])
@@ -742,13 +752,16 @@ export default function Installations() {
                     {visibleCols.has('workOrderId') && (
                       <th className="px-4 py-3 text-left whitespace-nowrap pl-6">Work Order ID</th>
                     )}
-                    <th className={`px-4 py-3 text-left whitespace-nowrap ${!visibleCols.has('workOrderId') ? 'pl-6' : ''}`}>Type</th>
-                    <th className="px-4 py-3 text-left whitespace-nowrap">Lead ID</th>
+                    <th className={`px-4 py-3 text-left whitespace-nowrap ${!visibleCols.has('workOrderId') ? 'pl-6' : ''}`}>Lead ID</th>
                     {visibleCols.has('customerName') && (
                       <th className="px-4 py-3 text-left whitespace-nowrap">Customer Name</th>
                     )}
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Type</th>
                     <th className="px-4 py-3 text-left whitespace-nowrap">Mobile</th>
-                    <th className="px-4 py-3 text-left whitespace-nowrap">Area / Locality</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Area</th>
+                    {visibleCols.has('branch') && (
+                      <th className="px-4 py-3 text-left whitespace-nowrap">Branch</th>
+                    )}
                     {visibleCols.has('address') && (
                       <th className="px-4 py-3 text-left whitespace-nowrap">Address</th>
                     )}
@@ -757,9 +770,6 @@ export default function Installations() {
                     )}
                     {visibleCols.has('installationDate') && (
                       <th className="px-4 py-3 text-left whitespace-nowrap">Installation Date</th>
-                    )}
-                    {visibleCols.has('hardware') && (
-                      <th className="px-4 py-3 text-left whitespace-nowrap">Hardware</th>
                     )}
                     {visibleCols.has('createdDate') && (
                       <th className="px-4 py-3 text-left whitespace-nowrap">Created</th>
@@ -786,13 +796,8 @@ export default function Installations() {
                         </td>
                       )}
 
-                      {/* TYPE */}
-                      <td className={`px-4 py-3 whitespace-nowrap ${!visibleCols.has('workOrderId') ? 'pl-6' : ''}`}>
-                        <Badge variant={TYPE_BADGE[row.type] ?? 'gray'} size="sm">{row.type}</Badge>
-                      </td>
-
                       {/* LEAD ID */}
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className={`px-4 py-3 whitespace-nowrap ${!visibleCols.has('workOrderId') ? 'pl-6' : ''}`}>
                         {row.leadId
                           ? <button onClick={e => { e.stopPropagation(); navigate(row.leadHref) }}
                               className="font-mono text-xs font-semibold text-gray-600 hover:text-brand-blue hover:underline">
@@ -808,15 +813,38 @@ export default function Installations() {
                         </td>
                       )}
 
-                      {/* MOBILE */}
+                      {/* TYPE */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs text-gray-600">{row.mobile}</span>
+                        <Badge variant={TYPE_BADGE[row.type] ?? 'gray'} size="sm">{row.type}</Badge>
                       </td>
 
-                      {/* AREA / LOCALITY */}
+                      {/* MOBILE */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700">{row.areaLocality}</span>
+                        {row.mobile && row.mobile !== '—' ? (
+                          <a
+                            href={`tel:${row.mobile}`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 font-mono text-xs text-brand-blue hover:underline"
+                          >
+                            <Phone size={11} className="shrink-0" />
+                            {row.mobile}
+                          </a>
+                        ) : (
+                          <span className="font-mono text-xs text-gray-400">—</span>
+                        )}
                       </td>
+
+                      {/* AREA */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-700">{row.area}</span>
+                      </td>
+
+                      {/* BRANCH */}
+                      {visibleCols.has('branch') && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="font-mono text-xs text-gray-700">{row.branch}</span>
+                        </td>
+                      )}
 
                       {/* ADDRESS */}
                       {visibleCols.has('address') && (
@@ -829,6 +857,14 @@ export default function Installations() {
                       {visibleCols.has('assignedEngineer') && (
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className="text-xs text-gray-700">{row.assignedEngineer}</span>
+                          {row.engineerExtraCount > 0 && (
+                            <span
+                              title={row.engineerExtraNames.join(', ')}
+                              className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500"
+                            >
+                              +{row.engineerExtraCount}
+                            </span>
+                          )}
                         </td>
                       )}
 
@@ -836,13 +872,6 @@ export default function Installations() {
                       {visibleCols.has('installationDate') && (
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className="text-xs text-gray-700 font-medium">{row.installationDate}</span>
-                        </td>
-                      )}
-
-                      {/* HARDWARE */}
-                      {visibleCols.has('hardware') && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="text-xs text-gray-700">{row.hardware}</span>
                         </td>
                       )}
 
