@@ -468,7 +468,7 @@ export default function Customers() {
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Customer Type</label>
               <div className="flex gap-4">
-                {['', 'Individual', 'Corporate'].map(v => (
+                {['', 'Residential', 'Corporate'].map(v => (
                   <label key={v} className="flex items-center gap-1.5 cursor-pointer">
                     <input type="radio" name="draft-custType" value={v} checked={draft.custType === v}
                       onChange={() => d('custType', v)} className="accent-purple-600" />
