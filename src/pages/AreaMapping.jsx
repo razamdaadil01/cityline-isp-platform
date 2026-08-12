@@ -21,6 +21,14 @@ const SITE_TYPES = ['FTTH', 'Sector', 'Village']
 const FEASIBILITY_OPTIONS = ['Feasible', 'Not Feasible', 'Pending']
 const FORM_TABS = ['State', 'District', 'Area', 'Locality', 'Sub Locality']
 
+const LANDING_TABS = [
+  { key: 'State',        label: 'State' },
+  { key: 'District',     label: 'District' },
+  { key: 'Area',         label: 'Area Name' },
+  { key: 'Locality',     label: 'Locality' },
+  { key: 'Sub Locality', label: 'Sub Locality' },
+]
+
 const PATH_TO_TAB = {
   '/settings/area-mapping/state':        'State',
   '/settings/area-mapping/district':     'District',
@@ -70,6 +78,41 @@ function buildTree(areas) {
 
 function truncLabel(label) {
   return label.length > 25 ? label.slice(0, 22) + '…' : label
+}
+
+// Flat, editable rows for the landing tab list (State/District/Area/Locality levels).
+function listItemsForTab(tab) {
+  if (tab === 'State') {
+    return getStates().map(s => ({ key: s, name: s, meta: '', edit: { type: 'State', name: s } }))
+  }
+  if (tab === 'District') {
+    return getStates().flatMap(s =>
+      getDistricts(s).map(d => ({ key: `${s}|${d}`, name: d, meta: s, edit: { type: 'District', state: s, name: d } }))
+    )
+  }
+  if (tab === 'Area') {
+    return getStates().flatMap(s =>
+      getDistricts(s).flatMap(d =>
+        getAreasList(s, d).map(a => ({
+          key: `${s}|${d}|${a}`, name: a, meta: `${s} · ${d}`,
+          edit: { type: 'Area', state: s, district: d, name: a },
+        }))
+      )
+    )
+  }
+  if (tab === 'Locality') {
+    return getStates().flatMap(s =>
+      getDistricts(s).flatMap(d =>
+        getAreasList(s, d).flatMap(a =>
+          getLocalities(s, d, a).map(l => ({
+            key: `${s}|${d}|${a}|${l}`, name: l, meta: `${s} · ${d} · ${a}`,
+            edit: { type: 'Locality', state: s, district: d, area: a, name: l },
+          }))
+        )
+      )
+    )
+  }
+  return []
 }
 
 // Prunes the tree to branches that match `query` or contain a descendant match.
@@ -648,6 +691,18 @@ function AreaForm({ initial, hierarchyEdit, onSave, onCancel, onToast, initialTa
 
   return (
     <div className="flex flex-col h-full">
+      {/* Back to list — only when editing an existing hierarchy/sub-locality item */}
+      {isAnyEdit && (
+        <div className="px-5 pt-4 shrink-0">
+          <button
+            onClick={onCancel}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-brand-blue transition-colors"
+          >
+            <ArrowLeft size={12} /> Back to list
+          </button>
+        </div>
+      )}
+
       {/* Tabs — only for add-new flow */}
       {!isAnyEdit && (
         <div className="flex border-b border-surface-border px-5 pt-5 gap-0.5 shrink-0">
@@ -949,6 +1004,7 @@ export default function AreaMapping() {
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef(null)
+  const [listTab, setListTab] = useState('State')
 
   useEffect(() => subscribeAreas(setAreas), [])
   useEffect(() => subscribeHierarchy(() => setTick(t => t + 1)), [])
@@ -1020,6 +1076,7 @@ export default function AreaMapping() {
   }
 
   const feasVariant = { Feasible: 'green', 'Not Feasible': 'red', Pending: 'yellow' }
+  const listItems = listTab === 'Sub Locality' ? [] : listItemsForTab(listTab)
 
   const formKey = editItem?.id
     ?? (hierarchyEditItem ? `${hierarchyEditItem.type}-${hierarchyEditItem.name}` : 'new')
@@ -1173,62 +1230,115 @@ export default function AreaMapping() {
               onTabChange={(!editItem && !hierarchyEditItem && activeUrlTab) ? t => navigate(TAB_TO_PATH[t]) : undefined}
             />
           ) : (
-            <div className="flex-1 overflow-y-auto p-6">
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                {[
-                  { label: 'Total Sub Localities', value: areas.length,                                            color: 'text-brand-blue'  },
-                  { label: 'Feasible',              value: areas.filter(a => a.feasibility === 'Feasible').length, color: 'text-emerald-600' },
-                  { label: 'Pending Feasibility',   value: areas.filter(a => a.feasibility === 'Pending').length,  color: 'text-amber-600'   },
-                ].map(s => (
-                  <div key={s.label} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
-                    <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-                    <p className="text-xs text-gray-500 mt-1">{s.label}</p>
-                  </div>
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Landing tabs — edit-only browse of each hierarchy level */}
+              <div className="flex border-b border-surface-border px-6 pt-5 gap-0.5 shrink-0 bg-white">
+                {LANDING_TABS.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => setListTab(t.key)}
+                    className={`px-3.5 py-2 text-xs font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
+                      listTab === t.key
+                        ? 'border-brand-blue text-brand-blue bg-blue-50/60'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
                 ))}
               </div>
 
-              {/* Table */}
-              <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
-                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  <span>Location</span>
-                  <span>Branch Code</span>
-                  <span>Site Type</span>
-                  <span>Feasibility</span>
-                  <span>Actions</span>
-                </div>
-                {areas.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <MapPin size={28} className="mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No sub localities yet. Use "Bulk Upload" to get started.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-surface-border">
-                    {areas.map(a => (
-                      <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800">{a.subLocality}</p>
-                          <p className="text-xs text-gray-400">{a.locality} · {a.area} · {a.district}</p>
+              <div className="flex-1 overflow-y-auto p-6">
+                {listTab === 'Sub Locality' ? (
+                  <>
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                      {[
+                        { label: 'Total Sub Localities', value: areas.length,                                            color: 'text-brand-blue'  },
+                        { label: 'Feasible',              value: areas.filter(a => a.feasibility === 'Feasible').length, color: 'text-emerald-600' },
+                        { label: 'Pending Feasibility',   value: areas.filter(a => a.feasibility === 'Pending').length,  color: 'text-amber-600'   },
+                      ].map(s => (
+                        <div key={s.label} className="bg-white rounded-xl border border-surface-border p-4 shadow-card">
+                          <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                          <p className="text-xs text-gray-500 mt-1">{s.label}</p>
                         </div>
-                        <span className="text-sm font-mono text-gray-700">{a.branchCode}</span>
-                        <Badge variant="blue" size="sm">{a.siteType}</Badge>
-                        <Badge variant={feasVariant[a.feasibility] || 'gray'} size="sm">{a.feasibility}</Badge>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleEdit(a)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(a.id, a.subLocality)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                      ))}
+                    </div>
+
+                    {/* Table */}
+                    <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
+                      <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        <span>Location</span>
+                        <span>Branch Code</span>
+                        <span>Site Type</span>
+                        <span>Feasibility</span>
+                        <span>Actions</span>
                       </div>
-                    ))}
+                      {areas.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                          <MapPin size={28} className="mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">No sub localities yet. Use "Bulk Upload" to get started.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-surface-border">
+                          {areas.map(a => (
+                            <div key={a.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{a.subLocality}</p>
+                                <p className="text-xs text-gray-400">{a.locality} · {a.area} · {a.district}</p>
+                              </div>
+                              <span className="text-sm font-mono text-gray-700">{a.branchCode}</span>
+                              <Badge variant="blue" size="sm">{a.siteType}</Badge>
+                              <Badge variant={feasVariant[a.feasibility] || 'gray'} size="sm">{a.feasibility}</Badge>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleEdit(a)}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(a.id, a.subLocality)}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-white rounded-xl border border-surface-border overflow-hidden shadow-card">
+                    <div className="px-4 py-3 border-b border-surface-border bg-gray-50/80 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      {LANDING_TABS.find(t => t.key === listTab)?.label}
+                    </div>
+                    {listItems.length === 0 ? (
+                      <div className="text-center py-12 text-gray-400">
+                        <MapPin size={28} className="mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">No entries yet.</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-surface-border">
+                        {listItems.map(item => (
+                          <div key={item.key} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800">{item.name}</p>
+                              {item.meta && <p className="text-xs text-gray-400">{item.meta}</p>}
+                            </div>
+                            <button
+                              onClick={() => handleHierarchyEdit(item.edit)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                              title="Edit"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
