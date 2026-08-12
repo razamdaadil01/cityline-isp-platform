@@ -989,6 +989,19 @@ function InfoRow({ label, value, highlight }) {
   )
 }
 
+// Grid-cell variant of InfoRow — label above value instead of side-by-side —
+// used by the Overview tab's Basic/Customer/Address Details cards' 2-col grid.
+function InfoCell({ label, value, highlight }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className={`text-xs font-medium mt-1 ${highlight ? 'text-brand-blue' : 'text-gray-800'}`}>
+        {value || <span className="text-gray-300 font-normal">—</span>}
+      </p>
+    </div>
+  )
+}
+
 // Overview cards' collapse/expand toggle — sits in CardHeader's action slot.
 function CardCollapseToggle({ collapsed, onClick }) {
   return (
@@ -3128,27 +3141,27 @@ export default function SalesLeadDetail() {
                   <CardCollapseToggle collapsed={collapsedCards.has('basic')} onClick={() => toggleCardCollapsed('basic')} />
                 } />
                 {!collapsedCards.has('basic') && (
-                  <>
-                    <InfoRow label="Lead ID"      value={lead.id} highlight />
-                    <InfoRow label="Lead Name"    value={leadDisplayName} />
-                    <InfoRow label="Lead Source"  value={lead.source} />
-                    <InfoRow label="Created By"   value={lead.createdBy ?? 'Admin'} />
-                    <InfoRow label="Created Date" value={lead.createdAt} />
-                    <InfoRow label="Assigned To"  value={lead.assigned} />
-                    <InfoRow label="Customer Type"   value={lead.customerType} />
-                    <InfoRow label="Connection Type" value={lead.connectionType} />
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                    <InfoCell label="Lead ID"      value={lead.id} highlight />
+                    <InfoCell label="Lead Name"    value={leadDisplayName} />
+                    <InfoCell label="Lead Source"  value={lead.source} />
+                    <InfoCell label="Created By"   value={lead.createdBy ?? 'Admin'} />
+                    <InfoCell label="Created Date" value={lead.createdAt} />
+                    <InfoCell label="Assigned To"  value={lead.assigned} />
+                    <InfoCell label="Customer Type"   value={lead.customerType} />
+                    <InfoCell label="Connection Type" value={lead.connectionType} />
                     {lead.connectionType === 'Own' && lead.entityId != null && (
-                      <InfoRow label="Entity" value={getCompanyEntity(lead.entityId)?.name} />
+                      <InfoCell label="Entity" value={getCompanyEntity(lead.entityId)?.name} />
                     )}
                     {lead.connectionType === 'Partner' && lead.partnerId != null && (
-                      <InfoRow label="Partner" value={getPartner(lead.partnerId)?.name} />
+                      <InfoCell label="Partner" value={getPartner(lead.partnerId)?.name} />
                     )}
                     {lead.connectionType === 'Partner' && lead.billingTo && (
-                      <InfoRow label="Billing To" value={lead.billingTo} />
+                      <InfoCell label="Billing To" value={lead.billingTo} />
                     )}
-                    <InfoRow label="Package"         value={lead.plan} />
-                    <InfoRow label="Follow-up Date"  value={lead.followUp} />
-                  </>
+                    <InfoCell label="Package"         value={lead.plan} />
+                    <InfoCell label="Follow-up Date"  value={lead.followUp} />
+                  </div>
                 )}
               </Card>
 
@@ -3157,13 +3170,13 @@ export default function SalesLeadDetail() {
                   <CardCollapseToggle collapsed={collapsedCards.has('customer')} onClick={() => toggleCardCollapsed('customer')} />
                 } />
                 {!collapsedCards.has('customer') && (
-                  <>
-                    <InfoRow label="Customer Name"    value={lead.name} />
-                    <InfoRow label="Service Tag"      value={lead.serviceTags?.length ? lead.serviceTags.join(', ') : undefined} />
-                    <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                      <span className="text-xs text-gray-500 shrink-0 w-36">Mobile Number</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-brand-blue">{lead.phone || <span className="text-gray-300">—</span>}</span>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                    <InfoCell label="Customer Name"    value={lead.name} />
+                    <InfoCell label="Service Tag"      value={lead.serviceTags?.length ? lead.serviceTags.join(', ') : undefined} />
+                    <div>
+                      <p className="text-xs text-gray-500">Mobile Number</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-medium text-brand-blue">{lead.phone || <span className="text-gray-300 font-normal">—</span>}</span>
                         {lead.phone && (
                           <button
                             onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
@@ -3174,10 +3187,10 @@ export default function SalesLeadDetail() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                      <span className="text-xs text-gray-500 shrink-0 w-36">Alternate Number</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-800">{lead.alternateMobile || <span className="text-gray-300">—</span>}</span>
+                    <div>
+                      <p className="text-xs text-gray-500">Alternate Number</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-medium text-gray-800">{lead.alternateMobile || <span className="text-gray-300 font-normal">—</span>}</span>
                         {lead.alternateMobile && (
                           <button
                             onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.alternateMobile })}
@@ -3188,8 +3201,8 @@ export default function SalesLeadDetail() {
                         )}
                       </div>
                     </div>
-                    <InfoRow label="Email Address"    value={lead.email} />
-                  </>
+                    <InfoCell label="Email Address"    value={lead.email} />
+                  </div>
                 )}
               </Card>
 
@@ -3224,18 +3237,18 @@ export default function SalesLeadDetail() {
                   <CardCollapseToggle collapsed={collapsedCards.has('address')} onClick={() => toggleCardCollapsed('address')} />
                 } />
                 {!collapsedCards.has('address') && (
-                  <>
-                    {leadAddressLine  && <InfoRow label="Address"      value={leadAddressLine} />}
-                    {leadLandmark     && <InfoRow label="Landmark"     value={leadLandmark} />}
-                    {lead.area        && <InfoRow label="Area"         value={lead.area} />}
-                    {lead.locality    && <InfoRow label="Locality"     value={lead.locality} />}
-                    {lead.subLocality && <InfoRow label="Sub Locality" value={lead.subLocality} />}
-                    {lead.city        && <InfoRow label="City"         value={lead.city} />}
-                    {lead.district    && <InfoRow label="District"     value={lead.district} />}
-                    {lead.state       && <InfoRow label="State"        value={lead.state} />}
-                    {lead.pincode     && <InfoRow label="Pincode"      value={lead.pincode} />}
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                    {leadAddressLine  && <InfoCell label="Address"      value={leadAddressLine} />}
+                    {leadLandmark     && <InfoCell label="Landmark"     value={leadLandmark} />}
+                    {lead.area        && <InfoCell label="Area"         value={lead.area} />}
+                    {lead.locality    && <InfoCell label="Locality"     value={lead.locality} />}
+                    {lead.subLocality && <InfoCell label="Sub Locality" value={lead.subLocality} />}
+                    {lead.city        && <InfoCell label="City"         value={lead.city} />}
+                    {lead.district    && <InfoCell label="District"     value={lead.district} />}
+                    {lead.state       && <InfoCell label="State"        value={lead.state} />}
+                    {lead.pincode     && <InfoCell label="Pincode"      value={lead.pincode} />}
                     {lead.siteType    && (
-                      <InfoRow label="Site Type" value={
+                      <InfoCell label="Site Type" value={
                         <span className="flex items-center gap-1.5">
                           {lead.siteType}
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
@@ -3243,14 +3256,14 @@ export default function SalesLeadDetail() {
                       } />
                     )}
                     {lead.branchCode  && (
-                      <InfoRow label="Branch Code" value={
+                      <InfoCell label="Branch Code" value={
                         <span className="flex items-center gap-1.5">
                           <span className="font-mono">{lead.branchCode}</span>
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400">Auto</span>
                         </span>
                       } />
                     )}
-                  </>
+                  </div>
                 )}
               </Card>
 
