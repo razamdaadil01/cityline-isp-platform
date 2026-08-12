@@ -14,9 +14,20 @@ const EMPTY_ROW = { bandwidth: '', jazeId: '', tenure: '', price: '', ott: 'None
 
 function Toggle({ value, onChange }) {
   return (
-    <button type="button" onClick={() => onChange(!value)}
-      className={`w-10 h-6 rounded-full relative transition-colors shrink-0 ${value ? 'bg-[#0A8DCD]' : 'bg-gray-200'}`}>
-      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-5' : 'translate-x-1'}`} />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      onClick={() => onChange(!value)}
+      className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:ring-offset-1 ${
+        value ? 'bg-brand-blue' : 'bg-gray-200'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+          value ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
     </button>
   )
 }
@@ -86,8 +97,8 @@ export default function PackageAdd() {
       {/* Two-panel body */}
       <div className="flex gap-5 px-6 pb-24 items-start">
 
-        {/* ── LEFT PANEL (60%) ─────────────────────────────────── */}
-        <div className="flex-[3] min-w-0 bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
+        {/* ── LEFT PANEL (67%) ─────────────────────────────────── */}
+        <div className="flex-[2] min-w-0 bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
 
           {/* SECTION 1 — Plan Type */}
           <div>
@@ -266,8 +277,8 @@ export default function PackageAdd() {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL (40%) ────────────────────────────────── */}
-        <div className="flex-[2] min-w-0 self-start bg-white rounded-xl border border-surface-border shadow-card p-6">
+        {/* ── RIGHT PANEL (33%) ────────────────────────────────── */}
+        <div className="flex-[1] min-w-0 self-start bg-white rounded-xl border border-surface-border shadow-card p-6">
           <p className={sectionLabel}>Settings</p>
           <div className="space-y-3">
 
