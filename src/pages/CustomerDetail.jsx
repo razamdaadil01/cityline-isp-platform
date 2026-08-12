@@ -385,7 +385,6 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const [p3, setP3] = useState({ editing: false, draft: null })
   const [p4, setP4] = useState({ editing: false, draft: null })
   const [p5, setP5] = useState({ editing: false, draft: null })
-  const [p6, setP6] = useState({ editing: false, draft: null })
   const [p7, setP7] = useState({ editing: false, draft: null })
 
   function startEdit(setter, draft) { setter({ editing: true, draft }) }
@@ -394,7 +393,6 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const conn  = cust.connection ?? {}
   const sales = cust.sales ?? {}
   const kyc   = cust.kyc ?? {}
-  const pay   = cust.payment ?? {}
 
   /* ── Save helpers ── */
   function saveP1() {
@@ -416,10 +414,6 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   function saveP5() {
     setCust(c => ({ ...c, sales: { ...c.sales, ...p5.draft } }))
     cancelEdit(setP5)
-  }
-  function saveP6() {
-    setCust(c => ({ ...c, payment: { ...c.payment, ...p6.draft } }))
-    cancelEdit(setP6)
   }
   function saveP7() {
     setCust(c => ({ ...c, kyc: { ...c.kyc, ...p7.draft } }))
@@ -722,74 +716,6 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
             </>
           )}
         </Card>
-
-        {/* SECTION 6 — Payment Details */}
-        <Card>
-          <CardHeader title="Payment Details" action={
-            !p6.editing
-              ? editBtn(() => startEdit(setP6, { installationAmount: pay.installationAmount, securityDeposit: pay.securityDeposit, installHardware: pay.installHardware, invoiceDueDays: pay.invoiceDueDays, refundTerms: pay.refundTerms, refundSecurity: pay.refundSecurity, mode: pay.mode, advanceDeposit: pay.advanceDeposit, billingCycle: pay.billingCycle }))
-              : null
-          } />
-          {!p6.editing ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-              <InfoField label="Installation Amount" value={pay.installationAmount != null ? `₹${pay.installationAmount.toLocaleString('en-IN')}` : '—'} />
-              <InfoField label="Security Deposit"    value={pay.securityDeposit != null ? `₹${pay.securityDeposit.toLocaleString('en-IN')}` : '—'} />
-              <InfoField label="Install Hardware"    value={pay.installHardware} />
-              <InfoField label="Invoice Due Days"    value={pay.invoiceDueDays != null ? `${pay.invoiceDueDays} days` : '—'} />
-              <InfoField label="Refund Terms"        value={pay.refundTerms} />
-              <div>
-                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Refund Security</p>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pay.refundSecurity === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {pay.refundSecurity ?? '—'}
-                </span>
-              </div>
-              <InfoField label="Payment Mode"    value={pay.mode} />
-              <InfoField label="Advance Deposit" value={pay.advanceDeposit != null ? `₹${pay.advanceDeposit.toLocaleString('en-IN')}` : '—'} />
-              <InfoField label="Billing Cycle"   value={pay.billingCycle} />
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-4">
-                <EF label="Installation Amount" value={p6.draft.installationAmount} onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, installationAmount: Number(v) } }))} type="number" />
-                <EF label="Security Deposit"    value={p6.draft.securityDeposit}    onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, securityDeposit: Number(v) } }))} type="number" />
-                <EF label="Install Hardware"    value={p6.draft.installHardware}    onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, installHardware: v } }))} />
-                <EF label="Invoice Due Days"    value={p6.draft.invoiceDueDays}     onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, invoiceDueDays: Number(v) } }))} type="number" />
-                <EF label="Refund Terms"        value={p6.draft.refundTerms}        onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, refundTerms: v } }))} />
-                <ESelect label="Refund Security" value={p6.draft.refundSecurity}    onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, refundSecurity: v } }))} options={['Yes', 'No']} />
-                <EF label="Payment Mode"        value={p6.draft.mode}               onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, mode: v } }))} />
-                <EF label="Advance Deposit"     value={p6.draft.advanceDeposit}     onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, advanceDeposit: Number(v) } }))} type="number" />
-                <EF label="Billing Cycle"       value={p6.draft.billingCycle}       onChange={v => setP6(s => ({ ...s, draft: { ...s.draft, billingCycle: v } }))} />
-              </div>
-              <EditActions onSave={saveP6} onCancel={() => cancelEdit(setP6)} />
-            </>
-          )}
-        </Card>
-
-        {/* RADIUS / Jaze config (kept, read-only) */}
-        <div className="rounded-xl overflow-hidden border border-navy/30">
-          <div className="bg-navy px-5 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Server size={15} className="text-brand-blue" />
-              <span className="text-sm font-semibold text-white">RADIUS / Jaze Configuration</span>
-            </div>
-            <Badge variant="blue" size="sm">Active Session</Badge>
-          </div>
-          <div className="bg-[#0c1f38] px-5 py-4 grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-            {[
-              ['Jaze User ID',   cust.radius.jazeUserId],
-              ['PPPoE Username', cust.radius.pppoeUsername],
-              ['NAS',           cust.radius.nas],
-              ['Interface',     cust.radius.interface],
-              ['IP Address',    cust.radius.ipAddress],
-              ['MAC Address',   cust.radius.macAddress],
-            ].map(([label, val]) => (
-              <div key={label}>
-                <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
-                <p className="text-sm text-white font-mono mt-0.5">{val}</p>
-              </div>
-            ))}
-          </div>
-        </div>
 
       </div>
 
