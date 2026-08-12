@@ -289,26 +289,57 @@ export default function Customers() {
   return (
     <div className="p-6 space-y-5">
 
-      {/* ── Page header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Customers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {filtered.length} of {CUSTOMERS.length} customers
-            {selected.size > 0 && <span className="ml-2 font-medium text-brand-blue">· {selected.size} selected</span>}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {selected.size > 0 && (
-            <Button variant="secondary" size="sm" icon={<Download size={14} />}>
-              Export ({selected.size})
-            </Button>
-          )}
-          {selected.size === 0 && (
-            <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
-          )}
-          <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
+      {/* ── Page header banner ── */}
+      <div className="rounded-xl border border-surface-border bg-gradient-to-r from-[#0F2744]/5 to-[#0A8DCD]/5 p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Users size={18} />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/70 border border-surface-border text-xs font-semibold text-gray-600">
+                {filtered.length} of {CUSTOMERS.length} customers
+              </span>
+              {selected.size > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-blue/10 text-xs font-semibold text-brand-blue">
+                  {selected.size} selected
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2.5">
+            <div className="flex gap-2">
+              {selected.size > 0 && (
+                <Button variant="secondary" size="sm" icon={<Download size={14} />}>
+                  Export ({selected.size})
+                </Button>
+              )}
+              {selected.size === 0 && (
+                <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
+              )}
+              <ColumnManager columns={tableColumns} onChange={setTableColumns} />
+              <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {[
+                { label: 'Active',    count: statusCounts.Active,    dot: 'bg-emerald-500' },
+                { label: 'Suspended', count: statusCounts.Suspended, dot: 'bg-amber-500' },
+                { label: 'Inactive',  count: statusCounts.Inactive,  dot: 'bg-gray-400' },
+                { label: 'Expired',   count: statusCounts.Expired,   dot: 'bg-red-500' },
+              ].map(s => (
+                <span
+                  key={s.label}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/70 border border-surface-border text-xs font-medium text-gray-600"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
+                  {s.label} <span className="font-bold text-gray-900">{s.count}</span>
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
