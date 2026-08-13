@@ -392,7 +392,6 @@ export default function SalesNewLead({ lead = null } = {}) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const isEdit = !!lead
-  const [leadId] = useState(() => lead?.id ?? nextSalesLeadId())
 
   const customerTypes = useMemo(() => getCustomerTypes().filter(t => t.status === 'Active'), [])
 
@@ -419,6 +418,11 @@ export default function SalesNewLead({ lead = null } = {}) {
         ? customerTypeFromSlug
         : (customerTypes[0]?.id ?? 'resident'))
   const isCorporate = customerType === 'corporate'
+
+  // Generated once per mount using whichever Customer Type is resolved above
+  // at that point — same one-shot lazy-init behavior as before, just now
+  // parameterized so the id's prefix/format matches the type being created.
+  const [leadId] = useState(() => lead?.id ?? nextSalesLeadId(customerType))
 
   // On first load, if there's no (or an invalid) ?customerType= param,
   // default to Residential and write it into the URL via a history replace

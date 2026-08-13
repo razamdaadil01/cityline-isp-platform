@@ -1012,7 +1012,7 @@ export default function IntercomCustomerDetail() {
   function handleConvertToInternet() {
     if (overrides.internetLeadId) { setConvertModalOpen(false); return }
     const today = new Date().toISOString().slice(0, 10)
-    const leadId = nextSalesLeadId()
+    const leadId = nextSalesLeadId('resident') // pipeline is fixed 'B2C' below, i.e. the Resident type
     saveSalesLead({
       id: leadId,
       pipeline: 'B2C',

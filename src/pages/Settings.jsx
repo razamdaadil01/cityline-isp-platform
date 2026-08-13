@@ -6,7 +6,7 @@ import {
   BookOpen, Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
-  Tags, ListChecks, GripVertical, Lock, CheckCircle2,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -19,7 +19,10 @@ import {
   getSupportSettings, saveSupportSettings,
 } from '../data/ticketsStore'
 import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data/outagesStore'
-import { getCustomerTypes, subscribeCustomerTypes, setCustomerTypeStatus } from '../data/customerTypes'
+import {
+  getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
+  saveLeadIdConfig, formatLeadId,
+} from '../data/customerTypes'
 import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
   reorderServiceTags, nextDisplayOrder, isTagNameTaken, countServiceTagsForType,
@@ -1387,7 +1390,7 @@ function SysConfigToggle({ checked, onChange, disabled }) {
 
 // ── System Configuration: Customer Type ─────────────────────────────────────────
 
-function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields }) {
+function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFormat }) {
   const [types, setTypes] = useState(getCustomerTypes)
 
   useEffect(() => subscribeCustomerTypes(setTypes), [])
@@ -1411,6 +1414,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields }) {
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mapped Service Tags</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Fields Configured</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead ID Format</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
@@ -1442,6 +1446,15 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields }) {
                     >
                       <ListChecks size={13} />
                       {fieldCount} fields
+                    </button>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <button
+                      onClick={() => onOpenLeadIdFormat(t.id)}
+                      className="inline-flex items-center gap-1.5 text-brand-blue hover:underline font-medium whitespace-nowrap"
+                    >
+                      <Hash size={13} />
+                      {t.leadIdPrefix}
                     </button>
                   </td>
                 </tr>
@@ -1763,6 +1776,135 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
   )
 }
 
+function leadIdFormToForm(type) {
+  return {
+    leadIdPrefix: type?.leadIdPrefix ?? '',
+    includeYearInNumber: type?.includeYearInNumber ?? true,
+    startingNumber: String(type?.startingNumber ?? 1),
+    sequencePadding: String(type?.sequencePadding ?? 3),
+  }
+}
+
+// TODO: exact Lead ID format/fields not detailed in PRD beyond "give a lead
+// id number configuration" — this mirrors Company/Entity's Invoice Numbering
+// accordion structure as a reasonable default; confirm with BA.
+function LeadIdFormatPanel({ type, onSwitchType, onBack }) {
+  const customerTypes = getCustomerTypes()
+  const activeType = customerTypes.some(t => t.id === type) ? type : customerTypes[0]?.id
+
+  const [form, setForm] = useState(() => leadIdFormToForm(getCustomerType(activeType)))
+  const [errors, setErrors] = useState({})
+  const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    setForm(leadIdFormToForm(getCustomerType(activeType)))
+    setErrors({})
+  }, [activeType])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  function setField(k, v) {
+    setForm(f => ({ ...f, [k]: v }))
+    setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function validate() {
+    const errs = {}
+    if (!form.leadIdPrefix.trim()) errs.leadIdPrefix = 'Prefix is required.'
+    if (form.startingNumber === '' || Number.isNaN(Number(form.startingNumber)) || Number(form.startingNumber) < 0)
+      errs.startingNumber = 'Enter a valid starting number.'
+    if (form.sequencePadding === '' || Number.isNaN(Number(form.sequencePadding)) || Number(form.sequencePadding) < 1)
+      errs.sequencePadding = 'Enter a valid padding (1 or more digits).'
+    return errs
+  }
+
+  function handleSave() {
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    saveLeadIdConfig(activeType, {
+      leadIdPrefix: form.leadIdPrefix.trim(),
+      includeYearInNumber: form.includeYearInNumber,
+      startingNumber: Number(form.startingNumber),
+      sequencePadding: Number(form.sequencePadding),
+    })
+    setToast('Lead ID format saved successfully')
+  }
+
+  const previewSeq = Number(form.startingNumber) || 0
+  const preview = form.leadIdPrefix.trim() ? formatLeadId(form, previewSeq) : ''
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand-blue">
+        <ChevronLeft size={13} /> Back to Customer Type
+      </button>
+
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Lead ID Format</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Customer Type — control the Lead ID prefix/sequence format used when a new lead of this type is created
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-surface-border">
+        {customerTypes.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onSwitchType(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
+              ${activeType === t.id ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-500">
+        Changes apply going forward to new leads of this type; existing leads keep their current ID.
+      </p>
+
+      <div className="rounded-xl border border-surface-border p-4 space-y-4 max-w-xl">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Prefix" required error={errors.leadIdPrefix}>
+            <Input placeholder="e.g. RES-LD" value={form.leadIdPrefix} onChange={e => setField('leadIdPrefix', e.target.value)} />
+          </FormField>
+          <FormField label="Include Year in Number">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.includeYearInNumber} onChange={v => setField('includeYearInNumber', v)} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.includeYearInNumber ? 'On' : 'Off'}</span>
+            </div>
+          </FormField>
+          <FormField label="Starting Number" required error={errors.startingNumber}>
+            <Input type="number" min="0" value={form.startingNumber} onChange={e => setField('startingNumber', e.target.value)} />
+          </FormField>
+          <FormField label="Sequence Padding" required error={errors.sequencePadding} hint="Zero-padding digits, e.g. 3 → 001">
+            <Input type="number" min="1" max="10" value={form.sequencePadding} onChange={e => setField('sequencePadding', e.target.value)} />
+          </FormField>
+        </div>
+        <p className="text-xs text-gray-500">
+          Preview: <span className="font-mono font-semibold text-gray-800">{preview || '—'}</span>
+        </p>
+        <div className="flex justify-end pt-2 border-t border-surface-border">
+          <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Changes</Button>
+        </div>
+      </div>
+
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Customer Type's drill-down (Service Tags / Field Configuration) is
 // deep-linkable via ?view= and ?type= on top of the outer ?section=
 // customer-type — entering a sub-view pushes a new history entry (so back
@@ -1825,10 +1967,20 @@ function CustomerTypeTab() {
       />
     )
   }
+  if (view === 'lead-id-format') {
+    return (
+      <LeadIdFormatPanel
+        type={type}
+        onSwitchType={next => switchType('lead-id-format', next)}
+        onBack={backToList}
+      />
+    )
+  }
   return (
     <CustomerTypeListPanel
       onOpenServiceTags={t => openView('service-tags', t)}
       onOpenFields={t => openView('fields', t)}
+      onOpenLeadIdFormat={t => openView('lead-id-format', t)}
     />
   )
 }
