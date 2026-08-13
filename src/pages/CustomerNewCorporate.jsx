@@ -54,7 +54,7 @@ const EMPTY_FORM = {
 export default function CustomerNewCorporate() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [leadId] = useState(() => nextSalesLeadId())
+  const [leadId] = useState(() => nextSalesLeadId('corporate'))
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [attempted, setAttempted] = useState(false)

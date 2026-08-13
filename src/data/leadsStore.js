@@ -1,3 +1,5 @@
+import { getCustomerType, formatLeadId, getNextLeadIdSequence } from './customerTypes'
+
 const INIT_LEADS = [
   { id: 'LD-201', pipeline: 'B2C', name: 'Ramesh Nair', phone: '9876001122', email: '', area: 'Koramangala', source: 'Website', stage: 'New Inquiry', plan: '100 Mbps Home', assigned: 'Arjun Kumar', assignedInitials: 'AK', assignedColor: 'bg-brand-blue', daysInStage: 2, lastActivity: 'Form submitted', followUp: '2026-05-08', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-17', address: '12, Brigade Road', city: 'Bangalore', pincode: '560001', state: 'Karnataka', district: 'Bangalore Urban', locality: 'Koramangala', subLocality: '4th Block', siteType: 'FTTH', branchCode: 'CNPL-KOR-01', alternateMobile: '', createdBy: 'Arjun Kumar' },
   { id: 'LD-202', pipeline: 'B2C', name: 'Sunita Bose', phone: '9765443322', email: 'sunita@email.com', area: 'Indiranagar', source: 'Referral', stage: 'Follow-up', plan: '200 Mbps Pro', assigned: 'Preethi Nair', assignedInitials: 'PN', assignedColor: 'bg-purple-500', daysInStage: 1, lastActivity: 'Called – Interested', followUp: '2026-05-09', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-18', address: '45, 5th Main, Indiranagar', city: 'Bangalore', pincode: '560038', state: 'Karnataka', district: 'Bangalore Urban', locality: 'Indiranagar', subLocality: '5th Main', siteType: 'FTTH', branchCode: 'CNPL-IND-01', alternateMobile: '9876000111', createdBy: 'Preethi Nair' },
@@ -50,11 +52,15 @@ export function subscribeLeads(fn) {
   }
 }
 
-export function nextSalesLeadId() {
-  const nums = _leads
-    .map(l => l.id.match(/^LD-(\d+)$/))
-    .filter(Boolean)
-    .map(m => Number(m[1]))
-  const next = (nums.length ? Math.max(...nums) : 0) + 1
-  return `LD-${next}`
+// TODO: existing leads still show old LD-XXX format; only new leads use configured format
+export function nextSalesLeadId(customerTypeId = 'resident') {
+  const type = getCustomerType(customerTypeId)
+  if (!type) {
+    // Unknown/invalid customerTypeId — fall back to the old scheme rather
+    // than hard-failing lead creation.
+    const nums = _leads.map(l => l.id.match(/^LD-(\d+)$/)).filter(Boolean).map(m => Number(m[1]))
+    return `LD-${(nums.length ? Math.max(...nums) : 0) + 1}`
+  }
+  const seq = getNextLeadIdSequence(customerTypeId)
+  return formatLeadId(type, seq)
 }
