@@ -15,6 +15,11 @@ export function isValidGstin(gstin) {
   return GSTIN_REGEX.test((gstin || '').trim().toUpperCase())
 }
 
+// Invoice numbering is configured per entity (PRD: "In company give a
+// invoice number configuration") rather than as a single global setting —
+// see Settings.jsx's CompanyEntityTab "Invoice Numbering" accordion.
+// lastIssuedSequence is null until the first invoice is actually issued for
+// that entity; getNextInvoiceNumber() below seeds it from startingNumber.
 let _companyEntities = [
   {
     id: 1,
@@ -26,6 +31,11 @@ let _companyEntities = [
     pgId: 'rzp_live_CitylineNet01',
     pgConnection: 'Razorpay',
     status: 'Active',
+    invoicePrefix: 'CL-INV',
+    includeYearInNumber: true,
+    startingNumber: 1,
+    sequencePadding: 4,
+    lastIssuedSequence: null,
   },
   {
     id: 2,
@@ -37,6 +47,11 @@ let _companyEntities = [
     pgId: 'rzp_live_CitylineFiber02',
     pgConnection: 'Razorpay',
     status: 'Active',
+    invoicePrefix: 'CLF-INV',
+    includeYearInNumber: true,
+    startingNumber: 1,
+    sequencePadding: 4,
+    lastIssuedSequence: null,
   },
 ]
 let _nextId = 3
@@ -75,4 +90,36 @@ export function saveCompanyEntity(entity) {
 export function setCompanyEntityStatus(id, status) {
   _companyEntities = _companyEntities.map(e => e.id === id ? { ...e, status } : e)
   notify()
+}
+
+// Formats a sequence number per an entity's invoice numbering config —
+// {PREFIX}-{YYYY}-{SEQ} when includeYearInNumber, else {PREFIX}-{SEQ}, with
+// SEQ zero-padded to sequencePadding digits. Exported so the Company/Entity
+// form's live preview (Settings.jsx) renders using this exact same logic
+// rather than a parallel copy that could drift from the real generator.
+export function formatInvoiceNumber(entity, seq) {
+  const padded = String(seq).padStart(Number(entity.sequencePadding) || 4, '0')
+  return entity.includeYearInNumber
+    ? `${entity.invoicePrefix}-${new Date().getFullYear()}-${padded}`
+    : `${entity.invoicePrefix}-${padded}`
+}
+
+// Next invoice number for an entity, mirroring the nextCustomerId()/
+// nextSalesLeadId() pattern elsewhere (customersData.js, leadsStore.js):
+// reads + advances a persisted per-record counter rather than deriving from
+// existing invoice records, so numbers stay sequential even if some
+// invoices are later deleted/voided.
+//
+// TODO: not yet wired into actual invoice creation anywhere — billingData.js's
+// MOCK_INVOICES are still hardcoded strings (e.g. 'B2C/26-27/5650'), and the
+// Lead Detail Package tab's "Invoice" modal (SalesLeadDetail.jsx) doesn't
+// display or request an invoice number at all. Call this wherever a real
+// invoice number is actually assigned once that flow exists.
+export function getNextInvoiceNumber(entityId) {
+  const entity = getCompanyEntity(entityId)
+  if (!entity) return null
+  const nextSeq = (entity.lastIssuedSequence ?? (Number(entity.startingNumber) - 1)) + 1
+  _companyEntities = _companyEntities.map(e => e.id === entityId ? { ...e, lastIssuedSequence: nextSeq } : e)
+  notify()
+  return formatInvoiceNumber(entity, nextSeq)
 }

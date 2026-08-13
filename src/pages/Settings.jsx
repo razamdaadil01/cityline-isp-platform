@@ -27,7 +27,7 @@ import {
 import { getFieldConfig, subscribeFieldConfig, setFieldMandatory, getFieldCount } from '../data/fieldConfigStore'
 import {
   getCompanyEntities, subscribeCompanyEntities, saveCompanyEntity, setCompanyEntityStatus,
-  isValidGstin, PG_CONNECTIONS,
+  isValidGstin, PG_CONNECTIONS, formatInvoiceNumber,
 } from '../data/companyEntities'
 import {
   getPartners, subscribePartners, savePartner, setPartnerStatus,
@@ -197,12 +197,9 @@ function BillingTab() {
     <div className="space-y-5">
       <h2 className="text-base font-semibold text-gray-900 pb-4 border-b border-surface-border">Billing Configuration</h2>
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Invoice Prefix">
-          <Input defaultValue="CL-INV" />
-        </FormField>
-        <FormField label="Invoice Starting Number">
-          <Input type="number" defaultValue="1001" />
-        </FormField>
+        {/* Invoice numbering moved to Company/Entity level — see
+            CompanyEntityTab's "Invoice Numbering" accordion — since invoice
+            series are per legal billing entity, not a single global setting. */}
         <FormField label="Due Days (after billing date)">
           <Input type="number" defaultValue="7" />
         </FormField>
@@ -1845,6 +1842,7 @@ function ceEmptyForm() {
     name: '', gstin: '', email: '', address: '',
     bankName: '', accountNo: '', ifsc: '', branch: '',
     pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
+    invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
   }
 }
 
@@ -1854,6 +1852,10 @@ function ceToForm(entity) {
     bankName: entity.bank?.bankName || '', accountNo: entity.bank?.accountNo || '',
     ifsc: entity.bank?.ifsc || '', branch: entity.bank?.branch || '',
     pgId: entity.pgId, pgConnection: entity.pgConnection, status: entity.status,
+    invoicePrefix: entity.invoicePrefix ?? 'CL-INV',
+    includeYearInNumber: entity.includeYearInNumber ?? true,
+    startingNumber: String(entity.startingNumber ?? 1),
+    sequencePadding: String(entity.sequencePadding ?? 4),
   }
 }
 
@@ -1939,6 +1941,11 @@ function CompanyEntityTab() {
     if (!form.ifsc.trim()) errs.ifsc = 'IFSC code is required.'
     if (!form.branch.trim()) errs.branch = 'Branch is required.'
     if (!form.pgId.trim()) errs.pgId = 'PG ID is required.'
+    if (!form.invoicePrefix.trim()) errs.invoicePrefix = 'Invoice prefix is required.'
+    if (form.startingNumber === '' || Number.isNaN(Number(form.startingNumber)) || Number(form.startingNumber) < 0)
+      errs.startingNumber = 'Enter a valid starting number.'
+    if (form.sequencePadding === '' || Number.isNaN(Number(form.sequencePadding)) || Number(form.sequencePadding) < 1)
+      errs.sequencePadding = 'Enter a valid padding (1 or more digits).'
     return errs
   }
 
@@ -1955,6 +1962,10 @@ function CompanyEntityTab() {
       pgId: form.pgId.trim(),
       pgConnection: form.pgConnection,
       status: form.status,
+      invoicePrefix: form.invoicePrefix.trim(),
+      includeYearInNumber: form.includeYearInNumber,
+      startingNumber: Number(form.startingNumber),
+      sequencePadding: Number(form.sequencePadding),
     })
     setToast(modalEntity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
     closeModal()
@@ -1963,6 +1974,10 @@ function CompanyEntityTab() {
   function handleStatusToggle(entity, checked) {
     setCompanyEntityStatus(entity.id, checked ? 'Active' : 'Inactive')
   }
+
+  const invoicePreview = form.invoicePrefix.trim()
+    ? formatInvoiceNumber(form, Number(form.startingNumber) || 0)
+    : ''
 
   return (
     <div className="space-y-5">
@@ -2084,6 +2099,37 @@ function CompanyEntityTab() {
                 </Select>
               </FormField>
             </div>
+          </Accordion>
+
+          {/* TODO: exact invoice number format/fields not detailed in PRD
+              beyond "give a invoice number configuration" — this is a
+              reasonable default structure, confirm with BA */}
+          <Accordion title="Invoice Numbering" subtitle="Controls the invoice number format issued under this entity">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Invoice Prefix" required error={errors.invoicePrefix}>
+                <Input placeholder="e.g. CL-INV" value={form.invoicePrefix} onChange={e => setField('invoicePrefix', e.target.value)} />
+              </FormField>
+              <FormField label="Include Year in Number">
+                <div className="flex items-center gap-2.5 h-[38px]">
+                  <SysConfigToggle checked={form.includeYearInNumber} onChange={v => setField('includeYearInNumber', v)} />
+                  <span className="text-sm text-gray-600 whitespace-nowrap">{form.includeYearInNumber ? 'On' : 'Off'}</span>
+                </div>
+              </FormField>
+              <FormField label="Starting Number" required error={errors.startingNumber}>
+                <Input
+                  type="number" min="0"
+                  placeholder={form.includeYearInNumber ? '1' : '1001'}
+                  value={form.startingNumber}
+                  onChange={e => setField('startingNumber', e.target.value)}
+                />
+              </FormField>
+              <FormField label="Sequence Padding" required error={errors.sequencePadding} hint="Zero-padding digits, e.g. 4 → 0001">
+                <Input type="number" min="1" max="10" value={form.sequencePadding} onChange={e => setField('sequencePadding', e.target.value)} />
+              </FormField>
+            </div>
+            <p className="text-xs text-gray-500">
+              Preview: <span className="font-mono font-semibold text-gray-800">{invoicePreview || '—'}</span>
+            </p>
           </Accordion>
         </div>
       </Modal>

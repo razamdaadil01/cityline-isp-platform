@@ -1,3 +1,7 @@
+// TODO: invoiceNo below is a hardcoded literal, not produced by
+// getNextInvoiceNumber() (src/data/companyEntities.js) — wire that generator
+// in here once invoices are actually created against a real flow rather than
+// this seed/mock list.
 export const MOCK_INVOICES = [
   {
     invoiceNo: 'B2C/26-27/0001',
