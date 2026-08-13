@@ -6,7 +6,7 @@ import {
   BookOpen, Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
-  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -22,6 +22,8 @@ import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data
 import {
   getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
   saveLeadIdConfig, formatLeadId,
+  saveCustomerIdConfig, formatCustomerId, savePppoeIdConfig, saveAppPasswordConfig,
+  applyPattern, buildCredentialTokens,
 } from '../data/customerTypes'
 import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
@@ -1390,7 +1392,7 @@ function SysConfigToggle({ checked, onChange, disabled }) {
 
 // ── System Configuration: Customer Type ─────────────────────────────────────────
 
-function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFormat }) {
+function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFormat, onOpenCustomerIdConfig }) {
   const [types, setTypes] = useState(getCustomerTypes)
 
   useEffect(() => subscribeCustomerTypes(setTypes), [])
@@ -1415,6 +1417,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mapped Service Tags</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Fields Configured</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead ID Format</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID & Credentials</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
@@ -1455,6 +1458,15 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
                     >
                       <Hash size={13} />
                       {t.leadIdPrefix}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <button
+                      onClick={() => onOpenCustomerIdConfig(t.id)}
+                      className="inline-flex items-center gap-1.5 text-brand-blue hover:underline font-medium whitespace-nowrap"
+                    >
+                      <Wifi size={13} />
+                      {t.customerIdConfig?.prefix}
                     </button>
                   </td>
                 </tr>
@@ -1905,6 +1917,214 @@ function LeadIdFormatPanel({ type, onSwitchType, onBack }) {
   )
 }
 
+function customerIdCredentialsFormToForm(type) {
+  return {
+    customerId: {
+      prefix: type?.customerIdConfig?.prefix ?? '',
+      includeYear: type?.customerIdConfig?.includeYear ?? true,
+      startingNumber: String(type?.customerIdConfig?.startingNumber ?? 1),
+      sequencePadding: String(type?.customerIdConfig?.sequencePadding ?? 4),
+    },
+    pppoe: {
+      mode: type?.pppoeIdConfig?.mode ?? 'auto',
+      pattern: type?.pppoeIdConfig?.pattern ?? '{firstname}_{lastname}_{seq}',
+    },
+    appPassword: {
+      mode: type?.appPasswordConfig?.mode ?? 'auto',
+      pattern: type?.appPasswordConfig?.pattern ?? 'Cit@{year}#{firstname}',
+    },
+  }
+}
+
+// Sample tokens for the PPPoE ID / App Password format previews below —
+// same shape buildCredentialTokens() derives from a real customer
+// (customerTypes.js), just fixed sample values since there's no real
+// customer to preview against here.
+const CT_SAMPLE_TOKENS = { firstname: 'john', lastname: 'doe', customerid: 'res20260012', seq: '0012', year: String(new Date().getFullYear()) }
+
+// TODO: exact PPPoE ID / App Password format token syntax isn't specified in
+// the PRD beyond the {firstname}/{lastname}/{customerid}/{seq}/{year}
+// examples given — see customerTypes.js's applyPattern()/
+// buildCredentialTokens() for the actual token set implemented; confirm
+// with BA if more tokens (branch, plan, etc.) are actually needed.
+function CustomerIdCredentialsPanel({ type, onSwitchType, onBack }) {
+  const customerTypes = getCustomerTypes()
+  const activeType = customerTypes.some(t => t.id === type) ? type : customerTypes[0]?.id
+
+  const [form, setForm] = useState(() => customerIdCredentialsFormToForm(getCustomerType(activeType)))
+  const [errors, setErrors] = useState({})
+  const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    setForm(customerIdCredentialsFormToForm(getCustomerType(activeType)))
+    setErrors({})
+  }, [activeType])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  function setCustomerIdField(k, v) {
+    setForm(f => ({ ...f, customerId: { ...f.customerId, [k]: v } }))
+    setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function setPppoeField(k, v) {
+    setForm(f => ({ ...f, pppoe: { ...f.pppoe, [k]: v } }))
+    setErrors(e => ({ ...e, pppoePattern: undefined }))
+  }
+
+  function setAppPasswordField(k, v) {
+    setForm(f => ({ ...f, appPassword: { ...f.appPassword, [k]: v } }))
+    setErrors(e => ({ ...e, appPasswordPattern: undefined }))
+  }
+
+  function validate() {
+    const errs = {}
+    if (!form.customerId.prefix.trim()) errs.prefix = 'Prefix is required.'
+    if (form.customerId.startingNumber === '' || Number.isNaN(Number(form.customerId.startingNumber)) || Number(form.customerId.startingNumber) < 0)
+      errs.startingNumber = 'Enter a valid starting number.'
+    if (form.customerId.sequencePadding === '' || Number.isNaN(Number(form.customerId.sequencePadding)) || Number(form.customerId.sequencePadding) < 1)
+      errs.sequencePadding = 'Enter a valid padding (1 or more digits).'
+    if (form.pppoe.mode === 'auto' && !form.pppoe.pattern.trim()) errs.pppoePattern = 'Pattern is required in Auto-generate mode.'
+    if (form.appPassword.mode === 'auto' && !form.appPassword.pattern.trim()) errs.appPasswordPattern = 'Pattern is required in Auto-generate mode.'
+    return errs
+  }
+
+  function handleSave() {
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    saveCustomerIdConfig(activeType, {
+      prefix: form.customerId.prefix.trim(),
+      includeYear: form.customerId.includeYear,
+      startingNumber: Number(form.customerId.startingNumber),
+      sequencePadding: Number(form.customerId.sequencePadding),
+    })
+    savePppoeIdConfig(activeType, { mode: form.pppoe.mode, pattern: form.pppoe.pattern.trim() })
+    saveAppPasswordConfig(activeType, { mode: form.appPassword.mode, pattern: form.appPassword.pattern.trim() })
+    setToast('Customer ID & Credentials configuration saved successfully')
+  }
+
+  const customerIdPreviewSeq = Number(form.customerId.startingNumber) || 0
+  const customerIdPreview = form.customerId.prefix.trim() ? formatCustomerId(form.customerId, customerIdPreviewSeq) : ''
+  const pppoePreview = form.pppoe.mode === 'auto' ? applyPattern(form.pppoe.pattern, CT_SAMPLE_TOKENS) : ''
+  const appPasswordPreview = form.appPassword.mode === 'auto' ? applyPattern(form.appPassword.pattern, CT_SAMPLE_TOKENS) : ''
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onBack} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand-blue">
+        <ChevronLeft size={13} /> Back to Customer Type
+      </button>
+
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Customer ID & Credentials</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Customer Type — control the Customer ID format, and how the PPPoE ID and App Password are generated, when a new customer of this type is created
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-surface-border">
+        {customerTypes.map(t => (
+          <button
+            key={t.id}
+            onClick={() => onSwitchType(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors
+              ${activeType === t.id ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-500">
+        Changes apply going forward to new customers of this type; existing customers keep their current Customer ID, PPPoE ID and App Password.
+      </p>
+
+      <div className="max-w-xl space-y-4">
+        <Accordion title="Customer ID" subtitle="Prefix, sequence and padding used to generate new Customer IDs">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Prefix" required error={errors.prefix}>
+              <Input placeholder="e.g. RES" value={form.customerId.prefix} onChange={e => setCustomerIdField('prefix', e.target.value)} />
+            </FormField>
+            <FormField label="Include Year">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.customerId.includeYear} onChange={v => setCustomerIdField('includeYear', v)} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.customerId.includeYear ? 'On' : 'Off'}</span>
+              </div>
+            </FormField>
+            <FormField label="Starting Number" required error={errors.startingNumber}>
+              <Input type="number" min="0" value={form.customerId.startingNumber} onChange={e => setCustomerIdField('startingNumber', e.target.value)} />
+            </FormField>
+            <FormField label="Sequence Padding" required error={errors.sequencePadding} hint="Zero-padding digits, e.g. 4 → 0001">
+              <Input type="number" min="1" max="10" value={form.customerId.sequencePadding} onChange={e => setCustomerIdField('sequencePadding', e.target.value)} />
+            </FormField>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            Preview: <span className="font-mono font-semibold text-gray-800">{customerIdPreview || '—'}</span>
+          </p>
+        </Accordion>
+
+        <Accordion title="PPPoE ID" subtitle="How the PPPoE username is generated at customer creation">
+          <FormField label="Generation Mode">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.pppoe.mode === 'auto'} onChange={v => setPppoeField('mode', v ? 'auto' : 'manual')} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.pppoe.mode === 'auto' ? 'Auto-generate' : 'Manual Entry'}</span>
+            </div>
+          </FormField>
+          {form.pppoe.mode === 'auto' ? (
+            <>
+              <FormField label="Format Pattern" required error={errors.pppoePattern} hint="Available tokens: {firstname} {lastname} {customerid} {seq} {year}">
+                <Input placeholder="e.g. {firstname}_{lastname}_{seq}" value={form.pppoe.pattern} onChange={e => setPppoeField('pattern', e.target.value)} />
+              </FormField>
+              <p className="text-xs text-gray-500 mt-3">
+                Preview: <span className="font-mono font-semibold text-gray-800">{pppoePreview || '—'}</span>
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-gray-500 mt-3">Agent enters the PPPoE ID manually during customer creation/conversion.</p>
+          )}
+        </Accordion>
+
+        <Accordion title="App Password" subtitle="How the customer app login password is generated at customer creation">
+          <FormField label="Generation Mode">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.appPassword.mode === 'auto'} onChange={v => setAppPasswordField('mode', v ? 'auto' : 'manual')} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.appPassword.mode === 'auto' ? 'Auto-generate' : 'Manual Entry'}</span>
+            </div>
+          </FormField>
+          {form.appPassword.mode === 'auto' ? (
+            <>
+              <FormField label="Format Pattern" required error={errors.appPasswordPattern} hint="Available tokens: {firstname} {lastname} {customerid} {seq} {year}">
+                <Input placeholder="e.g. Cit@{year}#{firstname}" value={form.appPassword.pattern} onChange={e => setAppPasswordField('pattern', e.target.value)} />
+              </FormField>
+              <p className="text-xs text-gray-500 mt-3">
+                Preview: <span className="font-mono font-semibold text-gray-800">{appPasswordPreview || '—'}</span>
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-gray-500 mt-3">Agent sets the App Password manually during customer creation/conversion.</p>
+          )}
+        </Accordion>
+
+        <div className="flex justify-end pt-2">
+          <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Changes</Button>
+        </div>
+      </div>
+
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Customer Type's drill-down (Service Tags / Field Configuration) is
 // deep-linkable via ?view= and ?type= on top of the outer ?section=
 // customer-type — entering a sub-view pushes a new history entry (so back
@@ -1976,11 +2196,21 @@ function CustomerTypeTab() {
       />
     )
   }
+  if (view === 'customer-id-config') {
+    return (
+      <CustomerIdCredentialsPanel
+        type={type}
+        onSwitchType={next => switchType('customer-id-config', next)}
+        onBack={backToList}
+      />
+    )
+  }
   return (
     <CustomerTypeListPanel
       onOpenServiceTags={t => openView('service-tags', t)}
       onOpenFields={t => openView('fields', t)}
       onOpenLeadIdFormat={t => openView('lead-id-format', t)}
+      onOpenCustomerIdConfig={t => openView('customer-id-config', t)}
     />
   )
 }

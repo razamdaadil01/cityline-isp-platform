@@ -22,8 +22,9 @@ import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
 import { getCompanyEntity } from '../data/companyEntities'
 import { getPartner } from '../data/partners'
-import { addCustomer } from '../data/customersData'
+import { addCustomer, getNextCustomerId } from '../data/customersData'
 import { buildCustomerFromLead } from '../data/leadConversion'
+import { getCustomerType, getPPPoEId, getAppPassword, applyPattern, buildCredentialTokens } from '../data/customerTypes'
 import { displayFieldValue } from '../components/ui/DynamicFieldInput'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -353,6 +354,8 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
   const [form, setForm] = useState({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
   const [copied, setCopied] = useState(null)
   const [advancePaymentNotRequired, setAdvancePaymentNotRequired] = useState(false)
+  const [manualUsername, setManualUsername] = useState('')
+  const [manualAppPassword, setManualAppPassword] = useState('')
 
   useEffect(() => {
     if (isOpen) {
@@ -360,10 +363,20 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
       setForm({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
       setCopied(null)
       setAdvancePaymentNotRequired(false)
+      setManualUsername(data?.username ?? '')
+      setManualAppPassword(data?.appPassword ?? '')
     }
-  }, [isOpen])
+  }, [isOpen, data])
 
   const amountMissing = !advancePaymentNotRequired && !form.amount.trim()
+
+  // Customer Type-scoped generation mode — when a type's PPPoE ID / App
+  // Password config is "Manual Entry" (customerTypes.js), the agent types
+  // the value in here instead of it being auto-generated.
+  const customerTypeId = lead?.pipeline === 'Enterprise' ? 'corporate' : 'resident'
+  const customerType = getCustomerType(customerTypeId)
+  const pppoeMode = customerType?.pppoeIdConfig?.mode ?? 'auto'
+  const appPasswordMode = customerType?.appPasswordConfig?.mode ?? 'auto'
 
   function handleCopy(text, key) {
     navigator.clipboard?.writeText(text).catch(() => {})
@@ -371,31 +384,51 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const credentialItems = [
+    { key: 'customerId', label: 'Customer ID', value: data?.customerId, editable: false },
+    { key: 'plan',       label: 'Plan',        value: data?.plan,       editable: false },
+    { key: 'username',   label: 'PPPoE Username', value: pppoeMode === 'manual' ? manualUsername : data?.username, editable: pppoeMode === 'manual', onChange: setManualUsername },
+    { key: 'pppoePassword', label: 'PPPoE Password', value: data?.pppoePassword, editable: false },
+    { key: 'appPassword', label: 'App Password', value: appPasswordMode === 'manual' ? manualAppPassword : data?.appPassword, editable: appPasswordMode === 'manual', onChange: setManualAppPassword },
+  ]
+
+  // Final values to hand back on confirm — the manually-typed value when
+  // that Customer Type's mode is Manual Entry, otherwise the auto-generated
+  // one already on `data`.
+  const finalCredentials = {
+    username: pppoeMode === 'manual' ? manualUsername : data?.username,
+    appPassword: appPasswordMode === 'manual' ? manualAppPassword : data?.appPassword,
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Customer Account Created" size="lg">
       <div className="space-y-5">
 
-        {/* PPPoE Credentials */}
+        {/* Account Credentials */}
         <div className="bg-navy/5 border border-navy/20 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Wifi size={13} className="text-navy" />
-            <p className="text-xs font-bold text-navy uppercase tracking-wider">PPPoE Credentials</p>
+            <p className="text-xs font-bold text-navy uppercase tracking-wider">Account Credentials</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Customer ID', value: data?.customerId },
-              { label: 'Plan',        value: data?.plan       },
-              { label: 'Username',    value: data?.username   },
-              { label: 'Password',    value: data?.password   },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-white rounded-lg border border-surface-border p-3">
+            {credentialItems.map(({ key, label, value, editable, onChange }) => (
+              <div key={key} className="bg-white rounded-lg border border-surface-border p-3">
                 <p className="text-[10px] text-gray-400 mb-1">{label}</p>
-                <div className="flex items-center justify-between gap-1">
-                  <p className="text-sm font-mono font-bold text-gray-900 truncate">{value}</p>
-                  <button onClick={() => handleCopy(value ?? '', label)} className="shrink-0 text-gray-400 hover:text-brand-blue transition-colors">
-                    {copied === label ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                  </button>
-                </div>
+                {editable ? (
+                  <input
+                    value={value ?? ''}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={`Enter ${label}`}
+                    className="w-full text-sm font-mono font-bold text-gray-900 bg-transparent border-b border-dashed border-gray-300 focus:border-brand-blue outline-none"
+                  />
+                ) : (
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-sm font-mono font-bold text-gray-900 truncate">{value}</p>
+                    <button onClick={() => handleCopy(value ?? '', label)} className="shrink-0 text-gray-400 hover:text-brand-blue transition-colors">
+                      {copied === label ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -443,7 +476,7 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
                       <FormField label="Reference Number">
                         <Input value={form.reference} onChange={e => setForm(p => ({ ...p, reference: e.target.value }))} placeholder="Transaction ID or Cheque no." />
                       </FormField>
-                      <Button className="w-full" icon={<CheckCircle2 size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(advancePaymentNotRequired)}>
+                      <Button className="w-full" icon={<CheckCircle2 size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(advancePaymentNotRequired, finalCredentials)}>
                         Confirm Payment
                       </Button>
                       {amountMissing && (
@@ -497,7 +530,7 @@ function PaymentModal({ isOpen, onClose, lead, data, onPaymentConfirmed }) {
                           ))}
                         </div>
                       </div>
-                      <Button className="w-full" icon={<Send size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(advancePaymentNotRequired)}>
+                      <Button className="w-full" icon={<Send size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(advancePaymentNotRequired, finalCredentials)}>
                         Send Payment Request
                       </Button>
                       {amountMissing && (
@@ -550,10 +583,11 @@ function ActivationSuccessModal({ isOpen, onClose, data }) {
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
           <div className="space-y-3">
             {[
-              { label: 'Customer ID', value: data?.customerId },
-              { label: 'Username',    value: data?.username   },
-              { label: 'Password',    value: data?.password   },
-              { label: 'Plan',        value: data?.plan       },
+              { label: 'Customer ID',    value: data?.customerId    },
+              { label: 'PPPoE Username', value: data?.username      },
+              { label: 'PPPoE Password', value: data?.pppoePassword },
+              { label: 'App Password',   value: data?.appPassword   },
+              { label: 'Plan',           value: data?.plan          },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-xs font-medium text-emerald-700">{label}</span>
@@ -2914,11 +2948,19 @@ export default function SalesLeadDetail() {
 
 
   function handleHardwareConfirm(hwFormData) {
-    const parts = lead.name.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/)
-    const username = parts.join('_') + '_001'
-    const firstName = parts[0] ?? 'customer'
-    const password = `Cit@2024#${firstName.charAt(0).toUpperCase()}${firstName.slice(1, 3)}`
-    const customerId = `CL-${1040 + Math.floor(Math.random() * 20)}`
+    // TODO: existing customers keep their original Customer ID / PPPoE
+    // credentials; only new customer creation (this Won-conversion flow)
+    // uses the Customer Type-configured generators below.
+    const customerTypeId = lead.pipeline === 'Enterprise' ? 'corporate' : 'resident'
+    const customerId = getNextCustomerId(customerTypeId)
+    const customerLike = { name: lead.name, id: customerId }
+    const username = getPPPoEId(customerLike, customerTypeId)
+    // PPPoE Password isn't one of the 3 configurable ID types in
+    // customerTypes.js (Customer ID / PPPoE ID / App Password) — it's a
+    // simple locally-generated starting value, freely editable afterwards
+    // from the Customer Profile page's Connection Details card.
+    const pppoePassword = applyPattern('{customerid}#Pass', buildCredentialTokens(customerLike))
+    const appPassword = getAppPassword(customerLike, customerTypeId)
 
     const newHistoryEntry = { stage: 'Won', date: TODAY, movedBy: lead.assigned ?? 'Arjun Kumar', fields: {} }
     const newActivityEntry = { id: Date.now(), icon: '🏆', text: 'Installation completed — Lead marked as Won', user: lead.assigned ?? 'Arjun Kumar', time: 'just now' }
@@ -2931,7 +2973,7 @@ export default function SalesLeadDetail() {
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
     })
 
-    setActivationData({ customerId, username, password, plan: lead.plan ?? '100 Mbps Home', customerName: lead.name })
+    setActivationData({ customerId, username, pppoePassword, appPassword, plan: lead.plan ?? '100 Mbps Home', customerName: lead.name })
     setHwModalOpen(false)
     setActivationModalOpen(true)
   }
@@ -4264,8 +4306,9 @@ export default function SalesLeadDetail() {
         onClose={() => setActivationModalOpen(false)}
         lead={lead}
         data={activationData}
-        onPaymentConfirmed={(advancePaymentNotRequired) => {
+        onPaymentConfirmed={(advancePaymentNotRequired, credentials) => {
           saveLead({ ...lead, advancePaymentNotRequired })
+          setActivationData(prev => ({ ...prev, ...credentials }))
           setActivationModalOpen(false)
           setActivationSuccessOpen(true)
         }}
