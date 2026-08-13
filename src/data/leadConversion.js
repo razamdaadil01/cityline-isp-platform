@@ -1,5 +1,5 @@
 import { getFeasibilityRequests } from './feasibilityStore'
-import { nextCustomerId } from './customersData'
+import { getNextCustomerId } from './customersData'
 import { getCompanyEntity } from './companyEntities'
 import { getPartner } from './partners'
 
@@ -18,7 +18,7 @@ export function buildCustomerFromLead(lead) {
   const isCorporate  = lead.pipeline === 'Enterprise'
 
   return {
-    id: nextCustomerId(),
+    id: getNextCustomerId(isCorporate ? 'corporate' : 'resident'),
     name: lead.name,
     phone: lead.phone,
     altPhone: lead.alternateMobile,

@@ -1,3 +1,15 @@
+import { getCustomerType, formatCustomerId, getNextCustomerIdSequence } from './customerTypes'
+
+// TODO: existing customers (CUSTOMERS below, and any already created via
+// addCustomer()) keep their original Customer ID; only new customer
+// creation uses getNextCustomerId()'s configured per-Customer-Type system.
+//
+// Note: PPPoE ID and App Password (also configured per Customer Type, see
+// customerTypes.js's getPPPoEId()/getAppPassword()) aren't modeled as
+// fields on these plain customer records — the actual pppoeUsername/
+// appPassword/pppoePassword data this app renders lives on CustomerDetail.jsx's
+// per-customer `radius` object (MOCK_CUSTOMERS / makeCustomerFromBase), not
+// here, so that's where those two generators are wired in.
 export const CUSTOMERS = [
   { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West'  },
   { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East'   },
@@ -77,15 +89,34 @@ export function nextIntercomCustomerId() {
   return `IC-CUST-${year}-${String(next).padStart(6, '0')}`
 }
 
-// Used when converting a Won lead into a customer record (see
-// leadConversion.js) — mirrors the CL-104x scheme the Won-conversion modal
-// used to fabricate as a display-only placeholder, but sequential and
-// actually unique now that it's used as a real, persisted customer id.
-export function nextCustomerId() {
+// Legacy CL-#### fallback, used only if getNextCustomerId() below is asked
+// for an unrecognized/missing customerTypeId — kept so customer creation can
+// never hard-fail on a bad type id, not meant to be called directly anymore.
+function legacyCustomerIdFallback() {
   const nums = getAllCustomers()
     .map(c => c.id.match(/^CL-(\d+)$/))
     .filter(Boolean)
     .map(m => Number(m[1]))
   const next = (nums.length ? Math.max(...nums) : 1039) + 1
   return `CL-${next}`
+}
+
+// Unified Customer ID generator — used when converting a Won lead into a
+// customer record (leadConversion.js) and anywhere else a real customer is
+// created going forward. Replaces the old nextCustomerId() (CL-####, no
+// Customer Type awareness) with the same per-Customer-Type
+// prefix/year/padding/sequence config Lead ID and Invoice Number already
+// use (see customerTypes.js's customerIdConfig, formatCustomerId(),
+// getNextCustomerIdSequence()).
+//
+// Note: this only covers Resident/Corporate ISP customers. Intercom
+// customers (nextIntercomCustomerId() above) are a separate product line
+// with no Resident/Corporate Customer Type of their own, so they're
+// intentionally left on their existing IC-CUST-YYYY-NNNNNN scheme rather
+// than being forced through this config.
+export function getNextCustomerId(customerTypeId = 'resident') {
+  const type = getCustomerType(customerTypeId)
+  if (!type?.customerIdConfig) return legacyCustomerIdFallback()
+  const seq = getNextCustomerIdSequence(customerTypeId)
+  return formatCustomerId(type.customerIdConfig, seq)
 }

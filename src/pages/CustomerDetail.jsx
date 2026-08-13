@@ -12,6 +12,7 @@ import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import { getAllCustomers } from '../data/customersData'
+import { getPPPoEId, getAppPassword } from '../data/customerTypes'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -87,6 +88,9 @@ const MOCK_CUSTOMERS = {
       jazeUserId: 'rajan_mehta_cl1001',
       pppoeUsername: 'CL1001@cityline',
       pppoePassword: 'Rj@1001#Pass',
+      // TODO: existing seeded customer — kept as-is rather than regenerated
+      // through the Customer Type-configured App Password system.
+      appPassword: 'Cit@2023#Raj',
       nas: 'NAS-AW-01',
       interface: 'ge-0/0/2.0',
       ipAddress: '10.14.22.45',
@@ -128,7 +132,7 @@ function makeCustomerFromBase(id) {
       createdOn: '—',
       address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
       payment: { mode: '—', advanceDeposit: 0, creditLimit: 0, billingCycle: '—' },
-      radius: { jazeUserId: '—', pppoeUsername: '—', pppoePassword: '—', nas: '—', interface: '—', ipAddress: '—', macAddress: '—' },
+      radius: { jazeUserId: '—', pppoeUsername: '—', pppoePassword: '—', appPassword: '—', nas: '—', interface: '—', ipAddress: '—', macAddress: '—' },
       kyc: { aadhaar: 'pending', pan: 'pending', photo: 'pending', agreementSigned: false },
       notes: '',
     }
@@ -206,10 +210,18 @@ function makeCustomerFromBase(id) {
     ownership: base.ownership ?? {},
     sales: base.sales ?? {},
     payment: { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
+    // TODO: existing customers keep their original PPPoE ID/App Password —
+    // getPPPoEId()/getAppPassword() only affect a customer once its own
+    // record actually has a pppoeUsername/appPassword set (manual mode) or
+    // is freshly created via getNextCustomerId() (leadConversion.js); for
+    // every pre-existing base-only record here they just recompute the same
+    // deterministic value every render, since there's no persisted "already
+    // generated" flag to distinguish old records from new ones.
     radius: {
       jazeUserId: idSlug,
-      pppoeUsername: `${base.id.replace('-', '')}@cityline`,
+      pppoeUsername: getPPPoEId({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       pppoePassword: '—',
+      appPassword: getAppPassword({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       nas: 'NAS-01',
       interface: '—',
       ipAddress: '—',
@@ -411,6 +423,7 @@ function InfoField({ label, value, mono, children }) {
 function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const [cust, setCust] = useState(initCustomer)
   const [showPass, setShowPass] = useState(false)
+  const [showAppPass, setShowAppPass] = useState(false)
 
   const [p1, setP1] = useState({ editing: false, draft: null })
   const [p2, setP2] = useState({ editing: false, draft: null })
@@ -601,7 +614,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
             !p3.editing
               ? editBtn(() => startEdit(setP3, {
                   conn: { ...conn },
-                  radius: { jazeUserId: cust.radius.jazeUserId, pppoePassword: cust.radius.pppoePassword },
+                  radius: { jazeUserId: cust.radius.jazeUserId, pppoePassword: cust.radius.pppoePassword, appPassword: cust.radius.appPassword },
                   services: [...(cust.services ?? [])],
                 }))
               : null
@@ -634,6 +647,18 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                     {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                   <button onClick={() => navigator.clipboard?.writeText(cust.radius.pppoePassword)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <Copy size={13} />
+                  </button>
+                </div>
+              </div>
+              <div className="col-span-full">
+                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">App Password</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-gray-800">{showAppPass ? cust.radius.appPassword : '••••••••'}</span>
+                  <button onClick={() => setShowAppPass(v => !v)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    {showAppPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                  <button onClick={() => navigator.clipboard?.writeText(cust.radius.appPassword)} className="text-gray-400 hover:text-gray-600 transition-colors">
                     <Copy size={13} />
                   </button>
                 </div>
@@ -680,6 +705,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
                 <EF label="Jaze User ID"  value={p3.draft.radius.jazeUserId} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, radius: { ...s.draft.radius, jazeUserId: v } } }))} mono />
                 <EF label="NAS/Interface" value={p3.draft.conn.nasInterface} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, nasInterface: v } } }))} mono />
                 <EF label="PPPoE Password" value={p3.draft.radius.pppoePassword} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, radius: { ...s.draft.radius, pppoePassword: v } } }))} mono type="password" />
+                <EF label="App Password" value={p3.draft.radius.appPassword} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, radius: { ...s.draft.radius, appPassword: v } } }))} mono type="password" />
                 <EF label="SBT No."    value={p3.draft.conn.sbtNo}     onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, sbtNo: v } } }))} mono />
                 <EF label="Circuit ID" value={p3.draft.conn.circuitId} onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, circuitId: v } } }))} mono />
                 <EF label="VC No."     value={p3.draft.conn.vcNo}      onChange={v => setP3(s => ({ ...s, draft: { ...s.draft, conn: { ...s.draft.conn, vcNo: v } } }))} mono />
