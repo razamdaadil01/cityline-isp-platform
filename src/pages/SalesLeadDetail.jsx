@@ -2012,6 +2012,9 @@ function EditFuModal({ isOpen, onClose, fu, onSave }) {
 // "Invoice" button) — pulls the same displayPrice/boundPackages/firstInvoice/dueAmount
 // figures already shown in the card, via the same boundPackagesOf() helper. Download/
 // Print is a UI stub for now, no real PDF generation.
+// TODO: this modal doesn't display/assign an invoice number at all yet — once
+// it does, pull it via getNextInvoiceNumber(entityId) from
+// src/data/companyEntities.js rather than inventing another ad-hoc scheme.
 
 function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
   if (!plan || !pkg) return null
