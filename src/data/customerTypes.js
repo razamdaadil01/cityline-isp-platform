@@ -17,6 +17,7 @@ let _customerTypes = [
     pppoeIdConfig: { mode: 'auto', pattern: '{firstname}_{lastname}_{seq}' },
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
     zohoSyncEnabled: false,
+    tallySyncEnabled: false,
   },
   {
     id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true,
@@ -25,6 +26,7 @@ let _customerTypes = [
     pppoeIdConfig: { mode: 'auto', pattern: '{firstname}_{lastname}_{seq}' },
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
     zohoSyncEnabled: false,
+    tallySyncEnabled: false,
   },
 ]
 
@@ -57,6 +59,17 @@ export function setCustomerTypeStatus(id, status) {
 // integration exists — this is config only for now.
 export function setZohoSyncEnabled(id, enabled) {
   _customerTypes = _customerTypes.map(t => t.id === id ? { ...t, zohoSyncEnabled: enabled } : t)
+  notify()
+}
+
+// Same master-switch pattern for Tally sync — Company/Entity's own
+// tallyConfig.enabled (companyEntities.js) only takes effect for a customer
+// whose Customer Type also has this on; OFF here overrides an entity-level
+// ON.
+// TODO: enforce this precedence in actual sync logic once real Tally
+// integration exists — this is config only for now.
+export function setTallySyncEnabled(id, enabled) {
+  _customerTypes = _customerTypes.map(t => t.id === id ? { ...t, tallySyncEnabled: enabled } : t)
   notify()
 }
 

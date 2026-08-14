@@ -52,6 +52,21 @@ let _companyEntities = [
         syncChartOfAccounts: false,
       },
     },
+    // Tally is configured per entity too, same structure as zohoConfig
+    // above — disabled by default (Settings.jsx's CompanyEntityTab "Tally
+    // Integration" accordion).
+    tallyConfig: {
+      enabled: false,
+      tallyCompanyName: '',
+      serverHost: '',
+      port: 9000,
+      payloadFields: {
+        syncInvoices: true,
+        syncPayments: true,
+        syncCustomerLedger: false,
+        syncGstDetails: false,
+      },
+    },
   },
   {
     id: 2,
@@ -79,6 +94,18 @@ let _companyEntities = [
         exportPayments: true,
         exportCustomerList: false,
         syncChartOfAccounts: false,
+      },
+    },
+    tallyConfig: {
+      enabled: false,
+      tallyCompanyName: '',
+      serverHost: '',
+      port: 9000,
+      payloadFields: {
+        syncInvoices: true,
+        syncPayments: true,
+        syncCustomerLedger: false,
+        syncGstDetails: false,
       },
     },
   },

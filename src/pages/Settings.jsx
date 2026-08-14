@@ -23,7 +23,7 @@ import {
   getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
   saveLeadIdConfig, formatLeadId,
   saveCustomerIdConfig, formatCustomerId, savePppoeIdConfig, saveAppPasswordConfig,
-  applyPattern, buildCredentialTokens, setZohoSyncEnabled,
+  applyPattern, buildCredentialTokens, setZohoSyncEnabled, setTallySyncEnabled,
 } from '../data/customerTypes'
 import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
@@ -1342,6 +1342,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead ID Format</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID & Credentials</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Zoho Sync</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Tally Sync</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
@@ -1397,6 +1398,12 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
                     <div className="flex items-center gap-2.5">
                       <SysConfigToggle checked={!!t.zohoSyncEnabled} onChange={v => setZohoSyncEnabled(t.id, v)} />
                       <span className={`text-xs font-medium whitespace-nowrap ${t.zohoSyncEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.zohoSyncEnabled ? 'Enabled' : 'Disabled'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <SysConfigToggle checked={!!t.tallySyncEnabled} onChange={v => setTallySyncEnabled(t.id, v)} />
+                      <span className={`text-xs font-medium whitespace-nowrap ${t.tallySyncEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.tallySyncEnabled ? 'Enabled' : 'Disabled'}</span>
                     </div>
                   </td>
                 </tr>
@@ -2157,6 +2164,8 @@ function ceEmptyForm() {
     invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
     zohoEnabled: false, zohoClientId: '', zohoClientSecret: '', zohoOrgId: '', zohoApiRegion: 'in',
     zohoAutoExport: { exportInvoices: true, exportPayments: true, exportCustomerList: false, syncChartOfAccounts: false },
+    tallyEnabled: false, tallyCompanyName: '', tallyServerHost: '', tallyPort: '9000',
+    tallyPayloadFields: { syncInvoices: true, syncPayments: true, syncCustomerLedger: false, syncGstDetails: false },
   }
 }
 
@@ -2181,6 +2190,16 @@ function ceToForm(entity) {
       exportCustomerList: entity.zohoConfig?.autoExport?.exportCustomerList ?? false,
       syncChartOfAccounts: entity.zohoConfig?.autoExport?.syncChartOfAccounts ?? false,
     },
+    tallyEnabled: entity.tallyConfig?.enabled ?? false,
+    tallyCompanyName: entity.tallyConfig?.tallyCompanyName ?? '',
+    tallyServerHost: entity.tallyConfig?.serverHost ?? '',
+    tallyPort: String(entity.tallyConfig?.port ?? 9000),
+    tallyPayloadFields: {
+      syncInvoices: entity.tallyConfig?.payloadFields?.syncInvoices ?? true,
+      syncPayments: entity.tallyConfig?.payloadFields?.syncPayments ?? true,
+      syncCustomerLedger: entity.tallyConfig?.payloadFields?.syncCustomerLedger ?? false,
+      syncGstDetails: entity.tallyConfig?.payloadFields?.syncGstDetails ?? false,
+    },
   }
 }
 
@@ -2193,6 +2212,9 @@ function CompanyEntityTab() {
   // Connected/Disconnected badge is local, ephemeral UI state (as it was on
   // the old global Zoho Books tab) — not part of the persisted zohoConfig.
   const [zohoConnected, setZohoConnected] = useState(true)
+  // Same local/ephemeral pattern for Tally's Connected/Disconnected badge —
+  // not part of the persisted tallyConfig.
+  const [tallyConnected, setTallyConnected] = useState(true)
 
   useEffect(() => subscribeCompanyEntities(setEntities), [])
 
@@ -2221,6 +2243,7 @@ function CompanyEntityTab() {
       setForm(modalEntity ? ceToForm(modalEntity) : ceEmptyForm())
       setErrors({})
       setZohoConnected(true)
+      setTallyConnected(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal, modalEntity?.id])
@@ -2232,6 +2255,10 @@ function CompanyEntityTab() {
 
   function setZohoAutoExportField(k, v) {
     setForm(f => ({ ...f, zohoAutoExport: { ...f.zohoAutoExport, [k]: v } }))
+  }
+
+  function setTallyPayloadField(k, v) {
+    setForm(f => ({ ...f, tallyPayloadFields: { ...f.tallyPayloadFields, [k]: v } }))
   }
 
   function openAdd() {
@@ -2284,6 +2311,12 @@ function CompanyEntityTab() {
       if (!form.zohoClientSecret.trim()) errs.zohoClientSecret = 'Client Secret is required when Zoho Sync is enabled.'
       if (!form.zohoOrgId.trim()) errs.zohoOrgId = 'Organization ID is required when Zoho Sync is enabled.'
     }
+    if (form.tallyEnabled) {
+      if (!form.tallyCompanyName.trim()) errs.tallyCompanyName = 'Tally Company Name is required when Tally Sync is enabled.'
+      if (!form.tallyServerHost.trim()) errs.tallyServerHost = 'Server Host is required when Tally Sync is enabled.'
+      if (form.tallyPort === '' || Number.isNaN(Number(form.tallyPort)) || Number(form.tallyPort) < 1)
+        errs.tallyPort = 'Enter a valid port number.'
+    }
     return errs
   }
 
@@ -2311,6 +2344,13 @@ function CompanyEntityTab() {
         organizationId: form.zohoOrgId.trim(),
         apiRegion: form.zohoApiRegion,
         autoExport: { ...form.zohoAutoExport },
+      },
+      tallyConfig: {
+        enabled: form.tallyEnabled,
+        tallyCompanyName: form.tallyCompanyName.trim(),
+        serverHost: form.tallyServerHost.trim(),
+        port: Number(form.tallyPort),
+        payloadFields: { ...form.tallyPayloadFields },
       },
     })
     setToast(modalEntity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
@@ -2552,6 +2592,79 @@ function CompanyEntityTab() {
                 <div className="flex items-center gap-3">
                   <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
                   <Button variant="secondary" size="sm" icon={<Webhook size={14} />}>Test Webhook</Button>
+                </div>
+              </>
+            )}
+          </Accordion>
+
+          <Accordion title="Tally Integration" subtitle="Sync invoices, payments and customer ledger with Tally for this entity">
+            <FormField label="Enable Tally Sync">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.tallyEnabled} onChange={v => setField('tallyEnabled', v)} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.tallyEnabled ? 'On' : 'Off'}</span>
+              </div>
+            </FormField>
+
+            {form.tallyEnabled && (
+              <>
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <Check size={16} className="text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-green-700">
+                        {tallyConnected ? 'Tally is connected' : 'Tally is disconnected'}
+                      </p>
+                      {tallyConnected && (
+                        <p className="text-xs text-green-600 mt-0.5">Company: {form.tallyCompanyName || form.name || 'this entity'} · Last sync: 5 minutes ago</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={tallyConnected ? 'green' : 'gray'} dot>{tallyConnected ? 'Connected' : 'Disconnected'}</Badge>
+                    <button onClick={() => setTallyConnected(v => !v)}
+                      className="text-xs text-red-500 hover:text-red-600 font-medium underline">
+                      {tallyConnected ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Tally Company Name" required error={errors.tallyCompanyName} hint="The company name as it exists in Tally">
+                    <Input placeholder="e.g. Cityline Networks Pvt Ltd" value={form.tallyCompanyName} onChange={e => setField('tallyCompanyName', e.target.value)} />
+                  </FormField>
+                  <FormField label="Server Host" required error={errors.tallyServerHost}>
+                    <Input placeholder="e.g. localhost or 192.168.1.10" value={form.tallyServerHost} onChange={e => setField('tallyServerHost', e.target.value)} />
+                  </FormField>
+                  <FormField label="Port" required error={errors.tallyPort} hint="Tally's standard XML/HTTP port">
+                    <Input type="number" min="1" placeholder="9000" value={form.tallyPort} onChange={e => setField('tallyPort', e.target.value)} />
+                  </FormField>
+                </div>
+
+                <div className="rounded-xl border border-surface-border overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
+                    <p className="text-sm font-semibold text-gray-800">Payload Fields</p>
+                  </div>
+                  <div className="divide-y divide-surface-border">
+                    {[
+                      { key: 'syncInvoices',        label: 'Sync Invoices',         freq: 'Pushed to Tally on invoice generation'          },
+                      { key: 'syncPayments',        label: 'Sync Payments',         freq: 'Pushed to Tally on payment received'             },
+                      { key: 'syncCustomerLedger',  label: 'Sync Customer Ledger',  freq: 'Pushed to Tally on customer creation/update'     },
+                      { key: 'syncGstDetails',      label: 'Sync GST Details',      freq: 'Pushed to Tally with GSTIN and tax breakup'      },
+                    ].map(item => (
+                      <div key={item.key} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{item.label}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
+                        </div>
+                        <Toggle checked={form.tallyPayloadFields[item.key]} onChange={v => setTallyPayloadField(item.key, v)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
+                  <Button variant="secondary" size="sm" icon={<Server size={14} />}>Test Connection</Button>
                 </div>
               </>
             )}
