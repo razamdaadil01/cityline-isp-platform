@@ -18,6 +18,13 @@ let _customerTypes = [
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
     zohoSyncEnabled: false,
     tallySyncEnabled: false,
+    // E-invoicing is a GST/B2B concern that typically doesn't apply to
+    // Resident/B2C customers — defaulted OFF here as a sensible starting
+    // point.
+    // TODO: confirm this Resident=off/Corporate=on default assumption with
+    // BA; real applicability depends on the entity's GST turnover, not the
+    // customer's type.
+    eInvoicingEnabled: false,
   },
   {
     id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true,
@@ -27,6 +34,10 @@ let _customerTypes = [
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
     zohoSyncEnabled: false,
     tallySyncEnabled: false,
+    // See the Resident record's comment above — Corporate/B2B is where
+    // e-invoicing typically applies, so this defaults ON.
+    // TODO: confirm this default assumption with BA.
+    eInvoicingEnabled: true,
   },
 ]
 
@@ -70,6 +81,17 @@ export function setZohoSyncEnabled(id, enabled) {
 // integration exists — this is config only for now.
 export function setTallySyncEnabled(id, enabled) {
   _customerTypes = _customerTypes.map(t => t.id === id ? { ...t, tallySyncEnabled: enabled } : t)
+  notify()
+}
+
+// Same master-switch pattern for E-Invoicing — Company/Entity's own
+// eInvoicingConfig.enabled (companyEntities.js) only takes effect for a
+// customer whose Customer Type also has this on; OFF here overrides an
+// entity-level ON.
+// TODO: enforce this precedence in actual sync logic once real GSP/IRP
+// integration exists — this is config only for now.
+export function setEInvoicingEnabled(id, enabled) {
+  _customerTypes = _customerTypes.map(t => t.id === id ? { ...t, eInvoicingEnabled: enabled } : t)
   notify()
 }
 
