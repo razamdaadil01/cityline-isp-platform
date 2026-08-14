@@ -36,6 +36,22 @@ let _companyEntities = [
     startingNumber: 1,
     sequencePadding: 4,
     lastIssuedSequence: null,
+    // Zoho Books is configured per entity (moved off the old global Settings
+    // tab, see Settings.jsx's CompanyEntityTab "Zoho Integration" accordion)
+    // — disabled by default, same as a freshly-added entity.
+    zohoConfig: {
+      enabled: false,
+      clientId: '',
+      clientSecret: '',
+      organizationId: '',
+      apiRegion: 'in',
+      autoExport: {
+        exportInvoices: true,
+        exportPayments: true,
+        exportCustomerList: false,
+        syncChartOfAccounts: false,
+      },
+    },
   },
   {
     id: 2,
@@ -52,6 +68,19 @@ let _companyEntities = [
     startingNumber: 1,
     sequencePadding: 4,
     lastIssuedSequence: null,
+    zohoConfig: {
+      enabled: false,
+      clientId: '',
+      clientSecret: '',
+      organizationId: '',
+      apiRegion: 'in',
+      autoExport: {
+        exportInvoices: true,
+        exportPayments: true,
+        exportCustomerList: false,
+        syncChartOfAccounts: false,
+      },
+    },
   },
 ]
 let _nextId = 3

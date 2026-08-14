@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams, Navigate } from 'react-router-
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
   Building2, Receipt, Shield, RefreshCw, Check,
-  BookOpen, Webhook, Phone, Globe, MapPin, Map,
+  Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
   Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi,
@@ -23,7 +23,7 @@ import {
   getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
   saveLeadIdConfig, formatLeadId,
   saveCustomerIdConfig, formatCustomerId, savePppoeIdConfig, saveAppPasswordConfig,
-  applyPattern, buildCredentialTokens,
+  applyPattern, buildCredentialTokens, setZohoSyncEnabled,
 } from '../data/customerTypes'
 import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
@@ -49,7 +49,6 @@ const TABS = [
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
   { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
-  { id: 'zoho-books',          label: 'Zoho Books',            icon: BookOpen  },
   { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
   { id: 'zone',                label: 'Zone',                  icon: Map       },
@@ -606,82 +605,6 @@ function JazeServersTab() {
           </FormField>
         </div>
       </Modal>
-    </div>
-  )
-}
-
-function ZohoBooksTab() {
-  const [connected, setConnected] = useState(true)
-  return (
-    <div className="space-y-5">
-      <div className="pb-4 border-b border-surface-border flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Zoho Books Integration</h2>
-          <p className="text-xs text-gray-500 mt-1">Sync invoices, payments and customers with Zoho Books</p>
-        </div>
-        <Badge variant={connected ? 'green' : 'gray'} dot>{connected ? 'Connected' : 'Disconnected'}</Badge>
-      </div>
-
-      {connected && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-          <Check size={16} className="text-green-600 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-green-700">Zoho Books is connected</p>
-            <p className="text-xs text-green-600 mt-0.5">Organization: Cityline Networks Pvt Ltd · Last sync: 5 minutes ago</p>
-          </div>
-          <button onClick={() => setConnected(false)}
-            className="ml-auto text-xs text-red-500 hover:text-red-600 font-medium underline">Disconnect</button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Zoho Client ID">
-          <Input type="password" defaultValue="1000.XXXXXXXXXXXXXXXXXXXXXXXXX" />
-        </FormField>
-        <FormField label="Zoho Client Secret">
-          <Input type="password" defaultValue="********************************" />
-        </FormField>
-        <FormField label="Organization ID">
-          <Input defaultValue="20097512" />
-        </FormField>
-        <FormField label="API Region">
-          <Select defaultValue="in">
-            <option value="in">India (zohoapis.in)</option>
-            <option value="com">Global (zohoapis.com)</option>
-          </Select>
-        </FormField>
-      </div>
-
-      <div className="rounded-xl border border-surface-border overflow-hidden">
-        <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
-          <p className="text-sm font-semibold text-gray-800">Auto Export Schedule</p>
-        </div>
-        <div className="divide-y divide-surface-border">
-          {[
-            { label: 'Export Invoices',         freq: 'Daily at 11:00 PM',    enabled: true  },
-            { label: 'Export Payments',         freq: 'Daily at 11:30 PM',    enabled: true  },
-            { label: 'Export Customer List',    freq: 'Weekly (Sunday)',       enabled: false },
-            { label: 'Sync Chart of Accounts',  freq: 'Monthly (1st)',         enabled: false },
-          ].map(item => (
-            <div key={item.label} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
-              <div>
-                <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
-              </div>
-              <Toggle checked={item.enabled} onChange={() => {}} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 pt-4 border-t border-surface-border">
-        <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
-        <Button variant="secondary" size="sm" icon={<Webhook size={14} />}>Test Webhook</Button>
-        <div className="ml-auto flex gap-2">
-          <Button variant="secondary" size="sm">Cancel</Button>
-          <Button size="sm" icon={<Save size={14} />}>Save Config</Button>
-        </div>
-      </div>
     </div>
   )
 }
@@ -1418,6 +1341,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Fields Configured</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead ID Format</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID & Credentials</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Zoho Sync</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
@@ -1468,6 +1392,12 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
                       <Wifi size={13} />
                       {t.customerIdConfig?.prefix}
                     </button>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <SysConfigToggle checked={!!t.zohoSyncEnabled} onChange={v => setZohoSyncEnabled(t.id, v)} />
+                      <span className={`text-xs font-medium whitespace-nowrap ${t.zohoSyncEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.zohoSyncEnabled ? 'Enabled' : 'Disabled'}</span>
+                    </div>
                   </td>
                 </tr>
               )
@@ -2225,6 +2155,8 @@ function ceEmptyForm() {
     bankName: '', accountNo: '', ifsc: '', branch: '',
     pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
     invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
+    zohoEnabled: false, zohoClientId: '', zohoClientSecret: '', zohoOrgId: '', zohoApiRegion: 'in',
+    zohoAutoExport: { exportInvoices: true, exportPayments: true, exportCustomerList: false, syncChartOfAccounts: false },
   }
 }
 
@@ -2238,6 +2170,17 @@ function ceToForm(entity) {
     includeYearInNumber: entity.includeYearInNumber ?? true,
     startingNumber: String(entity.startingNumber ?? 1),
     sequencePadding: String(entity.sequencePadding ?? 4),
+    zohoEnabled: entity.zohoConfig?.enabled ?? false,
+    zohoClientId: entity.zohoConfig?.clientId ?? '',
+    zohoClientSecret: entity.zohoConfig?.clientSecret ?? '',
+    zohoOrgId: entity.zohoConfig?.organizationId ?? '',
+    zohoApiRegion: entity.zohoConfig?.apiRegion ?? 'in',
+    zohoAutoExport: {
+      exportInvoices: entity.zohoConfig?.autoExport?.exportInvoices ?? true,
+      exportPayments: entity.zohoConfig?.autoExport?.exportPayments ?? true,
+      exportCustomerList: entity.zohoConfig?.autoExport?.exportCustomerList ?? false,
+      syncChartOfAccounts: entity.zohoConfig?.autoExport?.syncChartOfAccounts ?? false,
+    },
   }
 }
 
@@ -2247,6 +2190,9 @@ function CompanyEntityTab() {
   const [form, setForm] = useState(ceEmptyForm)
   const [errors, setErrors] = useState({})
   const [toast, setToast] = useState('')
+  // Connected/Disconnected badge is local, ephemeral UI state (as it was on
+  // the old global Zoho Books tab) — not part of the persisted zohoConfig.
+  const [zohoConnected, setZohoConnected] = useState(true)
 
   useEffect(() => subscribeCompanyEntities(setEntities), [])
 
@@ -2274,6 +2220,7 @@ function CompanyEntityTab() {
     if (showModal) {
       setForm(modalEntity ? ceToForm(modalEntity) : ceEmptyForm())
       setErrors({})
+      setZohoConnected(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal, modalEntity?.id])
@@ -2281,6 +2228,10 @@ function CompanyEntityTab() {
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function setZohoAutoExportField(k, v) {
+    setForm(f => ({ ...f, zohoAutoExport: { ...f.zohoAutoExport, [k]: v } }))
   }
 
   function openAdd() {
@@ -2328,6 +2279,11 @@ function CompanyEntityTab() {
       errs.startingNumber = 'Enter a valid starting number.'
     if (form.sequencePadding === '' || Number.isNaN(Number(form.sequencePadding)) || Number(form.sequencePadding) < 1)
       errs.sequencePadding = 'Enter a valid padding (1 or more digits).'
+    if (form.zohoEnabled) {
+      if (!form.zohoClientId.trim()) errs.zohoClientId = 'Client ID is required when Zoho Sync is enabled.'
+      if (!form.zohoClientSecret.trim()) errs.zohoClientSecret = 'Client Secret is required when Zoho Sync is enabled.'
+      if (!form.zohoOrgId.trim()) errs.zohoOrgId = 'Organization ID is required when Zoho Sync is enabled.'
+    }
     return errs
   }
 
@@ -2348,6 +2304,14 @@ function CompanyEntityTab() {
       includeYearInNumber: form.includeYearInNumber,
       startingNumber: Number(form.startingNumber),
       sequencePadding: Number(form.sequencePadding),
+      zohoConfig: {
+        enabled: form.zohoEnabled,
+        clientId: form.zohoClientId.trim(),
+        clientSecret: form.zohoClientSecret.trim(),
+        organizationId: form.zohoOrgId.trim(),
+        apiRegion: form.zohoApiRegion,
+        autoExport: { ...form.zohoAutoExport },
+      },
     })
     setToast(modalEntity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
     closeModal()
@@ -2512,6 +2476,85 @@ function CompanyEntityTab() {
             <p className="text-xs text-gray-500">
               Preview: <span className="font-mono font-semibold text-gray-800">{invoicePreview || '—'}</span>
             </p>
+          </Accordion>
+
+          <Accordion title="Zoho Integration" subtitle="Sync invoices, payments and customers with Zoho Books for this entity">
+            <FormField label="Enable Zoho Sync">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.zohoEnabled} onChange={v => setField('zohoEnabled', v)} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.zohoEnabled ? 'On' : 'Off'}</span>
+              </div>
+            </FormField>
+
+            {form.zohoEnabled && (
+              <>
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <Check size={16} className="text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-green-700">
+                        {zohoConnected ? 'Zoho Books is connected' : 'Zoho Books is disconnected'}
+                      </p>
+                      {zohoConnected && (
+                        <p className="text-xs text-green-600 mt-0.5">Organization: {form.name || 'this entity'} · Last sync: 5 minutes ago</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={zohoConnected ? 'green' : 'gray'} dot>{zohoConnected ? 'Connected' : 'Disconnected'}</Badge>
+                    <button onClick={() => setZohoConnected(v => !v)}
+                      className="text-xs text-red-500 hover:text-red-600 font-medium underline">
+                      {zohoConnected ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Client ID" required error={errors.zohoClientId}>
+                    <Input type="password" placeholder="1000.XXXXXXXXXXXXXXXXXXXXXXXXX" value={form.zohoClientId} onChange={e => setField('zohoClientId', e.target.value)} />
+                  </FormField>
+                  <FormField label="Client Secret" required error={errors.zohoClientSecret}>
+                    <Input type="password" placeholder="********************************" value={form.zohoClientSecret} onChange={e => setField('zohoClientSecret', e.target.value)} />
+                  </FormField>
+                  <FormField label="Organization ID" required error={errors.zohoOrgId}>
+                    <Input placeholder="e.g. 20097512" value={form.zohoOrgId} onChange={e => setField('zohoOrgId', e.target.value)} />
+                  </FormField>
+                  <FormField label="API Region">
+                    <Select value={form.zohoApiRegion} onChange={e => setField('zohoApiRegion', e.target.value)}>
+                      <option value="in">India (zohoapis.in)</option>
+                      <option value="com">Global (zohoapis.com)</option>
+                    </Select>
+                  </FormField>
+                </div>
+
+                <div className="rounded-xl border border-surface-border overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
+                    <p className="text-sm font-semibold text-gray-800">Auto Export Schedule</p>
+                  </div>
+                  <div className="divide-y divide-surface-border">
+                    {[
+                      { key: 'exportInvoices',      label: 'Export Invoices',        freq: 'Daily at 11:00 PM' },
+                      { key: 'exportPayments',      label: 'Export Payments',        freq: 'Daily at 11:30 PM' },
+                      { key: 'exportCustomerList',  label: 'Export Customer List',   freq: 'Weekly (Sunday)'   },
+                      { key: 'syncChartOfAccounts', label: 'Sync Chart of Accounts', freq: 'Monthly (1st)'     },
+                    ].map(item => (
+                      <div key={item.key} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{item.label}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
+                        </div>
+                        <Toggle checked={form.zohoAutoExport[item.key]} onChange={v => setZohoAutoExportField(item.key, v)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
+                  <Button variant="secondary" size="sm" icon={<Webhook size={14} />}>Test Webhook</Button>
+                </div>
+              </>
+            )}
           </Accordion>
         </div>
       </Modal>
@@ -2866,7 +2909,6 @@ export default function Settings() {
           {activeTab === 'support-configuration' && <SupportConfigTab />}
           {activeTab === 'outage-configuration' && <OutageConfigTab />}
           {activeTab === 'jaze-servers'  && <JazeServersTab />}
-          {activeTab === 'zoho-books'    && <ZohoBooksTab />}
           {activeTab === 'roles-permissions'   && <RolesTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}

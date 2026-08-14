@@ -16,6 +16,7 @@ let _customerTypes = [
     customerIdConfig: { prefix: 'RES', includeYear: true, startingNumber: 1, sequencePadding: 4, lastIssuedSequence: null },
     pppoeIdConfig: { mode: 'auto', pattern: '{firstname}_{lastname}_{seq}' },
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
+    zohoSyncEnabled: false,
   },
   {
     id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true,
@@ -23,6 +24,7 @@ let _customerTypes = [
     customerIdConfig: { prefix: 'ENT', includeYear: true, startingNumber: 1, sequencePadding: 4, lastIssuedSequence: null },
     pppoeIdConfig: { mode: 'auto', pattern: '{firstname}_{lastname}_{seq}' },
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
+    zohoSyncEnabled: false,
   },
 ]
 
@@ -44,6 +46,17 @@ export function subscribeCustomerTypes(fn) {
 
 export function setCustomerTypeStatus(id, status) {
   _customerTypes = _customerTypes.map(t => t.id === id ? { ...t, status } : t)
+  notify()
+}
+
+// Master switch for Zoho sync on this Customer Type — Company/Entity's own
+// zohoConfig.enabled (companyEntities.js) only takes effect for a customer
+// whose Customer Type also has this on; OFF here overrides an entity-level
+// ON.
+// TODO: enforce this precedence in actual sync logic once real Zoho
+// integration exists — this is config only for now.
+export function setZohoSyncEnabled(id, enabled) {
+  _customerTypes = _customerTypes.map(t => t.id === id ? { ...t, zohoSyncEnabled: enabled } : t)
   notify()
 }
 
