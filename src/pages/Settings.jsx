@@ -2171,6 +2171,7 @@ function ceEmptyForm() {
     bankName: '', accountNo: '', ifsc: '', branch: '',
     pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
     invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
+    showPackageNameOnInvoice: true,
     zohoEnabled: false, zohoClientId: '', zohoClientSecret: '', zohoOrgId: '', zohoApiRegion: 'in',
     zohoAutoExport: { exportInvoices: true, exportPayments: true, exportCustomerList: false, syncChartOfAccounts: false },
     tallyEnabled: false, tallyCompanyName: '', tallyServerHost: '', tallyPort: '9000',
@@ -2189,6 +2190,7 @@ function ceToForm(entity) {
     includeYearInNumber: entity.includeYearInNumber ?? true,
     startingNumber: String(entity.startingNumber ?? 1),
     sequencePadding: String(entity.sequencePadding ?? 4),
+    showPackageNameOnInvoice: entity.showPackageNameOnInvoice ?? true,
     zohoEnabled: entity.zohoConfig?.enabled ?? false,
     zohoClientId: entity.zohoConfig?.clientId ?? '',
     zohoClientSecret: entity.zohoConfig?.clientSecret ?? '',
@@ -2360,6 +2362,7 @@ function CompanyEntityTab() {
       includeYearInNumber: form.includeYearInNumber,
       startingNumber: Number(form.startingNumber),
       sequencePadding: Number(form.sequencePadding),
+      showPackageNameOnInvoice: form.showPackageNameOnInvoice,
       zohoConfig: {
         enabled: form.zohoEnabled,
         clientId: form.zohoClientId.trim(),
@@ -2489,6 +2492,18 @@ function CompanyEntityTab() {
           <FormField label="Address" required error={errors.address}>
             <Textarea rows={2} placeholder="Registered address" value={form.address} onChange={e => setField('address', e.target.value)} />
           </FormField>
+
+          <div className="rounded-xl border border-surface-border p-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.showPackageNameOnInvoice}
+                onChange={e => setField('showPackageNameOnInvoice', e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+              <span className="text-sm font-medium text-gray-800">Show Package Name on Invoice Line Items</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1.5 ml-6">
+              When checked, invoice line items show the package name. When unchecked, an HSN code column is shown instead.
+            </p>
+          </div>
 
           <Accordion title="Bank Details & PG Connection" subtitle="Payout account and payment gateway used for this entity">
             <div className="grid grid-cols-2 gap-4">

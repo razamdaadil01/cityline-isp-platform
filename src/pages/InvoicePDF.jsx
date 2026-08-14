@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { AlertTriangle, Printer } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { MOCK_INVOICES, COMPANY_INFO, amountInWords } from '../data/billingData'
+import { getCompanyEntity } from '../data/companyEntities'
 
 const fmt = (n) => Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -41,6 +42,12 @@ export default function InvoicePDF() {
   const cgst       = Math.round(taxable * 0.09 * 100) / 100
   const grandTotal = taxable + sgst + cgst
   const badge      = STATUS_BADGE[inv.status] ?? STATUS_BADGE.pending
+  // "Description of Service" always shows svc.name regardless of this
+  // setting — showPackageNameOnInvoice (default true) instead controls
+  // whether an extra HSN Code column is shown alongside it. See
+  // companyEntities.js / Settings.jsx's Company/Entity form.
+  const entity        = getCompanyEntity(inv.companyEntityId)
+  const showHsnColumn = !(entity?.showPackageNameOnInvoice ?? true)
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 print:bg-white print:py-0 print:px-0">
@@ -131,6 +138,9 @@ export default function InvoicePDF() {
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 w-12">SNo.</th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600">Description of Service</th>
+                {showHsnColumn && (
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 w-28">HSN Code</th>
+                )}
                 <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-600 w-32">Amount</th>
               </tr>
             </thead>
@@ -144,6 +154,9 @@ export default function InvoicePDF() {
                       <span className="text-gray-400 font-normal ml-1">({inv.billingPeriod})</span>
                     )}
                   </td>
+                  {showHsnColumn && (
+                    <td className="px-4 py-3 text-sm font-mono text-gray-600">{svc.hsn}</td>
+                  )}
                   <td className="px-4 py-3 text-right text-sm font-mono text-gray-800">₹ {fmt(svc.rate * svc.qty)}</td>
                 </tr>
               ))}

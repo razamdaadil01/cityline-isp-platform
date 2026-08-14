@@ -40,6 +40,10 @@ let _companyEntities = [
     startingNumber: 1,
     sequencePadding: 4,
     lastIssuedSequence: null,
+    // Controls the invoice line-item table's middle column (InvoicePDF.jsx,
+    // SalesLeadDetail.jsx's InvoiceModal): package name (default) or an HSN
+    // code column alongside it when off — see Settings.jsx's CompanyEntityTab.
+    showPackageNameOnInvoice: true,
     // Zoho Books is configured per entity (moved off the old global Settings
     // tab, see Settings.jsx's CompanyEntityTab "Zoho Integration" accordion)
     // — disabled by default, same as a freshly-added entity.
@@ -97,6 +101,7 @@ let _companyEntities = [
     startingNumber: 1,
     sequencePadding: 4,
     lastIssuedSequence: null,
+    showPackageNameOnInvoice: true,
     zohoConfig: {
       enabled: false,
       clientId: '',
