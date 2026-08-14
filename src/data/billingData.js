@@ -2,9 +2,16 @@
 // getNextInvoiceNumber() (src/data/companyEntities.js) — wire that generator
 // in here once invoices are actually created against a real flow rather than
 // this seed/mock list.
+//
+// companyEntityId links each invoice to the Company/Entity that issued it
+// (src/data/companyEntities.js) — used by InvoicePDF.jsx to decide whether
+// the service table shows a package-name column or an HSN column, per that
+// entity's showPackageNameOnInvoice setting. All seed invoices default to
+// entity 1 (Cityline Networks Pvt Ltd), the primary/first seeded entity.
 export const MOCK_INVOICES = [
   {
     invoiceNo: 'B2C/26-27/0001',
+    companyEntityId: 1,
     customerId: 'CL-001',
     customerName: 'Rajan Mehta',
     phone: '9876543210',
@@ -29,6 +36,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0002',
+    companyEntityId: 1,
     customerId: 'CL-002',
     customerName: 'Priya Sharma',
     phone: '9845123456',
@@ -56,6 +64,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0003',
+    companyEntityId: 1,
     customerId: 'CL-003',
     customerName: 'Suresh Kumar',
     phone: '9988776655',
@@ -80,6 +89,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0004',
+    companyEntityId: 1,
     customerId: 'CL-004',
     customerName: 'Anita Desai',
     phone: '9123456789',
@@ -107,6 +117,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0005',
+    companyEntityId: 1,
     customerId: 'CL-005',
     customerName: 'Vikram Singh',
     phone: '9765432198',
@@ -134,6 +145,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0006',
+    companyEntityId: 1,
     customerId: 'CL-006',
     customerName: 'Meena Krishnan',
     phone: '9812334455',
@@ -158,6 +170,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0007',
+    companyEntityId: 1,
     customerId: 'CL-007',
     customerName: 'Arjun Nair',
     phone: '9876501234',
@@ -182,6 +195,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0008',
+    companyEntityId: 1,
     customerId: 'CL-008',
     customerName: 'Deepa Pillai',
     phone: '9001234567',
@@ -206,6 +220,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0009',
+    companyEntityId: 1,
     customerId: 'CL-009',
     customerName: 'Ramesh Gupta',
     phone: '9987654321',
@@ -230,6 +245,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0010',
+    companyEntityId: 1,
     customerId: 'CL-010',
     customerName: 'Kavita Rao',
     phone: '9870012345',
@@ -257,6 +273,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0011',
+    companyEntityId: 1,
     customerId: 'CL-011',
     customerName: 'Sanjay Patel',
     phone: '9912345678',
@@ -284,6 +301,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/0012',
+    companyEntityId: 1,
     customerId: 'CL-012',
     customerName: 'Nalini Reddy',
     phone: '9856781234',
@@ -308,6 +326,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/5650',
+    companyEntityId: 1,
     customerId: 'E1901_GV',
     customerName: 'Accenture',
     phone: '9800000001',
@@ -332,6 +351,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/5649',
+    companyEntityId: 1,
     customerId: '5000022361',
     customerName: 'Dinesh',
     phone: '9800000002',
@@ -356,6 +376,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/5648',
+    companyEntityId: 1,
     customerId: 'E1901_GV',
     customerName: 'Accenture',
     phone: '9800000001',
@@ -380,6 +401,7 @@ export const MOCK_INVOICES = [
   },
   {
     invoiceNo: 'B2C/26-27/5647',
+    companyEntityId: 1,
     customerId: '5000022361',
     customerName: 'Dinesh',
     phone: '9800000002',

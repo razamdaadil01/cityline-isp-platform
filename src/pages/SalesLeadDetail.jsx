@@ -2050,6 +2050,13 @@ function EditFuModal({ isOpen, onClose, fu, onSave }) {
 // it does, pull it via getNextInvoiceNumber(entityId) from
 // src/data/companyEntities.js rather than inventing another ad-hoc scheme.
 
+// Bandwidth packages/add-ons (packagesStore.js) don't carry their own HSN
+// code, unlike billingData.js's per-service HSN — 9984 (Telecommunication
+// Services) is the SAC code every seeded invoice already uses, so it's
+// reused here as the line-item HSN shown when a lead's linked entity has
+// showPackageNameOnInvoice off.
+const DEFAULT_SERVICE_HSN = '9984'
+
 function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
   if (!plan || !pkg) return null
   const displayPrice = pkg.customPrice ?? plan.price
@@ -2057,6 +2064,12 @@ function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
   const boundPackagesTotal = boundPackages.reduce((sum, bp) => sum + (Number(bp.price) || 0), 0)
   const firstInvoiceAmount = displayPrice + boundPackagesTotal
   const dueAmount = firstInvoiceAmount
+  // "Own" Connection Type links the lead to a Company/Entity
+  // (companyEntities.js) whose showPackageNameOnInvoice setting decides
+  // whether an HSN code shows alongside each line item here too — same
+  // logic as InvoicePDF.jsx's Service Details table.
+  const entity = lead?.connectionType === 'Own' && lead?.entityId != null ? getCompanyEntity(lead.entityId) : null
+  const showHsnColumn = !(entity?.showPackageNameOnInvoice ?? true)
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Invoice — ${lead?.name ?? ''}`} size="sm"
@@ -2073,7 +2086,10 @@ function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
         <div className="flex items-start justify-between pb-3 border-b border-gray-100">
           <div>
             <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{plan.code ? `${plan.code} · ` : ''}{plan.speed}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {plan.code ? `${plan.code} · ` : ''}{plan.speed}
+              {showHsnColumn && ` · HSN: ${DEFAULT_SERVICE_HSN}`}
+            </p>
           </div>
           <p className="text-sm font-bold text-gray-900">₹{displayPrice.toLocaleString('en-IN')}</p>
         </div>
@@ -2087,6 +2103,9 @@ function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
                   <span className="text-gray-800">
                     <span className="font-medium">{bp.name}</span>{' '}
                     <span className="text-gray-400 text-xs">({bp.code})</span>
+                    {showHsnColumn && (
+                      <span className="text-gray-400 text-xs"> · HSN: {DEFAULT_SERVICE_HSN}</span>
+                    )}
                   </span>
                   <span className="font-semibold text-gray-800">
                     {bp.price > 0 ? `₹${Number(bp.price).toLocaleString('en-IN')}` : 'Included'}
