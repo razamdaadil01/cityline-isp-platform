@@ -1332,7 +1332,8 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
       </div>
 
       <div className="rounded-xl border border-surface-border overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[1400px]">
           <thead>
             <tr className="bg-gray-50/80 border-b border-surface-border">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer Type Name</th>
@@ -1418,6 +1419,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )
