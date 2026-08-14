@@ -7,6 +7,10 @@
 // integrations get built.
 export const PG_CONNECTIONS = ['Razorpay', 'PayU', 'CCAvenue', 'Cashfree']
 
+// Illustrative only — the actual list depends on which GSP/IRP integration
+// gets built for E-Invoicing.
+export const GSP_PROVIDERS = ['ClearTax', 'MasterGST', 'Cygnet']
+
 // Standard GSTIN pattern: 2-digit state code + 10-char PAN (5 letters, 4
 // digits, 1 letter) + 1 entity code + fixed 'Z' + 1 checksum char.
 export const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/
@@ -67,6 +71,16 @@ let _companyEntities = [
         syncGstDetails: false,
       },
     },
+    // E-Invoicing (GST) is configured per entity too, same structure as
+    // zohoConfig/tallyConfig above — disabled by default (Settings.jsx's
+    // CompanyEntityTab "E-Invoicing (GST)" accordion).
+    eInvoicingConfig: {
+      enabled: false,
+      gspProvider: GSP_PROVIDERS[0],
+      apiUsername: '',
+      apiKey: '',
+      irnMode: 'automatic',
+    },
   },
   {
     id: 2,
@@ -107,6 +121,13 @@ let _companyEntities = [
         syncCustomerLedger: false,
         syncGstDetails: false,
       },
+    },
+    eInvoicingConfig: {
+      enabled: false,
+      gspProvider: GSP_PROVIDERS[0],
+      apiUsername: '',
+      apiKey: '',
+      irnMode: 'automatic',
     },
   },
 ]

@@ -6,7 +6,7 @@ import {
   Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
-  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -23,7 +23,7 @@ import {
   getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
   saveLeadIdConfig, formatLeadId,
   saveCustomerIdConfig, formatCustomerId, savePppoeIdConfig, saveAppPasswordConfig,
-  applyPattern, buildCredentialTokens, setZohoSyncEnabled, setTallySyncEnabled,
+  applyPattern, buildCredentialTokens, setZohoSyncEnabled, setTallySyncEnabled, setEInvoicingEnabled,
 } from '../data/customerTypes'
 import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
@@ -32,7 +32,7 @@ import {
 import { getFieldConfig, subscribeFieldConfig, setFieldMandatory, getFieldCount } from '../data/fieldConfigStore'
 import {
   getCompanyEntities, subscribeCompanyEntities, saveCompanyEntity, setCompanyEntityStatus,
-  isValidGstin, PG_CONNECTIONS, formatInvoiceNumber,
+  isValidGstin, PG_CONNECTIONS, formatInvoiceNumber, GSP_PROVIDERS,
 } from '../data/companyEntities'
 import {
   getPartners, subscribePartners, savePartner, setPartnerStatus,
@@ -1343,6 +1343,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID & Credentials</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Zoho Sync</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Tally Sync</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">E-Invoicing</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
@@ -1404,6 +1405,12 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
                     <div className="flex items-center gap-2.5">
                       <SysConfigToggle checked={!!t.tallySyncEnabled} onChange={v => setTallySyncEnabled(t.id, v)} />
                       <span className={`text-xs font-medium whitespace-nowrap ${t.tallySyncEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.tallySyncEnabled ? 'Enabled' : 'Disabled'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <SysConfigToggle checked={!!t.eInvoicingEnabled} onChange={v => setEInvoicingEnabled(t.id, v)} />
+                      <span className={`text-xs font-medium whitespace-nowrap ${t.eInvoicingEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.eInvoicingEnabled ? 'Enabled' : 'Disabled'}</span>
                     </div>
                   </td>
                 </tr>
@@ -2166,6 +2173,7 @@ function ceEmptyForm() {
     zohoAutoExport: { exportInvoices: true, exportPayments: true, exportCustomerList: false, syncChartOfAccounts: false },
     tallyEnabled: false, tallyCompanyName: '', tallyServerHost: '', tallyPort: '9000',
     tallyPayloadFields: { syncInvoices: true, syncPayments: true, syncCustomerLedger: false, syncGstDetails: false },
+    eInvoicingEnabled: false, gspProvider: GSP_PROVIDERS[0], apiUsername: '', apiKey: '', irnMode: 'automatic',
   }
 }
 
@@ -2200,6 +2208,11 @@ function ceToForm(entity) {
       syncCustomerLedger: entity.tallyConfig?.payloadFields?.syncCustomerLedger ?? false,
       syncGstDetails: entity.tallyConfig?.payloadFields?.syncGstDetails ?? false,
     },
+    eInvoicingEnabled: entity.eInvoicingConfig?.enabled ?? false,
+    gspProvider: entity.eInvoicingConfig?.gspProvider ?? GSP_PROVIDERS[0],
+    apiUsername: entity.eInvoicingConfig?.apiUsername ?? '',
+    apiKey: entity.eInvoicingConfig?.apiKey ?? '',
+    irnMode: entity.eInvoicingConfig?.irnMode ?? 'automatic',
   }
 }
 
@@ -2215,6 +2228,9 @@ function CompanyEntityTab() {
   // Same local/ephemeral pattern for Tally's Connected/Disconnected badge —
   // not part of the persisted tallyConfig.
   const [tallyConnected, setTallyConnected] = useState(true)
+  // Same local/ephemeral pattern for E-Invoicing's Connected/Disconnected
+  // badge — not part of the persisted eInvoicingConfig.
+  const [eInvoicingConnected, setEInvoicingConnected] = useState(true)
 
   useEffect(() => subscribeCompanyEntities(setEntities), [])
 
@@ -2244,6 +2260,7 @@ function CompanyEntityTab() {
       setErrors({})
       setZohoConnected(true)
       setTallyConnected(true)
+      setEInvoicingConnected(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal, modalEntity?.id])
@@ -2317,6 +2334,10 @@ function CompanyEntityTab() {
       if (form.tallyPort === '' || Number.isNaN(Number(form.tallyPort)) || Number(form.tallyPort) < 1)
         errs.tallyPort = 'Enter a valid port number.'
     }
+    if (form.eInvoicingEnabled) {
+      if (!form.apiUsername.trim()) errs.apiUsername = 'API Username is required when E-Invoicing is enabled.'
+      if (!form.apiKey.trim()) errs.apiKey = 'API Password/Key is required when E-Invoicing is enabled.'
+    }
     return errs
   }
 
@@ -2351,6 +2372,13 @@ function CompanyEntityTab() {
         serverHost: form.tallyServerHost.trim(),
         port: Number(form.tallyPort),
         payloadFields: { ...form.tallyPayloadFields },
+      },
+      eInvoicingConfig: {
+        enabled: form.eInvoicingEnabled,
+        gspProvider: form.gspProvider,
+        apiUsername: form.apiUsername.trim(),
+        apiKey: form.apiKey.trim(),
+        irnMode: form.irnMode,
       },
     })
     setToast(modalEntity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
@@ -2665,6 +2693,71 @@ function CompanyEntityTab() {
                 <div className="flex items-center gap-3">
                   <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
                   <Button variant="secondary" size="sm" icon={<Server size={14} />}>Test Connection</Button>
+                </div>
+              </>
+            )}
+          </Accordion>
+
+          <Accordion title="E-Invoicing (GST)" subtitle="Generate IRN-signed e-invoices via a GSP/IRP provider for this entity">
+            <FormField label="Enable E-Invoicing">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.eInvoicingEnabled} onChange={v => setField('eInvoicingEnabled', v)} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.eInvoicingEnabled ? 'On' : 'Off'}</span>
+              </div>
+            </FormField>
+
+            {form.eInvoicingEnabled && (
+              <>
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <Check size={16} className="text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-green-700">
+                        {eInvoicingConnected ? 'E-Invoicing is connected' : 'E-Invoicing is disconnected'}
+                      </p>
+                      {eInvoicingConnected && (
+                        <p className="text-xs text-green-600 mt-0.5">Provider: {form.gspProvider} · Last sync: 5 minutes ago</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={eInvoicingConnected ? 'green' : 'gray'} dot>{eInvoicingConnected ? 'Connected' : 'Disconnected'}</Badge>
+                    <button onClick={() => setEInvoicingConnected(v => !v)}
+                      className="text-xs text-red-500 hover:text-red-600 font-medium underline">
+                      {eInvoicingConnected ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="GSP/IRP Provider" required hint="Illustrative list — depends on integration built">
+                    <Select value={form.gspProvider} onChange={e => setField('gspProvider', e.target.value)}>
+                      {GSP_PROVIDERS.map(gsp => <option key={gsp} value={gsp}>{gsp}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="IRN Generation Mode">
+                    <Select value={form.irnMode} onChange={e => setField('irnMode', e.target.value)}>
+                      <option value="automatic">Automatic on invoice creation</option>
+                      <option value="manual">Manual trigger</option>
+                    </Select>
+                  </FormField>
+                  <FormField label="API Username" required error={errors.apiUsername}>
+                    <Input placeholder="e.g. cityline_gsp_user" value={form.apiUsername} onChange={e => setField('apiUsername', e.target.value)} />
+                  </FormField>
+                  <FormField label="API Password/Key" required error={errors.apiKey}>
+                    <Input type="password" placeholder="********************************" value={form.apiKey} onChange={e => setField('apiKey', e.target.value)} />
+                  </FormField>
+                </div>
+
+                <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <Info size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    E-invoicing is mandatory under GST rules above a turnover threshold set by the government — verify current applicability for this entity.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button variant="secondary" size="sm" icon={<Key size={14} />}>Test Connection</Button>
                 </div>
               </>
             )}
