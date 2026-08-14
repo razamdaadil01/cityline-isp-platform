@@ -20,7 +20,7 @@ import { MOCK_PLANS, SERVICE_BADGE, BILLING_TYPES, MOCK_ADDONS } from '../data/p
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
-import { getCompanyEntity } from '../data/companyEntities'
+import { getCompanyEntity, getCompanyEntities } from '../data/companyEntities'
 import { getPartner } from '../data/partners'
 import { addCustomer, getNextCustomerId } from '../data/customersData'
 import { buildCustomerFromLead } from '../data/leadConversion'
@@ -2068,7 +2068,16 @@ function InvoiceModal({ isOpen, onClose, plan, pkg, lead }) {
   // (companyEntities.js) whose showPackageNameOnInvoice setting decides
   // whether an HSN code shows alongside each line item here too — same
   // logic as InvoicePDF.jsx's Service Details table.
-  const entity = lead?.connectionType === 'Own' && lead?.entityId != null ? getCompanyEntity(lead.entityId) : null
+  //
+  // Many seeded leads (e.g. LD-305/Vikram Enterprises) predate the
+  // Connection Type/entityId fields entirely, or simply never had Connection
+  // Type set to "Own" — with no fallback, `entity` was always null for them,
+  // so showHsnColumn silently always fell back to the default (package name,
+  // no HSN column) no matter what any real entity's toggle was set to.
+  // Falling back to the first/primary Company/Entity when no entity is
+  // actually linked gives the toggle something real to read instead.
+  const linkedEntity = lead?.connectionType === 'Own' && lead?.entityId != null ? getCompanyEntity(lead.entityId) : null
+  const entity = linkedEntity ?? getCompanyEntities()[0] ?? null
   const showHsnColumn = !(entity?.showPackageNameOnInvoice ?? true)
 
   return (
