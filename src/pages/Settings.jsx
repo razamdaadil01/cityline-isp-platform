@@ -3109,7 +3109,14 @@ export default function Settings() {
         </div>
 
         {/* Content panel */}
-        <div className="flex-1 bg-white rounded-xl shadow-card border border-surface-border p-6">
+        {/* min-w-0 overrides the flex item's default min-width:auto, which
+            otherwise refuses to shrink below its content's intrinsic width —
+            without it, a wide table inside (e.g. Customer Type's, which has
+            min-w-[1400px]) forces this whole flex row wider than the
+            viewport, dragging the sidebar nav and page title along with it
+            instead of letting only the table's own overflow-x-auto wrapper
+            scroll. */}
+        <div className="flex-1 min-w-0 bg-white rounded-xl shadow-card border border-surface-border p-6">
           {activeTab === 'general'       && <GeneralTab />}
           {activeTab === 'billing'       && <BillingTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
