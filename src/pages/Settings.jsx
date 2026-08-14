@@ -2252,8 +2252,13 @@ function CompanyEntityTab() {
   // ?modal= pattern used elsewhere (e.g. Support Ticket Detail's
   // schedule-visit/resolve-ticket/verify-otp modals).
   const modalParam = searchParams.get('modal')
+  // searchParams.get('id') always returns a string (or null), but entity.id
+  // is a number (companyEntities.js's ids are 1, 2, ... via _nextId) — a
+  // strict === here would never match, silently leaving modalEntity null and
+  // showModal false, so the edit modal would never open. Compare as strings
+  // on both sides instead.
   const editId = searchParams.get('id')
-  const modalEntity = modalParam === 'edit-company-entity' ? entities.find(e => e.id === editId) ?? null : null
+  const modalEntity = modalParam === 'edit-company-entity' ? entities.find(e => String(e.id) === editId) ?? null : null
   const showModal = modalParam === 'add-company-entity' || (modalParam === 'edit-company-entity' && !!modalEntity)
 
   // Populate the form whenever the modal opens (including directly on page
