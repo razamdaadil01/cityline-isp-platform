@@ -15,25 +15,68 @@ export const TRACKING_TYPES = [
 // Seeded from the existing shared hardware catalog so Product List isn't
 // empty on first load — sku/brand/model are left blank since hardwareCatalog
 // entries never carried them; trackingType defaults to 'quantity' (no
-// serial/MAC tracking configured yet for these legacy items).
-const SEED = HARDWARE_CATALOG.map((item, i) => ({
-  id: `PRD-${String(i + 1).padStart(3, '0')}`,
-  productType: 'hardware',
-  name: item.name,
-  sku: '',
+// serial/MAC tracking configured yet for these legacy items). IDs are
+// assigned from each item's original HARDWARE_CATALOG index (not the
+// post-filter position) so the numbering below stays stable/traceable even
+// with "Drop Wire (per m)" filtered out.
+//
+// "Drop Wire (per m)" is dropped here rather than kept alongside the new
+// wire-type "Drop Wire" product below — same physical item, and carrying
+// both would just be a confusing duplicate in Product Management. Nothing
+// in the codebase does a live productStore.getProduct(id) lookup against
+// this catalog's ids (grep confirms getProduct() has no callers yet), so
+// removing PRD-005 here is safe — existing seeded PO/approval records that
+// reference "Drop Wire (per m)" by name are independent point-in-time
+// snapshots, not live joins, and are unaffected.
+const HARDWARE_SEED = HARDWARE_CATALOG
+  .map((item, i) => ({ item, seq: i + 1 }))
+  .filter(({ item }) => item.name !== 'Drop Wire (per m)')
+  .map(({ item, seq }) => ({
+    id: `PRD-${String(seq).padStart(3, '0')}`,
+    productType: 'hardware',
+    name: item.name,
+    sku: '',
+    brand: '',
+    model: '',
+    imageUrl: '',
+    unitType: 'Piece',
+    sellingPrice: item.unitPrice,
+    reorderAlertQty: 10,
+    trackingType: 'quantity',
+    drumNumberRequired: false,
+    status: 'active',
+  }))
+
+// Wire-type products didn't exist in the original hardwareCatalog.js
+// migration — seeded here so Product Management's Wire tab isn't empty and
+// Create PO's Wire product picker has real options to search against.
+const WIRE_SEED = [
+  { name: '4 Core Fiber Cable', sku: 'WR-4CFC-001', sellingPrice: 12 },
+  { name: 'Drop Wire',          sku: 'WR-DW-001',   sellingPrice: 8 },
+  { name: '6 Core Fiber Cable', sku: 'WR-6CFC-001', sellingPrice: 18 },
+].map((w, i) => ({
+  id: `PRD-${String(HARDWARE_CATALOG.length + i + 1).padStart(3, '0')}`,
+  productType: 'wire',
+  name: w.name,
+  sku: w.sku,
   brand: '',
   model: '',
   imageUrl: '',
-  unitType: 'Piece',
-  sellingPrice: item.unitPrice,
-  reorderAlertQty: 10,
-  trackingType: 'quantity',
-  drumNumberRequired: false,
+  unitType: 'Meter',
+  sellingPrice: w.sellingPrice,
+  reorderAlertQty: 100,
+  trackingType: null,
+  drumNumberRequired: true,
   status: 'active',
 }))
 
+const SEED = [...HARDWARE_SEED, ...WIRE_SEED]
+
 let _products = [...SEED]
-let _nextSeq = _products.length + 1
+// Next id continues after the highest numeric suffix actually in use —
+// HARDWARE_SEED has a gap where "Drop Wire (per m)" was filtered out, so
+// this can't just be _products.length + 1 without risking a collision.
+let _nextSeq = Math.max(...SEED.map(p => Number(p.id.slice(4)))) + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._products])) }
