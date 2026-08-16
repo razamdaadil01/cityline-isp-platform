@@ -211,6 +211,30 @@ export function syncPOStatusFromApproval(approvalId, approvalStatus) {
   notify()
 }
 
+// Recomputes a PO's receipt status from its cumulative received quantity
+// per line — called by purchaseStore.js after a Purchase tied to this PO is
+// confirmed. `receivedByProductId` is a plain { [productId]: cumulativeQty }
+// map that the caller derives by summing receivedQty across every
+// 'Confirmed' Purchase linked to this PO (a PO can be received across
+// several partial Purchases) — purchaseOrderStore.js deliberately doesn't
+// import purchaseStore.js itself to avoid a circular dependency between the
+// two stores, so it only ever sees the already-aggregated numbers.
+// Matches PO lines to received quantities by productId rather than a line
+// id, since a PO's items don't carry duplicate productIds in practice.
+export function recalculatePOReceiptStatus(poId, receivedByProductId) {
+  const po = _pos.find(p => p.id === poId)
+  if (!po) return
+  // Only POs actually out for receipt progress this way — leave anything
+  // else (Draft, Approval Request, Cancelled, etc.) untouched.
+  if (!['Sent', 'Approved', 'Partially Received'].includes(po.status)) return
+  const fullyReceived = po.items.every(it => (receivedByProductId[it.productId] ?? 0) >= it.qty)
+  const anyReceived = po.items.some(it => (receivedByProductId[it.productId] ?? 0) > 0)
+  const newStatus = fullyReceived ? 'Fully Received' : anyReceived ? 'Partially Received' : po.status
+  if (newStatus === po.status) return
+  _pos = _pos.map(p => p.id === poId ? { ...p, status: newStatus } : p)
+  notify()
+}
+
 // Auto-wire the sync above to approvalsStore's own pub/sub — this is what
 // actually keeps a PO's status current whenever a decision is persisted via
 // approveApproval()/rejectApproval() (ApprovalDecisionModal's save path in
