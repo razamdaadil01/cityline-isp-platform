@@ -11,7 +11,7 @@ import {
 
 const CURRENT_USER = 'Admin User'
 
-const TYPE_BADGE = { Installation: 'blue', Payment: 'green', Visibility: 'purple', Hardware: 'orange' }
+const TYPE_BADGE = { Installation: 'blue', Payment: 'green', Visibility: 'purple', Hardware: 'orange', 'Purchase Order': 'cyan' }
 const STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
 
 function formatDateTime(iso) {
@@ -23,9 +23,9 @@ function formatDateTime(iso) {
 
 function relatedRoute(approval) {
   if (!approval.relatedId) return null
-  return approval.relatedType === 'ticket'
-    ? `/support/tickets/${approval.relatedId}/documents`
-    : `/customers/${approval.relatedId}`
+  if (approval.relatedType === 'ticket') return `/support/tickets/${approval.relatedId}/documents`
+  if (approval.relatedType === 'purchase-order') return `/inventory/purchase-orders/${approval.relatedId}`
+  return `/customers/${approval.relatedId}`
 }
 
 export default function Approvals() {

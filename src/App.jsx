@@ -57,6 +57,9 @@ import VendorList from './pages/inventory/VendorList'
 import VendorDetail from './pages/inventory/VendorDetail'
 import StoreList from './pages/inventory/StoreList'
 import InventorySettings from './pages/inventory/InventorySettings'
+import PurchaseOrders from './pages/inventory/PurchaseOrders'
+import CreatePO from './pages/inventory/CreatePO'
+import PODetail from './pages/inventory/PODetail'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -147,6 +150,10 @@ export default function App() {
           <Route path="/inventory/vendors/:id/:tab" element={<VendorDetail />} />
           <Route path="/inventory/stores" element={<StoreList />} />
           <Route path="/inventory/settings" element={<InventorySettings />} />
+          <Route path="/inventory/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/inventory/purchase-orders/new" element={<CreatePO />} />
+          <Route path="/inventory/purchase-orders/:id/edit" element={<CreatePO />} />
+          <Route path="/inventory/purchase-orders/:id" element={<PODetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />

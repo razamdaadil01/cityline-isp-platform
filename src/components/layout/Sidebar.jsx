@@ -34,6 +34,7 @@ import {
   Handshake,
   Store,
   SlidersHorizontal,
+  ClipboardList,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -76,6 +77,7 @@ const NAV_ITEMS = [
   {
     label: 'Inventory',        icon: Package,         to: '/inventory',
     children: [
+      { label: 'Purchase Orders',    icon: ClipboardList,     to: '/inventory/purchase-orders' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
       { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },
