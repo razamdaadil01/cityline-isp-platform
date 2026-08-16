@@ -24,16 +24,22 @@ const _listeners = []
 function notify() { _listeners.forEach(fn => fn({ ..._settingsByEntity })) }
 
 // Formats a sequence number per a PO number format template — {YYYY} becomes
-// the current year, and a run of zeros like {00001} becomes the sequence
-// number zero-padded to that many digits. Exported so the General Settings
-// form's live preview renders using this exact same logic rather than a
-// parallel copy that could drift from the real generator (mirrors
+// the current year, and a digit run like {00001} becomes the sequence
+// number zero-padded to that token's digit length. Exported so the General
+// Settings form's live preview renders using this exact same logic rather
+// than a parallel copy that could drift from the real generator (mirrors
 // companyEntities.js's formatInvoiceNumber pattern).
+//
+// The sequence token is matched as \d+ (any digits), not 0+ — a token like
+// {00001} isn't a run of zeros, it's an example padded number that ends in
+// a non-zero digit, so a 0+ pattern never matches it and silently leaves
+// the literal "{00001}" in the output instead of substituting the real
+// sequence number.
 export function formatPoNumber(formatStr, seq = 1) {
   if (!formatStr) return ''
   return formatStr
     .replace(/\{YYYY\}/g, String(new Date().getFullYear()))
-    .replace(/\{(0+)\}/g, (_m, zeros) => String(seq).padStart(zeros.length, '0'))
+    .replace(/\{(\d+)\}/g, (_m, digits) => String(seq).padStart(digits.length, '0'))
 }
 
 export function getInventorySettings(companyEntityId) {
