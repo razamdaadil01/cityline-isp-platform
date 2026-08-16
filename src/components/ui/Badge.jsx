@@ -8,6 +8,8 @@ const variants = {
   navy: 'bg-navy/10 text-navy',
   purple: 'bg-purple-100 text-purple-700',
   cyan: 'bg-cyan-100 text-cyan-700',
+  indigo: 'bg-indigo-100 text-indigo-700',
+  slate: 'bg-slate-100 text-slate-700',
 }
 
 const sizes = {

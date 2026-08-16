@@ -1,4 +1,4 @@
-export const APPROVAL_TYPES = ['Installation', 'Payment', 'Visibility', 'Hardware']
+export const APPROVAL_TYPES = ['Installation', 'Payment', 'Visibility', 'Hardware', 'Purchase Order']
 
 export const APPROVAL_STATUSES = ['Pending', 'Approved', 'Rejected']
 
@@ -113,6 +113,18 @@ const SEED = [
     visibility: { subject: 'Account billing history', visibleTo: 'Support Team — Juhu zone', reason: 'Needed to investigate a recurring billing complaint.' },
     decidedBy: 'Admin User', decidedAt: new Date(NOW - 38 * H).toISOString(), decisionComment: 'Approved for the duration of the investigation.',
   },
+  {
+    id: 'APR-2026-000011',
+    type: 'Purchase Order',
+    status: 'Approved',
+    relatedType: 'purchase-order', relatedId: 'PO-000005', relatedLabel: 'CITY/PO/2026/00005',
+    requestedBy: 'Admin User',
+    requestedDate: new Date(NOW - 20 * H).toISOString(),
+    amount: 7080,
+    purchaseOrder: { poId: 'PO-000005', poNumber: 'CITY/PO/2026/00005', vendorName: 'Sterlite Technologies', storeName: 'Andheri Store' },
+    items: [{ name: 'Drop Wire (per m)', quantity: 500, unitPrice: 12 }],
+    decidedBy: 'Admin User', decidedAt: new Date(NOW - 18 * H).toISOString(), decisionComment: 'Approved — pricing matches last quarter\'s rate card.',
+  },
 ].map(a => ({
   ...a,
   amount: a.amount ?? null,
@@ -120,6 +132,7 @@ const SEED = [
   installation: a.installation ?? null,
   payment: a.payment ?? null,
   visibility: a.visibility ?? null,
+  purchaseOrder: a.purchaseOrder ?? null,
   decidedBy: a.decidedBy ?? null,
   decidedAt: a.decidedAt ?? null,
   decisionComment: a.decisionComment ?? null,
@@ -163,14 +176,14 @@ export function saveApproval(approval) {
   return approval
 }
 
-export function createApproval({ type, relatedType = null, relatedId = null, relatedLabel = null, requestedBy = 'Admin User', amount = null, items = [], installation = null, payment = null, visibility = null }) {
+export function createApproval({ type, relatedType = null, relatedId = null, relatedLabel = null, requestedBy = 'Admin User', amount = null, items = [], installation = null, payment = null, visibility = null, purchaseOrder = null }) {
   const id = nextApprovalNumber()
   const now = new Date().toISOString()
   const approval = {
     id, type, status: 'Pending',
     relatedType, relatedId, relatedLabel,
     requestedBy, requestedDate: now,
-    amount, items, installation, payment, visibility,
+    amount, items, installation, payment, visibility, purchaseOrder,
     decidedBy: null, decidedAt: null, decisionComment: null,
     activityLog: [{ time: now, actor: requestedBy, action: `${type} approval requested` }],
   }
@@ -184,6 +197,20 @@ export function createHardwareApproval({ ticketId, items }, actor = 'Admin User'
     type: 'Hardware',
     relatedType: 'ticket', relatedId: ticketId, relatedLabel: ticketId,
     requestedBy: actor, amount, items,
+  })
+}
+
+// Raised from Create Purchase Order's "Send PO" action when the selected
+// Company/Entity has poApprovalRequired on (inventorySettingsStore) — see
+// purchaseOrderStore.js's savePurchaseOrder(). items reuses the exact same
+// {name, quantity, unitPrice} shape createHardwareApproval() uses, so
+// ApprovalDetail's item table renders both the same way.
+export function createPurchaseOrderApproval({ poId, poNumber, vendorName, storeName, amount, items }, actor = 'Admin User') {
+  return createApproval({
+    type: 'Purchase Order',
+    relatedType: 'purchase-order', relatedId: poId, relatedLabel: poNumber,
+    requestedBy: actor, amount, items,
+    purchaseOrder: { poId, poNumber, vendorName, storeName },
   })
 }
 

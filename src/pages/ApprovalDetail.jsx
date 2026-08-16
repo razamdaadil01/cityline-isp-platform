@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, CheckCircle2, XCircle, HardDrive, Wrench, Wallet, Eye as EyeIcon,
+  ArrowLeft, CheckCircle2, XCircle, HardDrive, Wrench, Wallet, Eye as EyeIcon, ClipboardList,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -10,9 +10,9 @@ import { getApproval, subscribeApprovals, approveApproval, rejectApproval } from
 
 const CURRENT_USER = 'Admin User'
 
-const TYPE_BADGE = { Installation: 'blue', Payment: 'green', Visibility: 'purple', Hardware: 'orange' }
+const TYPE_BADGE = { Installation: 'blue', Payment: 'green', Visibility: 'purple', Hardware: 'orange', 'Purchase Order': 'cyan' }
 const STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
-const TYPE_ICON = { Installation: Wrench, Payment: Wallet, Visibility: EyeIcon, Hardware: HardDrive }
+const TYPE_ICON = { Installation: Wrench, Payment: Wallet, Visibility: EyeIcon, Hardware: HardDrive, 'Purchase Order': ClipboardList }
 
 function formatDateTime(iso) {
   if (!iso) return '—'
@@ -23,9 +23,9 @@ function formatDateTime(iso) {
 
 function relatedRoute(approval) {
   if (!approval.relatedId) return null
-  return approval.relatedType === 'ticket'
-    ? `/support/tickets/${approval.relatedId}/documents`
-    : `/customers/${approval.relatedId}`
+  if (approval.relatedType === 'ticket') return `/support/tickets/${approval.relatedId}/documents`
+  if (approval.relatedType === 'purchase-order') return `/inventory/purchase-orders/${approval.relatedId}`
+  return `/customers/${approval.relatedId}`
 }
 
 function InfoRow({ label, value }) {
@@ -71,6 +71,55 @@ function HardwareDetail({ approval, navigate }) {
           </button>
         </div>
       )}
+      <div className="border border-surface-border rounded-lg overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
+              <th className="text-left px-3 py-2 font-semibold">Item</th>
+              <th className="text-right px-3 py-2 font-semibold">Qty</th>
+              <th className="text-right px-3 py-2 font-semibold">Unit Price</th>
+              <th className="text-right px-3 py-2 font-semibold">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {approval.items.map((h, i) => (
+              <tr key={i}>
+                <td className="px-3 py-2 text-gray-700">{h.name}</td>
+                <td className="px-3 py-2 text-right text-gray-600">{h.quantity}</td>
+                <td className="px-3 py-2 text-right text-gray-600">₹{h.unitPrice.toLocaleString('en-IN')}</td>
+                <td className="px-3 py-2 text-right font-semibold text-gray-800">₹{(h.quantity * h.unitPrice).toLocaleString('en-IN')}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-surface-border bg-gray-50">
+              <td colSpan={3} className="px-3 py-2 text-right text-xs font-semibold text-gray-500">Total Cost</td>
+              <td className="px-3 py-2 text-right text-sm font-bold text-gray-900">₹{totalCost.toLocaleString('en-IN')}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function PurchaseOrderDetail({ approval, navigate }) {
+  const d = approval.purchaseOrder
+  const totalCost = approval.items.reduce((sum, h) => sum + h.quantity * h.unitPrice, 0)
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-x-6">
+        <InfoRow label="PO Number" value={
+          d?.poId ? (
+            <button onClick={() => navigate(`/inventory/purchase-orders/${d.poId}`)} className="font-mono font-semibold text-brand-blue hover:underline">
+              {d?.poNumber}
+            </button>
+          ) : d?.poNumber
+        } />
+        <InfoRow label="Vendor" value={d?.vendorName} />
+        <InfoRow label="Store" value={d?.storeName} />
+        <InfoRow label="Amount" value={approval.amount != null ? `₹${approval.amount.toLocaleString('en-IN')}` : null} />
+      </div>
       <div className="border border-surface-border rounded-lg overflow-hidden">
         <table className="w-full text-xs">
           <thead>
@@ -204,6 +253,7 @@ export default function ApprovalDetail() {
               {approval.type === 'Installation' && <InstallationDetail approval={approval} />}
               {approval.type === 'Payment' && <PaymentDetail approval={approval} />}
               {approval.type === 'Visibility' && <VisibilityDetail approval={approval} />}
+              {approval.type === 'Purchase Order' && <PurchaseOrderDetail approval={approval} navigate={navigate} />}
             </div>
           </div>
 
