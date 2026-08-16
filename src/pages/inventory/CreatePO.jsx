@@ -139,7 +139,17 @@ export default function CreatePO() {
   const [gstPercent, setGstPercent] = useState(String(existing?.gstPercent ?? 18))
   const [vendorId, setVendorId] = useState(existing?.vendorId ?? '')
   const [storeId, setStoreId] = useState(existing?.storeId ?? '')
-  const [items, setItems] = useState(() => existing?.items.map(it => ({ ...it, qty: String(it.qty), price: String(it.price), gstPercent: String(it.gstPercent), drum: it.drum ?? '' })) ?? [])
+  const [items, setItems] = useState(() => {
+    const base = existing?.items.map(it => ({ ...it, qty: String(it.qty), price: String(it.price), gstPercent: String(it.gstPercent), drum: it.drum ?? '' })) ?? []
+    // Seed a blank row per type up front so the first render never shows
+    // the "No … lines yet" empty state — the effect below keeps this true
+    // afterwards too (e.g. once the last row of a type is removed).
+    return [
+      ...base,
+      ...(base.some(it => it.type === 'hardware') ? [] : [emptyItem('hardware', gstPercent)]),
+      ...(base.some(it => it.type === 'wire') ? [] : [emptyItem('wire', gstPercent)]),
+    ]
+  })
   const [notes, setNotes] = useState(existing?.notes ?? '')
   const [terms, setTerms] = useState(existing?.terms ?? '')
   const [discount, setDiscount] = useState(String(existing?.discount ?? 0))
@@ -174,6 +184,26 @@ export default function CreatePO() {
   function removeItem(itemId) {
     setItems(prev => prev.filter(it => it.id !== itemId))
   }
+
+  // Keeps each tab from ever rendering its "No … lines yet" empty state —
+  // whenever a type has zero rows (on mount, after loading an existing PO
+  // that only has rows of the other type, or after removing the last row
+  // of a type), silently top it back up with one blank row identical to
+  // what "+ Add Product Row" creates. Blank rows have no productId, so
+  // filledItems/buildPayload() already ignore them until the user actually
+  // picks a product — this just keeps one always present to edit.
+  useEffect(() => {
+    setItems(prev => {
+      const hasHardware = prev.some(it => it.type === 'hardware')
+      const hasWire = prev.some(it => it.type === 'wire')
+      if (hasHardware && hasWire) return prev
+      const next = [...prev]
+      if (!hasHardware) next.push(emptyItem('hardware', gstPercent))
+      if (!hasWire) next.push(emptyItem('wire', gstPercent))
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
 
   const poNumber = existing?.poNumber ?? (companyEntityId != null ? previewNextPoNumber(companyEntityId) : '')
 
