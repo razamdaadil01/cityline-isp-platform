@@ -8,7 +8,7 @@ import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnMana
 import { getProducts } from '../../data/productStore'
 import { getStores } from '../../data/storeStore'
 import {
-  getStockBalances, getUnits, getDrums, getMovements, getUnitTrail, subscribeInventoryLedger,
+  getStockBalances, getUnits, getDrums, getMovements, getUnitTrail, getEngineerAssignedQty, subscribeInventoryLedger,
 } from '../../data/inventoryLedger'
 
 const OVERVIEW_TABLE_COLUMNS = [
@@ -54,7 +54,7 @@ function UnitRow({ unit, storeName }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-gray-500">{storeName}</span>
-          <Badge variant="green" size="sm" dot>{unit.status}</Badge>
+          <Badge variant={unit.status === 'Available' ? 'green' : 'purple'} size="sm" dot>{unit.status}</Badge>
         </div>
       </button>
       {expanded && (
@@ -100,12 +100,13 @@ function ProductDetailPanel({ product, stores, onClose }) {
   const drums = getDrums({ productId: product.id })
   const balances = getStockBalances().filter(b => b.productId === product.id)
   const available = balances.reduce((s, b) => s + b.availableQty, 0)
+  const engineerAssigned = getEngineerAssignedQty(product.id)
   const movements = getMovements({ productId: product.id })
 
   const breakdown = [
-    { label: 'Total',    value: available, color: 'text-gray-900' },
-    { label: 'Available',value: available, color: 'text-emerald-600' },
-    { label: 'Engineer', value: 0,          color: 'text-gray-400' },
+    { label: 'Total',    value: available + engineerAssigned, color: 'text-gray-900' },
+    { label: 'Available',value: available,                    color: 'text-emerald-600' },
+    { label: 'Engineer', value: engineerAssigned,              color: engineerAssigned > 0 ? 'text-purple-600' : 'text-gray-400' },
     { label: 'User',     value: 0,          color: 'text-gray-400' },
     { label: 'Damage',   value: 0,          color: 'text-gray-400' },
     { label: 'Scrap',    value: 0,          color: 'text-gray-400' },
@@ -288,6 +289,14 @@ export default function InventoryOverview() {
       .filter(b => b.productId === productId && (!scopedStoreIds || scopedStoreIds.includes(b.storeId)))
       .reduce((sum, b) => sum + b.availableQty, 0)
   }
+  // getEngineerAssignedQty takes a single storeId (or none, for every
+  // store) — sum across each store in scope rather than passing the array
+  // straight through, same "Branch aggregates its stores" scoping every
+  // other stat on this page already applies.
+  function scopedEngineerAssigned(productId) {
+    if (!scopedStoreIds) return getEngineerAssignedQty(productId)
+    return scopedStoreIds.reduce((sum, storeId) => sum + getEngineerAssignedQty(productId, storeId), 0)
+  }
 
   const stats = useMemo(() => {
     const scoped = allBalances.filter(b => !scopedStoreIds || scopedStoreIds.includes(b.storeId))
@@ -307,9 +316,11 @@ export default function InventoryOverview() {
       .filter(d => !scopedStoreIds || scopedStoreIds.includes(d.storeId))
       .reduce((s, d) => s + d.remainingMeters, 0)
 
+    const assignedToEngineers = allProducts.reduce((sum, p) => sum + scopedEngineerAssigned(p.id), 0)
+
     const lowStockCount = allProducts.filter(p => scopedAvailability(p.id) < (Number(p.reorderAlertQty) || 0)).length
 
-    return { totalInventoryItems, hardwareAvailable, wireAvailable, lowStockCount }
+    return { totalInventoryItems, hardwareAvailable, wireAvailable, assignedToEngineers, lowStockCount }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allBalances, scopedStoreIds, allProducts])
 
@@ -323,7 +334,8 @@ export default function InventoryOverview() {
       .filter(p => productMatchesSearch(p, getUnits({ productId: p.id }), getDrums({ productId: p.id }), q))
       .map(p => {
         const availableQty = scopedAvailability(p.id)
-        return { product: p, availableQty, lowStock: availableQty < (Number(p.reorderAlertQty) || 0) }
+        const engineerQty = scopedEngineerAssigned(p.id)
+        return { product: p, availableQty, engineerQty, lowStock: availableQty < (Number(p.reorderAlertQty) || 0) }
       })
       .filter(row => !filterLowStock || row.lowStock)
       .sort((a, b) => a.product.name.localeCompare(b.product.name))
@@ -352,7 +364,7 @@ export default function InventoryOverview() {
           { label: 'Total Inventory Items', value: stats.totalInventoryItems, icon: Boxes,      color: 'text-brand-blue',   bg: 'bg-brand-blue/10' },
           { label: 'Hardware Available',    value: stats.hardwareAvailable,   icon: Package,     color: 'text-emerald-600',  bg: 'bg-emerald-50' },
           { label: 'Wire Available (m)',    value: stats.wireAvailable,       icon: Package,     color: 'text-cyan-600',     bg: 'bg-cyan-50' },
-          { label: 'Assigned to Engineers', value: 0,                         icon: UserCog,      color: 'text-gray-400',     bg: 'bg-gray-100' },
+          { label: 'Assigned to Engineers', value: stats.assignedToEngineers, icon: UserCog,      color: 'text-purple-600',   bg: 'bg-purple-50' },
           { label: 'Assigned to Users',     value: 0,                         icon: Users,        color: 'text-gray-400',     bg: 'bg-gray-100' },
           { label: 'Damaged',               value: 0,                         icon: ShieldAlert,  color: 'text-gray-400',     bg: 'bg-gray-100' },
           { label: 'Scrap',                 value: 0,                         icon: Trash2,       color: 'text-gray-400',     bg: 'bg-gray-100' },
@@ -549,7 +561,7 @@ export default function InventoryOverview() {
                     No products found
                   </td>
                 </tr>
-              ) : rows.map(({ product, availableQty, lowStock }) => (
+              ) : rows.map(({ product, availableQty, engineerQty, lowStock }) => (
                 <tr key={product.id} onClick={() => setSelectedProductId(product.id)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
@@ -565,7 +577,7 @@ export default function InventoryOverview() {
                       {lowStock && <AlertTriangle size={12} className="inline-block ml-1.5 text-amber-500" />}
                     </td>
                   )}
-                  {visibleCols.has('engineer') && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
+                  {visibleCols.has('engineer') && <td className={`px-4 py-3 text-right text-xs ${engineerQty > 0 ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{engineerQty}</td>}
                   {visibleCols.has('user')     && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
                   {visibleCols.has('damage')   && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
                   {visibleCols.has('scrap')    && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
