@@ -36,6 +36,7 @@ import {
   SlidersHorizontal,
   ClipboardList,
   PackageOpen,
+  UserCheck,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -81,6 +82,7 @@ const NAV_ITEMS = [
       { label: 'Inventory Overview', icon: Layers,            to: '/inventory/overview' },
       { label: 'Purchase Orders',    icon: ClipboardList,     to: '/inventory/purchase-orders' },
       { label: 'Purchases',          icon: PackageOpen,       to: '/inventory/purchases' },
+      { label: 'Assign to Engineer', icon: UserCheck,         to: '/inventory/assign' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
       { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },

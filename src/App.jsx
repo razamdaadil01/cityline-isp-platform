@@ -64,6 +64,9 @@ import Purchases from './pages/inventory/Purchases'
 import CreatePurchase from './pages/inventory/CreatePurchase'
 import PurchaseDetail from './pages/inventory/PurchaseDetail'
 import InventoryOverview from './pages/inventory/InventoryOverview'
+import Assignments from './pages/inventory/Assignments'
+import CreateAssignment from './pages/inventory/CreateAssignment'
+import AssignmentDetail from './pages/inventory/AssignmentDetail'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -163,6 +166,9 @@ export default function App() {
           <Route path="/inventory/purchases/new" element={<CreatePurchase />} />
           <Route path="/inventory/purchases/:id/edit" element={<CreatePurchase />} />
           <Route path="/inventory/purchases/:id" element={<PurchaseDetail />} />
+          <Route path="/inventory/assign" element={<Assignments />} />
+          <Route path="/inventory/assign/new" element={<CreateAssignment />} />
+          <Route path="/inventory/assign/:id" element={<AssignmentDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />

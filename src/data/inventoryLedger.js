@@ -4,14 +4,14 @@
 // each time it's queried, so it can never drift out of sync with the
 // receipts that are its single source of truth.
 //
-// Assigned/Damaged/Scrap movements don't exist until Phase 5/6 (Engineer
-// Assignment / Damage-Scrap), so every unit derived here is 'Available' by
-// definition — but the `status` field is already present on every unit/drum
-// record specifically so Phase 5 can start writing 'Assigned to Engineer'
-// etc. into it without restructuring these shapes.
+// Phase 5 (Engineer Assignment) layers assignmentStore.js's confirmed
+// deductions on top of the purchase-derived state below — a unit/drum's
+// `status`/remaining figures reflect assignments automatically. Damaged/
+// Scrap movements are still a later phase.
 
 import { getProducts } from './productStore'
 import { getPurchases, subscribePurchases } from './purchaseStore'
+import { getAssignments, subscribeAssignments } from './assignmentStore'
 
 // Every Purchase item carries a productId snapshotted at the moment it was
 // added (copied from the PO line it came from, or from the product picker
@@ -83,7 +83,61 @@ function computeLedger() {
       })
     })
 
-  return { balanceByKey, units, drums, movements }
+  // ── Assignments: deductions ──────────────────────────────────────────
+  // Layered on top of the purchase-derived state above so every reader of
+  // this module (getStockBalances/getUnits/getDrums/getMovements) reflects
+  // engineer assignments automatically, with zero changes needed anywhere
+  // that already calls them — Inventory Overview in particular. See
+  // assignmentStore.js's file-level note for why that store computes its
+  // own save-time validation independently instead of this relationship
+  // running the other way.
+  const assignedQtyByKey = {} // `${productId}|${storeId}` -> cumulative assignedQty (quantity-tracked only)
+  const unitsByValue = new Map(units.map(u => [u.value, u]))
+  const drumsByNumber = new Map(drums.map(d => [d.drumNumber, d]))
+
+  getAssignments()
+    .filter(a => a.status !== 'Returned')
+    .forEach(a => {
+      a.hardwareLines.forEach(l => {
+        const values = [...l.serials, ...l.macs]
+        if (values.length) {
+          values.forEach(v => {
+            const unit = unitsByValue.get(v)
+            if (!unit) return
+            unit.status = 'Assigned to Engineer'
+            unit.engineerId = a.engineerId
+            unit.engineerName = a.engineerName
+            unit.assignmentId = a.id
+            unit.assignmentNumber = a.assignmentNumber
+            unit.assignedAt = a.assignedAt
+          })
+        } else if (l.assignedQty > 0) {
+          const key = `${l.productId}|${a.storeId}`
+          balanceByKey[key] = Math.max(0, (balanceByKey[key] ?? 0) - l.assignedQty)
+          assignedQtyByKey[key] = (assignedQtyByKey[key] ?? 0) + l.assignedQty
+        }
+        if (l.assignedQty > 0) {
+          movements.push({
+            date: (a.assignedAt || '').slice(0, 10), productId: l.productId, movementType: 'Assignment',
+            qty: l.assignedQty, fromLabel: a.storeName, toLabel: a.engineerName,
+            reference: a.assignmentNumber, poReference: null,
+          })
+        }
+      })
+      a.wireLines.forEach(l => {
+        const drum = drumsByNumber.get(l.drumNumber)
+        if (drum) drum.remainingMeters = Math.max(0, drum.remainingMeters - (Number(l.assignedMeters) || 0))
+        if (l.assignedMeters > 0) {
+          movements.push({
+            date: (a.assignedAt || '').slice(0, 10), productId: l.productId, movementType: 'Assignment',
+            qty: l.assignedMeters, fromLabel: a.storeName, toLabel: a.engineerName,
+            reference: a.assignmentNumber, poReference: null,
+          })
+        }
+      })
+    })
+
+  return { balanceByKey, units, drums, movements, assignedQtyByKey }
 }
 
 // Flat [{ productId, storeId, availableQty }] — the base balance table
@@ -120,6 +174,24 @@ export function getDrums({ productId, storeId } = {}) {
   )
 }
 
+// How much of a product currently sits with engineer(s) — the same
+// tracked-vs-quantity split Inventory Overview's own hardwareAvailable stat
+// already makes: quantity-tracked hardware contributes its cumulative
+// assignedQty, serial/MAC-tracked hardware contributes a count of units
+// whose status is 'Assigned to Engineer'. Summed together since both are
+// "how many of this product are with an engineer right now", just derived
+// differently depending on how the product is tracked.
+export function getEngineerAssignedQty(productId, storeId = null) {
+  const { assignedQtyByKey, units } = computeLedger()
+  const qtySum = Object.entries(assignedQtyByKey)
+    .filter(([key]) => key.startsWith(`${productId}|`) && (!storeId || key === `${productId}|${storeId}`))
+    .reduce((sum, [, v]) => sum + v, 0)
+  const unitCount = units.filter(u =>
+    u.productId === productId && u.status === 'Assigned to Engineer' && (!storeId || u.storeId === storeId)
+  ).length
+  return qtySum + unitCount
+}
+
 // Movement log, newest first, optionally narrowed to one product.
 export function getMovements({ productId } = {}) {
   const { movements } = computeLedger()
@@ -127,12 +199,12 @@ export function getMovements({ productId } = {}) {
   return [...scoped].sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
-// A single serial/MAC/drum unit's trail so far — just its one Purchase hop
-// for now (no Phase 5 assignment exists yet), shaped so appending further
-// steps ('Assigned to Engineer X', 'Installed at Customer Y') later is just
+// A single serial/MAC/drum unit's trail so far — Purchased → Received, plus
+// an Assigned to Engineer step once assignmentStore.js has one on record.
+// Shaped so a later phase (Installed at Customer, Returned, ...) is just
 // pushing onto this same array, not a restructure.
 export function getUnitTrail(unit) {
-  return [
+  const trail = [
     {
       date: unit.receivedDate, action: 'Purchased',
       detail: `From ${unit.vendorName}${unit.poNumber ? ` · PO ${unit.poNumber}` : ' · Outside PO'}`,
@@ -143,11 +215,22 @@ export function getUnitTrail(unit) {
       storeId: unit.storeId,
     },
   ]
+  if (unit.status === 'Assigned to Engineer' && unit.assignmentNumber) {
+    trail.push({
+      date: (unit.assignedAt || '').slice(0, 10), action: 'Assigned to Engineer',
+      detail: `${unit.engineerName} · ${unit.assignmentNumber}`,
+    })
+  }
+  return trail
 }
 
 // No independent notify loop — the ledger has no state of its own to
-// notify about, so this just re-exposes purchaseStore's own pub/sub.
-// Consumers re-run their selectors (getStockBalances() etc.) on fire.
+// notify about, so this just re-exposes purchaseStore's and
+// assignmentStore's own pub/subs. Consumers re-run their selectors
+// (getStockBalances() etc.) on fire, from either a new receipt or a new
+// assignment.
 export function subscribeInventoryLedger(fn) {
-  return subscribePurchases(() => fn())
+  const unsubPurchases = subscribePurchases(() => fn())
+  const unsubAssignments = subscribeAssignments(() => fn())
+  return () => { unsubPurchases(); unsubAssignments() }
 }
