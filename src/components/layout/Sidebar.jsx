@@ -19,7 +19,6 @@ import {
   Bell,
   PhoneCall,
   Layers,
-  HardDrive,
   FileText,
   FileCheck,
   BarChart2,
@@ -31,6 +30,10 @@ import {
   PackageSearch,
   Zap,
   ShieldCheck,
+  Tag,
+  Handshake,
+  Store,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -73,7 +76,11 @@ const NAV_ITEMS = [
   {
     label: 'Inventory',        icon: Package,         to: '/inventory',
     children: [
-      { label: 'HW Assignment', icon: HardDrive,  to: '/inventory/hw-assignment' },
+      { heading: 'Configuration' },
+      { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
+      { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },
+      { label: 'Store Management',   icon: Store,              to: '/inventory/stores'   },
+      { label: 'General Settings',   icon: SlidersHorizontal,  to: '/inventory/settings' },
     ],
   },
   { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
@@ -114,7 +121,7 @@ export default function Sidebar({ collapsed }) {
           const isActive = exact
             ? location.pathname === to
             : location.pathname.startsWith(to)
-          const hasActiveChild = children?.some(c => location.pathname.startsWith(c.to))
+          const hasActiveChild = children?.some(c => c.to && location.pathname.startsWith(c.to))
 
           return (
             <div key={to}>
@@ -143,6 +150,16 @@ export default function Sidebar({ collapsed }) {
               {!collapsed && children && (isActive || hasActiveChild) && (
                 <div className="ml-4 mt-0.5 space-y-0.5 pl-3 border-l border-white/10">
                   {children.map(child => {
+                    // Heading pseudo-items (e.g. Inventory's "Configuration"
+                    // group label) have no `to`/icon — render a plain label
+                    // instead of a NavLink.
+                    if (child.heading) {
+                      return (
+                        <p key={child.heading} className="px-3 pt-2 pb-1 text-[10px] font-semibold text-blue-100/40 uppercase tracking-wide">
+                          {child.heading}
+                        </p>
+                      )
+                    }
                     const childActive = child.exact
                       ? location.pathname === child.to
                       : location.pathname.startsWith(child.to)

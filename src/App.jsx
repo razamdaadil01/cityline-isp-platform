@@ -52,7 +52,11 @@ import PackageEdit from './pages/PackageEdit'
 import OTTManagement from './pages/OTTManagement'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
-import Inventory from './pages/Inventory'
+import ProductList from './pages/inventory/ProductList'
+import VendorList from './pages/inventory/VendorList'
+import VendorDetail from './pages/inventory/VendorDetail'
+import StoreList from './pages/inventory/StoreList'
+import InventorySettings from './pages/inventory/InventorySettings'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -136,7 +140,13 @@ export default function App() {
           <Route path="/packages/:packageId" element={<PackageDetail />} />
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
-          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
+          <Route path="/inventory/products" element={<ProductList />} />
+          <Route path="/inventory/vendors" element={<VendorList />} />
+          <Route path="/inventory/vendors/:id" element={<VendorDetail />} />
+          <Route path="/inventory/vendors/:id/:tab" element={<VendorDetail />} />
+          <Route path="/inventory/stores" element={<StoreList />} />
+          <Route path="/inventory/settings" element={<InventorySettings />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />
