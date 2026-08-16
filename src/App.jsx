@@ -60,6 +60,9 @@ import InventorySettings from './pages/inventory/InventorySettings'
 import PurchaseOrders from './pages/inventory/PurchaseOrders'
 import CreatePO from './pages/inventory/CreatePO'
 import PODetail from './pages/inventory/PODetail'
+import Purchases from './pages/inventory/Purchases'
+import CreatePurchase from './pages/inventory/CreatePurchase'
+import PurchaseDetail from './pages/inventory/PurchaseDetail'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -154,6 +157,10 @@ export default function App() {
           <Route path="/inventory/purchase-orders/new" element={<CreatePO />} />
           <Route path="/inventory/purchase-orders/:id/edit" element={<CreatePO />} />
           <Route path="/inventory/purchase-orders/:id" element={<PODetail />} />
+          <Route path="/inventory/purchases" element={<Purchases />} />
+          <Route path="/inventory/purchases/new" element={<CreatePurchase />} />
+          <Route path="/inventory/purchases/:id/edit" element={<CreatePurchase />} />
+          <Route path="/inventory/purchases/:id" element={<PurchaseDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />
