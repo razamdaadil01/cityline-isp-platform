@@ -78,6 +78,7 @@ const NAV_ITEMS = [
   {
     label: 'Inventory',        icon: Package,         to: '/inventory',
     children: [
+      { label: 'Inventory Overview', icon: Layers,            to: '/inventory/overview' },
       { label: 'Purchase Orders',    icon: ClipboardList,     to: '/inventory/purchase-orders' },
       { label: 'Purchases',          icon: PackageOpen,       to: '/inventory/purchases' },
       { heading: 'Configuration' },

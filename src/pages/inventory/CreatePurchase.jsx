@@ -592,7 +592,7 @@ export default function CreatePurchase() {
 
                 <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">PO Amount</span>
+                    <span className="text-gray-500">PO Subtotal (excl. GST)</span>
                     <span className="font-medium text-gray-800">₹{summary.poAmount.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
