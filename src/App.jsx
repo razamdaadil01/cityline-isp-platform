@@ -63,6 +63,7 @@ import PODetail from './pages/inventory/PODetail'
 import Purchases from './pages/inventory/Purchases'
 import CreatePurchase from './pages/inventory/CreatePurchase'
 import PurchaseDetail from './pages/inventory/PurchaseDetail'
+import InventoryOverview from './pages/inventory/InventoryOverview'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -147,6 +148,7 @@ export default function App() {
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
           <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
+          <Route path="/inventory/overview" element={<InventoryOverview />} />
           <Route path="/inventory/products" element={<ProductList />} />
           <Route path="/inventory/vendors" element={<VendorList />} />
           <Route path="/inventory/vendors/:id" element={<VendorDetail />} />

@@ -206,7 +206,7 @@ export default function PurchaseDetail() {
 
           <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
             <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Purchase Calculation</p>
-            <InfoRow label="PO Amount" value={`₹${purchase.poAmount.toLocaleString('en-IN')}`} />
+            <InfoRow label="PO Subtotal (excl. GST)" value={`₹${purchase.poAmount.toLocaleString('en-IN')}`} />
             <InfoRow label="Received Value" value={`₹${purchase.receivedValue.toLocaleString('en-IN')}`} />
             <InfoRow label="Extra Item Value" value={`₹${purchase.extraItemValue.toLocaleString('en-IN')}`} />
             <InfoRow label="GST" value={`₹${purchase.gstAmount.toLocaleString('en-IN')}`} />
