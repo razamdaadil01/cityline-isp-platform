@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronLeft, FileText, Package, Calculator,
+  ArrowLeft, ChevronLeft, ChevronRight, FileText, Package, Calculator,
   Plus, Trash2, AlertTriangle, Save, Send,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -146,10 +146,9 @@ export default function CreatePO() {
   const [otherCharges, setOtherCharges] = useState(String(existing?.otherCharges ?? 0))
   const [itemTab, setItemTab] = useState('hardware')
   // Tracks which bottom-bar action the user last tried so the validation
-  // banner shows the right message — Save Draft and Send PO have different
-  // requirements, and either can be clicked from any step (see the bottom
-  // bar being present on all 3 steps, not gated behind reaching step 3).
-  const [attemptedAction, setAttemptedAction] = useState(null) // null | 'draft' | 'send'
+  // banner shows the right message — Next (steps 1-2) and Save Draft/Send PO
+  // (step 3) each have different requirements.
+  const [attemptedAction, setAttemptedAction] = useState(null) // null | 'step1' | 'step2' | 'draft' | 'send'
 
   // Company/Entity drives defaults (GST %, Terms) — only auto-fill on
   // change while creating; an existing PO's saved values are the source of
@@ -165,12 +164,6 @@ export default function CreatePO() {
 
   const stepParam = Number(searchParams.get('step'))
   const step = [1, 2, 3].includes(stepParam) ? stepParam : 1
-
-  function goTo(id) { setSearchParams({ step: String(id) }) }
-  function goBack() {
-    if (step === 1) { navigate('/inventory/purchase-orders'); return }
-    setSearchParams({ step: String(step - 1) })
-  }
 
   function updateItem(itemId, patch) {
     setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...patch } : it))
@@ -213,6 +206,42 @@ export default function CreatePO() {
   const canSaveDraft = !!companyEntityId
   const canSend = !!companyEntityId && !!vendorId && !!storeId && !!estimatedDeliveryDate &&
     filledItems.length > 0 && numericItems.every(it => it.qty > 0 && it.price >= 0)
+
+  // Step 1/2 gates — Step 1's required fields are a subset of canSend's;
+  // Step 2 additionally requires at least one valid product line. Step 3
+  // has no gate of its own (Save Draft/Send PO have their own checks above).
+  function isStep1Valid() {
+    return !!companyEntityId && !!estimatedDeliveryDate && !!vendorId && !!storeId
+  }
+  function isStep2Valid() {
+    return filledItems.length > 0 && numericItems.every(it => it.qty > 0 && it.price >= 0)
+  }
+  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: true }
+
+  // Header step icons — backward is always reachable; a forward jump is
+  // only reachable once every step before it is valid.
+  function isReachable(id) {
+    if (id === 1) return true
+    for (let i = 1; i < id; i++) if (!stepValid[i]) return false
+    return true
+  }
+
+  function goTo(id) {
+    if (!isReachable(id)) return
+    setAttemptedAction(null)
+    setSearchParams({ step: String(id) })
+  }
+  function goBack() {
+    setAttemptedAction(null)
+    if (step === 1) { navigate('/inventory/purchase-orders'); return }
+    setSearchParams({ step: String(step - 1) })
+  }
+  function goNext() {
+    if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
+    if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
+    setAttemptedAction(null)
+    setSearchParams({ step: String(Math.min(step + 1, 3)) })
+  }
 
   function handleSaveDraft() {
     if (!canSaveDraft) { setAttemptedAction('draft'); return }
@@ -265,7 +294,7 @@ export default function CreatePO() {
               </p>
             </div>
           </div>
-          <StepProgress steps={STEPS} current={step} isReachable={() => true} onSelect={goTo} />
+          <StepProgress steps={STEPS} current={step} isReachable={isReachable} onSelect={goTo} />
         </div>
       </div>
 
@@ -273,6 +302,18 @@ export default function CreatePO() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-6 pb-28">
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
+            {attemptedAction === 'step1' && !isStep1Valid() && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                Company / Entity, Estimated Delivery Date, Vendor and Delivery Store are required to continue.
+              </div>
+            )}
+            {attemptedAction === 'step2' && !isStep2Valid() && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                Add at least one product line with a quantity and price before continuing.
+              </div>
+            )}
             {attemptedAction === 'draft' && !canSaveDraft && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
@@ -434,8 +475,14 @@ export default function CreatePO() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-border px-6 py-3 flex items-center justify-between z-10">
         <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" size="sm" icon={<Save size={14} />} onClick={handleSaveDraft}>Save Draft</Button>
-          <Button size="sm" icon={<Send size={14} />} onClick={handleSendPO}>Send PO</Button>
+          {step < 3 ? (
+            <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Next</Button>
+          ) : (
+            <>
+              <Button variant="secondary" size="sm" icon={<Save size={14} />} onClick={handleSaveDraft}>Save Draft</Button>
+              <Button size="sm" icon={<Send size={14} />} onClick={handleSendPO}>Send PO</Button>
+            </>
+          )}
         </div>
       </div>
     </div>
