@@ -10,7 +10,28 @@
 // record specifically so Phase 5 can start writing 'Assigned to Engineer'
 // etc. into it without restructuring these shapes.
 
+import { getProducts } from './productStore'
 import { getPurchases, subscribePurchases } from './purchaseStore'
+
+// Every Purchase item carries a productId snapshotted at the moment it was
+// added (copied from the PO line it came from, or from the product picker
+// for an outside-PO/PO-extra item). That snapshot is normally identical to
+// the product's live id, but it's still a copy, not a live reference — so
+// rather than trust it blindly as the ledger's grouping key, resolve it
+// against the live productStore first. An exact id match is the common
+// case and returns immediately; SKU and then exact product name are the
+// fallbacks for a snapshot that's drifted, so a Purchase item never silently
+// aggregates onto an orphaned key that no product row in Inventory Overview
+// (which always keys off the live productStore's ids) can ever match.
+function resolveProductId(it) {
+  const products = getProducts()
+  if (products.some(p => p.id === it.productId)) return it.productId
+  const bySku = it.sku && products.find(p => p.sku && p.sku === it.sku)
+  if (bySku) return bySku.id
+  const byName = it.productName && products.find(p => p.name === it.productName)
+  if (byName) return byName.id
+  return it.productId
+}
 
 // Re-derives balances/units/drums/movements from every Confirmed Purchase.
 // Cheap enough to recompute on demand at this data scale (mock stage) rather
@@ -28,17 +49,18 @@ function computeLedger() {
         const receivedQty = Number(it.receivedQty) || 0
         if (!it.productId || receivedQty <= 0) return
 
-        const key = `${it.productId}|${pur.storeId}`
+        const productId = resolveProductId(it)
+        const key = `${productId}|${pur.storeId}`
         balanceByKey[key] = (balanceByKey[key] ?? 0) + receivedQty
 
         movements.push({
-          date: pur.purchaseDate, productId: it.productId, movementType: 'Purchase',
+          date: pur.purchaseDate, productId, movementType: 'Purchase',
           qty: receivedQty, fromLabel: pur.vendorName, toLabel: pur.storeName,
           reference: pur.purchaseNumber, poReference: pur.poNumber,
         })
 
         const origin = {
-          productId: it.productId, storeId: pur.storeId,
+          productId, storeId: pur.storeId,
           purchaseId: pur.id, purchaseNumber: pur.purchaseNumber,
           poId: pur.poId, poNumber: pur.poNumber,
           vendorName: pur.vendorName, receivedDate: pur.purchaseDate,
