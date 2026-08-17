@@ -1990,7 +1990,7 @@ function CustomerIdCredentialsPanel({ type, onSwitchType, onBack }) {
         Changes apply going forward to new customers of this type; existing customers keep their current Customer ID, PPPoE ID and App Password.
       </p>
 
-      <div className="max-w-xl space-y-4">
+      <div className="space-y-4">
         <Accordion title="Customer ID" subtitle="Prefix, sequence and padding used to generate new Customer IDs">
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Prefix" required error={errors.prefix}>
