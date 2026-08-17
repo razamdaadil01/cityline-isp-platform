@@ -23,7 +23,7 @@ import {
   getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
   saveLeadIdConfig, formatLeadId,
   saveCustomerIdConfig, formatCustomerId, savePppoeIdConfig, saveAppPasswordConfig,
-  applyPattern, buildCredentialTokens, setZohoSyncEnabled, setTallySyncEnabled, setEInvoicingEnabled,
+  applyPattern, buildCredentialTokens, setZohoSyncEnabled, setEInvoicingEnabled,
 } from '../data/customerTypes'
 import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
@@ -1336,14 +1336,13 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
         <table className="w-full text-sm min-w-[1400px]">
           <thead>
             <tr className="bg-gray-50/80 border-b border-surface-border">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer Type Name</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer Type</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mapped Service Tags</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Fields Configured</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Service Tags</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Fields Configured</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Lead ID Format</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID & Credentials</th>
+              <th className="px-4 py-3 w-36 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID & Credentials</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Zoho Sync</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Tally Sync</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">E-Invoicing</th>
             </tr>
           </thead>
@@ -1387,7 +1386,7 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
                       {t.leadIdPrefix}
                     </button>
                   </td>
-                  <td className="px-4 py-3.5">
+                  <td className="px-4 py-3.5 w-36">
                     <button
                       onClick={() => onOpenCustomerIdConfig(t.id)}
                       className="inline-flex items-center gap-1.5 text-brand-blue hover:underline font-medium whitespace-nowrap"
@@ -1400,12 +1399,6 @@ function CustomerTypeListPanel({ onOpenServiceTags, onOpenFields, onOpenLeadIdFo
                     <div className="flex items-center gap-2.5">
                       <SysConfigToggle checked={!!t.zohoSyncEnabled} onChange={v => setZohoSyncEnabled(t.id, v)} />
                       <span className={`text-xs font-medium whitespace-nowrap ${t.zohoSyncEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.zohoSyncEnabled ? 'Enabled' : 'Disabled'}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <SysConfigToggle checked={!!t.tallySyncEnabled} onChange={v => setTallySyncEnabled(t.id, v)} />
-                      <span className={`text-xs font-medium whitespace-nowrap ${t.tallySyncEnabled ? 'text-green-600' : 'text-gray-400'}`}>{t.tallySyncEnabled ? 'Enabled' : 'Disabled'}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
