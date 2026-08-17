@@ -9,6 +9,7 @@ import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnMana
 import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES } from '../../data/purchaseOrderStore'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
+import { usePermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = {
   Draft: 'gray',
@@ -35,6 +36,7 @@ const PO_TABLE_COLUMNS = [
 ]
 
 export default function PurchaseOrders() {
+  const canCreate = usePermission('Inventory', 'Create')
   const navigate = useNavigate()
   const [pos, setPos] = useState(getPurchaseOrders)
   useEffect(() => subscribePurchaseOrders(setPos), [])
@@ -127,7 +129,7 @@ export default function PurchaseOrders() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/purchase-orders/new')}>Add Purchase Order</Button>
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/purchase-orders/new')}>Add Purchase Order</Button>}
         </div>
       </div>
 

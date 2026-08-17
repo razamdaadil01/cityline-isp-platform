@@ -9,6 +9,9 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import { getVendor, subscribeVendors, recordVendorPayment } from '../../data/vendorStore'
+import { getPurchases } from '../../data/purchaseStore'
+import { usePermission } from '../../data/rolesStore'
+import { exportWorkbook } from '../../utils/excelExport'
 
 const TABS = ['Purchase History', 'Ledger Statement', 'Purchase Orders', 'Payments']
 const TAB_SLUGS = {
@@ -45,6 +48,21 @@ function EmptyStateTable({ columns, icon: Icon = FileText }) {
   )
 }
 
+// Merges Purchase History (each Confirmed Purchase is a debit — it added to
+// what's owed) and Payments (each recorded payment is a credit) into one
+// chronological running-balance ledger. Computed on demand from the two
+// real sources rather than stored anywhere, same "derive, don't persist"
+// approach inventoryLedger.js already uses — there's no separate ledger
+// data model to keep in sync.
+function buildLedgerRows(purchases, payments) {
+  const rows = [
+    ...purchases.map(p => ({ date: p.purchaseDate, description: `Purchase ${p.purchaseNumber}`, debit: p.totalPurchaseValue, credit: 0 })),
+    ...payments.map(pay => ({ date: pay.paymentDate, description: `Payment${pay.reference ? ' · ' + pay.reference : ''}`, debit: 0, credit: pay.amount })),
+  ].sort((a, b) => new Date(a.date) - new Date(b.date))
+  let balance = 0
+  return rows.map(row => { balance += row.debit - row.credit; return { ...row, balance } })
+}
+
 function RecordPaymentModal({ isOpen, onClose, vendor }) {
   const [form, setForm] = useState({ paymentDate: '', amount: '', method: PAYMENT_METHODS[0], reference: '', notes: '' })
   const [errors, setErrors] = useState({})
@@ -73,7 +91,10 @@ function RecordPaymentModal({ isOpen, onClose, vendor }) {
   function handleSave() {
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
-    recordVendorPayment(vendor.id, { amount: Number(form.amount), paymentDate: form.paymentDate })
+    recordVendorPayment(vendor.id, {
+      amount: Number(form.amount), paymentDate: form.paymentDate,
+      method: form.method, reference: form.reference.trim(), notes: form.notes.trim(),
+    })
     onClose()
   }
 
@@ -113,6 +134,8 @@ function RecordPaymentModal({ isOpen, onClose, vendor }) {
 }
 
 export default function VendorDetail() {
+  const canEdit = usePermission('Inventory', 'Edit')
+
   const { id, tab } = useParams()
   const navigate = useNavigate()
 
@@ -144,6 +167,37 @@ export default function VendorDetail() {
 
   function setActiveTab(tabName) {
     navigate(`/inventory/vendors/${id}/${TAB_SLUGS[tabName]}`)
+  }
+
+  const vendorPurchases = getPurchases()
+    .filter(p => p.vendorId === vendor.id && p.status === 'Confirmed')
+    .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
+  const payments = vendor.payments ?? []
+  const ledgerRows = buildLedgerRows(vendorPurchases, payments)
+
+  function handleExport() {
+    exportWorkbook(`${vendor.companyName.replace(/\s+/g, '_')}_${vendor.id}.xlsx`, [
+      {
+        name: 'Purchase History',
+        rows: vendorPurchases.map(p => ({
+          'PO Number': p.poNumber ?? 'Outside PO', 'Date': p.purchaseDate,
+          'Items': p.items.map(it => it.productName).join(', '),
+          'Quantity': p.items.reduce((s, it) => s + (Number(it.receivedQty) || 0), 0),
+          'Amount': p.totalPurchaseValue, 'Status': p.status,
+        })),
+      },
+      {
+        name: 'Ledger Statement',
+        rows: ledgerRows.map(r => ({ Date: r.date, Description: r.description, Debit: r.debit, Credit: r.credit, Balance: r.balance })),
+      },
+      {
+        name: 'Payments',
+        rows: payments.map(pay => ({
+          'Payment Date': pay.paymentDate, 'Amount': pay.amount, 'Method': pay.method,
+          'Reference No.': pay.reference, 'Notes': pay.notes,
+        })),
+      },
+    ])
   }
 
   return (
@@ -205,9 +259,9 @@ export default function VendorDetail() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
-            <Button variant="secondary" size="sm" icon={<Download size={13} />}>Export Excel</Button>
+            <Button variant="secondary" size="sm" icon={<Download size={13} />} onClick={handleExport}>Export Excel</Button>
             <Button variant="secondary" size="sm" icon={<CreditCard size={13} />} onClick={() => setPaymentModalOpen(true)}>Record Payment</Button>
-            <Button variant="secondary" size="sm" icon={<Edit2 size={13} />}>Edit Vendor</Button>
+            {canEdit && <Button variant="secondary" size="sm" icon={<Edit2 size={13} />}>Edit Vendor</Button>}
           </div>
         </div>
       </div>
@@ -229,10 +283,61 @@ export default function VendorDetail() {
 
         <div className="p-5 sm:p-6">
           {activeTab === 'Purchase History' && (
-            <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'Date', 'Items', 'Quantity', 'Amount', 'Status']} />
+            vendorPurchases.length === 0 ? (
+              <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'Date', 'Items', 'Quantity', 'Amount', 'Status']} />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-surface-border">
+                      {['PO Number', 'Date', 'Items', 'Quantity', 'Amount', 'Status'].map(c => (
+                        <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {vendorPurchases.map(p => (
+                      <tr key={p.id}>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{p.poNumber ?? 'Outside PO'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{p.purchaseDate}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600 max-w-xs truncate">{p.items.map(it => it.productName).join(', ')}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{p.items.reduce((s, it) => s + (Number(it.receivedQty) || 0), 0)}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{p.totalPurchaseValue.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3"><Badge variant="green" size="sm" dot>{p.status}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
           {activeTab === 'Ledger Statement' && (
-            <EmptyStateTable icon={Receipt} columns={['Date', 'Description', 'Debit', 'Credit', 'Balance']} />
+            ledgerRows.length === 0 ? (
+              <EmptyStateTable icon={Receipt} columns={['Date', 'Description', 'Debit', 'Credit', 'Balance']} />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-surface-border">
+                      {['Date', 'Description', 'Debit', 'Credit', 'Balance'].map(c => (
+                        <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {ledgerRows.map((r, i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{r.date}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{r.description}</td>
+                        <td className="px-4 py-3 text-xs text-red-600">{r.debit > 0 ? `₹${r.debit.toLocaleString('en-IN')}` : '—'}</td>
+                        <td className="px-4 py-3 text-xs text-emerald-600">{r.credit > 0 ? `₹${r.credit.toLocaleString('en-IN')}` : '—'}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{r.balance.toLocaleString('en-IN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
           {activeTab === 'Purchase Orders' && (
             <div className="space-y-4">
@@ -243,7 +348,32 @@ export default function VendorDetail() {
             </div>
           )}
           {activeTab === 'Payments' && (
-            <EmptyStateTable icon={Wallet} columns={['Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes']} />
+            payments.length === 0 ? (
+              <EmptyStateTable icon={Wallet} columns={['Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes']} />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-surface-border">
+                      {['Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes'].map(c => (
+                        <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {payments.map(pay => (
+                      <tr key={pay.id}>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.amount.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.method || '—'}</td>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-500 whitespace-nowrap">{pay.reference || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">{pay.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </div>
       </div>

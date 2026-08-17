@@ -6,6 +6,7 @@
 // stock ledger will read from later.
 
 import { recalculatePOReceiptStatus } from './purchaseOrderStore'
+import { logAudit } from './auditLogStore'
 
 export const PURCHASE_STATUSES = ['Draft', 'Received', 'Confirmed', 'Cancelled']
 
@@ -195,6 +196,14 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
 
   if (action === 'confirm' && purchase.poId) {
     recalculatePOReceiptStatus(purchase.poId, receivedByProductIdForPO(purchase.poId))
+  }
+
+  if (action === 'confirm') {
+    const receivedUnits = purchase.items.reduce((sum, it) => sum + (Number(it.receivedQty) || 0), 0)
+    logAudit({
+      action: 'Edit', module: 'Inventory',
+      details: `Confirmed purchase ${purchase.purchaseNumber} — received ${receivedUnits} units`,
+    })
   }
 
   return purchase

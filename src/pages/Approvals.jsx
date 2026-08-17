@@ -8,6 +8,7 @@ import ApprovalDecisionModal from '../components/ui/ApprovalDecisionModal'
 import {
   getApprovals, subscribeApprovals, approveApproval, rejectApproval, APPROVAL_TYPES,
 } from '../data/approvalsStore'
+import { usePermission } from '../data/rolesStore'
 
 const CURRENT_USER = 'Admin User'
 
@@ -29,6 +30,7 @@ function relatedRoute(approval) {
 }
 
 export default function Approvals() {
+  const canApprovePO = usePermission('Inventory', 'Edit')
   const navigate = useNavigate()
   const [approvals, setApprovals] = useState(getApprovals)
   const [statusTab, setStatusTab] = useState('') // '' | 'Pending' | 'Approved' | 'Rejected'
@@ -183,11 +185,13 @@ export default function Approvals() {
                         </button>
                         {a.status === 'Pending' && (
                           <>
-                            <button onClick={e => { e.stopPropagation(); handleDecision(a, 'approve') }}
-                              title="Approve"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
-                              <CheckCircle2 size={14} />
-                            </button>
+                            {(a.type !== 'Purchase Order' || canApprovePO) && (
+                              <button onClick={e => { e.stopPropagation(); handleDecision(a, 'approve') }}
+                                title="Approve"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                                <CheckCircle2 size={14} />
+                              </button>
+                            )}
                             <button onClick={e => { e.stopPropagation(); handleDecision(a, 'reject') }}
                               title="Reject"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">

@@ -4,6 +4,8 @@
 // outstanding are simple running totals updated by recordVendorPayment(),
 // not derived from real ledger entries.
 
+import { logAudit } from './auditLogStore'
+
 export const PAYMENT_TERMS = ['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60']
 
 const SEED = [
@@ -73,17 +75,26 @@ export function isVendorNameTaken(companyName, excludeId = null) {
 // Create or update. Callers pass an `id` to update an existing vendor;
 // omitting it (new vendor) assigns the next VEN-### sequence id.
 export function saveVendor(vendor) {
-  if (vendor.id && _vendors.find(v => v.id === vendor.id)) {
+  const isNew = !(vendor.id && _vendors.find(v => v.id === vendor.id))
+  let saved
+  if (!isNew) {
     _vendors = _vendors.map(v => v.id === vendor.id ? { ...v, ...vendor } : v)
+    saved = _vendors.find(v => v.id === vendor.id)
   } else {
     const id = `VEN-${String(_nextSeq++).padStart(3, '0')}`
-    _vendors = [..._vendors, {
+    saved = {
       totalPurchases: 0, totalPaid: 0, outstanding: 0,
       lastPurchaseDate: null, lastPaymentDate: null, status: 'active',
+      payments: [],
       ...vendor, id,
-    }]
+    }
+    _vendors = [..._vendors, saved]
   }
   notify()
+  logAudit({
+    action: isNew ? 'Create' : 'Edit', module: 'Inventory',
+    details: `${isNew ? 'Added' : 'Updated'} vendor ${saved.companyName} (${saved.id})`,
+  })
 }
 
 // Vendors are never hard-deleted once purchase history could exist against
@@ -93,20 +104,32 @@ export function saveVendor(vendor) {
 export function setVendorStatus(id, status) {
   _vendors = _vendors.map(v => v.id === id ? { ...v, status } : v)
   notify()
+  const vendor = getVendor(id)
+  logAudit({ action: 'Edit', module: 'Inventory', details: `${status === 'active' ? 'Activated' : 'Deactivated'} vendor ${vendor?.companyName ?? id}` })
 }
 
 // Simple arithmetic against the vendor's running totals — no real ledger
 // entries yet (that's Phase 3). Reduces outstanding by the paid amount
-// (floored at 0) and bumps totalPaid + lastPaymentDate.
-export function recordVendorPayment(id, { amount, paymentDate }) {
+// (floored at 0) and bumps totalPaid + lastPaymentDate. Also appends an
+// itemized record to `payments` (method/reference/notes previously
+// collected by Record Payment's form and then discarded) — Vendor Detail's
+// Payments tab and its Excel export both read this array.
+export function recordVendorPayment(id, { amount, paymentDate, method, reference, notes }) {
+  let vendorName = id
   _vendors = _vendors.map(v => {
     if (v.id !== id) return v
+    vendorName = v.companyName
+    const payment = {
+      id: `PAY-${Date.now()}`, paymentDate, amount, method: method || '', reference: reference || '', notes: notes || '',
+    }
     return {
       ...v,
       totalPaid: v.totalPaid + amount,
       outstanding: Math.max(0, v.outstanding - amount),
       lastPaymentDate: paymentDate || v.lastPaymentDate,
+      payments: [payment, ...(v.payments ?? [])],
     }
   })
   notify()
+  logAudit({ action: 'Edit', module: 'Inventory', details: `Recorded ₹${amount.toLocaleString('en-IN')} payment for ${vendorName}` })
 }

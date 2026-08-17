@@ -1,18 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Shield, Download, X, Search, Filter, ChevronLeft, ChevronRight,
   Lock, PlusCircle, Edit3, Trash2, LogIn, Info, ChevronDown
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-
-// ── Mock data ────────────────────────────────────────────────────────────────
-
-const MODULES = ['Customers', 'Billing', 'Resellers', 'Packages', 'Network', 'Support', 'Settings', 'Auth', 'Inventory']
-const ACTIONS = ['Create', 'Edit', 'Delete', 'Login', 'Logout', 'Export', 'View']
-const USERS   = ['admin@cityline.in', 'rahul.ops@cityline.in', 'billing@cityline.in', 'support@cityline.in']
-const DEVICES = ['Chrome / Windows', 'Safari / macOS', 'Firefox / Linux', 'Chrome / Android', 'Edge / Windows']
-const IPS     = ['192.168.1.10', '103.25.44.81', '49.37.128.55', '10.0.0.5', '203.197.12.44']
+import { MODULES, ACTIONS, getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
 
 const ACTION_CFG = {
   Create:  { color: 'bg-emerald-100 text-emerald-700', icon: PlusCircle, variant: 'green' },
@@ -23,50 +16,6 @@ const ACTION_CFG = {
   Export:  { color: 'bg-purple-100 text-purple-700',   icon: Download,   variant: 'purple'},
   View:    { color: 'bg-sky-100 text-sky-700',         icon: Info,       variant: 'cyan'  },
 }
-
-const DETAILS_MAP = {
-  'Customers-Create':   ['Added new customer Rajan Mehta (RES-2026-0030)', 'Created account for Priya Sharma', 'New residential customer onboarded'],
-  'Customers-Edit':     ['Updated plan for ENT-2026-0001 to FTTH 200Mbps', 'Changed contact number for RES-2026-0011', 'Modified expiry date for RES-2026-0022'],
-  'Customers-Delete':   ['Deleted inactive account RES-2026-0015', 'Removed duplicate entry RES-2026-0004'],
-  'Billing-Create':     ['Invoice INV-2026-0451 generated', 'Receipt issued for payment ₹999'],
-  'Billing-Edit':       ['Updated invoice INV-2026-0440 due date', 'Corrected amount on INV-2026-0388'],
-  'Resellers-Create':   ['Added reseller: Raj Networks (RS-001)', 'New reseller DigiLink onboarded'],
-  'Resellers-Edit':     ['Updated profit margin for RS-007 to 25%', 'Wallet top-up ₹10,000 for RS-002'],
-  'Packages-Create':    ['Created package FTTH 300Mbps ₹1,399/mo', 'Added OTT bundle package'],
-  'Packages-Edit':      ['Updated price for FTTB 50Mbps to ₹649', 'Modified validity period for Wireless plans'],
-  'Packages-Delete':    ['Deprecated package Wireless 10Mbps'],
-  'Network-Edit':       ['Updated OLT-AW-01 configuration', 'Changed port mapping on JAZE-MUM-01'],
-  'Settings-Edit':      ['Modified SMTP settings', 'Updated SMS gateway credentials', 'Changed system timezone to Asia/Kolkata'],
-  'Support-Create':     ['Ticket TK-2026-0189 opened by Sunita Joshi', 'New escalation created for RES-2026-0006'],
-  'Support-Edit':       ['Ticket TK-2026-0180 status changed to Resolved', 'Assigned ticket to support team'],
-  'Auth-Login':         ['Successful login from Chrome / Windows', 'Login from new device detected'],
-  'Auth-Logout':        ['User session ended normally'],
-  'Inventory-Create':   ['Added 20 units of ONU TP-Link XS-010X-Q to stock'],
-  'Inventory-Edit':     ['Updated stock count for Cat6 cable to 450m'],
-}
-
-function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)] }
-function randomDetails(module, action) {
-  const key = `${module}-${action}`
-  const pool = DETAILS_MAP[key] || [`${action} performed on ${module} module`]
-  return randomFrom(pool)
-}
-
-const SEED_LOGS = Array.from({ length: 120 }, (_, i) => {
-  const action = randomFrom(ACTIONS)
-  const module = action === 'Login' || action === 'Logout' ? 'Auth' : randomFrom(MODULES.filter(m => m !== 'Auth'))
-  const d      = new Date(2026, 4, 7 - Math.floor(i / 15), 23 - (i % 12), (i * 7) % 60, (i * 13) % 60)
-  return {
-    id:        `LOG-${String(i + 1).padStart(5, '0')}`,
-    timestamp: d.toISOString().replace('T', ' ').slice(0, 19),
-    user:      action === 'Login' || action === 'Logout' ? randomFrom(USERS) : randomFrom(USERS),
-    action,
-    module,
-    details:   randomDetails(module, action),
-    ip:        randomFrom(IPS),
-    device:    randomFrom(DEVICES),
-  }
-}).sort((a, b) => b.timestamp.localeCompare(a.timestamp))
 
 const PAGE_SIZE = 20
 
@@ -102,6 +51,8 @@ function FilterSelect({ label, value, onChange, options }) {
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function AuditLog() {
+  const [logs, setLogs] = useState(getAuditLogs)
+  useEffect(() => subscribeAuditLogs(setLogs), [])
   const [search,      setSearch]      = useState('')
   const [filterUser,  setFilterUser]  = useState('')
   const [filterMod,   setFilterMod]   = useState('')
@@ -113,7 +64,7 @@ export default function AuditLog() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return SEED_LOGS.filter(log => {
+    return logs.filter(log => {
       if (q && !log.details.toLowerCase().includes(q) && !log.user.includes(q) && !log.id.includes(q)) return false
       if (filterUser   && log.user   !== filterUser)   return false
       if (filterMod    && log.module !== filterMod)    return false
@@ -122,7 +73,7 @@ export default function AuditLog() {
       if (dateTo       && log.timestamp.slice(0, 10) > dateTo)   return false
       return true
     })
-  }, [search, filterUser, filterMod, filterAction, dateFrom, dateTo])
+  }, [logs, search, filterUser, filterMod, filterAction, dateFrom, dateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -136,9 +87,14 @@ export default function AuditLog() {
 
   const actionCounts = useMemo(() => {
     const c = {}
-    ACTIONS.forEach(a => { c[a] = SEED_LOGS.filter(l => l.action === a).length })
+    ACTIONS.forEach(a => { c[a] = logs.filter(l => l.action === a).length })
     return c
-  }, [])
+  }, [logs])
+
+  // Distinct users seen in the log, for the User filter dropdown — derived
+  // from live data instead of a static list, so a real logAudit() call from
+  // a new user shows up as a filter option automatically.
+  const userOptions = useMemo(() => [...new Set(logs.map(l => l.user))].sort(), [logs])
 
   return (
     <div className="p-6 space-y-5">
@@ -156,7 +112,7 @@ export default function AuditLog() {
               <span className="text-xs font-medium text-emerald-600">Immutable</span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mt-0.5 ml-10">{filtered.length} of {SEED_LOGS.length} activity records</p>
+          <p className="text-sm text-gray-500 mt-0.5 ml-10">{filtered.length} of {logs.length} activity records</p>
         </div>
         <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export to Excel</Button>
       </div>
@@ -229,7 +185,7 @@ export default function AuditLog() {
             />
           </div>
           <div className="flex items-end">
-            <FilterSelect label="All Users"    value={filterUser}   onChange={v => { setFilterUser(v);   setPage(1) }} options={USERS}   />
+            <FilterSelect label="All Users"    value={filterUser}   onChange={v => { setFilterUser(v);   setPage(1) }} options={userOptions} />
           </div>
           <div className="flex items-end">
             <FilterSelect label="All Modules"  value={filterMod}    onChange={v => { setFilterMod(v);    setPage(1) }} options={MODULES} />

@@ -1,15 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import {
   Search, Filter, X, ChevronDown, Boxes, AlertTriangle, UserCog, Users,
-  ShieldAlert, Trash2, Eye, ChevronRight, History, Package,
+  ShieldAlert, Trash2, Eye, ChevronRight, History, Package, Download, Flag,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
+import { FormField, Select, Input, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getProducts } from '../../data/productStore'
 import { getStores } from '../../data/storeStore'
 import {
-  getStockBalances, getUnits, getDrums, getMovements, getUnitTrail, getEngineerAssignedQty, subscribeInventoryLedger,
+  getStockBalances, getUnits, getDrums, getMovements, getUnitTrail, getEngineerAssignedQty,
+  getProductAvailability, subscribeInventoryLedger,
 } from '../../data/inventoryLedger'
+import { exportWorkbook } from '../../utils/excelExport'
+import { logAudit } from '../../data/auditLogStore'
 
 const OVERVIEW_TABLE_COLUMNS = [
   { key: 'name',       label: 'Product Name',        visible: true, defaultVisible: true, locked: true },
@@ -225,6 +230,92 @@ function ProductDetailPanel({ product, stores, onClose }) {
   )
 }
 
+// ── Report a Discrepancy ─────────────────────────────────────────────────────
+// A v1 reconciliation stub, deliberately not touching stock: it only logs
+// what a physical count found, for someone to investigate and correct
+// manually later (via a real adjustment flow, a future phase). System Qty
+// is read-only and always sourced live from inventoryLedger.js — never
+// editable here, so this can never be mistaken for an adjustment tool.
+function DiscrepancyModal({ isOpen, onClose, product, allProducts, stores }) {
+  const [productId, setProductId] = useState(product?.id ?? '')
+  const [storeId, setStoreId] = useState('')
+  const [physicalCount, setPhysicalCount] = useState('')
+  const [notes, setNotes] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setProductId(product?.id ?? '')
+      setStoreId('')
+      setPhysicalCount('')
+      setNotes('')
+      setError('')
+    }
+  }, [isOpen, product])
+
+  if (!isOpen) return null
+
+  const selectedProduct = allProducts.find(p => p.id === productId) ?? null
+  const systemQty = selectedProduct && storeId ? getProductAvailability(productId, storeId) : null
+
+  function handleSubmit() {
+    if (!productId || !storeId || physicalCount === '') { setError('Product, Store and Physical Count are required.'); return }
+    const store = stores.find(s => s.id === storeId)
+    logAudit({
+      action: 'Edit', module: 'Inventory',
+      details: `Discrepancy reported: ${selectedProduct.name} at ${store?.storeName ?? storeId} — system ${systemQty}, physical ${physicalCount}`,
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+          <h2 className="text-sm font-bold text-gray-900">Report a Discrepancy</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          {error && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
+            </div>
+          )}
+          <FormField label="Product" required>
+            <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId('') }}>
+              <option value="">Select product…</option>
+              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Store" required>
+            <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
+              <option value="">Select store…</option>
+              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="System Qty" hint="Read-only — the current Available Qty from Inventory Overview">
+            <Input disabled value={systemQty == null ? '' : formatAvailable(selectedProduct, systemQty)} placeholder="Select a product and store" />
+          </FormField>
+          <FormField label="Physical Count" required>
+            <Input type="number" min="0" value={physicalCount} onChange={e => setPhysicalCount(e.target.value)} placeholder="Counted quantity" />
+          </FormField>
+          <FormField label="Notes" hint="Optional — context for whoever investigates this">
+            <Textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes about the discrepancy…" />
+          </FormField>
+          <p className="text-[11px] text-gray-400">This only logs a report to the Audit Log for follow-up — it does not change any stock balance.</p>
+        </div>
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-border bg-gray-50 rounded-b-2xl">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit}>Submit Report</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function InventoryOverview() {
@@ -239,6 +330,8 @@ export default function InventoryOverview() {
 
   const [search, setSearch] = useState('')
   const [selectedProductId, setSelectedProductId] = useState(null)
+  const [discrepancyOpen, setDiscrepancyOpen] = useState(false)
+  const [discrepancyProduct, setDiscrepancyProduct] = useState(null)
 
   const [filterBranch, setFilterBranch] = useState('')
   const [filterStore, setFilterStore] = useState('')
@@ -348,6 +441,21 @@ export default function InventoryOverview() {
 
   const selectedProduct = selectedProductId ? allProducts.find(p => p.id === selectedProductId) : null
 
+  // Exports exactly the currently-filtered table (search/filters/low-stock
+  // toggle all already applied via `rows`) — "Store" reflects the active
+  // Branch/Store scope rather than a per-row store, since a row's Available
+  // Qty is itself an aggregate across whatever stores are in that scope.
+  function handleExport() {
+    exportWorkbook('Inventory_Overview.xlsx', [{
+      name: 'Stock',
+      rows: rows.map(({ product, availableQty, lowStock }) => ({
+        Product: product.name, SKU: product.sku || '',
+        'Available Qty': formatAvailable(product, availableQty),
+        Store: scopeLabel, Status: lowStock ? 'Low Stock' : (product.status === 'active' ? 'Active' : 'Inactive'),
+      })),
+    }])
+  }
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -355,7 +463,11 @@ export default function InventoryOverview() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory Overview</h1>
           <p className="text-sm text-gray-500 mt-0.5">{rows.length} of {allProducts.length} products · Showing: {scopeLabel}</p>
         </div>
-        <ColumnManager columns={tableColumns} onChange={setTableColumns} />
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => { setDiscrepancyProduct(null); setDiscrepancyOpen(true) }}>Report a Discrepancy</Button>
+          <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExport}>Export</Button>
+          <ColumnManager columns={tableColumns} onChange={setTableColumns} />
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -550,7 +662,7 @@ export default function InventoryOverview() {
                 {visibleCols.has('damage')      && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Damage</th>}
                 {visibleCols.has('scrap')       && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Scrap</th>}
                 {visibleCols.has('status')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
-                {visibleCols.has('actions')     && <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
+                {visibleCols.has('actions')     && <th className="px-4 py-3 w-20 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
@@ -587,10 +699,15 @@ export default function InventoryOverview() {
                     </td>
                   )}
                   {visibleCols.has('actions') && (
-                    <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => setSelectedProductId(product.id)} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors mx-auto">
-                        <Eye size={14} />
-                      </button>
+                    <td className="px-4 py-3 w-20 text-center" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => setSelectedProductId(product.id)} title="View" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors">
+                          <Eye size={14} />
+                        </button>
+                        <button onClick={() => { setDiscrepancyProduct(product); setDiscrepancyOpen(true) }} title="Report a Discrepancy" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                          <Flag size={14} />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -603,6 +720,14 @@ export default function InventoryOverview() {
       {selectedProduct && (
         <ProductDetailPanel product={selectedProduct} stores={stores} onClose={() => setSelectedProductId(null)} />
       )}
+
+      <DiscrepancyModal
+        isOpen={discrepancyOpen}
+        onClose={() => setDiscrepancyOpen(false)}
+        product={discrepancyProduct}
+        allProducts={allProducts}
+        stores={stores}
+      />
     </div>
   )
 }

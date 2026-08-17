@@ -12,6 +12,7 @@ import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
   isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES,
 } from '../../data/productStore'
+import { usePermission } from '../../data/rolesStore'
 
 const PRODUCT_TABLE_COLUMNS = [
   { key: 'name',          label: 'Product Name',   visible: true, defaultVisible: true, locked: true },
@@ -359,6 +360,9 @@ function FilterDrawer({ open, onClose, draft, setDraftField, onApply, onReset, b
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ProductList() {
+  const canCreate = usePermission('Inventory', 'Create')
+  const canEdit = usePermission('Inventory', 'Edit')
+
   const [products, setProducts] = useState(getProducts)
   useEffect(() => subscribeProducts(setProducts), [])
 
@@ -443,7 +447,7 @@ export default function ProductList() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Product</Button>
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Product</Button>}
         </div>
       </div>
 
@@ -573,14 +577,18 @@ export default function ProductList() {
             style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
             className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
           >
-            <button onClick={() => openEdit(product)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button onClick={() => toggleStatus(product)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              {product.status === 'active'
-                ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
-                : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
-            </button>
+            {canEdit && (
+              <button onClick={() => openEdit(product)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => toggleStatus(product)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                {product.status === 'active'
+                  ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
+                  : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
+              </button>
+            )}
           </div>
         )
       })()}
