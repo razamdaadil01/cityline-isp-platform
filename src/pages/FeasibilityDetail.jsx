@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
   Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
-  Plus, Trash2, Check,
+  Plus, Trash2, Check, Route, Download,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -47,6 +47,16 @@ const STATUS_VARIANT = {
 }
 
 const PRIORITY_VARIANT = { High: 'red', Medium: 'yellow', Low: 'gray' }
+
+const SEGMENT_STATUS_OPTIONS = ['New Build', 'Existing', 'Under Construction', 'Planned']
+const SEGMENT_TYPE_OPTIONS = ['Underground Ducts', 'Aerial Cable', 'Duct Bank', 'Direct Buried']
+
+const SEGMENT_STATUS_VARIANT = {
+  'New Build':           'blue',
+  'Existing':            'green',
+  'Under Construction':  'yellow',
+  'Planned':             'gray',
+}
 
 // The 4-stage business pipeline shown in the horizontal progress stepper —
 // distinct from the tab bar below it, which is pure content navigation.
@@ -200,6 +210,7 @@ const TABS = [
   { key: 'requirement-feasibility',  label: 'Requirement & Feasibility' },
   { key: 'hardware',                 label: 'Hardware' },
   { key: 'attachments',              label: 'Attachments' },
+  { key: 'fiber-route',              label: 'Fiber Route' },
 ]
 
 // Identical underline tab-bar pattern to Customer Detail's Profile/Package
@@ -338,6 +349,8 @@ export default function FeasibilityDetail() {
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
   const [summaryForm, setSummaryForm] = useState({ estDistance: '', nearestPop: '', fiberCore: '' })
+  const [segmentForm, setSegmentForm] = useState({ pathName: '', distance: '', status: 'New Build', segmentType: 'Underground Ducts', remarks: '' })
+  const [editingSegmentIndex, setEditingSegmentIndex] = useState(null)
 
   const [toast, setToast] = useState('')
 
@@ -398,6 +411,63 @@ export default function FeasibilityDetail() {
     })
     closeSummaryConfig()
     setToast('Feasibility summary updated')
+  }
+
+  // ?modal=add-fiber-segment opens the Add/Edit Fiber Route Segment modal —
+  // same ?modal= URL-param pattern as the Stage Fields and Configure
+  // Feasibility Summary modals above. Reused for both adding a new segment
+  // (editingSegmentIndex === null) and editing an existing row.
+  const segmentModalOpen = searchParams.get('modal') === 'add-fiber-segment'
+
+  function openAddSegment() {
+    setSegmentForm({ pathName: '', distance: '', status: 'New Build', segmentType: 'Underground Ducts', remarks: '' })
+    setEditingSegmentIndex(null)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-fiber-segment')
+      return next
+    })
+  }
+
+  function openEditSegment(index) {
+    const seg = (req.fiberRouteSegments ?? [])[index]
+    setSegmentForm({
+      pathName:    seg.pathName || '',
+      distance:    seg.distance || '',
+      status:      seg.status || 'New Build',
+      segmentType: seg.segmentType || 'Underground Ducts',
+      remarks:     seg.remarks || '',
+    })
+    setEditingSegmentIndex(index)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-fiber-segment')
+      return next
+    })
+  }
+
+  function closeSegmentModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+
+  function handleSaveSegment() {
+    const segments = [...(req.fiberRouteSegments ?? [])]
+    if (editingSegmentIndex === null) {
+      segments.push({ ...segmentForm })
+    } else {
+      segments[editingSegmentIndex] = { ...segmentForm }
+    }
+    saveFeasibilityRequest({ ...req, fiberRouteSegments: segments })
+    closeSegmentModal()
+    setToast(editingSegmentIndex === null ? 'Fiber route segment added' : 'Fiber route segment updated')
+  }
+
+  function handleRemoveSegment(index) {
+    saveFeasibilityRequest({ ...req, fiberRouteSegments: (req.fiberRouteSegments ?? []).filter((_, i) => i !== index) })
   }
 
   function handleStageFieldsSave(targetStage, fieldVals, fuData) {
@@ -889,6 +959,72 @@ export default function FeasibilityDetail() {
           </Card>
         )}
 
+        {/* Fiber Route */}
+        {activeTab === 'fiber-route' && (
+          <Card
+            title="Fiber Route Details"
+            icon={Route}
+            headerAction={
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={openAddSegment}>
+                  Add Segment
+                </Button>
+                <button
+                  type="button"
+                  title="Export route data"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors shrink-0"
+                >
+                  <Download size={14} />
+                </button>
+              </div>
+            }
+          >
+            {(!req.fiberRouteSegments?.length) ? (
+              <p className="text-sm text-gray-400 text-center py-6">
+                No fiber route segments recorded yet. Click{' '}
+                <button type="button" onClick={openAddSegment} className="font-semibold text-gray-500 hover:text-brand-blue transition-colors">
+                  + Add Segment
+                </button>{' '}
+                to record route details.
+              </p>
+            ) : (
+              <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+                {req.fiberRouteSegments.map((seg, i) => (
+                  <div key={i} className="flex items-start gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                      <Route size={14} className="text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-900">{seg.pathName || '—'}</p>
+                        <Badge variant={SEGMENT_STATUS_VARIANT[seg.status] || 'gray'} size="sm">{seg.status}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{seg.distance || '—'} · {seg.segmentType}</p>
+                      {seg.remarks && <p className="text-xs text-gray-400 mt-1">{seg.remarks}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openEditSegment(i)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSegment(i)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
         </div>
 
         {/* ── Right Column (sidebar) ── */}
@@ -1061,6 +1197,55 @@ export default function FeasibilityDetail() {
           <FormField label="Fiber Core">
             <Input placeholder="e.g. OFC 6 Core Cable"
               value={summaryForm.fiberCore} onChange={e => setSummaryForm(f => ({ ...f, fiberCore: e.target.value }))} />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* ── Add/Edit Fiber Route Segment Modal ──────────────────────── */}
+      <Modal
+        isOpen={segmentModalOpen}
+        onClose={closeSegmentModal}
+        title={
+          <span className="flex items-center gap-2">
+            <Route size={15} className="text-brand-blue" />
+            {editingSegmentIndex === null ? 'Add Fiber Route Segment' : 'Edit Fiber Route Segment'}
+          </span>
+        }
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeSegmentModal}>Cancel</Button>
+          <Button size="sm"
+            onClick={handleSaveSegment}
+            disabled={!segmentForm.pathName.trim() || !segmentForm.distance.trim()}
+          >
+            {editingSegmentIndex === null ? 'Add Segment' : 'Save Changes'}
+          </Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FormField label="Segment Path Name" required>
+            <Input placeholder="e.g. POP-04 to MH-112"
+              value={segmentForm.pathName} onChange={e => setSegmentForm(f => ({ ...f, pathName: e.target.value }))} />
+          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Distance" required>
+              <Input placeholder="e.g. 450m"
+                value={segmentForm.distance} onChange={e => setSegmentForm(f => ({ ...f, distance: e.target.value }))} />
+            </FormField>
+            <FormField label="Status">
+              <Select value={segmentForm.status} onChange={e => setSegmentForm(f => ({ ...f, status: e.target.value }))}>
+                {SEGMENT_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+              </Select>
+            </FormField>
+          </div>
+          <FormField label="Segment Type">
+            <Select value={segmentForm.segmentType} onChange={e => setSegmentForm(f => ({ ...f, segmentType: e.target.value }))}>
+              {SEGMENT_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Remarks">
+            <Input placeholder="e.g. Requires ROW permission"
+              value={segmentForm.remarks} onChange={e => setSegmentForm(f => ({ ...f, remarks: e.target.value }))} />
           </FormField>
         </div>
       </Modal>
