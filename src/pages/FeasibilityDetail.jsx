@@ -650,17 +650,17 @@ export default function FeasibilityDetail() {
             <span className="text-gray-500">{req.id}</span>
           </div>
           <h1 className="text-xl font-bold text-gray-900">Feasibility Request — {req.id}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{req.customerName} · {req.area}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-sm text-gray-500">{req.customerName} · {req.area}</p>
+            <Badge variant={STATUS_VARIANT[status] ?? 'gray'} dot>
+              {status}
+            </Badge>
+          </div>
         </div>
-
-        {/* Status badge */}
-        <Badge variant={STATUS_VARIANT[status] ?? 'gray'} dot>
-          {status}
-        </Badge>
 
         {/* Actions dropdown — consolidates Assign Engineer/Approve/Reject */}
         {!isApproved && !isRejected && (
-          <div className="relative ml-2 shrink-0" ref={actionsMenuRef}>
+          <div className="relative shrink-0" ref={actionsMenuRef}>
             <Button variant="secondary" size="sm" onClick={() => setActionsMenuOpen(p => !p)}>
               Actions <ChevronDown size={12} className="ml-1" />
             </Button>
