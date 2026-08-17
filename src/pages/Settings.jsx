@@ -2220,12 +2220,17 @@ function ceToForm(entity) {
   }
 }
 
-function CompanyEntityTab() {
-  const [entities, setEntities] = useState(getCompanyEntities)
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [form, setForm] = useState(ceEmptyForm)
+// Full page form for adding/editing a Company/Entity — deep-linkable via
+// ?section=company-entity&view=add or ?view=edit&id=<entityId>, replacing
+// the old ?modal=add-company-entity/?modal=edit-company-entity popup so the
+// (fairly long) Bank Details/Invoice Numbering/Zoho/Tally/E-Invoicing
+// sections get real page height instead of a modal's max-h-[90vh] scroll
+// area. All field/validation/save logic is unchanged from the old modal —
+// only the container changed from Modal to a page, and modalEntity/showModal
+// became the entity/onCancel/onSaved props below.
+function CompanyEntityFormPage({ entity, onCancel, onSaved }) {
+  const [form, setForm] = useState(() => entity ? ceToForm(entity) : ceEmptyForm())
   const [errors, setErrors] = useState({})
-  const [toast, setToast] = useState('')
   // Connected/Disconnected badge is local, ephemeral UI state (as it was on
   // the old global Zoho Books tab) — not part of the persisted zohoConfig.
   const [zohoConnected, setZohoConnected] = useState(true)
@@ -2235,44 +2240,6 @@ function CompanyEntityTab() {
   // Same local/ephemeral pattern for E-Invoicing's Connected/Disconnected
   // badge — not part of the persisted eInvoicingConfig.
   const [eInvoicingConnected, setEInvoicingConnected] = useState(true)
-
-  useEffect(() => subscribeCompanyEntities(setEntities), [])
-
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(''), 2500)
-      return () => clearTimeout(t)
-    }
-  }, [toast])
-
-  // Add/Edit modal is deep-linkable via ?modal=add-company-entity or
-  // ?modal=edit-company-entity&id=<entityId>, merged with the outer
-  // ?section=company-entity (and any other existing params) rather than
-  // clobbering them — same push-to-open/replace-to-close convention as the
-  // ?modal= pattern used elsewhere (e.g. Support Ticket Detail's
-  // schedule-visit/resolve-ticket/verify-otp modals).
-  const modalParam = searchParams.get('modal')
-  // searchParams.get('id') always returns a string (or null), but entity.id
-  // is a number (companyEntities.js's ids are 1, 2, ... via _nextId) — a
-  // strict === here would never match, silently leaving modalEntity null and
-  // showModal false, so the edit modal would never open. Compare as strings
-  // on both sides instead.
-  const editId = searchParams.get('id')
-  const modalEntity = modalParam === 'edit-company-entity' ? entities.find(e => String(e.id) === editId) ?? null : null
-  const showModal = modalParam === 'add-company-entity' || (modalParam === 'edit-company-entity' && !!modalEntity)
-
-  // Populate the form whenever the modal opens (including directly on page
-  // load/refresh from a deep-linked URL) so add vs. edit pre-fill correctly.
-  useEffect(() => {
-    if (showModal) {
-      setForm(modalEntity ? ceToForm(modalEntity) : ceEmptyForm())
-      setErrors({})
-      setZohoConnected(true)
-      setTallyConnected(true)
-      setEInvoicingConnected(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showModal, modalEntity?.id])
 
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
@@ -2285,33 +2252,6 @@ function CompanyEntityTab() {
 
   function setTallyPayloadField(k, v) {
     setForm(f => ({ ...f, tallyPayloadFields: { ...f.tallyPayloadFields, [k]: v } }))
-  }
-
-  function openAdd() {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.set('modal', 'add-company-entity')
-      next.delete('id')
-      return next
-    })
-  }
-
-  function openEdit(entity) {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.set('modal', 'edit-company-entity')
-      next.set('id', entity.id)
-      return next
-    })
-  }
-
-  function closeModal() {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.delete('modal')
-      next.delete('id')
-      return next
-    }, { replace: true })
   }
 
   function validate() {
@@ -2354,7 +2294,7 @@ function CompanyEntityTab() {
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
     saveCompanyEntity({
-      id: modalEntity?.id,
+      id: entity?.id,
       name: form.name.trim(),
       gstin: form.gstin.trim().toUpperCase(),
       email: form.email.trim(),
@@ -2391,17 +2331,420 @@ function CompanyEntityTab() {
         irnMode: form.irnMode,
       },
     })
-    setToast(modalEntity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
-    closeModal()
+    onSaved(entity ? 'Company/Entity updated successfully' : 'Company/Entity added successfully')
+  }
+
+  const invoicePreview = form.invoicePrefix.trim()
+    ? formatInvoiceNumber(form, Number(form.startingNumber) || 0)
+    : ''
+
+  return (
+    <div className="space-y-5">
+      <button onClick={onCancel} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand-blue">
+        <ChevronLeft size={13} /> Back to Company / Entity
+      </button>
+
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">
+          {entity ? `Edit Company/Entity — ${entity.name}` : 'Add Company/Entity'}
+        </h2>
+        <p className="text-xs text-gray-500 mt-0.5">Legal billing entities used under Connection Type = Own</p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Legal Company Name" required error={errors.name}>
+            <Input placeholder="e.g. Cityline Networks Pvt Ltd" value={form.name} onChange={e => setField('name', e.target.value)} />
+          </FormField>
+          <FormField label="GSTIN" required error={errors.gstin} hint={!errors.gstin ? '15-character GSTIN, e.g. 27AABCU9603R1ZM' : undefined}>
+            <Input
+              placeholder="27AABCU9603R1ZM"
+              value={form.gstin}
+              maxLength={15}
+              onChange={e => setField('gstin', e.target.value.toUpperCase())}
+              className="font-mono uppercase"
+            />
+          </FormField>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Email" required error={errors.email}>
+            <Input type="email" placeholder="accounts@company.in" value={form.email} onChange={e => setField('email', e.target.value)} />
+          </FormField>
+          <FormField label="Status">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.status === 'Active'} onChange={v => setField('status', v ? 'Active' : 'Inactive')} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.status}</span>
+            </div>
+          </FormField>
+        </div>
+        <FormField label="Address" required error={errors.address}>
+          <Textarea rows={2} placeholder="Registered address" value={form.address} onChange={e => setField('address', e.target.value)} />
+        </FormField>
+
+        <div className="rounded-xl border border-surface-border p-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.showPackageNameOnInvoice}
+              onChange={e => setField('showPackageNameOnInvoice', e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+            <span className="text-sm font-medium text-gray-800">Show Package Name on Invoice Line Items</span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1.5 ml-6">
+            When checked, invoice line items show the package name. When unchecked, an HSN code column is shown instead.
+          </p>
+        </div>
+
+        <Accordion title="Bank Details & PG Connection" subtitle="Payout account and payment gateway used for this entity">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Bank Name" required error={errors.bankName}>
+              <Input placeholder="e.g. HDFC Bank" value={form.bankName} onChange={e => setField('bankName', e.target.value)} />
+            </FormField>
+            <FormField label="Account No." required error={errors.accountNo}>
+              <Input placeholder="Account number" value={form.accountNo} onChange={e => setField('accountNo', e.target.value)} />
+            </FormField>
+            <FormField label="IFSC" required error={errors.ifsc}>
+              <Input placeholder="e.g. HDFC0001234" value={form.ifsc} onChange={e => setField('ifsc', e.target.value.toUpperCase())} className="font-mono uppercase" />
+            </FormField>
+            <FormField label="Branch" required error={errors.branch}>
+              <Input placeholder="e.g. Andheri West" value={form.branch} onChange={e => setField('branch', e.target.value)} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="PG ID" required error={errors.pgId}>
+              <Input placeholder="e.g. rzp_live_XXXXXXXX" value={form.pgId} onChange={e => setField('pgId', e.target.value)} />
+            </FormField>
+            <FormField label="PG Connection" required hint="Illustrative list — depends on integrations built">
+              <Select value={form.pgConnection} onChange={e => setField('pgConnection', e.target.value)}>
+                {PG_CONNECTIONS.map(pg => <option key={pg} value={pg}>{pg}</option>)}
+              </Select>
+            </FormField>
+          </div>
+        </Accordion>
+
+        {/* TODO: exact invoice number format/fields not detailed in PRD
+            beyond "give a invoice number configuration" — this is a
+            reasonable default structure, confirm with BA */}
+        <Accordion title="Invoice Numbering" subtitle="Controls the invoice number format issued under this entity">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Invoice Prefix" required error={errors.invoicePrefix}>
+              <Input placeholder="e.g. CL-INV" value={form.invoicePrefix} onChange={e => setField('invoicePrefix', e.target.value)} />
+            </FormField>
+            <FormField label="Include Year in Number">
+              <div className="flex items-center gap-2.5 h-[38px]">
+                <SysConfigToggle checked={form.includeYearInNumber} onChange={v => setField('includeYearInNumber', v)} />
+                <span className="text-sm text-gray-600 whitespace-nowrap">{form.includeYearInNumber ? 'On' : 'Off'}</span>
+              </div>
+            </FormField>
+            <FormField label="Starting Number" required error={errors.startingNumber}>
+              <Input
+                type="number" min="0"
+                placeholder={form.includeYearInNumber ? '1' : '1001'}
+                value={form.startingNumber}
+                onChange={e => setField('startingNumber', e.target.value)}
+              />
+            </FormField>
+            <FormField label="Sequence Padding" required error={errors.sequencePadding} hint="Zero-padding digits, e.g. 4 → 0001">
+              <Input type="number" min="1" max="10" value={form.sequencePadding} onChange={e => setField('sequencePadding', e.target.value)} />
+            </FormField>
+          </div>
+          <p className="text-xs text-gray-500">
+            Preview: <span className="font-mono font-semibold text-gray-800">{invoicePreview || '—'}</span>
+          </p>
+        </Accordion>
+
+        <Accordion title="Zoho Integration" subtitle="Sync invoices, payments and customers with Zoho Books for this entity">
+          <FormField label="Enable Zoho Sync">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.zohoEnabled} onChange={v => setField('zohoEnabled', v)} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.zohoEnabled ? 'On' : 'Off'}</span>
+            </div>
+          </FormField>
+
+          {form.zohoEnabled && (
+            <>
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <Check size={16} className="text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-700">
+                      {zohoConnected ? 'Zoho Books is connected' : 'Zoho Books is disconnected'}
+                    </p>
+                    {zohoConnected && (
+                      <p className="text-xs text-green-600 mt-0.5">Organization: {form.name || 'this entity'} · Last sync: 5 minutes ago</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={zohoConnected ? 'green' : 'gray'} dot>{zohoConnected ? 'Connected' : 'Disconnected'}</Badge>
+                  <button onClick={() => setZohoConnected(v => !v)}
+                    className="text-xs text-red-500 hover:text-red-600 font-medium underline">
+                    {zohoConnected ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Client ID" required error={errors.zohoClientId}>
+                  <Input type="password" placeholder="1000.XXXXXXXXXXXXXXXXXXXXXXXXX" value={form.zohoClientId} onChange={e => setField('zohoClientId', e.target.value)} />
+                </FormField>
+                <FormField label="Client Secret" required error={errors.zohoClientSecret}>
+                  <Input type="password" placeholder="********************************" value={form.zohoClientSecret} onChange={e => setField('zohoClientSecret', e.target.value)} />
+                </FormField>
+                <FormField label="Organization ID" required error={errors.zohoOrgId}>
+                  <Input placeholder="e.g. 20097512" value={form.zohoOrgId} onChange={e => setField('zohoOrgId', e.target.value)} />
+                </FormField>
+                <FormField label="API Region">
+                  <Select value={form.zohoApiRegion} onChange={e => setField('zohoApiRegion', e.target.value)}>
+                    <option value="in">India (zohoapis.in)</option>
+                    <option value="com">Global (zohoapis.com)</option>
+                  </Select>
+                </FormField>
+              </div>
+
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
+                  <p className="text-sm font-semibold text-gray-800">Auto Export Schedule</p>
+                </div>
+                <div className="divide-y divide-surface-border">
+                  {[
+                    { key: 'exportInvoices',      label: 'Export Invoices',        freq: 'Daily at 11:00 PM' },
+                    { key: 'exportPayments',      label: 'Export Payments',        freq: 'Daily at 11:30 PM' },
+                    { key: 'exportCustomerList',  label: 'Export Customer List',   freq: 'Weekly (Sunday)'   },
+                    { key: 'syncChartOfAccounts', label: 'Sync Chart of Accounts', freq: 'Monthly (1st)'     },
+                  ].map(item => (
+                    <div key={item.key} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{item.label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
+                      </div>
+                      <Toggle checked={form.zohoAutoExport[item.key]} onChange={v => setZohoAutoExportField(item.key, v)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
+                <Button variant="secondary" size="sm" icon={<Webhook size={14} />}>Test Webhook</Button>
+              </div>
+            </>
+          )}
+        </Accordion>
+
+        <Accordion title="Tally Integration" subtitle="Sync invoices, payments and customer ledger with Tally for this entity">
+          <FormField label="Enable Tally Sync">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.tallyEnabled} onChange={v => setField('tallyEnabled', v)} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.tallyEnabled ? 'On' : 'Off'}</span>
+            </div>
+          </FormField>
+
+          {form.tallyEnabled && (
+            <>
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <Check size={16} className="text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-700">
+                      {tallyConnected ? 'Tally is connected' : 'Tally is disconnected'}
+                    </p>
+                    {tallyConnected && (
+                      <p className="text-xs text-green-600 mt-0.5">Company: {form.tallyCompanyName || form.name || 'this entity'} · Last sync: 5 minutes ago</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={tallyConnected ? 'green' : 'gray'} dot>{tallyConnected ? 'Connected' : 'Disconnected'}</Badge>
+                  <button onClick={() => setTallyConnected(v => !v)}
+                    className="text-xs text-red-500 hover:text-red-600 font-medium underline">
+                    {tallyConnected ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Tally Company Name" required error={errors.tallyCompanyName} hint="The company name as it exists in Tally">
+                  <Input placeholder="e.g. Cityline Networks Pvt Ltd" value={form.tallyCompanyName} onChange={e => setField('tallyCompanyName', e.target.value)} />
+                </FormField>
+                <FormField label="Server Host" required error={errors.tallyServerHost}>
+                  <Input placeholder="e.g. localhost or 192.168.1.10" value={form.tallyServerHost} onChange={e => setField('tallyServerHost', e.target.value)} />
+                </FormField>
+                <FormField label="Port" required error={errors.tallyPort} hint="Tally's standard XML/HTTP port">
+                  <Input type="number" min="1" placeholder="9000" value={form.tallyPort} onChange={e => setField('tallyPort', e.target.value)} />
+                </FormField>
+              </div>
+
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
+                  <p className="text-sm font-semibold text-gray-800">Payload Fields</p>
+                </div>
+                <div className="divide-y divide-surface-border">
+                  {[
+                    { key: 'syncInvoices',        label: 'Sync Invoices',         freq: 'Pushed to Tally on invoice generation'          },
+                    { key: 'syncPayments',        label: 'Sync Payments',         freq: 'Pushed to Tally on payment received'             },
+                    { key: 'syncCustomerLedger',  label: 'Sync Customer Ledger',  freq: 'Pushed to Tally on customer creation/update'     },
+                    { key: 'syncGstDetails',      label: 'Sync GST Details',      freq: 'Pushed to Tally with GSTIN and tax breakup'      },
+                  ].map(item => (
+                    <div key={item.key} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{item.label}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
+                      </div>
+                      <Toggle checked={form.tallyPayloadFields[item.key]} onChange={v => setTallyPayloadField(item.key, v)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
+                <Button variant="secondary" size="sm" icon={<Server size={14} />}>Test Connection</Button>
+              </div>
+            </>
+          )}
+        </Accordion>
+
+        <Accordion title="E-Invoicing (GST)" subtitle="Generate IRN-signed e-invoices via a GSP/IRP provider for this entity">
+          <FormField label="Enable E-Invoicing">
+            <div className="flex items-center gap-2.5 h-[38px]">
+              <SysConfigToggle checked={form.eInvoicingEnabled} onChange={v => setField('eInvoicingEnabled', v)} />
+              <span className="text-sm text-gray-600 whitespace-nowrap">{form.eInvoicingEnabled ? 'On' : 'Off'}</span>
+            </div>
+          </FormField>
+
+          {form.eInvoicingEnabled && (
+            <>
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <Check size={16} className="text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-700">
+                      {eInvoicingConnected ? 'E-Invoicing is connected' : 'E-Invoicing is disconnected'}
+                    </p>
+                    {eInvoicingConnected && (
+                      <p className="text-xs text-green-600 mt-0.5">Provider: {form.gspProvider} · Last sync: 5 minutes ago</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={eInvoicingConnected ? 'green' : 'gray'} dot>{eInvoicingConnected ? 'Connected' : 'Disconnected'}</Badge>
+                  <button onClick={() => setEInvoicingConnected(v => !v)}
+                    className="text-xs text-red-500 hover:text-red-600 font-medium underline">
+                    {eInvoicingConnected ? 'Disconnect' : 'Connect'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="GSP/IRP Provider" required hint="Illustrative list — depends on integration built">
+                  <Select value={form.gspProvider} onChange={e => setField('gspProvider', e.target.value)}>
+                    {GSP_PROVIDERS.map(gsp => <option key={gsp} value={gsp}>{gsp}</option>)}
+                  </Select>
+                </FormField>
+                <FormField label="IRN Generation Mode">
+                  <Select value={form.irnMode} onChange={e => setField('irnMode', e.target.value)}>
+                    <option value="automatic">Automatic on invoice creation</option>
+                    <option value="manual">Manual trigger</option>
+                  </Select>
+                </FormField>
+                <FormField label="API Username" required error={errors.apiUsername}>
+                  <Input placeholder="e.g. cityline_gsp_user" value={form.apiUsername} onChange={e => setField('apiUsername', e.target.value)} />
+                </FormField>
+                <FormField label="API Password/Key" required error={errors.apiKey}>
+                  <Input type="password" placeholder="********************************" value={form.apiKey} onChange={e => setField('apiKey', e.target.value)} />
+                </FormField>
+              </div>
+
+              <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <Info size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700">
+                  E-invoicing is mandatory under GST rules above a turnover threshold set by the government — verify current applicability for this entity.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" size="sm" icon={<Key size={14} />}>Test Connection</Button>
+              </div>
+            </>
+          )}
+        </Accordion>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4 border-t border-surface-border">
+        <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" onClick={handleSave}>{entity ? 'Save Changes' : 'Save'}</Button>
+      </div>
+    </div>
+  )
+}
+
+function CompanyEntityTab() {
+  const [entities, setEntities] = useState(getCompanyEntities)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [toast, setToast] = useState('')
+
+  useEffect(() => subscribeCompanyEntities(setEntities), [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  // Add/Edit is a full page, deep-linkable via ?view=add or
+  // ?view=edit&id=<entityId>, merged with the outer ?section=company-entity
+  // (and any other existing params) rather than clobbering them — same
+  // push-to-open/replace-to-close convention the old ?modal= flow used, and
+  // the same ?view= convention Customer Type's own sub-panels use.
+  const view = searchParams.get('view')
+  // searchParams.get('id') always returns a string (or null), but entity.id
+  // is a number (companyEntities.js's ids are 1, 2, ... via _nextId) — a
+  // strict === here would never match, silently leaving editEntity null, so
+  // the edit page would never find its entity. Compare as strings on both sides.
+  const editId = searchParams.get('id')
+  const editEntity = view === 'edit' ? entities.find(e => String(e.id) === editId) ?? null : null
+
+  function openAdd() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('view', 'add')
+      next.delete('id')
+      return next
+    })
+  }
+
+  function openEdit(entity) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('view', 'edit')
+      next.set('id', entity.id)
+      return next
+    })
+  }
+
+  function backToList() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('view')
+      next.delete('id')
+      return next
+    }, { replace: true })
   }
 
   function handleStatusToggle(entity, checked) {
     setCompanyEntityStatus(entity.id, checked ? 'Active' : 'Inactive')
   }
 
-  const invoicePreview = form.invoicePrefix.trim()
-    ? formatInvoiceNumber(form, Number(form.startingNumber) || 0)
-    : ''
+  if (view === 'add' || (view === 'edit' && editEntity)) {
+    return (
+      <CompanyEntityFormPage
+        key={editEntity?.id ?? 'add'}
+        entity={editEntity}
+        onCancel={backToList}
+        onSaved={message => { backToList(); setToast(message) }}
+      />
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -2456,336 +2799,6 @@ function CompanyEntityTab() {
           </tbody>
         </table>
       </div>
-
-      {/* Add / Edit modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={closeModal}
-        title={modalEntity ? `Edit Company/Entity — ${modalEntity.name}` : 'Add Company/Entity'}
-        size="lg"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
-          <Button size="sm" onClick={handleSave}>{modalEntity ? 'Save Changes' : 'Save'}</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Legal Company Name" required error={errors.name}>
-              <Input placeholder="e.g. Cityline Networks Pvt Ltd" value={form.name} onChange={e => setField('name', e.target.value)} />
-            </FormField>
-            <FormField label="GSTIN" required error={errors.gstin} hint={!errors.gstin ? '15-character GSTIN, e.g. 27AABCU9603R1ZM' : undefined}>
-              <Input
-                placeholder="27AABCU9603R1ZM"
-                value={form.gstin}
-                maxLength={15}
-                onChange={e => setField('gstin', e.target.value.toUpperCase())}
-                className="font-mono uppercase"
-              />
-            </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Email" required error={errors.email}>
-              <Input type="email" placeholder="accounts@company.in" value={form.email} onChange={e => setField('email', e.target.value)} />
-            </FormField>
-            <FormField label="Status">
-              <div className="flex items-center gap-2.5 h-[38px]">
-                <SysConfigToggle checked={form.status === 'Active'} onChange={v => setField('status', v ? 'Active' : 'Inactive')} />
-                <span className="text-sm text-gray-600 whitespace-nowrap">{form.status}</span>
-              </div>
-            </FormField>
-          </div>
-          <FormField label="Address" required error={errors.address}>
-            <Textarea rows={2} placeholder="Registered address" value={form.address} onChange={e => setField('address', e.target.value)} />
-          </FormField>
-
-          <div className="rounded-xl border border-surface-border p-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.showPackageNameOnInvoice}
-                onChange={e => setField('showPackageNameOnInvoice', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
-              <span className="text-sm font-medium text-gray-800">Show Package Name on Invoice Line Items</span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1.5 ml-6">
-              When checked, invoice line items show the package name. When unchecked, an HSN code column is shown instead.
-            </p>
-          </div>
-
-          <Accordion title="Bank Details & PG Connection" subtitle="Payout account and payment gateway used for this entity">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Bank Name" required error={errors.bankName}>
-                <Input placeholder="e.g. HDFC Bank" value={form.bankName} onChange={e => setField('bankName', e.target.value)} />
-              </FormField>
-              <FormField label="Account No." required error={errors.accountNo}>
-                <Input placeholder="Account number" value={form.accountNo} onChange={e => setField('accountNo', e.target.value)} />
-              </FormField>
-              <FormField label="IFSC" required error={errors.ifsc}>
-                <Input placeholder="e.g. HDFC0001234" value={form.ifsc} onChange={e => setField('ifsc', e.target.value.toUpperCase())} className="font-mono uppercase" />
-              </FormField>
-              <FormField label="Branch" required error={errors.branch}>
-                <Input placeholder="e.g. Andheri West" value={form.branch} onChange={e => setField('branch', e.target.value)} />
-              </FormField>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="PG ID" required error={errors.pgId}>
-                <Input placeholder="e.g. rzp_live_XXXXXXXX" value={form.pgId} onChange={e => setField('pgId', e.target.value)} />
-              </FormField>
-              <FormField label="PG Connection" required hint="Illustrative list — depends on integrations built">
-                <Select value={form.pgConnection} onChange={e => setField('pgConnection', e.target.value)}>
-                  {PG_CONNECTIONS.map(pg => <option key={pg} value={pg}>{pg}</option>)}
-                </Select>
-              </FormField>
-            </div>
-          </Accordion>
-
-          {/* TODO: exact invoice number format/fields not detailed in PRD
-              beyond "give a invoice number configuration" — this is a
-              reasonable default structure, confirm with BA */}
-          <Accordion title="Invoice Numbering" subtitle="Controls the invoice number format issued under this entity">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Invoice Prefix" required error={errors.invoicePrefix}>
-                <Input placeholder="e.g. CL-INV" value={form.invoicePrefix} onChange={e => setField('invoicePrefix', e.target.value)} />
-              </FormField>
-              <FormField label="Include Year in Number">
-                <div className="flex items-center gap-2.5 h-[38px]">
-                  <SysConfigToggle checked={form.includeYearInNumber} onChange={v => setField('includeYearInNumber', v)} />
-                  <span className="text-sm text-gray-600 whitespace-nowrap">{form.includeYearInNumber ? 'On' : 'Off'}</span>
-                </div>
-              </FormField>
-              <FormField label="Starting Number" required error={errors.startingNumber}>
-                <Input
-                  type="number" min="0"
-                  placeholder={form.includeYearInNumber ? '1' : '1001'}
-                  value={form.startingNumber}
-                  onChange={e => setField('startingNumber', e.target.value)}
-                />
-              </FormField>
-              <FormField label="Sequence Padding" required error={errors.sequencePadding} hint="Zero-padding digits, e.g. 4 → 0001">
-                <Input type="number" min="1" max="10" value={form.sequencePadding} onChange={e => setField('sequencePadding', e.target.value)} />
-              </FormField>
-            </div>
-            <p className="text-xs text-gray-500">
-              Preview: <span className="font-mono font-semibold text-gray-800">{invoicePreview || '—'}</span>
-            </p>
-          </Accordion>
-
-          <Accordion title="Zoho Integration" subtitle="Sync invoices, payments and customers with Zoho Books for this entity">
-            <FormField label="Enable Zoho Sync">
-              <div className="flex items-center gap-2.5 h-[38px]">
-                <SysConfigToggle checked={form.zohoEnabled} onChange={v => setField('zohoEnabled', v)} />
-                <span className="text-sm text-gray-600 whitespace-nowrap">{form.zohoEnabled ? 'On' : 'Off'}</span>
-              </div>
-            </FormField>
-
-            {form.zohoEnabled && (
-              <>
-                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <Check size={16} className="text-green-600 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-green-700">
-                        {zohoConnected ? 'Zoho Books is connected' : 'Zoho Books is disconnected'}
-                      </p>
-                      {zohoConnected && (
-                        <p className="text-xs text-green-600 mt-0.5">Organization: {form.name || 'this entity'} · Last sync: 5 minutes ago</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={zohoConnected ? 'green' : 'gray'} dot>{zohoConnected ? 'Connected' : 'Disconnected'}</Badge>
-                    <button onClick={() => setZohoConnected(v => !v)}
-                      className="text-xs text-red-500 hover:text-red-600 font-medium underline">
-                      {zohoConnected ? 'Disconnect' : 'Connect'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Client ID" required error={errors.zohoClientId}>
-                    <Input type="password" placeholder="1000.XXXXXXXXXXXXXXXXXXXXXXXXX" value={form.zohoClientId} onChange={e => setField('zohoClientId', e.target.value)} />
-                  </FormField>
-                  <FormField label="Client Secret" required error={errors.zohoClientSecret}>
-                    <Input type="password" placeholder="********************************" value={form.zohoClientSecret} onChange={e => setField('zohoClientSecret', e.target.value)} />
-                  </FormField>
-                  <FormField label="Organization ID" required error={errors.zohoOrgId}>
-                    <Input placeholder="e.g. 20097512" value={form.zohoOrgId} onChange={e => setField('zohoOrgId', e.target.value)} />
-                  </FormField>
-                  <FormField label="API Region">
-                    <Select value={form.zohoApiRegion} onChange={e => setField('zohoApiRegion', e.target.value)}>
-                      <option value="in">India (zohoapis.in)</option>
-                      <option value="com">Global (zohoapis.com)</option>
-                    </Select>
-                  </FormField>
-                </div>
-
-                <div className="rounded-xl border border-surface-border overflow-hidden">
-                  <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
-                    <p className="text-sm font-semibold text-gray-800">Auto Export Schedule</p>
-                  </div>
-                  <div className="divide-y divide-surface-border">
-                    {[
-                      { key: 'exportInvoices',      label: 'Export Invoices',        freq: 'Daily at 11:00 PM' },
-                      { key: 'exportPayments',      label: 'Export Payments',        freq: 'Daily at 11:30 PM' },
-                      { key: 'exportCustomerList',  label: 'Export Customer List',   freq: 'Weekly (Sunday)'   },
-                      { key: 'syncChartOfAccounts', label: 'Sync Chart of Accounts', freq: 'Monthly (1st)'     },
-                    ].map(item => (
-                      <div key={item.key} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
-                        </div>
-                        <Toggle checked={form.zohoAutoExport[item.key]} onChange={v => setZohoAutoExportField(item.key, v)} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
-                  <Button variant="secondary" size="sm" icon={<Webhook size={14} />}>Test Webhook</Button>
-                </div>
-              </>
-            )}
-          </Accordion>
-
-          <Accordion title="Tally Integration" subtitle="Sync invoices, payments and customer ledger with Tally for this entity">
-            <FormField label="Enable Tally Sync">
-              <div className="flex items-center gap-2.5 h-[38px]">
-                <SysConfigToggle checked={form.tallyEnabled} onChange={v => setField('tallyEnabled', v)} />
-                <span className="text-sm text-gray-600 whitespace-nowrap">{form.tallyEnabled ? 'On' : 'Off'}</span>
-              </div>
-            </FormField>
-
-            {form.tallyEnabled && (
-              <>
-                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <Check size={16} className="text-green-600 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-green-700">
-                        {tallyConnected ? 'Tally is connected' : 'Tally is disconnected'}
-                      </p>
-                      {tallyConnected && (
-                        <p className="text-xs text-green-600 mt-0.5">Company: {form.tallyCompanyName || form.name || 'this entity'} · Last sync: 5 minutes ago</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={tallyConnected ? 'green' : 'gray'} dot>{tallyConnected ? 'Connected' : 'Disconnected'}</Badge>
-                    <button onClick={() => setTallyConnected(v => !v)}
-                      className="text-xs text-red-500 hover:text-red-600 font-medium underline">
-                      {tallyConnected ? 'Disconnect' : 'Connect'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="Tally Company Name" required error={errors.tallyCompanyName} hint="The company name as it exists in Tally">
-                    <Input placeholder="e.g. Cityline Networks Pvt Ltd" value={form.tallyCompanyName} onChange={e => setField('tallyCompanyName', e.target.value)} />
-                  </FormField>
-                  <FormField label="Server Host" required error={errors.tallyServerHost}>
-                    <Input placeholder="e.g. localhost or 192.168.1.10" value={form.tallyServerHost} onChange={e => setField('tallyServerHost', e.target.value)} />
-                  </FormField>
-                  <FormField label="Port" required error={errors.tallyPort} hint="Tally's standard XML/HTTP port">
-                    <Input type="number" min="1" placeholder="9000" value={form.tallyPort} onChange={e => setField('tallyPort', e.target.value)} />
-                  </FormField>
-                </div>
-
-                <div className="rounded-xl border border-surface-border overflow-hidden">
-                  <div className="px-4 py-3 bg-gray-50/80 border-b border-surface-border">
-                    <p className="text-sm font-semibold text-gray-800">Payload Fields</p>
-                  </div>
-                  <div className="divide-y divide-surface-border">
-                    {[
-                      { key: 'syncInvoices',        label: 'Sync Invoices',         freq: 'Pushed to Tally on invoice generation'          },
-                      { key: 'syncPayments',        label: 'Sync Payments',         freq: 'Pushed to Tally on payment received'             },
-                      { key: 'syncCustomerLedger',  label: 'Sync Customer Ledger',  freq: 'Pushed to Tally on customer creation/update'     },
-                      { key: 'syncGstDetails',      label: 'Sync GST Details',      freq: 'Pushed to Tally with GSTIN and tax breakup'      },
-                    ].map(item => (
-                      <div key={item.key} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50">
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{item.freq}</p>
-                        </div>
-                        <Toggle checked={form.tallyPayloadFields[item.key]} onChange={v => setTallyPayloadField(item.key, v)} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Sync Now</Button>
-                  <Button variant="secondary" size="sm" icon={<Server size={14} />}>Test Connection</Button>
-                </div>
-              </>
-            )}
-          </Accordion>
-
-          <Accordion title="E-Invoicing (GST)" subtitle="Generate IRN-signed e-invoices via a GSP/IRP provider for this entity">
-            <FormField label="Enable E-Invoicing">
-              <div className="flex items-center gap-2.5 h-[38px]">
-                <SysConfigToggle checked={form.eInvoicingEnabled} onChange={v => setField('eInvoicingEnabled', v)} />
-                <span className="text-sm text-gray-600 whitespace-nowrap">{form.eInvoicingEnabled ? 'On' : 'Off'}</span>
-              </div>
-            </FormField>
-
-            {form.eInvoicingEnabled && (
-              <>
-                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <Check size={16} className="text-green-600 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium text-green-700">
-                        {eInvoicingConnected ? 'E-Invoicing is connected' : 'E-Invoicing is disconnected'}
-                      </p>
-                      {eInvoicingConnected && (
-                        <p className="text-xs text-green-600 mt-0.5">Provider: {form.gspProvider} · Last sync: 5 minutes ago</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={eInvoicingConnected ? 'green' : 'gray'} dot>{eInvoicingConnected ? 'Connected' : 'Disconnected'}</Badge>
-                    <button onClick={() => setEInvoicingConnected(v => !v)}
-                      className="text-xs text-red-500 hover:text-red-600 font-medium underline">
-                      {eInvoicingConnected ? 'Disconnect' : 'Connect'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField label="GSP/IRP Provider" required hint="Illustrative list — depends on integration built">
-                    <Select value={form.gspProvider} onChange={e => setField('gspProvider', e.target.value)}>
-                      {GSP_PROVIDERS.map(gsp => <option key={gsp} value={gsp}>{gsp}</option>)}
-                    </Select>
-                  </FormField>
-                  <FormField label="IRN Generation Mode">
-                    <Select value={form.irnMode} onChange={e => setField('irnMode', e.target.value)}>
-                      <option value="automatic">Automatic on invoice creation</option>
-                      <option value="manual">Manual trigger</option>
-                    </Select>
-                  </FormField>
-                  <FormField label="API Username" required error={errors.apiUsername}>
-                    <Input placeholder="e.g. cityline_gsp_user" value={form.apiUsername} onChange={e => setField('apiUsername', e.target.value)} />
-                  </FormField>
-                  <FormField label="API Password/Key" required error={errors.apiKey}>
-                    <Input type="password" placeholder="********************************" value={form.apiKey} onChange={e => setField('apiKey', e.target.value)} />
-                  </FormField>
-                </div>
-
-                <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <Info size={15} className="text-blue-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-700">
-                    E-invoicing is mandatory under GST rules above a turnover threshold set by the government — verify current applicability for this entity.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Button variant="secondary" size="sm" icon={<Key size={14} />}>Test Connection</Button>
-                </div>
-              </>
-            )}
-          </Accordion>
-        </div>
-      </Modal>
 
       {/* Success toast */}
       {toast && (
