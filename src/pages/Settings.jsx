@@ -2165,7 +2165,7 @@ function ceEmptyForm() {
     pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
     invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
     showPackageNameOnInvoice: true,
-    zohoEnabled: false, zohoClientId: '', zohoClientSecret: '', zohoOrgId: '', zohoApiRegion: 'in',
+    zohoEnabled: true, zohoClientId: '', zohoClientSecret: '', zohoOrgId: '', zohoApiRegion: 'in',
     zohoAutoExport: { exportInvoices: true, exportPayments: true, exportCustomerList: false, syncChartOfAccounts: false },
     tallyEnabled: false, tallyCompanyName: '', tallyServerHost: '', tallyPort: '9000',
     tallyPayloadFields: { syncInvoices: true, syncPayments: true, syncCustomerLedger: false, syncGstDetails: false },
