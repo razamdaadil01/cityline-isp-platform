@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
   Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
-  Plus, Trash2, Check, Route, Download,
+  Plus, Trash2, Check, Route, Download, ChevronDown,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -345,6 +345,28 @@ export default function FeasibilityDetail() {
   const [showReject,  setShowReject]  = useState(false)
   const [showAddHardware, setShowAddHardware] = useState(false)
 
+  // Header "Actions" dropdown — consolidates the Assign Engineer/Approve/
+  // Reject triggers into one menu; same close-on-outside-click pattern as
+  // the Sales Pipeline table's Export dropdown, plus Escape-to-close.
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
+  const actionsMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!actionsMenuOpen) return
+    function handleClickOutside(e) {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target)) setActionsMenuOpen(false)
+    }
+    function handleEscape(e) {
+      if (e.key === 'Escape') setActionsMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [actionsMenuOpen])
+
   const [assignForm,  setAssignForm]  = useState({ engineer: '', date: '', priority: 'Medium', notes: '' })
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
@@ -636,27 +658,30 @@ export default function FeasibilityDetail() {
           {status}
         </Badge>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 ml-2 shrink-0">
-          {!isApproved && !isRejected && (
-            <button onClick={openAssign}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-brand-blue/30 bg-blue-50 text-brand-blue hover:bg-blue-100 transition-colors">
-              <UserCheck size={13} /> Assign Engineer
-            </button>
-          )}
-          {!isApproved && !isRejected && (
-            <button onClick={openApprove}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
-              <CheckCircle2 size={13} /> Approve
-            </button>
-          )}
-          {!isApproved && !isRejected && (
-            <button onClick={openReject}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
-              <XCircle size={13} /> Reject
-            </button>
-          )}
-        </div>
+        {/* Actions dropdown — consolidates Assign Engineer/Approve/Reject */}
+        {!isApproved && !isRejected && (
+          <div className="relative ml-2 shrink-0" ref={actionsMenuRef}>
+            <Button variant="secondary" size="sm" onClick={() => setActionsMenuOpen(p => !p)}>
+              Actions <ChevronDown size={12} className="ml-1" />
+            </Button>
+            {actionsMenuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-surface-border rounded-xl shadow-xl z-30 overflow-hidden">
+                <button onClick={() => { setActionsMenuOpen(false); openAssign() }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <UserCheck size={14} className="text-brand-blue" /> Assign Engineer
+                </button>
+                <button onClick={() => { setActionsMenuOpen(false); openApprove() }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors border-t border-surface-border">
+                  <CheckCircle2 size={14} className="text-emerald-500" /> Approve
+                </button>
+                <button onClick={() => { setActionsMenuOpen(false); openReject() }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-surface-border">
+                  <XCircle size={14} className="text-red-500" /> Reject
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
