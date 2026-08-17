@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, Check, ExternalLink,
+  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
   Plus, Trash2,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
@@ -152,58 +152,6 @@ function GoogleMapsLink({ req }) {
   )
 }
 
-/* ── Step progress bar (read-only) ────────────────────────────────── */
-const STEPS = [
-  { key: 1, label: 'Lead & Customer' },
-  { key: 2, label: 'Requirement & Feasibility' },
-  { key: 3, label: 'Hardware' },
-  { key: 4, label: 'Attachments' },
-]
-
-// Purely visual — not clickable, no Next/Previous. All steps default to
-// "completed" (this is existing data being viewed), except Hardware — which
-// shows a muted/no-data state when neither hardware nor wire items exist —
-// and whichever step matches the tab bar's current selection below, shown
-// in blue instead of green.
-function Stepper({ req, activeStep }) {
-  const hasData = step => step.key !== 3 || (req.hwItems?.length > 0 || req.wireItems?.length > 0 || req.hardwareItems?.length > 0)
-
-  return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
-      <div className="flex items-center">
-        {STEPS.map((step, i) => {
-          const isActive = step.key === activeStep
-          const isLast = i === STEPS.length - 1
-          const done = hasData(step)
-          return (
-            <div key={step.key} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
-              <div className="flex flex-col items-center gap-1.5 shrink-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                  isActive
-                    ? 'bg-brand-blue border-brand-blue text-white'
-                    : done
-                      ? 'bg-emerald-500 border-emerald-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-400'
-                }`}>
-                  {isActive ? step.key : done ? <Check size={14} /> : step.key}
-                </div>
-                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
-                  isActive ? 'text-brand-blue' : done ? 'text-gray-700' : 'text-gray-400'
-                }`}>
-                  {step.label}
-                </span>
-              </div>
-              {!isLast && (
-                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 /* ── Tab bar ────────────────────────────────────────────────────── */
 const TABS = [
   { key: 'lead-customer',            label: 'Lead & Customer' },
@@ -213,8 +161,8 @@ const TABS = [
 ]
 
 // Identical underline tab-bar pattern to Customer Detail's Profile/Package
-// Details/Finance tabs. Independent of the stepper above — every tab is
-// freely clickable regardless of step completion.
+// Details/Finance tabs. Independent of the progress sidebar — every tab is
+// freely clickable regardless of stage completion.
 function TabBar({ activeTab, onTabClick }) {
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
@@ -232,6 +180,78 @@ function TabBar({ activeTab, onTabClick }) {
             {tab.label}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/* ── Progress sidebar (vertical, clickable) ───────────────────────── */
+// Same visual pattern as Installation Detail's "Status Timeline" card
+// (icon+title header, vertical connector line, filled/checkmark circle for
+// completed stages, blue ring for the current stage, CURRENT badge) but
+// each stage is clickable — selecting one switches the active tab, kept in
+// sync with the tab bar via the same ?tab= param. All stages default to
+// "completed" (this is existing data being viewed), except Hardware —
+// which shows a muted/pending state when neither hardware nor wire items
+// exist.
+function ProgressCard({ req, activeTab, onSelect }) {
+  const hasData = tab => tab.key !== 'hardware' || (req.hwItems?.length > 0 || req.wireItems?.length > 0 || req.hardwareItems?.length > 0)
+
+  return (
+    <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-7 h-7 bg-indigo-50 rounded-lg flex items-center justify-center">
+          <CheckCircle2 size={14} className="text-indigo-600" />
+        </div>
+        <h2 className="text-sm font-semibold text-gray-900">Progress</h2>
+      </div>
+
+      <div className="relative">
+        <div className="absolute left-[13px] top-3 bottom-3 w-px bg-gray-100 z-0" />
+        <div className="space-y-1">
+          {TABS.map(tab => {
+            const isCurrent = tab.key === activeTab
+            const isDone = !isCurrent && hasData(tab)
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onSelect(tab.key)}
+                className="w-full flex items-start gap-3 relative py-1.5 text-left"
+              >
+                <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 z-10 transition-all ${
+                  isCurrent
+                    ? 'border-brand-blue bg-brand-blue shadow-md shadow-brand-blue/30'
+                    : isDone
+                      ? 'border-emerald-500 bg-emerald-500'
+                      : 'border-gray-200 bg-white'
+                }`}>
+                  {isDone
+                    ? <CheckCircle2 size={13} className="text-white" />
+                    : isCurrent
+                      ? <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                      : <span className="w-2 h-2 rounded-full bg-gray-200" />
+                  }
+                </div>
+
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <p className={`text-sm font-medium ${
+                    isCurrent ? 'text-brand-blue' : isDone ? 'text-gray-900' : 'text-gray-400'
+                  }`}>
+                    {tab.label}
+                  </p>
+                </div>
+
+                {isCurrent && (
+                  <span className="text-[9px] font-bold text-brand-blue bg-blue-50 border border-brand-blue/20 px-2 py-0.5 rounded-full shrink-0 mt-0.5">
+                    CURRENT
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -261,10 +281,6 @@ export default function FeasibilityDetail() {
   // history replace on load.
   const tabParam = searchParams.get('tab')
   const activeTab = TABS.some(t => t.key === tabParam) ? tabParam : TABS[0].key
-  // The read-only stepper above the tab bar highlights whichever step
-  // corresponds to the currently selected tab, purely as a visual echo —
-  // it has no click handler of its own.
-  const activeStep = TABS.findIndex(t => t.key === activeTab) + 1
 
   useEffect(() => {
     if (!TABS.some(t => t.key === searchParams.get('tab'))) {
@@ -508,9 +524,10 @@ export default function FeasibilityDetail() {
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        <Stepper req={req} activeStep={activeStep} />
+        {/* ── Left Column (main content) ── */}
+        <div className="lg:col-span-2 space-y-6">
 
         <TabBar activeTab={activeTab} onTabClick={goToTab} />
 
@@ -804,6 +821,13 @@ export default function FeasibilityDetail() {
             </div>
           </Card>
         )}
+
+        </div>
+
+        {/* ── Right Column (sidebar) ── */}
+        <div className="space-y-4 lg:sticky lg:top-4 self-start">
+          <ProgressCard req={req} activeTab={activeTab} onSelect={goToTab} />
+        </div>
 
       </div>
 
