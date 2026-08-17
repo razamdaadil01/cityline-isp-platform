@@ -1827,7 +1827,7 @@ function LeadIdFormatPanel({ type, onSwitchType, onBack }) {
         Changes apply going forward to new leads of this type; existing leads keep their current ID.
       </p>
 
-      <div className="rounded-xl border border-surface-border p-4 space-y-4 max-w-xl">
+      <div className="rounded-xl border border-surface-border p-4 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Prefix" required error={errors.leadIdPrefix}>
             <Input placeholder="e.g. RES-LD" value={form.leadIdPrefix} onChange={e => setField('leadIdPrefix', e.target.value)} />
