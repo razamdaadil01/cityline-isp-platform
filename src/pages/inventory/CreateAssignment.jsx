@@ -51,8 +51,15 @@ function HardwareLineCard({ line, storeId, otherLines, onChange }) {
     const kindLabel = line.trackingType === 'serial' ? 'Serial' : 'MAC'
     const units = getUnits({ productId: line.productId, storeId, status: 'Available' }).filter(u => !pickedElsewhere.has(u.value))
     const picked = line.trackingType === 'serial' ? line.serials : line.macs
+    // Units already checked on THIS line stay visible in the list (so they
+    // can be unchecked) but no longer count toward "available" — matching
+    // the same self-inclusive live-decrement the quantity-only input uses.
+    const remainingAvailable = Math.max(0, units.length - picked.length)
+    const atRequiredCap = picked.length >= line.requiredQty
     function toggle(value) {
-      const next = picked.includes(value) ? picked.filter(v => v !== value) : [...picked, value]
+      const isPicked = picked.includes(value)
+      if (!isPicked && atRequiredCap) return
+      const next = isPicked ? picked.filter(v => v !== value) : [...picked, value]
       onChange(line.trackingType === 'serial' ? { serials: next } : { macs: next })
     }
     return (
@@ -62,21 +69,30 @@ function HardwareLineCard({ line, storeId, otherLines, onChange }) {
             <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
             <p className="text-xs text-gray-400">Required: {line.requiredQty} · {kindLabel}-tracked</p>
           </div>
-          <Badge variant={picked.length > 0 ? 'green' : 'gray'} size="sm">{picked.length} selected · {units.length} available</Badge>
+          <Badge variant={remainingAvailable > 0 ? 'green' : 'gray'} size="sm">{picked.length} selected · {remainingAvailable} available</Badge>
         </div>
         {units.length === 0 ? (
           <p className="text-xs text-gray-400 py-2">No available {kindLabel.toLowerCase()} units for this product at this store.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-            {units.map(u => (
-              <label key={u.value} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono cursor-pointer transition-colors ${
-                picked.includes(u.value) ? 'border-brand-blue bg-brand-blue/5 text-brand-blue' : 'border-surface-border text-gray-600 hover:bg-gray-50'
-              }`}>
-                <input type="checkbox" checked={picked.includes(u.value)} onChange={() => toggle(u.value)} className="accent-brand-blue" />
-                {u.value}
-              </label>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+              {units.map(u => {
+                const isPicked = picked.includes(u.value)
+                const disabled = !isPicked && atRequiredCap
+                return (
+                  <label key={u.value} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono transition-colors ${
+                    isPicked ? 'border-brand-blue bg-brand-blue/5 text-brand-blue cursor-pointer'
+                      : disabled ? 'border-surface-border text-gray-300 cursor-not-allowed'
+                      : 'border-surface-border text-gray-600 hover:bg-gray-50 cursor-pointer'
+                  }`}>
+                    <input type="checkbox" checked={isPicked} disabled={disabled} onChange={() => toggle(u.value)} className="accent-brand-blue" />
+                    {u.value}
+                  </label>
+                )
+              })}
+            </div>
+            {atRequiredCap && <p className="text-[11px] text-gray-400">Required quantity reached — uncheck a unit to pick a different one.</p>}
+          </>
         )}
       </div>
     )
@@ -190,23 +206,22 @@ export default function CreateAssignment() {
   const requirement = useMemo(() => workOrder ? resolveWorkOrderRequirement(workOrder) : { hardware: [], wire: [] }, [workOrder])
 
   // Rebuild Step 4's editable line state whenever a new Work Order's
-  // requirement resolves — assignedQty defaults to whatever's actually
-  // available (capped at what's required) so the wizard never opens with an
-  // over-allocated default.
+  // requirement resolves. Every line starts fully empty — assignedQty: 0,
+  // no serials/macs picked, no drum/meters — so landing on Step 4 never
+  // shows a reduced Available count before the user has touched anything.
+  // A prior draft that never reached Confirm never wrote anything to
+  // assignmentStore either: saveAssignment() (called only from
+  // handleAssign(), Step 5's "Assign Inventory" button) is the sole place
+  // that appends to _assignments, so nothing here or in the ledger's
+  // read-only queries below can leave a phantom deduction behind.
   useEffect(() => {
     if (!workOrder || !store) { setHwLines([]); setWireLines([]); return }
     setHwLines(requirement.hardware.map(h => {
       const product = h.productId ? getProduct(h.productId) : null
       const trackingType = product?.trackingType ?? 'quantity'
-      const available = h.productId ? getProductAvailability(h.productId, store.id) : 0
       return {
         name: h.name, productId: h.productId, productName: h.productName, requiredQty: h.requiredQty,
-        // Only quantity-tracked lines get a nonzero default — a serial/MAC
-        // line must start at 0 until the user actually checks specific
-        // units, otherwise an untouched tracked line would carry a stale
-        // positive assignedQty into saveAssignment() with no serials/macs
-        // picked, which it would misread as a quantity-tracked deduction.
-        trackingType, assignedQty: trackingType === 'quantity' ? Math.min(h.requiredQty, available) : 0, serials: [], macs: [],
+        trackingType, assignedQty: 0, serials: [], macs: [],
       }
     }))
     setWireLines(requirement.wire.map(w => ({
