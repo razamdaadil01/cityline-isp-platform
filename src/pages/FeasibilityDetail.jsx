@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
   Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
-  Plus, Trash2,
+  Plus, Trash2, Check,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -48,8 +48,8 @@ const STATUS_VARIANT = {
 
 const PRIORITY_VARIANT = { High: 'red', Medium: 'yellow', Low: 'gray' }
 
-// The 4-stage business pipeline shown in the Progress sidebar — distinct
-// from the tab labels above it, which are pure content navigation.
+// The 4-stage business pipeline shown in the horizontal progress stepper —
+// distinct from the tab bar below it, which is pure content navigation.
 const PROGRESS_STAGE_LABELS = ['Request Raised', 'Engineer Assigned', 'Feasibility Check', 'Approved / Rejected']
 
 /* ── Helpers ────────────────────────────────────────────────────── */
@@ -76,8 +76,8 @@ function parseGpsLocation(gps) {
 }
 
 // Maps a feasibility request's actual data (feasibilityStatus,
-// assignedEngineer) to the 4-stage business pipeline shown in the Progress
-// sidebar — mirrors Installation Detail's Status Timeline, which derives
+// assignedEngineer) to the 4-stage business pipeline shown in the progress
+// stepper — mirrors Installation Detail's Status Timeline, which derives
 // its stages from installation.status rather than any UI navigation state.
 // Pending/Assigned/In Progress all represent the feasibility check being
 // actively carried out (whether or not an engineer has been assigned yet)
@@ -203,8 +203,8 @@ const TABS = [
 ]
 
 // Identical underline tab-bar pattern to Customer Detail's Profile/Package
-// Details/Finance tabs. Independent of the progress sidebar — every tab is
-// freely clickable regardless of stage completion.
+// Details/Finance tabs. Independent of the progress stepper above —
+// every tab is freely clickable regardless of stage completion.
 function TabBar({ activeTab, onTabClick }) {
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
@@ -227,75 +227,58 @@ function TabBar({ activeTab, onTabClick }) {
   )
 }
 
-/* ── Progress sidebar (data-driven, read-only) ────────────────────── */
-// Same visual pattern as Installation Detail's "Status Timeline" card
-// (icon+title header, vertical connector line, filled/checkmark circle for
-// completed stages, blue ring for the current stage, CURRENT badge) — but
-// unlike the old version, this reads the request's real business pipeline
-// status (getFeasibilityProgressStage) instead of which tab is active, so
-// it's fully independent of the tab bar's content navigation.
-function ProgressCard({ req }) {
+/* ── Progress stepper (data-driven, horizontal) ───────────────────── */
+// Horizontal numbered/checkmark stepper, restored to its original position
+// above the tab row — but unlike the original tab-synced version, this
+// reads the request's real business pipeline status
+// (getFeasibilityProgressStage) instead of which tab is active, so it's
+// fully independent of the tab bar's content navigation.
+function ProgressStepper({ req }) {
   const stages = getFeasibilityProgressStage(req)
 
   return (
-    <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-7 h-7 bg-indigo-50 rounded-lg flex items-center justify-center">
-          <CheckCircle2 size={14} className="text-indigo-600" />
-        </div>
-        <h2 className="text-sm font-semibold text-gray-900">Progress</h2>
-      </div>
+    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
+      <div className="flex items-center">
+        {stages.map((stage, i) => {
+          const isLast = i === stages.length - 1
+          const isCompleted = stage.state === 'completed'
+          const isCurrent = stage.state === 'current'
+          const isRejected = stage.variant === 'rejected'
 
-      <div className="relative">
-        <div className="absolute left-[13px] top-3 bottom-3 w-px bg-gray-100 z-0" />
-        <div className="space-y-1">
-          {stages.map(stage => {
-            const isCompleted = stage.state === 'completed'
-            const isCurrent = stage.state === 'current'
-            const isRejected = stage.variant === 'rejected'
-
-            return (
-              <div key={stage.label} className="flex items-start gap-3 relative py-1.5">
-                <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 z-10 transition-all ${
+          return (
+            <div key={stage.label} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
+              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
                   isCurrent
-                    ? 'border-brand-blue bg-brand-blue shadow-md shadow-brand-blue/30'
+                    ? 'bg-brand-blue border-brand-blue text-white'
                     : isCompleted
                       ? isRejected
-                        ? 'border-red-500 bg-red-500'
-                        : 'border-emerald-500 bg-emerald-500'
-                      : 'border-gray-200 bg-white'
+                        ? 'bg-red-500 border-red-500 text-white'
+                        : 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'bg-white border-gray-300 text-gray-400'
                 }`}>
                   {isCompleted
-                    ? isRejected
-                      ? <XCircle size={13} className="text-white" />
-                      : <CheckCircle2 size={13} className="text-white" />
-                    : isCurrent
-                      ? <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-                      : <span className="w-2 h-2 rounded-full bg-gray-200" />
-                  }
+                    ? (isRejected ? <XCircle size={14} /> : <Check size={14} />)
+                    : i + 1}
                 </div>
-
-                <div className="flex-1 min-w-0 pt-0.5">
-                  <p className={`text-sm font-medium ${
-                    isCurrent
-                      ? 'text-brand-blue'
-                      : isCompleted
-                        ? (isRejected ? 'text-red-600' : 'text-gray-900')
-                        : 'text-gray-400'
-                  }`}>
-                    {stage.label}
-                  </p>
-                </div>
-
-                {isCurrent && (
-                  <span className="text-[9px] font-bold text-brand-blue bg-blue-50 border border-brand-blue/20 px-2 py-0.5 rounded-full shrink-0 mt-0.5">
-                    CURRENT
-                  </span>
-                )}
+                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  isCurrent
+                    ? 'text-brand-blue'
+                    : isCompleted
+                      ? (isRejected ? 'text-red-600' : 'text-gray-700')
+                      : 'text-gray-400'
+                }`}>
+                  {stage.label}
+                </span>
               </div>
-            )
-          })}
-        </div>
+              {!isLast && (
+                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${
+                  isCompleted ? (isRejected ? 'bg-red-400' : 'bg-emerald-400') : 'bg-gray-200'
+                }`} />
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -609,7 +592,9 @@ export default function FeasibilityDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* ── Left Column (main content) ── */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
+
+        <ProgressStepper req={req} />
 
         <TabBar activeTab={activeTab} onTabClick={goToTab} />
 
@@ -617,7 +602,7 @@ export default function FeasibilityDetail() {
             its own distinct card underneath — merged into this tab rather
             than kept as a separate tab) */}
         {activeTab === 'lead-customer' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <Card title="Lead & Customer Info" icon={User}>
               <InfoGrid>
                 <InfoRow label="Lead ID"      value={req.leadId}        mono />
@@ -940,8 +925,6 @@ export default function FeasibilityDetail() {
               </SummaryBox>
             </div>
           </Card>
-
-          <ProgressCard req={req} />
         </div>
 
       </div>
