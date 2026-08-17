@@ -48,6 +48,10 @@ const STATUS_VARIANT = {
 
 const PRIORITY_VARIANT = { High: 'red', Medium: 'yellow', Low: 'gray' }
 
+// The 4-stage business pipeline shown in the Progress sidebar — distinct
+// from the tab labels above it, which are pure content navigation.
+const PROGRESS_STAGE_LABELS = ['Request Raised', 'Engineer Assigned', 'Feasibility Check', 'Approved / Rejected']
+
 /* ── Helpers ────────────────────────────────────────────────────── */
 
 function fmtDate(d) {
@@ -69,6 +73,32 @@ function parseGpsLocation(gps) {
   const lng = parseFloat(lngRaw) * (lngDir.toUpperCase() === 'W' ? -1 : 1)
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
   return { lat, lng }
+}
+
+// Maps a feasibility request's actual data (feasibilityStatus,
+// assignedEngineer) to the 4-stage business pipeline shown in the Progress
+// sidebar — mirrors Installation Detail's Status Timeline, which derives
+// its stages from installation.status rather than any UI navigation state.
+// Pending/Assigned/In Progress all represent the feasibility check being
+// actively carried out (whether or not an engineer has been assigned yet)
+// — only Approved/Rejected marks the check as finished, at which point the
+// terminal stage takes on the outcome's label and color.
+function getFeasibilityProgressStage(req) {
+  const status = req.feasibilityStatus
+  const hasEngineer = !!req.assignedEngineer
+  const isApproved = status === 'Approved'
+  const isRejected = status === 'Rejected'
+  const isTerminal = isApproved || isRejected
+
+  return PROGRESS_STAGE_LABELS.map((label, idx) => {
+    if (idx === 0) return { label, state: 'completed' }
+    if (idx === 1) return { label, state: hasEngineer ? 'completed' : 'upcoming' }
+    if (idx === 2) return { label, state: isTerminal ? 'completed' : 'current' }
+    // idx === 3 — terminal stage; label + color reflect the outcome
+    if (isApproved) return { label: 'Approved', state: 'completed', variant: 'approved' }
+    if (isRejected) return { label: 'Rejected', state: 'completed', variant: 'rejected' }
+    return { label, state: 'upcoming' }
+  })
 }
 
 /* ── Sub-components ─────────────────────────────────────────────── */
@@ -185,17 +215,15 @@ function TabBar({ activeTab, onTabClick }) {
   )
 }
 
-/* ── Progress sidebar (vertical, clickable) ───────────────────────── */
+/* ── Progress sidebar (data-driven, read-only) ────────────────────── */
 // Same visual pattern as Installation Detail's "Status Timeline" card
 // (icon+title header, vertical connector line, filled/checkmark circle for
-// completed stages, blue ring for the current stage, CURRENT badge) but
-// each stage is clickable — selecting one switches the active tab, kept in
-// sync with the tab bar via the same ?tab= param. All stages default to
-// "completed" (this is existing data being viewed), except Hardware —
-// which shows a muted/pending state when neither hardware nor wire items
-// exist.
-function ProgressCard({ req, activeTab, onSelect }) {
-  const hasData = tab => tab.key !== 'hardware' || (req.hwItems?.length > 0 || req.wireItems?.length > 0 || req.hardwareItems?.length > 0)
+// completed stages, blue ring for the current stage, CURRENT badge) — but
+// unlike the old version, this reads the request's real business pipeline
+// status (getFeasibilityProgressStage) instead of which tab is active, so
+// it's fully independent of the tab bar's content navigation.
+function ProgressCard({ req }) {
+  const stages = getFeasibilityProgressStage(req)
 
   return (
     <div className="bg-white rounded-xl shadow-card border border-surface-border p-5">
@@ -209,26 +237,26 @@ function ProgressCard({ req, activeTab, onSelect }) {
       <div className="relative">
         <div className="absolute left-[13px] top-3 bottom-3 w-px bg-gray-100 z-0" />
         <div className="space-y-1">
-          {TABS.map(tab => {
-            const isCurrent = tab.key === activeTab
-            const isDone = !isCurrent && hasData(tab)
+          {stages.map(stage => {
+            const isCompleted = stage.state === 'completed'
+            const isCurrent = stage.state === 'current'
+            const isRejected = stage.variant === 'rejected'
 
             return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => onSelect(tab.key)}
-                className="w-full flex items-start gap-3 relative py-1.5 text-left"
-              >
+              <div key={stage.label} className="flex items-start gap-3 relative py-1.5">
                 <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 z-10 transition-all ${
                   isCurrent
                     ? 'border-brand-blue bg-brand-blue shadow-md shadow-brand-blue/30'
-                    : isDone
-                      ? 'border-emerald-500 bg-emerald-500'
+                    : isCompleted
+                      ? isRejected
+                        ? 'border-red-500 bg-red-500'
+                        : 'border-emerald-500 bg-emerald-500'
                       : 'border-gray-200 bg-white'
                 }`}>
-                  {isDone
-                    ? <CheckCircle2 size={13} className="text-white" />
+                  {isCompleted
+                    ? isRejected
+                      ? <XCircle size={13} className="text-white" />
+                      : <CheckCircle2 size={13} className="text-white" />
                     : isCurrent
                       ? <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
                       : <span className="w-2 h-2 rounded-full bg-gray-200" />
@@ -237,9 +265,13 @@ function ProgressCard({ req, activeTab, onSelect }) {
 
                 <div className="flex-1 min-w-0 pt-0.5">
                   <p className={`text-sm font-medium ${
-                    isCurrent ? 'text-brand-blue' : isDone ? 'text-gray-900' : 'text-gray-400'
+                    isCurrent
+                      ? 'text-brand-blue'
+                      : isCompleted
+                        ? (isRejected ? 'text-red-600' : 'text-gray-900')
+                        : 'text-gray-400'
                   }`}>
-                    {tab.label}
+                    {stage.label}
                   </p>
                 </div>
 
@@ -248,7 +280,7 @@ function ProgressCard({ req, activeTab, onSelect }) {
                     CURRENT
                   </span>
                 )}
-              </button>
+              </div>
             )
           })}
         </div>
@@ -826,7 +858,7 @@ export default function FeasibilityDetail() {
 
         {/* ── Right Column (sidebar) ── */}
         <div className="space-y-4 lg:sticky lg:top-4 self-start">
-          <ProgressCard req={req} activeTab={activeTab} onSelect={goToTab} />
+          <ProgressCard req={req} />
         </div>
 
       </div>
