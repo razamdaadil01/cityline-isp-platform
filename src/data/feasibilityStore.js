@@ -37,6 +37,14 @@ const SEED = [
       { name: 'Patch Cord (LC-LC, 5m)', chargeable: false, unitPrice: 90, quantity: 2 },
       { name: 'WiFi Router', chargeable: true, unitPrice: 1500, quantity: 1 },
     ],
+    // Seeded so the Fiber Route tab renders the segment list out of the
+    // box instead of the empty state — same { pathName, distance, status,
+    // segmentType, remarks } shape the Add Fiber Route Segment modal
+    // produces, segments added via that modal get appended alongside this
+    // one, not replace it.
+    fiberRouteSegments: [
+      { pathName: 'POP-04 to MH-112', distance: '450m', status: 'New Build', segmentType: 'Underground Ducts', remarks: 'Requires ROW permission' },
+    ],
     timeline: [
       { action: 'Created', by: 'Salim Khan', at: '2026-05-18 10:23', note: 'Feasibility request raised from lead LD-301' },
     ],
