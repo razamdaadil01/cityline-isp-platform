@@ -135,6 +135,18 @@ function InfoGrid({ children, cols = 3 }) {
   )
 }
 
+// Sub-box used by the Feasibility Summary card's 2x2 grid — same
+// label-above-value pattern as InfoRow, just on a light-gray background
+// tile instead of plain page background.
+function SummaryBox({ label, children }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{label}</p>
+      {children}
+    </div>
+  )
+}
+
 /* ── Toast ──────────────────────────────────────────────────────── */
 function Toast({ msg, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t) }, [onDone])
@@ -342,6 +354,7 @@ export default function FeasibilityDetail() {
   const [assignForm,  setAssignForm]  = useState({ engineer: '', date: '', priority: 'Medium', notes: '' })
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
+  const [summaryForm, setSummaryForm] = useState({ estDistance: '', nearestPop: '', fiberCore: '' })
 
   const [toast, setToast] = useState('')
 
@@ -365,6 +378,43 @@ export default function FeasibilityDetail() {
       next.delete('modal')
       return next
     })
+  }
+
+  // ?modal=configure-feasibility-summary opens the Configure modal for the
+  // Feasibility Summary card's editable fields — same ?modal= URL-param
+  // pattern as the Stage Fields modal above.
+  const summaryConfigOpen = searchParams.get('modal') === 'configure-feasibility-summary'
+
+  function openSummaryConfig() {
+    setSummaryForm({
+      estDistance: req.estimatedDistanceFromFiber || '',
+      nearestPop:  req.nearestPop || '',
+      fiberCore:   req.fiberCore || 'OFC 6 Core Cable',
+    })
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'configure-feasibility-summary')
+      return next
+    })
+  }
+
+  function closeSummaryConfig() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+
+  function handleSummaryConfigSave() {
+    saveFeasibilityRequest({
+      ...req,
+      estimatedDistanceFromFiber: summaryForm.estDistance,
+      nearestPop: summaryForm.nearestPop,
+      fiberCore:  summaryForm.fiberCore,
+    })
+    closeSummaryConfig()
+    setToast('Feasibility summary updated')
   }
 
   function handleStageFieldsSave(targetStage, fieldVals, fuData) {
@@ -609,6 +659,34 @@ export default function FeasibilityDetail() {
             Rejection outcome cards, which aren't named as their own tab) */}
         {activeTab === 'requirement-feasibility' && (
           <div className="space-y-6">
+              <Card
+                title="Feasibility Summary"
+                headerAction={
+                  <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} onClick={openSummaryConfig}>
+                    Configure
+                  </Button>
+                }
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <SummaryBox label="Est. Distance">
+                    <p className="text-base font-bold text-gray-900">{req.estimatedDistanceFromFiber || '—'}</p>
+                  </SummaryBox>
+                  <SummaryBox label="Est. Fiber Cost">
+                    {/* TODO: wire to real inventory-based cost calculation once available */}
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-blue">
+                      <FileText size={14} /> Auto-calculated
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">(Inventory Model)</p>
+                  </SummaryBox>
+                  <SummaryBox label="Nearest POP">
+                    <p className="text-base font-bold text-gray-900">{req.nearestPop || '—'}</p>
+                  </SummaryBox>
+                  <SummaryBox label="Fiber Core">
+                    <p className="text-base font-bold text-gray-900">{req.fiberCore || 'OFC 6 Core Cable'}</p>
+                  </SummaryBox>
+                </div>
+              </Card>
+
               <Card
                 title="Feasibility Details"
                 icon={FileText}
@@ -968,6 +1046,33 @@ export default function FeasibilityDetail() {
           <FormField label="Remarks" required>
             <Textarea rows={3} placeholder="Additional remarks…"
               value={rejectForm.remarks} onChange={e => setRejectForm(f => ({ ...f, remarks: e.target.value }))} />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* ── Configure Feasibility Summary Modal ─────────────────────── */}
+      <Modal
+        isOpen={summaryConfigOpen}
+        onClose={closeSummaryConfig}
+        title="Configure Feasibility Summary"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeSummaryConfig}>Cancel</Button>
+          <Button size="sm" onClick={handleSummaryConfigSave}>Save</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FormField label="Est. Distance">
+            <Input placeholder="e.g. 1.2 km"
+              value={summaryForm.estDistance} onChange={e => setSummaryForm(f => ({ ...f, estDistance: e.target.value }))} />
+          </FormField>
+          <FormField label="Nearest POP">
+            <Input placeholder="e.g. POP-Sector78-02"
+              value={summaryForm.nearestPop} onChange={e => setSummaryForm(f => ({ ...f, nearestPop: e.target.value }))} />
+          </FormField>
+          <FormField label="Fiber Core">
+            <Input placeholder="e.g. OFC 6 Core Cable"
+              value={summaryForm.fiberCore} onChange={e => setSummaryForm(f => ({ ...f, fiberCore: e.target.value }))} />
           </FormField>
         </div>
       </Modal>
