@@ -129,10 +129,10 @@ function Toggle({ checked, onChange }) {
   return (
     <button
       onClick={() => onChange(!checked)}
-      className={`relative w-10 h-5 rounded-full transition-colors duration-200
+      className={`flex items-center w-10 h-5 px-0.5 rounded-full transition-colors duration-200
         ${checked ? 'bg-brand-blue' : 'bg-gray-200'}`}>
-      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200
-        ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      <span className={`w-4 h-4 bg-white rounded-full shadow transition-transform duration-200
+        ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
 }
@@ -1304,11 +1304,11 @@ function SysConfigToggle({ checked, onChange, disabled }) {
       type="button"
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative shrink-0 w-10 h-5 rounded-full transition-colors duration-200
+      className={`flex items-center shrink-0 w-10 h-5 px-0.5 rounded-full transition-colors duration-200
         ${checked ? 'bg-brand-blue' : 'bg-gray-200'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
-      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+      <span className={`w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   )
 }
