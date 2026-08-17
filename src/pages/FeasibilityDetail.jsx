@@ -660,34 +660,6 @@ export default function FeasibilityDetail() {
         {activeTab === 'requirement-feasibility' && (
           <div className="space-y-6">
               <Card
-                title="Feasibility Summary"
-                headerAction={
-                  <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} onClick={openSummaryConfig}>
-                    Configure
-                  </Button>
-                }
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <SummaryBox label="Est. Distance">
-                    <p className="text-base font-bold text-gray-900">{req.estimatedDistanceFromFiber || '—'}</p>
-                  </SummaryBox>
-                  <SummaryBox label="Est. Fiber Cost">
-                    {/* TODO: wire to real inventory-based cost calculation once available */}
-                    <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-blue">
-                      <FileText size={14} /> Auto-calculated
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">(Inventory Model)</p>
-                  </SummaryBox>
-                  <SummaryBox label="Nearest POP">
-                    <p className="text-base font-bold text-gray-900">{req.nearestPop || '—'}</p>
-                  </SummaryBox>
-                  <SummaryBox label="Fiber Core">
-                    <p className="text-base font-bold text-gray-900">{req.fiberCore || 'OFC 6 Core Cable'}</p>
-                  </SummaryBox>
-                </div>
-              </Card>
-
-              <Card
                 title="Feasibility Details"
                 icon={FileText}
                 headerAction={
@@ -936,6 +908,39 @@ export default function FeasibilityDetail() {
 
         {/* ── Right Column (sidebar) ── */}
         <div className="space-y-4 lg:sticky lg:top-4 self-start">
+
+          {/* Feasibility Summary — sidebar card, visible regardless of
+              active tab (unlike the tab-scoped content in the left
+              column); stacked single-column rows since the sidebar is
+              narrower than the main content column's old 2x2 grid. */}
+          <Card
+            title="Feasibility Summary"
+            headerAction={
+              <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} onClick={openSummaryConfig}>
+                Configure
+              </Button>
+            }
+          >
+            <div className="space-y-4">
+              <SummaryBox label="Est. Distance">
+                <p className="text-base font-bold text-gray-900">{req.estimatedDistanceFromFiber || '—'}</p>
+              </SummaryBox>
+              <SummaryBox label="Est. Fiber Cost">
+                {/* TODO: wire to real inventory-based cost calculation once available */}
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-blue">
+                  <FileText size={14} /> Auto-calculated
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">(Inventory Model)</p>
+              </SummaryBox>
+              <SummaryBox label="Nearest POP">
+                <p className="text-base font-bold text-gray-900">{req.nearestPop || '—'}</p>
+              </SummaryBox>
+              <SummaryBox label="Fiber Core">
+                <p className="text-base font-bold text-gray-900">{req.fiberCore || 'OFC 6 Core Cable'}</p>
+              </SummaryBox>
+            </div>
+          </Card>
+
           <ProgressCard req={req} />
         </div>
 
