@@ -11,6 +11,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import AddHardwareModal from '../components/hardware/AddHardwareModal'
 import MoveStageModal from '../components/leads/MoveStageModal'
+import AssignEngineerModal from '../components/feasibility/AssignEngineerModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
@@ -18,8 +19,6 @@ import { getPipelines } from '../data/pipelineStore'
 import { saveFollowup } from '../data/followupStore'
 
 /* ── Constants ─────────────────────────────────────────────────── */
-
-const ENGINEERS = ['Arjun Kumar', 'Preethi Nair', 'Anita Sharma', 'Suresh Babu']
 
 // Feasibility requests store their pipeline as the display name ("Residential",
 // "Enterprise" — see feasibilityStore.js), but MoveStageModal's findStageId
@@ -340,7 +339,6 @@ export default function FeasibilityDetail() {
   }
 
   // Modals
-  const [showAssign,  setShowAssign]  = useState(false)
   const [showApprove, setShowApprove] = useState(false)
   const [showReject,  setShowReject]  = useState(false)
   const [showAddHardware, setShowAddHardware] = useState(false)
@@ -367,7 +365,6 @@ export default function FeasibilityDetail() {
     }
   }, [actionsMenuOpen])
 
-  const [assignForm,  setAssignForm]  = useState({ engineer: '', date: '', priority: 'Medium', notes: '' })
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
   const [summaryForm, setSummaryForm] = useState({ estDistance: '', nearestPop: '', fiberCore: '' })
@@ -375,6 +372,28 @@ export default function FeasibilityDetail() {
   const [editingSegmentIndex, setEditingSegmentIndex] = useState(null)
 
   const [toast, setToast] = useState('')
+
+  // ?modal=assign-engineer opens the same "Assign Engineer" modal used by
+  // the Feasibility Requests list page's row action (see
+  // components/feasibility/AssignEngineerModal) — same ?modal= URL-param
+  // pattern as the other modals below.
+  const assignEngineerModalOpen = searchParams.get('modal') === 'assign-engineer'
+
+  function openAssignEngineer() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'assign-engineer')
+      return next
+    })
+  }
+
+  function closeAssignEngineer() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
 
   // ?modal=edit-stage-fields opens the same "Stage Fields — Feasibility"
   // modal used by the Leads move-stage flow (/sales/leads/:leadId?action=
@@ -515,23 +534,6 @@ export default function FeasibilityDetail() {
     setToast('Changes saved successfully')
   }
 
-  function openAssign() {
-    setAssignForm({ engineer: req.assignedEngineer || '', date: req.assignmentDate || '', priority: req.priority || 'Medium', notes: req.assignmentNotes || '' })
-    setShowAssign(true)
-  }
-
-  function handleAssign() {
-    updateFeasibilityStatus(req.id, 'Assigned', {
-      assignedEngineer: assignForm.engineer,
-      assignmentDate:   assignForm.date,
-      priority:         assignForm.priority,
-      assignmentNotes:  assignForm.notes,
-      _note: `Assigned to ${assignForm.engineer}`,
-    })
-    setShowAssign(false)
-    setToast('Engineer assigned successfully')
-  }
-
   function openApprove() {
     setApproveForm({ comment: '', fiberEstimate: req.fiberRequired || '', hardware: '', installNotes: '' })
     setShowApprove(true)
@@ -666,7 +668,7 @@ export default function FeasibilityDetail() {
             </Button>
             {actionsMenuOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-surface-border rounded-xl shadow-xl z-30 overflow-hidden">
-                <button onClick={() => { setActionsMenuOpen(false); openAssign() }}
+                <button onClick={() => { setActionsMenuOpen(false); openAssignEngineer() }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                   <UserCheck size={14} className="text-brand-blue" /> Assign Engineer
                 </button>
@@ -1102,38 +1104,15 @@ export default function FeasibilityDetail() {
         title={`Feasibility Details — ${req.customerName}`}
       />
 
-      {/* ── Assign Engineer Modal ─────────────────────────────────── */}
-      <Modal
-        isOpen={showAssign}
-        onClose={() => setShowAssign(false)}
-        title={`Assign Engineer — ${req.id}`}
-        size="sm"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowAssign(false)}>Cancel</Button>
-          <Button size="sm" onClick={handleAssign} disabled={!assignForm.engineer}>Assign Engineer</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          <FormField label="Engineer Name" required>
-            <Select value={assignForm.engineer} onChange={e => setAssignForm(f => ({ ...f, engineer: e.target.value }))}>
-              <option value="">Select engineer…</option>
-              {ENGINEERS.map(eng => <option key={eng}>{eng}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Assignment Date">
-            <Input type="date" value={assignForm.date} onChange={e => setAssignForm(f => ({ ...f, date: e.target.value }))} />
-          </FormField>
-          <FormField label="Priority" required>
-            <Select value={assignForm.priority} onChange={e => setAssignForm(f => ({ ...f, priority: e.target.value }))}>
-              {['High','Medium','Low'].map(p => <option key={p}>{p}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Internal Notes">
-            <Textarea rows={3} placeholder="Any notes for the engineer…"
-              value={assignForm.notes} onChange={e => setAssignForm(f => ({ ...f, notes: e.target.value }))} />
-          </FormField>
-        </div>
-      </Modal>
+      {/* ── Assign Engineer Modal (shared with the Feasibility Requests
+           list page's row action — see
+           components/feasibility/AssignEngineerModal) ─────────────── */}
+      <AssignEngineerModal
+        isOpen={assignEngineerModalOpen}
+        request={req}
+        onClose={closeAssignEngineer}
+        onAssigned={() => { closeAssignEngineer(); setToast('Engineer(s) assigned successfully') }}
+      />
 
       {/* ── Approve Modal ─────────────────────────────────────────── */}
       <Modal
