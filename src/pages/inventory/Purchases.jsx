@@ -11,6 +11,7 @@ import { getPurchases, subscribePurchases, PURCHASE_STATUSES } from '../../data/
 import { getPurchaseOrders, subscribePurchaseOrders } from '../../data/purchaseOrderStore'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
+import { usePermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', Confirmed: 'green', Cancelled: 'red' }
 
@@ -26,6 +27,7 @@ const PURCHASE_TABLE_COLUMNS = [
 ]
 
 export default function Purchases() {
+  const canCreate = usePermission('Inventory', 'Create')
   const navigate = useNavigate()
   const [purchases, setPurchases] = useState(getPurchases)
   useEffect(() => subscribePurchases(setPurchases), [])
@@ -130,7 +132,7 @@ export default function Purchases() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/purchases/new')}>Add Purchase</Button>
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/purchases/new')}>Add Purchase</Button>}
         </div>
       </div>
 

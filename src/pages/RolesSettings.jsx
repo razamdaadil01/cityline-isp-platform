@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Plus,
   Pencil,
@@ -13,31 +13,12 @@ import {
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import {
+  MODULES, ACTIONS, buildPerms,
+  getRoles, subscribeRoles, saveRole, deleteRole,
+} from '../data/rolesStore'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-
-const MODULES = [
-  'Dashboard',
-  'Customers',
-  'Sales',
-  'Billing',
-  'Support',
-  'Network',
-  'Inventory',
-  'Reports',
-  'Settings',
-  'Resellers',
-  'Audit Log',
-]
-
-const ACTIONS = ['View', 'Create', 'Edit', 'Delete']
-
-// Helper: build a full permissions object (all true or all false)
-function buildPerms(defaultVal = false) {
-  return Object.fromEntries(
-    MODULES.map((m) => [m, Object.fromEntries(ACTIONS.map((a) => [a, defaultVal]))])
-  )
-}
 
 // Helper: count how many permissions are enabled
 function countPerms(perms) {
@@ -46,136 +27,6 @@ function countPerms(perms) {
     0
   )
 }
-
-// ─── Initial Roles Data ───────────────────────────────────────────────────────
-
-const INITIAL_ROLES = [
-  {
-    id: 1,
-    name: 'Super Admin',
-    description: 'Full system access with no restrictions',
-    usersCount: 2,
-    color: 'navy',
-    permissions: buildPerms(true),
-  },
-  {
-    id: 2,
-    name: 'Admin',
-    description: 'Full access except system-level settings and audit log',
-    usersCount: 5,
-    color: 'blue',
-    permissions: (() => {
-      const p = buildPerms(true)
-      p['Settings']['Delete'] = false
-      p['Audit Log']['Create'] = false
-      p['Audit Log']['Edit'] = false
-      p['Audit Log']['Delete'] = false
-      return p
-    })(),
-  },
-  {
-    id: 3,
-    name: 'Billing Manager',
-    description: 'Manage invoices, payments, and billing reports',
-    usersCount: 3,
-    color: 'green',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Billing']['View'] = true
-      p['Billing']['Create'] = true
-      p['Billing']['Edit'] = true
-      p['Billing']['Delete'] = true
-      p['Customers']['View'] = true
-      p['Reports']['View'] = true
-      return p
-    })(),
-  },
-  {
-    id: 4,
-    name: 'Support Agent',
-    description: 'Handle customer support tickets and inquiries',
-    usersCount: 8,
-    color: 'cyan',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Support']['View'] = true
-      p['Support']['Create'] = true
-      p['Support']['Edit'] = true
-      p['Customers']['View'] = true
-      p['Customers']['Edit'] = true
-      return p
-    })(),
-  },
-  {
-    id: 5,
-    name: 'Network Engineer',
-    description: 'Manage network infrastructure and server configurations',
-    usersCount: 4,
-    color: 'purple',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Network']['View'] = true
-      p['Network']['Create'] = true
-      p['Network']['Edit'] = true
-      p['Network']['Delete'] = true
-      p['Inventory']['View'] = true
-      p['Inventory']['Create'] = true
-      p['Inventory']['Edit'] = true
-      p['Reports']['View'] = true
-      return p
-    })(),
-  },
-  {
-    id: 6,
-    name: 'Field Technician',
-    description: 'On-site installations, repairs, and inventory updates',
-    usersCount: 12,
-    color: 'orange',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Network']['View'] = true
-      p['Network']['Edit'] = true
-      p['Inventory']['View'] = true
-      p['Inventory']['Edit'] = true
-      p['Customers']['View'] = true
-      return p
-    })(),
-  },
-  {
-    id: 7,
-    name: 'Reseller',
-    description: 'Manage reseller customers and view sales data',
-    usersCount: 6,
-    color: 'yellow',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Customers']['View'] = true
-      p['Sales']['View'] = true
-      p['Billing']['View'] = true
-      p['Resellers']['View'] = true
-      p['Resellers']['Create'] = true
-      p['Resellers']['Edit'] = true
-      return p
-    })(),
-  },
-  {
-    id: 8,
-    name: 'Read Only',
-    description: 'View-only access across all modules',
-    usersCount: 3,
-    color: 'gray',
-    permissions: (() => {
-      const p = buildPerms(false)
-      MODULES.forEach((m) => { p[m]['View'] = true })
-      return p
-    })(),
-  },
-]
 
 // ─── Permission Matrix Component ──────────────────────────────────────────────
 
@@ -439,7 +290,8 @@ const ROLE_BADGE_COLORS = {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RolesSettings() {
-  const [roles, setRoles] = useState(INITIAL_ROLES)
+  const [roles, setRoles] = useState(getRoles)
+  useEffect(() => subscribeRoles(setRoles), [])
   const [search, setSearch] = useState('')
 
   // Slide-over state
@@ -499,23 +351,9 @@ export default function RolesSettings() {
   function handleSave() {
     if (!editName.trim()) return
     if (slideOver.mode === 'edit') {
-      setRoles((prev) =>
-        prev.map((r) =>
-          r.id === slideOver.roleId
-            ? { ...r, name: editName.trim(), description: editDesc.trim(), permissions: editPerms }
-            : r
-        )
-      )
+      saveRole({ id: slideOver.roleId, name: editName.trim(), description: editDesc.trim(), permissions: editPerms })
     } else {
-      const newRole = {
-        id: Date.now(),
-        name: editName.trim(),
-        description: editDesc.trim(),
-        usersCount: 0,
-        color: 'blue',
-        permissions: editPerms,
-      }
-      setRoles((prev) => [...prev, newRole])
+      saveRole({ name: editName.trim(), description: editDesc.trim(), permissions: editPerms })
     }
     closeSlideOver()
   }
@@ -527,7 +365,7 @@ export default function RolesSettings() {
   }
 
   function confirmDelete() {
-    setRoles((prev) => prev.filter((r) => r.id !== deleteModal.roleId))
+    deleteRole(deleteModal.roleId)
     setDeleteModal({ open: false, roleId: null })
   }
 

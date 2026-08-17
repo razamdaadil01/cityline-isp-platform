@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import { FormField, Input } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getStores, subscribeStores, saveStore, setStoreStatus, isStoreNameTaken } from '../../data/storeStore'
+import { usePermission } from '../../data/rolesStore'
 
 const STORE_TABLE_COLUMNS = [
   { key: 'storeName',   label: 'Store Name',        visible: true, defaultVisible: true, locked: true },
@@ -146,6 +147,9 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
 }
 
 export default function StoreList() {
+  const canCreate = usePermission('Inventory', 'Create')
+  const canEdit = usePermission('Inventory', 'Edit')
+
   const [stores, setStores] = useState(getStores)
   useEffect(() => subscribeStores(setStores), [])
 
@@ -200,7 +204,7 @@ export default function StoreList() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Store</Button>
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Store</Button>}
         </div>
       </div>
 
@@ -294,14 +298,18 @@ export default function StoreList() {
             style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
             className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
           >
-            <button onClick={() => openEdit(store)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button onClick={() => toggleStatus(store)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              {store.status === 'active'
-                ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
-                : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
-            </button>
+            {canEdit && (
+              <button onClick={() => openEdit(store)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => toggleStatus(store)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                {store.status === 'active'
+                  ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
+                  : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
+              </button>
+            )}
           </div>
         )
       })()}

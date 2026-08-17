@@ -21,6 +21,7 @@ import { getFeasibilityRequest } from './feasibilityStore'
 import { getProducts } from './productStore'
 import { getStores } from './storeStore'
 import { getPurchases } from './purchaseStore'
+import { logAudit } from './auditLogStore'
 
 export const ASSIGNMENT_STATUSES = ['Assigned', 'Returned']
 
@@ -276,5 +277,12 @@ export function saveAssignment(data) {
   }
   _assignments = [assignment, ..._assignments]
   notify()
+
+  const itemCount = hardwareLines.reduce((s, l) => s + l.assignedQty, 0) + wireLines.length
+  logAudit({
+    action: 'Create', module: 'Inventory',
+    details: `Assigned ${itemCount} items to ${assignment.engineerName} for ${assignment.workOrderLabel}`,
+  })
+
   return assignment
 }

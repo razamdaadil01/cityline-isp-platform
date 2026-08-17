@@ -6,6 +6,7 @@ import { getVendor } from './vendorStore'
 import { getStore } from './storeStore'
 import { getInventorySettings, formatPoNumber } from './inventorySettingsStore'
 import { createPurchaseOrderApproval, subscribeApprovals } from './approvalsStore'
+import { logAudit } from './auditLogStore'
 
 export const PO_STATUSES = [
   'Draft', 'Approval Request', 'Correction Required', 'Approved', 'Sent',
@@ -156,6 +157,7 @@ export function computeLineAmount(qty, price, gstPercent) {
 // generated once, on first creation.
 export function savePurchaseOrder(data, { editingId = null, action = 'draft' } = {}) {
   const existing = editingId ? _pos.find(p => p.id === editingId) : null
+  const isNew = !existing
   const summary = summarize(data.items, { discount: data.discount ?? 0, otherCharges: data.otherCharges ?? 0 })
 
   let po = existing
@@ -192,6 +194,20 @@ export function savePurchaseOrder(data, { editingId = null, action = 'draft' } =
 
   _pos = existing ? _pos.map(p => p.id === po.id ? po : p) : [po, ..._pos]
   notify()
+
+  // "Created" fires once, the first time this PO is ever persisted (Draft
+  // or sent straight through) — "Sent" only fires when it actually reached
+  // Sent status directly (no approval gate), matching what really happened
+  // rather than the action name alone: a PO routed to Approval Request
+  // hasn't been sent to the vendor yet.
+  if (isNew) {
+    logAudit({ action: 'Create', module: 'Inventory', details: `Created Purchase Order ${po.poNumber}` })
+  }
+  if (action === 'send' && po.status === 'Sent') {
+    const vendor = getVendor(po.vendorId)
+    logAudit({ action: 'Edit', module: 'Inventory', details: `Sent PO ${po.poNumber} to ${vendor?.companyName ?? 'vendor'}` })
+  }
+
   return po
 }
 
@@ -209,6 +225,10 @@ export function syncPOStatusFromApproval(approvalId, approvalStatus) {
   if (!mapped) return
   _pos = _pos.map(p => p.id === po.id ? { ...p, status: mapped } : p)
   notify()
+  logAudit({
+    action: 'Edit', module: 'Inventory',
+    details: mapped === 'Approved' ? `Purchase Order ${po.poNumber} approved` : `Purchase Order ${po.poNumber} sent back for correction`,
+  })
 }
 
 // Recomputes a PO's receipt status from its cumulative received quantity

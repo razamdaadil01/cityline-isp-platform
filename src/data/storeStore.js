@@ -5,6 +5,8 @@
 // no canonical Branch master to foreign-key against yet. productCount/
 // totalInventory are stubbed at 0 until real stock exists (Phase 4).
 
+import { logAudit } from './auditLogStore'
+
 const SEED = [
   {
     id: 'STR-001',
@@ -63,16 +65,21 @@ export function isStoreNameTaken(storeName, excludeId = null) {
 // Create or update. Callers pass an `id` to update an existing store;
 // omitting it (new store) assigns the next STR-### sequence id.
 export function saveStore(store) {
-  if (store.id && _stores.find(s => s.id === store.id)) {
+  const isNew = !(store.id && _stores.find(s => s.id === store.id))
+  let saved
+  if (!isNew) {
     _stores = _stores.map(s => s.id === store.id ? { ...s, ...store } : s)
+    saved = _stores.find(s => s.id === store.id)
   } else {
     const id = `STR-${String(_nextSeq++).padStart(3, '0')}`
-    _stores = [..._stores, {
-      productCount: 0, totalInventory: 0, status: 'active',
-      ...store, id,
-    }]
+    saved = { productCount: 0, totalInventory: 0, status: 'active', ...store, id }
+    _stores = [..._stores, saved]
   }
   notify()
+  logAudit({
+    action: isNew ? 'Create' : 'Edit', module: 'Inventory',
+    details: `${isNew ? 'Added' : 'Updated'} store ${saved.storeName} (${saved.id})`,
+  })
 }
 
 // Stores are never hard-deleted once inventory could exist in them (BR:
@@ -82,4 +89,6 @@ export function saveStore(store) {
 export function setStoreStatus(id, status) {
   _stores = _stores.map(s => s.id === id ? { ...s, status } : s)
   notify()
+  const store = getStore(id)
+  logAudit({ action: 'Edit', module: 'Inventory', details: `${status === 'active' ? 'Activated' : 'Deactivated'} store ${store?.storeName ?? id}` })
 }

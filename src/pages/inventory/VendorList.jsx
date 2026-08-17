@@ -12,6 +12,7 @@ import {
   getVendors, subscribeVendors, saveVendor, setVendorStatus,
   isVendorNameTaken, PAYMENT_TERMS,
 } from '../../data/vendorStore'
+import { usePermission } from '../../data/rolesStore'
 
 const VENDOR_TABLE_COLUMNS = [
   { key: 'companyName',   label: 'Vendor Name',        visible: true, defaultVisible: true, locked: true },
@@ -141,6 +142,9 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
 }
 
 export default function VendorList() {
+  const canCreate = usePermission('Inventory', 'Create')
+  const canEdit = usePermission('Inventory', 'Edit')
+
   const navigate = useNavigate()
   const [vendors, setVendors] = useState(getVendors)
   useEffect(() => subscribeVendors(setVendors), [])
@@ -197,7 +201,7 @@ export default function VendorList() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Vendor</Button>
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Vendor</Button>}
         </div>
       </div>
 
@@ -295,14 +299,18 @@ export default function VendorList() {
             <button onClick={() => { navigate(`/inventory/vendors/${vendor.id}`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
               <Eye size={13} className="text-brand-blue shrink-0" /> View Details
             </button>
-            <button onClick={() => openEdit(vendor)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button onClick={() => toggleStatus(vendor)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              {vendor.status === 'active'
-                ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
-                : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
-            </button>
+            {canEdit && (
+              <button onClick={() => openEdit(vendor)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={() => toggleStatus(vendor)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                {vendor.status === 'active'
+                  ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
+                  : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
+              </button>
+            )}
           </div>
         )
       })()}

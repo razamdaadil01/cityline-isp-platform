@@ -4,6 +4,7 @@
 // the product master record, not stock levels.
 
 import { HARDWARE_CATALOG } from './hardwareCatalog'
+import { logAudit } from './auditLogStore'
 
 export const UNIT_TYPES = ['Piece', 'Box', 'Packet']
 export const TRACKING_TYPES = [
@@ -103,13 +104,21 @@ export function isSkuTaken(sku, excludeId = null) {
 // Create or update. Callers pass an `id` to update an existing product;
 // omitting it (new product) assigns the next PRD-### sequence id.
 export function saveProduct(product) {
-  if (product.id && _products.find(p => p.id === product.id)) {
+  const isNew = !(product.id && _products.find(p => p.id === product.id))
+  let saved
+  if (!isNew) {
     _products = _products.map(p => p.id === product.id ? { ...p, ...product } : p)
+    saved = _products.find(p => p.id === product.id)
   } else {
     const id = `PRD-${String(_nextSeq++).padStart(3, '0')}`
-    _products = [..._products, { ...product, id, status: product.status ?? 'active' }]
+    saved = { ...product, id, status: product.status ?? 'active' }
+    _products = [..._products, saved]
   }
   notify()
+  logAudit({
+    action: isNew ? 'Create' : 'Edit', module: 'Inventory',
+    details: `${isNew ? 'Added' : 'Updated'} product ${saved.name} (${saved.id})`,
+  })
 }
 
 // Products are never hard-deleted once transaction history could exist
@@ -119,4 +128,6 @@ export function saveProduct(product) {
 export function setProductStatus(id, status) {
   _products = _products.map(p => p.id === id ? { ...p, status } : p)
   notify()
+  const product = getProduct(id)
+  logAudit({ action: 'Edit', module: 'Inventory', details: `${status === 'active' ? 'Activated' : 'Deactivated'} product ${product?.name ?? id}` })
 }

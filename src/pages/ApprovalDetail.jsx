@@ -7,6 +7,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import ApprovalDecisionModal from '../components/ui/ApprovalDecisionModal'
 import { getApproval, subscribeApprovals, approveApproval, rejectApproval } from '../data/approvalsStore'
+import { usePermission } from '../data/rolesStore'
 
 const CURRENT_USER = 'Admin User'
 
@@ -186,6 +187,7 @@ function VisibilityDetail({ approval }) {
 }
 
 export default function ApprovalDetail() {
+  const canApprovePO = usePermission('Inventory', 'Edit')
   const { approvalId } = useParams()
   const navigate = useNavigate()
   const [approval, setApproval] = useState(() => getApproval(approvalId))
@@ -232,9 +234,11 @@ export default function ApprovalDetail() {
             <Button variant="danger" size="sm" icon={<XCircle size={14} />} onClick={() => setDecisionModal('reject')}>
               Reject
             </Button>
-            <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={() => setDecisionModal('approve')}>
-              Approve
-            </Button>
+            {(approval.type !== 'Purchase Order' || canApprovePO) && (
+              <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={() => setDecisionModal('approve')}>
+                Approve
+              </Button>
+            )}
           </div>
         )}
       </div>

@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getAssignments, subscribeAssignments, ASSIGNMENT_STATUSES } from '../../data/assignmentStore'
 import { getStores } from '../../data/storeStore'
+import { usePermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = { Assigned: 'purple', Returned: 'gray' }
 
@@ -29,6 +30,7 @@ function itemsSummary(a) {
 }
 
 export default function Assignments() {
+  const canCreate = usePermission('Inventory', 'Create')
   const navigate = useNavigate()
   const [assignments, setAssignments] = useState(getAssignments)
   useEffect(() => subscribeAssignments(setAssignments), [])
@@ -113,7 +115,7 @@ export default function Assignments() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/assign/new')}>Assign Inventory</Button>
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/assign/new')}>Assign Inventory</Button>}
         </div>
       </div>
 
