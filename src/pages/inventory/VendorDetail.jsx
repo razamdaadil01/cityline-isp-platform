@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Download, CreditCard, Edit2, Building2, MapPin, Phone, FileText,
-  ClipboardList, Receipt, Wallet, Plus,
+  ClipboardList, Receipt, Wallet, Plus, ChevronDown,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -133,6 +133,51 @@ function RecordPaymentModal({ isOpen, onClose, vendor }) {
   )
 }
 
+// ── Header "Actions" dropdown (Export Excel / Record Payment / Edit Vendor) ──
+// Same trigger + menu pattern as SupportTicketDetail.jsx's HeaderActionsMenu.
+
+function VendorActionsMenu({ onExport, onRecordPayment, canEdit }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button variant="secondary" onClick={() => setOpen(o => !o)} iconRight={<ChevronDown size={14} />}>
+        Actions
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-48 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
+          <button
+            onClick={() => { setOpen(false); onExport() }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Download size={13} className="text-gray-400 shrink-0" /> Export Excel
+          </button>
+          <button
+            onClick={() => { setOpen(false); onRecordPayment() }}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <CreditCard size={13} className="text-gray-400 shrink-0" /> Record Payment
+          </button>
+          {canEdit && (
+            <button
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit Vendor
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function VendorDetail() {
   const canEdit = usePermission('Inventory', 'Edit')
 
@@ -214,31 +259,39 @@ export default function VendorDetail() {
         </div>
         <div className="border-t border-surface-border" />
         <div className="p-5 sm:p-6">
-          <div className="flex flex-wrap items-start gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md">
-              {vendor.companyName.charAt(0)}
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="flex flex-wrap items-start gap-5">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md">
+                {vendor.companyName.charAt(0)}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h1 className="text-xl font-bold text-gray-900">{vendor.companyName}</h1>
+                  <Badge variant={vendor.status === 'active' ? 'green' : 'gray'} dot>{vendor.status === 'active' ? 'Active' : 'Inactive'}</Badge>
+                </div>
+                <p className="text-sm text-gray-500 mb-2 flex flex-wrap items-center gap-x-2">
+                  <span className="font-mono font-semibold text-brand-blue">{vendor.id}</span>
+                  <span className="text-gray-300">·</span>
+                  <span className="inline-flex items-center gap-1"><Building2 size={12} /> GST: {vendor.gstNumber}</span>
+                  <span className="text-gray-300">·</span>
+                  <span>{vendor.primaryContact?.name}</span>
+                  <span className="text-gray-300">·</span>
+                  <span className="inline-flex items-center gap-1"><Phone size={12} /> {vendor.primaryContact?.phone}</span>
+                  <span className="text-gray-300">·</span>
+                  <span>{vendor.paymentTerms}</span>
+                </p>
+                <p className="text-xs text-gray-400 flex items-start gap-1">
+                  <MapPin size={12} className="mt-0.5 shrink-0" /> {vendor.address}
+                </p>
+              </div>
             </div>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h1 className="text-xl font-bold text-gray-900">{vendor.companyName}</h1>
-                <Badge variant={vendor.status === 'active' ? 'green' : 'gray'} dot>{vendor.status === 'active' ? 'Active' : 'Inactive'}</Badge>
-              </div>
-              <p className="text-sm text-gray-500 mb-2 flex flex-wrap items-center gap-x-2">
-                <span className="font-mono font-semibold text-brand-blue">{vendor.id}</span>
-                <span className="text-gray-300">·</span>
-                <span className="inline-flex items-center gap-1"><Building2 size={12} /> GST: {vendor.gstNumber}</span>
-                <span className="text-gray-300">·</span>
-                <span>{vendor.primaryContact?.name}</span>
-                <span className="text-gray-300">·</span>
-                <span className="inline-flex items-center gap-1"><Phone size={12} /> {vendor.primaryContact?.phone}</span>
-                <span className="text-gray-300">·</span>
-                <span>{vendor.paymentTerms}</span>
-              </p>
-              <p className="text-xs text-gray-400 flex items-start gap-1">
-                <MapPin size={12} className="mt-0.5 shrink-0" /> {vendor.address}
-              </p>
-            </div>
+            <VendorActionsMenu
+              onExport={handleExport}
+              onRecordPayment={() => setPaymentModalOpen(true)}
+              canEdit={canEdit}
+            />
           </div>
 
           {/* Summary cards */}
@@ -255,13 +308,6 @@ export default function VendorDetail() {
                 <p className={`text-sm font-bold mt-0.5 ${s.color}`}>{s.value}</p>
               </div>
             ))}
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
-            <Button variant="secondary" size="sm" icon={<Download size={13} />} onClick={handleExport}>Export Excel</Button>
-            <Button variant="secondary" size="sm" icon={<CreditCard size={13} />} onClick={() => setPaymentModalOpen(true)}>Record Payment</Button>
-            {canEdit && <Button variant="secondary" size="sm" icon={<Edit2 size={13} />}>Edit Vendor</Button>}
           </div>
         </div>
       </div>
