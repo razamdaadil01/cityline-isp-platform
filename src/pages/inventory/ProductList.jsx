@@ -10,15 +10,18 @@ import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
-  isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES,
+  isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES,
 } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
+import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
 
 const PRODUCT_TABLE_COLUMNS = [
   { key: 'name',          label: 'Product Name',   visible: true, defaultVisible: true, locked: true },
   { key: 'sku',           label: 'SKU',            visible: true, defaultVisible: true },
   { key: 'productType',   label: 'Type',           visible: true, defaultVisible: true },
   { key: 'brand',         label: 'Brand',          visible: true, defaultVisible: true },
+  { key: 'purchasedCompany', label: 'Purchased Company', visible: false, defaultVisible: false },
+  { key: 'goodType',      label: 'Good Type',      visible: false, defaultVisible: false },
   { key: 'model',         label: 'Model',          visible: true, defaultVisible: true },
   { key: 'unitType',      label: 'Unit',           visible: true, defaultVisible: true },
   { key: 'sellingPrice',  label: 'Selling Price',  visible: true, defaultVisible: true },
@@ -31,10 +34,11 @@ const PRODUCT_TABLE_COLUMNS = [
 
 const TRACKING_LABEL = Object.fromEntries(TRACKING_TYPES.map(t => [t.value, t.label]))
 const TRACKING_ICON = { quantity: Boxes, serial: Hash, mac: ScanLine }
+const GOOD_TYPE_LABEL = Object.fromEntries(GOOD_TYPES.map(g => [g.value, g.label]))
 
 function emptyHardwareForm() {
   return {
-    name: '', sku: '', brand: '', model: '', imageUrl: '',
+    name: '', sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
     sellingPrice: '', unitType: 'Piece', reorderAlertQty: '', trackingType: 'quantity',
   }
 }
@@ -51,7 +55,10 @@ function productToForm(product) {
     }
   }
   return {
-    name: product.name, sku: product.sku, brand: product.brand, model: product.model,
+    name: product.name, sku: product.sku, brand: product.brand,
+    purchasedCompanyId: product.purchasedCompanyId != null ? String(product.purchasedCompanyId) : '',
+    goodType: product.goodType || 'consumable',
+    model: product.model,
     imageUrl: product.imageUrl, sellingPrice: String(product.sellingPrice ?? ''),
     unitType: product.unitType || 'Piece', reorderAlertQty: String(product.reorderAlertQty ?? ''),
     trackingType: product.trackingType || 'quantity',
@@ -61,6 +68,7 @@ function productToForm(product) {
 // ── Add / Edit Product modal — Hardware / Wire tabs ─────────────────────────
 
 function AddEditProductModal({ isOpen, onClose, editing }) {
+  const companyEntities = getActiveCompanyEntities()
   const [tab, setTab] = useState('hardware')
   const [hwForm, setHwForm] = useState(emptyHardwareForm)
   const [wireForm, setWireForm] = useState(emptyWireForm)
@@ -139,6 +147,8 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
         name: form.name.trim(),
         sku: form.sku.trim(),
         brand: form.brand.trim(),
+        purchasedCompanyId: form.purchasedCompanyId ? Number(form.purchasedCompanyId) : null,
+        goodType: form.goodType,
         model: form.model.trim(),
         imageUrl: form.imageUrl.trim(),
         unitType: form.unitType,
@@ -191,6 +201,17 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               </FormField>
               <FormField label="Brand">
                 <Input placeholder="e.g. ZTE" value={hwForm.brand} onChange={e => setField('brand', e.target.value)} />
+              </FormField>
+              <FormField label="Purchased Company Name">
+                <Select value={hwForm.purchasedCompanyId} onChange={e => setField('purchasedCompanyId', e.target.value)}>
+                  <option value="">Select company…</option>
+                  {companyEntities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Good Type">
+                <Select value={hwForm.goodType} onChange={e => setField('goodType', e.target.value)}>
+                  {GOOD_TYPES.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                </Select>
               </FormField>
               <FormField label="Model">
                 <Input placeholder="e.g. F660" value={hwForm.model} onChange={e => setField('model', e.target.value)} />
@@ -497,6 +518,8 @@ export default function ProductList() {
                 {visibleCols.has('sku')             && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">SKU</th>}
                 {visibleCols.has('productType')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
                 {visibleCols.has('brand')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Brand</th>}
+                {visibleCols.has('purchasedCompany') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Purchased Company</th>}
+                {visibleCols.has('goodType')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Good Type</th>}
                 {visibleCols.has('model')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Model</th>}
                 {visibleCols.has('unitType')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Unit</th>}
                 {visibleCols.has('sellingPrice')    && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Selling Price</th>}
@@ -529,6 +552,8 @@ export default function ProductList() {
                     </td>
                   )}
                   {visibleCols.has('brand') && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{p.brand || '—'}</td>}
+                  {visibleCols.has('purchasedCompany') && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{getCompanyEntity(p.purchasedCompanyId)?.name || '—'}</td>}
+                  {visibleCols.has('goodType') && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{GOOD_TYPE_LABEL[p.goodType] ?? '—'}</td>}
                   {visibleCols.has('model') && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{p.model || '—'}</td>}
                   {visibleCols.has('unitType') && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{p.unitType}</td>}
                   {visibleCols.has('sellingPrice') && <td className="px-4 py-3 text-right text-gray-800 font-medium text-xs whitespace-nowrap">₹{Number(p.sellingPrice).toLocaleString('en-IN')}</td>}
