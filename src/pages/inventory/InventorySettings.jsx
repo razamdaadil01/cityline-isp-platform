@@ -89,53 +89,62 @@ export default function InventorySettings() {
   const preview = form.poNumberFormat.trim() ? formatPoNumber(form.poNumberFormat, 1) : ''
 
   return (
-    <div className="p-6 space-y-5 max-w-3xl">
+    <div className="p-6 space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">General Settings</h1>
         <p className="text-sm text-gray-500 mt-0.5">Inventory-module configuration — purchase order numbering, approval and default tax rate</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-card border border-surface-border p-6 space-y-6">
+      <div className="bg-white rounded-xl shadow-card border border-surface-border p-6">
         <FormField label="Company / Entity" hint="Inventory settings are configured per legal billing entity">
           <Select value={entityId ?? ''} onChange={e => setEntityId(Number(e.target.value))}>
             {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
           </Select>
         </FormField>
+      </div>
 
-        <div className="pt-5 border-t border-surface-border space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><ShieldCheck size={14} className="text-brand-blue" /> Purchase Order Approval</h2>
-          <div className="flex items-center gap-3">
-            <Toggle checked={form.poApprovalRequired} onChange={v => setField('poApprovalRequired', v)} />
-            <div>
-              <p className="text-sm font-medium text-gray-800">Require approval before a Purchase Order is sent</p>
-              <p className="text-xs text-gray-500">When on, new POs go through an approval step before being sent to the vendor (wired in Phase 2).</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-card border border-surface-border p-6 space-y-5">
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><ShieldCheck size={14} className="text-brand-blue" /> Purchase Order Approval</h2>
+            <div className="flex items-center gap-3">
+              <Toggle checked={form.poApprovalRequired} onChange={v => setField('poApprovalRequired', v)} />
+              <div>
+                <p className="text-sm font-medium text-gray-800">Require approval before a Purchase Order is sent</p>
+                <p className="text-xs text-gray-500">When on, new POs go through an approval step before being sent to the vendor (wired in Phase 2).</p>
+              </div>
             </div>
           </div>
-          <FormField label="Purchase Order Terms" hint="Printed on every PO sent to a vendor">
-            <Textarea rows={3} placeholder="e.g. Payment due within agreed terms. Goods must match PO specification." value={form.poTerms} onChange={e => setField('poTerms', e.target.value)} />
-          </FormField>
+
+          <div className="pt-5 border-t border-surface-border">
+            <FormField label="Purchase Order Terms" hint="Printed on every PO sent to a vendor">
+              <Textarea rows={3} placeholder="e.g. Payment due within agreed terms. Goods must match PO specification." value={form.poTerms} onChange={e => setField('poTerms', e.target.value)} />
+            </FormField>
+          </div>
         </div>
 
-        <div className="pt-5 border-t border-surface-border space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900">Tax</h2>
-          <FormField label="Default GST %" required error={errors.defaultGstPercent} hint="Pre-filled on new Purchase Orders">
-            <Input type="number" min="0" max="100" step="0.01" className="max-w-[160px]" value={form.defaultGstPercent} onChange={e => setField('defaultGstPercent', e.target.value)} />
-          </FormField>
-        </div>
+        <div className="bg-white rounded-xl shadow-card border border-surface-border p-6 space-y-5">
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900">Tax</h2>
+            <FormField label="Default GST %" required error={errors.defaultGstPercent} hint="Pre-filled on new Purchase Orders">
+              <Input type="number" min="0" max="100" step="0.01" className="max-w-[160px]" value={form.defaultGstPercent} onChange={e => setField('defaultGstPercent', e.target.value)} />
+            </FormField>
+          </div>
 
-        <div className="pt-5 border-t border-surface-border space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><Hash size={14} className="text-brand-blue" /> Purchase Order Number Format</h2>
-          <FormField label="Format" required error={errors.poNumberFormat} hint="Use {YYYY} for year and a zero run like {00001} for the zero-padded sequence">
-            <Input placeholder="e.g. CITY/PO/{YYYY}/{00001}" value={form.poNumberFormat} onChange={e => setField('poNumberFormat', e.target.value)} />
-          </FormField>
-          <p className="text-xs text-gray-500">
-            Preview: <span className="font-mono font-semibold text-gray-800">{preview || '—'}</span>
-          </p>
+          <div className="pt-5 border-t border-surface-border space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><Hash size={14} className="text-brand-blue" /> Purchase Order Number Format</h2>
+            <FormField label="Format" required error={errors.poNumberFormat} hint="Use {YYYY} for year and a zero run like {00001} for the zero-padded sequence">
+              <Input placeholder="e.g. CITY/PO/{YYYY}/{00001}" value={form.poNumberFormat} onChange={e => setField('poNumberFormat', e.target.value)} />
+            </FormField>
+            <p className="text-xs text-gray-500">
+              Preview: <span className="font-mono font-semibold text-gray-800">{preview || '—'}</span>
+            </p>
+          </div>
         </div>
+      </div>
 
-        <div className="flex justify-end pt-2 border-t border-surface-border">
-          <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Changes</Button>
-        </div>
+      <div className="bg-white rounded-xl shadow-card border border-surface-border p-6 flex justify-end">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Changes</Button>
       </div>
 
       {toast && (
