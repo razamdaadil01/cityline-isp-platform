@@ -190,22 +190,32 @@ export function hasPermission(role, module, action) {
 }
 
 // ── Current user / role resolution ──────────────────────────────────────
-// There is no auth/session system anywhere in this app — every store that
-// stamps a "created by" field just hardcodes the literal string 'Admin
-// User' (purchaseStore.js, purchaseOrderStore.js, assignmentStore.js, ...),
-// and nothing designates any one userStore.js record as "the person
-// currently logged in". Rather than build real auth (well out of scope
-// here), this resolves to userStore.js's own first seeded user — 'Admin
-// User' / admin@cityline.in, role slug 'super_admin' — the same identity
-// every other "who did this" field in the app already assumes, and maps
-// its role slug onto this store's matching role name. Falls back to the
-// Super Admin role (full access) if that user or mapping is ever missing,
-// so a broken lookup can never silently lock the app out of itself.
-// Exported (not just used internally by getCurrentUserRole below) so any
-// other UI keyed by userStore.js's role slugs — e.g. Settings.jsx's Roles
-// tab, which lists roles by slug for its left-hand picker — can resolve
-// the same slug to this store's actual role record instead of keeping a
-// second, divergent copy of the mapping.
+// There is no auth/session system anywhere in this app and no role-switch
+// UI — the sidebar always shows the same static 'Admin User' identity, so
+// "the current user's role" is hardcoded to the role named exactly 'Admin'
+// in this store's *live* data: _roles.find(...) below re-reads the actual
+// array on every call, never a snapshot taken once and cached, so editing
+// 'Admin' in Roles & Permissions (RolesSettings.jsx, or Settings.jsx's
+// Roles tab) is reflected the next time anything calls usePermission() —
+// no extra wiring needed since nothing here holds onto a stale copy.
+// Falls back to the 'Super Admin' role if 'Admin' is ever renamed or
+// deleted, so a broken lookup can never silently lock the app out of
+// itself. getCurrentUser() (userStore.js's own first seeded user, still
+// exported for anything that wants the display identity rather than the
+// role) is deliberately NOT part of this resolution any more — routing
+// through its role slug ('super_admin') previously resolved gating to the
+// Super Admin role, not Admin, so editing the Admin role's permissions had
+// no visible effect anywhere usePermission() gates UI.
+export function getCurrentUserRole() {
+  return _roles.find(r => r.name === 'Admin') ?? _roles.find(r => r.name === 'Super Admin') ?? null
+}
+
+// Exported so any UI keyed by userStore.js's role slugs — e.g. Settings.jsx's
+// Roles tab, which lists roles by slug for its left-hand picker — can
+// resolve a slug to this store's actual role record instead of keeping a
+// second, divergent copy of the mapping. Unrelated to getCurrentUserRole()
+// above: this is for picking an arbitrary role to view/edit, not for
+// resolving "who is logged in right now".
 export const ROLE_SLUG_TO_NAME = {
   super_admin: 'Super Admin',
   admin: 'Admin',
@@ -222,12 +232,6 @@ export function getRoleBySlug(slug) {
 
 export function getCurrentUser() {
   return getUsers()[0] ?? null
-}
-
-export function getCurrentUserRole() {
-  const user = getCurrentUser()
-  const roleName = ROLE_SLUG_TO_NAME[user?.role] ?? 'Super Admin'
-  return _roles.find(r => r.name === roleName) ?? _roles.find(r => r.name === 'Super Admin') ?? null
 }
 
 // Reactive permission check for gating UI — re-renders the caller whenever
