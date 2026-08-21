@@ -91,6 +91,14 @@ function notify() { _listeners.forEach(fn => fn([..._products])) }
 export function getProducts() { return _products }
 export function getProduct(id) { return _products.find(p => p.id === id) ?? null }
 
+// Non-consuming — safe to call on every render while the Add Product modal
+// is open, mirrors purchaseOrderStore.js's previewNextPoNumber(). Doesn't
+// advance _nextSeq itself; saveProduct() is the only thing that does that,
+// at actual save time.
+export function previewNextProductId() {
+  return `PRD-${String(_nextSeq).padStart(3, '0')}`
+}
+
 export function subscribeProducts(fn) {
   _listeners.push(fn)
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
