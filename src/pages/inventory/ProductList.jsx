@@ -213,40 +213,37 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Tracking Configuration</label>
-              <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
                 {TRACKING_TYPES.map(t => {
                   const Icon = TRACKING_ICON[t.value]
                   const active = hwForm.trackingType === t.value
                   return (
                     <label
                       key={t.value}
-                      className={`flex items-start gap-3 rounded-lg border px-3.5 py-3 cursor-pointer transition-colors
+                      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 cursor-pointer transition-colors
                         ${active ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:bg-gray-50'}`}
                     >
                       <input
                         type="radio"
                         name="trackingType"
-                        className="mt-0.5 accent-brand-blue"
+                        className="accent-brand-blue shrink-0"
                         checked={active}
                         onChange={() => setField('trackingType', t.value)}
                       />
-                      <div className="flex-1 min-w-0">
-                        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                          <Icon size={13} className="text-gray-400 shrink-0" /> {t.label}
-                        </span>
-                        {active && t.value !== 'quantity' && (
-                          <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
-                            <Info size={11} className="mt-0.5 shrink-0" />
-                            {t.value === 'serial'
-                              ? 'Every unit of this product will require a unique serial number at stock-in and assignment.'
-                              : 'Every unit of this product will require a unique MAC number at stock-in and assignment.'}
-                          </p>
-                        )}
-                      </div>
+                      <Icon size={13} className="text-gray-400 shrink-0" />
+                      <span className="text-sm font-medium text-gray-800 truncate">{t.label}</span>
                     </label>
                   )
                 })}
               </div>
+              {hwForm.trackingType !== 'quantity' && (
+                <p className="text-xs text-gray-500 mt-2 flex items-start gap-1">
+                  <Info size={11} className="mt-0.5 shrink-0" />
+                  {hwForm.trackingType === 'serial'
+                    ? 'Every unit of this product will require a unique serial number at stock-in and assignment.'
+                    : 'Every unit of this product will require a unique MAC number at stock-in and assignment.'}
+                </p>
+              )}
             </div>
           </div>
         ) : (
