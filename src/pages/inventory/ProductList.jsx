@@ -10,18 +10,19 @@ import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
-  isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES,
+  isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
 } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
 import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
 
 const PRODUCT_TABLE_COLUMNS = [
+  { key: 'productId',     label: 'Product ID',     visible: true, defaultVisible: true },
   { key: 'name',          label: 'Product Name',   visible: true, defaultVisible: true, locked: true },
   { key: 'sku',           label: 'SKU',            visible: true, defaultVisible: true },
   { key: 'productType',   label: 'Type',           visible: true, defaultVisible: true },
   { key: 'brand',         label: 'Brand',          visible: true, defaultVisible: true },
-  { key: 'purchasedCompany', label: 'Purchased Company', visible: false, defaultVisible: false },
-  { key: 'goodType',      label: 'Good Type',      visible: false, defaultVisible: false },
+  { key: 'purchasedCompany', label: 'Purchased Company', visible: true, defaultVisible: true },
+  { key: 'goodType',      label: 'Good Type',      visible: true, defaultVisible: true },
   { key: 'model',         label: 'Model',          visible: true, defaultVisible: true },
   { key: 'unitType',      label: 'Unit',           visible: true, defaultVisible: true },
   { key: 'sellingPrice',  label: 'Selling Price',  visible: true, defaultVisible: true },
@@ -69,6 +70,12 @@ function productToForm(product) {
 
 function AddEditProductModal({ isOpen, onClose, editing }) {
   const companyEntities = getActiveCompanyEntities()
+  // Read-only, system-generated — same auto-generated-and-shown-live pattern
+  // as Create PO's previewNextPoNumber(): a fresh product being added shows
+  // what its id WILL be on save; an existing one just shows its real id.
+  // Applies to both Hardware and Wire tabs since it's rendered once in the
+  // modal header, above the tab switcher.
+  const productId = editing ? editing.id : previewNextProductId()
   const [tab, setTab] = useState('hardware')
   const [hwForm, setHwForm] = useState(emptyHardwareForm)
   const [wireForm, setWireForm] = useState(emptyWireForm)
@@ -166,7 +173,14 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={editing ? 'Edit Product' : 'Add Product'}
+      title={
+        <span className="flex flex-col gap-0.5">
+          <span>{editing ? 'Edit Product' : 'Add Product'}</span>
+          <span className="text-xs font-normal text-gray-500">
+            Product ID: <span className="font-mono font-semibold text-brand-blue">{productId}</span>
+          </span>
+        </span>
+      }
       size="lg"
       footer={<>
         <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
@@ -514,6 +528,7 @@ export default function ProductList() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
+                {visibleCols.has('productId')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product ID</th>}
                 {visibleCols.has('name')            && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[180px]">Product Name</th>}
                 {visibleCols.has('sku')             && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">SKU</th>}
                 {visibleCols.has('productType')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
@@ -540,6 +555,7 @@ export default function ProductList() {
                 </tr>
               ) : filtered.map(p => (
                 <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                  {visibleCols.has('productId') && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.id}</td>}
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-800">{p.name}</span>
