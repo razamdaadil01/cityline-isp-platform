@@ -12,6 +12,10 @@ export const TRACKING_TYPES = [
   { value: 'serial',   label: 'Serial Number' },
   { value: 'mac',      label: 'MAC Number' },
 ]
+export const GOOD_TYPES = [
+  { value: 'consumable',     label: 'Consumable' },
+  { value: 'non_consumable', label: 'Non-Consumable' },
+]
 
 // Seeded from the existing shared hardware catalog so Product List isn't
 // empty on first load — sku/brand/model are left blank since hardwareCatalog
@@ -45,6 +49,8 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     reorderAlertQty: 10,
     trackingType: 'quantity',
     drumNumberRequired: false,
+    purchasedCompanyId: null,
+    goodType: 'consumable',
     status: 'active',
   }))
 
