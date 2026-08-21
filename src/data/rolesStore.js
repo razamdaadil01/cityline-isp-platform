@@ -201,13 +201,23 @@ export function hasPermission(role, module, action) {
 // its role slug onto this store's matching role name. Falls back to the
 // Super Admin role (full access) if that user or mapping is ever missing,
 // so a broken lookup can never silently lock the app out of itself.
-const ROLE_SLUG_TO_NAME = {
+// Exported (not just used internally by getCurrentUserRole below) so any
+// other UI keyed by userStore.js's role slugs — e.g. Settings.jsx's Roles
+// tab, which lists roles by slug for its left-hand picker — can resolve
+// the same slug to this store's actual role record instead of keeping a
+// second, divergent copy of the mapping.
+export const ROLE_SLUG_TO_NAME = {
   super_admin: 'Super Admin',
   admin: 'Admin',
   engineer: 'Field Technician',
   support: 'Support Agent',
   billing: 'Billing Manager',
   readonly: 'Read Only',
+}
+
+export function getRoleBySlug(slug) {
+  const name = ROLE_SLUG_TO_NAME[slug]
+  return name ? (_roles.find(r => r.name === name) ?? null) : null
 }
 
 export function getCurrentUser() {
