@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2,
   CheckCircle2, XCircle, Package, Boxes, Hash, ScanLine, Info,
@@ -69,6 +70,7 @@ function productToForm(product) {
 // ── Add / Edit Product modal — Hardware / Wire tabs ─────────────────────────
 
 function AddEditProductModal({ isOpen, onClose, editing }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const companyEntities = getActiveCompanyEntities()
   // Read-only, system-generated — same auto-generated-and-shown-live pattern
   // as Create PO's previewNextPoNumber(): a fresh product being added shows
@@ -76,7 +78,10 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   // Applies to both Hardware and Wire tabs since it's rendered once in the
   // modal header, above the tab switcher.
   const productId = editing ? editing.id : previewNextProductId()
-  const [tab, setTab] = useState('hardware')
+  // Tab is URL-driven (?type=wire), not local state — editing always shows
+  // the product's own type regardless of the URL, matching switchTab()'s
+  // existing add-only restriction below.
+  const tab = editing ? editing.productType : (searchParams.get('type') === 'wire' ? 'wire' : 'hardware')
   const [hwForm, setHwForm] = useState(emptyHardwareForm)
   const [wireForm, setWireForm] = useState(emptyWireForm)
   const [errors, setErrors] = useState({})
@@ -84,11 +89,9 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   useEffect(() => {
     if (!isOpen) return
     if (editing) {
-      setTab(editing.productType)
       if (editing.productType === 'wire') setWireForm(productToForm(editing))
       else setHwForm(productToForm(editing))
     } else {
-      setTab('hardware')
       setHwForm(emptyHardwareForm())
       setWireForm(emptyWireForm())
     }
@@ -105,7 +108,12 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
   function switchTab(next) {
     if (editing) return // editing keeps the product's own type — tabs are add-only
-    setTab(next)
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      if (next === 'wire') p.set('type', 'wire')
+      else p.delete('type')
+      return p
+    })
     setErrors({})
   }
 
@@ -402,8 +410,16 @@ export default function ProductList() {
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
+
+  // Add/Edit modal is deep-linkable via ?modal=add or ?modal=edit&id=<productId>
+  // (plus ?type=wire while adding), same ?modal= convention used by Settings.jsx's
+  // Company/Entity modal — merged with any other existing params rather than
+  // clobbering them, push to open/switch tabs, replace to close.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modalParam = searchParams.get('modal')
+  const editIdParam = searchParams.get('id')
+  const editing = modalParam === 'edit' ? products.find(p => p.id === editIdParam) ?? null : null
+  const modalOpen = modalParam === 'add' || (modalParam === 'edit' && !!editing)
 
   const [menuId, setMenuId] = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
@@ -463,8 +479,34 @@ export default function ProductList() {
     })
   }, [products, search, filterProductType, filterBrand, filterStatus])
 
-  function openAdd() { setEditing(null); setModalOpen(true) }
-  function openEdit(product) { setEditing(product); setModalOpen(true); setMenuId(null) }
+  function openAdd() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add')
+      next.delete('id')
+      next.delete('type')
+      return next
+    })
+  }
+  function openEdit(product) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit')
+      next.set('id', product.id)
+      next.delete('type')
+      return next
+    })
+    setMenuId(null)
+  }
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('id')
+      next.delete('type')
+      return next
+    }, { replace: true })
+  }
   function toggleStatus(product) {
     setProductStatus(product.id, product.status === 'active' ? 'inactive' : 'active')
     setMenuId(null)
@@ -631,7 +673,7 @@ export default function ProductList() {
         )
       })()}
 
-      <AddEditProductModal isOpen={modalOpen} onClose={() => setModalOpen(false)} editing={editing} />
+      <AddEditProductModal isOpen={modalOpen} onClose={closeModal} editing={editing} />
     </div>
   )
 }
