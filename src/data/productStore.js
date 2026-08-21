@@ -8,7 +8,7 @@ import { logAudit } from './auditLogStore'
 
 export const UNIT_TYPES = ['Piece', 'Box', 'Packet']
 export const TRACKING_TYPES = [
-  { value: 'quantity', label: 'Need Quantity Only' },
+  { value: 'quantity', label: 'Quantity' },
   { value: 'serial',   label: 'Serial Number' },
   { value: 'mac',      label: 'MAC Number' },
 ]
