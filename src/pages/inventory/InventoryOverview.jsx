@@ -471,7 +471,7 @@ export default function InventoryOverview() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Total Inventory Items', value: stats.totalInventoryItems, icon: Boxes,      color: 'text-brand-blue',   bg: 'bg-brand-blue/10' },
           { label: 'Hardware Available',    value: stats.hardwareAvailable,   icon: Package,     color: 'text-emerald-600',  bg: 'bg-emerald-50' },
