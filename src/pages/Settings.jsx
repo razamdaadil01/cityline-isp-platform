@@ -38,6 +38,7 @@ import {
   getPartners, subscribePartners, savePartner, setPartnerStatus,
   isValidContactNumber, formatShareValue, SHARE_TYPES,
 } from '../data/partners'
+import { MODULES, ACTIONS, buildPerms, subscribeRoles, saveRole, getRoleBySlug } from '../data/rolesStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -95,18 +96,29 @@ const ROLES = [
   { id: 'readonly',    label: 'Read Only',       users: 2,  color: 'gray'   },
 ]
 
-const MODULES = ['Dashboard', 'Customers', 'Sales', 'Billing', 'Support', 'Network', 'Inventory', 'Reports', 'Settings']
-
-const PERMISSIONS = {
-  super_admin: { Dashboard: 'full', Customers: 'full', Sales: 'full', Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'full' },
-  admin:       { Dashboard: 'full', Customers: 'full', Sales: 'full', Billing: 'full', Support: 'full', Network: 'full', Inventory: 'full', Reports: 'full', Settings: 'view' },
-  billing:     { Dashboard: 'view', Customers: 'view', Sales: 'view', Billing: 'full', Support: 'none', Network: 'none', Inventory: 'view', Reports: 'view', Settings: 'none' },
-  support:     { Dashboard: 'view', Customers: 'view', Sales: 'none', Billing: 'view', Support: 'full', Network: 'view', Inventory: 'view', Reports: 'none', Settings: 'none' },
-  engineer:    { Dashboard: 'view', Customers: 'view', Sales: 'none', Billing: 'none', Support: 'view', Network: 'view', Inventory: 'full', Reports: 'none', Settings: 'none' },
-  readonly:    { Dashboard: 'view', Customers: 'view', Sales: 'view', Billing: 'view', Support: 'view', Network: 'view', Inventory: 'view', Reports: 'view', Settings: 'none' },
-}
+// Module list and per-module permissions both now come from rolesStore.js
+// (imported above) — this tab used to keep its own local MODULES array and
+// a static PERMISSIONS-by-slug mock with no write path at all, a second,
+// disconnected copy of what RolesSettings.jsx already manages for real.
+// 'full'/'view'/'none' below is just this tab's
+// own 3-button shorthand over that store's real {View,Create,Edit,Delete}
+// shape: full = all four actions on, view = View only, none = all off.
 const PERM_VARIANT = { full: 'green', view: 'blue', none: 'gray' }
 const PERM_LABEL   = { full: 'Full',  view: 'View', none: '—'    }
+
+function levelForModule(permissions, module) {
+  const p = permissions?.[module]
+  if (!p) return 'none'
+  if (ACTIONS.every(a => p[a])) return 'full'
+  if (ACTIONS.every(a => !p[a])) return 'none'
+  return 'view'
+}
+
+function permsForLevel(level) {
+  if (level === 'full') return Object.fromEntries(ACTIONS.map(a => [a, true]))
+  if (level === 'view') return Object.fromEntries(ACTIONS.map(a => [a, a === 'View']))
+  return Object.fromEntries(ACTIONS.map(a => [a, false]))
+}
 
 const NOTIF_EVENTS = [
   { id: 'new_customer',      label: 'New Customer Activation',   whatsapp: true,  sms: true  },
@@ -610,9 +622,39 @@ function JazeServersTab() {
 }
 
 function RolesTab() {
-  const [activeRole, setActiveRole] = useState('admin')
+  // ROLES stays local (slug/label/color chrome for the left-hand picker),
+  // but the permissions themselves now come straight from rolesStore.js —
+  // this tab used to keep a second, static PERMISSIONS-by-slug mock with
+  // no write path at all, fully disconnected from what RolesSettings.jsx
+  // (and everything gated by usePermission()) actually reads.
+  const [, forceRerender] = useState(0)
+  useEffect(() => subscribeRoles(() => forceRerender(n => n + 1)), [])
+  const [activeRoleSlug, setActiveRoleSlug] = useState('admin')
 
-  const role = ROLES.find(r => r.id === activeRole)
+  const roleMeta = ROLES.find(r => r.id === activeRoleSlug)
+  const role = getRoleBySlug(activeRoleSlug)
+
+  // Every click writes straight to the store — no local draft to keep in
+  // sync, so the highlighted button and rolesStore.js's actual data can
+  // never drift apart the way the old local-state-only version could.
+  function setLevel(module, level) {
+    if (!role) return
+    saveRole({ id: role.id, permissions: { ...role.permissions, [module]: permsForLevel(level) } })
+  }
+
+  // Permissions are already live after each click above; this re-affirms
+  // the same (already-saved) permissions back to the store so the button
+  // is a real, store-wired action rather than a dead one — not a draft
+  // commit, since there's no draft left to commit.
+  function handleSavePermissions() {
+    if (!role) return
+    saveRole({ id: role.id, permissions: role.permissions })
+  }
+
+  function handleReset() {
+    if (!role) return
+    saveRole({ id: role.id, permissions: buildPerms(false) })
+  }
 
   return (
     <div className="space-y-5">
@@ -627,29 +669,32 @@ function RolesTab() {
       <div className="flex gap-5">
         {/* Role list */}
         <div className="w-52 shrink-0 space-y-1.5">
-          {ROLES.map(r => (
-            <button key={r.id} onClick={() => setActiveRole(r.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center justify-between
-                ${activeRole === r.id ? 'bg-brand-blue text-white' : 'bg-white border border-surface-border text-gray-700 hover:bg-gray-50'}`}>
-              <div>
-                <p className="text-sm font-medium leading-tight">{r.label}</p>
-                <p className={`text-xs mt-0.5 ${activeRole === r.id ? 'text-blue-100' : 'text-gray-400'}`}>{r.users} users</p>
-              </div>
-              <Shield size={14} className={activeRole === r.id ? 'text-blue-200' : 'text-gray-300'} />
-            </button>
-          ))}
+          {ROLES.map(r => {
+            const usersCount = getRoleBySlug(r.id)?.usersCount ?? r.users
+            return (
+              <button key={r.id} onClick={() => setActiveRoleSlug(r.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center justify-between
+                  ${activeRoleSlug === r.id ? 'bg-brand-blue text-white' : 'bg-white border border-surface-border text-gray-700 hover:bg-gray-50'}`}>
+                <div>
+                  <p className="text-sm font-medium leading-tight">{r.label}</p>
+                  <p className={`text-xs mt-0.5 ${activeRoleSlug === r.id ? 'text-blue-100' : 'text-gray-400'}`}>{usersCount} users</p>
+                </div>
+                <Shield size={14} className={activeRoleSlug === r.id ? 'text-blue-200' : 'text-gray-300'} />
+              </button>
+            )
+          })}
         </div>
 
         {/* Permissions matrix */}
         <div className="flex-1 bg-white rounded-xl border border-surface-border overflow-hidden">
           <div className="px-5 py-3.5 border-b border-surface-border flex items-center gap-2">
             <Shield size={15} className="text-brand-blue" />
-            <h3 className="text-sm font-semibold text-gray-900">{role?.label} — Module Access</h3>
-            <Badge variant={role?.color} size="sm" className="ml-2">{role?.users} users</Badge>
+            <h3 className="text-sm font-semibold text-gray-900">{roleMeta?.label} — Module Access</h3>
+            <Badge variant={roleMeta?.color} size="sm" className="ml-2">{role?.usersCount ?? roleMeta?.users} users</Badge>
           </div>
           <div className="divide-y divide-surface-border">
             {MODULES.map(mod => {
-              const perm = PERMISSIONS[activeRole]?.[mod] || 'none'
+              const perm = levelForModule(role?.permissions, mod)
               return (
                 <div key={mod} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50">
                   <span className="text-sm font-medium text-gray-700">{mod}</span>
@@ -657,7 +702,7 @@ function RolesTab() {
                     <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
                     <div className="flex gap-1">
                       {['full', 'view', 'none'].map(p => (
-                        <button key={p}
+                        <button key={p} onClick={() => setLevel(mod, p)}
                           className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
                             ${perm === p
                               ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
@@ -672,8 +717,8 @@ function RolesTab() {
             })}
           </div>
           <div className="px-5 py-4 border-t border-surface-border flex justify-end gap-2">
-            <Button variant="secondary" size="sm">Reset</Button>
-            <Button size="sm" icon={<Save size={14} />}>Save Permissions</Button>
+            <Button variant="secondary" size="sm" onClick={handleReset}>Reset</Button>
+            <Button size="sm" icon={<Save size={14} />} onClick={handleSavePermissions}>Save Permissions</Button>
           </div>
         </div>
       </div>
