@@ -25,6 +25,31 @@ const STATUS_BADGE = {
 
 const APPROVAL_STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
 
+// Up to 2 initials from an entity's name (e.g. "Cityline Networks Pvt Ltd"
+// -> "CN") — the fallback badge when the entity has no logoUrl set, same
+// spirit as InvoicePDF.jsx's hardcoded "CL" box but actually derived from
+// the entity rather than a fixed string.
+function entityInitials(name) {
+  return (name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(w => w[0])
+    .join('')
+    .toUpperCase()
+}
+
+function EntityBadge({ entity }) {
+  if (!entity) return null
+  return entity.logoUrl ? (
+    <img src={entity.logoUrl} alt={entity.name} className="w-4 h-4 rounded object-cover shrink-0" />
+  ) : (
+    <span className="w-4 h-4 rounded bg-brand-blue text-white text-[8px] font-bold flex items-center justify-center shrink-0">
+      {entityInitials(entity.name)}
+    </span>
+  )
+}
+
 function InfoRow({ label, value }) {
   return (
     <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
@@ -80,9 +105,13 @@ export default function PODetail() {
               <h1 className="text-lg font-bold text-gray-900 font-mono">{po.poNumber}</h1>
               <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge>
             </div>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {vendor?.companyName ?? '—'} · Deliver to {store?.storeName ?? '—'}
-              {entity && <span className="text-gray-400"> · {entity.name}</span>}
+            <p className="text-sm text-gray-500 mt-0.5 flex items-center flex-wrap gap-x-1">
+              <span>{vendor?.companyName ?? '—'} · Deliver to {store?.storeName ?? '—'}</span>
+              {entity && (
+                <span className="inline-flex items-center gap-1.5 text-gray-400">
+                  · <EntityBadge entity={entity} /> {entity.name}
+                </span>
+              )}
             </p>
           </div>
         </div>

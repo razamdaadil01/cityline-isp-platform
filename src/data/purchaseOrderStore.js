@@ -5,8 +5,9 @@
 import { getVendor } from './vendorStore'
 import { getStore } from './storeStore'
 import { getInventorySettings, formatPoNumber } from './inventorySettingsStore'
-import { createPurchaseOrderApproval, subscribeApprovals } from './approvalsStore'
+import { createPurchaseOrderApproval, subscribeApprovals, getApproval } from './approvalsStore'
 import { logAudit } from './auditLogStore'
+import { addNotification } from './notificationStore'
 
 export const PO_STATUSES = [
   'Draft', 'Approval Request', 'Correction Required', 'Approved', 'Sent',
@@ -229,6 +230,23 @@ export function syncPOStatusFromApproval(approvalId, approvalStatus) {
     action: 'Edit', module: 'Inventory',
     details: mapped === 'Approved' ? `Purchase Order ${po.poNumber} approved` : `Purchase Order ${po.poNumber} sent back for correction`,
   })
+
+  // Notify the PO's original creator when it comes back for correction —
+  // first real caller of notificationStore.js's addNotification(), same
+  // "first live write path" moment logAudit() had in Phase 6.
+  if (mapped === 'Correction Required') {
+    const approval = getApproval(approvalId)
+    const comment = approval?.decisionComment?.trim()
+    const excerpt = comment ? (comment.length > 80 ? `${comment.slice(0, 80)}…` : comment) : 'No comment provided.'
+    addNotification({
+      type: 'po_correction',
+      title: 'PO Correction Requested',
+      description: `Purchase Order ${po.poNumber} needs correction: ${excerpt}`,
+      meta: `For ${po.createdBy ?? 'the PO creator'}`,
+      reference: po.poNumber,
+      color: 'red',
+    })
+  }
 }
 
 // Recomputes a PO's receipt status from its cumulative received quantity

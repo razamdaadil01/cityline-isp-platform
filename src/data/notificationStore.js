@@ -113,10 +113,35 @@ const INIT_NOTIFICATIONS = [
 
 let _notifications = [...INIT_NOTIFICATIONS]
 const _listeners = []
+let _nextSeq = 1 + INIT_NOTIFICATIONS.length
 
 function notify() { _listeners.forEach(fn => fn([..._notifications])) }
 
 export function getNotifications() { return [..._notifications] }
+
+// First real write path into this store — every notification before this
+// only ever came from the static INIT_NOTIFICATIONS seed above, same gap
+// auditLogStore.js had before logAudit() was added in Phase 6. Same
+// module-level-array + notify() + subscribers shape.
+//
+// `reference` is a generic pointer (e.g. a PO number) for anything that
+// isn't a Sales Lead — the existing `leadId` field on seeded/Sales-origin
+// entries is left as-is rather than renamed/repurposed, so nothing that
+// already reads `leadId` needs to change. A notification only ever carries
+// one or the other in practice, never both.
+export function addNotification({ type, title, description, meta = '', reference = null, color = 'blue' }) {
+  const notification = {
+    id: `N-${String(_nextSeq++).padStart(3, '0')}`,
+    type, title, description, meta,
+    time: 'Just now',
+    read: false,
+    reference,
+    color,
+  }
+  _notifications = [notification, ..._notifications]
+  notify()
+  return notification
+}
 
 export function markAsRead(id) {
   _notifications = _notifications.map(n => n.id === id ? { ...n, read: true } : n)

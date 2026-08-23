@@ -31,6 +31,9 @@ let _companyEntities = [
     gstin: '27AABCU9603R1ZM',
     email: 'accounts@citylinenetworks.in',
     address: '404, Skyline Tower, Andheri West, Mumbai - 400053, Maharashtra',
+    // Plain string URL, optional — same shape as productStore.js's imageUrl.
+    // No real logos to seed yet, so blank.
+    logoUrl: '',
     bank: { bankName: 'HDFC Bank', accountNo: '50100123456789', ifsc: 'HDFC0001234', branch: 'Andheri West' },
     pgId: 'rzp_live_CitylineNet01',
     pgConnection: 'Razorpay',
@@ -92,6 +95,7 @@ let _companyEntities = [
     gstin: '27AAFCC5678E1ZS',
     email: 'billing@citylinefiber.in',
     address: '12, Business Bay, Bandra Kurla Complex, Mumbai - 400051, Maharashtra',
+    logoUrl: '',
     bank: { bankName: 'ICICI Bank', accountNo: '602301987654', ifsc: 'ICIC0006023', branch: 'BKC' },
     pgId: 'rzp_live_CitylineFiber02',
     pgConnection: 'Razorpay',
