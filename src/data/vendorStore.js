@@ -46,7 +46,7 @@ const SEED = [
       { id: 'LED-2026-000002', vendorId: 'VEN-001', date: '2026-06-10', reference: 'PAY-2026-000001', description: 'Payment recorded — Bank Transfer', debit: 0, credit: 150000, balance: 328628 },
       { id: 'LED-2026-000003', vendorId: 'VEN-001', date: '2026-06-25', reference: 'PAY-2026-000002', description: 'Payment recorded — Cheque', debit: 0, credit: 100000, balance: 228628 },
       { id: 'LED-2026-000004', vendorId: 'VEN-001', date: '2026-07-20', reference: 'PAY-2026-000003', description: 'Payment recorded — UPI', debit: 0, credit: 135000, balance: 93628 },
-      { id: 'LED-2026-000005', vendorId: 'VEN-001', date: '2026-08-12', reference: 'PUR-2026-000003', description: 'Purchase PUR-2026-000003', debit: 6372, credit: 0, balance: 100000 },
+      { id: 'LED-2026-000005', vendorId: 'VEN-001', date: '2026-08-12', reference: 'PUR-2026-000003', description: 'Purchase', debit: 6372, credit: 0, balance: 100000 },
     ],
   },
   {
@@ -107,7 +107,7 @@ const SEED = [
     ledgerEntries: [
       { id: 'LED-2026-000010', vendorId: 'VEN-003', date: '2026-07-01', reference: 'Opening Balance', description: 'Opening balance carried forward', debit: 138654, credit: 0, balance: 138654 },
       { id: 'LED-2026-000011', vendorId: 'VEN-003', date: '2026-07-10', reference: 'PAY-2026-000007', description: 'Payment recorded — UPI', debit: 0, credit: 50000, balance: 88654 },
-      { id: 'LED-2026-000012', vendorId: 'VEN-003', date: '2026-07-20', reference: 'PUR-2026-000001', description: 'Purchase PUR-2026-000001', debit: 17346, credit: 0, balance: 106000 },
+      { id: 'LED-2026-000012', vendorId: 'VEN-003', date: '2026-07-20', reference: 'PUR-2026-000001', description: 'Purchase', debit: 17346, credit: 0, balance: 106000 },
       { id: 'LED-2026-000013', vendorId: 'VEN-003', date: '2026-07-25', reference: 'PAY-2026-000008', description: 'Payment recorded — Bank Transfer', debit: 0, credit: 40000, balance: 66000 },
       { id: 'LED-2026-000014', vendorId: 'VEN-003', date: '2026-08-02', reference: 'PAY-2026-000009', description: 'Payment recorded — UPI', debit: 0, credit: 30000, balance: 36000 },
     ],
