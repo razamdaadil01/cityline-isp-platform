@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, FileText, Package, Calculator,
-  Plus, Trash2, AlertTriangle, Save, Send,
+  Plus, Trash2, AlertTriangle, Save, Send, Building2, CheckCircle2, Eye,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
+import Badge from '../../components/ui/Badge'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import StepProgress from '../../components/customer-type/StepProgress'
 import ProductPicker from '../../components/inventory/ProductPicker'
-import { getActiveCompanyEntities } from '../../data/companyEntities'
+import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
 import { getProducts } from '../../data/productStore'
@@ -16,6 +17,18 @@ import { getInventorySettings } from '../../data/inventorySettingsStore'
 import {
   getPurchaseOrder, savePurchaseOrder, previewNextPoNumber, computePoSummary, computeLineAmount,
 } from '../../data/purchaseOrderStore'
+
+const STATUS_BADGE = {
+  Draft: 'gray',
+  'Approval Request': 'yellow',
+  'Correction Required': 'red',
+  Approved: 'blue',
+  Sent: 'indigo',
+  'Partially Received': 'orange',
+  'Fully Received': 'green',
+  Closed: 'slate',
+  Cancelled: 'red',
+}
 
 const STEPS = [
   { id: 1, label: 'Basic Details', icon: FileText },
@@ -115,6 +128,10 @@ export default function CreatePO() {
   // banner shows the right message — Next (steps 1-2) and Save Draft/Send PO
   // (step 3) each have different requirements.
   const [attemptedAction, setAttemptedAction] = useState(null) // null | 'step1' | 'step2' | 'draft' | 'send'
+  // Set once a multi-company split actually creates its POs — swaps the
+  // wizard body for a summary linking to all of them, since there's no
+  // longer a single PO to send the user to.
+  const [createdPOs, setCreatedPOs] = useState(null)
 
   // Company/Entity drives defaults (GST %, Terms) — only auto-fill on
   // change while creating; an existing PO's saved values are the source of
@@ -173,19 +190,66 @@ export default function CreatePO() {
   const numericItems = filledItems.map(it => ({ ...it, qty: Number(it.qty) || 0, price: Number(it.price) || 0, gstPercent: Number(it.gstPercent) || 0 }))
   const summary = computePoSummary(numericItems, { discount: Number(discount) || 0, otherCharges: Number(otherCharges) || 0 })
 
+  // ── Multi-company auto-split ────────────────────────────────────────────
+  // Products are sourced from different companies (Product Management's
+  // "Purchased Company" field, productStore.js's purchasedCompanyId) — that
+  // field already stores the same id companyEntities.js uses, no translation
+  // needed. A product with none set (e.g. wire products don't carry this
+  // field at all) falls back to the entity picked in Step 1, matching the
+  // pre-split single-PO behavior for anything not explicitly sourced
+  // elsewhere. Only applies to new POs — an existing PO being edited already
+  // has a fixed id/number/companyEntityId, so it stays a single-PO update.
+  function productCompanyId(productId) {
+    return products.find(p => p.id === productId)?.purchasedCompanyId ?? companyEntityId
+  }
+  const companyGroups = new Map()
+  numericItems.forEach(it => {
+    const cid = productCompanyId(it.productId)
+    if (!companyGroups.has(cid)) companyGroups.set(cid, [])
+    companyGroups.get(cid).push(it)
+  })
+  const isMultiCompanySplit = !isEditing && companyGroups.size > 1
+  const totalSubtotal = numericItems.reduce((sum, it) => sum + it.qty * it.price, 0)
+
+  function itemsPayload(groupItems) {
+    return groupItems.map(it => ({
+      id: it.id, type: it.type, productId: it.productId, productName: it.productName,
+      sku: it.sku, unit: it.unit, qty: it.qty, price: it.price, gstPercent: it.gstPercent,
+      amount: computeLineAmount(it.qty, it.price, it.gstPercent),
+      ...(it.type === 'wire' ? { drum: it.drum || '' } : {}),
+    }))
+  }
+
   function buildPayload() {
     return {
       companyEntityId, vendorId, storeId, orderDate,
       estimatedDeliveryDate, gstPercent: Number(gstPercent) || 0,
-      items: numericItems.map(it => ({
-        id: it.id, type: it.type, productId: it.productId, productName: it.productName,
-        sku: it.sku, unit: it.unit, qty: it.qty, price: it.price, gstPercent: it.gstPercent,
-        amount: computeLineAmount(it.qty, it.price, it.gstPercent),
-        ...(it.type === 'wire' ? { drum: it.drum || '' } : {}),
-      })),
+      items: itemsPayload(numericItems),
       notes, terms,
       discount: Number(discount) || 0,
       otherCharges: Number(otherCharges) || 0,
+    }
+  }
+
+  // One payload per company group when the PO is being split. GST% falls
+  // back to that company's own configured default when it differs from what
+  // was entered (per-line GST% is untouched either way — each line already
+  // carries its own rate from Step 2). Discount/otherCharges are split
+  // proportionally by each group's share of the combined subtotal, so the
+  // total discount/other-charges across all resulting POs still adds up to
+  // what was actually entered instead of being duplicated onto every PO.
+  function buildPayloadForGroup(groupCompanyId, groupItems) {
+    const groupSettings = getInventorySettings(groupCompanyId)
+    const enteredGst = Number(gstPercent) || 0
+    const effectiveGstPercent = groupSettings.defaultGstPercent !== enteredGst ? groupSettings.defaultGstPercent : enteredGst
+    const shareRatio = totalSubtotal > 0 ? groupItems.reduce((s, it) => s + it.qty * it.price, 0) / totalSubtotal : 0
+    return {
+      companyEntityId: groupCompanyId, vendorId, storeId, orderDate,
+      estimatedDeliveryDate, gstPercent: effectiveGstPercent,
+      items: itemsPayload(groupItems),
+      notes, terms,
+      discount: Math.round((Number(discount) || 0) * shareRatio),
+      otherCharges: Math.round((Number(otherCharges) || 0) * shareRatio),
     }
   }
 
@@ -231,11 +295,21 @@ export default function CreatePO() {
 
   function handleSaveDraft() {
     if (!canSaveDraft) { setAttemptedAction('draft'); return }
+    if (isMultiCompanySplit) {
+      const pos = [...companyGroups.entries()].map(([cid, groupItems]) => savePurchaseOrder(buildPayloadForGroup(cid, groupItems), { action: 'draft' }))
+      setCreatedPOs(pos)
+      return
+    }
     const po = savePurchaseOrder(buildPayload(), { editingId, action: 'draft' })
     navigate(`/inventory/purchase-orders/${po.id}`)
   }
   function handleSendPO() {
     if (!canSend) { setAttemptedAction('send'); return }
+    if (isMultiCompanySplit) {
+      const pos = [...companyGroups.entries()].map(([cid, groupItems]) => savePurchaseOrder(buildPayloadForGroup(cid, groupItems), { action: 'send' }))
+      setCreatedPOs(pos)
+      return
+    }
     const po = savePurchaseOrder(buildPayload(), { editingId, action: 'send' })
     navigate(`/inventory/purchase-orders/${po.id}`)
   }
@@ -256,6 +330,45 @@ export default function CreatePO() {
         <div className="bg-white rounded-xl border border-surface-border shadow-card p-10 text-center">
           <p className="text-sm text-gray-500 mb-3">"{existing.poNumber}" is {existing.status} and can no longer be edited.</p>
           <Button variant="secondary" size="sm" onClick={() => navigate(`/inventory/purchase-orders/${existing.id}`)}>View Purchase Order</Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Multi-company split just created its POs — show links to all of them
+  // instead of navigating straight to a single PO Detail page.
+  if (createdPOs) {
+    return (
+      <div className="p-6">
+        <div className="max-w-xl mx-auto bg-white rounded-xl border border-surface-border shadow-card p-8 text-center space-y-5">
+          <CheckCircle2 size={36} className="mx-auto text-emerald-500" />
+          <div>
+            <h1 className="text-lg font-bold text-gray-900">
+              Split into {createdPOs.length} separate Purchase Orders
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Products spanned more than one sourcing company, so a separate PO was created for each.
+            </p>
+          </div>
+          <div className="space-y-2.5 text-left">
+            {createdPOs.map(po => (
+              <div key={po.id} className="flex items-center justify-between gap-3 rounded-xl border border-surface-border px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-sm font-semibold text-brand-blue truncate">{po.poNumber}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                    <Building2 size={11} className="shrink-0" /> {getCompanyEntity(po.companyEntityId)?.name ?? '—'}
+                    <span className="text-gray-300">·</span> ₹{po.grandTotal.toLocaleString('en-IN')}
+                    <span className="text-gray-300">·</span>
+                    <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge>
+                  </p>
+                </div>
+                <Button variant="secondary" size="sm" icon={<Eye size={13} />} onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}>
+                  View
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button size="sm" onClick={() => navigate('/inventory/purchase-orders')}>Back to Purchase Orders</Button>
         </div>
       </div>
     )
@@ -416,6 +529,30 @@ export default function CreatePO() {
 
             {step === 3 && (
               <div className="space-y-5">
+                {isMultiCompanySplit && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                      <p className="text-sm font-semibold text-amber-800">
+                        These products will be split into {companyGroups.size} separate Purchase Orders based on sourcing company.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {[...companyGroups.entries()].map(([cid, groupItems]) => {
+                        const groupSubtotal = groupItems.reduce((s, it) => s + it.qty * it.price, 0)
+                        return (
+                          <div key={cid} className="bg-white rounded-lg border border-amber-100 px-3.5 py-2.5">
+                            <p className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+                              <Building2 size={12} className="text-amber-500 shrink-0" /> {getCompanyEntity(cid)?.name ?? `Entity ${cid}`}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">{groupItems.map(it => it.productName).join(', ')}</p>
+                            <p className="text-xs font-semibold text-gray-700 mt-1">Subtotal: ₹{groupSubtotal.toLocaleString('en-IN')}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
                 <FormField label="Notes">
                   <Textarea rows={3} placeholder="Any special instructions for this order…" value={notes} onChange={e => setNotes(e.target.value)} />
                 </FormField>
