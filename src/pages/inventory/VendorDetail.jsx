@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Download, CreditCard, Edit2, Building2, MapPin, Phone, FileText,
-  ClipboardList, Receipt, Wallet, Plus, ChevronDown, Eye,
+  ClipboardList, Receipt, Wallet, ChevronDown, Eye,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -505,9 +505,6 @@ export default function VendorDetail() {
           )}
           {activeTab === 'Purchase Orders' && (
             <div className="space-y-4">
-              <div className="flex justify-end">
-                <Button size="sm" icon={<Plus size={14} />} disabled>Create Purchase Order</Button>
-              </div>
               {vendorPOs.length === 0 ? (
                 <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'Date', 'Expected Delivery', 'Amount', 'Status', 'Action']} />
               ) : (
