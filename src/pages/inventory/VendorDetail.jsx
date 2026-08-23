@@ -64,21 +64,6 @@ function EmptyStateTable({ columns, icon: Icon = FileText }) {
   )
 }
 
-// Merges Purchase History (each Confirmed Purchase is a debit — it added to
-// what's owed) and Payments (each recorded payment is a credit) into one
-// chronological running-balance ledger. Computed on demand from the two
-// real sources rather than stored anywhere, same "derive, don't persist"
-// approach inventoryLedger.js already uses — there's no separate ledger
-// data model to keep in sync.
-function buildLedgerRows(purchases, payments) {
-  const rows = [
-    ...purchases.map(p => ({ date: p.purchaseDate, description: `Purchase ${p.purchaseNumber}`, debit: p.totalPurchaseValue, credit: 0 })),
-    ...payments.map(pay => ({ date: pay.paymentDate, description: `Payment${pay.reference ? ' · ' + pay.reference : ''}`, debit: 0, credit: pay.amount })),
-  ].sort((a, b) => new Date(a.date) - new Date(b.date))
-  let balance = 0
-  return rows.map(row => { balance += row.debit - row.credit; return { ...row, balance } })
-}
-
 function RecordPaymentModal({ isOpen, onClose, vendor }) {
   const [form, setForm] = useState({ paymentDate: '', amount: '', method: PAYMENT_METHODS[0], reference: '', notes: '' })
   const [errors, setErrors] = useState({})
@@ -294,7 +279,11 @@ export default function VendorDetail() {
     .filter(p => p.vendorId === vendor.id && p.status === 'Confirmed')
     .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate))
   const payments = vendor.payments ?? []
-  const ledgerRows = buildLedgerRows(vendorPurchases, payments)
+  // Stored, not recomputed — vendorStore.js's recordVendorPayment() appends a
+  // ledger entry itself (PRD Sec 16), so this just reads + chronologically
+  // sorts what's already there rather than re-deriving it from Purchases and
+  // Payments separately.
+  const ledgerRows = [...(vendor.ledgerEntries ?? [])].sort((a, b) => new Date(a.date) - new Date(b.date))
   const vendorPOs = getPurchaseOrders()
     .filter(po => po.vendorId === vendor.id)
     .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
@@ -312,7 +301,7 @@ export default function VendorDetail() {
       },
       {
         name: 'Ledger Statement',
-        rows: ledgerRows.map(r => ({ Date: r.date, Description: r.description, Debit: r.debit, Credit: r.credit, Balance: r.balance })),
+        rows: ledgerRows.map(r => ({ Date: r.date, Reference: r.reference, Description: r.description, Debit: r.debit, Credit: r.credit, Balance: r.balance })),
       },
       {
         name: 'Payments',
@@ -477,25 +466,26 @@ export default function VendorDetail() {
           )}
           {activeTab === 'Ledger Statement' && (
             ledgerRows.length === 0 ? (
-              <EmptyStateTable icon={Receipt} columns={['Date', 'Description', 'Debit', 'Credit', 'Balance']} />
+              <EmptyStateTable icon={Receipt} columns={['Date', 'Reference', 'Description', 'Debit', 'Credit', 'Balance']} />
             ) : (
               <div className="overflow-x-auto rounded-xl border border-surface-border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
-                      {['Date', 'Description', 'Debit', 'Credit', 'Balance'].map(c => (
+                      {['Date', 'Reference', 'Description', 'Debit', 'Credit', 'Balance'].map(c => (
                         <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
-                    {ledgerRows.map((r, i) => (
-                      <tr key={i}>
+                    {ledgerRows.map(r => (
+                      <tr key={r.id}>
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{r.date}</td>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-500 whitespace-nowrap">{r.reference || '—'}</td>
                         <td className="px-4 py-3 text-xs text-gray-600">{r.description}</td>
                         <td className="px-4 py-3 text-xs text-red-600">{r.debit > 0 ? `₹${r.debit.toLocaleString('en-IN')}` : '—'}</td>
                         <td className="px-4 py-3 text-xs text-emerald-600">{r.credit > 0 ? `₹${r.credit.toLocaleString('en-IN')}` : '—'}</td>
-                        <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{r.balance.toLocaleString('en-IN')}</td>
+                        <td className="px-4 py-3 text-xs font-bold text-gray-900 whitespace-nowrap">₹{r.balance.toLocaleString('en-IN')}</td>
                       </tr>
                     ))}
                   </tbody>

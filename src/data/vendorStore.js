@@ -1,8 +1,13 @@
 // Vendor master store — module-level pub/sub pattern (mirrors feasibilityStore.js).
-// Backs Inventory's Vendor Management (Phase 1: Configuration). Purchase
-// Orders/Ledger (Phase 2-3) aren't built yet — totalPurchases/totalPaid/
-// outstanding are simple running totals updated by recordVendorPayment(),
-// not derived from real ledger entries.
+// Backs Inventory's Vendor Management (Phase 1: Configuration).
+// totalPurchases/totalPaid/outstanding are still simple running totals
+// (Purchase Orders/Ledger reconciliation from real receipts is a later
+// phase), but each vendor now also carries a real `ledgerEntries` array
+// (Date/Reference/Description/Debit/Credit/running Balance) that
+// recordVendorPayment() appends to below — Vendor Detail's Ledger
+// Statement tab reads this array directly rather than recomputing one on
+// the fly, per PRD Sec 16's "Payment recorded -> Vendor ledger updated ->
+// Vendor outstanding recalculated" flow.
 
 import { logAudit } from './auditLogStore'
 
@@ -30,6 +35,19 @@ const SEED = [
       { id: 'PAY-2026-000002', paymentDate: '2026-06-25', amount: 100000, method: 'Cheque', reference: 'CHQ-778812', notes: '', recordedBy: 'Anita Sharma' },
       { id: 'PAY-2026-000001', paymentDate: '2026-06-10', amount: 150000, method: 'Bank Transfer', reference: 'NEFT/ZTE/0610', notes: 'Advance against PO CITY/PO/2026/00001', recordedBy: 'Admin User' },
     ],
+    // Opening Balance (478628) covers the gap between totalPurchases (485000)
+    // above and the one real Confirmed Purchase this vendor has in
+    // purchaseStore.js's seed (PUR-2026-000003, 6372) — without it the
+    // running balance couldn't reconcile to outstanding (100000) below,
+    // since that Confirmed Purchase alone falls far short of totalPurchases.
+    // Chronological order, ending balance === outstanding above.
+    ledgerEntries: [
+      { id: 'LED-2026-000001', vendorId: 'VEN-001', date: '2026-06-01', reference: 'Opening Balance', description: 'Opening balance carried forward', debit: 478628, credit: 0, balance: 478628 },
+      { id: 'LED-2026-000002', vendorId: 'VEN-001', date: '2026-06-10', reference: 'PAY-2026-000001', description: 'Payment recorded — Bank Transfer', debit: 0, credit: 150000, balance: 328628 },
+      { id: 'LED-2026-000003', vendorId: 'VEN-001', date: '2026-06-25', reference: 'PAY-2026-000002', description: 'Payment recorded — Cheque', debit: 0, credit: 100000, balance: 228628 },
+      { id: 'LED-2026-000004', vendorId: 'VEN-001', date: '2026-07-20', reference: 'PAY-2026-000003', description: 'Payment recorded — UPI', debit: 0, credit: 135000, balance: 93628 },
+      { id: 'LED-2026-000005', vendorId: 'VEN-001', date: '2026-08-12', reference: 'PUR-2026-000003', description: 'Purchase PUR-2026-000003', debit: 6372, credit: 0, balance: 100000 },
+    ],
   },
   {
     id: 'VEN-002',
@@ -50,6 +68,16 @@ const SEED = [
       { id: 'PAY-2026-000006', paymentDate: '2026-07-05', amount: 170000, method: 'Cheque', reference: 'CHQ-441209', notes: 'Balance cleared in full', recordedBy: 'Admin User' },
       { id: 'PAY-2026-000005', paymentDate: '2026-06-20', amount: 350000, method: 'Bank Transfer', reference: 'RTGS/STL/062099', notes: '', recordedBy: 'Suresh Babu' },
       { id: 'PAY-2026-000004', paymentDate: '2026-05-15', amount: 400000, method: 'Bank Transfer', reference: 'RTGS/STL/051526', notes: 'Advance payment for bulk fiber order', recordedBy: 'Admin User' },
+    ],
+    // Opening Balance (920000) === totalPurchases above — this vendor's only
+    // seeded Purchase in purchaseStore.js is still 'Draft' (not Confirmed),
+    // so there's no real Purchase debit to carry any of this balance.
+    // Chronological order, ending balance === outstanding (0) below.
+    ledgerEntries: [
+      { id: 'LED-2026-000006', vendorId: 'VEN-002', date: '2026-05-01', reference: 'Opening Balance', description: 'Opening balance carried forward', debit: 920000, credit: 0, balance: 920000 },
+      { id: 'LED-2026-000007', vendorId: 'VEN-002', date: '2026-05-15', reference: 'PAY-2026-000004', description: 'Payment recorded — Bank Transfer', debit: 0, credit: 400000, balance: 520000 },
+      { id: 'LED-2026-000008', vendorId: 'VEN-002', date: '2026-06-20', reference: 'PAY-2026-000005', description: 'Payment recorded — Bank Transfer', debit: 0, credit: 350000, balance: 170000 },
+      { id: 'LED-2026-000009', vendorId: 'VEN-002', date: '2026-07-05', reference: 'PAY-2026-000006', description: 'Payment recorded — Cheque', debit: 0, credit: 170000, balance: 0 },
     ],
   },
   {
@@ -72,6 +100,17 @@ const SEED = [
       { id: 'PAY-2026-000008', paymentDate: '2026-07-25', amount: 40000, method: 'Bank Transfer', reference: 'NEFT/TPL/072599', notes: '', recordedBy: 'Admin User' },
       { id: 'PAY-2026-000007', paymentDate: '2026-07-10', amount: 50000, method: 'UPI', reference: 'UPI/TPL2026071044556', notes: 'Advance for patch cord order', recordedBy: 'Preethi Nair' },
     ],
+    // Opening Balance (138654) covers the gap between totalPurchases (156000)
+    // above and the one real Confirmed Purchase this vendor has in
+    // purchaseStore.js's seed (PUR-2026-000001, 17346). Chronological order,
+    // ending balance === outstanding (36000) below.
+    ledgerEntries: [
+      { id: 'LED-2026-000010', vendorId: 'VEN-003', date: '2026-07-01', reference: 'Opening Balance', description: 'Opening balance carried forward', debit: 138654, credit: 0, balance: 138654 },
+      { id: 'LED-2026-000011', vendorId: 'VEN-003', date: '2026-07-10', reference: 'PAY-2026-000007', description: 'Payment recorded — UPI', debit: 0, credit: 50000, balance: 88654 },
+      { id: 'LED-2026-000012', vendorId: 'VEN-003', date: '2026-07-20', reference: 'PUR-2026-000001', description: 'Purchase PUR-2026-000001', debit: 17346, credit: 0, balance: 106000 },
+      { id: 'LED-2026-000013', vendorId: 'VEN-003', date: '2026-07-25', reference: 'PAY-2026-000008', description: 'Payment recorded — Bank Transfer', debit: 0, credit: 40000, balance: 66000 },
+      { id: 'LED-2026-000014', vendorId: 'VEN-003', date: '2026-08-02', reference: 'PAY-2026-000009', description: 'Payment recorded — UPI', debit: 0, credit: 30000, balance: 36000 },
+    ],
   },
 ]
 
@@ -87,6 +126,15 @@ let _nextPaymentSeq = 1 + SEED.reduce((sum, v) => sum + (v.payments?.length ?? 0
 function nextPaymentId() {
   const year = new Date().getFullYear()
   return `PAY-${year}-${String(_nextPaymentSeq++).padStart(6, '0')}`
+}
+
+// Ledger entry id sequence — same shape as the payment/purchase id
+// sequences above. Starts after the 14 seeded ledger entries (000001-000014)
+// so a live-recorded entry never collides with a seeded id.
+let _nextLedgerSeq = 1 + SEED.reduce((sum, v) => sum + (v.ledgerEntries?.length ?? 0), 0)
+function nextLedgerEntryId() {
+  const year = new Date().getFullYear()
+  return `LED-${year}-${String(_nextLedgerSeq++).padStart(6, '0')}`
 }
 
 function notify() { _listeners.forEach(fn => fn([..._vendors])) }
@@ -140,12 +188,19 @@ export function setVendorStatus(id, status) {
   logAudit({ action: 'Edit', module: 'Inventory', details: `${status === 'active' ? 'Activated' : 'Deactivated'} vendor ${vendor?.companyName ?? id}` })
 }
 
-// Simple arithmetic against the vendor's running totals — no real ledger
-// entries yet (that's Phase 3). Reduces outstanding by the paid amount
-// (floored at 0) and bumps totalPaid + lastPaymentDate. Also appends an
-// itemized record to `payments` (method/reference/notes previously
+// Simple arithmetic against the vendor's running totals — real Purchase-vs-
+// Payment reconciliation is a later phase. Reduces outstanding by the paid
+// amount (floored at 0) and bumps totalPaid + lastPaymentDate. Also appends
+// an itemized record to `payments` (method/reference/notes previously
 // collected by Record Payment's form and then discarded) — Vendor Detail's
-// Payments tab and its Excel export both read this array.
+// Payments tab and its Excel export both read this array — and a matching
+// credit entry to `ledgerEntries`, per PRD Sec 16's "Payment recorded ->
+// Vendor ledger updated -> Vendor outstanding recalculated" flow. The
+// ledger entry's reference is the generated Payment ID rather than the
+// user-typed transaction/cheque reference — it's the more durable id (always
+// present, unique, never blank) — and its balance is the same floored
+// (outstanding - amount) figure used for the vendor's own outstanding field
+// below, so the two can never disagree.
 export function recordVendorPayment(id, { amount, paymentDate, method, reference, notes }) {
   let vendorName = id
   _vendors = _vendors.map(v => {
@@ -158,12 +213,19 @@ export function recordVendorPayment(id, { amount, paymentDate, method, reference
       // and assignmentStore.js's assignedBy.
       recordedBy: 'Admin User',
     }
+    const newOutstanding = Math.max(0, v.outstanding - amount)
+    const ledgerEntry = {
+      id: nextLedgerEntryId(), vendorId: v.id, date: paymentDate, reference: payment.id,
+      description: `Payment recorded — ${payment.method || 'Payment'}`,
+      debit: 0, credit: amount, balance: newOutstanding,
+    }
     return {
       ...v,
       totalPaid: v.totalPaid + amount,
-      outstanding: Math.max(0, v.outstanding - amount),
+      outstanding: newOutstanding,
       lastPaymentDate: paymentDate || v.lastPaymentDate,
       payments: [payment, ...(v.payments ?? [])],
+      ledgerEntries: [ledgerEntry, ...(v.ledgerEntries ?? [])],
     }
   })
   notify()
