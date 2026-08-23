@@ -17,6 +17,25 @@ export const GOOD_TYPES = [
   { value: 'non_consumable', label: 'Non-Consumable' },
 ]
 
+// Purchased Company defaults for the seeded catalog — companyEntities.js
+// seeds exactly two entities (id 1 'Cityline Networks Pvt Ltd', id 2
+// 'Cityline Fiber Solutions LLP'); purchasedCompanyId stores that same id
+// directly (see AddEditProductModal in ProductList.jsx — its dropdown value
+// is the entity's own `id`, no translation layer). Split by name so
+// Product Management's "Purchased Company" column isn't blank for every
+// seeded row, and there's realistic mixed data (spanning both entities) to
+// exercise Create PO's multi-company auto-split against. Fiber/wire items
+// go to entity 2 — its name is a natural fit — everything else to entity 1.
+const HARDWARE_PURCHASED_COMPANY = {
+  'ONT Device': 1,
+  'WiFi Router': 1,
+  'Wall Mount Bracket': 1,
+  'POE Switch': 1,
+  'Patch Cord (LC-LC, 5m)': 2,
+  'Optical Splitter 1x8': 2,
+  'SFP Module 1G': 2,
+}
+
 // Seeded from the existing shared hardware catalog so Product List isn't
 // empty on first load — sku/brand/model are left blank since hardwareCatalog
 // entries never carried them; trackingType defaults to 'quantity' (no
@@ -49,7 +68,7 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     reorderAlertQty: 10,
     trackingType: 'quantity',
     drumNumberRequired: false,
-    purchasedCompanyId: null,
+    purchasedCompanyId: HARDWARE_PURCHASED_COMPANY[item.name] ?? null,
     goodType: 'consumable',
     status: 'active',
   }))
@@ -57,6 +76,12 @@ const HARDWARE_SEED = HARDWARE_CATALOG
 // Wire-type products didn't exist in the original hardwareCatalog.js
 // migration — seeded here so Product Management's Wire tab isn't empty and
 // Create PO's Wire product picker has real options to search against.
+// purchasedCompanyId is seeded (entity 2, same "fiber -> Cityline Fiber
+// Solutions LLP" reasoning as HARDWARE_PURCHASED_COMPANY above) even though
+// the Add/Edit Product modal's Wire tab has no field to edit it — that
+// field only exists on the Hardware tab by design, so this stays read-only
+// seed data for now; it's still picked up correctly everywhere that reads
+// purchasedCompanyId (the Product Management column, Create PO's grouping).
 const WIRE_SEED = [
   { name: '4 Core Fiber Cable', sku: 'WR-4CFC-001', sellingPrice: 12 },
   { name: 'Drop Wire',          sku: 'WR-DW-001',   sellingPrice: 8 },
@@ -74,6 +99,7 @@ const WIRE_SEED = [
   reorderAlertQty: 100,
   trackingType: null,
   drumNumberRequired: true,
+  purchasedCompanyId: 2,
   status: 'active',
 }))
 
