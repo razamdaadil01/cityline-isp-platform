@@ -22,6 +22,14 @@ const SEED = [
     lastPurchaseDate: '2026-07-12',
     lastPaymentDate: '2026-07-20',
     status: 'active',
+    // Newest first (matches recordVendorPayment()'s own prepend order).
+    // Amounts sum to totalPaid (385000) above; the newest date matches
+    // lastPaymentDate above.
+    payments: [
+      { id: 'PAY-2026-000003', paymentDate: '2026-07-20', amount: 135000, method: 'UPI', reference: 'UPI/ZTE2026072012345', notes: 'Final settlement for PUR-2026-000003 shipment', recordedBy: 'Admin User' },
+      { id: 'PAY-2026-000002', paymentDate: '2026-06-25', amount: 100000, method: 'Cheque', reference: 'CHQ-778812', notes: '', recordedBy: 'Anita Sharma' },
+      { id: 'PAY-2026-000001', paymentDate: '2026-06-10', amount: 150000, method: 'Bank Transfer', reference: 'NEFT/ZTE/0610', notes: 'Advance against PO CITY/PO/2026/00001', recordedBy: 'Admin User' },
+    ],
   },
   {
     id: 'VEN-002',
@@ -36,6 +44,13 @@ const SEED = [
     lastPurchaseDate: '2026-06-28',
     lastPaymentDate: '2026-07-05',
     status: 'active',
+    // Amounts sum to totalPaid (920000) above; the newest date matches
+    // lastPaymentDate above.
+    payments: [
+      { id: 'PAY-2026-000006', paymentDate: '2026-07-05', amount: 170000, method: 'Cheque', reference: 'CHQ-441209', notes: 'Balance cleared in full', recordedBy: 'Admin User' },
+      { id: 'PAY-2026-000005', paymentDate: '2026-06-20', amount: 350000, method: 'Bank Transfer', reference: 'RTGS/STL/062099', notes: '', recordedBy: 'Suresh Babu' },
+      { id: 'PAY-2026-000004', paymentDate: '2026-05-15', amount: 400000, method: 'Bank Transfer', reference: 'RTGS/STL/051526', notes: 'Advance payment for bulk fiber order', recordedBy: 'Admin User' },
+    ],
   },
   {
     id: 'VEN-003',
@@ -50,6 +65,13 @@ const SEED = [
     lastPurchaseDate: '2026-08-02',
     lastPaymentDate: '2026-08-02',
     status: 'active',
+    // Amounts sum to totalPaid (120000) above; the newest date matches
+    // lastPaymentDate above (Advance terms — paid same day as the order).
+    payments: [
+      { id: 'PAY-2026-000009', paymentDate: '2026-08-02', amount: 30000, method: 'UPI', reference: 'UPI/TPL2026080277123', notes: 'Advance payment terms — paid same day as order', recordedBy: 'Admin User' },
+      { id: 'PAY-2026-000008', paymentDate: '2026-07-25', amount: 40000, method: 'Bank Transfer', reference: 'NEFT/TPL/072599', notes: '', recordedBy: 'Admin User' },
+      { id: 'PAY-2026-000007', paymentDate: '2026-07-10', amount: 50000, method: 'UPI', reference: 'UPI/TPL2026071044556', notes: 'Advance for patch cord order', recordedBy: 'Preethi Nair' },
+    ],
   },
 ]
 
@@ -59,7 +81,9 @@ const _listeners = []
 
 // Payment id sequence — same PREFIX-YYYY-###### shape as purchaseStore.js's
 // nextPurchaseNumber() (PUR-2026-000001), just for payments (PAY-2026-000001).
-let _nextPaymentSeq = 1
+// Starts after the 9 seeded payments above (000001-000009) so a live-recorded
+// payment never collides with a seeded id.
+let _nextPaymentSeq = 1 + SEED.reduce((sum, v) => sum + (v.payments?.length ?? 0), 0)
 function nextPaymentId() {
   const year = new Date().getFullYear()
   return `PAY-${year}-${String(_nextPaymentSeq++).padStart(6, '0')}`
