@@ -544,13 +544,13 @@ export default function VendorDetail() {
           )}
           {activeTab === 'Payments' && (
             payments.length === 0 ? (
-              <EmptyStateTable icon={Wallet} columns={['Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes']} />
+              <EmptyStateTable icon={Wallet} columns={['Payment ID', 'Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes', 'Recorded By']} />
             ) : (
               <div className="overflow-x-auto rounded-xl border border-surface-border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
-                      {['Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes'].map(c => (
+                      {['Payment ID', 'Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes', 'Recorded By'].map(c => (
                         <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
                       ))}
                     </tr>
@@ -558,11 +558,13 @@ export default function VendorDetail() {
                   <tbody className="divide-y divide-surface-border">
                     {payments.map(pay => (
                       <tr key={pay.id}>
+                        <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{pay.id}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
                         <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.amount.toLocaleString('en-IN')}</td>
                         <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.method || '—'}</td>
                         <td className="px-4 py-3 text-xs font-mono text-gray-500 whitespace-nowrap">{pay.reference || '—'}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 max-w-xs truncate">{pay.notes || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.recordedBy || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

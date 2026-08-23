@@ -57,6 +57,14 @@ let _vendors = [...SEED]
 let _nextSeq = _vendors.length + 1
 const _listeners = []
 
+// Payment id sequence — same PREFIX-YYYY-###### shape as purchaseStore.js's
+// nextPurchaseNumber() (PUR-2026-000001), just for payments (PAY-2026-000001).
+let _nextPaymentSeq = 1
+function nextPaymentId() {
+  const year = new Date().getFullYear()
+  return `PAY-${year}-${String(_nextPaymentSeq++).padStart(6, '0')}`
+}
+
 function notify() { _listeners.forEach(fn => fn([..._vendors])) }
 
 export function getVendors() { return _vendors }
@@ -120,7 +128,11 @@ export function recordVendorPayment(id, { amount, paymentDate, method, reference
     if (v.id !== id) return v
     vendorName = v.companyName
     const payment = {
-      id: `PAY-${Date.now()}`, paymentDate, amount, method: method || '', reference: reference || '', notes: notes || '',
+      id: nextPaymentId(), paymentDate, amount, method: method || '', reference: reference || '', notes: notes || '',
+      // Hardcoded 'current user' — no auth/session system exists yet, same
+      // convention as purchaseOrderStore.js's/purchaseStore.js's createdBy
+      // and assignmentStore.js's assignedBy.
+      recordedBy: 'Admin User',
     }
     return {
       ...v,
