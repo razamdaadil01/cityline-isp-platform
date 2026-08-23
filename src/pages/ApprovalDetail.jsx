@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, CheckCircle2, XCircle, HardDrive, Wrench, Wallet, Eye as EyeIcon, ClipboardList,
+  ArrowLeft, CheckCircle2, XCircle, HardDrive, Wrench, Wallet, Eye as EyeIcon, ClipboardList, RotateCcw,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
+import { FormField, Textarea } from '../components/ui/FormInputs'
 import ApprovalDecisionModal from '../components/ui/ApprovalDecisionModal'
-import { getApproval, subscribeApprovals, approveApproval, rejectApproval } from '../data/approvalsStore'
+import { getApproval, subscribeApprovals, approveApproval, rejectApproval, sendForCorrection } from '../data/approvalsStore'
 import { usePermission } from '../data/rolesStore'
 
 const CURRENT_USER = 'Admin User'
@@ -186,12 +188,59 @@ function VisibilityDetail({ approval }) {
   )
 }
 
+// Purchase-Order-only — a dedicated modal rather than a third mode on the
+// shared ApprovalDecisionModal, since its requirements genuinely differ
+// (comment is required, not optional; different title/copy/button label)
+// and this only ever applies to one approval type, same locally-scoped-
+// modal pattern PurchaseOrders.jsx's RemindModal already uses for a
+// single-page concern.
+function SendForCorrectionModal({ isOpen, onClose, approval, onConfirm }) {
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) { setComment(''); setError('') }
+  }, [isOpen])
+
+  if (!approval) return null
+
+  function handleSubmit() {
+    if (!comment.trim()) { setError('A correction comment is required.'); return }
+    onConfirm(comment.trim())
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen} onClose={onClose} title="Send for Correction" size="sm"
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="danger" onClick={handleSubmit}>Submit</Button>
+      </>}
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Sending <span className="font-mono font-semibold text-gray-800">{approval.id}</span> back to the requester for correction.
+        </p>
+        <FormField label="Correction Comment" required error={error}>
+          <Textarea
+            value={comment}
+            onChange={e => { setComment(e.target.value); setError('') }}
+            rows={3}
+            placeholder="Please correct the router quantity from 50 to 40."
+          />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 export default function ApprovalDetail() {
   const canApprovePO = usePermission('Inventory', 'Edit')
   const { approvalId } = useParams()
   const navigate = useNavigate()
   const [approval, setApproval] = useState(() => getApproval(approvalId))
   const [decisionModal, setDecisionModal] = useState(null) // 'approve' | 'reject' | null
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false)
 
   useEffect(() => setApproval(getApproval(approvalId)), [approvalId])
   useEffect(() => subscribeApprovals(() => setApproval(getApproval(approvalId))), [approvalId])
@@ -231,9 +280,22 @@ export default function ApprovalDetail() {
         </div>
         {approval.status === 'Pending' && (
           <div className="flex gap-2 shrink-0">
-            <Button variant="danger" size="sm" icon={<XCircle size={14} />} onClick={() => setDecisionModal('reject')}>
-              Reject
-            </Button>
+            {approval.type === 'Purchase Order' ? (
+              // PO approvals don't get a flat Reject — "sent back for
+              // correction" (creator fixes and resends) is the real
+              // workflow here, so this replaces Reject rather than sitting
+              // alongside it as a redundant third action doing the same
+              // underlying thing.
+              (canApprovePO && (
+                <Button variant="danger" size="sm" icon={<RotateCcw size={14} />} onClick={() => setCorrectionModalOpen(true)}>
+                  Send for Correction
+                </Button>
+              ))
+            ) : (
+              <Button variant="danger" size="sm" icon={<XCircle size={14} />} onClick={() => setDecisionModal('reject')}>
+                Reject
+              </Button>
+            )}
             {(approval.type !== 'Purchase Order' || canApprovePO) && (
               <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={() => setDecisionModal('approve')}>
                 Approve
@@ -316,6 +378,16 @@ export default function ApprovalDetail() {
           if (decisionModal === 'approve') approveApproval(approval.id, comment, CURRENT_USER)
           else rejectApproval(approval.id, comment, CURRENT_USER)
           setDecisionModal(null)
+        }}
+      />
+
+      <SendForCorrectionModal
+        isOpen={correctionModalOpen}
+        onClose={() => setCorrectionModalOpen(false)}
+        approval={approval}
+        onConfirm={comment => {
+          sendForCorrection(approval.id, comment, CURRENT_USER)
+          setCorrectionModalOpen(false)
         }}
       />
     </div>

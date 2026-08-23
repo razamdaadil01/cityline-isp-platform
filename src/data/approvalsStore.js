@@ -214,17 +214,31 @@ export function createPurchaseOrderApproval({ poId, poNumber, vendorName, storeN
   })
 }
 
-function decide(id, status, comment, actor) {
+// `actionLabel` lets a caller log a different Activity Log verb than the raw
+// status value without needing a distinct status of its own — sendForCorrection()
+// below is 'Rejected' under the hood (the exact status value
+// purchaseOrderStore.js's syncPOStatusFromApproval() already keys off to set
+// a linked PO to 'Correction Required'), but reads as "Sent for correction"
+// in the log instead of "Rejected".
+function decide(id, status, comment, actor, actionLabel = status) {
   const a = getApproval(id)
   if (!a) return null
   const now = new Date().toISOString()
   const trimmedComment = comment?.trim() || null
   return saveApproval({
     ...a, status, decidedBy: actor, decidedAt: now, decisionComment: trimmedComment,
-    activityLog: [...a.activityLog, { time: now, actor, action: `${status}${trimmedComment ? ` — ${trimmedComment}` : ''}` }],
+    activityLog: [...a.activityLog, { time: now, actor, action: `${actionLabel}${trimmedComment ? ` — ${trimmedComment}` : ''}` }],
   })
 }
 
 export function approveApproval(id, comment, actor = 'Admin User') { return decide(id, 'Approved', comment, actor) }
 
 export function rejectApproval(id, comment, actor = 'Admin User') { return decide(id, 'Rejected', comment, actor) }
+
+// Purchase-Order-specific "Reject" — same underlying status ('Rejected', so
+// syncPOStatusFromApproval()'s existing subscribeApprovals listener picks it
+// up exactly like a normal rejection and moves the linked PO to 'Correction
+// Required', including the PO-correction notification wired there), just a
+// distinct Activity Log verb since "sent back for correction" describes a PO
+// approval's real workflow better than "Rejected" does.
+export function sendForCorrection(id, comment, actor = 'Admin User') { return decide(id, 'Rejected', comment, actor, 'Sent for correction') }
