@@ -14,7 +14,7 @@ import { usePermission } from '../data/rolesStore'
 const CURRENT_USER = 'Admin User'
 
 const TYPE_BADGE = { Installation: 'blue', Payment: 'green', Visibility: 'purple', Hardware: 'orange', 'Purchase Order': 'cyan' }
-const STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
+const STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red', 'Correction Required': 'red' }
 const TYPE_ICON = { Installation: Wrench, Payment: Wallet, Visibility: EyeIcon, Hardware: HardDrive, 'Purchase Order': ClipboardList }
 
 function formatDateTime(iso) {
