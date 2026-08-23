@@ -2212,7 +2212,7 @@ const CE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function ceEmptyForm() {
   return {
-    name: '', gstin: '', email: '', address: '',
+    name: '', gstin: '', email: '', address: '', logoUrl: '',
     bankName: '', accountNo: '', ifsc: '', branch: '',
     pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
     invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
@@ -2228,6 +2228,7 @@ function ceEmptyForm() {
 function ceToForm(entity) {
   return {
     name: entity.name, gstin: entity.gstin, email: entity.email, address: entity.address,
+    logoUrl: entity.logoUrl ?? '',
     bankName: entity.bank?.bankName || '', accountNo: entity.bank?.accountNo || '',
     ifsc: entity.bank?.ifsc || '', branch: entity.bank?.branch || '',
     pgId: entity.pgId, pgConnection: entity.pgConnection, status: entity.status,
@@ -2404,6 +2405,7 @@ function CompanyEntityTab() {
       gstin: form.gstin.trim().toUpperCase(),
       email: form.email.trim(),
       address: form.address.trim(),
+      logoUrl: form.logoUrl.trim(),
       bank: { bankName: form.bankName.trim(), accountNo: form.accountNo.trim(), ifsc: form.ifsc.trim().toUpperCase(), branch: form.branch.trim() },
       pgId: form.pgId.trim(),
       pgConnection: form.pgConnection,
@@ -2539,6 +2541,9 @@ function CompanyEntityTab() {
               </div>
             </FormField>
           </div>
+          <FormField label="Logo URL" hint="Optional — link to the entity's logo image">
+            <Input placeholder="https://…" value={form.logoUrl} onChange={e => setField('logoUrl', e.target.value)} />
+          </FormField>
           <FormField label="Address" required error={errors.address}>
             <Textarea rows={2} placeholder="Registered address" value={form.address} onChange={e => setField('address', e.target.value)} />
           </FormField>
