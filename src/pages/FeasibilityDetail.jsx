@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, Check, ExternalLink,
-  Plus, Trash2,
+  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
+  Plus, Trash2, Check, Route, Download, ChevronDown,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -11,6 +11,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import AddHardwareModal from '../components/hardware/AddHardwareModal'
 import MoveStageModal from '../components/leads/MoveStageModal'
+import AssignEngineerModal from '../components/feasibility/AssignEngineerModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
@@ -18,8 +19,6 @@ import { getPipelines } from '../data/pipelineStore'
 import { saveFollowup } from '../data/followupStore'
 
 /* ── Constants ─────────────────────────────────────────────────── */
-
-const ENGINEERS = ['Arjun Kumar', 'Preethi Nair', 'Anita Sharma', 'Suresh Babu']
 
 // Feasibility requests store their pipeline as the display name ("Residential",
 // "Enterprise" — see feasibilityStore.js), but MoveStageModal's findStageId
@@ -48,6 +47,20 @@ const STATUS_VARIANT = {
 
 const PRIORITY_VARIANT = { High: 'red', Medium: 'yellow', Low: 'gray' }
 
+const SEGMENT_STATUS_OPTIONS = ['New Build', 'Existing', 'Under Construction', 'Planned']
+const SEGMENT_TYPE_OPTIONS = ['Underground Ducts', 'Aerial Cable', 'Duct Bank', 'Direct Buried']
+
+const SEGMENT_STATUS_VARIANT = {
+  'New Build':           'blue',
+  'Existing':            'green',
+  'Under Construction':  'yellow',
+  'Planned':             'gray',
+}
+
+// The 4-stage business pipeline shown in the horizontal progress stepper —
+// distinct from the tab bar below it, which is pure content navigation.
+const PROGRESS_STAGE_LABELS = ['Request Raised', 'Engineer Assigned', 'Feasibility Check', 'Approved / Rejected']
+
 /* ── Helpers ────────────────────────────────────────────────────── */
 
 function fmtDate(d) {
@@ -69,6 +82,32 @@ function parseGpsLocation(gps) {
   const lng = parseFloat(lngRaw) * (lngDir.toUpperCase() === 'W' ? -1 : 1)
   if (Number.isNaN(lat) || Number.isNaN(lng)) return null
   return { lat, lng }
+}
+
+// Maps a feasibility request's actual data (feasibilityStatus,
+// assignedEngineer) to the 4-stage business pipeline shown in the progress
+// stepper — mirrors Installation Detail's Status Timeline, which derives
+// its stages from installation.status rather than any UI navigation state.
+// Pending/Assigned/In Progress all represent the feasibility check being
+// actively carried out (whether or not an engineer has been assigned yet)
+// — only Approved/Rejected marks the check as finished, at which point the
+// terminal stage takes on the outcome's label and color.
+function getFeasibilityProgressStage(req) {
+  const status = req.feasibilityStatus
+  const hasEngineer = !!req.assignedEngineer
+  const isApproved = status === 'Approved'
+  const isRejected = status === 'Rejected'
+  const isTerminal = isApproved || isRejected
+
+  return PROGRESS_STAGE_LABELS.map((label, idx) => {
+    if (idx === 0) return { label, state: 'completed' }
+    if (idx === 1) return { label, state: hasEngineer ? 'completed' : 'upcoming' }
+    if (idx === 2) return { label, state: isTerminal ? 'completed' : 'current' }
+    // idx === 3 — terminal stage; label + color reflect the outcome
+    if (isApproved) return { label: 'Approved', state: 'completed', variant: 'approved' }
+    if (isRejected) return { label: 'Rejected', state: 'completed', variant: 'rejected' }
+    return { label, state: 'upcoming' }
+  })
 }
 
 /* ── Sub-components ─────────────────────────────────────────────── */
@@ -100,6 +139,18 @@ function InfoRow({ label, value, mono = false }) {
 function InfoGrid({ children, cols = 3 }) {
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 ${cols === 3 ? 'xl:grid-cols-3' : ''} gap-x-6 gap-y-5`}>
+      {children}
+    </div>
+  )
+}
+
+// Sub-box used by the Feasibility Summary card's 2x2 grid — same
+// label-above-value pattern as InfoRow, just on a light-gray background
+// tile instead of plain page background.
+function SummaryBox({ label, children }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">{label}</p>
       {children}
     </div>
   )
@@ -152,69 +203,18 @@ function GoogleMapsLink({ req }) {
   )
 }
 
-/* ── Step progress bar (read-only) ────────────────────────────────── */
-const STEPS = [
-  { key: 1, label: 'Lead & Customer' },
-  { key: 2, label: 'Requirement & Feasibility' },
-  { key: 3, label: 'Hardware' },
-  { key: 4, label: 'Attachments' },
-]
-
-// Purely visual — not clickable, no Next/Previous. All steps default to
-// "completed" (this is existing data being viewed), except Hardware — which
-// shows a muted/no-data state when neither hardware nor wire items exist —
-// and whichever step matches the tab bar's current selection below, shown
-// in blue instead of green.
-function Stepper({ req, activeStep }) {
-  const hasData = step => step.key !== 3 || (req.hwItems?.length > 0 || req.wireItems?.length > 0 || req.hardwareItems?.length > 0)
-
-  return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
-      <div className="flex items-center">
-        {STEPS.map((step, i) => {
-          const isActive = step.key === activeStep
-          const isLast = i === STEPS.length - 1
-          const done = hasData(step)
-          return (
-            <div key={step.key} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
-              <div className="flex flex-col items-center gap-1.5 shrink-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
-                  isActive
-                    ? 'bg-brand-blue border-brand-blue text-white'
-                    : done
-                      ? 'bg-emerald-500 border-emerald-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-400'
-                }`}>
-                  {isActive ? step.key : done ? <Check size={14} /> : step.key}
-                </div>
-                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
-                  isActive ? 'text-brand-blue' : done ? 'text-gray-700' : 'text-gray-400'
-                }`}>
-                  {step.label}
-                </span>
-              </div>
-              {!isLast && (
-                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 /* ── Tab bar ────────────────────────────────────────────────────── */
 const TABS = [
   { key: 'lead-customer',            label: 'Lead & Customer' },
   { key: 'requirement-feasibility',  label: 'Requirement & Feasibility' },
   { key: 'hardware',                 label: 'Hardware' },
   { key: 'attachments',              label: 'Attachments' },
+  { key: 'fiber-route',              label: 'Fiber Route' },
 ]
 
 // Identical underline tab-bar pattern to Customer Detail's Profile/Package
-// Details/Finance tabs. Independent of the stepper above — every tab is
-// freely clickable regardless of step completion.
+// Details/Finance tabs. Independent of the progress stepper above —
+// every tab is freely clickable regardless of stage completion.
 function TabBar({ activeTab, onTabClick }) {
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
@@ -232,6 +232,63 @@ function TabBar({ activeTab, onTabClick }) {
             {tab.label}
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/* ── Progress stepper (data-driven, horizontal) ───────────────────── */
+// Horizontal numbered/checkmark stepper, restored to its original position
+// above the tab row — but unlike the original tab-synced version, this
+// reads the request's real business pipeline status
+// (getFeasibilityProgressStage) instead of which tab is active, so it's
+// fully independent of the tab bar's content navigation.
+function ProgressStepper({ req }) {
+  const stages = getFeasibilityProgressStage(req)
+
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card px-6 py-5">
+      <div className="flex items-center">
+        {stages.map((stage, i) => {
+          const isLast = i === stages.length - 1
+          const isCompleted = stage.state === 'completed'
+          const isCurrent = stage.state === 'current'
+          const isRejected = stage.variant === 'rejected'
+
+          return (
+            <div key={stage.label} className={`flex items-center ${isLast ? '' : 'flex-1'}`}>
+              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
+                  isCurrent
+                    ? 'bg-brand-blue border-brand-blue text-white'
+                    : isCompleted
+                      ? isRejected
+                        ? 'bg-red-500 border-red-500 text-white'
+                        : 'bg-emerald-500 border-emerald-500 text-white'
+                      : 'bg-white border-gray-300 text-gray-400'
+                }`}>
+                  {isCompleted
+                    ? (isRejected ? <XCircle size={14} /> : <Check size={14} />)
+                    : i + 1}
+                </div>
+                <span className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  isCurrent
+                    ? 'text-brand-blue'
+                    : isCompleted
+                      ? (isRejected ? 'text-red-600' : 'text-gray-700')
+                      : 'text-gray-400'
+                }`}>
+                  {stage.label}
+                </span>
+              </div>
+              {!isLast && (
+                <div className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${
+                  isCompleted ? (isRejected ? 'bg-red-400' : 'bg-emerald-400') : 'bg-gray-200'
+                }`} />
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -261,10 +318,6 @@ export default function FeasibilityDetail() {
   // history replace on load.
   const tabParam = searchParams.get('tab')
   const activeTab = TABS.some(t => t.key === tabParam) ? tabParam : TABS[0].key
-  // The read-only stepper above the tab bar highlights whichever step
-  // corresponds to the currently selected tab, purely as a visual echo —
-  // it has no click handler of its own.
-  const activeStep = TABS.findIndex(t => t.key === activeTab) + 1
 
   useEffect(() => {
     if (!TABS.some(t => t.key === searchParams.get('tab'))) {
@@ -286,16 +339,61 @@ export default function FeasibilityDetail() {
   }
 
   // Modals
-  const [showAssign,  setShowAssign]  = useState(false)
   const [showApprove, setShowApprove] = useState(false)
   const [showReject,  setShowReject]  = useState(false)
   const [showAddHardware, setShowAddHardware] = useState(false)
 
-  const [assignForm,  setAssignForm]  = useState({ engineer: '', date: '', priority: 'Medium', notes: '' })
+  // Header "Actions" dropdown — consolidates the Assign Engineer/Approve/
+  // Reject triggers into one menu; same close-on-outside-click pattern as
+  // the Sales Pipeline table's Export dropdown, plus Escape-to-close.
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
+  const actionsMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!actionsMenuOpen) return
+    function handleClickOutside(e) {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target)) setActionsMenuOpen(false)
+    }
+    function handleEscape(e) {
+      if (e.key === 'Escape') setActionsMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [actionsMenuOpen])
+
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
+  const [summaryForm, setSummaryForm] = useState({ estDistance: '', nearestPop: '', fiberCore: '' })
+  const [segmentForm, setSegmentForm] = useState({ pathName: '', distance: '', status: 'New Build', segmentType: 'Underground Ducts', remarks: '' })
+  const [editingSegmentIndex, setEditingSegmentIndex] = useState(null)
 
   const [toast, setToast] = useState('')
+
+  // ?modal=assign-engineer opens the same "Assign Engineer" modal used by
+  // the Feasibility Requests list page's row action (see
+  // components/feasibility/AssignEngineerModal) — same ?modal= URL-param
+  // pattern as the other modals below.
+  const assignEngineerModalOpen = searchParams.get('modal') === 'assign-engineer'
+
+  function openAssignEngineer() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'assign-engineer')
+      return next
+    })
+  }
+
+  function closeAssignEngineer() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
 
   // ?modal=edit-stage-fields opens the same "Stage Fields — Feasibility"
   // modal used by the Leads move-stage flow (/sales/leads/:leadId?action=
@@ -319,6 +417,100 @@ export default function FeasibilityDetail() {
     })
   }
 
+  // ?modal=configure-feasibility-summary opens the Configure modal for the
+  // Feasibility Summary card's editable fields — same ?modal= URL-param
+  // pattern as the Stage Fields modal above.
+  const summaryConfigOpen = searchParams.get('modal') === 'configure-feasibility-summary'
+
+  function openSummaryConfig() {
+    setSummaryForm({
+      estDistance: req.estimatedDistanceFromFiber || '',
+      nearestPop:  req.nearestPop || '',
+      fiberCore:   req.fiberCore || 'OFC 6 Core Cable',
+    })
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'configure-feasibility-summary')
+      return next
+    })
+  }
+
+  function closeSummaryConfig() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+
+  function handleSummaryConfigSave() {
+    saveFeasibilityRequest({
+      ...req,
+      estimatedDistanceFromFiber: summaryForm.estDistance,
+      nearestPop: summaryForm.nearestPop,
+      fiberCore:  summaryForm.fiberCore,
+    })
+    closeSummaryConfig()
+    setToast('Feasibility summary updated')
+  }
+
+  // ?modal=add-fiber-segment opens the Add/Edit Fiber Route Segment modal —
+  // same ?modal= URL-param pattern as the Stage Fields and Configure
+  // Feasibility Summary modals above. Reused for both adding a new segment
+  // (editingSegmentIndex === null) and editing an existing row.
+  const segmentModalOpen = searchParams.get('modal') === 'add-fiber-segment'
+
+  function openAddSegment() {
+    setSegmentForm({ pathName: '', distance: '', status: 'New Build', segmentType: 'Underground Ducts', remarks: '' })
+    setEditingSegmentIndex(null)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-fiber-segment')
+      return next
+    })
+  }
+
+  function openEditSegment(index) {
+    const seg = (req.fiberRouteSegments ?? [])[index]
+    setSegmentForm({
+      pathName:    seg.pathName || '',
+      distance:    seg.distance || '',
+      status:      seg.status || 'New Build',
+      segmentType: seg.segmentType || 'Underground Ducts',
+      remarks:     seg.remarks || '',
+    })
+    setEditingSegmentIndex(index)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-fiber-segment')
+      return next
+    })
+  }
+
+  function closeSegmentModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
+  }
+
+  function handleSaveSegment() {
+    const segments = [...(req.fiberRouteSegments ?? [])]
+    if (editingSegmentIndex === null) {
+      segments.push({ ...segmentForm })
+    } else {
+      segments[editingSegmentIndex] = { ...segmentForm }
+    }
+    saveFeasibilityRequest({ ...req, fiberRouteSegments: segments })
+    closeSegmentModal()
+    setToast(editingSegmentIndex === null ? 'Fiber route segment added' : 'Fiber route segment updated')
+  }
+
+  function handleRemoveSegment(index) {
+    saveFeasibilityRequest({ ...req, fiberRouteSegments: (req.fiberRouteSegments ?? []).filter((_, i) => i !== index) })
+  }
+
   function handleStageFieldsSave(targetStage, fieldVals, fuData) {
     saveFeasibilityRequest({
       ...req,
@@ -340,23 +532,6 @@ export default function FeasibilityDetail() {
       })
     }
     setToast('Changes saved successfully')
-  }
-
-  function openAssign() {
-    setAssignForm({ engineer: req.assignedEngineer || '', date: req.assignmentDate || '', priority: req.priority || 'Medium', notes: req.assignmentNotes || '' })
-    setShowAssign(true)
-  }
-
-  function handleAssign() {
-    updateFeasibilityStatus(req.id, 'Assigned', {
-      assignedEngineer: assignForm.engineer,
-      assignmentDate:   assignForm.date,
-      priority:         assignForm.priority,
-      assignmentNotes:  assignForm.notes,
-      _note: `Assigned to ${assignForm.engineer}`,
-    })
-    setShowAssign(false)
-    setToast('Engineer assigned successfully')
   }
 
   function openApprove() {
@@ -477,40 +652,46 @@ export default function FeasibilityDetail() {
             <span className="text-gray-500">{req.id}</span>
           </div>
           <h1 className="text-xl font-bold text-gray-900">Feasibility Request — {req.id}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{req.customerName} · {req.area}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-sm text-gray-500">{req.customerName} · {req.area}</p>
+            <Badge variant={STATUS_VARIANT[status] ?? 'gray'} dot>
+              {status}
+            </Badge>
+          </div>
         </div>
 
-        {/* Status badge */}
-        <Badge variant={STATUS_VARIANT[status] ?? 'gray'} dot>
-          {status}
-        </Badge>
-
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 ml-2 shrink-0">
-          {!isApproved && !isRejected && (
-            <button onClick={openAssign}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-brand-blue/30 bg-blue-50 text-brand-blue hover:bg-blue-100 transition-colors">
-              <UserCheck size={13} /> Assign Engineer
-            </button>
-          )}
-          {!isApproved && !isRejected && (
-            <button onClick={openApprove}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
-              <CheckCircle2 size={13} /> Approve
-            </button>
-          )}
-          {!isApproved && !isRejected && (
-            <button onClick={openReject}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
-              <XCircle size={13} /> Reject
-            </button>
-          )}
-        </div>
+        {/* Actions dropdown — consolidates Assign Engineer/Approve/Reject */}
+        {!isApproved && !isRejected && (
+          <div className="relative shrink-0" ref={actionsMenuRef}>
+            <Button variant="secondary" size="sm" onClick={() => setActionsMenuOpen(p => !p)}>
+              Actions <ChevronDown size={12} className="ml-1" />
+            </Button>
+            {actionsMenuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-surface-border rounded-xl shadow-xl z-30 overflow-hidden">
+                <button onClick={() => { setActionsMenuOpen(false); openAssignEngineer() }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <UserCheck size={14} className="text-brand-blue" /> Assign Engineer
+                </button>
+                <button onClick={() => { setActionsMenuOpen(false); openApprove() }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors border-t border-surface-border">
+                  <CheckCircle2 size={14} className="text-emerald-500" /> Approve
+                </button>
+                <button onClick={() => { setActionsMenuOpen(false); openReject() }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-surface-border">
+                  <XCircle size={14} className="text-red-500" /> Reject
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        <Stepper req={req} activeStep={activeStep} />
+        {/* ── Left Column (main content) ── */}
+        <div className="lg:col-span-2 space-y-4">
+
+        <ProgressStepper req={req} />
 
         <TabBar activeTab={activeTab} onTabClick={goToTab} />
 
@@ -518,7 +699,7 @@ export default function FeasibilityDetail() {
             its own distinct card underneath — merged into this tab rather
             than kept as a separate tab) */}
         {activeTab === 'lead-customer' && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <Card title="Lead & Customer Info" icon={User}>
               <InfoGrid>
                 <InfoRow label="Lead ID"      value={req.leadId}        mono />
@@ -805,6 +986,110 @@ export default function FeasibilityDetail() {
           </Card>
         )}
 
+        {/* Fiber Route */}
+        {activeTab === 'fiber-route' && (
+          <Card
+            title="Fiber Route Details"
+            icon={Route}
+            headerAction={
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={openAddSegment}>
+                  Add Segment
+                </Button>
+                <button
+                  type="button"
+                  title="Export route data"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors shrink-0"
+                >
+                  <Download size={14} />
+                </button>
+              </div>
+            }
+          >
+            {(!req.fiberRouteSegments?.length) ? (
+              <p className="text-sm text-gray-400 text-center py-6">
+                No fiber route segments recorded yet. Click{' '}
+                <button type="button" onClick={openAddSegment} className="font-semibold text-gray-500 hover:text-brand-blue transition-colors">
+                  + Add Segment
+                </button>{' '}
+                to record route details.
+              </p>
+            ) : (
+              <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
+                {req.fiberRouteSegments.map((seg, i) => (
+                  <div key={i} className="flex items-start gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                      <Route size={14} className="text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-900">{seg.pathName || '—'}</p>
+                        <Badge variant={SEGMENT_STATUS_VARIANT[seg.status] || 'gray'} size="sm">{seg.status}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{seg.distance || '—'} · {seg.segmentType}</p>
+                      {seg.remarks && <p className="text-xs text-gray-400 mt-1">{seg.remarks}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openEditSegment(i)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSegment(i)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
+        </div>
+
+        {/* ── Right Column (sidebar) ── */}
+        <div className="space-y-4 lg:sticky lg:top-4 self-start">
+
+          {/* Feasibility Summary — sidebar card, visible regardless of
+              active tab (unlike the tab-scoped content in the left
+              column); stacked single-column rows since the sidebar is
+              narrower than the main content column's old 2x2 grid. */}
+          <Card
+            title="Feasibility Summary"
+            headerAction={
+              <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} onClick={openSummaryConfig}>
+                Configure
+              </Button>
+            }
+          >
+            <div className="space-y-4">
+              <SummaryBox label="Est. Distance">
+                <p className="text-base font-bold text-gray-900">{req.estimatedDistanceFromFiber || '—'}</p>
+              </SummaryBox>
+              <SummaryBox label="Est. Fiber Cost">
+                {/* TODO: wire to real inventory-based cost calculation once available */}
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-blue">
+                  <FileText size={14} /> Auto-calculated
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">(Inventory Model)</p>
+              </SummaryBox>
+              <SummaryBox label="Nearest POP">
+                <p className="text-base font-bold text-gray-900">{req.nearestPop || '—'}</p>
+              </SummaryBox>
+              <SummaryBox label="Fiber Core">
+                <p className="text-base font-bold text-gray-900">{req.fiberCore || 'OFC 6 Core Cable'}</p>
+              </SummaryBox>
+            </div>
+          </Card>
+        </div>
+
       </div>
 
       {/* ── Feasibility Details Edit Modal (shared Stage Fields modal, reused
@@ -819,38 +1104,15 @@ export default function FeasibilityDetail() {
         title={`Feasibility Details — ${req.customerName}`}
       />
 
-      {/* ── Assign Engineer Modal ─────────────────────────────────── */}
-      <Modal
-        isOpen={showAssign}
-        onClose={() => setShowAssign(false)}
-        title={`Assign Engineer — ${req.id}`}
-        size="sm"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowAssign(false)}>Cancel</Button>
-          <Button size="sm" onClick={handleAssign} disabled={!assignForm.engineer}>Assign Engineer</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          <FormField label="Engineer Name" required>
-            <Select value={assignForm.engineer} onChange={e => setAssignForm(f => ({ ...f, engineer: e.target.value }))}>
-              <option value="">Select engineer…</option>
-              {ENGINEERS.map(eng => <option key={eng}>{eng}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Assignment Date">
-            <Input type="date" value={assignForm.date} onChange={e => setAssignForm(f => ({ ...f, date: e.target.value }))} />
-          </FormField>
-          <FormField label="Priority" required>
-            <Select value={assignForm.priority} onChange={e => setAssignForm(f => ({ ...f, priority: e.target.value }))}>
-              {['High','Medium','Low'].map(p => <option key={p}>{p}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Internal Notes">
-            <Textarea rows={3} placeholder="Any notes for the engineer…"
-              value={assignForm.notes} onChange={e => setAssignForm(f => ({ ...f, notes: e.target.value }))} />
-          </FormField>
-        </div>
-      </Modal>
+      {/* ── Assign Engineer Modal (shared with the Feasibility Requests
+           list page's row action — see
+           components/feasibility/AssignEngineerModal) ─────────────── */}
+      <AssignEngineerModal
+        isOpen={assignEngineerModalOpen}
+        request={req}
+        onClose={closeAssignEngineer}
+        onAssigned={() => { closeAssignEngineer(); setToast('Engineer(s) assigned successfully') }}
+      />
 
       {/* ── Approve Modal ─────────────────────────────────────────── */}
       <Modal
@@ -912,6 +1174,82 @@ export default function FeasibilityDetail() {
           <FormField label="Remarks" required>
             <Textarea rows={3} placeholder="Additional remarks…"
               value={rejectForm.remarks} onChange={e => setRejectForm(f => ({ ...f, remarks: e.target.value }))} />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* ── Configure Feasibility Summary Modal ─────────────────────── */}
+      <Modal
+        isOpen={summaryConfigOpen}
+        onClose={closeSummaryConfig}
+        title="Configure Feasibility Summary"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeSummaryConfig}>Cancel</Button>
+          <Button size="sm" onClick={handleSummaryConfigSave}>Save</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FormField label="Est. Distance">
+            <Input placeholder="e.g. 1.2 km"
+              value={summaryForm.estDistance} onChange={e => setSummaryForm(f => ({ ...f, estDistance: e.target.value }))} />
+          </FormField>
+          <FormField label="Nearest POP">
+            <Input placeholder="e.g. POP-Sector78-02"
+              value={summaryForm.nearestPop} onChange={e => setSummaryForm(f => ({ ...f, nearestPop: e.target.value }))} />
+          </FormField>
+          <FormField label="Fiber Core">
+            <Input placeholder="e.g. OFC 6 Core Cable"
+              value={summaryForm.fiberCore} onChange={e => setSummaryForm(f => ({ ...f, fiberCore: e.target.value }))} />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* ── Add/Edit Fiber Route Segment Modal ──────────────────────── */}
+      <Modal
+        isOpen={segmentModalOpen}
+        onClose={closeSegmentModal}
+        title={
+          <span className="flex items-center gap-2">
+            <Route size={15} className="text-brand-blue" />
+            {editingSegmentIndex === null ? 'Add Fiber Route Segment' : 'Edit Fiber Route Segment'}
+          </span>
+        }
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeSegmentModal}>Cancel</Button>
+          <Button size="sm"
+            onClick={handleSaveSegment}
+            disabled={!segmentForm.pathName.trim() || !segmentForm.distance.trim()}
+          >
+            {editingSegmentIndex === null ? 'Add Segment' : 'Save Changes'}
+          </Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <FormField label="Segment Path Name" required>
+            <Input placeholder="e.g. POP-04 to MH-112"
+              value={segmentForm.pathName} onChange={e => setSegmentForm(f => ({ ...f, pathName: e.target.value }))} />
+          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Distance" required>
+              <Input placeholder="e.g. 450m"
+                value={segmentForm.distance} onChange={e => setSegmentForm(f => ({ ...f, distance: e.target.value }))} />
+            </FormField>
+            <FormField label="Status">
+              <Select value={segmentForm.status} onChange={e => setSegmentForm(f => ({ ...f, status: e.target.value }))}>
+                {SEGMENT_STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+              </Select>
+            </FormField>
+          </div>
+          <FormField label="Segment Type">
+            <Select value={segmentForm.segmentType} onChange={e => setSegmentForm(f => ({ ...f, segmentType: e.target.value }))}>
+              {SEGMENT_TYPE_OPTIONS.map(t => <option key={t}>{t}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Remarks">
+            <Input placeholder="e.g. Requires ROW permission"
+              value={segmentForm.remarks} onChange={e => setSegmentForm(f => ({ ...f, remarks: e.target.value }))} />
           </FormField>
         </div>
       </Modal>

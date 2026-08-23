@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   List, Clock, CheckCircle2, XCircle, Loader2,
-  Search, MoreVertical, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench, Edit2,
+  Search, MoreVertical, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench, Edit2, Phone,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -13,13 +13,13 @@ import {
   FEASIBILITY_ENGINEERS as ENGINEERS, FEASIBILITY_BRANCHES as BRANCHES,
 } from '../data/feasibilityStore'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
+import AssignEngineerModal from '../components/feasibility/AssignEngineerModal'
 
 /* ── Constants ───────────────────────────────────────────────── */
 
 // Feasibility Requests table's Show/Hide Columns default set. Customer Name
 // is locked so the table can never end up with zero identifying columns visible.
 const FEASIBILITY_TABLE_COLUMNS = [
-  { key: 'requestId',        label: 'Request ID',        visible: true, defaultVisible: true },
   { key: 'customerName',     label: 'Customer Name',     visible: true, defaultVisible: true, locked: true },
   { key: 'address',          label: 'Address',           visible: true, defaultVisible: true },
   { key: 'assignedEngineer', label: 'Assigned Engineer', visible: true, defaultVisible: true },
@@ -131,10 +131,6 @@ export default function FeasibilityRequests() {
   const [approveReq, setApproveReq] = useState(null)
   const [rejectReq,  setRejectReq]  = useState(null)
 
-  // Assign form — engineers is an array
-  const [assignForm, setAssignForm] = useState({ engineers: [], priority: 'Medium', notes: '' })
-  const [engSearch, setEngSearch] = useState('')
-
   // Approve form
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
 
@@ -191,9 +187,6 @@ export default function FeasibilityRequests() {
   }
 
   function startAssign(req) {
-    const existing = req.assignedEngineer ? req.assignedEngineer.split(', ').filter(Boolean) : []
-    setAssignForm({ engineers: existing, priority: req.priority || 'Medium', notes: '' })
-    setEngSearch('')
     setAssignReq(req); setMenuId(null)
   }
 
@@ -208,22 +201,6 @@ export default function FeasibilityRequests() {
     if (req) saveFeasibilityRequest({ ...req, hwItems, wireItems })
     setToast('Hardware requirements saved')
     setHwReqId(null)
-  }
-
-  function toggleAssignEngineer(name) {
-    setAssignForm(f => ({
-      ...f,
-      engineers: f.engineers.includes(name) ? f.engineers.filter(e => e !== name) : [...f.engineers, name],
-    }))
-  }
-
-  function handleAssign() {
-    updateFeasibilityStatus(assignReq.id, 'Assigned', {
-      assignedEngineer: assignForm.engineers.join(', '),
-      priority: assignForm.priority,
-    })
-    setAssignReq(null)
-    setToast('Engineer(s) assigned successfully')
   }
 
   function addHwItem()   { setHwItems(r   => [...r, newHwRow()])    }
@@ -373,11 +350,11 @@ export default function FeasibilityRequests() {
               <table className="w-full" style={{ minWidth: 1500 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {visibleCols.has('requestId') && <th className="px-4 py-3 text-left whitespace-nowrap pl-6">Req ID</th>}
-                    <th className="px-4 py-3 text-left whitespace-nowrap">Lead ID</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap pl-6">Lead ID</th>
                     {visibleCols.has('customerName') && <th className="px-4 py-3 text-left whitespace-nowrap">Customer Name</th>}
                     {visibleCols.has('address') && <th className="px-4 py-3 text-left whitespace-nowrap">Address</th>}
                     <th className="px-4 py-3 text-left whitespace-nowrap">Mobile</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Branch</th>
                     {visibleCols.has('connectionType') && <th className="px-4 py-3 text-left whitespace-nowrap">Connection Type</th>}
                     <th className="px-4 py-3 text-left whitespace-nowrap">Area</th>
                     <th className="px-4 py-3 text-left whitespace-nowrap">Locality</th>
@@ -387,24 +364,16 @@ export default function FeasibilityRequests() {
                     <th className="px-4 py-3 text-left whitespace-nowrap">Priority</th>
                     {visibleCols.has('status') && <th className="px-4 py-3 text-left whitespace-nowrap">Status</th>}
                     {visibleCols.has('created') && <th className="px-4 py-3 text-left whitespace-nowrap">Created Date</th>}
-                    <th className="px-4 py-3 text-left whitespace-nowrap">Branch</th>
                     {visibleCols.has('actions') && <th className="px-4 py-3 text-left whitespace-nowrap">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {paged.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
-                      {visibleCols.has('requestId') && (
-                        <td className="pl-6 pr-4 py-3 whitespace-nowrap">
-                          <button onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
-                            className="font-mono text-xs font-semibold text-brand-blue hover:underline transition-colors">
-                            {r.id}
-                          </button>
-                        </td>
-                      )}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <button onClick={() => navigate(`/sales/leads/${r.leadId}/overview`)}
-                          className="font-mono text-xs font-semibold text-gray-600 hover:text-brand-blue hover:underline transition-colors">
+                    <tr key={r.id} onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
+                      className="hover:bg-gray-50/60 transition-colors cursor-pointer">
+                      <td className="pl-6 pr-4 py-3 whitespace-nowrap">
+                        <button onClick={e => { e.stopPropagation(); navigate(`/sales/leads/${r.leadId}/overview`) }}
+                          className="font-mono text-xs font-semibold text-brand-blue hover:underline transition-colors">
                           {r.leadId}
                         </button>
                       </td>
@@ -421,7 +390,23 @@ export default function FeasibilityRequests() {
                         </td>
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="font-mono text-xs text-gray-600">{r.mobile || '—'}</span>
+                        {r.mobile ? (
+                          <a
+                            href={`tel:${r.mobile}`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 font-mono text-xs text-brand-blue hover:underline"
+                          >
+                            <Phone size={11} className="shrink-0" />
+                            {r.mobile}
+                          </a>
+                        ) : (
+                          <span className="font-mono text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {r.assignedBranch
+                          ? <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r.assignedBranch}</span>
+                          : <span className="text-gray-300 text-xs">—</span>}
                       </td>
                       {visibleCols.has('connectionType') && (
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -464,15 +449,10 @@ export default function FeasibilityRequests() {
                           <span className="text-xs text-gray-500">{r.createdAt}</span>
                         </td>
                       )}
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {r.assignedBranch
-                          ? <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r.assignedBranch}</span>
-                          : <span className="text-gray-300 text-xs">—</span>}
-                      </td>
                       {visibleCols.has('actions') && (
                         <td className="px-4 py-3 whitespace-nowrap">
                           <button
-                            onClick={e => openMenu(e, r.id)}
+                            onClick={e => { e.stopPropagation(); openMenu(e, r.id) }}
                             className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
                               menuId === r.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
                             }`}>
@@ -626,94 +606,14 @@ export default function FeasibilityRequests() {
         </div>
       </Modal>
 
-      {/* Assign Engineer modal */}
-      <Modal
+      {/* Assign Engineer modal (shared with the Feasibility Request Detail
+          page's Actions dropdown — see components/feasibility/AssignEngineerModal) */}
+      <AssignEngineerModal
         isOpen={!!assignReq}
+        request={assignReq}
         onClose={() => setAssignReq(null)}
-        title={`Assign Engineer — ${assignReq?.id}`}
-        size="sm"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setAssignReq(null)}>Cancel</Button>
-          <Button size="sm" onClick={handleAssign} disabled={assignForm.engineers.length === 0}>Assign Engineer</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          {/* Section 1 — Engineers */}
-          <div>
-            <p className="text-xs font-medium text-gray-700 mb-2">Engineers <span className="text-red-500">*</span></p>
-
-            {/* Selected chips */}
-            {assignForm.engineers.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {assignForm.engineers.map(name => (
-                  <span key={name} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
-                    {name}
-                    <button type="button" onClick={() => toggleAssignEngineer(name)}
-                      className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none">
-                      <X size={11} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Search input */}
-            <div className="relative mb-1">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              <input
-                value={engSearch}
-                onChange={e => setEngSearch(e.target.value)}
-                placeholder="Search engineer..."
-                className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
-              />
-            </div>
-
-            {/* Filtered list */}
-            {(() => {
-              const filtered = ENGINEERS.filter(e =>
-                e.name.toLowerCase().includes(engSearch.toLowerCase())
-              )
-              return (
-                <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[200px] overflow-y-auto">
-                  {filtered.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-4">No engineers found</p>
-                  ) : filtered.map(eng => {
-                    const selected = assignForm.engineers.includes(eng.name)
-                    return (
-                      <label key={eng.name}
-                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                        <input type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleAssignEngineer(eng.name)}
-                          className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                        />
-                        <div className={`w-6 h-6 rounded-full ${eng.color} flex items-center justify-center text-white text-[9px] font-bold shrink-0`}>
-                          {eng.initials}
-                        </div>
-                        <span className="text-sm text-gray-700">{eng.name}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-          </div>
-
-          {/* Section 3 — Priority */}
-          <FormField label="Priority" required>
-            <Select value={assignForm.priority} onChange={e => setAssignForm(f => ({ ...f, priority: e.target.value }))}>
-              {['High','Medium','Low'].map(p => <option key={p}>{p}</option>)}
-            </Select>
-          </FormField>
-
-          {/* Section 4 — Internal Notes */}
-          <FormField label="Internal Notes">
-            <Textarea rows={2} placeholder="Any notes for the engineers…"
-              value={assignForm.notes} onChange={e => setAssignForm(f => ({ ...f, notes: e.target.value }))} />
-          </FormField>
-
-        </div>
-      </Modal>
+        onAssigned={() => { setAssignReq(null); setToast('Engineer(s) assigned successfully') }}
+      />
 
       {/* ── Hardware Requirements Modal ──────────────────────────── */}
       <Modal
