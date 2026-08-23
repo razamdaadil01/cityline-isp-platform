@@ -1,6 +1,6 @@
 export const APPROVAL_TYPES = ['Installation', 'Payment', 'Visibility', 'Hardware', 'Purchase Order']
 
-export const APPROVAL_STATUSES = ['Pending', 'Approved', 'Rejected']
+export const APPROVAL_STATUSES = ['Pending', 'Approved', 'Rejected', 'Correction Required']
 
 const H = 3600000
 const NOW = Date.now()
@@ -215,11 +215,8 @@ export function createPurchaseOrderApproval({ poId, poNumber, vendorName, storeN
 }
 
 // `actionLabel` lets a caller log a different Activity Log verb than the raw
-// status value without needing a distinct status of its own — sendForCorrection()
-// below is 'Rejected' under the hood (the exact status value
-// purchaseOrderStore.js's syncPOStatusFromApproval() already keys off to set
-// a linked PO to 'Correction Required'), but reads as "Sent for correction"
-// in the log instead of "Rejected".
+// status value, e.g. sendForCorrection() below logs "Sent for correction"
+// instead of the raw 'Correction Required' status.
 function decide(id, status, comment, actor, actionLabel = status) {
   const a = getApproval(id)
   if (!a) return null
@@ -235,10 +232,11 @@ export function approveApproval(id, comment, actor = 'Admin User') { return deci
 
 export function rejectApproval(id, comment, actor = 'Admin User') { return decide(id, 'Rejected', comment, actor) }
 
-// Purchase-Order-specific "Reject" — same underlying status ('Rejected', so
-// syncPOStatusFromApproval()'s existing subscribeApprovals listener picks it
-// up exactly like a normal rejection and moves the linked PO to 'Correction
-// Required', including the PO-correction notification wired there), just a
-// distinct Activity Log verb since "sent back for correction" describes a PO
-// approval's real workflow better than "Rejected" does.
-export function sendForCorrection(id, comment, actor = 'Admin User') { return decide(id, 'Rejected', comment, actor, 'Sent for correction') }
+// Purchase-Order-specific "Reject" — a distinct 'Correction Required' status
+// (rather than reusing 'Rejected') so the approval itself reflects that the
+// PO is expected to come back, not that the request was denied outright.
+// syncPOStatusFromApproval()'s subscribeApprovals listener recognizes both
+// this status and a plain 'Rejected' (still reachable via the Approvals list
+// page's generic Reject action) and maps either to the linked PO's
+// 'Correction Required' status, including the PO-correction notification.
+export function sendForCorrection(id, comment, actor = 'Admin User') { return decide(id, 'Correction Required', comment, actor, 'Sent for correction') }

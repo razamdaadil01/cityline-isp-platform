@@ -213,16 +213,18 @@ export function savePurchaseOrder(data, { editingId = null, action = 'draft' } =
 }
 
 // Syncs a PO's status from its linked approval's decision — 'Approved'
-// keeps the approval's own wording, while a 'Rejected' approval decision
-// reads as 'Correction Required' in PO vocabulary (the PO creator needs to
-// fix and resend, not treat the order as dead). The approval's own
-// decisionComment stays the single source of truth for *why* — PODetail
-// reads it straight off the linked approval record rather than duplicating
-// it here.
+// keeps the approval's own wording, while both 'Correction Required'
+// (Send for Correction) and a plain 'Rejected' decision (still reachable via
+// the Approvals list page's generic Reject action) map to the PO's own
+// 'Correction Required' status — the PO creator needs to fix and resend, not
+// treat the order as dead, regardless of which action was used to send it
+// back. The approval's own decisionComment stays the single source of truth
+// for *why* — PODetail reads it straight off the linked approval record
+// rather than duplicating it here.
 export function syncPOStatusFromApproval(approvalId, approvalStatus) {
   const po = _pos.find(p => p.approvalId === approvalId)
   if (!po || po.status !== 'Approval Request') return
-  const mapped = approvalStatus === 'Approved' ? 'Approved' : approvalStatus === 'Rejected' ? 'Correction Required' : null
+  const mapped = approvalStatus === 'Approved' ? 'Approved' : (approvalStatus === 'Rejected' || approvalStatus === 'Correction Required') ? 'Correction Required' : null
   if (!mapped) return
   _pos = _pos.map(p => p.id === po.id ? { ...p, status: mapped } : p)
   notify()
