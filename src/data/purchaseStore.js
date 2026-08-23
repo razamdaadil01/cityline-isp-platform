@@ -5,8 +5,9 @@
 // receipts, with no PO at all) and is the source of truth Phase 4's real
 // stock ledger will read from later.
 
-import { recalculatePOReceiptStatus } from './purchaseOrderStore'
+import { recalculatePOReceiptStatus, getPurchaseOrder } from './purchaseOrderStore'
 import { logAudit } from './auditLogStore'
+import { addNotification } from './notificationStore'
 
 export const PURCHASE_STATUSES = ['Draft', 'Received', 'Confirmed', 'Cancelled']
 
@@ -204,6 +205,33 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
       action: 'Edit', module: 'Inventory',
       details: `Confirmed purchase ${purchase.purchaseNumber} — received ${receivedUnits} units`,
     })
+  }
+
+  // Notification-only — no PO status change. Gated on purchase.poId because
+  // the target is "whoever created the linked PO" (po.createdBy, same field
+  // syncPOStatusFromApproval() already notifies on); an Outside-PO purchase
+  // has no PO to compare against (poQty is always 0 for those lines, so
+  // every received unit reads as "extra" by construction) and no PO creator
+  // to notify, so it's not a real discrepancy in this sense.
+  if (action === 'confirm' && purchase.poId) {
+    const discrepantItems = purchase.items.filter(it => it.shortQty > 0 || it.extraQty > 0)
+    if (discrepantItems.length > 0) {
+      const description = discrepantItems.map(it => {
+        const parts = []
+        if (it.shortQty > 0) parts.push(`${it.shortQty} short`)
+        if (it.extraQty > 0) parts.push(`${it.extraQty} extra`)
+        return `${it.productName}: ${parts.join(', ')}.`
+      }).join(' ')
+      const po = getPurchaseOrder(purchase.poId)
+      addNotification({
+        type: 'purchase_discrepancy',
+        title: `Purchase Discrepancy — ${purchase.purchaseNumber}`,
+        description,
+        meta: `For ${po?.createdBy ?? 'the PO creator'}`,
+        reference: purchase.purchaseNumber,
+        color: 'yellow',
+      })
+    }
   }
 
   return purchase

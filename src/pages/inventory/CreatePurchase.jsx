@@ -15,6 +15,7 @@ import { getStores, getStore } from '../../data/storeStore'
 import { getProducts, getProduct } from '../../data/productStore'
 import { getPurchaseOrders, getPurchaseOrder } from '../../data/purchaseOrderStore'
 import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } from '../../data/purchaseStore'
+import { usePermission } from '../../data/rolesStore'
 
 const STEPS = [
   { id: 1, label: 'Select PO',        icon: ClipboardList },
@@ -287,6 +288,7 @@ export default function CreatePurchase() {
   const { id: editingId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const isEditing = !!editingId
+  const canCreate = usePermission('Inventory', 'Create')
 
   const entities = getActiveCompanyEntities()
   const vendors = getVendors().filter(v => v.status === 'active')
@@ -575,12 +577,12 @@ export default function CreatePurchase() {
 
                 {showAddOutside ? (
                   <AddOutsideItemForm products={products} onAdd={addOutsideItem} onCancel={() => setShowAddOutside(false)} />
-                ) : (
+                ) : canCreate ? (
                   <button type="button" onClick={() => setShowAddOutside(true)}
                     className="flex items-center gap-1.5 text-brand-blue text-sm font-medium hover:text-brand-blue-dark">
                     <Plus size={14} /> Add Hardware Outside PO
                   </button>
-                )}
+                ) : null}
               </div>
             )}
 
