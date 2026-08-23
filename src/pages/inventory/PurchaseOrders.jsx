@@ -1,15 +1,19 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, Filter, X, ChevronDown, MoreVertical, Eye, ClipboardList,
+  Plus, Search, Filter, X, ChevronDown, Eye, Bell, CheckCircle2, ClipboardList,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
+import Modal from '../../components/ui/Modal'
+import { FormField, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES } from '../../data/purchaseOrderStore'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
+import { getCompanyEntity } from '../../data/companyEntities'
 import { usePermission } from '../../data/rolesStore'
+import { logAudit } from '../../data/auditLogStore'
 
 const STATUS_BADGE = {
   Draft: 'gray',
@@ -26,17 +30,80 @@ const STATUS_BADGE = {
 const PO_TABLE_COLUMNS = [
   { key: 'poNumber',      label: 'PO Number',    visible: true, defaultVisible: true, locked: true },
   { key: 'vendor',        label: 'Vendor',       visible: true, defaultVisible: true },
+  { key: 'company',       label: 'Company Name', visible: true, defaultVisible: true },
+  { key: 'store',         label: 'Store',        visible: true, defaultVisible: true },
   { key: 'orderDate',     label: 'Order Date',   visible: true, defaultVisible: true },
   { key: 'deliveryDate',  label: 'Delivery Date',visible: true, defaultVisible: true },
-  { key: 'store',         label: 'Store',        visible: true, defaultVisible: true },
   { key: 'amount',        label: 'Amount',       visible: true, defaultVisible: true },
   { key: 'status',        label: 'Status',       visible: true, defaultVisible: true },
   { key: 'createdBy',     label: 'Created By',   visible: true, defaultVisible: true },
   { key: 'actions',       label: 'Actions',      visible: true, defaultVisible: true },
 ]
 
+// ── Remind modal — simulated email reminder to the vendor. No real send
+// backend exists in this app, so "Send Reminder" only logs an audit entry
+// and shows a success toast; nothing is stored beyond that (per spec, this
+// is UI-simulated, not a real integration).
+function RemindModal({ isOpen, onClose, po, vendor, onSent }) {
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+
+  useEffect(() => {
+    if (!isOpen || !po) return
+    setSubject(`Reminder: Purchase Order ${po.poNumber} — Pending Delivery`)
+    setBody(
+      `Dear ${vendor?.companyName ?? 'Vendor'},\n\n` +
+      `This is a reminder regarding Purchase Order ${po.poNumber} (₹${po.grandTotal.toLocaleString('en-IN')}), ` +
+      `with an expected delivery date of ${po.estimatedDeliveryDate || 'to be confirmed'}. ` +
+      `Kindly confirm the delivery status at your earliest convenience.\n\n` +
+      `Regards,\nCityline ISP Platform`
+    )
+  }, [isOpen, po, vendor])
+
+  if (!po) return null
+  const vendorEmail = vendor?.primaryContact?.email ?? ''
+
+  function handleSend() {
+    logAudit({
+      action: 'Edit', module: 'Inventory',
+      details: `Sent PO reminder for ${po.poNumber} to ${vendorEmail || 'vendor'}`,
+    })
+    onSent(vendorEmail)
+    onClose()
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen} onClose={onClose} title="Send Reminder" size="sm"
+      footer={<>
+        <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" icon={<Bell size={14} />} onClick={handleSend}>Send Reminder</Button>
+      </>}
+    >
+      <div className="space-y-4">
+        <FormField label="To">
+          <div className="text-sm text-gray-700 bg-gray-50 border border-surface-border rounded-lg px-3 py-2">
+            {vendorEmail || '—'}
+          </div>
+        </FormField>
+        <FormField label="Subject">
+          <input
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          />
+        </FormField>
+        <FormField label="Message">
+          <Textarea rows={6} value={body} onChange={e => setBody(e.target.value)} />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 export default function PurchaseOrders() {
   const canCreate = usePermission('Inventory', 'Create')
+  const canEdit = usePermission('Inventory', 'Edit')
   const navigate = useNavigate()
   const [pos, setPos] = useState(getPurchaseOrders)
   useEffect(() => subscribePurchaseOrders(setPos), [])
@@ -45,29 +112,21 @@ export default function PurchaseOrders() {
   const stores = getStores()
   const vendorName = id => vendors.find(v => v.id === id)?.companyName ?? '—'
   const storeInfo = id => stores.find(s => s.id === id) ?? null
+  const companyName = id => getCompanyEntity(id)?.name ?? '—'
 
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:inventoryPOTable', PO_TABLE_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   const [search, setSearch] = useState('')
 
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
+  const [remindPO, setRemindPO] = useState(null)
+  const [toast, setToast] = useState('')
 
   useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 2500)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
@@ -271,13 +330,14 @@ export default function PurchaseOrders() {
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('poNumber')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[170px]">PO Number</th>}
                 {visibleCols.has('vendor')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Vendor</th>}
+                {visibleCols.has('company')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Company Name</th>}
+                {visibleCols.has('store')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store</th>}
                 {visibleCols.has('orderDate')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Order Date</th>}
                 {visibleCols.has('deliveryDate') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Delivery Date</th>}
-                {visibleCols.has('store')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store</th>}
                 {visibleCols.has('amount')       && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>}
                 {visibleCols.has('status')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
                 {visibleCols.has('createdBy')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Created By</th>}
-                {visibleCols.has('actions')      && <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
+                {visibleCols.has('actions')      && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
@@ -300,9 +360,10 @@ export default function PurchaseOrders() {
                     </td>
                   )}
                   {visibleCols.has('vendor')        && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{vendorName(po.vendorId)}</td>}
+                  {visibleCols.has('company')       && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{companyName(po.companyEntityId)}</td>}
+                  {visibleCols.has('store')         && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{storeInfo(po.storeId)?.storeName ?? '—'}</td>}
                   {visibleCols.has('orderDate')     && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{po.orderDate}</td>}
                   {visibleCols.has('deliveryDate')  && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{po.estimatedDeliveryDate || '—'}</td>}
-                  {visibleCols.has('store')         && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{storeInfo(po.storeId)?.storeName ?? '—'}</td>}
                   {visibleCols.has('amount')        && <td className="px-4 py-3 text-right text-gray-800 font-medium text-xs whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>}
                   {visibleCols.has('status') && (
                     <td className="px-4 py-3">
@@ -311,13 +372,23 @@ export default function PurchaseOrders() {
                   )}
                   {visibleCols.has('createdBy')     && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{po.createdBy}</td>}
                   {visibleCols.has('actions') && (
-                    <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={e => openMenu(e, po.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === po.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                      >
-                        <MoreVertical size={15} />
-                      </button>
+                    <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-brand-blue hover:bg-brand-blue/5 rounded-md transition-colors"
+                        >
+                          <Eye size={13} /> View
+                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => setRemindPO(po)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                          >
+                            <Bell size={13} /> Remind
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -327,21 +398,20 @@ export default function PurchaseOrders() {
         </div>
       </div>
 
-      {menuId && (() => {
-        const po = pos.find(p => p.id === menuId)
-        if (!po) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            <button onClick={() => { navigate(`/inventory/purchase-orders/${po.id}`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Eye size={13} className="text-brand-blue shrink-0" /> View Details
-            </button>
-          </div>
-        )
-      })()}
+      <RemindModal
+        isOpen={!!remindPO}
+        onClose={() => setRemindPO(null)}
+        po={remindPO}
+        vendor={remindPO ? vendors.find(v => v.id === remindPO.vendorId) : null}
+        onSent={email => setToast(`Reminder sent to ${email || 'vendor'}`)}
+      />
+
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
