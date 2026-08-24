@@ -313,7 +313,6 @@ export default function CreatePurchase() {
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchaseDate ?? new Date().toISOString().slice(0, 10))
   const [items, setItems] = useState(() => existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) })) ?? poFromUrl?.items.map(itemFromPOLine) ?? [])
   const [remarks, setRemarks] = useState(existing?.remarks ?? '')
-  const [showAddOutside, setShowAddOutside] = useState(false)
   const [attemptedAction, setAttemptedAction] = useState(null) // null | 'step1' | 'step2' | 'draft' | 'confirm'
 
   const selectedPO = poId ? getPurchaseOrder(poId) : null
@@ -330,6 +329,15 @@ export default function CreatePurchase() {
       })
       return next
     }, options)
+  }
+
+  // Derived straight from the URL rather than its own useState — same
+  // approach as `step` below — so the "Add Hardware Outside PO" form's open
+  // state is the URL, not local state kept in sync with it. Reload/deep-link
+  // with &outsideItem=true on this same URL and the form is just already open.
+  const showAddOutside = searchParams.get('outsideItem') === 'true'
+  function setShowAddOutside(open) {
+    patchSearchParams({ outsideItem: open ? true : null })
   }
 
   function selectPO(po) {
