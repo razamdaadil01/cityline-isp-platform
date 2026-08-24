@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Download, CreditCard, Edit2, Building2, MapPin, Phone, FileText,
-  ClipboardList, Receipt, Wallet, ChevronDown, Eye,
+  ClipboardList, Receipt, Wallet, ChevronDown, Eye, Wrench,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -11,9 +11,14 @@ import { FormField, Input, Select, Textarea } from '../../components/ui/FormInpu
 import { getVendor, subscribeVendors, recordVendorPayment } from '../../data/vendorStore'
 import { getPurchases } from '../../data/purchaseStore'
 import { getPurchaseOrders } from '../../data/purchaseOrderStore'
-import { getUnits } from '../../data/inventoryLedger'
+import { getUnits, getUnitTrail } from '../../data/inventoryLedger'
+import { getRepairsByVendor } from '../../data/repairStore'
 import { usePermission } from '../../data/rolesStore'
 import { exportWorkbook } from '../../utils/excelExport'
+
+// PO statuses that count as "closed" for the Purchase Orders tab's
+// Active/Previous split — anything not in this set is still in flight.
+const CLOSED_PO_STATUSES = ['Fully Received', 'Cancelled', 'Closed']
 
 // Mirrors PODetail.jsx's own STATUS_BADGE map so a PO's status badge looks
 // identical whether viewed from PODetail itself or from this tab.
@@ -29,12 +34,13 @@ const PO_STATUS_BADGE = {
   Cancelled: 'red',
 }
 
-const TABS = ['Purchase History', 'Ledger Statement', 'Purchase Orders', 'Payments']
+const TABS = ['Purchase History', 'Ledger Statement', 'Purchase Orders', 'Payments', 'Repairing Pending']
 const TAB_SLUGS = {
   'Purchase History': 'purchase-history',
   'Ledger Statement': 'ledger-statement',
   'Purchase Orders': 'purchase-orders',
   'Payments': 'payments',
+  'Repairing Pending': 'repairing-pending',
 }
 const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) => [v, k]))
 
@@ -183,6 +189,42 @@ function LineItemDetailModal({ detail, onClose }) {
   )
 }
 
+// ── Repairing Pending: serial click → full unit history popup ───────────────
+// Reuses inventoryLedger.js's own getUnitTrail(unit) — the same function
+// Inventory Overview's Units tab expands inline against a unit row — so a
+// unit's purchase/assignment/transfer/repair history reads identically
+// whether it's opened from there or from here.
+
+function UnitHistoryModal({ unit, onClose }) {
+  const isOpen = !!unit
+  const trail = isOpen ? getUnitTrail(unit) : []
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={unit ? `${unit.value} · ${unit.kind === 'mac' ? 'MAC' : 'Serial'}` : ''} size="sm">
+      {isOpen && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 text-sm">
+            <span className="text-gray-500">Current Status</span>
+            <Badge variant={unit.status === 'Available' ? 'green' : unit.status === 'Replaced' ? 'red' : 'purple'} size="sm" dot>{unit.status}</Badge>
+          </div>
+          <div className="space-y-2">
+            {trail.map((step, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-blue mt-1 shrink-0" />
+                <div>
+                  <span className="font-medium text-gray-700">{step.action}</span>
+                  <span className="text-gray-400"> — {step.detail}</span>
+                  <p className="text-[11px] text-gray-400">{step.date}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 // ── Header "Actions" dropdown (Export Excel / Record Payment / Edit Vendor) ──
 // Same trigger + menu pattern as SupportTicketDetail.jsx's HeaderActionsMenu.
 
@@ -244,6 +286,7 @@ export default function VendorDetail() {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [expandedPurchases, setExpandedPurchases] = useState(new Set())
   const [lineDetail, setLineDetail] = useState(null)
+  const [unitHistory, setUnitHistory] = useState(null)
 
   function togglePurchaseExpanded(purchaseId) {
     setExpandedPurchases(prev => {
@@ -287,16 +330,80 @@ export default function VendorDetail() {
   const vendorPOs = getPurchaseOrders()
     .filter(po => po.vendorId === vendor.id)
     .sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate))
+  const activePOs = vendorPOs.filter(po => !CLOSED_PO_STATUSES.includes(po.status))
+  const previousPOs = vendorPOs.filter(po => CLOSED_PO_STATUSES.includes(po.status))
+
+  // "Total Amount" = the underlying PO's full order value (grandTotal) —
+  // what this purchase was ordered against; falls back to the purchase's
+  // own totalPurchaseValue for an Outside PO receipt, since there's no PO
+  // to compare it to. "Received Amount" is always totalPurchaseValue itself
+  // — it's already derived from receivedQty (see purchaseStore.js's
+  // summarizePurchase()), so on a short/partial receipt it's naturally
+  // lower than the PO's ordered total.
+  const purchaseOrdersById = Object.fromEntries(getPurchaseOrders().map(po => [po.id, po]))
+  function totalAmountFor(purchase) {
+    const po = purchase.poId ? purchaseOrdersById[purchase.poId] : null
+    return po ? po.grandTotal : purchase.totalPurchaseValue
+  }
+
+  // Repairing Pending — each repair record's live status/history is read
+  // straight off its matching ledger unit (inventoryLedger.js layers the
+  // repair record's status onto that same unit), so this tab always shows
+  // the current state, not a stale snapshot from when the unit was sent.
+  const vendorRepairs = getRepairsByVendor(vendor.id).map(r => ({
+    ...r, unit: getUnits({ productId: r.productId }).find(u => u.value === r.value) ?? null,
+  }))
+
+  // Purchase Orders tab — one table renderer shared by the Active/Previous
+  // groups below so both stay visually identical apart from which POs they
+  // list.
+  function renderPOTable(pos) {
+    if (pos.length === 0) {
+      return <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'PO Date', 'Delivery Date', 'Amount', 'Status', 'Action']} />
+    }
+    return (
+      <div className="overflow-x-auto rounded-xl border border-surface-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/60 border-b border-surface-border">
+              {['PO Number', 'PO Date', 'Delivery Date', 'Amount', 'Status', 'Action'].map(c => (
+                <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {pos.map(po => (
+              <tr key={po.id}>
+                <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{po.poNumber}</td>
+                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.orderDate}</td>
+                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.estimatedDeliveryDate}</td>
+                <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>
+                <td className="px-4 py-3"><Badge variant={PO_STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge></td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
+                    title="View Purchase Order"
+                  >
+                    <Eye size={13} /> View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
 
   function handleExport() {
     exportWorkbook(`${vendor.companyName.replace(/\s+/g, '_')}_${vendor.id}.xlsx`, [
       {
         name: 'Purchase History',
         rows: vendorPurchases.map(p => ({
-          'PO Number': p.poNumber ?? 'Outside PO', 'Date': p.purchaseDate,
-          'Items': p.items.map(it => it.productName).join(', '),
-          'Quantity': p.items.reduce((s, it) => s + (Number(it.receivedQty) || 0), 0),
-          'Amount': p.totalPurchaseValue, 'Status': p.status,
+          'Purchase ID': p.id, 'PO Number': p.poNumber ?? 'Outside PO', 'Purchase Date': p.purchaseDate,
+          'Store': p.storeName, 'Total Amount': totalAmountFor(p), 'Received Amount': p.totalPurchaseValue,
+          'Status': p.status,
         })),
       },
       {
@@ -398,13 +505,13 @@ export default function VendorDetail() {
         <div className="p-5 sm:p-6">
           {activeTab === 'Purchase History' && (
             vendorPurchases.length === 0 ? (
-              <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'Date', 'Items', 'Quantity', 'Amount', 'Status']} />
+              <EmptyStateTable icon={ClipboardList} columns={['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status']} />
             ) : (
               <div className="overflow-x-auto rounded-xl border border-surface-border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
-                      {['PO Number', 'Date', 'Items', 'Quantity', 'Amount', 'Status'].map(c => (
+                      {['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status'].map(c => (
                         <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
                       ))}
                     </tr>
@@ -418,18 +525,19 @@ export default function VendorDetail() {
                             <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">
                               <span className="inline-flex items-center gap-1.5">
                                 <ChevronDown size={13} className={`text-gray-400 shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                                {p.poNumber ?? 'Outside PO'}
+                                {p.id}
                               </span>
                             </td>
+                            <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{p.poNumber ?? 'Outside PO'}</td>
                             <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{p.purchaseDate}</td>
-                            <td className="px-4 py-3 text-xs text-gray-600 max-w-xs truncate">{p.items.map(it => it.productName).join(', ')}</td>
-                            <td className="px-4 py-3 text-xs text-gray-600">{p.items.reduce((s, it) => s + (Number(it.receivedQty) || 0), 0)}</td>
+                            <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{p.storeName}</td>
+                            <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{totalAmountFor(p).toLocaleString('en-IN')}</td>
                             <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{p.totalPurchaseValue.toLocaleString('en-IN')}</td>
                             <td className="px-4 py-3"><Badge variant="green" size="sm" dot>{p.status}</Badge></td>
                           </tr>
                           {isExpanded && (
                             <tr className="bg-gray-50/40">
-                              <td colSpan={6} className="px-4 py-3">
+                              <td colSpan={7} className="px-4 py-3">
                                 <table className="w-full text-xs">
                                   <thead>
                                     <tr className="text-gray-400">
@@ -494,42 +602,19 @@ export default function VendorDetail() {
             )
           )}
           {activeTab === 'Purchase Orders' && (
-            <div className="space-y-4">
-              {vendorPOs.length === 0 ? (
-                <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'Date', 'Expected Delivery', 'Amount', 'Status', 'Action']} />
-              ) : (
-                <div className="overflow-x-auto rounded-xl border border-surface-border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50/60 border-b border-surface-border">
-                        {['PO Number', 'Date', 'Expected Delivery', 'Amount', 'Status', 'Action'].map(c => (
-                          <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-surface-border">
-                      {vendorPOs.map(po => (
-                        <tr key={po.id}>
-                          <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{po.poNumber}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.orderDate}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.estimatedDeliveryDate}</td>
-                          <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3"><Badge variant={PO_STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge></td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
-                              className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
-                              title="View Purchase Order"
-                            >
-                              <Eye size={13} /> View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2.5">
+                  Active POs <span className="text-gray-400 font-normal normal-case">({activePOs.length})</span>
+                </h3>
+                {renderPOTable(activePOs)}
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2.5">
+                  Previous POs <span className="text-gray-400 font-normal normal-case">({previousPOs.length})</span>
+                </h3>
+                {renderPOTable(previousPOs)}
+              </div>
             </div>
           )}
           {activeTab === 'Payments' && (
@@ -562,11 +647,48 @@ export default function VendorDetail() {
               </div>
             )
           )}
+          {activeTab === 'Repairing Pending' && (
+            vendorRepairs.length === 0 ? (
+              <EmptyStateTable icon={Wrench} columns={['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Status']} />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-surface-border">
+                      {['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Status'].map(c => (
+                        <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {vendorRepairs.map(r => (
+                      <tr key={r.id}>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          <button
+                            onClick={() => r.unit && setUnitHistory(r.unit)}
+                            disabled={!r.unit}
+                            className="font-mono font-semibold text-brand-blue hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-default"
+                            title={r.unit ? 'View unit history' : 'Unit record not found'}
+                          >
+                            {r.value}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{r.productName}</td>
+                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{r.expectedDeliveryDate}</td>
+                        <td className="px-4 py-3"><Badge variant={r.status === 'In Service' ? 'blue' : 'purple'} size="sm" dot>{(r.unit?.status ?? r.status)}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
         </div>
       </div>
 
       <RecordPaymentModal isOpen={paymentModalOpen} onClose={() => setPaymentModalOpen(false)} vendor={vendor} />
       <LineItemDetailModal detail={lineDetail} onClose={() => setLineDetail(null)} />
+      <UnitHistoryModal unit={unitHistory} onClose={() => setUnitHistory(null)} />
     </div>
   )
 }

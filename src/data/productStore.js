@@ -36,6 +36,13 @@ const HARDWARE_PURCHASED_COMPANY = {
   'SFP Module 1G': 2,
 }
 
+// ONT Device is the one seeded hardware item actually serial-tracked in the
+// field (an ISP always knows which physical ONT is at which customer) — set
+// here rather than left at the 'quantity' default so Inventory Overview's
+// Units tab, Vendor Detail's Repairing Pending tab, etc. have at least one
+// real serial-tracked product to exercise against out of the box.
+const SERIAL_TRACKED_HARDWARE = new Set(['ONT Device'])
+
 // Seeded from the existing shared hardware catalog so Product List isn't
 // empty on first load — sku/brand/model are left blank since hardwareCatalog
 // entries never carried them; trackingType defaults to 'quantity' (no
@@ -66,7 +73,7 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     unitType: 'Piece',
     sellingPrice: item.unitPrice,
     reorderAlertQty: 10,
-    trackingType: 'quantity',
+    trackingType: SERIAL_TRACKED_HARDWARE.has(item.name) ? 'serial' : 'quantity',
     drumNumberRequired: false,
     purchasedCompanyId: HARDWARE_PURCHASED_COMPANY[item.name] ?? null,
     goodType: 'consumable',

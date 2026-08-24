@@ -15,6 +15,7 @@ import { getAssignments, subscribeAssignments } from './assignmentStore'
 import { getReplacements, subscribeReplacements } from './replacementStore'
 import { getUserAssignments, subscribeUserAssignments } from './userAssignmentStore'
 import { getStoreTransfers, subscribeStoreTransfers } from './storeTransferStore'
+import { getRepairs } from './repairStore'
 
 function normalizeMatchKey(s) {
   return (s || '').trim().toLowerCase()
@@ -263,6 +264,32 @@ function computeLedger() {
     })
   })
 
+  // ── Repairs: unit sent back to its vendor for service ───────────────────
+  // Vendor Detail's Repairing Pending tab reads getRepairsByVendor() + this
+  // same live unit.status directly, so a repair's effect is visible
+  // everywhere a unit's status already surfaces (Inventory Overview's Units
+  // tab included), not just on the Vendor page. Only 'Sent for Repair'/
+  // 'In Service' change the unit's status — a hypothetical 'Returned' record
+  // is intentionally left alone here (no UI ever produces one yet; see
+  // repairStore.js's file-level note), so a returned unit's status doesn't
+  // silently get stuck on a repair state forever once that path exists.
+  // Doesn't touch balanceByKey, mirroring how Assignments/Replacements above
+  // also leave it alone for serial/MAC-tracked units (balanceByKey only
+  // tracks quantity-tracked stock; per-unit availability for tracked
+  // products is read via getUnits({ status }) instead).
+  getRepairs().forEach(r => {
+    if (r.status !== 'Sent for Repair' && r.status !== 'In Service') return
+    const unit = unitsByValue.get(r.value)
+    if (!unit || unit.productId !== r.productId) return
+    unit.status = r.status
+    unit.repairRecordId = r.id
+    unit.repairVendorId = r.vendorId
+    unit.repairVendorName = r.vendorName
+    unit.repairExpectedDeliveryDate = r.expectedDeliveryDate
+    unit.repairSentAt = r.sentAt
+    unit.repairRemarks = r.remarks
+  })
+
   return { balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey }
 }
 
@@ -384,6 +411,12 @@ export function getUnitTrail(unit) {
       detail: `${unit.customerName ?? 'Customer'} · ${unit.userAssignmentNumber}`,
     })
   }
+  if (unit.repairRecordId) {
+    trail.push({
+      date: (unit.repairSentAt || '').slice(0, 10), action: unit.status,
+      detail: `${unit.repairVendorName ?? 'Vendor'}${unit.repairExpectedDeliveryDate ? ` · Expected back ${unit.repairExpectedDeliveryDate}` : ''}${unit.repairRemarks ? ` — ${unit.repairRemarks}` : ''}`,
+    })
+  }
   if (unit.status === 'Replaced' && unit.replacementTicketNumber) {
     trail.push({
       date: (unit.replacedAt || '').slice(0, 10), action: 'Replaced',
@@ -398,7 +431,9 @@ export function getUnitTrail(unit) {
 // replacementStore's, userAssignmentStore's and storeTransferStore's own
 // pub/subs. Consumers re-run their selectors (getStockBalances() etc.) on
 // fire, from a new receipt, a new assignment, a new replacement, a new user
-// handoff, or a new store transfer.
+// handoff, or a new store transfer. repairStore.js has no pub/sub of its
+// own yet (it's seed-only — see its file-level note), so there's nothing to
+// re-export for it here; add it once a real write path exists.
 export function subscribeInventoryLedger(fn) {
   const unsubPurchases = subscribePurchases(() => fn())
   const unsubAssignments = subscribeAssignments(() => fn())
