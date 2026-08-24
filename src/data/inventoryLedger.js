@@ -14,6 +14,7 @@ import { getPurchases, subscribePurchases } from './purchaseStore'
 import { getAssignments, subscribeAssignments } from './assignmentStore'
 import { getReplacements, subscribeReplacements } from './replacementStore'
 import { getUserAssignments, subscribeUserAssignments } from './userAssignmentStore'
+import { getStoreTransfers, subscribeStoreTransfers } from './storeTransferStore'
 
 function normalizeMatchKey(s) {
   return (s || '').trim().toLowerCase()
@@ -198,11 +199,11 @@ function computeLedger() {
   })
 
   // ── Replacements: manual field swap-outs against a Support ticket ───────
-  // Layered on last, same pattern as assignments above, so a replaced unit's
-  // status/movement reflect the swap regardless of whether it was ever
-  // assigned to an engineer first. Processed oldest-first (the store
-  // prepends newest-first) so that if a unit were ever marked Replaced more
-  // than once, the most recent record wins.
+  // Same pattern as assignments above, so a replaced unit's status/movement
+  // reflect the swap regardless of whether it was ever assigned to an
+  // engineer first. Processed oldest-first (the store prepends
+  // newest-first) so that if a unit were ever marked Replaced more than
+  // once, the most recent record wins.
   ;[...getReplacements()].reverse().forEach(r => {
     const unit = unitsByValue.get(r.value)
     if (!unit || unit.productId !== r.productId) return
@@ -214,6 +215,51 @@ function computeLedger() {
       date: r.replacedAt.slice(0, 10), productId: unit.productId, movementType: 'Replaced',
       qty: 1, fromLabel: unit.engineerName ?? 'Field', toLabel: `Ticket ${r.ticketNumber}`,
       reference: r.ticketNumber, poReference: null, remarks: r.remarks,
+    })
+  })
+
+  // ── Store Transfers: relocating stock between stores directly ──────────
+  // Layered last — a transfer only ever touches units/balances currently
+  // 'Available' (re-checked here defensively; see storeTransferStore.js's
+  // file-level note on why that store can't independently re-derive full
+  // point-in-time availability the way assignmentStore.js/
+  // userAssignmentStore.js do against their own single upstream source).
+  // storeId is mutated in place on the SAME unit object rather than
+  // removing/re-adding it, so its purchase/receipt history (vendorName,
+  // poNumber, purchaseNumber, etc.) stays intact — it's the same physical
+  // unit, just relocated. One movement entry per (transfer × product line),
+  // not one per whole transfer, since getMovements({ productId }) needs a
+  // consistent productId per row to filter a specific product's Movement
+  // History correctly when a single transfer covers multiple products.
+  getStoreTransfers().forEach(t => {
+    t.items.forEach(it => {
+      const values = [...it.serials, ...it.macs]
+      let movedQty = 0
+      if (values.length) {
+        values.forEach(v => {
+          const unit = unitsByValue.get(v)
+          if (!unit || unit.status !== 'Available') return
+          unit.storeId = t.storeToId
+          unit.lastTransferNumber = t.transferNumber
+          unit.lastTransferredAt = t.date
+          unit.lastTransferFromStoreName = t.storeFromName
+          unit.lastTransferToStoreName = t.storeToName
+          movedQty += 1
+        })
+      } else if (Number(it.qty) > 0) {
+        const fromKey = `${it.productId}|${t.storeFromId}`
+        const toKey = `${it.productId}|${t.storeToId}`
+        movedQty = Math.min(Number(it.qty), balanceByKey[fromKey] ?? 0)
+        balanceByKey[fromKey] = Math.max(0, (balanceByKey[fromKey] ?? 0) - movedQty)
+        balanceByKey[toKey] = (balanceByKey[toKey] ?? 0) + movedQty
+      }
+      if (movedQty > 0) {
+        movements.push({
+          date: (t.date || '').slice(0, 10), productId: it.productId, movementType: 'Transfer',
+          qty: movedQty, fromLabel: t.storeFromName, toLabel: t.storeToName,
+          reference: t.transferNumber, poReference: null,
+        })
+      }
     })
   })
 
@@ -316,6 +362,16 @@ export function getUnitTrail(unit) {
       storeId: unit.storeId,
     },
   ]
+  // Only the most recent transfer is shown here (a unit can in principle be
+  // transferred more than once while still 'Available'); the full history
+  // across every transfer is in the product's Movement History tab
+  // (getMovements), which isn't limited to a single "latest" step per unit.
+  if (unit.lastTransferNumber) {
+    trail.push({
+      date: (unit.lastTransferredAt || '').slice(0, 10), action: 'Transferred',
+      detail: `${unit.lastTransferFromStoreName} → ${unit.lastTransferToStoreName} · ${unit.lastTransferNumber}`,
+    })
+  }
   if (unit.assignmentNumber) {
     trail.push({
       date: (unit.assignedAt || '').slice(0, 10), action: 'Assigned to Engineer',
@@ -339,13 +395,15 @@ export function getUnitTrail(unit) {
 
 // No independent notify loop — the ledger has no state of its own to
 // notify about, so this just re-exposes purchaseStore's, assignmentStore's,
-// replacementStore's and userAssignmentStore's own pub/subs. Consumers
-// re-run their selectors (getStockBalances() etc.) on fire, from a new
-// receipt, a new assignment, a new replacement, or a new user handoff.
+// replacementStore's, userAssignmentStore's and storeTransferStore's own
+// pub/subs. Consumers re-run their selectors (getStockBalances() etc.) on
+// fire, from a new receipt, a new assignment, a new replacement, a new user
+// handoff, or a new store transfer.
 export function subscribeInventoryLedger(fn) {
   const unsubPurchases = subscribePurchases(() => fn())
   const unsubAssignments = subscribeAssignments(() => fn())
   const unsubReplacements = subscribeReplacements(() => fn())
   const unsubUserAssignments = subscribeUserAssignments(() => fn())
-  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments() }
+  const unsubStoreTransfers = subscribeStoreTransfers(() => fn())
+  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments(); unsubStoreTransfers() }
 }

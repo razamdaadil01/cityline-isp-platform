@@ -38,6 +38,7 @@ import {
   PackageOpen,
   UserCheck,
   UserPlus,
+  ArrowLeftRight,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -85,6 +86,7 @@ const NAV_ITEMS = [
       { label: 'Purchases',          icon: PackageOpen,       to: '/inventory/purchases' },
       { label: 'Assign to Engineer', icon: UserCheck,         to: '/inventory/assign' },
       { label: 'Assign to User',     icon: UserPlus,          to: '/inventory/assign-to-user' },
+      { label: 'Store Transfer',     icon: ArrowLeftRight,    to: '/inventory/store-transfer' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
       { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },

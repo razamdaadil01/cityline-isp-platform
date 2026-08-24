@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Search, Filter, X, ChevronDown, Boxes, AlertTriangle, UserCog, Users,
   ShieldAlert, Trash2, Eye, ChevronRight, History, Package, Download, Flag, RefreshCw,
+  ArrowLeftRight,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -50,6 +52,7 @@ function productMatchesSearch(product, units, drums, q) {
 // ── Product Detail slide-over ───────────────────────────────────────────────
 
 function UnitRow({ unit, storeName }) {
+  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [replaceOpen, setReplaceOpen] = useState(false)
   const trail = expanded ? getUnitTrail(unit) : null
@@ -58,6 +61,9 @@ function UnitRow({ unit, storeName }) {
   // "out in the field" as "not currently Available", excluding 'Replaced'
   // itself so an already-replaced unit can't be replaced again.
   const canReplace = unit.status !== 'Available' && unit.status !== 'Replaced'
+  // Only units still in stock at a store can be moved to another store —
+  // the same window during which they could otherwise be assigned out.
+  const canTransfer = unit.status === 'Available'
 
   return (
     <div className="rounded-lg border border-surface-border overflow-hidden">
@@ -93,12 +99,21 @@ function UnitRow({ unit, storeName }) {
               </div>
             ))}
           </div>
-          {canReplace && (
-            <button type="button" onClick={() => setReplaceOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
-              <RefreshCw size={12} /> Mark as Replaced
-            </button>
-          )}
+          <div className="flex items-center gap-4">
+            {canReplace && (
+              <button type="button" onClick={() => setReplaceOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
+                <RefreshCw size={12} /> Mark as Replaced
+              </button>
+            )}
+            {canTransfer && (
+              <button type="button"
+                onClick={() => navigate(`/inventory/store-transfer/new?storeFrom=${unit.storeId}&productId=${unit.productId}&unit=${encodeURIComponent(unit.value)}`)}
+                className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
+                <ArrowLeftRight size={12} /> Transfer
+              </button>
+            )}
+          </div>
         </div>
       )}
       <MarkReplacedModal isOpen={replaceOpen} onClose={() => setReplaceOpen(false)} unit={unit} />
@@ -223,6 +238,7 @@ function DrumRow({ drum, storeName }) {
 }
 
 function ProductDetailPanel({ product, stores, onClose }) {
+  const navigate = useNavigate()
   const [tab, setTab] = useState('units')
   const storeName = id => stores.find(s => s.id === id)?.storeName ?? '—'
 
@@ -302,6 +318,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
                         <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
                           <th className="text-left px-3 py-2 font-semibold">Store</th>
                           <th className="text-right px-3 py-2 font-semibold">Available Qty</th>
+                          <th className="text-right px-3 py-2 font-semibold">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-border">
@@ -309,6 +326,15 @@ function ProductDetailPanel({ product, stores, onClose }) {
                           <tr key={b.storeId}>
                             <td className="px-3 py-2 text-gray-700">{storeName(b.storeId)}</td>
                             <td className="px-3 py-2 text-right font-semibold text-gray-800">{b.availableQty.toLocaleString('en-IN')}</td>
+                            <td className="px-3 py-2 text-right">
+                              {b.availableQty > 0 && (
+                                <button type="button"
+                                  onClick={() => navigate(`/inventory/store-transfer/new?storeFrom=${b.storeId}&productId=${product.id}`)}
+                                  className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
+                                  <ArrowLeftRight size={12} /> Transfer
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
