@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Download, CreditCard, Edit2, Building2, MapPin, Phone, FileText,
-  ClipboardList, Receipt, Wallet, ChevronDown, Eye, Wrench,
+  ClipboardList, Receipt, Wallet, ChevronDown, Eye, Wrench, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -45,6 +45,67 @@ const TAB_SLUGS = {
 const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) => [v, k]))
 
 const PAYMENT_METHODS = ['Bank Transfer / NEFT', 'RTGS', 'UPI', 'Cheque', 'Cash']
+
+// Same page size + "Showing X–Y of Z" / Prev-Next-numbered-pages pattern
+// already used by Customers.jsx (and AuditLog/OTTManagement/Packages/
+// Resellers/Sales/Settings) — generalized into one local component here
+// since this page needs it six times (every tab's table, Purchase Orders'
+// Active/Previous groups counted separately) rather than the single time
+// each of those pages needs it.
+const PAGE_SIZE = 10
+
+function paginateSlice(items, page, pageSize) {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  return { paginated: items.slice((safePage - 1) * pageSize, safePage * pageSize), totalPages, safePage }
+}
+
+function TablePagination({ page, totalPages, totalItems, pageSize, onChange, itemLabel = 'results' }) {
+  if (totalItems <= pageSize) return null
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-surface-border bg-gray-50/40">
+      <p className="text-xs text-gray-500">
+        Showing {totalItems === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalItems)} of {totalItems} {itemLabel}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onChange(Math.max(1, page - 1))}
+          disabled={page === 1}
+          className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+          .reduce((acc, p, i, arr) => {
+            if (i > 0 && p - arr[i - 1] > 1) acc.push('…')
+            acc.push(p)
+            return acc
+          }, [])
+          .map((p, i) =>
+            p === '…' ? (
+              <span key={`ellipsis-${i}`} className="w-7 h-7 flex items-center justify-center text-xs text-gray-400">…</span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => onChange(p)}
+                className={`w-7 h-7 flex items-center justify-center rounded text-xs font-medium transition-all ${p === page ? 'bg-brand-blue text-white shadow-sm' : 'text-gray-600 hover:bg-white hover:shadow-sm'}`}
+              >
+                {p}
+              </button>
+            )
+          )}
+        <button
+          onClick={() => onChange(Math.min(totalPages, page + 1))}
+          disabled={page === totalPages}
+          className="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function EmptyStateTable({ columns, icon: Icon = FileText }) {
   return (
@@ -288,6 +349,15 @@ export default function VendorDetail() {
   const [lineDetail, setLineDetail] = useState(null)
   const [unitHistory, setUnitHistory] = useState(null)
 
+  // One page number per paginated table — Active/Previous POs count as two
+  // independent tables since they're two independent lists.
+  const [purchasePage, setPurchasePage] = useState(1)
+  const [ledgerPage, setLedgerPage] = useState(1)
+  const [activePOPage, setActivePOPage] = useState(1)
+  const [previousPOPage, setPreviousPOPage] = useState(1)
+  const [paymentsPage, setPaymentsPage] = useState(1)
+  const [repairPage, setRepairPage] = useState(1)
+
   function togglePurchaseExpanded(purchaseId) {
     setExpandedPurchases(prev => {
       const next = new Set(prev)
@@ -333,6 +403,15 @@ export default function VendorDetail() {
   const activePOs = vendorPOs.filter(po => !CLOSED_PO_STATUSES.includes(po.status))
   const previousPOs = vendorPOs.filter(po => CLOSED_PO_STATUSES.includes(po.status))
 
+  // Paginated slices — safePage clamps back to the last valid page on its
+  // own (e.g. after a payment is recorded and the list re-sorts), so there's
+  // no need to reset these page states from anywhere else.
+  const purchasePagination = paginateSlice(vendorPurchases, purchasePage, PAGE_SIZE)
+  const ledgerPagination = paginateSlice(ledgerRows, ledgerPage, PAGE_SIZE)
+  const activePOPagination = paginateSlice(activePOs, activePOPage, PAGE_SIZE)
+  const previousPOPagination = paginateSlice(previousPOs, previousPOPage, PAGE_SIZE)
+  const paymentsPagination = paginateSlice(payments, paymentsPage, PAGE_SIZE)
+
   // "Total Amount" = the underlying PO's full order value (grandTotal) —
   // what this purchase was ordered against; falls back to the purchase's
   // own totalPurchaseValue for an Outside PO receipt, since there's no PO
@@ -353,45 +432,51 @@ export default function VendorDetail() {
   const vendorRepairs = getRepairsByVendor(vendor.id).map(r => ({
     ...r, unit: getUnits({ productId: r.productId }).find(u => u.value === r.value) ?? null,
   }))
+  const repairPagination = paginateSlice(vendorRepairs, repairPage, PAGE_SIZE)
 
   // Purchase Orders tab — one table renderer shared by the Active/Previous
   // groups below so both stay visually identical apart from which POs they
-  // list.
-  function renderPOTable(pos) {
-    if (pos.length === 0) {
+  // list. `allPos` is the full (unpaginated) list, used only for the empty
+  // check and pagination's totalItems — `pos` is already the current page's
+  // slice.
+  function renderPOTable(allPos, pagination, setPage) {
+    if (allPos.length === 0) {
       return <EmptyStateTable icon={ClipboardList} columns={['PO Number', 'PO Date', 'Delivery Date', 'Amount', 'Status', 'Action']} />
     }
     return (
-      <div className="overflow-x-auto rounded-xl border border-surface-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/60 border-b border-surface-border">
-              {['PO Number', 'PO Date', 'Delivery Date', 'Amount', 'Status', 'Action'].map(c => (
-                <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {pos.map(po => (
-              <tr key={po.id}>
-                <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{po.poNumber}</td>
-                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.orderDate}</td>
-                <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.estimatedDeliveryDate}</td>
-                <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3"><Badge variant={PO_STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge></td>
-                <td className="px-4 py-3">
-                  <button
-                    onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
-                    title="View Purchase Order"
-                  >
-                    <Eye size={13} /> View
-                  </button>
-                </td>
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['PO Number', 'PO Date', 'Delivery Date', 'Amount', 'Status', 'Action'].map(c => (
+                  <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {pagination.paginated.map(po => (
+                <tr key={po.id}>
+                  <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{po.poNumber}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.orderDate}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.estimatedDeliveryDate}</td>
+                  <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3"><Badge variant={PO_STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge></td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
+                      title="View Purchase Order"
+                    >
+                      <Eye size={13} /> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <TablePagination page={pagination.safePage} totalPages={pagination.totalPages} totalItems={allPos.length} pageSize={PAGE_SIZE} onChange={setPage} itemLabel="purchase orders" />
       </div>
     )
   }
@@ -507,7 +592,8 @@ export default function VendorDetail() {
             vendorPurchases.length === 0 ? (
               <EmptyStateTable icon={ClipboardList} columns={['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status']} />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-surface-border">
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -517,7 +603,7 @@ export default function VendorDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
-                    {vendorPurchases.map(p => {
+                    {purchasePagination.paginated.map(p => {
                       const isExpanded = expandedPurchases.has(p.id)
                       return (
                         <Fragment key={p.id}>
@@ -569,6 +655,8 @@ export default function VendorDetail() {
                     })}
                   </tbody>
                 </table>
+                </div>
+                <TablePagination page={purchasePagination.safePage} totalPages={purchasePagination.totalPages} totalItems={vendorPurchases.length} pageSize={PAGE_SIZE} onChange={setPurchasePage} itemLabel="purchases" />
               </div>
             )
           )}
@@ -576,7 +664,8 @@ export default function VendorDetail() {
             ledgerRows.length === 0 ? (
               <EmptyStateTable icon={Receipt} columns={['Date', 'Reference', 'Description', 'Debit', 'Credit', 'Balance']} />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-surface-border">
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -586,7 +675,7 @@ export default function VendorDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
-                    {ledgerRows.map(r => (
+                    {ledgerPagination.paginated.map(r => (
                       <tr key={r.id}>
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{r.date}</td>
                         <td className="px-4 py-3 text-xs font-mono text-gray-500 whitespace-nowrap">{r.reference || '—'}</td>
@@ -598,6 +687,8 @@ export default function VendorDetail() {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <TablePagination page={ledgerPagination.safePage} totalPages={ledgerPagination.totalPages} totalItems={ledgerRows.length} pageSize={PAGE_SIZE} onChange={setLedgerPage} itemLabel="ledger entries" />
               </div>
             )
           )}
@@ -607,13 +698,13 @@ export default function VendorDetail() {
                 <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2.5">
                   Active POs <span className="text-gray-400 font-normal normal-case">({activePOs.length})</span>
                 </h3>
-                {renderPOTable(activePOs)}
+                {renderPOTable(activePOs, activePOPagination, setActivePOPage)}
               </div>
               <div>
                 <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2.5">
                   Previous POs <span className="text-gray-400 font-normal normal-case">({previousPOs.length})</span>
                 </h3>
-                {renderPOTable(previousPOs)}
+                {renderPOTable(previousPOs, previousPOPagination, setPreviousPOPage)}
               </div>
             </div>
           )}
@@ -621,7 +712,8 @@ export default function VendorDetail() {
             payments.length === 0 ? (
               <EmptyStateTable icon={Wallet} columns={['Payment ID', 'Payment Date', 'Amount', 'Method', 'Reference No.', 'Notes', 'Recorded By']} />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-surface-border">
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -631,7 +723,7 @@ export default function VendorDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
-                    {payments.map(pay => (
+                    {paymentsPagination.paginated.map(pay => (
                       <tr key={pay.id}>
                         <td className="px-4 py-3 text-xs font-mono text-gray-600 whitespace-nowrap">{pay.id}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
@@ -644,6 +736,8 @@ export default function VendorDetail() {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <TablePagination page={paymentsPagination.safePage} totalPages={paymentsPagination.totalPages} totalItems={payments.length} pageSize={PAGE_SIZE} onChange={setPaymentsPage} itemLabel="payments" />
               </div>
             )
           )}
@@ -651,7 +745,8 @@ export default function VendorDetail() {
             vendorRepairs.length === 0 ? (
               <EmptyStateTable icon={Wrench} columns={['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Status']} />
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-surface-border">
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -661,7 +756,7 @@ export default function VendorDetail() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
-                    {vendorRepairs.map(r => (
+                    {repairPagination.paginated.map(r => (
                       <tr key={r.id}>
                         <td className="px-4 py-3 text-xs whitespace-nowrap">
                           <button
@@ -680,6 +775,8 @@ export default function VendorDetail() {
                     ))}
                   </tbody>
                 </table>
+                </div>
+                <TablePagination page={repairPagination.safePage} totalPages={repairPagination.totalPages} totalItems={vendorRepairs.length} pageSize={PAGE_SIZE} onChange={setRepairPage} itemLabel="repair records" />
               </div>
             )
           )}
