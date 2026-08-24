@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Search, Filter, X, ChevronDown, Boxes, AlertTriangle, UserCog, Users,
-  ShieldAlert, Trash2, Eye, ChevronRight, History, Package, Download, Flag,
+  ShieldAlert, Trash2, Eye, ChevronRight, History, Package, Download, Flag, RefreshCw,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -13,8 +13,12 @@ import {
   getStockBalances, getUnits, getDrums, getMovements, getUnitTrail, getEngineerAssignedQty,
   getProductAvailability, subscribeInventoryLedger,
 } from '../../data/inventoryLedger'
+import { saveReplacement } from '../../data/replacementStore'
+import { getTickets } from '../../data/ticketsStore'
 import { exportWorkbook } from '../../utils/excelExport'
 import { logAudit } from '../../data/auditLogStore'
+
+const CURRENT_USER = 'Admin User'
 
 const OVERVIEW_TABLE_COLUMNS = [
   { key: 'name',       label: 'Product Name',        visible: true, defaultVisible: true, locked: true },
@@ -24,7 +28,7 @@ const OVERVIEW_TABLE_COLUMNS = [
   { key: 'available',  label: 'Available Qty',       visible: true, defaultVisible: true },
   { key: 'engineer',   label: 'Assigned to Engineer',visible: true, defaultVisible: true },
   { key: 'user',       label: 'Assigned to User',    visible: true, defaultVisible: true },
-  { key: 'damage',     label: 'Damage',               visible: true, defaultVisible: true },
+  { key: 'damage',     label: 'Faulty',               visible: true, defaultVisible: true },
   { key: 'scrap',      label: 'Scrap',                 visible: true, defaultVisible: true },
   { key: 'status',     label: 'Status',                visible: true, defaultVisible: true },
   { key: 'actions',    label: 'Actions',                visible: true, defaultVisible: true },
@@ -47,7 +51,14 @@ function productMatchesSearch(product, units, drums, q) {
 
 function UnitRow({ unit, storeName }) {
   const [expanded, setExpanded] = useState(false)
+  const [replaceOpen, setReplaceOpen] = useState(false)
   const trail = expanded ? getUnitTrail(unit) : null
+  const isAssigned = unit.status === 'Assigned to Engineer' || unit.status === 'Assigned to User'
+  // No 'Installed' status exists in the current state model yet — treat
+  // "out in the field" as "not currently Available", excluding 'Replaced'
+  // itself so an already-replaced unit can't be replaced again.
+  const canReplace = unit.status !== 'Available' && unit.status !== 'Replaced'
+
   return (
     <div className="rounded-lg border border-surface-border overflow-hidden">
       <button type="button" onClick={() => setExpanded(e => !e)}
@@ -59,23 +70,139 @@ function UnitRow({ unit, storeName }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-gray-500">{storeName}</span>
-          <Badge variant={unit.status === 'Available' ? 'green' : 'purple'} size="sm" dot>{unit.status}</Badge>
+          <Badge variant={unit.status === 'Available' ? 'green' : unit.status === 'Replaced' ? 'red' : 'purple'} size="sm" dot>{unit.status}</Badge>
         </div>
       </button>
       {expanded && (
-        <div className="px-4 py-3 border-t border-surface-border bg-gray-50/60 space-y-2">
-          {trail.map((step, i) => (
-            <div key={i} className="flex items-start gap-2 text-xs">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-blue mt-1 shrink-0" />
-              <div>
-                <span className="font-medium text-gray-700">{step.action}</span>
-                <span className="text-gray-400"> — {step.detail}</span>
-                <p className="text-[11px] text-gray-400">{step.date}</p>
-              </div>
+        <div className="px-4 py-3 border-t border-surface-border bg-gray-50/60 space-y-3">
+          {isAssigned && (
+            <div className="rounded-lg bg-purple-50 border border-purple-100 px-3 py-2 text-xs text-purple-700">
+              <span className="font-semibold">Currently assigned to:</span> {unit.engineerName ?? '—'}
+              {unit.workOrderLabel && <> — Work Order <span className="font-mono">{unit.workOrderLabel}</span></>}
             </div>
+          )}
+          <div className="space-y-2">
+            {trail.map((step, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-blue mt-1 shrink-0" />
+                <div>
+                  <span className="font-medium text-gray-700">{step.action}</span>
+                  <span className="text-gray-400"> — {step.detail}</span>
+                  <p className="text-[11px] text-gray-400">{step.date}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {canReplace && (
+            <button type="button" onClick={() => setReplaceOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
+              <RefreshCw size={12} /> Mark as Replaced
+            </button>
+          )}
+        </div>
+      )}
+      <MarkReplacedModal isOpen={replaceOpen} onClose={() => setReplaceOpen(false)} unit={unit} />
+    </div>
+  )
+}
+
+// Searchable ticket combobox for the Mark as Replaced form — requires
+// picking a real ticket from ticketsStore.js's getTickets(); the value
+// passed to onSelect is either a real ticket object or null, never
+// free-typed text, so the caller can gate submit on it being non-null.
+function TicketPicker({ value, onSelect }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const q = query.toLowerCase().trim()
+  const filtered = (q
+    ? getTickets().filter(t => `${t.id} ${t.customerName} ${t.subject}`.toLowerCase().includes(q))
+    : getTickets()
+  ).slice(0, 20)
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <input
+        value={open ? query : (value ? `${value.id} · ${value.customerName}` : '')}
+        onChange={e => { setQuery(e.target.value); setOpen(true); onSelect(null) }}
+        onFocus={() => { setQuery(''); setOpen(true) }}
+        placeholder="Search ticket number, customer or subject…"
+        className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+      />
+      {open && (
+        <div className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-surface-border rounded-lg shadow-lg">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-3">No matching tickets</p>
+          ) : filtered.map(t => (
+            <button key={t.id} type="button"
+              onClick={() => { onSelect(t); setOpen(false); setQuery('') }}
+              className="flex flex-col w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors border-b border-surface-border last:border-0">
+              <span className="font-mono font-semibold text-brand-blue">{t.id}</span>
+              <span className="text-gray-500 truncate">{t.customerName} — {t.subject}</span>
+            </button>
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// One-directional link only — this writes a replacement record on the
+// Inventory side (replacementStore.js) referencing the ticket's own stable
+// id; nothing is ever written back onto the Ticket record itself.
+function MarkReplacedModal({ isOpen, onClose, unit }) {
+  const [selectedTicket, setSelectedTicket] = useState(null)
+  const [remarks, setRemarks] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) { setSelectedTicket(null); setRemarks(''); setError('') }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  function handleSubmit() {
+    if (!selectedTicket) { setError('Select a valid ticket from the list.'); return }
+    saveReplacement({ unit, ticketNumber: selectedTicket.id, remarks }, CURRENT_USER)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+          <h2 className="text-sm font-bold text-gray-900">Mark as Replaced</h2>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-gray-500 font-mono">{unit.value}</p>
+          {error && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
+            </div>
+          )}
+          <FormField label="Ticket Number" required hint="Search and select an existing ticket">
+            <TicketPicker value={selectedTicket} onSelect={setSelectedTicket} />
+          </FormField>
+          <FormField label="Remarks" hint="Optional">
+            <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes about the replacement…" />
+          </FormField>
+        </div>
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-border bg-gray-50 rounded-b-2xl">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" icon={<RefreshCw size={14} />} onClick={handleSubmit}>Mark as Replaced</Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -113,7 +240,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
     { label: 'Available',value: available,                    color: 'text-emerald-600' },
     { label: 'Engineer', value: engineerAssigned,              color: engineerAssigned > 0 ? 'text-purple-600' : 'text-gray-400' },
     { label: 'User',     value: 0,          color: 'text-gray-400' },
-    { label: 'Damage',   value: 0,          color: 'text-gray-400' },
+    { label: 'Faulty',   value: 0,          color: 'text-gray-400' },
     { label: 'Scrap',    value: 0,          color: 'text-gray-400' },
   ]
 
@@ -139,7 +266,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
             {breakdown.map(b => (
               <div key={b.label} className="text-center px-2 py-2 rounded-lg border border-surface-border bg-surface">
                 <p className="text-[10px] text-gray-400">{b.label}</p>
-                <p className={`text-sm font-bold mt-0.5 ${b.color}`}>{isWire && b.label !== 'Engineer' && b.label !== 'User' && b.label !== 'Damage' && b.label !== 'Scrap' ? `${b.value.toLocaleString('en-IN')}m` : b.value}</p>
+                <p className={`text-sm font-bold mt-0.5 ${b.color}`}>{isWire && b.label !== 'Engineer' && b.label !== 'User' && b.label !== 'Faulty' && b.label !== 'Scrap' ? `${b.value.toLocaleString('en-IN')}m` : b.value}</p>
               </div>
             ))}
           </div>
@@ -478,7 +605,7 @@ export default function InventoryOverview() {
           { label: 'Wire Available (m)',    value: stats.wireAvailable,       icon: Package,     color: 'text-cyan-600',     bg: 'bg-cyan-50' },
           { label: 'Assigned to Engineers', value: stats.assignedToEngineers, icon: UserCog,      color: 'text-purple-600',   bg: 'bg-purple-50' },
           { label: 'Assigned to Users',     value: 0,                         icon: Users,        color: 'text-gray-400',     bg: 'bg-gray-100' },
-          { label: 'Damaged',               value: 0,                         icon: ShieldAlert,  color: 'text-gray-400',     bg: 'bg-gray-100' },
+          { label: 'Faulty',                value: 0,                         icon: ShieldAlert,  color: 'text-gray-400',     bg: 'bg-gray-100' },
           { label: 'Scrap',                 value: 0,                         icon: Trash2,       color: 'text-gray-400',     bg: 'bg-gray-100' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
@@ -659,7 +786,7 @@ export default function InventoryOverview() {
                 {visibleCols.has('available')   && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Available Qty</th>}
                 {visibleCols.has('engineer')    && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Engineer</th>}
                 {visibleCols.has('user')        && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">User</th>}
-                {visibleCols.has('damage')      && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Damage</th>}
+                {visibleCols.has('damage')      && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Faulty</th>}
                 {visibleCols.has('scrap')       && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Scrap</th>}
                 {visibleCols.has('status')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
                 {visibleCols.has('actions')     && <th className="px-4 py-3 w-20 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
