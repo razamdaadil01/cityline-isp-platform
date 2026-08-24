@@ -13,6 +13,7 @@ import { getProducts } from './productStore'
 import { getPurchases, subscribePurchases } from './purchaseStore'
 import { getAssignments, subscribeAssignments } from './assignmentStore'
 import { getReplacements, subscribeReplacements } from './replacementStore'
+import { getUserAssignments, subscribeUserAssignments } from './userAssignmentStore'
 
 function normalizeMatchKey(s) {
   return (s || '').trim().toLowerCase()
@@ -103,6 +104,12 @@ function computeLedger() {
   // own save-time validation independently instead of this relationship
   // running the other way.
   const assignedQtyByKey = {} // `${productId}|${storeId}` -> cumulative assignedQty (quantity-tracked only)
+  // `${engineerId}|${productId}` -> cumulative assignedQty issued to that
+  // engineer specifically (quantity-tracked only) — a per-engineer view
+  // assignedQtyByKey above can't answer, needed for Assign to User's Step 3
+  // cap (see getEngineerHeldQty below). Not netted against handoffs yet;
+  // the User Assignments block further down does that.
+  const assignedQtyByEngineerKey = {}
   const unitsByValue = new Map(units.map(u => [u.value, u]))
   const drumsByNumber = new Map(drums.map(d => [d.drumNumber, d]))
 
@@ -128,6 +135,8 @@ function computeLedger() {
           const key = `${l.productId}|${a.storeId}`
           balanceByKey[key] = Math.max(0, (balanceByKey[key] ?? 0) - l.assignedQty)
           assignedQtyByKey[key] = (assignedQtyByKey[key] ?? 0) + l.assignedQty
+          const engKey = `${a.engineerId}|${l.productId}`
+          assignedQtyByEngineerKey[engKey] = (assignedQtyByEngineerKey[engKey] ?? 0) + l.assignedQty
         }
         if (l.assignedQty > 0) {
           movements.push({
@@ -150,6 +159,44 @@ function computeLedger() {
       })
     })
 
+  // ── User Assignments: engineer → customer handoffs ───────────────────
+  // A unit/qty here was already 'Assigned to Engineer' via the block above
+  // — this layers on top the same way Replacements does below, moving the
+  // specific units/qty this engineer handed off from 'Assigned to Engineer'
+  // to 'Assigned to User'. Doesn't touch balanceByKey — that stock already
+  // left the store's balance the moment it was assigned to the engineer;
+  // handing it onward to a customer doesn't return it to any store.
+  const handedOffQtyByEngineerKey = {} // `${engineerId}|${productId}` -> cumulative qty already handed to users
+  getUserAssignments().forEach(ua => {
+    const toLabel = ua.customerName || 'Customer'
+    ua.items.forEach(it => {
+      const values = [...it.serials, ...it.macs]
+      if (values.length) {
+        values.forEach(v => {
+          const unit = unitsByValue.get(v)
+          if (!unit) return
+          unit.status = 'Assigned to User'
+          unit.userAssignmentNumber = ua.assignmentNumber
+          unit.handedOffAt = ua.assignedAt
+          unit.customerName = ua.customerName
+        })
+        movements.push({
+          date: (ua.assignedAt || '').slice(0, 10), productId: it.productId, movementType: 'Assignment',
+          qty: values.length, fromLabel: ua.engineerName, toLabel,
+          reference: ua.assignmentNumber, poReference: null,
+        })
+      } else if (Number(it.qty) > 0) {
+        const engKey = `${ua.engineerId}|${it.productId}`
+        handedOffQtyByEngineerKey[engKey] = (handedOffQtyByEngineerKey[engKey] ?? 0) + Number(it.qty)
+        movements.push({
+          date: (ua.assignedAt || '').slice(0, 10), productId: it.productId, movementType: 'Assignment',
+          qty: Number(it.qty), fromLabel: ua.engineerName, toLabel,
+          reference: ua.assignmentNumber, poReference: null,
+        })
+      }
+    })
+  })
+
   // ── Replacements: manual field swap-outs against a Support ticket ───────
   // Layered on last, same pattern as assignments above, so a replaced unit's
   // status/movement reflect the swap regardless of whether it was ever
@@ -170,7 +217,7 @@ function computeLedger() {
     })
   })
 
-  return { balanceByKey, units, drums, movements, assignedQtyByKey }
+  return { balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey }
 }
 
 // Flat [{ productId, storeId, availableQty }] — the base balance table
@@ -190,12 +237,16 @@ export function getProductAvailability(productId, storeId = null) {
     .reduce((sum, b) => sum + b.availableQty, 0)
 }
 
-// Serial/MAC unit rows, optionally narrowed by productId/storeId/status.
-export function getUnits({ productId, storeId, status } = {}) {
+// Serial/MAC unit rows, optionally narrowed by productId/storeId/status/
+// engineerId — the last is how Assign to User's Step 3 asks "which units
+// does THIS specific engineer currently hold" (status: 'Assigned to
+// Engineer' + engineerId together), rather than every engineer's pool.
+export function getUnits({ productId, storeId, status, engineerId } = {}) {
   return computeLedger().units.filter(u =>
     (!productId || u.productId === productId) &&
     (!storeId || u.storeId === storeId) &&
-    (!status || u.status === status)
+    (!status || u.status === status) &&
+    (!engineerId || u.engineerId === engineerId)
   )
 }
 
@@ -223,6 +274,18 @@ export function getEngineerAssignedQty(productId, storeId = null) {
     u.productId === productId && u.status === 'Assigned to Engineer' && (!storeId || u.storeId === storeId)
   ).length
   return qtySum + unitCount
+}
+
+// Net quantity-tracked qty of a product a SPECIFIC engineer currently
+// holds — their cumulative assignedQty across all their non-Returned
+// Assignments for that product, minus what they've already handed off via
+// UserAssignments. Powers Assign to User's Step 3 cap on the quantity
+// input; serial/MAC holdings are read via getUnits({ status: 'Assigned to
+// Engineer', engineerId }) instead, since each unit is its own row there.
+export function getEngineerHeldQty(engineerId, productId) {
+  const { assignedQtyByEngineerKey, handedOffQtyByEngineerKey } = computeLedger()
+  const key = `${engineerId}|${productId}`
+  return Math.max(0, (assignedQtyByEngineerKey[key] ?? 0) - (handedOffQtyByEngineerKey[key] ?? 0))
 }
 
 // Movement log, newest first, optionally narrowed to one product.
@@ -259,6 +322,12 @@ export function getUnitTrail(unit) {
       detail: `${unit.engineerName}${unit.workOrderLabel ? ` · Work Order ${unit.workOrderLabel}` : ''} · ${unit.assignmentNumber}`,
     })
   }
+  if (unit.userAssignmentNumber) {
+    trail.push({
+      date: (unit.handedOffAt || '').slice(0, 10), action: 'Assigned to User',
+      detail: `${unit.customerName ?? 'Customer'} · ${unit.userAssignmentNumber}`,
+    })
+  }
   if (unit.status === 'Replaced' && unit.replacementTicketNumber) {
     trail.push({
       date: (unit.replacedAt || '').slice(0, 10), action: 'Replaced',
@@ -269,13 +338,14 @@ export function getUnitTrail(unit) {
 }
 
 // No independent notify loop — the ledger has no state of its own to
-// notify about, so this just re-exposes purchaseStore's, assignmentStore's
-// and replacementStore's own pub/subs. Consumers re-run their selectors
-// (getStockBalances() etc.) on fire, from a new receipt, a new assignment,
-// or a new replacement.
+// notify about, so this just re-exposes purchaseStore's, assignmentStore's,
+// replacementStore's and userAssignmentStore's own pub/subs. Consumers
+// re-run their selectors (getStockBalances() etc.) on fire, from a new
+// receipt, a new assignment, a new replacement, or a new user handoff.
 export function subscribeInventoryLedger(fn) {
   const unsubPurchases = subscribePurchases(() => fn())
   const unsubAssignments = subscribeAssignments(() => fn())
   const unsubReplacements = subscribeReplacements(() => fn())
-  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements() }
+  const unsubUserAssignments = subscribeUserAssignments(() => fn())
+  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments() }
 }

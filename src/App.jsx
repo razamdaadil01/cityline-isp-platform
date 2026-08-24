@@ -67,6 +67,9 @@ import InventoryOverview from './pages/inventory/InventoryOverview'
 import Assignments from './pages/inventory/Assignments'
 import CreateAssignment from './pages/inventory/CreateAssignment'
 import AssignmentDetail from './pages/inventory/AssignmentDetail'
+import AssignToUser from './pages/inventory/AssignToUser'
+import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
+import AssignToUserDetail from './pages/inventory/AssignToUserDetail'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -169,6 +172,9 @@ export default function App() {
           <Route path="/inventory/assign" element={<Assignments />} />
           <Route path="/inventory/assign/new" element={<CreateAssignment />} />
           <Route path="/inventory/assign/:id" element={<AssignmentDetail />} />
+          <Route path="/inventory/assign-to-user" element={<AssignToUser />} />
+          <Route path="/inventory/assign-to-user/new" element={<CreateUserAssignment />} />
+          <Route path="/inventory/assign-to-user/:id" element={<AssignToUserDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />

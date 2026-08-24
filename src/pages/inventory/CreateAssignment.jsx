@@ -6,14 +6,14 @@ import {
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { FormField, Textarea } from '../../components/ui/FormInputs'
+import { FormField, Select, Textarea } from '../../components/ui/FormInputs'
 import StepProgress from '../../components/customer-type/StepProgress'
 import { getStores } from '../../data/storeStore'
 import { getProduct } from '../../data/productStore'
 import { getUnits, getDrums, getProductAvailability } from '../../data/inventoryLedger'
 import {
   getStoreForBranch, getEngineersForBranch, getAssignableWorkOrders, getWorkOrder,
-  resolveWorkOrderRequirement, saveAssignment,
+  resolveWorkOrderRequirement, saveAssignment, WORK_ORDER_TYPES,
 } from '../../data/assignmentStore'
 
 const STEPS = [
@@ -268,6 +268,7 @@ export default function CreateAssignment() {
 
   const [branchCode, setBranchCode] = useState('')
   const [engineer, setEngineer] = useState(null)
+  const [workOrderType, setWorkOrderType] = useState('Installation')
   const [workOrderId, setWorkOrderId] = useState(null)
   const [woSearch, setWoSearch] = useState('')
   const [remarks, setRemarks] = useState('')
@@ -280,7 +281,12 @@ export default function CreateAssignment() {
   const branches = useMemo(() => [...new Set(stores.map(s => s.branchCode).filter(Boolean))].sort(), [stores])
   const store = branchCode ? getStoreForBranch(branchCode) : null
   const engineers = branchCode ? getEngineersForBranch(branchCode) : []
-  const workOrders = (branchCode && engineer) ? getAssignableWorkOrders(branchCode, engineer.name) : []
+  // Only 'Installation' has a real backing source (getAssignableWorkOrders
+  // reads Installations) — the other Work Order Types are real, selectable
+  // options with no data behind them yet, so they resolve to an empty list
+  // rather than fabricating records. See WORK_ORDER_TYPES in
+  // assignmentStore.js for the shared list Assign to User reuses too.
+  const workOrders = (branchCode && engineer && workOrderType === 'Installation') ? getAssignableWorkOrders(branchCode, engineer.name) : []
   const workOrder = workOrderId ? getWorkOrder(workOrderId) : null
   const requirement = useMemo(() => workOrder ? resolveWorkOrderRequirement(workOrder) : { hardware: [], wire: [] }, [workOrder])
 
@@ -496,44 +502,58 @@ export default function CreateAssignment() {
                 </FormField>
 
                 {engineer && (
-                  <FormField label="Work Order" required hint="Only Work Orders with a completed Assign Team step, not yet issued hardware">
-                    <div className="relative mb-2">
-                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input value={woSearch} onChange={e => setWoSearch(e.target.value)} placeholder="Search Work Order ID, customer, plan…"
-                        className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
-                    </div>
-                    <div className="border border-surface-border rounded-lg overflow-hidden">
-                      <div className="overflow-x-auto max-h-72 overflow-y-auto">
-                        <table className="w-full text-xs">
-                          <thead className="sticky top-0 bg-gray-50">
-                            <tr className="text-gray-500 uppercase tracking-wide">
-                              <th className="text-left px-3 py-2 font-semibold">Work Order ID</th>
-                              <th className="text-left px-3 py-2 font-semibold">Customer</th>
-                              <th className="text-left px-3 py-2 font-semibold">Plan / Type</th>
-                              <th className="text-left px-3 py-2 font-semibold">Status</th>
-                              <th className="text-left px-3 py-2 font-semibold">Created</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-surface-border">
-                            {filteredWorkOrders.length === 0 ? (
-                              <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No assignable Work Orders found</td></tr>
-                            ) : filteredWorkOrders.map(w => (
-                              <tr key={w.id} onClick={() => setWorkOrderId(w.id)}
-                                className={`cursor-pointer transition-colors ${workOrderId === w.id ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
-                                <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
-                                  {workOrderId === w.id && <Check size={12} className="shrink-0" />} {w.id}
-                                </td>
-                                <td className="px-3 py-2 text-gray-700">{w.customerName}</td>
-                                <td className="px-3 py-2 text-gray-500">{w.plan}</td>
-                                <td className="px-3 py-2"><Badge variant="indigo" size="sm">{w.status}</Badge></td>
-                                <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{w.createdAt}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </FormField>
+                  <>
+                    <FormField label="Work Order Type" required hint="Only Installation has assignable Work Orders in this flow today">
+                      <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); setWorkOrderId(null) }}>
+                        {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </Select>
+                    </FormField>
+
+                    <FormField label="Work Order" required hint="Only Work Orders with a completed Assign Team step, not yet issued hardware">
+                      {workOrderType !== 'Installation' ? (
+                        <p className="text-xs text-gray-400 py-2">No {workOrderType} Work Orders are assignable from this flow yet.</p>
+                      ) : (
+                        <>
+                          <div className="relative mb-2">
+                            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input value={woSearch} onChange={e => setWoSearch(e.target.value)} placeholder="Search Work Order ID, customer, plan…"
+                              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+                          </div>
+                          <div className="border border-surface-border rounded-lg overflow-hidden">
+                            <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-gray-50">
+                                  <tr className="text-gray-500 uppercase tracking-wide">
+                                    <th className="text-left px-3 py-2 font-semibold">Work Order ID</th>
+                                    <th className="text-left px-3 py-2 font-semibold">Customer</th>
+                                    <th className="text-left px-3 py-2 font-semibold">Plan / Type</th>
+                                    <th className="text-left px-3 py-2 font-semibold">Status</th>
+                                    <th className="text-left px-3 py-2 font-semibold">Created</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-surface-border">
+                                  {filteredWorkOrders.length === 0 ? (
+                                    <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No assignable Work Orders found</td></tr>
+                                  ) : filteredWorkOrders.map(w => (
+                                    <tr key={w.id} onClick={() => setWorkOrderId(w.id)}
+                                      className={`cursor-pointer transition-colors ${workOrderId === w.id ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
+                                      <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
+                                        {workOrderId === w.id && <Check size={12} className="shrink-0" />} {w.id}
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-700">{w.customerName}</td>
+                                      <td className="px-3 py-2 text-gray-500">{w.plan}</td>
+                                      <td className="px-3 py-2"><Badge variant="indigo" size="sm">{w.status}</Badge></td>
+                                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{w.createdAt}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </FormField>
+                  </>
                 )}
               </div>
             )}
