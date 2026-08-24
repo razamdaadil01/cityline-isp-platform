@@ -298,18 +298,39 @@ export default function CreatePurchase() {
 
   const existing = isEditing ? getPurchase(editingId) : null
 
+  // Pre-select a PO carried in the URL (?po=<id>) on first load — mirrors
+  // `existing` sourcing initial state below, only for a fresh (non-editing)
+  // New Purchase. Only resolves against receivablePOs, so a stale/invalid
+  // id in the URL is silently ignored rather than pre-selecting nothing.
+  const poIdFromUrl = !isEditing ? searchParams.get('po') : null
+  const poFromUrl = poIdFromUrl ? receivablePOs.find(po => po.id === poIdFromUrl) ?? null : null
+
   const [outsidePoMode, setOutsidePoMode] = useState(() => existing ? !existing.poId : false)
-  const [poId, setPoId] = useState(existing?.poId ?? null)
-  const [companyEntityId, setCompanyEntityId] = useState(existing?.companyEntityId ?? entities[0]?.id ?? null)
-  const [vendorId, setVendorId] = useState(existing?.vendorId ?? '')
-  const [storeId, setStoreId] = useState(existing?.storeId ?? '')
+  const [poId, setPoId] = useState(() => existing?.poId ?? poFromUrl?.id ?? null)
+  const [companyEntityId, setCompanyEntityId] = useState(() => existing?.companyEntityId ?? poFromUrl?.companyEntityId ?? entities[0]?.id ?? null)
+  const [vendorId, setVendorId] = useState(() => existing?.vendorId ?? poFromUrl?.vendorId ?? '')
+  const [storeId, setStoreId] = useState(() => existing?.storeId ?? poFromUrl?.storeId ?? '')
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchaseDate ?? new Date().toISOString().slice(0, 10))
-  const [items, setItems] = useState(() => existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) })) ?? [])
+  const [items, setItems] = useState(() => existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) })) ?? poFromUrl?.items.map(itemFromPOLine) ?? [])
   const [remarks, setRemarks] = useState(existing?.remarks ?? '')
   const [showAddOutside, setShowAddOutside] = useState(false)
   const [attemptedAction, setAttemptedAction] = useState(null) // null | 'step1' | 'step2' | 'draft' | 'confirm'
 
   const selectedPO = poId ? getPurchaseOrder(poId) : null
+
+  // Merge-safe searchParams update — used for both the `po` selection and
+  // step navigation below, so setting one param never clobbers the other
+  // (a plain setSearchParams({step}) call replaces the whole query string).
+  function patchSearchParams(patch, options) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value == null) next.delete(key)
+        else next.set(key, String(value))
+      })
+      return next
+    }, options)
+  }
 
   function selectPO(po) {
     setPoId(po.id)
@@ -319,12 +340,14 @@ export default function CreatePurchase() {
     // Re-selecting a PO replaces only the PO-sourced lines — any items
     // already added via "Add Hardware Outside PO" carry over.
     setItems(prev => [...po.items.map(itemFromPOLine), ...prev.filter(it => it.source === 'outside')])
+    patchSearchParams({ po: po.id }, { replace: true })
   }
 
   function switchToOutsidePo() {
     setOutsidePoMode(true)
     setPoId(null)
     setItems(prev => prev.filter(it => it.source === 'outside'))
+    patchSearchParams({ po: null }, { replace: true })
   }
   function switchToPoMode() {
     setOutsidePoMode(false)
@@ -379,18 +402,18 @@ export default function CreatePurchase() {
   function goTo(id) {
     if (!isReachable(id)) return
     setAttemptedAction(null)
-    setSearchParams({ step: String(id) })
+    patchSearchParams({ step: id })
   }
   function goBack() {
     setAttemptedAction(null)
     if (step === 1) { navigate('/inventory/purchases'); return }
-    setSearchParams({ step: String(step - 1) })
+    patchSearchParams({ step: step - 1 })
   }
   function goNext() {
     if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
     if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
     setAttemptedAction(null)
-    setSearchParams({ step: String(Math.min(step + 1, 3)) })
+    patchSearchParams({ step: Math.min(step + 1, 3) })
   }
 
   function buildPayload() {
