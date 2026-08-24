@@ -25,6 +25,14 @@ import { logAudit } from './auditLogStore'
 
 export const ASSIGNMENT_STATUSES = ['Assigned', 'Returned']
 
+// Work Order types Assign to Engineer's Step 2 and Assign to User's Step 2
+// both surface — a single source of truth so the two flows never drift.
+// Only 'Installation' has a real backing data source today (getInstallations()
+// below); the other four are real, selectable options with no fabricated
+// records behind them yet — callers show an explicit empty/unsupported
+// state for those rather than pretending they resolve to something.
+export const WORK_ORDER_TYPES = ['Installation', 'Ticket', 'Incident', 'Network', 'Project']
+
 // ── Number sequence — simple, global, mirrors purchaseStore.js's own
 // PUR-YYYY-###### convention. ────────────────────────────────────────────
 let _nextSeq = 1

@@ -37,6 +37,7 @@ import {
   ClipboardList,
   PackageOpen,
   UserCheck,
+  UserPlus,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -83,6 +84,7 @@ const NAV_ITEMS = [
       { label: 'Purchase Orders',    icon: ClipboardList,     to: '/inventory/purchase-orders' },
       { label: 'Purchases',          icon: PackageOpen,       to: '/inventory/purchases' },
       { label: 'Assign to Engineer', icon: UserCheck,         to: '/inventory/assign' },
+      { label: 'Assign to User',     icon: UserPlus,          to: '/inventory/assign-to-user' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
       { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },
