@@ -14,22 +14,32 @@ import { getPurchases, subscribePurchases } from './purchaseStore'
 import { getAssignments, subscribeAssignments } from './assignmentStore'
 import { getReplacements, subscribeReplacements } from './replacementStore'
 
+function normalizeMatchKey(s) {
+  return (s || '').trim().toLowerCase()
+}
+
 // Every Purchase item carries a productId snapshotted at the moment it was
 // added (copied from the PO line it came from, or from the product picker
 // for an outside-PO/PO-extra item). That snapshot is normally identical to
 // the product's live id, but it's still a copy, not a live reference — so
 // rather than trust it blindly as the ledger's grouping key, resolve it
 // against the live productStore first. An exact id match is the common
-// case and returns immediately; SKU and then exact product name are the
+// case and returns immediately; SKU and then product name are the
 // fallbacks for a snapshot that's drifted, so a Purchase item never silently
 // aggregates onto an orphaned key that no product row in Inventory Overview
-// (which always keys off the live productStore's ids) can ever match.
+// (which always keys off the live productStore's ids) can ever match. The
+// SKU/name fallbacks compare trimmed + case-insensitively (normalizeMatchKey)
+// rather than requiring a byte-for-byte match — a stray leading/trailing
+// space or a casing difference on an otherwise-identical name/SKU shouldn't
+// be enough to orphan an entire receipt's balance and serial units.
 function resolveProductId(it) {
   const products = getProducts()
   if (products.some(p => p.id === it.productId)) return it.productId
-  const bySku = it.sku && products.find(p => p.sku && p.sku === it.sku)
+  const sku = normalizeMatchKey(it.sku)
+  const bySku = sku && products.find(p => normalizeMatchKey(p.sku) === sku)
   if (bySku) return bySku.id
-  const byName = it.productName && products.find(p => p.name === it.productName)
+  const name = normalizeMatchKey(it.productName)
+  const byName = name && products.find(p => normalizeMatchKey(p.name) === name)
   if (byName) return byName.id
   return it.productId
 }
