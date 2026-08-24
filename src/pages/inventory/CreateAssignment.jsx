@@ -37,23 +37,54 @@ function liveTrackingType(productId) {
   return productId ? (getProduct(productId)?.trackingType ?? 'quantity') : 'quantity'
 }
 
-// A hardware line with no requirement (or no matching product to fulfill
-// it against — the amber "cannot be issued" card has no input to fill in
-// the first place) is trivially "complete." Otherwise it needs a real pick
-// matching its live tracking type.
-function isHwLineComplete(l) {
-  if (!l.productId || Number(l.requiredQty) <= 0) return true
+// Raw store availability for a hardware line, ignoring what other lines on
+// THIS assignment might also want — used only to answer "does this store
+// have any of this product at all," not to cap an input.
+function hwLineAvailability(l, storeId) {
+  if (!l.productId) return 0
+  return liveTrackingType(l.productId) === 'quantity'
+    ? getProductAvailability(l.productId, storeId)
+    : getUnits({ productId: l.productId, storeId, status: 'Available' }).length
+}
+
+function wireLineAvailability(l, storeId) {
+  if (!l.productId) return 0
+  return getDrums({ productId: l.productId, storeId })
+    .filter(d => d.remainingMeters > 0)
+    .reduce((s, d) => s + d.remainingMeters, 0)
+}
+
+// A required line the store genuinely has zero stock/serials/drums for —
+// there's nothing for the user to pick, so it can't be treated as "must be
+// filled to submit." It's still shown as unfulfilled (see outOfStock prop
+// on the line cards, and the Step 5 "Not Fulfilled" list), just not a
+// blocker — a partial assignment (issue what's in stock, leave the rest
+// pending) is a legitimate outcome, not an error state.
+function isHwLineOutOfStock(l, storeId) {
+  return !!l.productId && Number(l.requiredQty) > 0 && hwLineAvailability(l, storeId) === 0
+}
+function isWireLineOutOfStock(l, storeId) {
+  return !!l.productId && Number(l.requiredMeters) > 0 && wireLineAvailability(l, storeId) === 0
+}
+
+// A hardware line with no requirement, no matching product (the amber
+// "cannot be issued" card has no input to fill in the first place), or
+// genuinely zero stock at this store is trivially "complete" — nothing
+// blocks submission on it. Otherwise it needs a real pick matching its
+// live tracking type.
+function isHwLineComplete(l, storeId) {
+  if (!l.productId || Number(l.requiredQty) <= 0 || isHwLineOutOfStock(l, storeId)) return true
   return liveTrackingType(l.productId) === 'quantity'
     ? (Number(l.assignedQty) || 0) > 0
     : (l.serials.length + l.macs.length) > 0
 }
 
-function isWireLineComplete(l) {
-  if (!l.productId || Number(l.requiredMeters) <= 0) return true
+function isWireLineComplete(l, storeId) {
+  if (!l.productId || Number(l.requiredMeters) <= 0 || isWireLineOutOfStock(l, storeId)) return true
   return (Number(l.assignedMeters) || 0) > 0
 }
 
-function HardwareLineCard({ line, storeId, otherLines, onChange, showError }) {
+function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outOfStock }) {
   const trackingType = liveTrackingType(line.productId)
   const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : l.serials.length + l.macs.length) : s, 0)
   const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId) : 0
@@ -74,7 +105,7 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError }) {
   }
 
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
-  const errorBorder = showError ? 'border-red-300 bg-red-50/30' : 'border-surface-border'
+  const errorBorder = showError ? 'border-red-300 bg-red-50/30' : outOfStock ? 'border-amber-200 bg-amber-50/40' : 'border-surface-border'
 
   if (trackingType === 'serial' || trackingType === 'mac') {
     const kindLabel = trackingType === 'serial' ? 'Serial' : 'MAC'
@@ -101,7 +132,11 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError }) {
           <Badge variant={remainingAvailable > 0 ? 'green' : 'gray'} size="sm">{picked.length} selected · {remainingAvailable} available</Badge>
         </div>
         {units.length === 0 ? (
-          <p className="text-xs text-gray-400 py-2">No available {kindLabel.toLowerCase()} units for this product at this store.</p>
+          outOfStock ? (
+            <p className="text-xs text-amber-700 flex items-center gap-1.5 py-2"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
+          ) : (
+            <p className="text-xs text-gray-400 py-2">No available {kindLabel.toLowerCase()} units for this product at this store.</p>
+          )
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
@@ -138,27 +173,29 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError }) {
           <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
           <p className="text-xs text-gray-400">Required: {line.requiredQty}</p>
         </div>
-        <Badge variant={remainingInPool > 0 ? 'green' : 'red'} size="sm">{remainingInPool} available</Badge>
+        <Badge variant={remainingInPool > 0 ? 'green' : outOfStock ? 'gray' : 'red'} size="sm">{remainingInPool} available</Badge>
       </div>
       <FormField label="Assign Qty">
         <input
-          type="number" min="0" max={roomToGrow}
+          type="number" min="0" max={roomToGrow} disabled={outOfStock}
           value={line.assignedQty}
           onChange={e => {
             const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
             onChange({ assignedQty: v })
           }}
-          className="w-32 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          className="w-32 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
       </FormField>
-      {showError && (
+      {outOfStock ? (
+        <p className="text-xs text-amber-700 flex items-center gap-1.5"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
+      ) : showError && (
         <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Enter a quantity to assign for this line.</p>
       )}
     </div>
   )
 }
 
-function WireLineCard({ line, storeId, otherLines, onChange, showError }) {
+function WireLineCard({ line, storeId, otherLines, onChange, showError, outOfStock }) {
   if (!line.productId) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -177,13 +214,17 @@ function WireLineCard({ line, storeId, otherLines, onChange, showError }) {
   const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
 
   return (
-    <div className={`rounded-xl border p-4 space-y-3 ${showError ? 'border-red-300 bg-red-50/30' : 'border-surface-border'}`}>
+    <div className={`rounded-xl border p-4 space-y-3 ${showError ? 'border-red-300 bg-red-50/30' : outOfStock ? 'border-amber-200 bg-amber-50/40' : 'border-surface-border'}`}>
       <div>
         <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
         <p className="text-xs text-gray-400">Required: {line.requiredMeters} m</p>
       </div>
       {drums.length === 0 ? (
-        <p className="text-xs text-gray-400 py-2">No drums with remaining meters for this product at this store.</p>
+        outOfStock ? (
+          <p className="text-xs text-amber-700 flex items-center gap-1.5 py-2"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
+        ) : (
+          <p className="text-xs text-gray-400 py-2">No drums with remaining meters for this product at this store.</p>
+        )
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Drum">
@@ -281,15 +322,20 @@ export default function CreateAssignment() {
   function isStep3Valid() { return isStep2Valid() }
   // Requires BOTH: at least one item picked overall (unchanged from before —
   // a Work Order whose lines are all unfulfillable/not required can't submit
-  // an empty assignment), AND every individual line that actually requires
-  // something has a non-zero pick matching its live tracking type — a line
-  // with e.g. required qty but zero serials selected no longer slips through
-  // just because some OTHER line on the same Work Order has a pick.
+  // an empty assignment), AND every individual line that HAS stock to pick
+  // from has a non-zero pick matching its live tracking type — a line with
+  // e.g. required qty but zero serials selected no longer slips through
+  // just because some OTHER line on the same Work Order has a pick. A line
+  // the store genuinely has zero of (isHwLineComplete/isWireLineComplete
+  // exempt it) never blocks submission — a partial assignment, issuing
+  // what's actually in stock and leaving the rest pending, is allowed.
   function isStep4Valid() {
     if (hwLines.length === 0 && wireLines.length === 0) return false
     const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
-    return (hwCount > 0 || wireCount > 0) && hwLines.every(isHwLineComplete) && wireLines.every(isWireLineComplete)
+    return (hwCount > 0 || wireCount > 0)
+      && hwLines.every(l => isHwLineComplete(l, store?.id))
+      && wireLines.every(l => isWireLineComplete(l, store?.id))
   }
 
   const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: isStep4Valid(), 5: true }
@@ -352,6 +398,12 @@ export default function CreateAssignment() {
 
   const issuedHwLines = hwLines.filter(l => l.productId && (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) > 0 : (l.serials.length + l.macs.length) > 0))
   const issuedWireLines = wireLines.filter(l => l.productId && Number(l.assignedMeters) > 0)
+  // Required lines the store has zero stock for — never blocked submission
+  // (see isHwLineComplete/isWireLineComplete), but still worth surfacing
+  // explicitly at Confirm so a partial assignment is visibly partial, not a
+  // silently dropped line.
+  const outOfStockHwLines = hwLines.filter(l => isHwLineOutOfStock(l, store?.id))
+  const outOfStockWireLines = wireLines.filter(l => isWireLineOutOfStock(l, store?.id))
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -523,13 +575,15 @@ export default function CreateAssignment() {
                       <HardwareLineCard key={`hw-${idx}`} line={l} storeId={store.id}
                         otherLines={hwLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateHwLine(idx, patch)}
-                        showError={attemptedAction === 'step4' && !isHwLineComplete(l)} />
+                        outOfStock={isHwLineOutOfStock(l, store.id)}
+                        showError={attemptedAction === 'step4' && !isHwLineComplete(l, store.id)} />
                     ))}
                     {wireLines.map((l, idx) => (
                       <WireLineCard key={`wire-${idx}`} line={l} storeId={store.id}
                         otherLines={wireLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateWireLine(idx, patch)}
-                        showError={attemptedAction === 'step4' && !isWireLineComplete(l)} />
+                        outOfStock={isWireLineOutOfStock(l, store.id)}
+                        showError={attemptedAction === 'step4' && !isWireLineComplete(l, store.id)} />
                     ))}
                   </>
                 )}
@@ -593,6 +647,33 @@ export default function CreateAssignment() {
                     )}
                   </div>
                 </div>
+
+                {(outOfStockHwLines.length > 0 || outOfStockWireLines.length > 0) && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/40 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-amber-200">
+                      <p className="text-xs font-bold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <AlertTriangle size={13} /> Not Fulfilled — Out of Stock
+                      </p>
+                    </div>
+                    <div className="divide-y divide-amber-200/60">
+                      {outOfStockHwLines.map((l, i) => (
+                        <div key={`hw-oos-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                          <span className="font-medium text-gray-800">{l.productName}</span>
+                          <span className="text-amber-700 text-xs">Required {l.requiredQty} · 0 available</span>
+                        </div>
+                      ))}
+                      {outOfStockWireLines.map((l, i) => (
+                        <div key={`wire-oos-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                          <span className="font-medium text-gray-800">{l.productName}</span>
+                          <span className="text-amber-700 text-xs">Required {l.requiredMeters}m · 0 available</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="px-4 py-2.5 text-[11px] text-amber-700 border-t border-amber-200/60">
+                      This will be a partial assignment — these lines are left pending and can be issued once stock is received.
+                    </p>
+                  </div>
+                )}
 
                 <FormField label="Remarks" hint="Optional notes about this assignment">
                   <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes…" />
