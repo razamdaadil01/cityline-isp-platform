@@ -125,6 +125,7 @@ const SEED = [
         source: 'outside', productId: 'PRD-001', productName: 'ONT Device', unit: 'Piece',
         poQty: 0, receivedQty: 3, price: 1800, gstPercent: 18,
         reason: 'Urgent field requirement for a VIP customer install',
+        serials: ['ZTE-ONT-2026-0001', 'ZTE-ONT-2026-0002', 'ZTE-ONT-2026-0003'],
       }),
     ],
     remarks: 'Emergency stock-out purchase — approved verbally by Ops Manager.',
