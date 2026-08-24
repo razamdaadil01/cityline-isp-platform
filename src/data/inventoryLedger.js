@@ -12,6 +12,7 @@
 import { getProducts } from './productStore'
 import { getPurchases, subscribePurchases } from './purchaseStore'
 import { getAssignments, subscribeAssignments } from './assignmentStore'
+import { getReplacements, subscribeReplacements } from './replacementStore'
 
 // Every Purchase item carries a productId snapshotted at the moment it was
 // added (copied from the PO line it came from, or from the product picker
@@ -110,6 +111,8 @@ function computeLedger() {
             unit.assignmentId = a.id
             unit.assignmentNumber = a.assignmentNumber
             unit.assignedAt = a.assignedAt
+            unit.workOrderId = a.workOrderId
+            unit.workOrderLabel = a.workOrderLabel
           })
         } else if (l.assignedQty > 0) {
           const key = `${l.productId}|${a.storeId}`
@@ -136,6 +139,26 @@ function computeLedger() {
         }
       })
     })
+
+  // ── Replacements: manual field swap-outs against a Support ticket ───────
+  // Layered on last, same pattern as assignments above, so a replaced unit's
+  // status/movement reflect the swap regardless of whether it was ever
+  // assigned to an engineer first. Processed oldest-first (the store
+  // prepends newest-first) so that if a unit were ever marked Replaced more
+  // than once, the most recent record wins.
+  ;[...getReplacements()].reverse().forEach(r => {
+    const unit = unitsByValue.get(r.value)
+    if (!unit || unit.productId !== r.productId) return
+    unit.status = 'Replaced'
+    unit.replacedAt = r.replacedAt
+    unit.replacementTicketNumber = r.ticketNumber
+    unit.replacementRemarks = r.remarks
+    movements.push({
+      date: r.replacedAt.slice(0, 10), productId: unit.productId, movementType: 'Replaced',
+      qty: 1, fromLabel: unit.engineerName ?? 'Field', toLabel: `Ticket ${r.ticketNumber}`,
+      reference: r.ticketNumber, poReference: null, remarks: r.remarks,
+    })
+  })
 
   return { balanceByKey, units, drums, movements, assignedQtyByKey }
 }
@@ -200,7 +223,12 @@ export function getMovements({ productId } = {}) {
 }
 
 // A single serial/MAC/drum unit's trail so far — Purchased → Received, plus
-// an Assigned to Engineer step once assignmentStore.js has one on record.
+// an Assigned to Engineer step once assignmentStore.js has one on record,
+// plus a Replaced step once replacementStore.js has one on record. Each step
+// keys off the unit still carrying that record (assignmentNumber/
+// replacementTicketNumber) rather than its *current* status, so a unit that
+// has since moved on to 'Replaced' still shows its earlier Assigned step —
+// the trail is a history, not just a snapshot of where the unit is now.
 // Shaped so a later phase (Installed at Customer, Returned, ...) is just
 // pushing onto this same array, not a restructure.
 export function getUnitTrail(unit) {
@@ -215,22 +243,29 @@ export function getUnitTrail(unit) {
       storeId: unit.storeId,
     },
   ]
-  if (unit.status === 'Assigned to Engineer' && unit.assignmentNumber) {
+  if (unit.assignmentNumber) {
     trail.push({
       date: (unit.assignedAt || '').slice(0, 10), action: 'Assigned to Engineer',
-      detail: `${unit.engineerName} · ${unit.assignmentNumber}`,
+      detail: `${unit.engineerName}${unit.workOrderLabel ? ` · Work Order ${unit.workOrderLabel}` : ''} · ${unit.assignmentNumber}`,
+    })
+  }
+  if (unit.status === 'Replaced' && unit.replacementTicketNumber) {
+    trail.push({
+      date: (unit.replacedAt || '').slice(0, 10), action: 'Replaced',
+      detail: `Ticket ${unit.replacementTicketNumber}${unit.replacementRemarks ? ` — ${unit.replacementRemarks}` : ''}`,
     })
   }
   return trail
 }
 
 // No independent notify loop — the ledger has no state of its own to
-// notify about, so this just re-exposes purchaseStore's and
-// assignmentStore's own pub/subs. Consumers re-run their selectors
-// (getStockBalances() etc.) on fire, from either a new receipt or a new
-// assignment.
+// notify about, so this just re-exposes purchaseStore's, assignmentStore's
+// and replacementStore's own pub/subs. Consumers re-run their selectors
+// (getStockBalances() etc.) on fire, from a new receipt, a new assignment,
+// or a new replacement.
 export function subscribeInventoryLedger(fn) {
   const unsubPurchases = subscribePurchases(() => fn())
   const unsubAssignments = subscribeAssignments(() => fn())
-  return () => { unsubPurchases(); unsubAssignments() }
+  const unsubReplacements = subscribeReplacements(() => fn())
+  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements() }
 }
