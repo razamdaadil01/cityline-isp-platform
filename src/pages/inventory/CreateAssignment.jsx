@@ -26,8 +26,36 @@ const STEPS = [
 
 // ── Step 4 line cards ────────────────────────────────────────────────────
 
-function HardwareLineCard({ line, storeId, otherLines, onChange }) {
-  const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (l.trackingType === 'quantity' ? Number(l.assignedQty) || 0 : l.serials.length + l.macs.length) : s, 0)
+// Always reads the product's *current* Tracking Type live from
+// productStore.js rather than a value captured once and cached in hwLines
+// state — a Tracking Type changed in Product Management after this Work
+// Order/store was already selected earlier in the same session must be
+// reflected immediately, never silently stale. Called fresh on every
+// render, same as getProductAvailability()/getUnits() calls elsewhere in
+// this file already are.
+function liveTrackingType(productId) {
+  return productId ? (getProduct(productId)?.trackingType ?? 'quantity') : 'quantity'
+}
+
+// A hardware line with no requirement (or no matching product to fulfill
+// it against — the amber "cannot be issued" card has no input to fill in
+// the first place) is trivially "complete." Otherwise it needs a real pick
+// matching its live tracking type.
+function isHwLineComplete(l) {
+  if (!l.productId || Number(l.requiredQty) <= 0) return true
+  return liveTrackingType(l.productId) === 'quantity'
+    ? (Number(l.assignedQty) || 0) > 0
+    : (l.serials.length + l.macs.length) > 0
+}
+
+function isWireLineComplete(l) {
+  if (!l.productId || Number(l.requiredMeters) <= 0) return true
+  return (Number(l.assignedMeters) || 0) > 0
+}
+
+function HardwareLineCard({ line, storeId, otherLines, onChange, showError }) {
+  const trackingType = liveTrackingType(line.productId)
+  const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : l.serials.length + l.macs.length) : s, 0)
   const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId) : 0
   // Room left for THIS line to still grow into (excludes its own current
   // pick) — used as the input's max. The badge instead shows what's left in
@@ -46,11 +74,12 @@ function HardwareLineCard({ line, storeId, otherLines, onChange }) {
   }
 
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
+  const errorBorder = showError ? 'border-red-300 bg-red-50/30' : 'border-surface-border'
 
-  if (line.trackingType === 'serial' || line.trackingType === 'mac') {
-    const kindLabel = line.trackingType === 'serial' ? 'Serial' : 'MAC'
+  if (trackingType === 'serial' || trackingType === 'mac') {
+    const kindLabel = trackingType === 'serial' ? 'Serial' : 'MAC'
     const units = getUnits({ productId: line.productId, storeId, status: 'Available' }).filter(u => !pickedElsewhere.has(u.value))
-    const picked = line.trackingType === 'serial' ? line.serials : line.macs
+    const picked = trackingType === 'serial' ? line.serials : line.macs
     // Units already checked on THIS line stay visible in the list (so they
     // can be unchecked) but no longer count toward "available" — matching
     // the same self-inclusive live-decrement the quantity-only input uses.
@@ -60,10 +89,10 @@ function HardwareLineCard({ line, storeId, otherLines, onChange }) {
       const isPicked = picked.includes(value)
       if (!isPicked && atRequiredCap) return
       const next = isPicked ? picked.filter(v => v !== value) : [...picked, value]
-      onChange(line.trackingType === 'serial' ? { serials: next } : { macs: next })
+      onChange(trackingType === 'serial' ? { serials: next } : { macs: next })
     }
     return (
-      <div className="rounded-xl border border-surface-border p-4 space-y-3">
+      <div className={`rounded-xl border p-4 space-y-3 ${errorBorder}`}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
@@ -94,13 +123,16 @@ function HardwareLineCard({ line, storeId, otherLines, onChange }) {
             {atRequiredCap && <p className="text-[11px] text-gray-400">Required quantity reached — uncheck a unit to pick a different one.</p>}
           </>
         )}
+        {showError && (
+          <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select at least one {kindLabel.toLowerCase()} for this line.</p>
+        )}
       </div>
     )
   }
 
   // Quantity-only
   return (
-    <div className="rounded-xl border border-surface-border p-4 space-y-3">
+    <div className={`rounded-xl border p-4 space-y-3 ${errorBorder}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
@@ -119,11 +151,14 @@ function HardwareLineCard({ line, storeId, otherLines, onChange }) {
           className="w-32 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
         />
       </FormField>
+      {showError && (
+        <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Enter a quantity to assign for this line.</p>
+      )}
     </div>
   )
 }
 
-function WireLineCard({ line, storeId, otherLines, onChange }) {
+function WireLineCard({ line, storeId, otherLines, onChange, showError }) {
   if (!line.productId) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -142,7 +177,7 @@ function WireLineCard({ line, storeId, otherLines, onChange }) {
   const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
 
   return (
-    <div className="rounded-xl border border-surface-border p-4 space-y-3">
+    <div className={`rounded-xl border p-4 space-y-3 ${showError ? 'border-red-300 bg-red-50/30' : 'border-surface-border'}`}>
       <div>
         <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
         <p className="text-xs text-gray-400">Required: {line.requiredMeters} m</p>
@@ -178,6 +213,9 @@ function WireLineCard({ line, storeId, otherLines, onChange }) {
             />
           </FormField>
         </div>
+      )}
+      {showError && (
+        <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select a drum and enter meters to assign for this line.</p>
       )}
     </div>
   )
@@ -216,14 +254,15 @@ export default function CreateAssignment() {
   // read-only queries below can leave a phantom deduction behind.
   useEffect(() => {
     if (!workOrder || !store) { setHwLines([]); setWireLines([]); return }
-    setHwLines(requirement.hardware.map(h => {
-      const product = h.productId ? getProduct(h.productId) : null
-      const trackingType = product?.trackingType ?? 'quantity'
-      return {
-        name: h.name, productId: h.productId, productName: h.productName, requiredQty: h.requiredQty,
-        trackingType, assignedQty: 0, serials: [], macs: [],
-      }
-    }))
+    // trackingType is intentionally NOT captured here — HardwareLineCard and
+    // every validity check below call liveTrackingType(productId) fresh
+    // instead, so a Tracking Type edited in Product Management after this
+    // Work Order/store was already selected is picked up immediately rather
+    // than staying stuck on whatever it was at the moment this effect ran.
+    setHwLines(requirement.hardware.map(h => ({
+      name: h.name, productId: h.productId, productName: h.productName, requiredQty: h.requiredQty,
+      assignedQty: 0, serials: [], macs: [],
+    })))
     setWireLines(requirement.wire.map(w => ({
       name: w.name, productId: w.productId, productName: w.productName, requiredMeters: w.requiredMeters,
       drumNumber: '', assignedMeters: 0,
@@ -240,10 +279,17 @@ export default function CreateAssignment() {
   function isStep1Valid() { return !!branchCode }
   function isStep2Valid() { return !!branchCode && !!engineer && !!workOrderId }
   function isStep3Valid() { return isStep2Valid() }
+  // Requires BOTH: at least one item picked overall (unchanged from before —
+  // a Work Order whose lines are all unfulfillable/not required can't submit
+  // an empty assignment), AND every individual line that actually requires
+  // something has a non-zero pick matching its live tracking type — a line
+  // with e.g. required qty but zero serials selected no longer slips through
+  // just because some OTHER line on the same Work Order has a pick.
   function isStep4Valid() {
-    const hwCount = hwLines.reduce((s, l) => s + (l.trackingType === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
+    if (hwLines.length === 0 && wireLines.length === 0) return false
+    const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
-    return hwCount > 0 || wireCount > 0
+    return (hwCount > 0 || wireCount > 0) && hwLines.every(isHwLineComplete) && wireLines.every(isWireLineComplete)
   }
 
   const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: isStep4Valid(), 5: true }
@@ -304,7 +350,7 @@ export default function CreateAssignment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrders, woSearch])
 
-  const issuedHwLines = hwLines.filter(l => l.productId && (l.trackingType === 'quantity' ? Number(l.assignedQty) > 0 : (l.serials.length + l.macs.length) > 0))
+  const issuedHwLines = hwLines.filter(l => l.productId && (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) > 0 : (l.serials.length + l.macs.length) > 0))
   const issuedWireLines = wireLines.filter(l => l.productId && Number(l.assignedMeters) > 0)
 
   return (
@@ -346,7 +392,7 @@ export default function CreateAssignment() {
             )}
             {attemptedAction === 'step4' && !isStep4Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) to assign.
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) to assign, and complete every required line highlighted below.
               </div>
             )}
             {saveError && (
@@ -476,12 +522,14 @@ export default function CreateAssignment() {
                     {hwLines.map((l, idx) => (
                       <HardwareLineCard key={`hw-${idx}`} line={l} storeId={store.id}
                         otherLines={hwLines.filter((_, i) => i !== idx)}
-                        onChange={patch => updateHwLine(idx, patch)} />
+                        onChange={patch => updateHwLine(idx, patch)}
+                        showError={attemptedAction === 'step4' && !isHwLineComplete(l)} />
                     ))}
                     {wireLines.map((l, idx) => (
                       <WireLineCard key={`wire-${idx}`} line={l} storeId={store.id}
                         otherLines={wireLines.filter((_, i) => i !== idx)}
-                        onChange={patch => updateWireLine(idx, patch)} />
+                        onChange={patch => updateWireLine(idx, patch)}
+                        showError={attemptedAction === 'step4' && !isWireLineComplete(l)} />
                     ))}
                   </>
                 )}
@@ -528,7 +576,7 @@ export default function CreateAssignment() {
                               ) : null}
                             </div>
                             <span className="font-semibold text-gray-700">
-                              {l.trackingType === 'quantity' ? l.assignedQty : l.serials.length + l.macs.length}
+                              {liveTrackingType(l.productId) === 'quantity' ? l.assignedQty : l.serials.length + l.macs.length}
                             </span>
                           </div>
                         ))}
