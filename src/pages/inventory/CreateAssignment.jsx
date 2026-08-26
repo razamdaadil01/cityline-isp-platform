@@ -494,15 +494,12 @@ export default function CreateAssignment() {
             {/* ── Step 1: Branch & Engineer ── */}
             {step === 1 && (
               <div className="space-y-5">
-                <FormField label="Branch" required hint="Determines which engineers, Work Orders and store inventory are available next">
+                <FormField label="Branch" required>
                   <Select value={branchCode} onChange={e => { setBranchCode(e.target.value); setEngineer(null); setWorkOrderId(null) }}>
                     <option value="">Select branch…</option>
                     {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
                   </Select>
                 </FormField>
-                {branchCode && (
-                  <p className="text-xs text-gray-500">Issuing store: <span className="font-medium text-gray-700">{store?.storeName ?? 'No active store for this branch'}</span></p>
-                )}
 
                 <FormField label="Engineer" required>
                   {!branchCode ? (
