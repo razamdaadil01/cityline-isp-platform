@@ -261,6 +261,84 @@ const INIT_INSTALLATIONS = [
       { status: 'Dispatched', date: '2026-08-11', by: 'Admin', note: 'Team dispatched' },
     ],
   },
+  // ── Fully-connected Andheri Store (CNPL-002) demo trio ──────────────────
+  // Gives Assign to Engineer one branch (CNPL-002) where the whole wizard
+  // can be walked start to finish with zero blank/empty states: 3 real
+  // Installation Work Orders, each with a completed Assign Team step
+  // (engineerName set) and not yet issued any hardware, a team of 2 real
+  // existing engineers (Preethi Nair, Arjun Kumar — not a new one) on all
+  // three so EITHER engineer sees all three as assignable, and a hardware/
+  // wire requirement built entirely from products with real Confirmed
+  // stock at Andheri Store (STR-002): ONT Device (serial-tracked, PUR-000005),
+  // WiFi Router + Wall Mount Bracket (PUR-000006), Drop Wire (PUR-000004's
+  // drum, 470m free after ASG-000001's 30m). See purchaseStore.js's
+  // PUR-000005/PUR-000006 for the matching stock this requires.
+  {
+    id: 'INS-012', leadId: null,
+    customerName: 'Ananya Krishnan',    customerPhone: '9845223311', mobile: '9845223311',
+    address: '22, Church Street',       area: 'Church Street', locality: 'Church Street', city: 'Bangalore', pincode: '560001',
+    plan: '100 Mbps Monthly (FTTH)',
+    slotDate: '2026-08-24', slotTime: '10:00', slot: 'Morning',
+    assignedTeam: 'Team Alpha',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair, Arjun Kumar',
+    branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'Medium',
+    status: 'Hardware Collection Pending',
+    hardwareRequired: true,
+    hardware: [{ name: 'ONT Device', qty: 1 }, { name: 'Wall Mount Bracket', qty: 1 }],
+    wireRequired: true,
+    wires: [{ name: 'Drop Wire (m)', qty: 20 }],
+    notes: '',
+    createdAt: '2026-08-23',
+    timeline: [
+      { status: 'Scheduled', date: '2026-08-23', by: 'System', note: '' },
+      { status: 'Assigned',  date: '2026-08-23', by: 'Admin',  note: 'Assigned to Preethi Nair, Arjun Kumar — Team Alpha' },
+      { status: 'Hardware Collection Pending', date: '2026-08-23', by: 'Admin', note: '' },
+    ],
+  },
+  {
+    id: 'INS-013', leadId: null,
+    customerName: 'Rohit Bhatia',       customerPhone: '9845223312', mobile: '9845223312',
+    address: '8, Brigade Road',         area: 'Brigade Road', locality: 'Brigade Road', city: 'Bangalore', pincode: '560025',
+    plan: '200 Mbps Quarterly (FTTH)',
+    slotDate: '2026-08-25', slotTime: '13:00', slot: 'Afternoon',
+    assignedTeam: 'Team Alpha',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair, Arjun Kumar',
+    branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'Medium',
+    status: 'Hardware Collection Pending',
+    hardwareRequired: true,
+    hardware: [{ name: 'ONT Device', qty: 1 }, { name: 'WiFi Router', qty: 1 }],
+    wireRequired: true,
+    wires: [{ name: 'Drop Wire (m)', qty: 25 }],
+    notes: '',
+    createdAt: '2026-08-24',
+    timeline: [
+      { status: 'Scheduled', date: '2026-08-24', by: 'System', note: '' },
+      { status: 'Assigned',  date: '2026-08-24', by: 'Admin',  note: 'Assigned to Preethi Nair, Arjun Kumar — Team Alpha' },
+      { status: 'Hardware Collection Pending', date: '2026-08-24', by: 'Admin', note: '' },
+    ],
+  },
+  {
+    id: 'INS-014', leadId: null,
+    customerName: 'Sneha Kulkarni',     customerPhone: '9845223313', mobile: '9845223313',
+    address: '15, Cunningham Road',     area: 'Cunningham Road', locality: 'Cunningham Road', city: 'Bangalore', pincode: '560052',
+    plan: '500 Mbps Half Yearly (FTTH)',
+    slotDate: '2026-08-26', slotTime: '11:00', slot: 'Morning',
+    assignedTeam: 'Team Alpha',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair, Arjun Kumar',
+    branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'High',
+    status: 'Hardware Collection Pending',
+    hardwareRequired: true,
+    hardware: [{ name: 'ONT Device', qty: 1 }, { name: 'Wall Mount Bracket', qty: 1 }, { name: 'WiFi Router', qty: 1 }],
+    wireRequired: true,
+    wires: [{ name: 'Drop Wire (m)', qty: 15 }],
+    notes: '',
+    createdAt: '2026-08-25',
+    timeline: [
+      { status: 'Scheduled', date: '2026-08-25', by: 'System', note: '' },
+      { status: 'Assigned',  date: '2026-08-25', by: 'Admin',  note: 'Assigned to Preethi Nair, Arjun Kumar — Team Alpha' },
+      { status: 'Hardware Collection Pending', date: '2026-08-25', by: 'Admin', note: '' },
+    ],
+  },
 ]
 
 let _installations = [...INIT_INSTALLATIONS]
