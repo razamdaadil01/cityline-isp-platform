@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, UserCog, FileText,
-  PackageOpen, CheckCircle2, Search, AlertTriangle, Check,
+  PackageOpen, CheckCircle2, Search, AlertTriangle,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -364,6 +364,85 @@ function WireLineCard({ line, storeId, otherLines, onChange, showError, outOfSto
   )
 }
 
+// ── Step 2 — searchable Work Order combobox ─────────────────────────────
+// Same floating-dropdown pattern as CreatePurchase.jsx's POPicker/
+// ProductPicker.jsx (position: fixed, computed from the input's own rect,
+// outside-click closes it) rather than a new one-off pattern. Opens on
+// focus even with no text typed (showing the full assignable list); typing
+// filters it live by Work Order ID/customer/plan — same fields the old
+// always-visible table filtered by. Editing the input after a Work Order is
+// already selected clears that selection (via onClear) so the Requirement
+// panel below disappears until a fresh pick is made; just focusing/
+// reopening the dropdown without typing leaves the current selection alone.
+function WorkOrderPicker({ workOrders, workOrder, onSelect, onClear, placeholder }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [menuRect, setMenuRect] = useState({ top: 0, left: 0, width: 320 })
+  const wrapRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function openDropdown() {
+    const rect = inputRef.current?.getBoundingClientRect()
+    if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 320) })
+    setOpen(true)
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    if (!q) return workOrders
+    return workOrders.filter(w =>
+      w.id.toLowerCase().includes(q) || (w.customerName || '').toLowerCase().includes(q) || (w.plan || '').toLowerCase().includes(q)
+    )
+  }, [workOrders, query])
+
+  const label = workOrder ? `${workOrder.id} — ${workOrder.customerName}` : ''
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <div className="relative">
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          ref={inputRef}
+          value={open ? query : label}
+          onChange={e => { setQuery(e.target.value); onClear(); openDropdown() }}
+          onFocus={() => { setQuery(''); openDropdown() }}
+          placeholder={placeholder}
+          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </div>
+      {open && (
+        <div
+          style={{ position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width, zIndex: 9999 }}
+          className="max-h-72 overflow-y-auto bg-white border border-surface-border rounded-lg shadow-lg"
+        >
+          {filtered.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-4">No assignable Work Orders found</p>
+          ) : filtered.map(wo => (
+            <button
+              key={wo.id} type="button"
+              onClick={() => { onSelect(wo); setOpen(false); setQuery('') }}
+              className="flex items-center justify-between gap-2 w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors border-b border-surface-border last:border-0"
+            >
+              <span className="min-w-0 truncate">
+                <span className="font-mono font-semibold text-brand-blue">{wo.id}</span>
+                <span className="text-gray-500"> · {wo.customerName}</span>
+                <span className="text-gray-400"> · {wo.plan}</span>
+              </span>
+              <Badge variant="indigo" size="sm" className="shrink-0">{wo.status}</Badge>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CreateAssignment() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -372,7 +451,6 @@ export default function CreateAssignment() {
   const [engineer, setEngineer] = useState(null)
   const [workOrderType, setWorkOrderType] = useState('Installation')
   const [workOrderId, setWorkOrderId] = useState(null)
-  const [woSearch, setWoSearch] = useState('')
   const [remarks, setRemarks] = useState('')
   const [hwLines, setHwLines] = useState([])
   const [wireLines, setWireLines] = useState([])
@@ -505,15 +583,6 @@ export default function CreateAssignment() {
     }
   }
 
-  const filteredWorkOrders = useMemo(() => {
-    const q = woSearch.toLowerCase().trim()
-    if (!q) return workOrders
-    return workOrders.filter(w =>
-      w.id.toLowerCase().includes(q) || (w.customerName || '').toLowerCase().includes(q) || (w.plan || '').toLowerCase().includes(q)
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workOrders, woSearch])
-
   const issuedHwLines = hwLines.filter(l => l.productId && (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) > 0 : (l.serials.length + l.macs.length) > 0))
   const issuedWireLines = wireLines.filter(l => l.productId && Number(l.assignedMeters) > 0)
   // Required lines the store has zero stock for — never blocked submission
@@ -614,84 +683,44 @@ export default function CreateAssignment() {
                   {workOrderType !== 'Installation' ? (
                     <p className="text-xs text-gray-400 py-2">No {workOrderType} Work Orders are assignable from this flow yet.</p>
                   ) : (
-                    <>
-                      <div className="relative mb-2">
-                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input value={woSearch} onChange={e => setWoSearch(e.target.value)} placeholder="Search Work Order ID, customer, plan…"
-                          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
-                      </div>
-                      <div className="border border-surface-border rounded-lg overflow-hidden">
-                        <div className="overflow-x-auto max-h-72 overflow-y-auto">
-                          <table className="w-full text-xs">
-                            <thead className="sticky top-0 bg-gray-50">
-                              <tr className="text-gray-500 uppercase tracking-wide">
-                                <th className="text-left px-3 py-2 font-semibold">Work Order ID</th>
-                                <th className="text-left px-3 py-2 font-semibold">Customer</th>
-                                <th className="text-left px-3 py-2 font-semibold">Plan / Type</th>
-                                <th className="text-left px-3 py-2 font-semibold">Status</th>
-                                <th className="text-left px-3 py-2 font-semibold">Created</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-surface-border">
-                              {filteredWorkOrders.length === 0 ? (
-                                <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No assignable Work Orders found</td></tr>
-                              ) : filteredWorkOrders.map(wo => {
-                                const isSelected = workOrderId === wo.id
-                                return (
-                                  <Fragment key={wo.id}>
-                                    <tr onClick={() => setWorkOrderId(wo.id)}
-                                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
-                                      <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
-                                        {isSelected && <Check size={12} className="shrink-0" />} {wo.id}
-                                      </td>
-                                      <td className="px-3 py-2 text-gray-700">{wo.customerName}</td>
-                                      <td className="px-3 py-2 text-gray-500">{wo.plan}</td>
-                                      <td className="px-3 py-2"><Badge variant="indigo" size="sm">{wo.status}</Badge></td>
-                                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{wo.createdAt}</td>
-                                    </tr>
-                                    {/* Requirement — an accordion-style panel expanded
-                                        inline under whichever row is selected, rather
-                                        than a separate section below the whole table;
-                                        purely informational, so it never itself gates
-                                        "Next". Collapses/moves the moment a different
-                                        row is picked, since only one row is ever
-                                        selected at a time. */}
-                                    {isSelected && (
-                                      <tr className="bg-surface">
-                                        <td colSpan={5} className="px-3 py-3">
-                                          <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">Hardware / Wire Required — {wo.id}</p>
-                                          {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
-                                            <p className="text-xs text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
-                                          ) : (
-                                            <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden bg-white">
-                                              {requirement.hardware.map((h, i) => (
-                                                <div key={`h-${i}`} className="flex items-center justify-between px-3 py-2 text-xs">
-                                                  <span className={h.productId ? 'text-gray-700' : 'text-amber-700'}>{h.name}</span>
-                                                  <span className="font-semibold text-gray-800">Qty: {h.requiredQty}</span>
-                                                </div>
-                                              ))}
-                                              {requirement.wire.map((w, i) => (
-                                                <div key={`w-${i}`} className="flex items-center justify-between px-3 py-2 text-xs">
-                                                  <span className={w.productId ? 'text-gray-700' : 'text-amber-700'}>{w.name}</span>
-                                                  <span className="font-semibold text-gray-800">Qty: {w.requiredMeters}m</span>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          )}
-                                          <p className="text-[11px] text-gray-400 mt-2">This is what's required for the Work Order — the next step lets you pick the actual inventory to issue against it.</p>
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </Fragment>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </>
+                    <WorkOrderPicker
+                      workOrders={workOrders}
+                      workOrder={workOrder}
+                      onSelect={wo => setWorkOrderId(wo.id)}
+                      onClear={() => setWorkOrderId(null)}
+                      placeholder="Search Work Order ID, customer, plan…"
+                    />
                   )}
                 </FormField>
+
+                {/* Requirement — purely informational, so it never itself
+                    gates "Next". Shown directly below the search bar once a
+                    Work Order is selected; disappears the moment the
+                    selection is cleared (editing the search input above). */}
+                {workOrder && (
+                  <div className="rounded-lg border border-surface-border bg-surface p-3">
+                    <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">Hardware / Wire Required — {workOrder.id}</p>
+                    {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
+                      <p className="text-xs text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
+                    ) : (
+                      <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden bg-white">
+                        {requirement.hardware.map((h, i) => (
+                          <div key={`h-${i}`} className="flex items-center justify-between px-3 py-2 text-xs">
+                            <span className={h.productId ? 'text-gray-700' : 'text-amber-700'}>{h.name}</span>
+                            <span className="font-semibold text-gray-800">Qty: {h.requiredQty}</span>
+                          </div>
+                        ))}
+                        {requirement.wire.map((w, i) => (
+                          <div key={`w-${i}`} className="flex items-center justify-between px-3 py-2 text-xs">
+                            <span className={w.productId ? 'text-gray-700' : 'text-amber-700'}>{w.name}</span>
+                            <span className="font-semibold text-gray-800">Qty: {w.requiredMeters}m</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-2">This is what's required for the Work Order — the next step lets you pick the actual inventory to issue against it.</p>
+                  </div>
+                )}
               </div>
             )}
 
