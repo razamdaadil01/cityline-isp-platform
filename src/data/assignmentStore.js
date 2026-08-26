@@ -214,9 +214,11 @@ function alreadyAssignedMeters(drumNumber) {
 // ── Save ─────────────────────────────────────────────────────────────────
 // data: { engineerId, engineerName, branchCode, workOrderId, workOrderLabel,
 //         storeId, storeName,
-//         hardwareLines: [{ productId, productName, requiredQty, assignedQty, serials, macs }],
-//         wireLines: [{ productId, productName, requiredMeters, assignedMeters, drumNumber }],
+//         hardwareLines: [{ productId, productName, requiredQty, assignedQty, serials, macs, remark }],
+//         wireLines: [{ productId, productName, requiredMeters, assignedMeters, drumNumber, remark }],
 //         remarks }
+// `remark` on each line is a per-item note distinct from the whole-
+// assignment `remarks` string above — both are optional and stored as-is.
 // Throws with a descriptive message if a line would take a balance negative
 // — the wizard's own live "Available" counters are meant to prevent this
 // interactively, but the store re-validates independently rather than
@@ -241,6 +243,7 @@ export function saveAssignment(data) {
         return {
           id: `ASGI-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
           requiredQty: Number(l.requiredQty) || 0, assignedQty: values.length, serials, macs,
+          remark: l.remark?.trim() || '',
         }
       }
       const assignedQty = Number(l.assignedQty) || 0
@@ -250,6 +253,7 @@ export function saveAssignment(data) {
       return {
         id: `ASGI-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
         requiredQty: Number(l.requiredQty) || 0, assignedQty, serials: [], macs: [],
+        remark: l.remark?.trim() || '',
       }
     })
 
@@ -264,6 +268,7 @@ export function saveAssignment(data) {
       return {
         id: `ASGW-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
         requiredMeters: Number(l.requiredMeters) || 0, assignedMeters, drumNumber: l.drumNumber,
+        remark: l.remark?.trim() || '',
       }
     })
 

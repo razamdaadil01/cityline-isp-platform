@@ -1,32 +1,86 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, Filter, X, ChevronDown, MoreVertical, Eye, UserCog,
+  Plus, Search, Filter, X, ChevronDown, Eye, UserCog,
   CalendarDays, Users, ClipboardList,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
-import { getAssignments, subscribeAssignments, ASSIGNMENT_STATUSES } from '../../data/assignmentStore'
+import { getAssignments, subscribeAssignments } from '../../data/assignmentStore'
 import { getStores } from '../../data/storeStore'
+import { getUnits } from '../../data/inventoryLedger'
 import { usePermission } from '../../data/rolesStore'
 
-const STATUS_BADGE = { Assigned: 'purple', Returned: 'gray' }
+// Line-level status shown per row — deliberately only these two values (the
+// same pair Inventory Overview's Units tab already uses for a serial/MAC
+// unit's status), never the assignment RECORD's own 'Assigned'/'Returned'
+// status and never a third invented label. A serial/MAC line's status comes
+// straight from its live ledger unit (so it reflects anything that's
+// happened to it since — e.g. handed off to a user, replaced — collapsed
+// back to 'Assigned to Engineer' for this list's purposes); a quantity or
+// wire line has no discrete ledger unit to check, so it falls back to
+// reading the parent assignment's own Returned/not-Returned state instead.
+const STATUS_BADGE = { Available: 'green', 'Assigned to Engineer': 'purple' }
+const LINE_STATUS_VALUES = ['Available', 'Assigned to Engineer']
+
+function fallbackStatus(a) {
+  return a.status === 'Returned' ? 'Available' : 'Assigned to Engineer'
+}
+function lineStatus(a, productId, values) {
+  if (values.length) {
+    const unit = getUnits({ productId, storeId: a.storeId }).find(u => u.value === values[0])
+    if (unit) return unit.status === 'Available' ? 'Available' : 'Assigned to Engineer'
+  }
+  return fallbackStatus(a)
+}
 
 const ASSIGNMENT_TABLE_COLUMNS = [
   { key: 'assignmentNumber', label: 'Assignment Number', visible: true, defaultVisible: true, locked: true },
   { key: 'date',             label: 'Date',               visible: true, defaultVisible: true },
   { key: 'engineer',         label: 'Engineer',           visible: true, defaultVisible: true },
-  { key: 'workOrder',        label: 'Work Order',         visible: true, defaultVisible: true },
+  { key: 'product',          label: 'Product',            visible: true, defaultVisible: true },
+  { key: 'serialMacDrum',    label: 'Serial/MAC/Drum',    visible: true, defaultVisible: true },
   { key: 'branch',           label: 'Branch',             visible: true, defaultVisible: true },
-  { key: 'items',            label: 'Items',              visible: true, defaultVisible: true },
+  { key: 'qty',              label: 'Qty',                visible: true, defaultVisible: true },
   { key: 'status',           label: 'Status',             visible: true, defaultVisible: true },
   { key: 'actions',          label: 'Actions',            visible: true, defaultVisible: true },
 ]
 
-function itemsSummary(a) {
-  const count = a.hardwareLines.length + a.wireLines.length
-  return `${count} item${count === 1 ? '' : 's'}`
+// Flattens each assignment's hardwareLines + wireLines into one row per line
+// — Date/Engineer/Branch repeat per line, Product/Serial-MAC-Drum/Qty/Status
+// vary per line — the exact same (record × item-line) flattening pattern
+// already used by StoreTransfer.jsx's own flattenRows(), reused here so the
+// two lists stay consistent with each other rather than inventing a second
+// approach.
+function flattenRows(assignments) {
+  const rows = []
+  assignments.forEach(a => {
+    a.hardwareLines.forEach((l, i) => {
+      const values = [...l.serials, ...l.macs]
+      rows.push({
+        key: `${a.id}-hw-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
+        date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode,
+        productName: l.productName,
+        serialMacDrumLabel: values.length ? values.join(', ') : '—',
+        qty: l.assignedQty,
+        status: lineStatus(a, l.productId, values),
+        remark: l.remark || '',
+      })
+    })
+    a.wireLines.forEach((l, i) => {
+      rows.push({
+        key: `${a.id}-wire-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
+        date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode,
+        productName: l.productName,
+        serialMacDrumLabel: l.drumNumber || '—',
+        qty: `${l.assignedMeters}m`,
+        status: fallbackStatus(a),
+        remark: l.remark || '',
+      })
+    })
+  })
+  return rows.sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
 export default function Assignments() {
@@ -37,6 +91,8 @@ export default function Assignments() {
 
   const stores = getStores()
 
+  // Assignment-record-level aggregates — these stay meaningful counted
+  // against the raw records, not the flattened line rows below.
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     return {
@@ -51,24 +107,6 @@ export default function Assignments() {
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   const [search, setSearch] = useState('')
-
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const [filterBranch, setFilterBranch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -93,25 +131,26 @@ export default function Assignments() {
 
   const branches = useMemo(() => [...new Set(stores.map(s => s.branchCode).filter(Boolean))].sort(), [stores])
 
-  const filtered = useMemo(() => {
+  const allRows = useMemo(() => flattenRows(assignments), [assignments])
+  const rows = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return assignments.filter(a => {
-      if (q && !a.assignmentNumber.toLowerCase().includes(q) &&
-          !a.engineerName.toLowerCase().includes(q) &&
-          !a.workOrderLabel.toLowerCase().includes(q)) return false
-      if (filterBranch && a.branchCode !== filterBranch) return false
-      if (filterStatus && a.status !== filterStatus) return false
+    return allRows.filter(r => {
+      if (q && !r.assignmentNumber.toLowerCase().includes(q) &&
+          !r.engineerName.toLowerCase().includes(q) &&
+          !r.productName.toLowerCase().includes(q) &&
+          !r.serialMacDrumLabel.toLowerCase().includes(q)) return false
+      if (filterBranch && r.branchCode !== filterBranch) return false
+      if (filterStatus && r.status !== filterStatus) return false
       return true
-    }).sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments, search, filterBranch, filterStatus])
+    })
+  }, [allRows, search, filterBranch, filterStatus])
 
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Assign to Engineer</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{filtered.length} of {assignments.length} assignments</p>
+          <p className="text-sm text-gray-500 mt-0.5">{rows.length} of {allRows.length} assignment lines</p>
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
@@ -145,8 +184,8 @@ export default function Assignments() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search assignment number, engineer, work order…"
-            className="pl-9 pr-8 py-1.5 text-sm w-80 bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+            placeholder="Search assignment number, engineer, product, serial/MAC/drum…"
+            className="pl-9 pr-8 py-1.5 text-sm w-96 bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -206,7 +245,7 @@ export default function Assignments() {
                 <select value={draft.status} onChange={e => setDraftField('status', e.target.value)}
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
                   <option value="">All</option>
-                  {ASSIGNMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {LINE_STATUS_VALUES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
@@ -230,51 +269,58 @@ export default function Assignments() {
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('assignmentNumber') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[170px]">Assignment Number</th>}
-                {visibleCols.has('date')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>}
-                {visibleCols.has('engineer')  && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Engineer</th>}
-                {visibleCols.has('workOrder') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Work Order</th>}
-                {visibleCols.has('branch')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Branch</th>}
-                {visibleCols.has('items')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Items</th>}
-                {visibleCols.has('status')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
-                {visibleCols.has('actions')   && <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
+                {visibleCols.has('date')          && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>}
+                {visibleCols.has('engineer')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Engineer</th>}
+                {visibleCols.has('product')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product</th>}
+                {visibleCols.has('serialMacDrum')  && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial/MAC/Drum</th>}
+                {visibleCols.has('branch')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Branch</th>}
+                {visibleCols.has('qty')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Qty</th>}
+                {visibleCols.has('status')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
+                {visibleCols.has('actions')       && <th className="px-4 py-3 w-16 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
-              {filtered.length === 0 ? (
+              {rows.length === 0 ? (
                 <tr>
                   <td colSpan={visibleCols.size} className="px-4 py-14 text-center text-sm text-gray-400">
                     <UserCog size={32} className="mx-auto mb-2 text-gray-200" />
                     No assignments found
                   </td>
                 </tr>
-              ) : filtered.map(a => (
+              ) : rows.map(r => (
                 <tr
-                  key={a.id}
-                  onClick={() => navigate(`/inventory/assign/${a.id}`)}
+                  key={r.key}
+                  onClick={() => navigate(`/inventory/assign/${r.assignmentId}`)}
                   className="cursor-pointer hover:bg-blue-50/40 transition-colors"
                 >
                   {visibleCols.has('assignmentNumber') && (
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs font-semibold text-brand-blue">{a.assignmentNumber}</span>
+                      <span className="font-mono text-xs font-semibold text-brand-blue">{r.assignmentNumber}</span>
                     </td>
                   )}
-                  {visibleCols.has('date')      && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(a.assignedAt || '').slice(0, 10)}</td>}
-                  {visibleCols.has('engineer')  && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.engineerName}</td>}
-                  {visibleCols.has('workOrder') && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{a.workOrderLabel}</td>}
-                  {visibleCols.has('branch')    && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{a.branchCode}</td>}
-                  {visibleCols.has('items')     && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{itemsSummary(a)}</td>}
+                  {visibleCols.has('date')         && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>}
+                  {visibleCols.has('engineer')     && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.engineerName}</td>}
+                  {visibleCols.has('product')       && (
+                    <td className="px-4 py-3 text-gray-800 text-xs font-medium whitespace-nowrap" title={r.remark || undefined}>
+                      {r.productName}{r.remark && <span className="text-gray-300"> *</span>}
+                    </td>
+                  )}
+                  {visibleCols.has('serialMacDrum') && <td className="px-4 py-3 text-gray-600 text-xs font-mono">{r.serialMacDrumLabel}</td>}
+                  {visibleCols.has('branch')        && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.branchCode}</td>}
+                  {visibleCols.has('qty')           && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>}
                   {visibleCols.has('status') && (
                     <td className="px-4 py-3">
-                      <Badge variant={STATUS_BADGE[a.status] ?? 'gray'} dot size="sm">{a.status}</Badge>
+                      <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status}</Badge>
                     </td>
                   )}
                   {visibleCols.has('actions') && (
-                    <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
+                    <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
                       <button
-                        onClick={e => openMenu(e, a.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === a.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                        onClick={() => navigate(`/inventory/assign/${r.assignmentId}`)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-gray-100 transition-colors mx-auto"
+                        title="View Assignment"
                       >
-                        <MoreVertical size={15} />
+                        <Eye size={14} />
                       </button>
                     </td>
                   )}
@@ -284,22 +330,6 @@ export default function Assignments() {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const a = assignments.find(x => x.id === menuId)
-        if (!a) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            <button onClick={() => { navigate(`/inventory/assign/${a.id}`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Eye size={13} className="text-brand-blue shrink-0" /> View Details
-            </button>
-          </div>
-        )
-      })()}
     </div>
   )
 }
