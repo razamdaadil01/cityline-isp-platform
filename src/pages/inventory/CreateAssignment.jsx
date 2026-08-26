@@ -447,6 +447,21 @@ export default function CreateAssignment() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
+  // Merge-safe searchParams update — same pattern as CreatePurchase.jsx's
+  // `?po=` selection + `?step=` navigation, reused here rather than a new
+  // one-off (a plain setSearchParams({step}) call replaces the whole query
+  // string, which would silently drop `wo` every time step changes).
+  function patchSearchParams(patch, options) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value == null) next.delete(key)
+        else next.set(key, String(value))
+      })
+      return next
+    }, options)
+  }
+
   const [branchCode, setBranchCode] = useState('')
   const [engineer, setEngineer] = useState(null)
   const [workOrderType, setWorkOrderType] = useState('Installation')
@@ -472,6 +487,36 @@ export default function CreateAssignment() {
   // assignmentStore.js for the shared list Assign to User reuses too.
   const workOrders = (branchCode && engineer && workOrderType === 'Installation') ? getAssignableWorkOrders(branchCode, engineer.name) : []
   const workOrder = workOrderId ? getWorkOrder(workOrderId) : null
+
+  // Selecting/clearing the Work Order always keeps `?wo=` in sync — same
+  // idea as CreatePurchase.jsx's `?po=` param, so the URL reflects exactly
+  // what's picked and a step-back/step-forward (or a copy-pasted link once
+  // branch/engineer are set) doesn't lose the selection.
+  function selectWorkOrder(wo) {
+    setWorkOrderId(wo.id)
+    patchSearchParams({ wo: wo.id }, { replace: true })
+  }
+  function clearWorkOrder() {
+    setWorkOrderId(null)
+    patchSearchParams({ wo: null }, { replace: true })
+  }
+
+  // Auto-select a Work Order carried in the URL (?wo=<id>) — mirrors
+  // CreatePurchase.jsx's ?po= pre-select, but Work Orders are branch/
+  // engineer-scoped (unlike Purchase Orders, a global list resolvable
+  // immediately), so this only resolves once `workOrders` itself is
+  // non-empty for the currently selected branch/engineer, not at raw
+  // page-mount time. Guarded on `!workOrderId` so it never fights a
+  // selection already made this session.
+  useEffect(() => {
+    if (workOrderId) return
+    const woIdFromUrl = searchParams.get('wo')
+    if (!woIdFromUrl) return
+    const match = workOrders.find(w => w.id === woIdFromUrl)
+    if (match) setWorkOrderId(match.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workOrders])
+
   const requirement = useMemo(() => workOrder ? resolveWorkOrderRequirement(workOrder) : { hardware: [], wire: [] }, [workOrder])
 
   // Rebuild Step 3's editable line state whenever a new Work Order's
@@ -544,19 +589,19 @@ export default function CreateAssignment() {
   function goTo(id) {
     if (!isReachable(id)) return
     setAttemptedAction(null)
-    setSearchParams({ step: String(id) })
+    patchSearchParams({ step: id })
   }
   function goBack() {
     setAttemptedAction(null)
     if (step === 1) { navigate('/inventory/assign'); return }
-    setSearchParams({ step: String(step - 1) })
+    patchSearchParams({ step: step - 1 })
   }
   function goNext() {
     if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
     if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
     if (step === 3 && !isStep3Valid()) { setAttemptedAction('step3'); return }
     setAttemptedAction(null)
-    setSearchParams({ step: String(Math.min(step + 1, 4)) })
+    patchSearchParams({ step: Math.min(step + 1, 4) })
   }
 
   function handleAssign() {
@@ -644,7 +689,7 @@ export default function CreateAssignment() {
             {step === 1 && (
               <div className="space-y-5">
                 <FormField label="Branch" required>
-                  <Select value={branchCode} onChange={e => { setBranchCode(e.target.value); setEngineer(null); setWorkOrderId(null) }}>
+                  <Select value={branchCode} onChange={e => { setBranchCode(e.target.value); setEngineer(null); clearWorkOrder() }}>
                     <option value="">Select branch…</option>
                     {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
                   </Select>
@@ -660,7 +705,7 @@ export default function CreateAssignment() {
                   ) : (
                     <Select value={engineer?.id ?? ''} onChange={e => {
                       const picked = engineers.find(x => x.id === e.target.value) ?? null
-                      setEngineer(picked); setWorkOrderId(null)
+                      setEngineer(picked); clearWorkOrder()
                     }}>
                       <option value="">Select engineer…</option>
                       {engineers.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -674,7 +719,7 @@ export default function CreateAssignment() {
             {step === 2 && (
               <div className="space-y-4">
                 <FormField label="Work Order Type" required hint="Only Installation has assignable Work Orders in this flow today">
-                  <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); setWorkOrderId(null) }}>
+                  <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); clearWorkOrder() }}>
                     {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </Select>
                 </FormField>
@@ -686,8 +731,8 @@ export default function CreateAssignment() {
                     <WorkOrderPicker
                       workOrders={workOrders}
                       workOrder={workOrder}
-                      onSelect={wo => setWorkOrderId(wo.id)}
-                      onClear={() => setWorkOrderId(null)}
+                      onSelect={selectWorkOrder}
+                      onClear={clearWorkOrder}
                       placeholder="Search Work Order ID, customer, plan…"
                     />
                   )}
