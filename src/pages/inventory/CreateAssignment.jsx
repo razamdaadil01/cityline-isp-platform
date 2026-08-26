@@ -161,6 +161,13 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outO
         {showError && (
           <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select at least one {kindLabel.toLowerCase()} for this line.</p>
         )}
+        <FormField label="Remark" hint="Optional note for this line">
+          <input
+            type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+            placeholder="Optional note…"
+            className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          />
+        </FormField>
       </div>
     )
   }
@@ -191,6 +198,13 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outO
       ) : showError && (
         <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Enter a quantity to assign for this line.</p>
       )}
+      <FormField label="Remark" hint="Optional note for this line">
+        <input
+          type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+          placeholder="Optional note…"
+          className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </FormField>
     </div>
   )
 }
@@ -258,6 +272,13 @@ function WireLineCard({ line, storeId, otherLines, onChange, showError, outOfSto
       {showError && (
         <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select a drum and enter meters to assign for this line.</p>
       )}
+      <FormField label="Remark" hint="Optional note for this line">
+        <input
+          type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+          placeholder="Optional note…"
+          className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </FormField>
     </div>
   )
 }
@@ -308,11 +329,11 @@ export default function CreateAssignment() {
     // than staying stuck on whatever it was at the moment this effect ran.
     setHwLines(requirement.hardware.map(h => ({
       name: h.name, productId: h.productId, productName: h.productName, requiredQty: h.requiredQty,
-      assignedQty: 0, serials: [], macs: [],
+      assignedQty: 0, serials: [], macs: [], remark: '',
     })))
     setWireLines(requirement.wire.map(w => ({
       name: w.name, productId: w.productId, productName: w.productName, requiredMeters: w.requiredMeters,
-      drumNumber: '', assignedMeters: 0,
+      drumNumber: '', assignedMeters: 0, remark: '',
     })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrder?.id, store?.id])
@@ -379,11 +400,11 @@ export default function CreateAssignment() {
         storeId: store.id, storeName: store.storeName,
         hardwareLines: hwLines.filter(l => l.productId).map(l => ({
           productId: l.productId, productName: l.productName, requiredQty: l.requiredQty,
-          assignedQty: l.assignedQty, serials: l.serials, macs: l.macs,
+          assignedQty: l.assignedQty, serials: l.serials, macs: l.macs, remark: l.remark,
         })),
         wireLines: wireLines.filter(l => l.productId).map(l => ({
           productId: l.productId, productName: l.productName, requiredMeters: l.requiredMeters,
-          assignedMeters: l.assignedMeters, drumNumber: l.drumNumber,
+          assignedMeters: l.assignedMeters, drumNumber: l.drumNumber, remark: l.remark,
         })),
         remarks,
       })

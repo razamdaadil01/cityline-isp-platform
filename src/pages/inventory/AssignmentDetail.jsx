@@ -77,11 +77,12 @@ export default function AssignmentDetail() {
                     <th className="text-right px-3 py-2 font-semibold">Required</th>
                     <th className="text-right px-3 py-2 font-semibold">Issued</th>
                     <th className="text-left px-3 py-2 font-semibold">Serial / MAC</th>
+                    <th className="text-left px-3 py-2 font-semibold">Remark</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {assignment.hardwareLines.length === 0 ? (
-                    <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">No hardware issued</td></tr>
+                    <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No hardware issued</td></tr>
                   ) : assignment.hardwareLines.map(l => (
                     <tr key={l.id}>
                       <td className="px-3 py-2 text-gray-700">{l.productName}</td>
@@ -92,6 +93,7 @@ export default function AssignmentDetail() {
                           : l.macs.length ? `MACs: ${l.macs.join(', ')}`
                           : '—'}
                       </td>
+                      <td className="px-3 py-2 text-gray-500">{l.remark || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -111,17 +113,19 @@ export default function AssignmentDetail() {
                     <th className="text-right px-3 py-2 font-semibold">Required (m)</th>
                     <th className="text-right px-3 py-2 font-semibold">Issued (m)</th>
                     <th className="text-left px-3 py-2 font-semibold">Drum</th>
+                    <th className="text-left px-3 py-2 font-semibold">Remark</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {assignment.wireLines.length === 0 ? (
-                    <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">No wire issued</td></tr>
+                    <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No wire issued</td></tr>
                   ) : assignment.wireLines.map(l => (
                     <tr key={l.id}>
                       <td className="px-3 py-2 text-gray-700">{l.productName}</td>
                       <td className="px-3 py-2 text-right text-gray-600">{l.requiredMeters}</td>
                       <td className="px-3 py-2 text-right font-semibold text-gray-800">{l.assignedMeters}</td>
                       <td className="px-3 py-2 text-gray-500 font-mono">{l.drumNumber}</td>
+                      <td className="px-3 py-2 text-gray-500">{l.remark || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
