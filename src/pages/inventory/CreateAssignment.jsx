@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, MapPin, UserCog, ClipboardList,
+  ArrowLeft, ChevronLeft, ChevronRight, UserCog, ClipboardList,
   PackageOpen, CheckCircle2, Search, AlertTriangle, Check,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -17,14 +17,13 @@ import {
 } from '../../data/assignmentStore'
 
 const STEPS = [
-  { id: 1, label: 'Branch',       icon: MapPin },
-  { id: 2, label: 'Engineer',     icon: UserCog },
-  { id: 3, label: 'Requirement',  icon: ClipboardList },
-  { id: 4, label: 'Select Items', icon: PackageOpen },
-  { id: 5, label: 'Confirm',      icon: CheckCircle2 },
+  { id: 1, label: 'Branch & Engineer', icon: UserCog },
+  { id: 2, label: 'Requirement',       icon: ClipboardList },
+  { id: 3, label: 'Select Items',      icon: PackageOpen },
+  { id: 4, label: 'Confirm',           icon: CheckCircle2 },
 ]
 
-// ── Step 4 line cards ────────────────────────────────────────────────────
+// ── Step 3 line cards ────────────────────────────────────────────────────
 
 // Always reads the product's *current* Tracking Type live from
 // productStore.js rather than a value captured once and cached in hwLines
@@ -57,7 +56,7 @@ function wireLineAvailability(l, storeId) {
 // A required line the store genuinely has zero stock/serials/drums for —
 // there's nothing for the user to pick, so it can't be treated as "must be
 // filled to submit." It's still shown as unfulfilled (see outOfStock prop
-// on the line cards, and the Step 5 "Not Fulfilled" list), just not a
+// on the line cards, and the Step 4 "Not Fulfilled" list), just not a
 // blocker — a partial assignment (issue what's in stock, leave the rest
 // pending) is a legitimate outcome, not an error state.
 function isHwLineOutOfStock(l, storeId) {
@@ -299,7 +298,11 @@ export default function CreateAssignment() {
   const [saveError, setSaveError] = useState('')
 
   const stores = getStores().filter(s => s.status === 'active')
-  const branches = useMemo(() => [...new Set(stores.map(s => s.branchCode).filter(Boolean))].sort(), [stores])
+  // Full store objects (not just the branch code) so the Branch dropdown
+  // and every other place branch is shown can display the store's actual
+  // name, with the code only as secondary reference — a bare branch code
+  // like 'CNPL-001' means nothing to a user picking a physical location.
+  const branches = useMemo(() => [...stores].filter(s => s.branchCode).sort((a, b) => a.branchCode.localeCompare(b.branchCode)), [stores])
   const store = branchCode ? getStoreForBranch(branchCode) : null
   const engineers = branchCode ? getEngineersForBranch(branchCode) : []
   // Only 'Installation' has a real backing source (getAssignableWorkOrders
@@ -311,13 +314,13 @@ export default function CreateAssignment() {
   const workOrder = workOrderId ? getWorkOrder(workOrderId) : null
   const requirement = useMemo(() => workOrder ? resolveWorkOrderRequirement(workOrder) : { hardware: [], wire: [] }, [workOrder])
 
-  // Rebuild Step 4's editable line state whenever a new Work Order's
+  // Rebuild Step 3's editable line state whenever a new Work Order's
   // requirement resolves. Every line starts fully empty — assignedQty: 0,
-  // no serials/macs picked, no drum/meters — so landing on Step 4 never
+  // no serials/macs picked, no drum/meters — so landing on Step 3 never
   // shows a reduced Available count before the user has touched anything.
   // A prior draft that never reached Confirm never wrote anything to
   // assignmentStore either: saveAssignment() (called only from
-  // handleAssign(), Step 5's "Assign Inventory" button) is the sole place
+  // handleAssign(), Step 4's "Assign Inventory" button) is the sole place
   // that appends to _assignments, so nothing here or in the ledger's
   // read-only queries below can leave a phantom deduction behind.
   useEffect(() => {
@@ -342,11 +345,15 @@ export default function CreateAssignment() {
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
 
   const stepParam = Number(searchParams.get('step'))
-  const step = [1, 2, 3, 4, 5].includes(stepParam) ? stepParam : 1
+  const step = [1, 2, 3, 4].includes(stepParam) ? stepParam : 1
 
-  function isStep1Valid() { return !!branchCode }
-  function isStep2Valid() { return !!branchCode && !!engineer && !!workOrderId }
-  function isStep3Valid() { return isStep2Valid() }
+  // Step 1 now covers Branch, Engineer AND Work Order — merged from what
+  // used to be two separate steps (Branch, then Engineer+Work Order) — so
+  // its validity is still the full combined requirement, not just the two
+  // new dropdowns. Work Order selection still gates advancement here: the
+  // Requirement step immediately after has nothing to show without one.
+  function isStep1Valid() { return !!branchCode && !!engineer && !!workOrderId }
+  function isStep2Valid() { return isStep1Valid() }
   // Requires BOTH: at least one item picked overall (unchanged from before —
   // a Work Order whose lines are all unfulfillable/not required can't submit
   // an empty assignment), AND every individual line that HAS stock to pick
@@ -356,7 +363,7 @@ export default function CreateAssignment() {
   // the store genuinely has zero of (isHwLineComplete/isWireLineComplete
   // exempt it) never blocks submission — a partial assignment, issuing
   // what's actually in stock and leaving the rest pending, is allowed.
-  function isStep4Valid() {
+  function isStep3Valid() {
     if (hwLines.length === 0 && wireLines.length === 0) return false
     const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
@@ -365,7 +372,7 @@ export default function CreateAssignment() {
       && wireLines.every(l => isWireLineComplete(l, store?.id))
   }
 
-  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: isStep4Valid(), 5: true }
+  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: true }
   function isReachable(id) {
     if (id === 1) return true
     for (let i = 1; i < id; i++) if (!stepValid[i]) return false
@@ -384,14 +391,13 @@ export default function CreateAssignment() {
   }
   function goNext() {
     if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
-    if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
-    if (step === 4 && !isStep4Valid()) { setAttemptedAction('step4'); return }
+    if (step === 3 && !isStep3Valid()) { setAttemptedAction('step3'); return }
     setAttemptedAction(null)
-    setSearchParams({ step: String(Math.min(step + 1, 5)) })
+    setSearchParams({ step: String(Math.min(step + 1, 4)) })
   }
 
   function handleAssign() {
-    if (!isStep4Valid()) { setAttemptedAction('step4'); return }
+    if (!isStep3Valid()) { setAttemptedAction('step3'); return }
     setSaveError('')
     try {
       const assignment = saveAssignment({
@@ -447,7 +453,7 @@ export default function CreateAssignment() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Assign Inventory</h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                {engineer ? <>To <span className="font-semibold text-gray-700">{engineer.name}</span>{workOrder ? <> for <span className="font-mono">{workOrder.id}</span></> : null}</> : 'Select a branch to begin'}
+                {engineer ? <>To <span className="font-semibold text-gray-700">{engineer.name}</span>{workOrder ? <> for <span className="font-mono">{workOrder.id}</span></> : null}</> : 'Select a branch and engineer to begin'}
               </p>
             </div>
           </div>
@@ -461,15 +467,10 @@ export default function CreateAssignment() {
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
             {attemptedAction === 'step1' && !isStep1Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a branch to continue.
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a branch, an engineer, and a Work Order to continue.
               </div>
             )}
-            {attemptedAction === 'step2' && !isStep2Valid() && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select an engineer and a Work Order to continue.
-              </div>
-            )}
-            {attemptedAction === 'step4' && !isStep4Valid() && (
+            {attemptedAction === 'step3' && !isStep3Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) to assign, and complete every required line highlighted below.
               </div>
@@ -480,45 +481,32 @@ export default function CreateAssignment() {
               </div>
             )}
 
-            {/* ── Step 1: Branch ── */}
+            {/* ── Step 1: Branch & Engineer ── */}
             {step === 1 && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <FormField label="Branch" required hint="Determines which engineers, Work Orders and store inventory are available next">
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {branches.map(b => (
-                      <button key={b} type="button" onClick={() => { setBranchCode(b); setEngineer(null); setWorkOrderId(null) }}
-                        className={`px-3 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
-                          branchCode === b ? 'border-brand-blue bg-brand-blue/5 text-brand-blue' : 'border-surface-border text-gray-600 hover:bg-gray-50'
-                        }`}>
-                        {b}
-                      </button>
-                    ))}
-                  </div>
+                  <Select value={branchCode} onChange={e => { setBranchCode(e.target.value); setEngineer(null); setWorkOrderId(null) }}>
+                    <option value="">Select branch…</option>
+                    {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
+                  </Select>
                 </FormField>
                 {branchCode && (
                   <p className="text-xs text-gray-500">Issuing store: <span className="font-medium text-gray-700">{store?.storeName ?? 'No active store for this branch'}</span></p>
                 )}
-              </div>
-            )}
 
-            {/* ── Step 2: Engineer + Work Order ── */}
-            {step === 2 && (
-              <div className="space-y-5">
                 <FormField label="Engineer" required>
-                  {engineers.length === 0 ? (
+                  {!branchCode ? (
+                    <p className="text-xs text-gray-400">Select a branch first.</p>
+                  ) : engineers.length === 0 ? (
                     <p className="text-xs text-gray-400">No engineers have Work Orders assigned in this branch yet.</p>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {engineers.map(e => (
-                        <button key={e.id} type="button" onClick={() => { setEngineer(e); setWorkOrderId(null) }}
-                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left ${
-                            engineer?.id === e.id ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:bg-gray-50'
-                          }`}>
-                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${e.color}`}>{e.initials}</span>
-                          <span className={`text-sm font-medium ${engineer?.id === e.id ? 'text-brand-blue' : 'text-gray-700'}`}>{e.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                    <Select value={engineer?.id ?? ''} onChange={e => {
+                      const picked = engineers.find(x => x.id === e.target.value) ?? null
+                      setEngineer(picked); setWorkOrderId(null)
+                    }}>
+                      <option value="">Select engineer…</option>
+                      {engineers.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                    </Select>
                   )}
                 </FormField>
 
@@ -579,8 +567,8 @@ export default function CreateAssignment() {
               </div>
             )}
 
-            {/* ── Step 3: Requirement ── */}
-            {step === 3 && workOrder && (
+            {/* ── Step 2: Requirement ── */}
+            {step === 2 && workOrder && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-surface-border bg-surface p-4">
                   <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Hardware / Wire Required — {workOrder.id}</p>
@@ -605,8 +593,8 @@ export default function CreateAssignment() {
               </div>
             )}
 
-            {/* ── Step 4: Select Items ── */}
-            {step === 4 && (
+            {/* ── Step 3: Select Items ── */}
+            {step === 3 && (
               <div className="space-y-3">
                 {hwLines.length === 0 && wireLines.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No requirement lines to fulfill for this Work Order.</p>
@@ -617,22 +605,22 @@ export default function CreateAssignment() {
                         otherLines={hwLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateHwLine(idx, patch)}
                         outOfStock={isHwLineOutOfStock(l, store.id)}
-                        showError={attemptedAction === 'step4' && !isHwLineComplete(l, store.id)} />
+                        showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
                     ))}
                     {wireLines.map((l, idx) => (
                       <WireLineCard key={`wire-${idx}`} line={l} storeId={store.id}
                         otherLines={wireLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateWireLine(idx, patch)}
                         outOfStock={isWireLineOutOfStock(l, store.id)}
-                        showError={attemptedAction === 'step4' && !isWireLineComplete(l, store.id)} />
+                        showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
                     ))}
                   </>
                 )}
               </div>
             )}
 
-            {/* ── Step 5: Confirm ── */}
-            {step === 5 && workOrder && (
+            {/* ── Step 4: Confirm ── */}
+            {step === 4 && workOrder && (
               <div className="space-y-5">
                 <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
@@ -649,7 +637,10 @@ export default function CreateAssignment() {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Branch / Store</span>
-                    <span className="font-medium text-gray-800">{branchCode} · {store?.storeName}</span>
+                    <span className="font-medium text-gray-800">
+                      {store?.storeName ?? branchCode}
+                      {store && <span className="text-gray-400 font-normal"> ({branchCode})</span>}
+                    </span>
                   </div>
                 </div>
 
@@ -728,7 +719,7 @@ export default function CreateAssignment() {
       {/* ── Bottom Bar ───────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-border px-6 py-3 flex items-center justify-between z-10">
         <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
-        {step < 5 ? (
+        {step < 4 ? (
           <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Next</Button>
         ) : (
           <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>Assign Inventory</Button>
