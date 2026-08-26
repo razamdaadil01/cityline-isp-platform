@@ -596,14 +596,14 @@ export default function VendorDetail() {
         <div className="p-5 sm:p-6">
           {activeTab === 'Purchase History' && (
             vendorPurchases.length === 0 ? (
-              <EmptyStateTable icon={ClipboardList} columns={['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status']} />
+              <EmptyStateTable icon={ClipboardList} columns={['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status', 'Invoice']} />
             ) : (
               <div className="rounded-xl border border-surface-border overflow-hidden">
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
-                      {['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status'].map(c => (
+                      {['Purchase ID', 'PO Number', 'Purchase Date', 'Store', 'Total Amount', 'Received Amount', 'Status', 'Invoice'].map(c => (
                         <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
                       ))}
                     </tr>
@@ -626,10 +626,19 @@ export default function VendorDetail() {
                             <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{totalAmountFor(p).toLocaleString('en-IN')}</td>
                             <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{p.totalPurchaseValue.toLocaleString('en-IN')}</td>
                             <td className="px-4 py-3"><Badge variant="green" size="sm" dot>{p.status}</Badge></td>
+                            <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => navigate(`/inventory/purchases/${p.id}/invoice`)}
+                                className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline"
+                                title="View Purchase Invoice"
+                              >
+                                <Eye size={13} /> View
+                              </button>
+                            </td>
                           </tr>
                           {isExpanded && (
                             <tr className="bg-gray-50/40">
-                              <td colSpan={7} className="px-4 py-3">
+                              <td colSpan={8} className="px-4 py-3">
                                 <table className="w-full text-xs">
                                   <thead>
                                     <tr className="text-gray-400">
