@@ -13,6 +13,19 @@ import { logAudit } from './auditLogStore'
 
 export const PAYMENT_TERMS = ['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60']
 
+// Vendors now carry a `contacts` array (Add/Edit Vendor's modal supports
+// multiple, same repeatable-row pattern as the Add Store modal) rather than
+// a single `primaryContact` object. getContacts() is the one place that
+// distinction lives — it also covers a legacy record that still only has
+// `primaryContact` (none exist in this store's own SEED any more, but any
+// external caller still passing the old shape keeps working, migrated to a
+// one-item array on the fly rather than breaking).
+export function getContacts(vendor) {
+  if (vendor?.contacts?.length) return vendor.contacts
+  if (vendor?.primaryContact) return [vendor.primaryContact]
+  return []
+}
+
 const SEED = [
   {
     id: 'VEN-001',
@@ -20,7 +33,7 @@ const SEED = [
     gstNumber: '27AABCZ1234E1Z5',
     address: '14th Floor, Nirlon Knowledge Park, Goregaon East, Mumbai - 400063, Maharashtra',
     paymentTerms: 'Net 30',
-    primaryContact: { name: 'Rakesh Iyer', phone: '98200 11223', email: 'rakesh.iyer@zteindia.com' },
+    contacts: [{ name: 'Rakesh Iyer', phone: '98200 11223', email: 'rakesh.iyer@zteindia.com' }],
     totalPurchases: 485000,
     totalPaid: 385000,
     outstanding: 100000,
@@ -55,7 +68,7 @@ const SEED = [
     gstNumber: '27AABCS5678F1Z2',
     address: 'Plot No. 68-69, Silvassa Road, Waghodia, Vadodara - 391760, Gujarat',
     paymentTerms: 'Net 45',
-    primaryContact: { name: 'Meena Kulkarni', phone: '99870 33445', email: 'meena.kulkarni@sterlite.com' },
+    contacts: [{ name: 'Meena Kulkarni', phone: '99870 33445', email: 'meena.kulkarni@sterlite.com' }],
     totalPurchases: 920000,
     totalPaid: 920000,
     outstanding: 0,
@@ -86,7 +99,7 @@ const SEED = [
     gstNumber: '29AABCT9012G1Z8',
     address: 'Prestige Solitaire, Brigade Road, Bengaluru - 560025, Karnataka',
     paymentTerms: 'Advance',
-    primaryContact: { name: 'Suresh Bhat', phone: '97410 55667', email: 'suresh.bhat@tp-link.co.in' },
+    contacts: [{ name: 'Suresh Bhat', phone: '97410 55667', email: 'suresh.bhat@tp-link.co.in' }],
     totalPurchases: 156000,
     totalPaid: 120000,
     outstanding: 36000,

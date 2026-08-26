@@ -8,9 +8,10 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
+import ContactsEditor, { EMPTY_CONTACT, validateContacts } from '../../components/inventory/ContactsEditor'
 import {
   getVendors, subscribeVendors, saveVendor, setVendorStatus,
-  isVendorNameTaken, PAYMENT_TERMS,
+  isVendorNameTaken, PAYMENT_TERMS, getContacts,
 } from '../../data/vendorStore'
 import { usePermission } from '../../data/rolesStore'
 
@@ -29,7 +30,7 @@ const VENDOR_TABLE_COLUMNS = [
 function emptyForm() {
   return {
     companyName: '', gstNumber: '', address: '', paymentTerms: PAYMENT_TERMS[0],
-    contactName: '', contactPhone: '', contactEmail: '',
+    contacts: [{ ...EMPTY_CONTACT }],
   }
 }
 
@@ -37,13 +38,9 @@ function vendorToForm(vendor) {
   return {
     companyName: vendor.companyName, gstNumber: vendor.gstNumber, address: vendor.address,
     paymentTerms: vendor.paymentTerms,
-    contactName: vendor.primaryContact?.name ?? '',
-    contactPhone: vendor.primaryContact?.phone ?? '',
-    contactEmail: vendor.primaryContact?.email ?? '',
+    contacts: getContacts(vendor).length ? getContacts(vendor).map(c => ({ ...c })) : [{ ...EMPTY_CONTACT }],
   }
 }
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function AddEditVendorModal({ isOpen, onClose, editing }) {
   const [form, setForm] = useState(emptyForm)
@@ -69,10 +66,7 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
     }
     if (!form.gstNumber.trim()) errs.gstNumber = 'GST number is required.'
     if (!form.address.trim()) errs.address = 'Address is required.'
-    if (!form.contactName.trim()) errs.contactName = 'Contact name is required.'
-    if (!form.contactPhone.trim()) errs.contactPhone = 'Contact number is required.'
-    if (form.contactEmail.trim() && !EMAIL_REGEX.test(form.contactEmail.trim())) errs.contactEmail = 'Enter a valid email address.'
-    return errs
+    return { ...errs, ...validateContacts(form.contacts) }
   }
 
   function handleSave() {
@@ -84,7 +78,7 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
       gstNumber: form.gstNumber.trim().toUpperCase(),
       address: form.address.trim(),
       paymentTerms: form.paymentTerms,
-      primaryContact: { name: form.contactName.trim(), phone: form.contactPhone.trim(), email: form.contactEmail.trim() },
+      contacts: form.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() })),
     })
     onClose()
   }
@@ -122,19 +116,17 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
           </FormField>
         </div>
 
-        <div className="space-y-4 pt-4 border-t border-surface-border">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Primary Contact</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Contact Name" required error={errors.contactName}>
-              <Input placeholder="e.g. Rakesh Iyer" value={form.contactName} onChange={e => setField('contactName', e.target.value)} />
-            </FormField>
-            <FormField label="Contact Number" required error={errors.contactPhone}>
-              <Input placeholder="e.g. 98200 11223" value={form.contactPhone} onChange={e => setField('contactPhone', e.target.value)} />
-            </FormField>
-          </div>
-          <FormField label="Email" error={errors.contactEmail}>
-            <Input type="email" placeholder="e.g. contact@vendor.com" value={form.contactEmail} onChange={e => setField('contactEmail', e.target.value)} />
-          </FormField>
+        <div className="pt-4 border-t border-surface-border">
+          <ContactsEditor
+            contacts={form.contacts}
+            onChange={contacts => setForm(f => ({ ...f, contacts }))}
+            errors={errors}
+            clearError={key => setErrors(e => ({ ...e, [key]: undefined }))}
+            personLabel="Contact Name"
+            namePlaceholder="e.g. Rakesh Iyer"
+            phonePlaceholder="e.g. 98200 11223"
+            emailPlaceholder="e.g. contact@vendor.com"
+          />
         </div>
       </div>
     </Modal>
@@ -180,8 +172,7 @@ export default function VendorList() {
     return vendors.filter(v =>
       v.companyName.toLowerCase().includes(q) ||
       v.gstNumber.toLowerCase().includes(q) ||
-      v.primaryContact?.name?.toLowerCase().includes(q) ||
-      v.primaryContact?.phone?.includes(q)
+      getContacts(v).some(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q))
     )
   }, [vendors, search])
 
@@ -256,8 +247,13 @@ export default function VendorList() {
                     </td>
                   )}
                   {visibleCols.has('gstNumber')      && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{v.gstNumber}</td>}
-                  {visibleCols.has('primaryContact') && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{v.primaryContact?.name}</td>}
-                  {visibleCols.has('contactNumber')  && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{v.primaryContact?.phone}</td>}
+                  {visibleCols.has('primaryContact') && (
+                    <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">
+                      {getContacts(v)[0]?.name}
+                      {getContacts(v).length > 1 && <span className="text-gray-400"> +{getContacts(v).length - 1} more</span>}
+                    </td>
+                  )}
+                  {visibleCols.has('contactNumber')  && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{getContacts(v)[0]?.phone}</td>}
                   {visibleCols.has('paymentTerms')   && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{v.paymentTerms}</td>}
                   {visibleCols.has('outstanding')    && (
                     <td className="px-4 py-3 text-right text-xs font-semibold whitespace-nowrap">

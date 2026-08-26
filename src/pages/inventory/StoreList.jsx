@@ -1,12 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
-  Plus, Search, X, MoreVertical, Edit2, CheckCircle2, XCircle, Warehouse, UserPlus, Trash2,
+  Plus, Search, X, MoreVertical, Edit2, CheckCircle2, XCircle, Warehouse,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
+import ContactsEditor, { EMPTY_CONTACT, validateContacts } from '../../components/inventory/ContactsEditor'
 import { getStores, subscribeStores, saveStore, setStoreStatus, isStoreNameTaken } from '../../data/storeStore'
 import { usePermission } from '../../data/rolesStore'
 
@@ -20,9 +21,6 @@ const STORE_TABLE_COLUMNS = [
   { key: 'status',      label: 'Status',            visible: true, defaultVisible: true },
   { key: 'actions',     label: 'Actions',           visible: true, defaultVisible: true },
 ]
-
-const EMPTY_CONTACT = { name: '', phone: '', email: '' }
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function emptyForm() {
   return { storeName: '', branchCode: '', contacts: [{ ...EMPTY_CONTACT }] }
@@ -50,19 +48,6 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
     setErrors(e => ({ ...e, [k]: undefined }))
   }
 
-  function setContactField(idx, k, v) {
-    setForm(f => ({ ...f, contacts: f.contacts.map((c, i) => i === idx ? { ...c, [k]: v } : c) }))
-    setErrors(e => ({ ...e, [`contact_${idx}_${k}`]: undefined }))
-  }
-
-  function addContact() {
-    setForm(f => ({ ...f, contacts: [...f.contacts, { ...EMPTY_CONTACT }] }))
-  }
-
-  function removeContact(idx) {
-    setForm(f => ({ ...f, contacts: f.contacts.filter((_, i) => i !== idx) }))
-  }
-
   function validate() {
     const errs = {}
     if (!form.storeName.trim()) {
@@ -71,11 +56,7 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
       errs.storeName = `"${form.storeName.trim()}" already exists. Please use a different store name.`
     }
     if (!form.branchCode.trim()) errs.branchCode = 'Branch is required.'
-    form.contacts.forEach((c, i) => {
-      if (!c.name.trim()) errs[`contact_${i}_name`] = 'Contact person is required.'
-      if (c.email.trim() && !EMAIL_REGEX.test(c.email.trim())) errs[`contact_${i}_email`] = 'Enter a valid email address.'
-    })
-    return errs
+    return { ...errs, ...validateContacts(form.contacts) }
   }
 
   function handleSave() {
@@ -108,39 +89,13 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
           </FormField>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contacts</h3>
-            <button type="button" onClick={addContact} className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
-              <UserPlus size={13} /> Add Another Contact
-            </button>
-          </div>
-
-          {form.contacts.map((c, i) => (
-            <div key={i} className="rounded-lg border border-surface-border p-3.5 space-y-3 relative">
-              {form.contacts.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeContact(i)}
-                  className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 size={13} />
-                </button>
-              )}
-              <div className="grid grid-cols-2 gap-3 pr-8">
-                <FormField label="Contact Person" required error={errors[`contact_${i}_name`]}>
-                  <Input placeholder="e.g. Vinod Sharma" value={c.name} onChange={e => setContactField(i, 'name', e.target.value)} />
-                </FormField>
-                <FormField label="Phone">
-                  <Input placeholder="e.g. 98200 44556" value={c.phone} onChange={e => setContactField(i, 'phone', e.target.value)} />
-                </FormField>
-              </div>
-              <FormField label="Email" error={errors[`contact_${i}_email`]}>
-                <Input type="email" placeholder="e.g. contact@store.com" value={c.email} onChange={e => setContactField(i, 'email', e.target.value)} />
-              </FormField>
-            </div>
-          ))}
-        </div>
+        <ContactsEditor
+          contacts={form.contacts}
+          onChange={contacts => setForm(f => ({ ...f, contacts }))}
+          errors={errors}
+          clearError={key => setErrors(e => ({ ...e, [key]: undefined }))}
+          emailPlaceholder="e.g. contact@store.com"
+        />
       </div>
     </Modal>
   )

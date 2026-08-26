@@ -9,7 +9,7 @@ import Modal from '../../components/ui/Modal'
 import { FormField, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES } from '../../data/purchaseOrderStore'
-import { getVendors } from '../../data/vendorStore'
+import { getVendors, getContacts } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
 import { getCompanyEntity } from '../../data/companyEntities'
 import { usePermission } from '../../data/rolesStore'
@@ -61,7 +61,7 @@ function RemindModal({ isOpen, onClose, po, vendor, onSent }) {
   }, [isOpen, po, vendor])
 
   if (!po) return null
-  const vendorEmail = vendor?.primaryContact?.email ?? ''
+  const vendorEmail = (vendor && getContacts(vendor)[0]?.email) ?? ''
 
   function handleSend() {
     logAudit({
