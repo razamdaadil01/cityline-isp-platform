@@ -60,7 +60,7 @@ function flattenRows(assignments) {
       const values = [...l.serials, ...l.macs]
       rows.push({
         key: `${a.id}-hw-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
-        date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode,
+        date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode, storeName: a.storeName,
         productName: l.productName,
         serialMacDrumLabel: values.length ? values.join(', ') : '—',
         qty: l.assignedQty,
@@ -71,7 +71,7 @@ function flattenRows(assignments) {
     a.wireLines.forEach((l, i) => {
       rows.push({
         key: `${a.id}-wire-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
-        date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode,
+        date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode, storeName: a.storeName,
         productName: l.productName,
         serialMacDrumLabel: l.drumNumber || '—',
         qty: `${l.assignedMeters}m`,
@@ -129,7 +129,7 @@ export default function Assignments() {
 
   const activeFiltersCount = [filterBranch, filterStatus].filter(Boolean).length
 
-  const branches = useMemo(() => [...new Set(stores.map(s => s.branchCode).filter(Boolean))].sort(), [stores])
+  const branches = useMemo(() => [...stores].filter(s => s.branchCode).sort((a, b) => a.branchCode.localeCompare(b.branchCode)), [stores])
 
   const allRows = useMemo(() => flattenRows(assignments), [assignments])
   const rows = useMemo(() => {
@@ -233,7 +233,7 @@ export default function Assignments() {
                 <select value={draft.branch} onChange={e => setDraftField('branch', e.target.value)}
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
                   <option value="">All</option>
-                  {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                  {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
@@ -306,7 +306,7 @@ export default function Assignments() {
                     </td>
                   )}
                   {visibleCols.has('serialMacDrum') && <td className="px-4 py-3 text-gray-600 text-xs font-mono">{r.serialMacDrumLabel}</td>}
-                  {visibleCols.has('branch')        && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.branchCode}</td>}
+                  {visibleCols.has('branch')        && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap" title={r.branchCode}>{r.storeName ?? r.branchCode}</td>}
                   {visibleCols.has('qty')           && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>}
                   {visibleCols.has('status') && (
                     <td className="px-4 py-3">
