@@ -581,16 +581,18 @@ export default function CreateAssignment() {
                                           {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
                                             <p className="text-xs text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
                                           ) : (
-                                            <div className="flex flex-wrap gap-2">
+                                            <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden bg-white">
                                               {requirement.hardware.map((h, i) => (
-                                                <span key={`h-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${h.productId ? 'bg-blue-50 text-brand-blue' : 'bg-amber-50 text-amber-700'}`}>
-                                                  {h.name} × {h.requiredQty}
-                                                </span>
+                                                <div key={`h-${i}`} className="flex items-center justify-between px-3 py-2 text-xs">
+                                                  <span className={h.productId ? 'text-gray-700' : 'text-amber-700'}>{h.name}</span>
+                                                  <span className="font-semibold text-gray-800">Qty: {h.requiredQty}</span>
+                                                </div>
                                               ))}
                                               {requirement.wire.map((w, i) => (
-                                                <span key={`w-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${w.productId ? 'bg-cyan-50 text-cyan-700' : 'bg-amber-50 text-amber-700'}`}>
-                                                  {w.name} × {w.requiredMeters}m
-                                                </span>
+                                                <div key={`w-${i}`} className="flex items-center justify-between px-3 py-2 text-xs">
+                                                  <span className={w.productId ? 'text-gray-700' : 'text-amber-700'}>{w.name}</span>
+                                                  <span className="font-semibold text-gray-800">Qty: {w.requiredMeters}m</span>
+                                                </div>
                                               ))}
                                             </div>
                                           )}
