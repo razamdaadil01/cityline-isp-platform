@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, UserCog, FileText,
@@ -553,18 +553,54 @@ export default function CreateAssignment() {
                             <tbody className="divide-y divide-surface-border">
                               {filteredWorkOrders.length === 0 ? (
                                 <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No assignable Work Orders found</td></tr>
-                              ) : filteredWorkOrders.map(w => (
-                                <tr key={w.id} onClick={() => setWorkOrderId(w.id)}
-                                  className={`cursor-pointer transition-colors ${workOrderId === w.id ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
-                                  <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
-                                    {workOrderId === w.id && <Check size={12} className="shrink-0" />} {w.id}
-                                  </td>
-                                  <td className="px-3 py-2 text-gray-700">{w.customerName}</td>
-                                  <td className="px-3 py-2 text-gray-500">{w.plan}</td>
-                                  <td className="px-3 py-2"><Badge variant="indigo" size="sm">{w.status}</Badge></td>
-                                  <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{w.createdAt}</td>
-                                </tr>
-                              ))}
+                              ) : filteredWorkOrders.map(wo => {
+                                const isSelected = workOrderId === wo.id
+                                return (
+                                  <Fragment key={wo.id}>
+                                    <tr onClick={() => setWorkOrderId(wo.id)}
+                                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
+                                      <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
+                                        {isSelected && <Check size={12} className="shrink-0" />} {wo.id}
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-700">{wo.customerName}</td>
+                                      <td className="px-3 py-2 text-gray-500">{wo.plan}</td>
+                                      <td className="px-3 py-2"><Badge variant="indigo" size="sm">{wo.status}</Badge></td>
+                                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{wo.createdAt}</td>
+                                    </tr>
+                                    {/* Requirement — an accordion-style panel expanded
+                                        inline under whichever row is selected, rather
+                                        than a separate section below the whole table;
+                                        purely informational, so it never itself gates
+                                        "Next". Collapses/moves the moment a different
+                                        row is picked, since only one row is ever
+                                        selected at a time. */}
+                                    {isSelected && (
+                                      <tr className="bg-surface">
+                                        <td colSpan={5} className="px-3 py-3">
+                                          <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">Hardware / Wire Required — {wo.id}</p>
+                                          {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
+                                            <p className="text-xs text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
+                                          ) : (
+                                            <div className="flex flex-wrap gap-2">
+                                              {requirement.hardware.map((h, i) => (
+                                                <span key={`h-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${h.productId ? 'bg-blue-50 text-brand-blue' : 'bg-amber-50 text-amber-700'}`}>
+                                                  {h.name} × {h.requiredQty}
+                                                </span>
+                                              ))}
+                                              {requirement.wire.map((w, i) => (
+                                                <span key={`w-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${w.productId ? 'bg-cyan-50 text-cyan-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                  {w.name} × {w.requiredMeters}m
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          <p className="text-[11px] text-gray-400 mt-2">This is what's required for the Work Order — the next step lets you pick the actual inventory to issue against it.</p>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </Fragment>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -572,32 +608,6 @@ export default function CreateAssignment() {
                     </>
                   )}
                 </FormField>
-
-                {/* Requirement — revealed inline the moment a Work Order is
-                    picked above, rather than as its own step transition;
-                    purely informational, so it never itself gates "Next". */}
-                {workOrder && (
-                  <div className="rounded-xl border border-surface-border bg-surface p-4">
-                    <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Hardware / Wire Required — {workOrder.id}</p>
-                    {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
-                      <p className="text-sm text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {requirement.hardware.map((h, i) => (
-                          <span key={`h-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${h.productId ? 'bg-blue-50 text-brand-blue' : 'bg-amber-50 text-amber-700'}`}>
-                            {h.name} × {h.requiredQty}
-                          </span>
-                        ))}
-                        {requirement.wire.map((w, i) => (
-                          <span key={`w-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${w.productId ? 'bg-cyan-50 text-cyan-700' : 'bg-amber-50 text-amber-700'}`}>
-                            {w.name} × {w.requiredMeters}m
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-[11px] text-gray-400 mt-3">This is what's required for the Work Order — the next step lets you pick the actual inventory to issue against it.</p>
-                  </div>
-                )}
               </div>
             )}
 
