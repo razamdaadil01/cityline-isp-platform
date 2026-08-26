@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
-import { getVendor, subscribeVendors, recordVendorPayment } from '../../data/vendorStore'
+import { getVendor, subscribeVendors, recordVendorPayment, getContacts } from '../../data/vendorStore'
 import { getPurchases } from '../../data/purchaseStore'
 import { getPurchaseOrders } from '../../data/purchaseOrderStore'
 import { getUnits, getUnitTrail } from '../../data/inventoryLedger'
@@ -535,9 +535,15 @@ export default function VendorDetail() {
                   <span className="text-gray-300">·</span>
                   <span className="inline-flex items-center gap-1"><Building2 size={12} /> GST: {vendor.gstNumber}</span>
                   <span className="text-gray-300">·</span>
-                  <span>{vendor.primaryContact?.name}</span>
-                  <span className="text-gray-300">·</span>
-                  <span className="inline-flex items-center gap-1"><Phone size={12} /> {vendor.primaryContact?.phone}</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Phone size={12} className="shrink-0" />
+                    {getContacts(vendor).length === 0 ? '—' : getContacts(vendor).map((c, i) => (
+                      <span key={i}>
+                        {i > 0 && <span className="text-gray-300">, </span>}
+                        {c.name}{c.phone ? ` (${c.phone})` : ''}
+                      </span>
+                    ))}
+                  </span>
                   <span className="text-gray-300">·</span>
                   <span>{vendor.paymentTerms}</span>
                 </p>
