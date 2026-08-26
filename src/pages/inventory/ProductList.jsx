@@ -12,6 +12,7 @@ import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnMana
 import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
   isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
+  getTrackingLabel,
 } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
 import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
@@ -34,14 +35,20 @@ const PRODUCT_TABLE_COLUMNS = [
   { key: 'actions',       label: 'Action',         visible: true, defaultVisible: true },
 ]
 
-const TRACKING_LABEL = Object.fromEntries(TRACKING_TYPES.map(t => [t.value, t.label]))
 const TRACKING_ICON = { quantity: Boxes, serial: Hash, mac: ScanLine }
 const GOOD_TYPE_LABEL = Object.fromEntries(GOOD_TYPES.map(g => [g.value, g.label]))
 
+// `trackingQuantity` is form-local only (never persisted) — it exists purely
+// to break the exclusivity deadlock: trackedBySerial/trackedByMac being both
+// false is otherwise ambiguous between "Quantity deliberately selected" and
+// "nothing picked yet", which matters once Quantity's own checkbox needs to
+// be uncheckable so Serial/MAC can be reached. See the Tracking Configuration
+// block below for how the three checkboxes' disabled states interact.
 function emptyHardwareForm() {
   return {
     name: '', sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
-    sellingPrice: '', unitType: 'Piece', reorderAlertQty: '', trackingType: 'quantity',
+    sellingPrice: '', unitType: 'Piece', reorderAlertQty: '',
+    trackingQuantity: true, trackedBySerial: false, trackedByMac: false,
   }
 }
 
@@ -56,6 +63,12 @@ function productToForm(product) {
       sellingPrice: String(product.sellingPrice ?? ''), reorderAlertQty: String(product.reorderAlertQty ?? ''),
     }
   }
+  // Backward-compatible with any product record that only ever carried the
+  // old `trackingType` string (no booleans yet) — falls back to deriving
+  // trackedBySerial/trackedByMac from it so an existing 'serial'/'mac'
+  // single-tracked product edits with zero behavior change.
+  const trackedBySerial = product.trackedBySerial ?? (product.trackingType === 'serial')
+  const trackedByMac = product.trackedByMac ?? (product.trackingType === 'mac')
   return {
     name: product.name, sku: product.sku, brand: product.brand,
     purchasedCompanyId: product.purchasedCompanyId != null ? String(product.purchasedCompanyId) : '',
@@ -63,7 +76,7 @@ function productToForm(product) {
     model: product.model,
     imageUrl: product.imageUrl, sellingPrice: String(product.sellingPrice ?? ''),
     unitType: product.unitType || 'Piece', reorderAlertQty: String(product.reorderAlertQty ?? ''),
-    trackingType: product.trackingType || 'quantity',
+    trackingQuantity: !trackedBySerial && !trackedByMac, trackedBySerial, trackedByMac,
   }
 }
 
@@ -117,6 +130,23 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
     setErrors({})
   }
 
+  // Quantity is exclusive with Serial/MAC; Serial and MAC can both be on at
+  // once. Checking Quantity clears both others; checking either other
+  // clears Quantity — each toggle also resolves the opposite side so the
+  // three checkboxes' disabled states (rendered below) never deadlock.
+  function toggleTrackingQuantity() {
+    setHwForm(f => ({ ...f, trackingQuantity: !f.trackingQuantity, trackedBySerial: false, trackedByMac: false }))
+    setErrors(e => ({ ...e, tracking: undefined }))
+  }
+  function toggleTrackedBySerial() {
+    setHwForm(f => ({ ...f, trackedBySerial: !f.trackedBySerial, trackingQuantity: false }))
+    setErrors(e => ({ ...e, tracking: undefined }))
+  }
+  function toggleTrackedByMac() {
+    setHwForm(f => ({ ...f, trackedByMac: !f.trackedByMac, trackingQuantity: false }))
+    setErrors(e => ({ ...e, tracking: undefined }))
+  }
+
   function validate() {
     const errs = {}
     const excludeId = editing?.id ?? null
@@ -132,6 +162,8 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
       errs.sellingPrice = 'Enter a valid selling price.'
     if (form.reorderAlertQty === '' || Number.isNaN(Number(form.reorderAlertQty)) || Number(form.reorderAlertQty) < 0)
       errs.reorderAlertQty = 'Enter a valid reorder alert quantity.'
+    if (tab === 'hardware' && !form.trackingQuantity && !form.trackedBySerial && !form.trackedByMac)
+      errs.tracking = 'Select at least one tracking option.'
     return errs
   }
 
@@ -151,7 +183,8 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
         unitType: 'Meter',
         sellingPrice: Number(form.sellingPrice),
         reorderAlertQty: Number(form.reorderAlertQty),
-        trackingType: null,
+        trackedBySerial: false,
+        trackedByMac: false,
         drumNumberRequired: true,
         status: editing?.status ?? 'active',
       })
@@ -169,7 +202,8 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
         unitType: form.unitType,
         sellingPrice: Number(form.sellingPrice),
         reorderAlertQty: Number(form.reorderAlertQty),
-        trackingType: form.trackingType,
+        trackedBySerial: form.trackingQuantity ? false : form.trackedBySerial,
+        trackedByMac: form.trackingQuantity ? false : form.trackedByMac,
         drumNumberRequired: false,
         status: editing?.status ?? 'active',
       })
@@ -259,19 +293,28 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               <div className="grid grid-cols-3 gap-2">
                 {TRACKING_TYPES.map(t => {
                   const Icon = TRACKING_ICON[t.value]
-                  const active = hwForm.trackingType === t.value
+                  const checked = t.value === 'quantity' ? hwForm.trackingQuantity
+                    : t.value === 'serial' ? hwForm.trackedBySerial : hwForm.trackedByMac
+                  // Quantity is exclusive with Serial/MAC: while either of the
+                  // other two is on, Quantity is disabled; while Quantity is
+                  // on, both Serial and MAC are disabled. Neither disables
+                  // itself, so unchecking one side always stays reachable.
+                  const disabled = t.value === 'quantity' ? (hwForm.trackedBySerial || hwForm.trackedByMac) : hwForm.trackingQuantity
+                  const onToggle = t.value === 'quantity' ? toggleTrackingQuantity
+                    : t.value === 'serial' ? toggleTrackedBySerial : toggleTrackedByMac
                   return (
                     <label
                       key={t.value}
-                      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 cursor-pointer transition-colors
-                        ${active ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:bg-gray-50'}`}
+                      className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 transition-colors
+                        ${checked ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border'}
+                        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
                     >
                       <input
-                        type="radio"
-                        name="trackingType"
-                        className="accent-brand-blue shrink-0"
-                        checked={active}
-                        onChange={() => setField('trackingType', t.value)}
+                        type="checkbox"
+                        className="accent-brand-blue shrink-0 disabled:cursor-not-allowed"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={onToggle}
                       />
                       <Icon size={13} className="text-gray-400 shrink-0" />
                       <span className="text-sm font-medium text-gray-800 truncate">{t.label}</span>
@@ -279,14 +322,29 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
                   )
                 })}
               </div>
-              {hwForm.trackingType !== 'quantity' && (
-                <p className="text-xs text-gray-500 mt-2 flex items-start gap-1">
-                  <Info size={11} className="mt-0.5 shrink-0" />
-                  {hwForm.trackingType === 'serial'
-                    ? 'Every unit of this product will require a unique serial number at stock-in and assignment.'
-                    : 'Every unit of this product will require a unique MAC number at stock-in and assignment.'}
-                </p>
+              {(hwForm.trackedBySerial || hwForm.trackedByMac) && (
+                <div className="mt-2 space-y-1">
+                  {hwForm.trackedBySerial && (
+                    <p className="text-xs text-gray-500 flex items-start gap-1">
+                      <Info size={11} className="mt-0.5 shrink-0" />
+                      Every unit of this product will require a unique serial number at stock-in and assignment.
+                    </p>
+                  )}
+                  {hwForm.trackedByMac && (
+                    <p className="text-xs text-gray-500 flex items-start gap-1">
+                      <Info size={11} className="mt-0.5 shrink-0" />
+                      Every unit of this product will require a unique MAC number at stock-in and assignment.
+                    </p>
+                  )}
+                  {hwForm.trackedBySerial && hwForm.trackedByMac && (
+                    <p className="text-xs text-gray-500 flex items-start gap-1">
+                      <Info size={11} className="mt-0.5 shrink-0" />
+                      Both are tracked together — each physical unit carries one serial number AND one MAC number.
+                    </p>
+                  )}
+                </div>
               )}
+              {errors.tracking && <p className="text-xs text-red-500 mt-2">{errors.tracking}</p>}
             </div>
           </div>
         ) : (
@@ -622,7 +680,7 @@ export default function ProductList() {
                       {p.productType === 'wire' ? (
                         <span className="text-gray-500">Drum No.</span>
                       ) : (
-                        <span className="text-gray-600">{TRACKING_LABEL[p.trackingType] ?? '—'}</span>
+                        <span className="text-gray-600">{getTrackingLabel(p)}</span>
                       )}
                     </td>
                   )}

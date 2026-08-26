@@ -124,16 +124,52 @@ function TrackedInputs({ label, values, onChange, validate }) {
   )
 }
 
+// Dual-tracked product (Serial Number AND MAC Number both enabled) — one
+// physical unit slot per received qty, each carrying its own serial+MAC
+// pair side by side, rather than two independent lists. Paired by index:
+// serials[i] and macs[i] describe the same unit.
+function PairedTrackedInputs({ serials, macs, onSerialChange, onMacChange }) {
+  return (
+    <div className="space-y-2 mt-2">
+      {serials.map((s, i) => (
+        <div key={i} className="grid grid-cols-2 gap-2 p-2 border border-surface-border rounded-lg">
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Unit {i + 1} — Serial</label>
+            <input
+              value={s}
+              onChange={e => onSerialChange(i, e.target.value)}
+              placeholder={`Serial ${i + 1}`}
+              className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Unit {i + 1} — MAC</label>
+            <input
+              value={macs[i] ?? ''}
+              onChange={e => onMacChange(i, e.target.value)}
+              placeholder={`MAC ${i + 1}`}
+              className={`w-full px-2.5 py-1.5 text-xs border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 ${
+                (macs[i] ?? '').trim() && !MAC_RE.test((macs[i] ?? '').trim()) ? 'border-red-300' : 'border-surface-border'
+              }`}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ReceiptItemCard({ item, onUpdate, onRemove }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
-  const trackingType = product?.trackingType
+  const trackedBySerial = !!product?.trackedBySerial
+  const trackedByMac = !!product?.trackedByMac
 
   function setReceivedQty(qtyStr) {
     const qty = Math.max(0, Number(qtyStr) || 0)
     const patch = { receivedQty: qtyStr }
-    if (trackingType === 'serial') patch.serials = resizeArray(item.serials, qty)
-    if (trackingType === 'mac') patch.macs = resizeArray(item.macs, qty)
+    if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
+    if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
     onUpdate(patch)
   }
 
@@ -183,12 +219,18 @@ function ReceiptItemCard({ item, onUpdate, onRemove }) {
         <FormField label="Drum Number" required hint="Required whenever a quantity is received">
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
-      ) : trackingType === 'serial' && Number(item.receivedQty) > 0 ? (
+      ) : trackedBySerial && trackedByMac && Number(item.receivedQty) > 0 ? (
+        <PairedTrackedInputs
+          serials={item.serials} macs={item.macs}
+          onSerialChange={(i, v) => onUpdate({ serials: item.serials.map((s, idx) => idx === i ? v : s) })}
+          onMacChange={(i, v) => onUpdate({ macs: item.macs.map((m, idx) => idx === i ? v : m) })}
+        />
+      ) : trackedBySerial && Number(item.receivedQty) > 0 ? (
         <TrackedInputs
           label="Serial" values={item.serials}
           onChange={(i, v) => onUpdate({ serials: item.serials.map((s, idx) => idx === i ? v : s) })}
         />
-      ) : trackingType === 'mac' && Number(item.receivedQty) > 0 ? (
+      ) : trackedByMac && Number(item.receivedQty) > 0 ? (
         <TrackedInputs
           label="MAC" values={item.macs}
           onChange={(i, v) => onUpdate({ macs: item.macs.map((m, idx) => idx === i ? v : m) })}
@@ -226,8 +268,8 @@ function AddOutsideItemForm({ products, onAdd, onCancel }) {
       source: 'outside', type: product.productType, productId: product.id, productName: product.name,
       sku: product.sku || '', unit: product.unitType, poQty: 0, receivedQty,
       price: Number(price) || product.sellingPrice || 0, gstPercent: Number(gstPercent) || 0,
-      serials: product.trackingType === 'serial' ? resizeArray([], receivedQty) : [],
-      macs: product.trackingType === 'mac' ? resizeArray([], receivedQty) : [],
+      serials: product.trackedBySerial ? resizeArray([], receivedQty) : [],
+      macs: product.trackedByMac ? resizeArray([], receivedQty) : [],
       drumNumber: '', reason: reason.trim(),
     }, itemRemarks.trim())
   }
@@ -394,9 +436,9 @@ export default function CreatePurchase() {
     return receivedItems.every(it => {
       if (it.type === 'wire') return !!it.drumNumber?.trim()
       const product = getProduct(it.productId)
-      if (product?.trackingType === 'serial') return it.serials.length === it.receivedQty && it.serials.every(s => s.trim())
-      if (product?.trackingType === 'mac') return it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim()))
-      return true
+      const serialsOk = !product?.trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
+      const macsOk = !product?.trackedByMac || (it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim())))
+      return serialsOk && macsOk
     })
   }
 

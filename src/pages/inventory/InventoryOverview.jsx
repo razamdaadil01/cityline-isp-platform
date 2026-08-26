@@ -44,7 +44,7 @@ function productMatchesSearch(product, units, drums, q) {
   if (!q) return true
   if (product.name.toLowerCase().includes(q)) return true
   if (product.sku && product.sku.toLowerCase().includes(q)) return true
-  if (units.some(u => u.value.toLowerCase().includes(q))) return true
+  if (units.some(u => u.value.toLowerCase().includes(q) || (u.mac && u.mac.toLowerCase().includes(q)))) return true
   if (drums.some(d => d.drumNumber.toLowerCase().includes(q))) return true
   return false
 }
@@ -71,8 +71,14 @@ function UnitRow({ unit, storeName }) {
         className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-2 min-w-0">
           <ChevronRight size={13} className={`text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-          <span className="font-mono text-xs font-semibold text-gray-800 truncate">{unit.value}</span>
-          <span className="text-[10px] text-gray-400 uppercase">{unit.kind}</span>
+          {unit.serial && unit.mac ? (
+            <span className="font-mono text-xs font-semibold text-gray-800 truncate">
+              {unit.serial} <span className="text-gray-300">/</span> <span className="text-gray-400 font-normal">MAC:</span> {unit.mac}
+            </span>
+          ) : (
+            <span className="font-mono text-xs font-semibold text-gray-800 truncate">{unit.value}</span>
+          )}
+          <span className="text-[10px] text-gray-400 uppercase">{unit.serial && unit.mac ? 'Serial + MAC' : unit.kind}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-gray-500">{storeName}</span>
@@ -243,7 +249,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
   const storeName = id => stores.find(s => s.id === id)?.storeName ?? '—'
 
   const isWire = product.productType === 'wire'
-  const isTracked = product.trackingType === 'serial' || product.trackingType === 'mac'
+  const isTracked = !!(product.trackedBySerial || product.trackedByMac)
   const units = getUnits({ productId: product.id })
   const drums = getDrums({ productId: product.id })
   const balances = getStockBalances().filter(b => b.productId === product.id)
@@ -550,7 +556,7 @@ export default function InventoryOverview() {
 
     let hardwareAvailable = 0
     allProducts.filter(p => p.productType === 'hardware').forEach(p => {
-      if (p.trackingType === 'serial' || p.trackingType === 'mac') {
+      if (p.trackedBySerial || p.trackedByMac) {
         hardwareAvailable += getUnits({ productId: p.id, status: 'Available' })
           .filter(u => !scopedStoreIds || scopedStoreIds.includes(u.storeId)).length
       } else {

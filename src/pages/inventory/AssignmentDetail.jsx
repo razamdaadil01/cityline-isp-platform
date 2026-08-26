@@ -89,7 +89,9 @@ export default function AssignmentDetail() {
                       <td className="px-3 py-2 text-right text-gray-600">{l.requiredQty}</td>
                       <td className="px-3 py-2 text-right font-semibold text-gray-800">{l.assignedQty}</td>
                       <td className="px-3 py-2 text-gray-500 font-mono">
-                        {l.serials.length ? `Serials: ${l.serials.join(', ')}`
+                        {l.serials.length && l.macs.length
+                          ? l.serials.map((s, i) => `${s} / MAC:${l.macs[i] ?? '—'}`).join(', ')
+                          : l.serials.length ? `Serials: ${l.serials.join(', ')}`
                           : l.macs.length ? `MACs: ${l.macs.join(', ')}`
                           : '—'}
                       </td>

@@ -19,8 +19,17 @@ const STEPS = [
   { id: 3, label: 'Confirm',  icon: CheckCircle2 },
 ]
 
+// A dual-tracked product (Serial + MAC both enabled) is treated here as
+// serial-tracked — Store Transfer moves whole physical units by their
+// serial identifier; a unit's paired MAC stays attached to the same ledger
+// unit object regardless (see inventoryLedger.js), it's just not carried as
+// a second explicit value on this transfer's own line record.
 function liveTrackingType(productId) {
-  return getProduct(productId)?.trackingType ?? 'quantity'
+  const p = getProduct(productId)
+  if (!p) return 'quantity'
+  if (p.trackedBySerial) return 'serial'
+  if (p.trackedByMac) return 'mac'
+  return 'quantity'
 }
 
 // ── Step 2 line card — mirrors HardwareLineCard/HandoffLineCard's serial
@@ -126,7 +135,7 @@ export default function CreateStoreTransfer() {
     if (!prefillProductId) return
     const product = getProduct(prefillProductId)
     if (!product) return
-    const trackingType = product.trackingType ?? 'quantity'
+    const trackingType = liveTrackingType(product.id)
     setLines(prev => {
       if (prev.some(l => l.productId === prefillProductId)) return prev
       const line = { productId: prefillProductId, productName: product.name, trackingType, qty: 0, serials: [], macs: [] }
@@ -147,7 +156,7 @@ export default function CreateStoreTransfer() {
   function addLine(productId) {
     const product = getProduct(productId)
     if (!product) return
-    setLines(prev => [...prev, { productId, productName: product.name, trackingType: product.trackingType ?? 'quantity', qty: 0, serials: [], macs: [] }])
+    setLines(prev => [...prev, { productId, productName: product.name, trackingType: liveTrackingType(productId), qty: 0, serials: [], macs: [] }])
     setAddProductId('')
   }
   function updateLine(idx, patch) { setLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }

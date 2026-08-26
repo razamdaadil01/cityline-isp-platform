@@ -21,8 +21,17 @@ const STEPS = [
   { id: 4, label: 'Confirm',      icon: CheckCircle2 },
 ]
 
+// A dual-tracked product (Serial + MAC both enabled) is treated here as
+// serial-tracked — Hand Off moves whole physical units by their serial
+// identifier; a unit's paired MAC stays attached to the same ledger unit
+// object regardless (see inventoryLedger.js), it's just not carried as a
+// second explicit value on this handoff's own line record.
 function liveTrackingType(productId) {
-  return getProduct(productId)?.trackingType ?? 'quantity'
+  const p = getProduct(productId)
+  if (!p) return 'quantity'
+  if (p.trackedBySerial) return 'serial'
+  if (p.trackedByMac) return 'mac'
+  return 'quantity'
 }
 
 // ── Step 2 reference picker ─────────────────────────────────────────────
