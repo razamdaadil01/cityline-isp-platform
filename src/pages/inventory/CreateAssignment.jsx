@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, UserCog, FileText, ClipboardList,
+  ArrowLeft, ChevronLeft, ChevronRight, UserCog, FileText,
   PackageOpen, CheckCircle2, Search, AlertTriangle, Check,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -19,12 +19,11 @@ import {
 const STEPS = [
   { id: 1, label: 'Branch & Engineer', icon: UserCog },
   { id: 2, label: 'Work Order',        icon: FileText },
-  { id: 3, label: 'Requirement',       icon: ClipboardList },
-  { id: 4, label: 'Select Items',      icon: PackageOpen },
-  { id: 5, label: 'Confirm',           icon: CheckCircle2 },
+  { id: 3, label: 'Select Items',      icon: PackageOpen },
+  { id: 4, label: 'Confirm',           icon: CheckCircle2 },
 ]
 
-// ── Step 4 line cards ────────────────────────────────────────────────────
+// ── Step 3 line cards ────────────────────────────────────────────────────
 
 // Always reads the product's *current* Tracking Type live from
 // productStore.js rather than a value captured once and cached in hwLines
@@ -57,7 +56,7 @@ function wireLineAvailability(l, storeId) {
 // A required line the store genuinely has zero stock/serials/drums for —
 // there's nothing for the user to pick, so it can't be treated as "must be
 // filled to submit." It's still shown as unfulfilled (see outOfStock prop
-// on the line cards, and the Step 5 "Not Fulfilled" list), just not a
+// on the line cards, and the Step 4 "Not Fulfilled" list), just not a
 // blocker — a partial assignment (issue what's in stock, leave the rest
 // pending) is a legitimate outcome, not an error state.
 function isHwLineOutOfStock(l, storeId) {
@@ -315,13 +314,13 @@ export default function CreateAssignment() {
   const workOrder = workOrderId ? getWorkOrder(workOrderId) : null
   const requirement = useMemo(() => workOrder ? resolveWorkOrderRequirement(workOrder) : { hardware: [], wire: [] }, [workOrder])
 
-  // Rebuild Step 4's editable line state whenever a new Work Order's
+  // Rebuild Step 3's editable line state whenever a new Work Order's
   // requirement resolves. Every line starts fully empty — assignedQty: 0,
-  // no serials/macs picked, no drum/meters — so landing on Step 4 never
+  // no serials/macs picked, no drum/meters — so landing on Step 3 never
   // shows a reduced Available count before the user has touched anything.
   // A prior draft that never reached Confirm never wrote anything to
   // assignmentStore either: saveAssignment() (called only from
-  // handleAssign(), Step 5's "Assign Inventory" button) is the sole place
+  // handleAssign(), Step 4's "Assign Inventory" button) is the sole place
   // that appends to _assignments, so nothing here or in the ledger's
   // read-only queries below can leave a phantom deduction behind.
   useEffect(() => {
@@ -346,18 +345,17 @@ export default function CreateAssignment() {
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
 
   const stepParam = Number(searchParams.get('step'))
-  const step = [1, 2, 3, 4, 5].includes(stepParam) ? stepParam : 1
+  const step = [1, 2, 3, 4].includes(stepParam) ? stepParam : 1
 
-  // Step 1 is Branch + Engineer only — Work Order selection is its own
-  // Step 2 (moved back out after the previous merge crammed Work Order
-  // Type/search onto the same screen as Branch/Engineer). Each step's
-  // validity only needs to cover what's newly required on THAT step —
-  // isReachable() below already guarantees every earlier step passed
-  // before this one is even reachable.
+  // Step 1 is Branch + Engineer only. Step 2 is Work Order selection —
+  // the Requirement pills for whichever Work Order is picked render inline
+  // within this same step (see the JSX below) rather than as their own
+  // step, since they're purely informational and never gate advancement
+  // themselves. Each step's validity only needs to cover what's newly
+  // required on THAT step — isReachable() below already guarantees every
+  // earlier step passed before this one is even reachable.
   function isStep1Valid() { return !!branchCode && !!engineer }
   function isStep2Valid() { return !!workOrderId }
-  // Requirement is a read-only display step — nothing new required.
-  function isStep3Valid() { return isStep2Valid() }
   // Requires BOTH: at least one item picked overall (unchanged from before —
   // a Work Order whose lines are all unfulfillable/not required can't submit
   // an empty assignment), AND every individual line that HAS stock to pick
@@ -367,7 +365,7 @@ export default function CreateAssignment() {
   // the store genuinely has zero of (isHwLineComplete/isWireLineComplete
   // exempt it) never blocks submission — a partial assignment, issuing
   // what's actually in stock and leaving the rest pending, is allowed.
-  function isStep4Valid() {
+  function isStep3Valid() {
     if (hwLines.length === 0 && wireLines.length === 0) return false
     const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
@@ -376,7 +374,7 @@ export default function CreateAssignment() {
       && wireLines.every(l => isWireLineComplete(l, store?.id))
   }
 
-  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: isStep4Valid(), 5: true }
+  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: true }
   function isReachable(id) {
     if (id === 1) return true
     for (let i = 1; i < id; i++) if (!stepValid[i]) return false
@@ -396,13 +394,13 @@ export default function CreateAssignment() {
   function goNext() {
     if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
     if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
-    if (step === 4 && !isStep4Valid()) { setAttemptedAction('step4'); return }
+    if (step === 3 && !isStep3Valid()) { setAttemptedAction('step3'); return }
     setAttemptedAction(null)
-    setSearchParams({ step: String(Math.min(step + 1, 5)) })
+    setSearchParams({ step: String(Math.min(step + 1, 4)) })
   }
 
   function handleAssign() {
-    if (!isStep4Valid()) { setAttemptedAction('step4'); return }
+    if (!isStep3Valid()) { setAttemptedAction('step3'); return }
     setSaveError('')
     try {
       const assignment = saveAssignment({
@@ -480,7 +478,7 @@ export default function CreateAssignment() {
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a Work Order to continue.
               </div>
             )}
-            {attemptedAction === 'step4' && !isStep4Valid() && (
+            {attemptedAction === 'step3' && !isStep3Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) to assign, and complete every required line highlighted below.
               </div>
@@ -574,37 +572,37 @@ export default function CreateAssignment() {
                     </>
                   )}
                 </FormField>
+
+                {/* Requirement — revealed inline the moment a Work Order is
+                    picked above, rather than as its own step transition;
+                    purely informational, so it never itself gates "Next". */}
+                {workOrder && (
+                  <div className="rounded-xl border border-surface-border bg-surface p-4">
+                    <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Hardware / Wire Required — {workOrder.id}</p>
+                    {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
+                      <p className="text-sm text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {requirement.hardware.map((h, i) => (
+                          <span key={`h-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${h.productId ? 'bg-blue-50 text-brand-blue' : 'bg-amber-50 text-amber-700'}`}>
+                            {h.name} × {h.requiredQty}
+                          </span>
+                        ))}
+                        {requirement.wire.map((w, i) => (
+                          <span key={`w-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${w.productId ? 'bg-cyan-50 text-cyan-700' : 'bg-amber-50 text-amber-700'}`}>
+                            {w.name} × {w.requiredMeters}m
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-3">This is what's required for the Work Order — the next step lets you pick the actual inventory to issue against it.</p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── Step 3: Requirement ── */}
-            {step === 3 && workOrder && (
-              <div className="space-y-4">
-                <div className="rounded-xl border border-surface-border bg-surface p-4">
-                  <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Hardware / Wire Required — {workOrder.id}</p>
-                  {requirement.hardware.length === 0 && requirement.wire.length === 0 ? (
-                    <p className="text-sm text-gray-400">No hardware or wire requirement recorded for this Work Order.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {requirement.hardware.map((h, i) => (
-                        <span key={`h-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${h.productId ? 'bg-blue-50 text-brand-blue' : 'bg-amber-50 text-amber-700'}`}>
-                          {h.name} × {h.requiredQty}
-                        </span>
-                      ))}
-                      {requirement.wire.map((w, i) => (
-                        <span key={`w-${i}`} className={`px-3 py-1.5 rounded-full text-xs font-medium ${w.productId ? 'bg-cyan-50 text-cyan-700' : 'bg-amber-50 text-amber-700'}`}>
-                          {w.name} × {w.requiredMeters}m
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-[11px] text-gray-400 mt-3">This is what's required for the Work Order — the next step lets you pick the actual inventory to issue against it.</p>
-                </div>
-              </div>
-            )}
-
-            {/* ── Step 4: Select Items ── */}
-            {step === 4 && (
+            {/* ── Step 3: Select Items ── */}
+            {step === 3 && (
               <div className="space-y-3">
                 {hwLines.length === 0 && wireLines.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No requirement lines to fulfill for this Work Order.</p>
@@ -615,22 +613,22 @@ export default function CreateAssignment() {
                         otherLines={hwLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateHwLine(idx, patch)}
                         outOfStock={isHwLineOutOfStock(l, store.id)}
-                        showError={attemptedAction === 'step4' && !isHwLineComplete(l, store.id)} />
+                        showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
                     ))}
                     {wireLines.map((l, idx) => (
                       <WireLineCard key={`wire-${idx}`} line={l} storeId={store.id}
                         otherLines={wireLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateWireLine(idx, patch)}
                         outOfStock={isWireLineOutOfStock(l, store.id)}
-                        showError={attemptedAction === 'step4' && !isWireLineComplete(l, store.id)} />
+                        showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
                     ))}
                   </>
                 )}
               </div>
             )}
 
-            {/* ── Step 5: Confirm ── */}
-            {step === 5 && workOrder && (
+            {/* ── Step 4: Confirm ── */}
+            {step === 4 && workOrder && (
               <div className="space-y-5">
                 <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
@@ -729,7 +727,7 @@ export default function CreateAssignment() {
       {/* ── Bottom Bar ───────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-border px-6 py-3 flex items-center justify-between z-10">
         <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
-        {step < 5 ? (
+        {step < 4 ? (
           <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Next</Button>
         ) : (
           <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>Assign Inventory</Button>
