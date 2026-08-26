@@ -236,6 +236,31 @@ const INIT_INSTALLATIONS = [
       { status: 'Scheduled', date: '2026-06-04', by: 'System', note: 'Installation scheduled' },
     ],
   },
+  {
+    // Added so Assign to Engineer's seed data (assignmentStore.js) has a
+    // fourth real, branch-matched Work Order to issue hardware against —
+    // reuses an existing engineer (Suresh Babu) and an existing store
+    // branch (CNPL-001) rather than inventing either.
+    id: 'INS-011', leadId: null,
+    customerName: 'Deepak Iyer',        customerPhone: '9845112233', mobile: '9845112233',
+    address: '5, Residency Road',       area: 'Residency Road', locality: 'Residency Road', city: 'Bangalore', pincode: '560025',
+    plan: '200 Mbps Quarterly (FTTH)',
+    slotDate: '2026-08-11', slotTime: '10:30', slot: 'Morning',
+    assignedTeam: 'Team Sigma',
+    engineerId: 'eng-004', engineerName: 'Suresh Babu',
+    branch: 'CNPL-001', createdBy: 'Neha Gupta', priority: 'Medium',
+    status: 'Dispatched',
+    hardwareRequired: true,
+    hardware: [{ name: 'Patch Cord (LC-LC, 5m)', qty: 10 }],
+    wireRequired: false, wires: [],
+    notes: 'Uplink patch cords for rack termination.',
+    createdAt: '2026-08-10',
+    timeline: [
+      { status: 'Scheduled', date: '2026-08-10', by: 'System', note: '' },
+      { status: 'Assigned',  date: '2026-08-10', by: 'Admin',  note: '' },
+      { status: 'Dispatched', date: '2026-08-11', by: 'Admin', note: 'Team dispatched' },
+    ],
+  },
 ]
 
 let _installations = [...INIT_INSTALLATIONS]

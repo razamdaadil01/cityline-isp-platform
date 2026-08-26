@@ -41,8 +41,89 @@ function nextAssignmentNumber() {
   return `ASG-${year}-${String(_nextSeq++).padStart(6, '0')}`
 }
 
-let _assignments = []
-let _nextInternalSeq = 1
+// ── Seed data — so Assign to Engineer's list isn't empty on first load.
+// Every engineer/branch/store/product/Work Order referenced here is one
+// already seeded elsewhere (installationsStore.js's FIELD_ENGINEERS and
+// Installations, storeStore.js, productStore.js) — nothing invented. The
+// only two additions made anywhere to support this seed are: PUR-000004 in
+// purchaseStore.js (a Drop Wire drum at Andheri Store — no wire stock
+// existed at all before that, and a wire-line demo needs a real drum to
+// assign meters off of) and INS-011 in installationsStore.js (a fourth
+// Work Order in an existing branch for an existing engineer, since only 3
+// of the 10 original Installations both sit in a branch with a real Store
+// AND carry a non-empty hardware/wire requirement — INS-005/006/009).
+//
+// Quantities below are deliberately conservative against the real seeded
+// stock so nothing here goes negative or double-counts: ONT Device has 3
+// serials at Andheri (only 1 used, 2 left 'Available'); Wall Mount Bracket
+// has 50 at Main Warehouse (2 used); Patch Cord has 80 at Main Warehouse
+// (10 used); the Drop Wire drum has 500m (30 used). A few requirement
+// lines (ONT/Ethernet Cat6 at Main Warehouse, which genuinely has no stock
+// of either) are deliberately left unfulfilled/omitted — the same partial-
+// assignment behavior saveAssignment() itself produces when a line has
+// nothing available, called out via each record's own remarks.
+const SEED = [
+  {
+    id: 'ASG-000001', assignmentNumber: 'ASG-2026-000001',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-005', workOrderLabel: 'INS-005',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [
+      { id: 'ASGI-1-0', productId: 'PRD-001', productName: 'ONT Device', requiredQty: 1, assignedQty: 1, serials: ['ZTE-ONT-2026-0001'], macs: [], remark: 'Urgent — customer escalation, ONT replacement priority.' },
+      { id: 'ASGI-1-1', productId: 'PRD-003', productName: 'Wall Mount Bracket', requiredQty: 1, assignedQty: 1, serials: [], macs: [], remark: '' },
+    ],
+    wireLines: [
+      { id: 'ASGW-1-0', productId: 'PRD-010', productName: 'Drop Wire', requiredMeters: 30, assignedMeters: 30, drumNumber: 'DR-00871', remark: '' },
+    ],
+    remarks: 'Escalated FTTH install — issued same day.',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-16T09:30:00.000Z',
+  },
+  {
+    id: 'ASG-000002', assignmentNumber: 'ASG-2026-000002',
+    engineerId: 'eng-003', engineerName: 'Anita Sharma',
+    branchCode: 'CNPL-001',
+    workOrderId: 'INS-006', workOrderLabel: 'INS-006',
+    storeId: 'STR-001', storeName: 'Main Warehouse',
+    hardwareLines: [
+      { id: 'ASGI-2-0', productId: 'PRD-003', productName: 'Wall Mount Bracket', requiredQty: 1, assignedQty: 1, serials: [], macs: [], remark: '' },
+    ],
+    wireLines: [],
+    remarks: 'ONT Device pending — out of stock at Main Warehouse.',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-18T14:00:00.000Z',
+  },
+  {
+    id: 'ASG-000003', assignmentNumber: 'ASG-2026-000003',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    branchCode: 'CNPL-001',
+    workOrderId: 'INS-009', workOrderLabel: 'INS-009',
+    storeId: 'STR-001', storeName: 'Main Warehouse',
+    hardwareLines: [
+      { id: 'ASGI-3-0', productId: 'PRD-003', productName: 'Wall Mount Bracket', requiredQty: 1, assignedQty: 1, serials: [], macs: [], remark: '' },
+    ],
+    wireLines: [],
+    remarks: 'Partial issue — ONT Device and Ethernet Cat6 pending next stock receipt.',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-20T11:15:00.000Z',
+  },
+  {
+    id: 'ASG-000004', assignmentNumber: 'ASG-2026-000004',
+    engineerId: 'eng-004', engineerName: 'Suresh Babu',
+    branchCode: 'CNPL-001',
+    workOrderId: 'INS-011', workOrderLabel: 'INS-011',
+    storeId: 'STR-001', storeName: 'Main Warehouse',
+    hardwareLines: [
+      { id: 'ASGI-4-0', productId: 'PRD-006', productName: 'Patch Cord (LC-LC, 5m)', requiredQty: 10, assignedQty: 10, serials: [], macs: [], remark: 'Bulk patch cords for rack termination — handle with care.' },
+    ],
+    wireLines: [],
+    remarks: '',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-22T16:45:00.000Z',
+  },
+]
+
+_nextSeq = SEED.length + 1
+
+let _assignments = [...SEED]
+let _nextInternalSeq = _assignments.length + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._assignments])) }

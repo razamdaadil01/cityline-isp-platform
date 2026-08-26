@@ -131,6 +131,25 @@ const SEED = [
     remarks: 'Emergency stock-out purchase — approved verbally by Ops Manager.',
     status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-12T14:00:00.000Z',
   },
+  {
+    // Seeded so Assign to Engineer has a real drum to demo a wire-line
+    // assignment against (see assignmentStore.js's own SEED note) — no wire
+    // stock existed anywhere in the seed data before this.
+    id: 'PUR-000004', purchaseNumber: 'PUR-2026-000004',
+    poId: null, poNumber: null,
+    vendorId: 'VEN-002', vendorName: 'Sterlite Technologies',
+    storeId: 'STR-002', storeName: 'Andheri Store', companyEntityId: 2,
+    purchaseDate: '2026-08-14',
+    items: [
+      makeItem(6, {
+        source: 'outside', type: 'wire', productId: 'PRD-010', productName: 'Drop Wire', unit: 'Meter',
+        poQty: 0, receivedQty: 500, price: 8, gstPercent: 18, drumNumber: 'DR-00871',
+        reason: 'Stock replenishment for upcoming FTTH drop-wire runs',
+      }),
+    ],
+    remarks: 'Drop wire drum received for upcoming FTTH installations.',
+    status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-14T11:00:00.000Z',
+  },
 ].map(pur => ({ ...pur, ...summarizePurchase(pur.items) }))
 
 _nextSeq = SEED.length + 1
