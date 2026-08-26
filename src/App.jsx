@@ -63,6 +63,7 @@ import PODetail from './pages/inventory/PODetail'
 import Purchases from './pages/inventory/Purchases'
 import CreatePurchase from './pages/inventory/CreatePurchase'
 import PurchaseDetail from './pages/inventory/PurchaseDetail'
+import PurchaseInvoiceView from './pages/inventory/PurchaseInvoiceView'
 import InventoryOverview from './pages/inventory/InventoryOverview'
 import Assignments from './pages/inventory/Assignments'
 import CreateAssignment from './pages/inventory/CreateAssignment'
@@ -171,6 +172,7 @@ export default function App() {
           <Route path="/inventory/purchases" element={<Purchases />} />
           <Route path="/inventory/purchases/new" element={<CreatePurchase />} />
           <Route path="/inventory/purchases/:id/edit" element={<CreatePurchase />} />
+          <Route path="/inventory/purchases/:id/invoice" element={<PurchaseInvoiceView />} />
           <Route path="/inventory/purchases/:id" element={<PurchaseDetail />} />
           <Route path="/inventory/assign" element={<Assignments />} />
           <Route path="/inventory/assign/new" element={<CreateAssignment />} />
