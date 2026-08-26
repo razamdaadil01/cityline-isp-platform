@@ -261,7 +261,7 @@ function UnitHistoryModal({ unit, onClose }) {
   const trail = isOpen ? getUnitTrail(unit) : []
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={unit ? `${unit.value} · ${unit.kind === 'mac' ? 'MAC' : 'Serial'}` : ''} size="sm">
+    <Modal isOpen={isOpen} onClose={onClose} title={unit ? `${unit.value} · ${unit.serial && unit.mac ? 'Serial + MAC' : unit.kind === 'mac' ? 'MAC' : 'Serial'}` : ''} size="sm">
       {isOpen && (
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 text-sm">

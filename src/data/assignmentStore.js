@@ -252,6 +252,17 @@ function computeGrossFromPurchases() {
         balanceByKey[key] = (balanceByKey[key] ?? 0) + receivedQty
         if (it.type === 'wire' && it.drumNumber?.trim()) {
           drums.push({ productId: it.productId, storeId: pur.storeId, drumNumber: it.drumNumber.trim(), receivedMeters: receivedQty })
+        } else if (it.serials?.length && it.macs?.length) {
+          // Dual-tracked (Serial + MAC both enabled) — mirrors
+          // inventoryLedger.js's own pairing: one unit per received qty,
+          // serials[i]/macs[i] describing the same physical unit.
+          const count = Math.max(it.serials.length, it.macs.length)
+          for (let i = 0; i < count; i++) {
+            const serial = (it.serials[i] || '').trim()
+            const mac = (it.macs[i] || '').trim()
+            if (!serial && !mac) continue
+            units.push({ productId: it.productId, storeId: pur.storeId, value: serial || mac, serial: serial || null, mac: mac || null })
+          }
         } else if (it.serials?.length) {
           it.serials.filter(s => s?.trim()).forEach(serial => units.push({ productId: it.productId, storeId: pur.storeId, value: serial.trim() }))
         } else if (it.macs?.length) {
@@ -317,13 +328,16 @@ export function saveAssignment(data) {
       if (serials.length || macs.length) {
         const values = [...serials, ...macs]
         values.forEach(v => {
-          const unit = units.find(u => u.productId === l.productId && u.storeId === data.storeId && u.value === v)
+          const unit = units.find(u => u.productId === l.productId && u.storeId === data.storeId && (u.value === v || u.mac === v))
           if (!unit) throw new Error(`${v} is not an available unit of ${l.productName} at ${data.storeName}.`)
           if (assignedValues.has(v)) throw new Error(`${v} has already been assigned to another engineer.`)
         })
+        // Dual-tracked (serial+mac both present) picks are paired 1:1 — the
+        // unit count is the longer of the two lists, not their combined
+        // length (which would double-count each physical unit).
         return {
           id: `ASGI-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
-          requiredQty: Number(l.requiredQty) || 0, assignedQty: values.length, serials, macs,
+          requiredQty: Number(l.requiredQty) || 0, assignedQty: Math.max(serials.length, macs.length), serials, macs,
           remark: l.remark?.trim() || '',
         }
       }

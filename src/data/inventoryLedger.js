@@ -85,6 +85,17 @@ function computeLedger() {
             ...origin, drumNumber: it.drumNumber.trim(),
             receivedMeters: receivedQty, remainingMeters: receivedQty, status: 'Available',
           })
+        } else if (it.serials?.length && it.macs?.length) {
+          // Dual-tracked (Serial Number AND MAC Number both enabled) — one
+          // unit per received quantity, serials[i]/macs[i] paired as the
+          // same physical unit rather than two separate unit lists.
+          const count = Math.max(it.serials.length, it.macs.length)
+          for (let i = 0; i < count; i++) {
+            const serial = (it.serials[i] || '').trim()
+            const mac = (it.macs[i] || '').trim()
+            if (!serial && !mac) continue
+            units.push({ ...origin, kind: 'serial-mac', value: serial || mac, serial: serial || null, mac: mac || null, status: 'Available' })
+          }
         } else if (it.serials?.length) {
           it.serials.filter(s => s?.trim()).forEach(serial => {
             units.push({ ...origin, kind: 'serial', value: serial.trim(), status: 'Available' })
@@ -112,7 +123,15 @@ function computeLedger() {
   // cap (see getEngineerHeldQty below). Not netted against handoffs yet;
   // the User Assignments block further down does that.
   const assignedQtyByEngineerKey = {}
-  const unitsByValue = new Map(units.map(u => [u.value, u]))
+  // A dual-tracked unit is keyed by BOTH its serial (u.value) and its mac —
+  // whichever identifier a downstream record (assignment line, replacement,
+  // transfer, repair) carries still resolves to the one physical unit, so
+  // its status is never split across two phantom entries.
+  const unitsByValue = new Map()
+  units.forEach(u => {
+    unitsByValue.set(u.value, u)
+    if (u.mac) unitsByValue.set(u.mac, u)
+  })
   const drumsByNumber = new Map(drums.map(d => [d.drumNumber, d]))
 
   getAssignments()

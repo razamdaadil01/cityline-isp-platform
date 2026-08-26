@@ -25,15 +25,23 @@ const STEPS = [
 
 // ── Step 3 line cards ────────────────────────────────────────────────────
 
-// Always reads the product's *current* Tracking Type live from
+// Always reads the product's *current* Tracking Configuration live from
 // productStore.js rather than a value captured once and cached in hwLines
-// state — a Tracking Type changed in Product Management after this Work
-// Order/store was already selected earlier in the same session must be
-// reflected immediately, never silently stale. Called fresh on every
-// render, same as getProductAvailability()/getUnits() calls elsewhere in
-// this file already are.
+// state — a change made in Product Management after this Work Order/store
+// was already selected earlier in the same session must be reflected
+// immediately, never silently stale. Called fresh on every render, same as
+// getProductAvailability()/getUnits() calls elsewhere in this file already
+// are. Returns 'dual' when both Serial Number and MAC Number are enabled —
+// a single physical unit tracked by both at once — distinct from 'serial'/
+// 'mac' single-tracking so HardwareLineCard can render its combined picker.
 function liveTrackingType(productId) {
-  return productId ? (getProduct(productId)?.trackingType ?? 'quantity') : 'quantity'
+  if (!productId) return 'quantity'
+  const product = getProduct(productId)
+  if (!product) return 'quantity'
+  if (product.trackedBySerial && product.trackedByMac) return 'dual'
+  if (product.trackedBySerial) return 'serial'
+  if (product.trackedByMac) return 'mac'
+  return 'quantity'
 }
 
 // Raw store availability for a hardware line, ignoring what other lines on
@@ -85,7 +93,11 @@ function isWireLineComplete(l, storeId) {
 
 function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outOfStock }) {
   const trackingType = liveTrackingType(line.productId)
-  const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : l.serials.length + l.macs.length) : s, 0)
+  // A dual-tracked line's serials/macs are paired 1:1 (same unit, two
+  // identifiers) — Math.max avoids double-counting each physical unit the
+  // way `serials.length + macs.length` would; for single-tracked lines one
+  // of the two arrays is always empty, so this is unchanged for them.
+  const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : Math.max(l.serials.length, l.macs.length)) : s, 0)
   const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId) : 0
   // Room left for THIS line to still grow into (excludes its own current
   // pick) — used as the input's max. The badge instead shows what's left in
@@ -105,6 +117,76 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outO
 
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
   const errorBorder = showError ? 'border-red-300 bg-red-50/30' : outOfStock ? 'border-amber-200 bg-amber-50/40' : 'border-surface-border'
+
+  if (trackingType === 'dual') {
+    // Serial + MAC both enabled — each unit carries one of each, paired at
+    // the same index in line.serials/line.macs (not two independent lists).
+    // The picker below selects whole units, not identifiers, so toggling
+    // always adds/removes both values together.
+    const units = getUnits({ productId: line.productId, storeId, status: 'Available' })
+      .filter(u => !pickedElsewhere.has(u.value) && !(u.mac && pickedElsewhere.has(u.mac)))
+    const picked = line.serials
+    const remainingAvailable = Math.max(0, units.length - picked.length)
+    const atRequiredCap = picked.length >= line.requiredQty
+    function toggle(unit) {
+      const idx = line.serials.indexOf(unit.value)
+      const isPicked = idx !== -1
+      if (!isPicked && atRequiredCap) return
+      if (isPicked) {
+        onChange({ serials: line.serials.filter((_, i) => i !== idx), macs: line.macs.filter((_, i) => i !== idx) })
+      } else {
+        onChange({ serials: [...line.serials, unit.value], macs: [...line.macs, unit.mac] })
+      }
+    }
+    return (
+      <div className={`rounded-xl border p-4 space-y-3 ${errorBorder}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
+            <p className="text-xs text-gray-400">Required: {line.requiredQty} · Serial + MAC-tracked</p>
+          </div>
+          <Badge variant={remainingAvailable > 0 ? 'green' : 'gray'} size="sm">{picked.length} selected · {remainingAvailable} available</Badge>
+        </div>
+        {units.length === 0 ? (
+          outOfStock ? (
+            <p className="text-xs text-amber-700 flex items-center gap-1.5"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
+          ) : (
+            <p className="text-xs text-gray-400 py-2">No available units for this product at this store.</p>
+          )
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              {units.map(u => {
+                const isPicked = picked.includes(u.value)
+                const disabled = !isPicked && atRequiredCap
+                return (
+                  <label key={u.value} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono transition-colors ${
+                    isPicked ? 'border-brand-blue bg-brand-blue/5 text-brand-blue cursor-pointer'
+                      : disabled ? 'border-surface-border text-gray-300 cursor-not-allowed'
+                      : 'border-surface-border text-gray-600 hover:bg-gray-50 cursor-pointer'
+                  }`}>
+                    <input type="checkbox" checked={isPicked} disabled={disabled} onChange={() => toggle(u)} className="accent-brand-blue shrink-0" />
+                    <span className="truncate">{u.value} <span className="text-gray-300">/</span> MAC:{u.mac}</span>
+                  </label>
+                )
+              })}
+            </div>
+            {atRequiredCap && <p className="text-[11px] text-gray-400">Required quantity reached — uncheck a unit to pick a different one.</p>}
+          </>
+        )}
+        {showError && (
+          <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select at least one unit for this line.</p>
+        )}
+        <FormField label="Remark" hint="Optional note for this line">
+          <input
+            type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+            placeholder="Optional note…"
+            className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          />
+        </FormField>
+      </div>
+    )
+  }
 
   if (trackingType === 'serial' || trackingType === 'mac') {
     const kindLabel = trackingType === 'serial' ? 'Serial' : 'MAC'

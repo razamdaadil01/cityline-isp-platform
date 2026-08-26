@@ -30,9 +30,9 @@ function isConfirmable(purchase) {
   return receivedItems.every(it => {
     if (it.type === 'wire') return !!it.drumNumber?.trim()
     const product = getProduct(it.productId)
-    if (product?.trackingType === 'serial') return it.serials.length === it.receivedQty && it.serials.every(s => s.trim())
-    if (product?.trackingType === 'mac') return it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim()))
-    return true
+    const serialsOk = !product?.trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
+    const macsOk = !product?.trackedByMac || (it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim())))
+    return serialsOk && macsOk
   })
 }
 

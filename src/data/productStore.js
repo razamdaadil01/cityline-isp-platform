@@ -17,6 +17,26 @@ export const GOOD_TYPES = [
   { value: 'non_consumable', label: 'Non-Consumable' },
 ]
 
+// Tracking configuration is stored as two independent booleans rather than
+// the old single `trackingType` string — Serial Number and MAC Number can
+// now both be enabled at once (a single physical unit tracked by both,
+// e.g. an ONT that has its own serial AND a MAC), which a single-value enum
+// couldn't represent. Quantity is exclusive: a product is quantity-tracked
+// only when NEITHER of these booleans is set, never stored as a boolean of
+// its own — isQuantityTracked() is the one place that rule lives, so every
+// caller checks tracking mode the same way instead of re-deriving it.
+export function isQuantityTracked(product) {
+  return !product?.trackedBySerial && !product?.trackedByMac
+}
+
+export function getTrackingLabel(product) {
+  if (isQuantityTracked(product)) return 'Quantity'
+  const parts = []
+  if (product.trackedBySerial) parts.push('Serial Number')
+  if (product.trackedByMac) parts.push('MAC Number')
+  return parts.join(' + ')
+}
+
 // Purchased Company defaults for the seeded catalog — companyEntities.js
 // seeds exactly two entities (id 1 'Cityline Networks Pvt Ltd', id 2
 // 'Cityline Fiber Solutions LLP'); purchasedCompanyId stores that same id
@@ -45,8 +65,9 @@ const SERIAL_TRACKED_HARDWARE = new Set(['ONT Device'])
 
 // Seeded from the existing shared hardware catalog so Product List isn't
 // empty on first load — sku/brand/model are left blank since hardwareCatalog
-// entries never carried them; trackingType defaults to 'quantity' (no
-// serial/MAC tracking configured yet for these legacy items). IDs are
+// entries never carried them; trackedBySerial/trackedByMac both default to
+// false (quantity-tracked — no serial/MAC tracking configured yet for these
+// legacy items). IDs are
 // assigned from each item's original HARDWARE_CATALOG index (not the
 // post-filter position) so the numbering below stays stable/traceable even
 // with "Drop Wire (per m)" filtered out.
@@ -73,7 +94,8 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     unitType: 'Piece',
     sellingPrice: item.unitPrice,
     reorderAlertQty: 10,
-    trackingType: SERIAL_TRACKED_HARDWARE.has(item.name) ? 'serial' : 'quantity',
+    trackedBySerial: SERIAL_TRACKED_HARDWARE.has(item.name),
+    trackedByMac: false,
     drumNumberRequired: false,
     purchasedCompanyId: HARDWARE_PURCHASED_COMPANY[item.name] ?? null,
     goodType: 'consumable',
@@ -104,7 +126,8 @@ const WIRE_SEED = [
   unitType: 'Meter',
   sellingPrice: w.sellingPrice,
   reorderAlertQty: 100,
-  trackingType: null,
+  trackedBySerial: false,
+  trackedByMac: false,
   drumNumberRequired: true,
   purchasedCompanyId: 2,
   status: 'active',
