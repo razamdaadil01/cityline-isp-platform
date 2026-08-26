@@ -506,7 +506,9 @@ export default function CreateAssignment() {
 
                 <FormField label="Engineer" required>
                   {!branchCode ? (
-                    <p className="text-xs text-gray-400">Select a branch first.</p>
+                    <Select value="" disabled className="disabled:text-gray-400 disabled:cursor-not-allowed">
+                      <option value="">Select a branch first</option>
+                    </Select>
                   ) : engineers.length === 0 ? (
                     <p className="text-xs text-gray-400">No engineers have Work Orders assigned in this branch yet.</p>
                   ) : (
