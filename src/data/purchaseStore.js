@@ -150,6 +150,54 @@ const SEED = [
     remarks: 'Drop wire drum received for upcoming FTTH installations.',
     status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-14T11:00:00.000Z',
   },
+  {
+    // Seeded so Andheri Store (CNPL-002) has enough ONT Device serials to
+    // fully cover Assign to Engineer's demo Work Orders there (see
+    // installationsStore.js's INS-012/013/014 and assignmentStore.js's own
+    // note) without relying on units another assignment may have already
+    // consumed — plus headroom for re-running the demo more than once.
+    id: 'PUR-000005', purchaseNumber: 'PUR-2026-000005',
+    poId: null, poNumber: null,
+    vendorId: 'VEN-001', vendorName: 'ZTE India Ltd',
+    storeId: 'STR-002', storeName: 'Andheri Store', companyEntityId: 1,
+    purchaseDate: '2026-08-22',
+    items: [
+      makeItem(7, {
+        source: 'outside', productId: 'PRD-001', productName: 'ONT Device', unit: 'Piece',
+        poQty: 0, receivedQty: 5, price: 1800, gstPercent: 18,
+        reason: 'Replenishment for upcoming Andheri branch installations',
+        serials: ['ZTE-ONT-2026-0004', 'ZTE-ONT-2026-0005', 'ZTE-ONT-2026-0006', 'ZTE-ONT-2026-0007', 'ZTE-ONT-2026-0008'],
+      }),
+    ],
+    remarks: 'ONT Device stock replenishment ahead of Andheri branch installs.',
+    status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-22T10:00:00.000Z',
+  },
+  {
+    // Andheri Store (CNPL-002) had no WiFi Router or Wall Mount Bracket
+    // stock at all before this — every existing unit of both was received
+    // at Main Warehouse (STR-001) instead. Needed so the same three demo
+    // Work Orders' hardware requirements resolve against real, available
+    // stock at the store their own branch actually draws from.
+    id: 'PUR-000006', purchaseNumber: 'PUR-2026-000006',
+    poId: null, poNumber: null,
+    vendorId: 'VEN-003', vendorName: 'TP-Link India Pvt Ltd',
+    storeId: 'STR-002', storeName: 'Andheri Store', companyEntityId: 1,
+    purchaseDate: '2026-08-22',
+    items: [
+      makeItem(8, {
+        source: 'outside', productId: 'PRD-002', productName: 'WiFi Router', unit: 'Piece',
+        poQty: 0, receivedQty: 10, price: 1500, gstPercent: 18,
+        reason: 'Stock replenishment for upcoming Andheri branch installations',
+      }),
+      makeItem(9, {
+        source: 'outside', productId: 'PRD-003', productName: 'Wall Mount Bracket', unit: 'Piece',
+        poQty: 0, receivedQty: 10, price: 150, gstPercent: 18,
+        reason: 'Stock replenishment for upcoming Andheri branch installations',
+      }),
+    ],
+    remarks: 'WiFi Router and Wall Mount Bracket stock replenishment ahead of Andheri branch installs.',
+    status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-22T10:15:00.000Z',
+  },
 ].map(pur => ({ ...pur, ...summarizePurchase(pur.items) }))
 
 _nextSeq = SEED.length + 1
