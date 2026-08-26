@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, UserCog, ClipboardList,
+  ArrowLeft, ChevronLeft, ChevronRight, UserCog, FileText, ClipboardList,
   PackageOpen, CheckCircle2, Search, AlertTriangle, Check,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -18,12 +18,13 @@ import {
 
 const STEPS = [
   { id: 1, label: 'Branch & Engineer', icon: UserCog },
-  { id: 2, label: 'Requirement',       icon: ClipboardList },
-  { id: 3, label: 'Select Items',      icon: PackageOpen },
-  { id: 4, label: 'Confirm',           icon: CheckCircle2 },
+  { id: 2, label: 'Work Order',        icon: FileText },
+  { id: 3, label: 'Requirement',       icon: ClipboardList },
+  { id: 4, label: 'Select Items',      icon: PackageOpen },
+  { id: 5, label: 'Confirm',           icon: CheckCircle2 },
 ]
 
-// ── Step 3 line cards ────────────────────────────────────────────────────
+// ── Step 4 line cards ────────────────────────────────────────────────────
 
 // Always reads the product's *current* Tracking Type live from
 // productStore.js rather than a value captured once and cached in hwLines
@@ -56,7 +57,7 @@ function wireLineAvailability(l, storeId) {
 // A required line the store genuinely has zero stock/serials/drums for —
 // there's nothing for the user to pick, so it can't be treated as "must be
 // filled to submit." It's still shown as unfulfilled (see outOfStock prop
-// on the line cards, and the Step 4 "Not Fulfilled" list), just not a
+// on the line cards, and the Step 5 "Not Fulfilled" list), just not a
 // blocker — a partial assignment (issue what's in stock, leave the rest
 // pending) is a legitimate outcome, not an error state.
 function isHwLineOutOfStock(l, storeId) {
@@ -314,13 +315,13 @@ export default function CreateAssignment() {
   const workOrder = workOrderId ? getWorkOrder(workOrderId) : null
   const requirement = useMemo(() => workOrder ? resolveWorkOrderRequirement(workOrder) : { hardware: [], wire: [] }, [workOrder])
 
-  // Rebuild Step 3's editable line state whenever a new Work Order's
+  // Rebuild Step 4's editable line state whenever a new Work Order's
   // requirement resolves. Every line starts fully empty — assignedQty: 0,
-  // no serials/macs picked, no drum/meters — so landing on Step 3 never
+  // no serials/macs picked, no drum/meters — so landing on Step 4 never
   // shows a reduced Available count before the user has touched anything.
   // A prior draft that never reached Confirm never wrote anything to
   // assignmentStore either: saveAssignment() (called only from
-  // handleAssign(), Step 4's "Assign Inventory" button) is the sole place
+  // handleAssign(), Step 5's "Assign Inventory" button) is the sole place
   // that appends to _assignments, so nothing here or in the ledger's
   // read-only queries below can leave a phantom deduction behind.
   useEffect(() => {
@@ -345,15 +346,18 @@ export default function CreateAssignment() {
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
 
   const stepParam = Number(searchParams.get('step'))
-  const step = [1, 2, 3, 4].includes(stepParam) ? stepParam : 1
+  const step = [1, 2, 3, 4, 5].includes(stepParam) ? stepParam : 1
 
-  // Step 1 now covers Branch, Engineer AND Work Order — merged from what
-  // used to be two separate steps (Branch, then Engineer+Work Order) — so
-  // its validity is still the full combined requirement, not just the two
-  // new dropdowns. Work Order selection still gates advancement here: the
-  // Requirement step immediately after has nothing to show without one.
-  function isStep1Valid() { return !!branchCode && !!engineer && !!workOrderId }
-  function isStep2Valid() { return isStep1Valid() }
+  // Step 1 is Branch + Engineer only — Work Order selection is its own
+  // Step 2 (moved back out after the previous merge crammed Work Order
+  // Type/search onto the same screen as Branch/Engineer). Each step's
+  // validity only needs to cover what's newly required on THAT step —
+  // isReachable() below already guarantees every earlier step passed
+  // before this one is even reachable.
+  function isStep1Valid() { return !!branchCode && !!engineer }
+  function isStep2Valid() { return !!workOrderId }
+  // Requirement is a read-only display step — nothing new required.
+  function isStep3Valid() { return isStep2Valid() }
   // Requires BOTH: at least one item picked overall (unchanged from before —
   // a Work Order whose lines are all unfulfillable/not required can't submit
   // an empty assignment), AND every individual line that HAS stock to pick
@@ -363,7 +367,7 @@ export default function CreateAssignment() {
   // the store genuinely has zero of (isHwLineComplete/isWireLineComplete
   // exempt it) never blocks submission — a partial assignment, issuing
   // what's actually in stock and leaving the rest pending, is allowed.
-  function isStep3Valid() {
+  function isStep4Valid() {
     if (hwLines.length === 0 && wireLines.length === 0) return false
     const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
@@ -372,7 +376,7 @@ export default function CreateAssignment() {
       && wireLines.every(l => isWireLineComplete(l, store?.id))
   }
 
-  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: true }
+  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: isStep4Valid(), 5: true }
   function isReachable(id) {
     if (id === 1) return true
     for (let i = 1; i < id; i++) if (!stepValid[i]) return false
@@ -391,13 +395,14 @@ export default function CreateAssignment() {
   }
   function goNext() {
     if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
-    if (step === 3 && !isStep3Valid()) { setAttemptedAction('step3'); return }
+    if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
+    if (step === 4 && !isStep4Valid()) { setAttemptedAction('step4'); return }
     setAttemptedAction(null)
-    setSearchParams({ step: String(Math.min(step + 1, 4)) })
+    setSearchParams({ step: String(Math.min(step + 1, 5)) })
   }
 
   function handleAssign() {
-    if (!isStep3Valid()) { setAttemptedAction('step3'); return }
+    if (!isStep4Valid()) { setAttemptedAction('step4'); return }
     setSaveError('')
     try {
       const assignment = saveAssignment({
@@ -467,10 +472,15 @@ export default function CreateAssignment() {
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
             {attemptedAction === 'step1' && !isStep1Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a branch, an engineer, and a Work Order to continue.
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a branch and an engineer to continue.
               </div>
             )}
-            {attemptedAction === 'step3' && !isStep3Valid() && (
+            {attemptedAction === 'step2' && !isStep2Valid() && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a Work Order to continue.
+              </div>
+            )}
+            {attemptedAction === 'step4' && !isStep4Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) to assign, and complete every required line highlighted below.
               </div>
@@ -509,66 +519,67 @@ export default function CreateAssignment() {
                     </Select>
                   )}
                 </FormField>
-
-                {engineer && (
-                  <>
-                    <FormField label="Work Order Type" required hint="Only Installation has assignable Work Orders in this flow today">
-                      <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); setWorkOrderId(null) }}>
-                        {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                      </Select>
-                    </FormField>
-
-                    <FormField label="Work Order" required hint="Only Work Orders with a completed Assign Team step, not yet issued hardware">
-                      {workOrderType !== 'Installation' ? (
-                        <p className="text-xs text-gray-400 py-2">No {workOrderType} Work Orders are assignable from this flow yet.</p>
-                      ) : (
-                        <>
-                          <div className="relative mb-2">
-                            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input value={woSearch} onChange={e => setWoSearch(e.target.value)} placeholder="Search Work Order ID, customer, plan…"
-                              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
-                          </div>
-                          <div className="border border-surface-border rounded-lg overflow-hidden">
-                            <div className="overflow-x-auto max-h-72 overflow-y-auto">
-                              <table className="w-full text-xs">
-                                <thead className="sticky top-0 bg-gray-50">
-                                  <tr className="text-gray-500 uppercase tracking-wide">
-                                    <th className="text-left px-3 py-2 font-semibold">Work Order ID</th>
-                                    <th className="text-left px-3 py-2 font-semibold">Customer</th>
-                                    <th className="text-left px-3 py-2 font-semibold">Plan / Type</th>
-                                    <th className="text-left px-3 py-2 font-semibold">Status</th>
-                                    <th className="text-left px-3 py-2 font-semibold">Created</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-surface-border">
-                                  {filteredWorkOrders.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No assignable Work Orders found</td></tr>
-                                  ) : filteredWorkOrders.map(w => (
-                                    <tr key={w.id} onClick={() => setWorkOrderId(w.id)}
-                                      className={`cursor-pointer transition-colors ${workOrderId === w.id ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
-                                      <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
-                                        {workOrderId === w.id && <Check size={12} className="shrink-0" />} {w.id}
-                                      </td>
-                                      <td className="px-3 py-2 text-gray-700">{w.customerName}</td>
-                                      <td className="px-3 py-2 text-gray-500">{w.plan}</td>
-                                      <td className="px-3 py-2"><Badge variant="indigo" size="sm">{w.status}</Badge></td>
-                                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{w.createdAt}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </FormField>
-                  </>
-                )}
               </div>
             )}
 
-            {/* ── Step 2: Requirement ── */}
-            {step === 2 && workOrder && (
+            {/* ── Step 2: Work Order ── */}
+            {step === 2 && (
+              <div className="space-y-4">
+                <FormField label="Work Order Type" required hint="Only Installation has assignable Work Orders in this flow today">
+                  <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); setWorkOrderId(null) }}>
+                    {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField label="Work Order" required hint="Only Work Orders with a completed Assign Team step, not yet issued hardware">
+                  {workOrderType !== 'Installation' ? (
+                    <p className="text-xs text-gray-400 py-2">No {workOrderType} Work Orders are assignable from this flow yet.</p>
+                  ) : (
+                    <>
+                      <div className="relative mb-2">
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input value={woSearch} onChange={e => setWoSearch(e.target.value)} placeholder="Search Work Order ID, customer, plan…"
+                          className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
+                      </div>
+                      <div className="border border-surface-border rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 bg-gray-50">
+                              <tr className="text-gray-500 uppercase tracking-wide">
+                                <th className="text-left px-3 py-2 font-semibold">Work Order ID</th>
+                                <th className="text-left px-3 py-2 font-semibold">Customer</th>
+                                <th className="text-left px-3 py-2 font-semibold">Plan / Type</th>
+                                <th className="text-left px-3 py-2 font-semibold">Status</th>
+                                <th className="text-left px-3 py-2 font-semibold">Created</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-border">
+                              {filteredWorkOrders.length === 0 ? (
+                                <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No assignable Work Orders found</td></tr>
+                              ) : filteredWorkOrders.map(w => (
+                                <tr key={w.id} onClick={() => setWorkOrderId(w.id)}
+                                  className={`cursor-pointer transition-colors ${workOrderId === w.id ? 'bg-brand-blue/5' : 'hover:bg-gray-50'}`}>
+                                  <td className="px-3 py-2 font-mono font-semibold text-brand-blue flex items-center gap-1.5">
+                                    {workOrderId === w.id && <Check size={12} className="shrink-0" />} {w.id}
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-700">{w.customerName}</td>
+                                  <td className="px-3 py-2 text-gray-500">{w.plan}</td>
+                                  <td className="px-3 py-2"><Badge variant="indigo" size="sm">{w.status}</Badge></td>
+                                  <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{w.createdAt}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </FormField>
+              </div>
+            )}
+
+            {/* ── Step 3: Requirement ── */}
+            {step === 3 && workOrder && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-surface-border bg-surface p-4">
                   <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Hardware / Wire Required — {workOrder.id}</p>
@@ -593,8 +604,8 @@ export default function CreateAssignment() {
               </div>
             )}
 
-            {/* ── Step 3: Select Items ── */}
-            {step === 3 && (
+            {/* ── Step 4: Select Items ── */}
+            {step === 4 && (
               <div className="space-y-3">
                 {hwLines.length === 0 && wireLines.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No requirement lines to fulfill for this Work Order.</p>
@@ -605,22 +616,22 @@ export default function CreateAssignment() {
                         otherLines={hwLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateHwLine(idx, patch)}
                         outOfStock={isHwLineOutOfStock(l, store.id)}
-                        showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
+                        showError={attemptedAction === 'step4' && !isHwLineComplete(l, store.id)} />
                     ))}
                     {wireLines.map((l, idx) => (
                       <WireLineCard key={`wire-${idx}`} line={l} storeId={store.id}
                         otherLines={wireLines.filter((_, i) => i !== idx)}
                         onChange={patch => updateWireLine(idx, patch)}
                         outOfStock={isWireLineOutOfStock(l, store.id)}
-                        showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
+                        showError={attemptedAction === 'step4' && !isWireLineComplete(l, store.id)} />
                     ))}
                   </>
                 )}
               </div>
             )}
 
-            {/* ── Step 4: Confirm ── */}
-            {step === 4 && workOrder && (
+            {/* ── Step 5: Confirm ── */}
+            {step === 5 && workOrder && (
               <div className="space-y-5">
                 <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
@@ -719,7 +730,7 @@ export default function CreateAssignment() {
       {/* ── Bottom Bar ───────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-border px-6 py-3 flex items-center justify-between z-10">
         <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
-        {step < 4 ? (
+        {step < 5 ? (
           <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Next</Button>
         ) : (
           <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>Assign Inventory</Button>
