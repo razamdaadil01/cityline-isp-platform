@@ -227,6 +227,13 @@ export function subscribePurchases(fn) {
 // purchase history at all (caller should omit the hint, not show a
 // placeholder). Ties on purchaseDate break on createdAt (most recently
 // entered wins).
+//
+// Also returns which vendor that price came from — a Purchase already
+// carries its own `vendorName` directly (denormalized at receipt time, the
+// same field CreatePurchase.jsx/PurchaseDetail.jsx already display; no
+// separate lookup through poId -> PO -> vendorId needed), so the most
+// recent matching Purchase's vendorName is simply carried along with its
+// price.
 export function getLastPurchasePrice(productId) {
   let latest = null
   _purchases.forEach(pur => {
@@ -234,11 +241,11 @@ export function getLastPurchasePrice(productId) {
     pur.items.forEach(it => {
       if (it.productId !== productId) return
       if (!latest || pur.purchaseDate > latest.purchaseDate || (pur.purchaseDate === latest.purchaseDate && pur.createdAt > latest.createdAt)) {
-        latest = { purchaseDate: pur.purchaseDate, createdAt: pur.createdAt, price: it.price }
+        latest = { purchaseDate: pur.purchaseDate, createdAt: pur.createdAt, price: it.price, vendorName: pur.vendorName }
       }
     })
   })
-  return latest ? latest.price : null
+  return latest ? { price: latest.price, vendorName: latest.vendorName } : null
 }
 
 // Cumulative received qty per productId across every 'Confirmed' Purchase
