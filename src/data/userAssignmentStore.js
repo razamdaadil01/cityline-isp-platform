@@ -33,9 +33,47 @@ import { logAudit } from './auditLogStore'
 
 export const USER_ASSIGNMENT_STATUSES = ['Handed Off']
 
-let _userAssignments = []
-let _nextSeq = 1
-let _nextInternalSeq = 1
+// Seeded so the Assignment List demonstrates its 'Assigned to User' line
+// status (see Assignments.jsx's lineStatus()) alongside 'Assigned to
+// Engineer' — matches the exact shape saveUserAssignment() itself produces,
+// same "seed then let the ledger derive live state from it" pattern every
+// other store here uses. Each hands off the one ONT serial issued in the
+// matching assignmentStore.js record (ASG-000001/ASG-000005/ASG-000006) to
+// that Work Order's own customer, once its Installation is 'Completed' —
+// nothing invented that isn't already real elsewhere.
+const SEED = [
+  {
+    id: 'USRA-000001', assignmentNumber: 'USR-2026-000001',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    workOrderType: 'Installation', workOrderId: 'INS-005', workOrderLabel: 'INS-005',
+    customerName: 'Preeti Agarwal',
+    items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0001'], macs: [], qty: 1 }],
+    remarks: 'Installation completed — ONT handed off to customer.',
+    status: 'Handed Off', assignedBy: 'Arjun Kumar', assignedAt: '2026-06-03T12:00:00.000Z',
+  },
+  {
+    id: 'USRA-000002', assignmentNumber: 'USR-2026-000002',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    workOrderType: 'Installation', workOrderId: 'INS-015', workOrderLabel: 'INS-015',
+    customerName: 'Kavita Rao',
+    items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0002'], macs: [], qty: 1 }],
+    remarks: 'Installation completed — ONT handed off to customer.',
+    status: 'Handed Off', assignedBy: 'Preethi Nair', assignedAt: '2026-08-05T12:00:00.000Z',
+  },
+  {
+    id: 'USRA-000003', assignmentNumber: 'USR-2026-000003',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    workOrderType: 'Installation', workOrderId: 'INS-016', workOrderLabel: 'INS-016',
+    customerName: 'Manoj Deshmukh',
+    items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0003'], macs: [], qty: 1 }],
+    remarks: 'Installation completed — ONT handed off to customer.',
+    status: 'Handed Off', assignedBy: 'Arjun Kumar', assignedAt: '2026-08-07T12:00:00.000Z',
+  },
+]
+
+let _userAssignments = [...SEED]
+let _nextSeq = SEED.length + 1
+let _nextInternalSeq = SEED.length + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._userAssignments])) }

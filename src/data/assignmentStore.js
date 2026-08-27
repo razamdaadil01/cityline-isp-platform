@@ -118,6 +118,42 @@ const SEED = [
     remarks: '',
     status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-22T16:45:00.000Z',
   },
+  // ── Two more ONT issuances, both already handed off to their customers
+  // (see userAssignmentStore.js's seed) — demonstrates the Assignment
+  // List's 'Assigned to User' line status alongside 'Assigned to Engineer'
+  // on ASG-000001-4 above. ONT Device is the only serial-tracked product
+  // today, and ASG-000001 already used the only "free" existing Work Order
+  // (INS-005) that needed one, so these two draw on installationsStore.js's
+  // INS-015/INS-016 (added specifically for this) and the two ONT serials
+  // left over at Andheri Store from PUR-000003 after ASG-000001 took the
+  // first (ZTE-ONT-2026-0002/0003) — not the serials PUR-000005 reserved
+  // for INS-012/013/014's own separate demo.
+  {
+    id: 'ASG-000005', assignmentNumber: 'ASG-2026-000005',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-015', workOrderLabel: 'INS-015',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [
+      { id: 'ASGI-5-0', productId: 'PRD-001', productName: 'ONT Device', requiredQty: 1, assignedQty: 1, serials: ['ZTE-ONT-2026-0002'], macs: [], remark: '' },
+    ],
+    wireLines: [],
+    remarks: '',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-04T09:00:00.000Z',
+  },
+  {
+    id: 'ASG-000006', assignmentNumber: 'ASG-2026-000006',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-016', workOrderLabel: 'INS-016',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [
+      { id: 'ASGI-6-0', productId: 'PRD-001', productName: 'ONT Device', requiredQty: 1, assignedQty: 1, serials: ['ZTE-ONT-2026-0003'], macs: [], remark: '' },
+    ],
+    wireLines: [],
+    remarks: '',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-06T09:00:00.000Z',
+  },
 ]
 
 _nextSeq = SEED.length + 1
