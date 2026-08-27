@@ -21,6 +21,7 @@ export const PO_STATUSES = [
 // go through getPoStatusLabel() rather than printing po.status directly.
 export const PO_STATUS_LABELS = {
   'Approval Request': 'Sent for Approval',
+  'Sent': 'Sent to Vendor',
 }
 export function getPoStatusLabel(status) {
   return PO_STATUS_LABELS[status] ?? status
