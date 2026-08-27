@@ -9,14 +9,15 @@
 
 const DEFAULTS = {
   poApprovalRequired: false,
+  allowOutsidePOHardware: false,
   poTerms: '',
   defaultGstPercent: 18,
   poNumberFormat: 'CITY/PO/{YYYY}/{00001}',
 }
 
 let _settingsByEntity = {
-  1: { poApprovalRequired: false, poTerms: 'Payment due within agreed terms. Goods must match PO specification.', defaultGstPercent: 18, poNumberFormat: 'CITY/PO/{YYYY}/{00001}' },
-  2: { poApprovalRequired: false, poTerms: 'Payment due within agreed terms. Goods must match PO specification.', defaultGstPercent: 18, poNumberFormat: 'CLF/PO/{YYYY}/{00001}' },
+  1: { poApprovalRequired: false, allowOutsidePOHardware: false, poTerms: 'Payment due within agreed terms. Goods must match PO specification.', defaultGstPercent: 18, poNumberFormat: 'CITY/PO/{YYYY}/{00001}' },
+  2: { poApprovalRequired: false, allowOutsidePOHardware: false, poTerms: 'Payment due within agreed terms. Goods must match PO specification.', defaultGstPercent: 18, poNumberFormat: 'CLF/PO/{YYYY}/{00001}' },
 }
 
 const _listeners = []

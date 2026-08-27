@@ -16,6 +16,7 @@ import { getProducts, getProduct } from '../../data/productStore'
 import { getPurchaseOrders, getPurchaseOrder, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } from '../../data/purchaseStore'
 import { usePermission } from '../../data/rolesStore'
+import { getInventorySettings } from '../../data/inventorySettingsStore'
 
 const STEPS = [
   { id: 1, label: 'Select PO',        icon: ClipboardList },
@@ -362,6 +363,12 @@ export default function CreatePurchase() {
 
   const selectedPO = poId ? getPurchaseOrder(poId) : null
 
+  // Inventory Settings' per-company-entity "Allow adding hardware outside
+  // PO" toggle — off by default. Read fresh (not memoized) so a change made
+  // in Settings takes effect immediately rather than needing this wizard
+  // reopened.
+  const allowOutsideHardware = companyEntityId != null ? !!getInventorySettings(companyEntityId).allowOutsidePOHardware : false
+
   // Merge-safe searchParams update — used for both the `po` selection and
   // step navigation below, so setting one param never clobbers the other
   // (a plain setSearchParams({step}) call replaces the whole query string).
@@ -651,9 +658,9 @@ export default function CreatePurchase() {
                   </div>
                 )}
 
-                {showAddOutside ? (
+                {allowOutsideHardware && showAddOutside ? (
                   <AddOutsideItemForm products={products} onAdd={addOutsideItem} onCancel={() => setShowAddOutside(false)} />
-                ) : canCreate ? (
+                ) : allowOutsideHardware && canCreate ? (
                   <button type="button" onClick={() => setShowAddOutside(true)}
                     className="flex items-center gap-1.5 text-brand-blue text-sm font-medium hover:text-brand-blue-dark">
                     <Plus size={14} /> Add Hardware Outside PO
