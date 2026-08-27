@@ -7,6 +7,7 @@ import {
 import Button from '../../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import Badge from '../../components/ui/Badge'
+import Modal from '../../components/ui/Modal'
 import StepProgress from '../../components/customer-type/StepProgress'
 import ProductPicker from '../../components/inventory/ProductPicker'
 import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
@@ -163,11 +164,50 @@ function PairedTrackedInputs({ serials, macs, onSerialChange, onMacChange }) {
   )
 }
 
-function ReceiptItemCard({ item, onUpdate, onRemove }) {
+// Counts how many of the item's received units already satisfy tracking —
+// same per-unit rule isStep2Valid() applies in aggregate, just per-index so
+// the product card can show a live "X of N units entered" summary.
+function countEnteredUnits(item, trackedBySerial, trackedByMac, qty) {
+  let count = 0
+  for (let i = 0; i < qty; i++) {
+    const serialOk = !trackedBySerial || (item.serials[i] ?? '').trim() !== ''
+    const macOk = !trackedByMac || MAC_RE.test((item.macs[i] ?? '').trim())
+    if (serialOk && macOk) count++
+  }
+  return count
+}
+
+// Scoped to a single product line — opened from that line's "Enter Serials &
+// MACs" summary instead of rendering one input pair per unit inline on the
+// page (which made the Receipt step unusably long for large quantities).
+// Edits go straight through onSerialChange/onMacChange into the same item
+// state the inline inputs used to write to, so closing the modal doesn't
+// need its own save step — the data is already persisted as it's typed.
+function SerialMacEntryModal({ isOpen, onClose, item, trackedBySerial, trackedByMac, onSerialChange, onMacChange }) {
+  return (
+    <Modal
+      isOpen={isOpen} onClose={onClose} size="lg"
+      title={`${item.productName} — Serial & MAC Entry`}
+      footer={<Button size="sm" onClick={onClose}>Done</Button>}
+    >
+      {trackedBySerial && trackedByMac ? (
+        <PairedTrackedInputs serials={item.serials} macs={item.macs} onSerialChange={onSerialChange} onMacChange={onMacChange} />
+      ) : trackedBySerial ? (
+        <TrackedInputs label="Serial" values={item.serials} onChange={onSerialChange} />
+      ) : (
+        <TrackedInputs label="MAC" values={item.macs} onChange={onMacChange} validate={v => MAC_RE.test(v.trim())} />
+      )}
+    </Modal>
+  )
+}
+
+function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
   const trackedBySerial = !!product?.trackedBySerial
   const trackedByMac = !!product?.trackedByMac
+  const isTracked = !isWire && (trackedBySerial || trackedByMac)
+  const [modalOpen, setModalOpen] = useState(false)
 
   function setReceivedQty(qtyStr) {
     const qty = Math.max(0, Number(qtyStr) || 0)
@@ -178,6 +218,9 @@ function ReceiptItemCard({ item, onUpdate, onRemove }) {
   }
 
   const derived = computeItemFields({ ...item, receivedQty: Number(item.receivedQty) || 0 })
+  const qty = Number(item.receivedQty) || 0
+  const enteredCount = isTracked ? countEnteredUnits(item, trackedBySerial, trackedByMac, qty) : 0
+  const showWarning = showValidation && isTracked && qty > 0 && enteredCount < qty
 
   return (
     <div className="rounded-xl border border-surface-border p-4 space-y-3">
@@ -223,29 +266,34 @@ function ReceiptItemCard({ item, onUpdate, onRemove }) {
         <FormField label="Drum Number" required hint="Required whenever a quantity is received">
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
-      ) : trackedBySerial && trackedByMac && Number(item.receivedQty) > 0 ? (
-        <PairedTrackedInputs
-          serials={item.serials} macs={item.macs}
-          onSerialChange={(i, v) => onUpdate({ serials: item.serials.map((s, idx) => idx === i ? v : s) })}
-          onMacChange={(i, v) => onUpdate({ macs: item.macs.map((m, idx) => idx === i ? v : m) })}
-        />
-      ) : trackedBySerial && Number(item.receivedQty) > 0 ? (
-        <TrackedInputs
-          label="Serial" values={item.serials}
-          onChange={(i, v) => onUpdate({ serials: item.serials.map((s, idx) => idx === i ? v : s) })}
-        />
-      ) : trackedByMac && Number(item.receivedQty) > 0 ? (
-        <TrackedInputs
-          label="MAC" values={item.macs}
-          onChange={(i, v) => onUpdate({ macs: item.macs.map((m, idx) => idx === i ? v : m) })}
-          validate={v => MAC_RE.test(v.trim())}
-        />
+      ) : isTracked && qty > 0 ? (
+        <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
+          <p className={`text-xs font-medium flex items-center gap-1.5 ${showWarning ? 'text-amber-700' : 'text-gray-600'}`}>
+            {showWarning && <AlertTriangle size={13} className="shrink-0" />}
+            {enteredCount} of {qty} unit{qty === 1 ? '' : 's'} entered
+          </p>
+          <button type="button" onClick={() => setModalOpen(true)} className="text-xs font-medium text-brand-blue hover:underline shrink-0">
+            Enter Serials &amp; MACs
+          </button>
+        </div>
       ) : null}
 
       {item.source === 'outside' && (
         <FormField label="Reason" hint="Why this was bought outside a PO">
           <Input value={item.reason} onChange={e => onUpdate({ reason: e.target.value })} placeholder="e.g. Urgent field requirement" />
         </FormField>
+      )}
+
+      {isTracked && qty > 0 && (
+        <SerialMacEntryModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          item={item}
+          trackedBySerial={trackedBySerial}
+          trackedByMac={trackedByMac}
+          onSerialChange={(i, v) => onUpdate({ serials: item.serials.map((s, idx) => idx === i ? v : s) })}
+          onMacChange={(i, v) => onUpdate({ macs: item.macs.map((m, idx) => idx === i ? v : m) })}
+        />
       )}
     </div>
   )
@@ -653,6 +701,7 @@ export default function CreatePurchase() {
                         key={item.id} item={item}
                         onUpdate={patch => updateItem(item.id, patch)}
                         onRemove={() => removeItem(item.id)}
+                        showValidation={attemptedAction === 'step2'}
                       />
                     ))}
                   </div>
