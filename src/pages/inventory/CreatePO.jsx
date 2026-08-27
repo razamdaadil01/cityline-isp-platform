@@ -64,8 +64,9 @@ function ItemRow({ item, products, onUpdate, onRemove }) {
           // the user still types a price themselves. null (no Confirmed
           // purchase history yet) omits the hint for that row entirely.
           getHint={p => {
-            const lastPrice = getLastPurchasePrice(p.id)
-            return lastPrice != null ? `Last: ₹${lastPrice.toLocaleString('en-IN')}` : null
+            const last = getLastPurchasePrice(p.id)
+            if (!last) return null
+            return `Last: ₹${last.price.toLocaleString('en-IN')}${last.vendorName ? ` (${last.vendorName})` : ''}`
           }}
         />
       </td>
