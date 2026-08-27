@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
-import { getPurchaseOrder, subscribePurchaseOrders } from '../../data/purchaseOrderStore'
+import { getPurchaseOrder, subscribePurchaseOrders, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getVendor } from '../../data/vendorStore'
 import { getStore } from '../../data/storeStore'
 import { getCompanyEntity } from '../../data/companyEntities'
@@ -15,7 +15,6 @@ const STATUS_BADGE = {
   Draft: 'gray',
   'Approval Request': 'yellow',
   'Correction Required': 'red',
-  Approved: 'blue',
   Sent: 'indigo',
   'Partially Received': 'orange',
   'Fully Received': 'green',
@@ -103,7 +102,7 @@ export default function PODetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-bold text-gray-900 font-mono">{po.poNumber}</h1>
-              <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge>
+              <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{getPoStatusLabel(po.status)}</Badge>
             </div>
             <p className="text-sm text-gray-500 mt-0.5 flex items-center flex-wrap gap-x-1">
               <span>{vendor?.companyName ?? '—'} · Deliver to {store?.storeName ?? '—'}</span>
@@ -211,7 +210,7 @@ export default function PODetail() {
           <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
             <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Order Information</p>
             <InfoRow label="PO Number" value={<span className="font-mono text-brand-blue">{po.poNumber}</span>} />
-            <InfoRow label="Status" value={<Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge>} />
+            <InfoRow label="Status" value={<Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{getPoStatusLabel(po.status)}</Badge>} />
             <InfoRow label="Vendor" value={vendor?.companyName} />
             <InfoRow label="Delivery Store" value={store?.storeName} />
             <InfoRow label="Order Date" value={po.orderDate} />

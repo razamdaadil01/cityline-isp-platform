@@ -111,7 +111,7 @@ export default function InventorySettings() {
               <Toggle checked={form.poApprovalRequired} onChange={v => setField('poApprovalRequired', v)} />
               <div>
                 <p className="text-sm font-medium text-gray-800">Require approval before a Purchase Order is sent</p>
-                <p className="text-xs text-gray-500">When on, new POs go through an approval step before being sent to the vendor (wired in Phase 2).</p>
+                <p className="text-xs text-gray-500">When on, new POs go through an approval step (status "Sent for Approval") before being sent to the vendor.</p>
               </div>
             </div>
           </div>

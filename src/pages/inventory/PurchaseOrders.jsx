@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { FormField, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
-import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES } from '../../data/purchaseOrderStore'
+import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getVendors, getContacts } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
 import { getCompanyEntity } from '../../data/companyEntities'
@@ -19,7 +19,6 @@ const STATUS_BADGE = {
   Draft: 'gray',
   'Approval Request': 'yellow',
   'Correction Required': 'red',
-  Approved: 'blue',
   Sent: 'indigo',
   'Partially Received': 'orange',
   'Fully Received': 'green',
@@ -305,7 +304,7 @@ export default function PurchaseOrders() {
                 <select value={draft.status} onChange={e => setDraftField('status', e.target.value)}
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
                   <option value="">All</option>
-                  {PO_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {PO_STATUSES.map(s => <option key={s} value={s}>{getPoStatusLabel(s)}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
@@ -367,7 +366,7 @@ export default function PurchaseOrders() {
                   {visibleCols.has('amount')        && <td className="px-4 py-3 text-right text-gray-800 font-medium text-xs whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>}
                   {visibleCols.has('status') && (
                     <td className="px-4 py-3">
-                      <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} dot size="sm">{po.status}</Badge>
+                      <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} dot size="sm">{getPoStatusLabel(po.status)}</Badge>
                     </td>
                   )}
                   {visibleCols.has('createdBy')     && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{po.createdBy}</td>}
