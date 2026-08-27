@@ -6,6 +6,12 @@ import { useState, useEffect, useRef } from 'react'
 // styling plus a small floating list. Shared by Create PO's product rows and
 // Create Purchase's "Add Hardware Outside PO" row.
 //
+// `getHint` is optional — a (product) => string|null callback a caller can
+// pass to show a small muted secondary note on the right of a suggestion
+// row (e.g. Create PO's "Last: ₹1,800" last-purchase-price reference).
+// Returning null/undefined omits the hint for that row entirely; callers
+// that don't pass it get no hint at all.
+//
 // The dropdown is positioned with `position: fixed` (computed from the
 // input's own bounding rect) rather than `absolute` — callers typically sit
 // inside a table's `overflow-x-auto` wrapper, and setting overflow-x on a
@@ -15,7 +21,7 @@ import { useState, useEffect, useRef } from 'react'
 // it's still correctly rendered in the DOM. `fixed` escapes that clipping,
 // matching the same pattern the 3-dot row-action menus use elsewhere in
 // Inventory (e.g. ProductList.jsx).
-export default function ProductPicker({ products, value, onSelect, placeholder }) {
+export default function ProductPicker({ products, value, onSelect, placeholder, getHint }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [menuRect, setMenuRect] = useState({ top: 0, left: 0, width: 240 })
@@ -53,15 +59,21 @@ export default function ProductPicker({ products, value, onSelect, placeholder }
         >
           {filtered.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-3">No matching products</p>
-          ) : filtered.map(p => (
-            <button
-              key={p.id} type="button"
-              onClick={() => { onSelect(p); setOpen(false); setQuery('') }}
-              className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              {p.name} {p.sku && <span className="text-gray-400">· {p.sku}</span>}
-            </button>
-          ))}
+          ) : filtered.map(p => {
+            const hint = getHint?.(p)
+            return (
+              <button
+                key={p.id} type="button"
+                onClick={() => { onSelect(p); setOpen(false); setQuery('') }}
+                className="flex items-center justify-between gap-3 w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <span className="min-w-0 truncate">
+                  {p.name} {p.sku && <span className="text-gray-400">· {p.sku}</span>}
+                </span>
+                {hint && <span className="text-gray-400 shrink-0">{hint}</span>}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
