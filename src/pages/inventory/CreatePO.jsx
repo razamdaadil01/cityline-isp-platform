@@ -50,11 +50,6 @@ const cellInput = "w-full px-2.5 py-1.5 text-xs border border-surface-border rou
 
 function ItemRow({ item, products, onUpdate, onRemove }) {
   const amount = computeLineAmount(item.qty, item.price, item.gstPercent)
-  // Reference-only — the most recent price this product was actually
-  // received at (any vendor), never auto-filled into the Price input; the
-  // user still types a price themselves. null when there's no Confirmed
-  // purchase history for it yet, in which case no hint is shown at all.
-  const lastPrice = item.productId ? getLastPurchasePrice(item.productId) : null
   return (
     <tr>
       <td className="px-2 py-2 min-w-[220px]">
@@ -63,6 +58,15 @@ function ItemRow({ item, products, onUpdate, onRemove }) {
           value={item.productName}
           placeholder={item.type === 'wire' ? 'Search wire…' : 'Search product…'}
           onSelect={p => onUpdate({ productId: p.id, productName: p.name, sku: p.sku || '', unit: p.unitType, price: String(p.sellingPrice ?? '') })}
+          // Reference-only — the most recent price this product was
+          // actually received at (any vendor), shown inline in its
+          // suggestion row. Never auto-filled into the Price input below;
+          // the user still types a price themselves. null (no Confirmed
+          // purchase history yet) omits the hint for that row entirely.
+          getHint={p => {
+            const lastPrice = getLastPurchasePrice(p.id)
+            return lastPrice != null ? `Last: ₹${lastPrice.toLocaleString('en-IN')}` : null
+          }}
         />
       </td>
       <td className="px-2 py-2 text-xs text-gray-500 font-mono whitespace-nowrap">{item.sku || '—'}</td>
@@ -78,9 +82,6 @@ function ItemRow({ item, products, onUpdate, onRemove }) {
       </td>
       <td className="px-2 py-2 w-24">
         <input type="number" min="0" className={cellInput} value={item.price} onChange={e => onUpdate({ price: e.target.value })} placeholder="0.00" />
-        {lastPrice != null && (
-          <p className="text-[10px] text-gray-400 mt-0.5">Last: ₹{lastPrice.toLocaleString('en-IN')}</p>
-        )}
       </td>
       <td className="px-2 py-2 w-20">
         <input type="number" min="0" max="100" className={cellInput} value={item.gstPercent} onChange={e => onUpdate({ gstPercent: e.target.value })} placeholder="18" />
