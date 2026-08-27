@@ -10,7 +10,7 @@ import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import { getVendor, subscribeVendors, recordVendorPayment, getContacts } from '../../data/vendorStore'
 import { getPurchases } from '../../data/purchaseStore'
-import { getPurchaseOrders } from '../../data/purchaseOrderStore'
+import { getPurchaseOrders, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getUnits, getUnitTrail } from '../../data/inventoryLedger'
 import { getRepairsByVendor } from '../../data/repairStore'
 import { usePermission } from '../../data/rolesStore'
@@ -26,7 +26,6 @@ const PO_STATUS_BADGE = {
   Draft: 'gray',
   'Approval Request': 'yellow',
   'Correction Required': 'red',
-  Approved: 'blue',
   Sent: 'indigo',
   'Partially Received': 'orange',
   'Fully Received': 'green',
@@ -461,7 +460,7 @@ export default function VendorDetail() {
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.orderDate}</td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{po.estimatedDeliveryDate}</td>
                   <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-3"><Badge variant={PO_STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge></td>
+                  <td className="px-4 py-3"><Badge variant={PO_STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{getPoStatusLabel(po.status)}</Badge></td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}

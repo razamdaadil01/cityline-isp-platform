@@ -15,14 +15,13 @@ import { getStores } from '../../data/storeStore'
 import { getProducts } from '../../data/productStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import {
-  getPurchaseOrder, savePurchaseOrder, previewNextPoNumber, computePoSummary, computeLineAmount,
+  getPurchaseOrder, savePurchaseOrder, previewNextPoNumber, computePoSummary, computeLineAmount, getPoStatusLabel,
 } from '../../data/purchaseOrderStore'
 
 const STATUS_BADGE = {
   Draft: 'gray',
   'Approval Request': 'yellow',
   'Correction Required': 'red',
-  Approved: 'blue',
   Sent: 'indigo',
   'Partially Received': 'orange',
   'Fully Received': 'green',
@@ -328,7 +327,7 @@ export default function CreatePO() {
     return (
       <div className="p-6">
         <div className="bg-white rounded-xl border border-surface-border shadow-card p-10 text-center">
-          <p className="text-sm text-gray-500 mb-3">"{existing.poNumber}" is {existing.status} and can no longer be edited.</p>
+          <p className="text-sm text-gray-500 mb-3">"{existing.poNumber}" is {getPoStatusLabel(existing.status)} and can no longer be edited.</p>
           <Button variant="secondary" size="sm" onClick={() => navigate(`/inventory/purchase-orders/${existing.id}`)}>View Purchase Order</Button>
         </div>
       </div>
@@ -359,7 +358,7 @@ export default function CreatePO() {
                     <Building2 size={11} className="shrink-0" /> {getCompanyEntity(po.companyEntityId)?.name ?? '—'}
                     <span className="text-gray-300">·</span> ₹{po.grandTotal.toLocaleString('en-IN')}
                     <span className="text-gray-300">·</span>
-                    <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{po.status}</Badge>
+                    <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} size="sm" dot>{getPoStatusLabel(po.status)}</Badge>
                   </p>
                 </div>
                 <Button variant="secondary" size="sm" icon={<Eye size={13} />} onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)}>

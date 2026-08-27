@@ -13,7 +13,7 @@ import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEn
 import { getVendors, getVendor } from '../../data/vendorStore'
 import { getStores, getStore } from '../../data/storeStore'
 import { getProducts, getProduct } from '../../data/productStore'
-import { getPurchaseOrders, getPurchaseOrder } from '../../data/purchaseOrderStore'
+import { getPurchaseOrders, getPurchaseOrder, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } from '../../data/purchaseStore'
 import { usePermission } from '../../data/rolesStore'
 
@@ -23,7 +23,10 @@ const STEPS = [
   { id: 3, label: 'Calculation',      icon: Calculator },
 ]
 
-const RECEIVABLE_PO_STATUSES = ['Sent', 'Approved', 'Partially Received']
+// 'Approved' deliberately isn't listed — an approved PO converges straight
+// to 'Sent' (purchaseOrderStore.js's syncPOStatusFromApproval), so it's not
+// a reachable po.status value any more.
+const RECEIVABLE_PO_STATUSES = ['Sent', 'Partially Received']
 const MAC_RE = /^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$/
 
 function itemFromPOLine(it, i) {
@@ -94,7 +97,7 @@ function POPicker({ pos, value, onSelect, placeholder }) {
                   <span className="font-mono font-semibold text-brand-blue">{po.poNumber}</span>
                   <span className="text-gray-400"> · {vendor?.companyName ?? '—'}</span>
                 </span>
-                <Badge variant={po.status === 'Partially Received' ? 'orange' : 'indigo'} size="sm">{po.status}</Badge>
+                <Badge variant={po.status === 'Partially Received' ? 'orange' : 'indigo'} size="sm">{getPoStatusLabel(po.status)}</Badge>
               </button>
             )
           })}
@@ -581,7 +584,7 @@ export default function CreatePurchase() {
               <div className="space-y-4">
                 {!outsidePoMode ? (
                   <>
-                    <FormField label="Purchase Order" required hint="Only POs with status Sent, Approved or Partially Received can be received">
+                    <FormField label="Purchase Order" required hint="Only POs with status Sent or Partially Received can be received">
                       <POPicker pos={receivablePOs} value={selectedPO?.poNumber ?? ''} placeholder="Search PO number…" onSelect={selectPO} />
                     </FormField>
                     {selectedPO && (

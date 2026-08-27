@@ -43,7 +43,7 @@ export default function Purchases() {
     const today = new Date().toISOString().slice(0, 10)
     return {
       todaysPurchases: purchases.filter(p => p.purchaseDate === today).length,
-      pendingReceipts: pos.filter(po => ['Sent', 'Approved'].includes(po.status)).length,
+      pendingReceipts: pos.filter(po => po.status === 'Sent').length,
       partiallyReceived: pos.filter(po => po.status === 'Partially Received').length,
       shortReceived: purchases.filter(p => p.items.some(it => it.shortQty > 0)).length,
       extraReceived: purchases.filter(p => p.items.some(it => it.extraQty > 0)).length,

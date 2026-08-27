@@ -10,9 +10,21 @@ import { logAudit } from './auditLogStore'
 import { addNotification } from './notificationStore'
 
 export const PO_STATUSES = [
-  'Draft', 'Approval Request', 'Correction Required', 'Approved', 'Sent',
+  'Draft', 'Approval Request', 'Correction Required', 'Sent',
   'Partially Received', 'Fully Received', 'Closed', 'Cancelled',
 ]
+
+// Display-only relabeling — the stored/compared value stays 'Approval
+// Request' everywhere (so nothing that reads po.status directly needs to
+// change), but the UI shows the more descriptive "Sent for Approval" per
+// the desired flow's wording. Every status badge/label render site should
+// go through getPoStatusLabel() rather than printing po.status directly.
+export const PO_STATUS_LABELS = {
+  'Approval Request': 'Sent for Approval',
+}
+export function getPoStatusLabel(status) {
+  return PO_STATUS_LABELS[status] ?? status
+}
 
 // ── PO number sequence — per companyEntityId, mirrors companyEntities.js's
 // getNextInvoiceNumber() (reads + advances a persisted counter) but splits
@@ -111,8 +123,10 @@ const SEED = [
     notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
     // Linked to the seeded 'Purchase Order' approval APR-2026-000011 in
     // approvalsStore.js (already Approved) — demonstrates the approval-sync
-    // path end to end without needing a live decision first.
-    status: 'Approved', createdBy: 'Admin User', createdAt: '2026-08-10T08:30:00.000Z', approvalId: 'APR-2026-000011',
+    // path end to end without needing a live decision first. Status is
+    // 'Sent', not 'Approved' — an Approved decision converges straight onto
+    // the same 'Sent' status the no-approval-required path reaches.
+    status: 'Sent', createdBy: 'Admin User', createdAt: '2026-08-10T08:30:00.000Z', approvalId: 'APR-2026-000011',
   },
 ].map(po => ({ ...po, ...summarize(po.items) }))
 
@@ -212,25 +226,28 @@ export function savePurchaseOrder(data, { editingId = null, action = 'draft' } =
   return po
 }
 
-// Syncs a PO's status from its linked approval's decision — 'Approved'
-// keeps the approval's own wording, while both 'Correction Required'
-// (Send for Correction) and a plain 'Rejected' decision (still reachable via
-// the Approvals list page's generic Reject action) map to the PO's own
-// 'Correction Required' status — the PO creator needs to fix and resend, not
-// treat the order as dead, regardless of which action was used to send it
-// back. The approval's own decisionComment stays the single source of truth
-// for *why* — PODetail reads it straight off the linked approval record
-// rather than duplicating it here.
+// Syncs a PO's status from its linked approval's decision — an 'Approved'
+// decision converges the PO onto the same 'Sent' status the no-approval-
+// required path reaches directly (savePurchaseOrder's 'send' action above),
+// rather than a dead-end 'Approved' status that never progressed further.
+// Both 'Correction Required' (Send for Correction) and a plain 'Rejected'
+// decision (still reachable via the Approvals list page's generic Reject
+// action) map to the PO's own 'Correction Required' status — the PO
+// creator needs to fix and resend, not treat the order as dead, regardless
+// of which action was used to send it back. The approval's own
+// decisionComment stays the single source of truth for *why* — PODetail
+// reads it straight off the linked approval record rather than duplicating
+// it here.
 export function syncPOStatusFromApproval(approvalId, approvalStatus) {
   const po = _pos.find(p => p.approvalId === approvalId)
   if (!po || po.status !== 'Approval Request') return
-  const mapped = approvalStatus === 'Approved' ? 'Approved' : (approvalStatus === 'Rejected' || approvalStatus === 'Correction Required') ? 'Correction Required' : null
+  const mapped = approvalStatus === 'Approved' ? 'Sent' : (approvalStatus === 'Rejected' || approvalStatus === 'Correction Required') ? 'Correction Required' : null
   if (!mapped) return
   _pos = _pos.map(p => p.id === po.id ? { ...p, status: mapped } : p)
   notify()
   logAudit({
     action: 'Edit', module: 'Inventory',
-    details: mapped === 'Approved' ? `Purchase Order ${po.poNumber} approved` : `Purchase Order ${po.poNumber} sent back for correction`,
+    details: mapped === 'Sent' ? `Purchase Order ${po.poNumber} approved and sent to vendor` : `Purchase Order ${po.poNumber} sent back for correction`,
   })
 
   // Notify the PO's original creator when it comes back for correction —
@@ -265,8 +282,11 @@ export function recalculatePOReceiptStatus(poId, receivedByProductId) {
   const po = _pos.find(p => p.id === poId)
   if (!po) return
   // Only POs actually out for receipt progress this way — leave anything
-  // else (Draft, Approval Request, Cancelled, etc.) untouched.
-  if (!['Sent', 'Approved', 'Partially Received'].includes(po.status)) return
+  // else (Draft, Approval Request, Cancelled, etc.) untouched. 'Approved' is
+  // deliberately not listed — syncPOStatusFromApproval() no longer produces
+  // it (an approved PO converges straight to 'Sent'), so it's not a
+  // reachable po.status value here any more.
+  if (!['Sent', 'Partially Received'].includes(po.status)) return
   const fullyReceived = po.items.every(it => (receivedByProductId[it.productId] ?? 0) >= it.qty)
   const anyReceived = po.items.some(it => (receivedByProductId[it.productId] ?? 0) > 0)
   const newStatus = fullyReceived ? 'Fully Received' : anyReceived ? 'Partially Received' : po.status
