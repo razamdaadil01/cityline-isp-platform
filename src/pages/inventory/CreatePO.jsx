@@ -102,6 +102,23 @@ export default function CreatePO() {
   const [searchParams, setSearchParams] = useSearchParams()
   const isEditing = !!editingId
 
+  // Merge-safe searchParams update — same pattern as CreatePurchase.jsx's
+  // `?po=` selection + `?step=` navigation and CreateAssignment.jsx's
+  // `?wo=` selection, reused here rather than a new one-off (a plain
+  // setSearchParams({step}) call replaces the whole query string, which
+  // would silently drop `productTab` every time step changes, and vice
+  // versa).
+  function patchSearchParams(patch, options) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Object.entries(patch).forEach(([key, value]) => {
+        if (value == null) next.delete(key)
+        else next.set(key, String(value))
+      })
+      return next
+    }, options)
+  }
+
   const entities = getActiveCompanyEntities()
   const vendors = getVendors().filter(v => v.status === 'active')
   const stores = getStores().filter(s => s.status === 'active')
@@ -132,7 +149,6 @@ export default function CreatePO() {
   const [terms, setTerms] = useState(existing?.terms ?? '')
   const [discount, setDiscount] = useState(String(existing?.discount ?? 0))
   const [otherCharges, setOtherCharges] = useState(String(existing?.otherCharges ?? 0))
-  const [itemTab, setItemTab] = useState('hardware')
   // Tracks which bottom-bar action the user last tried so the validation
   // banner shows the right message — Next (steps 1-2) and Save Draft/Send PO
   // (step 3) each have different requirements.
@@ -156,6 +172,17 @@ export default function CreatePO() {
 
   const stepParam = Number(searchParams.get('step'))
   const step = [1, 2, 3].includes(stepParam) ? stepParam : 1
+
+  // Products step's Hardware/Wire tab — URL-driven (?productTab=), same
+  // "derive from the URL rather than local state kept in sync with it"
+  // approach as `step` above, so reloading or sharing a link with
+  // &productTab=wire lands on that tab directly. Defaults to 'hardware'
+  // when the param is missing or holds anything else.
+  const productTabParam = searchParams.get('productTab')
+  const itemTab = ['hardware', 'wire'].includes(productTabParam) ? productTabParam : 'hardware'
+  function setItemTab(tab) {
+    patchSearchParams({ productTab: tab })
+  }
 
   function updateItem(itemId, patch) {
     setItems(prev => prev.map(it => it.id === itemId ? { ...it, ...patch } : it))
@@ -288,18 +315,18 @@ export default function CreatePO() {
   function goTo(id) {
     if (!isReachable(id)) return
     setAttemptedAction(null)
-    setSearchParams({ step: String(id) })
+    patchSearchParams({ step: id })
   }
   function goBack() {
     setAttemptedAction(null)
     if (step === 1) { navigate('/inventory/purchase-orders'); return }
-    setSearchParams({ step: String(step - 1) })
+    patchSearchParams({ step: step - 1 })
   }
   function goNext() {
     if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
     if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
     setAttemptedAction(null)
-    setSearchParams({ step: String(Math.min(step + 1, 3)) })
+    patchSearchParams({ step: Math.min(step + 1, 3) })
   }
 
   function handleSaveDraft() {
