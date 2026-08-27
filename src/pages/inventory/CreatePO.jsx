@@ -15,7 +15,7 @@ import { getStores } from '../../data/storeStore'
 import { getProducts } from '../../data/productStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import {
-  getPurchaseOrder, savePurchaseOrder, previewNextPoNumber, computePoSummary, computeLineAmount, getPoStatusLabel,
+  getPurchaseOrder, savePurchaseOrder, computePoSummary, computeLineAmount, getPoStatusLabel,
 } from '../../data/purchaseOrderStore'
 import { getLastPurchasePrice } from '../../data/purchaseStore'
 
@@ -217,8 +217,6 @@ export default function CreatePO() {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
-
-  const poNumber = existing?.poNumber ?? (companyEntityId != null ? previewNextPoNumber(companyEntityId) : '')
 
   const gstOptions = useMemo(() => {
     const set = new Set(GST_SLABS)
@@ -431,9 +429,6 @@ export default function CreatePO() {
             </button>
             <div>
               <h1 className="text-xl font-bold text-gray-900">{isEditing ? 'Edit Purchase Order' : 'New Purchase Order'}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
-                PO Number: <span className="font-mono font-semibold text-brand-blue">{poNumber || '—'}</span>
-              </p>
             </div>
           </div>
           <StepProgress steps={STEPS} current={step} isReachable={isReachable} onSelect={goTo} />
