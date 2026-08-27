@@ -158,7 +158,7 @@ export default function PODetail() {
                   <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
                     <th className="text-left px-3 py-2 font-semibold">Item</th>
                     <th className="text-left px-3 py-2 font-semibold">SKU</th>
-                    <th className="text-left px-3 py-2 font-semibold">Unit / Drum</th>
+                    <th className="text-left px-3 py-2 font-semibold">Unit</th>
                     <th className="text-right px-3 py-2 font-semibold">Qty</th>
                     <th className="text-right px-3 py-2 font-semibold">Price</th>
                     <th className="text-right px-3 py-2 font-semibold">GST %</th>
@@ -170,7 +170,7 @@ export default function PODetail() {
                     <tr key={it.id}>
                       <td className="px-3 py-2 text-gray-700">{it.productName}</td>
                       <td className="px-3 py-2 text-gray-500 font-mono">{it.sku || '—'}</td>
-                      <td className="px-3 py-2 text-gray-500">{it.type === 'wire' ? (it.drum || '—') : it.unit}</td>
+                      <td className="px-3 py-2 text-gray-500">{it.unit || '—'}</td>
                       <td className="px-3 py-2 text-right text-gray-600">{it.qty}</td>
                       <td className="px-3 py-2 text-right text-gray-600">₹{it.price.toLocaleString('en-IN')}</td>
                       <td className="px-3 py-2 text-right text-gray-600">{it.gstPercent}%</td>

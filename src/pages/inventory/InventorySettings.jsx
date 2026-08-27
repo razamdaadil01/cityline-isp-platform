@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, CheckCircle2, Hash, ShieldCheck } from 'lucide-react'
+import { Save, CheckCircle2, Hash, ShieldCheck, PackagePlus } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import { getActiveCompanyEntities } from '../../data/companyEntities'
@@ -22,6 +22,7 @@ function Toggle({ checked, onChange }) {
 function formToSettings(form) {
   return {
     poApprovalRequired: form.poApprovalRequired,
+    allowOutsidePOHardware: form.allowOutsidePOHardware,
     poTerms: form.poTerms.trim(),
     defaultGstPercent: Number(form.defaultGstPercent),
     poNumberFormat: form.poNumberFormat.trim(),
@@ -31,6 +32,7 @@ function formToSettings(form) {
 function settingsToForm(settings) {
   return {
     poApprovalRequired: settings.poApprovalRequired,
+    allowOutsidePOHardware: settings.allowOutsidePOHardware,
     poTerms: settings.poTerms,
     defaultGstPercent: String(settings.defaultGstPercent),
     poNumberFormat: settings.poNumberFormat,
@@ -112,6 +114,17 @@ export default function InventorySettings() {
               <div>
                 <p className="text-sm font-medium text-gray-800">Require approval before a Purchase Order is sent</p>
                 <p className="text-xs text-gray-500">When on, new POs go through an approval step (status "Sent for Approval") before being sent to the vendor.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-5 border-t border-surface-border space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><PackagePlus size={14} className="text-brand-blue" /> Goods Receipt</h2>
+            <div className="flex items-center gap-3">
+              <Toggle checked={form.allowOutsidePOHardware} onChange={v => setField('allowOutsidePOHardware', v)} />
+              <div>
+                <p className="text-sm font-medium text-gray-800">Allow adding hardware outside PO</p>
+                <p className="text-xs text-gray-500">When on, "Add Hardware Outside PO" is available on the Product Receipt step so a receipt can include hardware not on the linked Purchase Order.</p>
               </div>
             </div>
           </div>

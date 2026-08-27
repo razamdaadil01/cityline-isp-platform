@@ -41,7 +41,7 @@ const GST_SLABS = [0, 5, 12, 18, 28]
 function emptyItem(type, defaultGst) {
   return {
     id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    type, productId: '', productName: '', sku: '', unit: '', drum: '',
+    type, productId: '', productName: '', sku: '', unit: '',
     qty: '', price: '', gstPercent: String(defaultGst ?? 18),
   }
 }
@@ -70,13 +70,11 @@ function ItemRow({ item, products, onUpdate, onRemove }) {
         />
       </td>
       <td className="px-2 py-2 text-xs text-gray-500 font-mono whitespace-nowrap">{item.sku || '—'}</td>
-      {item.type === 'wire' ? (
-        <td className="px-2 py-2">
-          <input className={cellInput} placeholder="Drum #" value={item.drum} onChange={e => onUpdate({ drum: e.target.value })} />
-        </td>
-      ) : (
-        <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{item.unit || '—'}</td>
-      )}
+      {/* Unit is a fixed label either way — Drum Number isn't captured at PO
+          stage at all (the physical drum isn't known/assigned until goods
+          actually arrive); it's still captured later, at Purchase/Goods
+          Receipt, unaffected by this. */}
+      <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{item.unit || '—'}</td>
       <td className="px-2 py-2 w-20">
         <input type="number" min="0" className={cellInput} value={item.qty} onChange={e => onUpdate({ qty: e.target.value })} placeholder="0" />
       </td>
@@ -135,7 +133,7 @@ export default function CreatePO() {
   const [vendorId, setVendorId] = useState(existing?.vendorId ?? '')
   const [storeId, setStoreId] = useState(existing?.storeId ?? '')
   const [items, setItems] = useState(() => {
-    const base = existing?.items.map(it => ({ ...it, qty: String(it.qty), price: String(it.price), gstPercent: String(it.gstPercent), drum: it.drum ?? '' })) ?? []
+    const base = existing?.items.map(it => ({ ...it, qty: String(it.qty), price: String(it.price), gstPercent: String(it.gstPercent) })) ?? []
     // Seed a blank row per type up front so the first render never shows
     // the "No … lines yet" empty state — the effect below keeps this true
     // afterwards too (e.g. once the last row of a type is removed).
@@ -247,12 +245,15 @@ export default function CreatePO() {
   const isMultiCompanySplit = !isEditing && companyGroups.size > 1
   const totalSubtotal = numericItems.reduce((sum, it) => sum + it.qty * it.price, 0)
 
+  // Drum Number is deliberately not part of a PO line — the physical drum
+  // isn't known/assigned until goods actually arrive; it's captured later,
+  // at Purchase/Goods Receipt (purchaseStore.js's own `drumNumber` field on
+  // a received item), unrelated to and unaffected by this.
   function itemsPayload(groupItems) {
     return groupItems.map(it => ({
       id: it.id, type: it.type, productId: it.productId, productName: it.productName,
       sku: it.sku, unit: it.unit, qty: it.qty, price: it.price, gstPercent: it.gstPercent,
       amount: computeLineAmount(it.qty, it.price, it.gstPercent),
-      ...(it.type === 'wire' ? { drum: it.drum || '' } : {}),
     }))
   }
 
@@ -526,7 +527,7 @@ export default function CreatePO() {
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-200">
                               {(type === 'wire'
-                                ? ['Wire', 'SKU', 'Drum', 'Qty (m)', 'Price/m', 'GST %', 'Amount', '']
+                                ? ['Wire', 'SKU', 'Unit', 'Qty (m)', 'Price/m', 'GST %', 'Amount', '']
                                 : ['Product', 'SKU', 'Unit', 'Qty', 'Price', 'GST %', 'Amount', '']
                               ).map((h, i) => (
                                 <th key={i} className="px-2 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
