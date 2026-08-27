@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, PackageOpen, Calculator,
-  AlertTriangle, Save, CheckCircle2, Trash2, Plus, X,
+  AlertTriangle, Save, CheckCircle2, Trash2, Plus, X, Download, Upload,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
@@ -177,26 +177,140 @@ function countEnteredUnits(item, trackedBySerial, trackedByMac, qty) {
   return count
 }
 
+function csvColumns(trackedBySerial, trackedByMac) {
+  return ['Unit', ...(trackedBySerial ? ['Serial'] : []), ...(trackedByMac ? ['MAC'] : [])]
+}
+
+// Builds a downloadable CSV pre-filled with one row per unit (Unit 1..qty)
+// and blank Serial/MAC cells for whichever columns this product tracks, so
+// it can be filled in a spreadsheet and re-uploaded via Import CSV below.
+function buildTemplateCsv(qty, trackedBySerial, trackedByMac) {
+  const headers = csvColumns(trackedBySerial, trackedByMac)
+  const lines = [headers.join(',')]
+  for (let i = 1; i <= qty; i++) {
+    lines.push([String(i), ...(trackedBySerial ? [''] : []), ...(trackedByMac ? [''] : [])].join(','))
+  }
+  return lines.join('\r\n')
+}
+
+function downloadTemplate(item, qty, trackedBySerial, trackedByMac) {
+  const csv = buildTemplateCsv(qty, trackedBySerial, trackedByMac)
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${(item.productName || 'product').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-serial-mac-template.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// Minimal manual CSV parser — the codebase has no papaparse dependency, and
+// the format here is a plain 2-3 column, single-header-row CSV (no quoted
+// commas expected), so a full parser library would be overkill.
+function parseCsv(text) {
+  const lines = text.split(/\r\n|\n|\r/).map(l => l.trim()).filter(l => l.length > 0)
+  if (lines.length === 0) return { headers: [], rows: [] }
+  const stripQuotes = cell => cell.trim().replace(/^"(.*)"$/, '$1')
+  const headers = lines[0].split(',').map(stripQuotes)
+  const rows = lines.slice(1).map(l => l.split(',').map(stripQuotes))
+  return { headers, rows }
+}
+
+// Parses+validates an uploaded CSV against this product's tracked columns
+// and expected unit count, returning either { serials, macs } (only the
+// tracked ones populated, row order == unit order) or { error }. Imported
+// values overwrite existing manual entries unconditionally — the caller
+// applies the whole result in one update rather than merging cell-by-cell.
+function parseImportedCsv(text, qty, trackedBySerial, trackedByMac) {
+  const { headers, rows } = parseCsv(text)
+  if (headers.length === 0) return { error: 'The CSV file is empty or could not be read.' }
+  if (rows.some(r => r.length !== headers.length)) {
+    return { error: 'The CSV file is malformed — every row must have the same number of columns as the header.' }
+  }
+  const serialIdx = headers.findIndex(h => h.toLowerCase() === 'serial')
+  const macIdx = headers.findIndex(h => h.toLowerCase() === 'mac')
+  if (trackedBySerial && serialIdx === -1) return { error: 'CSV is missing a "Serial" column.' }
+  if (trackedByMac && macIdx === -1) return { error: 'CSV is missing a "MAC" column.' }
+  if (rows.length !== qty) {
+    return { error: `Expected ${qty} row${qty === 1 ? '' : 's'} (one per unit) but the CSV has ${rows.length}.` }
+  }
+  const serials = trackedBySerial ? rows.map(r => r[serialIdx] ?? '') : undefined
+  const macs = trackedByMac ? rows.map(r => r[macIdx] ?? '') : undefined
+  if (macs) {
+    const invalidMac = macs.find(m => m.trim() && !MAC_RE.test(m.trim()))
+    if (invalidMac) return { error: `CSV contains an invalid MAC address: "${invalidMac}".` }
+  }
+  return { serials, macs }
+}
+
 // Scoped to a single product line — opened from that line's "Enter Serials &
 // MACs" summary instead of rendering one input pair per unit inline on the
 // page (which made the Receipt step unusably long for large quantities).
 // Edits go straight through onSerialChange/onMacChange into the same item
 // state the inline inputs used to write to, so closing the modal doesn't
 // need its own save step — the data is already persisted as it's typed.
-function SerialMacEntryModal({ isOpen, onClose, item, trackedBySerial, trackedByMac, onSerialChange, onMacChange }) {
+// "Download Template" / "Import CSV" are an additive shortcut alongside the
+// same manual per-unit fields — a successful import overwrites whichever
+// columns it covers via a single onImport() call, then the user can still
+// review/edit before Done, same as manual entry.
+function SerialMacEntryModal({ isOpen, onClose, item, qty, trackedBySerial, trackedByMac, onSerialChange, onMacChange, onImport }) {
+  const fileInputRef = useRef(null)
+  const [importError, setImportError] = useState('')
+
+  function handleFileSelected(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // reset so re-selecting the same file re-fires onChange
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = parseImportedCsv(String(reader.result ?? ''), qty, trackedBySerial, trackedByMac)
+      if (result.error) { setImportError(result.error); return }
+      setImportError('')
+      onImport(result.serials, result.macs)
+    }
+    reader.onerror = () => setImportError('Could not read that file.')
+    reader.readAsText(file)
+  }
+
   return (
     <Modal
       isOpen={isOpen} onClose={onClose} size="lg"
       title={`${item.productName} — Serial & MAC Entry`}
       footer={<Button size="sm" onClick={onClose}>Done</Button>}
     >
-      {trackedBySerial && trackedByMac ? (
-        <PairedTrackedInputs serials={item.serials} macs={item.macs} onSerialChange={onSerialChange} onMacChange={onMacChange} />
-      ) : trackedBySerial ? (
-        <TrackedInputs label="Serial" values={item.serials} onChange={onSerialChange} />
-      ) : (
-        <TrackedInputs label="MAC" values={item.macs} onChange={onMacChange} validate={v => MAC_RE.test(v.trim())} />
-      )}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-surface-border">
+          <p className="text-xs text-gray-500">Fill in each unit below, or download a template to fill in a spreadsheet and re-upload.</p>
+          <div className="flex items-center gap-3 shrink-0">
+            <button type="button" onClick={() => downloadTemplate(item, qty, trackedBySerial, trackedByMac)}
+              className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline">
+              <Download size={13} /> Download Template
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:underline">
+              <Upload size={13} /> Import CSV
+            </button>
+            <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFileSelected} />
+          </div>
+        </div>
+
+        {importError && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            {importError}
+          </div>
+        )}
+
+        {trackedBySerial && trackedByMac ? (
+          <PairedTrackedInputs serials={item.serials} macs={item.macs} onSerialChange={onSerialChange} onMacChange={onMacChange} />
+        ) : trackedBySerial ? (
+          <TrackedInputs label="Serial" values={item.serials} onChange={onSerialChange} />
+        ) : (
+          <TrackedInputs label="MAC" values={item.macs} onChange={onMacChange} validate={v => MAC_RE.test(v.trim())} />
+        )}
+      </div>
     </Modal>
   )
 }
@@ -289,10 +403,15 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
           item={item}
+          qty={qty}
           trackedBySerial={trackedBySerial}
           trackedByMac={trackedByMac}
           onSerialChange={(i, v) => onUpdate({ serials: item.serials.map((s, idx) => idx === i ? v : s) })}
           onMacChange={(i, v) => onUpdate({ macs: item.macs.map((m, idx) => idx === i ? v : m) })}
+          onImport={(serials, macs) => onUpdate({
+            ...(trackedBySerial ? { serials } : {}),
+            ...(trackedByMac ? { macs } : {}),
+          })}
         />
       )}
     </div>
