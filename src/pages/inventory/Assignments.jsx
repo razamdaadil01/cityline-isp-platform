@@ -12,17 +12,21 @@ import { getStores } from '../../data/storeStore'
 import { getUnits } from '../../data/inventoryLedger'
 import { usePermission } from '../../data/rolesStore'
 
-// Line-level status shown per row — deliberately only these two values (the
-// same pair Inventory Overview's Units tab already uses for a serial/MAC
-// unit's status), never the assignment RECORD's own 'Assigned'/'Returned'
-// status and never a third invented label. A serial/MAC line's status comes
-// straight from its live ledger unit (so it reflects anything that's
-// happened to it since — e.g. handed off to a user, replaced — collapsed
-// back to 'Assigned to Engineer' for this list's purposes); a quantity or
-// wire line has no discrete ledger unit to check, so it falls back to
-// reading the parent assignment's own Returned/not-Returned state instead.
-const STATUS_BADGE = { Available: 'green', 'Assigned to Engineer': 'purple' }
-const LINE_STATUS_VALUES = ['Available', 'Assigned to Engineer']
+// Line-level status shown per row — deliberately only these three values
+// (never the assignment RECORD's own 'Assigned'/'Returned' status, never a
+// fourth invented label). A serial/MAC line's status comes straight from
+// its live ledger unit: 'Available' or 'Assigned to User' pass straight
+// through unchanged (the latter is a genuinely different, later state than
+// 'Assigned to Engineer' — the engineer already handed this specific unit
+// off to the end customer, see userAssignmentStore.js), while any other
+// unit state (Replaced, sent for repair, etc.) still collapses back to
+// 'Assigned to Engineer' for this list's purposes, same as before. A
+// quantity or wire line has no discrete ledger unit to check (there's
+// nothing to distinguish "with engineer" from "handed to user" for
+// quantity-tracked stock), so it falls back to reading the parent
+// assignment's own Returned/not-Returned state instead.
+const STATUS_BADGE = { Available: 'green', 'Assigned to Engineer': 'purple', 'Assigned to User': 'indigo' }
+const LINE_STATUS_VALUES = ['Available', 'Assigned to Engineer', 'Assigned to User']
 
 function fallbackStatus(a) {
   return a.status === 'Returned' ? 'Available' : 'Assigned to Engineer'
@@ -30,7 +34,10 @@ function fallbackStatus(a) {
 function lineStatus(a, productId, values) {
   if (values.length) {
     const unit = getUnits({ productId, storeId: a.storeId }).find(u => u.value === values[0])
-    if (unit) return unit.status === 'Available' ? 'Available' : 'Assigned to Engineer'
+    if (unit) {
+      if (unit.status === 'Available' || unit.status === 'Assigned to User') return unit.status
+      return 'Assigned to Engineer'
+    }
   }
   return fallbackStatus(a)
 }

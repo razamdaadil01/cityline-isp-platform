@@ -339,6 +339,59 @@ const INIT_INSTALLATIONS = [
       { status: 'Hardware Collection Pending', date: '2026-08-25', by: 'Admin', note: '' },
     ],
   },
+  // ── Two already-completed Andheri installs, added to demonstrate the
+  // engineer -> user handoff status (see assignmentStore.js's ASG-000005/
+  // ASG-000006 and userAssignmentStore.js's seed) — Assignments.jsx's line-
+  // level status can only ever show 'Assigned to User' for a serial-tracked
+  // line, and ONT Device is the only serial-tracked product today, so a
+  // second/third demo of that status needs its own completed Work Orders.
+  // Both reuse existing Andheri-branch engineers (no new engineer invented)
+  // and draw ONT serials already Available at Andheri Store from
+  // PUR-000003 (ZTE-ONT-2026-0002/0003 — the two left over after
+  // ASG-000001 used 0001), not the serials PUR-000005 reserved for
+  // INS-012/013/014's own separate demo.
+  {
+    id: 'INS-015', leadId: null,
+    customerName: 'Kavita Rao', customerPhone: '9845667788', mobile: '9845667788',
+    address: '9, Linking Road', area: 'Linking Road', locality: 'Linking Road', city: 'Mumbai', pincode: '400050',
+    plan: '100 Mbps Monthly (FTTH)',
+    slotDate: '2026-08-05', slotTime: '11:00', slot: 'Morning',
+    assignedTeam: 'Team Alpha',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'Medium',
+    status: 'Completed',
+    hardwareRequired: true,
+    hardware: [{ name: 'ONT Device', qty: 1 }],
+    wireRequired: false, wires: [],
+    notes: 'Installation completed. Customer satisfied.',
+    createdAt: '2026-08-03',
+    timeline: [
+      { status: 'Scheduled', date: '2026-08-03', by: 'System', note: '' },
+      { status: 'Assigned',  date: '2026-08-03', by: 'Admin',  note: '' },
+      { status: 'Completed', date: '2026-08-05', by: 'Preethi Nair', note: 'Installation completed successfully' },
+    ],
+  },
+  {
+    id: 'INS-016', leadId: null,
+    customerName: 'Manoj Deshmukh', customerPhone: '9845667799', mobile: '9845667799',
+    address: '14, SV Road', area: 'SV Road', locality: 'SV Road', city: 'Mumbai', pincode: '400058',
+    plan: '200 Mbps Quarterly (FTTH)',
+    slotDate: '2026-08-07', slotTime: '14:00', slot: 'Afternoon',
+    assignedTeam: 'Team Delta',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    branch: 'CNPL-002', createdBy: 'Anil Sharma', priority: 'Medium',
+    status: 'Completed',
+    hardwareRequired: true,
+    hardware: [{ name: 'ONT Device', qty: 1 }],
+    wireRequired: false, wires: [],
+    notes: 'Installation completed. Customer satisfied.',
+    createdAt: '2026-08-05',
+    timeline: [
+      { status: 'Scheduled', date: '2026-08-05', by: 'System', note: '' },
+      { status: 'Assigned',  date: '2026-08-05', by: 'Admin',  note: '' },
+      { status: 'Completed', date: '2026-08-07', by: 'Arjun Kumar', note: 'Installation completed successfully' },
+    ],
+  },
 ]
 
 let _installations = [...INIT_INSTALLATIONS]
