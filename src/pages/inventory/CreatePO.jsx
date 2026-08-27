@@ -66,7 +66,12 @@ function ItemRow({ item, products, onUpdate, onRemove }) {
           getHint={p => {
             const last = getLastPurchasePrice(p.id)
             if (!last) return null
-            return `Last: ₹${last.price.toLocaleString('en-IN')}${last.vendorName ? ` (${last.vendorName})` : ''}`
+            return (
+              <>
+                Last: ₹{last.price.toLocaleString('en-IN')}
+                {last.vendorName && <span className="text-emerald-600"> ({last.vendorName})</span>}
+              </>
+            )
           }}
         />
       </td>
