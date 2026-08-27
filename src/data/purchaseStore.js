@@ -216,6 +216,31 @@ export function subscribePurchases(fn) {
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
 }
 
+// Most recent unit price actually paid for a product, across any vendor —
+// scanned from 'Confirmed' Purchases (real goods-receipt transactions),
+// not Purchase Orders: a PO's line price is only what was quoted/ordered
+// and may never have actually been received (still Draft, never
+// confirmed, etc.), whereas a Confirmed Purchase's price is what was
+// genuinely paid, whether the line was PO-sourced or an Outside-PO entry.
+// Reference-only — callers show this as a "Last: ₹X" hint, never use it to
+// auto-fill a price input. Returns null if this product has no Confirmed
+// purchase history at all (caller should omit the hint, not show a
+// placeholder). Ties on purchaseDate break on createdAt (most recently
+// entered wins).
+export function getLastPurchasePrice(productId) {
+  let latest = null
+  _purchases.forEach(pur => {
+    if (pur.status !== 'Confirmed') return
+    pur.items.forEach(it => {
+      if (it.productId !== productId) return
+      if (!latest || pur.purchaseDate > latest.purchaseDate || (pur.purchaseDate === latest.purchaseDate && pur.createdAt > latest.createdAt)) {
+        latest = { purchaseDate: pur.purchaseDate, createdAt: pur.createdAt, price: it.price }
+      }
+    })
+  })
+  return latest ? latest.price : null
+}
+
 // Cumulative received qty per productId across every 'Confirmed' Purchase
 // linked to `poId` — a PO can be received across multiple partial
 // Purchases, so this always re-derives from the full history rather than

@@ -17,6 +17,7 @@ import { getInventorySettings } from '../../data/inventorySettingsStore'
 import {
   getPurchaseOrder, savePurchaseOrder, previewNextPoNumber, computePoSummary, computeLineAmount, getPoStatusLabel,
 } from '../../data/purchaseOrderStore'
+import { getLastPurchasePrice } from '../../data/purchaseStore'
 
 const STATUS_BADGE = {
   Draft: 'gray',
@@ -49,6 +50,11 @@ const cellInput = "w-full px-2.5 py-1.5 text-xs border border-surface-border rou
 
 function ItemRow({ item, products, onUpdate, onRemove }) {
   const amount = computeLineAmount(item.qty, item.price, item.gstPercent)
+  // Reference-only — the most recent price this product was actually
+  // received at (any vendor), never auto-filled into the Price input; the
+  // user still types a price themselves. null when there's no Confirmed
+  // purchase history for it yet, in which case no hint is shown at all.
+  const lastPrice = item.productId ? getLastPurchasePrice(item.productId) : null
   return (
     <tr>
       <td className="px-2 py-2 min-w-[220px]">
@@ -72,6 +78,9 @@ function ItemRow({ item, products, onUpdate, onRemove }) {
       </td>
       <td className="px-2 py-2 w-24">
         <input type="number" min="0" className={cellInput} value={item.price} onChange={e => onUpdate({ price: e.target.value })} placeholder="0.00" />
+        {lastPrice != null && (
+          <p className="text-[10px] text-gray-400 mt-0.5">Last: ₹{lastPrice.toLocaleString('en-IN')}</p>
+        )}
       </td>
       <td className="px-2 py-2 w-20">
         <input type="number" min="0" max="100" className={cellInput} value={item.gstPercent} onChange={e => onUpdate({ gstPercent: e.target.value })} placeholder="18" />
