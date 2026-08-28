@@ -51,34 +51,17 @@ function wireLineAvailability(l, storeId) {
     .reduce((s, d) => s + d.remainingMeters, 0)
 }
 
-// A required line the store genuinely has zero stock/serials/drums for —
-// there's nothing for the user to pick, so it can't be treated as "must be
-// filled to submit." It's still shown as unfulfilled (see outOfStock prop
-// on the line cards, and the Step 4 "Not Fulfilled" list), just not a
-// blocker — a partial assignment (issue what's in stock, leave the rest
-// pending) is a legitimate outcome, not an error state.
+// A line the store genuinely has zero stock/serials/drums for — purely
+// informational stock awareness (surfaced via the amber `outOfStock` prop
+// on the row and the Confirm step's "Not Fulfilled — Out of Stock" list),
+// unrelated to whether the row started out Work-Order-required or was
+// added freely — Select Items no longer enforces any per-line "must be
+// fulfilled" rule at all (see isStep3Valid below).
 function isHwLineOutOfStock(l, storeId) {
   return !!l.productId && Number(l.requiredQty) > 0 && hwLineAvailability(l, storeId) === 0
 }
 function isWireLineOutOfStock(l, storeId) {
   return !!l.productId && Number(l.requiredMeters) > 0 && wireLineAvailability(l, storeId) === 0
-}
-
-// A hardware line with no requirement, no matching product (the amber
-// "cannot be issued" card has no input to fill in the first place), or
-// genuinely zero stock at this store is trivially "complete" — nothing
-// blocks submission on it. Otherwise it needs a real pick matching its
-// live tracking type.
-function isHwLineComplete(l, storeId) {
-  if (!l.productId || Number(l.requiredQty) <= 0 || isHwLineOutOfStock(l, storeId)) return true
-  return liveTrackingType(l.productId) === 'quantity'
-    ? (Number(l.assignedQty) || 0) > 0
-    : (l.serials.length + l.macs.length) > 0
-}
-
-function isWireLineComplete(l, storeId) {
-  if (!l.productId || Number(l.requiredMeters) <= 0 || isWireLineOutOfStock(l, storeId)) return true
-  return (Number(l.assignedMeters) || 0) > 0
 }
 
 // Compact, bounded-height searchable multi-select for a single line's
@@ -160,14 +143,17 @@ function UnitPickerPopover({ units, picked, atCap, onToggle, onSelectAll, render
   )
 }
 
-// Unified row shape for both required (Work-Order-sourced) and user-added
-// "Extra" lines: Product | Serial No./Qty | Comment | status-or-action.
-// Required lines get a locked/disabled product <select> (the Work Order
-// fixed that product, it isn't user-choosable); Extra lines get the same
-// interactive ProductPicker search combobox used by the trailing "add new"
-// row, so the product on an Extra line can still be changed after it was
-// added.
-function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemove, showError, outOfStock }) {
+// Unified, fully free-form row shape for both Work-Order-sourced and
+// user-added lines: Product | Serial No./Qty | Comment | status-or-action.
+// A required line only pre-populates this row as a starting suggestion —
+// the requirement itself lives independently in the read-only "Hardware /
+// Wire Required" panel above (Section 2), so nothing here is locked: the
+// Product dropdown is always the same interactive ProductPicker search
+// combobox regardless of where the row came from, the row can always be
+// removed, and neither the serial/MAC picker nor the qty input are capped
+// by (or even aware of) `line.requiredQty` — that field is kept on the line
+// purely as inherited reference data for saveAssignment(), never as a gate.
+function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock }) {
   const trackingType = liveTrackingType(line.productId)
   // A dual-tracked line's serials/macs are paired 1:1 (same unit, two
   // identifiers) — Math.max avoids double-counting each physical unit the
@@ -176,44 +162,26 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
   const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : Math.max(l.serials.length, l.macs.length)) : s, 0)
   const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId) : 0
   // Room left for THIS line to still grow into (excludes its own current
-  // pick) — used as the input's max.
+  // pick) — this remains a real physical-stock cap (can't assign more units
+  // than the store actually has), unrelated to the Work Order's requirement.
   const roomToGrow = Math.max(0, grossAvailable - usedElsewhere)
   const remainingInPool = Math.max(0, grossAvailable - usedElsewhere - (Number(line.assignedQty) || 0))
 
-  const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
+  const rowTone = outOfStock ? 'bg-amber-50/40' : ''
 
-  if (!line.productId) {
-    return (
-      <tr className="bg-amber-50/40">
-        <td colSpan={4} className="px-3 py-3">
-          <p className="text-xs text-amber-700 flex items-center gap-1.5">
-            <AlertTriangle size={12} className="shrink-0" /> <span className="font-semibold text-gray-800">{line.name}</span> — No matching product in Inventory, cannot be issued from this flow.
-          </p>
-        </td>
-      </tr>
-    )
-  }
-
-  // Changing the product on an Extra line invalidates whatever was already
-  // picked against the old product — reset the tracking-specific fields so
-  // a serial/qty from product A never lingers on a line now pointing at B.
+  // Picking a product (whether filling in an originally-unmapped requirement
+  // row or swapping an existing row to a different product entirely)
+  // invalidates whatever was already picked against the old product — reset
+  // the tracking-specific fields so a serial/qty from product A never
+  // lingers on a line now pointing at product B.
   function changeProduct(product) {
     onChange({ productId: product.id, productName: product.name, name: product.name, assignedQty: 0, serials: [], macs: [] })
   }
 
-  const nameCell = (
-    <td className="px-3 py-2.5 align-top">
-      {line.isExtra ? (
-        <div className="space-y-1">
-          <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
-          <Badge variant="purple" size="sm">Extra</Badge>
-        </div>
-      ) : (
-        <select disabled value={line.productId} className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500 disabled:cursor-not-allowed">
-          <option value={line.productId}>{line.productName}</option>
-        </select>
-      )}
-    </td>
+  const removeButton = (
+    <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+      <Trash2 size={13} />
+    </button>
   )
 
   const commentCell = (
@@ -226,10 +194,29 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     </td>
   )
 
-  const removeButton = line.isExtra && (
-    <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
-      <Trash2 size={13} />
-    </button>
+  if (!line.productId) {
+    return (
+      <tr className="bg-amber-50/30">
+        <td className="px-3 py-2.5 align-top">
+          <ProductPicker products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
+          <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> No product mapped to "{line.name}" — pick one to issue.</p>
+        </td>
+        <td className="px-3 py-2.5 align-top">
+          <p className="text-xs text-gray-400 py-1.5">Pick a product first</p>
+        </td>
+        {commentCell}
+        <td className="px-3 py-2.5 align-top text-right">{removeButton}</td>
+      </tr>
+    )
+  }
+
+  const nameCell = (
+    <td className="px-3 py-2.5 align-top">
+      <div className="space-y-1">
+        <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+        {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
+      </div>
+    </td>
   )
 
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
@@ -245,7 +232,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     // Units already checked on THIS line stay visible in the list (so they
     // can be unchecked) — same self-inclusive live behavior as before.
     const picked = isDual ? line.serials : (trackingType === 'serial' ? line.serials : line.macs)
-    const atCap = picked.length >= line.requiredQty
+    const remainingAvailable = Math.max(0, units.length - picked.length)
 
     function applySelection(nextSerials, nextMacs) {
       if (isDual) onChange({ serials: nextSerials, macs: nextMacs })
@@ -254,7 +241,6 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     function toggleUnit(u) {
       const idx = picked.indexOf(u.value)
       const isPicked = idx !== -1
-      if (!isPicked && atCap) return
       if (isDual) {
         if (isPicked) applySelection(line.serials.filter((_, i) => i !== idx), line.macs.filter((_, i) => i !== idx))
         else applySelection([...line.serials, u.value], [...line.macs, u.mac])
@@ -262,14 +248,12 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
         applySelection(isPicked ? picked.filter(v => v !== u.value) : [...picked, u.value])
       }
     }
-    // Select-all/clear-all only ever act on the currently filtered/visible
-    // units — and, when selecting, only as many as still fit under the
-    // line's required-quantity cap — mirroring the same one-at-a-time cap
-    // toggleUnit() already enforces.
+    // Select-all/clear-all act on whatever's currently filtered/visible —
+    // no cap against a "required" count, so this can freely select more
+    // units than the Work Order ever asked for.
     function selectAllVisible(visibleUnits, shouldSelect) {
       if (shouldSelect) {
-        const room = Math.max(0, line.requiredQty - picked.length)
-        const toAdd = visibleUnits.filter(u => !picked.includes(u.value)).slice(0, room)
+        const toAdd = visibleUnits.filter(u => !picked.includes(u.value))
         if (isDual) applySelection([...line.serials, ...toAdd.map(u => u.value)], [...line.macs, ...toAdd.map(u => u.mac)])
         else applySelection([...picked, ...toAdd.map(u => u.value)])
       } else {
@@ -291,14 +275,11 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
             <p className="text-xs text-gray-400 py-1.5">{outOfStock ? 'Out of stock at this store' : `No available ${isDual ? '' : kindLabel + ' '}units`}</p>
           ) : (
             <UnitPickerPopover
-              units={units} picked={picked} atCap={atCap}
+              units={units} picked={picked} atCap={false}
               onToggle={toggleUnit} onSelectAll={selectAllVisible}
               renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
               emptyText="No matching units"
             />
-          )}
-          {showError && (
-            <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Select at least one {kindLabel}.</p>
           )}
         </td>
         {commentCell}
@@ -307,9 +288,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
             {outOfStock ? (
               <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
             ) : (
-              <span className={picked.length >= line.requiredQty ? 'text-emerald-600 font-medium' : 'text-gray-500'}>
-                {picked.length}/{line.requiredQty} selected
-              </span>
+              <span className="text-gray-500">{picked.length} selected · {remainingAvailable} available</span>
             )}
             {removeButton}
           </div>
@@ -332,9 +311,6 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
           }}
           className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
-        {showError && !outOfStock && (
-          <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Enter a quantity.</p>
-        )}
       </td>
       {commentCell}
       <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
@@ -342,7 +318,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
           {outOfStock ? (
             <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
           ) : (
-            <span className={remainingInPool > 0 ? 'text-gray-500' : 'text-red-600'}>Required {line.requiredQty} · {remainingInPool} available</span>
+            <span className="text-gray-500">{remainingInPool} available</span>
           )}
           {removeButton}
         </div>
@@ -356,12 +332,10 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
 // draft state (product/qty/picked units/remark) until the green + button is
 // clicked, at which point it calls onAdd() with a fully-formed line — shaped
 // identically to a requirement-sourced line, just flagged `isExtra: true` —
-// and resets itself back to empty so another can be added right away.
-// There's no fixed "required" target for a self-chosen line, so unlike
-// HardwareLineRow's picker (capped at line.requiredQty), this draft's
-// picker is never capped — requiredQty is set to whatever was picked at
-// the moment of confirming, which the resulting line then reports as
-// already fully satisfied.
+// and resets itself back to empty so another can be added right away. Like
+// HardwareLineRow's own picker, this draft's picker is never capped by a
+// "required" count — requiredQty is just set to whatever was picked at the
+// moment of confirming, kept only as reference data on the resulting line.
 function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
   const [product, setProduct] = useState(null)
   const [qty, setQty] = useState('')
@@ -456,25 +430,50 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
   )
 }
 
-function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, showError, outOfStock }) {
-  const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
+// Same fully free-form treatment as HardwareLineRow above: the Product
+// dropdown is always the interactive ProductPicker, the row is always
+// removable, and drum/meters are only ever capped by the drum's real
+// remaining stock — never by `line.requiredMeters`, which is kept purely as
+// inherited reference data.
+function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock }) {
+  const rowTone = outOfStock ? 'bg-amber-50/40' : ''
+
+  // Picking a product invalidates whatever drum/meters were already picked
+  // against the old product.
+  function changeProduct(product) {
+    onChange({ productId: product.id, productName: product.name, name: product.name, drumNumber: '', assignedMeters: 0 })
+  }
+
+  const removeButton = (
+    <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+      <Trash2 size={13} />
+    </button>
+  )
+
+  const commentCell = (
+    <td className="px-3 py-2.5 align-top">
+      <input
+        type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+        placeholder="Optional note…"
+        className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+      />
+    </td>
+  )
 
   if (!line.productId) {
     return (
-      <tr className="bg-amber-50/40">
-        <td colSpan={4} className="px-3 py-3">
-          <p className="text-xs text-amber-700 flex items-center gap-1.5">
-            <AlertTriangle size={12} className="shrink-0" /> <span className="font-semibold text-gray-800">{line.name}</span> — No matching wire product in Inventory, cannot be issued from this flow.
-          </p>
+      <tr className="bg-amber-50/30">
+        <td className="px-3 py-2.5 align-top">
+          <ProductPicker products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
+          <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> No wire product mapped to "{line.name}" — pick one to issue.</p>
         </td>
+        <td className="px-3 py-2.5 align-top">
+          <p className="text-xs text-gray-400 py-1.5">Pick a product first</p>
+        </td>
+        {commentCell}
+        <td className="px-3 py-2.5 align-top text-right">{removeButton}</td>
       </tr>
     )
-  }
-
-  // Changing the product on an Extra line invalidates whatever drum/meters
-  // were already picked against the old product.
-  function changeProduct(product) {
-    onChange({ productId: product.id, productName: product.name, name: product.name, drumNumber: '', assignedMeters: 0 })
   }
 
   const drums = getDrums({ productId: line.productId, storeId }).filter(d => d.remainingMeters > 0)
@@ -488,16 +487,10 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
   return (
     <tr className={rowTone}>
       <td className="px-3 py-2.5 align-top">
-        {line.isExtra ? (
-          <div className="space-y-1">
-            <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
-            <Badge variant="purple" size="sm">Extra</Badge>
-          </div>
-        ) : (
-          <select disabled value={line.productId} className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500 disabled:cursor-not-allowed">
-            <option value={line.productId}>{line.productName}</option>
-          </select>
-        )}
+        <div className="space-y-1">
+          <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+          {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
+        </div>
       </td>
       <td className="px-3 py-2.5 align-top">
         {drums.length === 0 ? (
@@ -528,29 +521,16 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
             />
           </div>
         )}
-        {showError && (
-          <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Select a drum and enter meters.</p>
-        )}
       </td>
-      <td className="px-3 py-2.5 align-top">
-        <input
-          type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
-          placeholder="Optional note…"
-          className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-        />
-      </td>
+      {commentCell}
       <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
         <div className="flex items-center justify-between gap-2">
           {outOfStock ? (
             <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
           ) : (
-            <span className="text-gray-500">Required {line.requiredMeters}m</span>
+            <span className="text-gray-500">{selectedDrum ? `${roomToGrow}m left` : '—'}</span>
           )}
-          {line.isExtra && (
-            <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
-              <Trash2 size={13} />
-            </button>
-          )}
+          {removeButton}
         </div>
       </td>
     </tr>
@@ -896,22 +876,16 @@ export default function CreateAssignment() {
   // before it's even rendered.
   function isStep1Valid() { return !!branchCode && !!engineer }
   function isStep2Valid() { return !!workOrderId }
-  // Requires BOTH: at least one item picked overall (unchanged from before —
-  // a Work Order whose lines are all unfulfillable/not required can't submit
-  // an empty assignment), AND every individual line that HAS stock to pick
-  // from has a non-zero pick matching its live tracking type — a line with
-  // e.g. required qty but zero serials selected no longer slips through
-  // just because some OTHER line on the same Work Order has a pick. A line
-  // the store genuinely has zero of (isHwLineComplete/isWireLineComplete
-  // exempt it) never blocks submission — a partial assignment, issuing
-  // what's actually in stock and leaving the rest pending, is allowed.
+  // Select Items is fully free-form — required lines only pre-populate it as
+  // a starting suggestion, so there's no more per-line "must match what the
+  // Work Order asked for" rule. The only bar left is the basic "don't submit
+  // an empty assignment" check: at least one row across Hardware or Wire has
+  // a non-zero pick (serials/macs, qty, or meters) — rows left at zero (or
+  // removed entirely) are simply not part of what gets issued.
   function isStep3Valid() {
-    if (hwLines.length === 0 && wireLines.length === 0) return false
     const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
-    return (hwCount > 0 || wireCount > 0)
-      && hwLines.every(l => isHwLineComplete(l, store?.id))
-      && wireLines.every(l => isWireLineComplete(l, store?.id))
+    return hwCount > 0 || wireCount > 0
   }
 
   function handleAssign() {
@@ -940,8 +914,8 @@ export default function CreateAssignment() {
 
   const issuedHwLines = hwLines.filter(l => l.productId && (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) > 0 : (l.serials.length + l.macs.length) > 0))
   const issuedWireLines = wireLines.filter(l => l.productId && Number(l.assignedMeters) > 0)
-  // Required lines the store has zero stock for — never blocked submission
-  // (see isHwLineComplete/isWireLineComplete), but still worth surfacing
+  // Lines the store has zero stock for — never blocked submission (see
+  // isHwLineOutOfStock/isWireLineOutOfStock), but still worth surfacing
   // explicitly at Confirm so a partial assignment is visibly partial, not a
   // silently dropped line.
   const outOfStockHwLines = hwLines.filter(l => isHwLineOutOfStock(l, store?.id))
@@ -1081,7 +1055,7 @@ export default function CreateAssignment() {
 
               {attemptedAction === 'step3' && !step3Valid && (
                 <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) to assign, and complete every required line highlighted below.
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) — assign a quantity, or pick serials/MACs — before continuing.
                 </div>
               )}
 
@@ -1113,8 +1087,7 @@ export default function CreateAssignment() {
                           otherLines={hwLines.filter((_, i) => i !== idx)}
                           onChange={patch => updateHwLine(idx, patch)}
                           onRemove={() => removeHwLine(idx)}
-                          outOfStock={isHwLineOutOfStock(l, store.id)}
-                          showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
+                          outOfStock={isHwLineOutOfStock(l, store.id)} />
                       ))}
                       <AddHardwareRow products={hardwareProductsToAdd} otherLines={hwLines} storeId={store.id} onAdd={addHwLine} />
                     </tbody>
@@ -1138,8 +1111,7 @@ export default function CreateAssignment() {
                           otherLines={wireLines.filter((_, i) => i !== idx)}
                           onChange={patch => updateWireLine(idx, patch)}
                           onRemove={() => removeWireLine(idx)}
-                          outOfStock={isWireLineOutOfStock(l, store.id)}
-                          showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
+                          outOfStock={isWireLineOutOfStock(l, store.id)} />
                       ))}
                       <AddWireRow products={wireProductsToAdd} otherLines={wireLines} storeId={store.id} onAdd={addWireLine} />
                     </tbody>
