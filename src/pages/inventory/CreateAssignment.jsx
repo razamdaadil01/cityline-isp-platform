@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Search, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Search, AlertTriangle, ChevronDown, Plus, Trash2, X } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { FormField, Select, Textarea } from '../../components/ui/FormInputs'
+import { FormField, Select, Input, Textarea, SearchInput } from '../../components/ui/FormInputs'
+import ProductPicker from '../../components/inventory/ProductPicker'
 import { getStores } from '../../data/storeStore'
-import { getProduct } from '../../data/productStore'
+import { getProduct, getProducts } from '../../data/productStore'
 import { getUnits, getDrums, getProductAvailability } from '../../data/inventoryLedger'
 import {
   getStoreForBranch, getEngineersForBranch, getAssignableWorkOrders, getWorkOrder,
@@ -22,7 +23,7 @@ import {
 // getProductAvailability()/getUnits() calls elsewhere in this file already
 // are. Returns 'dual' when both Serial Number and MAC Number are enabled —
 // a single physical unit tracked by both at once — distinct from 'serial'/
-// 'mac' single-tracking so HardwareLineCard can render its combined picker.
+// 'mac' single-tracking so HardwareLineRow can render its combined picker.
 function liveTrackingType(productId) {
   if (!productId) return 'quantity'
   const product = getProduct(productId)
@@ -80,7 +81,86 @@ function isWireLineComplete(l, storeId) {
   return (Number(l.assignedMeters) || 0) > 0
 }
 
-function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outOfStock }) {
+// Compact, bounded-height searchable multi-select for a single line's
+// serial/MAC units — replaces an unbounded checkbox grid so a product with
+// many available units doesn't blow out the row's height. Purely a
+// presentation layer: the caller (HardwareLineRow) still owns exactly which
+// arrays get toggled, this component only reports which unit was clicked or
+// which visible units should be select-all'd/cleared.
+function UnitPickerPopover({ units, picked, atCap, onToggle, onSelectAll, renderLabel, emptyText }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [menuRect, setMenuRect] = useState({ top: 0, left: 0, width: 260 })
+  const wrapRef = useRef(null)
+  const btnRef = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function toggleOpen() {
+    if (open) { setOpen(false); return }
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 260) })
+    setQuery('')
+    setOpen(true)
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    if (!q) return units
+    return units.filter(u => renderLabel(u).toLowerCase().includes(q))
+  }, [units, query, renderLabel])
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every(u => picked.includes(u.value))
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button" ref={btnRef} onClick={toggleOpen}
+        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors"
+      >
+        <span className={picked.length === 0 ? 'text-gray-400' : 'text-gray-700 font-medium'}>
+          {picked.length === 0 ? 'None selected' : `${picked.length} selected`}
+        </span>
+        <ChevronDown size={13} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div
+          style={{ position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width, zIndex: 9999 }}
+          className="bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden"
+        >
+          <div className="p-2 border-b border-surface-border">
+            <SearchInput value={query} onChange={e => setQuery(e.target.value)} placeholder="Search serial/MAC…" />
+          </div>
+          <label className="flex items-center gap-2 px-3 py-2 text-xs text-gray-600 border-b border-surface-border cursor-pointer hover:bg-gray-50">
+            <input type="checkbox" checked={allVisibleSelected} onChange={() => onSelectAll(filtered, !allVisibleSelected)} className="accent-brand-blue" />
+            Select all{query ? ' (filtered)' : ''}
+          </label>
+          <div className="max-h-56 overflow-y-auto divide-y divide-surface-border">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">{emptyText}</p>
+            ) : filtered.map(u => {
+              const isPicked = picked.includes(u.value)
+              const rowDisabled = !isPicked && atCap
+              return (
+                <label key={u.value} className={`flex items-center gap-2 px-3 py-2 text-xs font-mono transition-colors ${rowDisabled ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 cursor-pointer hover:bg-gray-50'}`}>
+                  <input type="checkbox" checked={isPicked} disabled={rowDisabled} onChange={() => onToggle(u)} className="accent-brand-blue shrink-0" />
+                  <span className="truncate">{renderLabel(u)}</span>
+                </label>
+              )
+            })}
+          </div>
+          {atCap && <p className="px-3 py-1.5 text-[11px] text-gray-400 border-t border-surface-border">Required quantity reached — uncheck a unit to pick a different one.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showError, outOfStock }) {
   const trackingType = liveTrackingType(line.productId)
   // A dual-tracked line's serials/macs are paired 1:1 (same unit, two
   // identifiers) — Math.max avoids double-counting each physical unit the
@@ -89,170 +169,143 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outO
   const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : Math.max(l.serials.length, l.macs.length)) : s, 0)
   const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId) : 0
   // Room left for THIS line to still grow into (excludes its own current
-  // pick) — used as the input's max. The badge instead shows what's left in
-  // the pool including this line's own pick, so it visibly decrements as
-  // the user raises the qty, not just when other lines consume stock.
+  // pick) — used as the input's max.
   const roomToGrow = Math.max(0, grossAvailable - usedElsewhere)
   const remainingInPool = Math.max(0, grossAvailable - usedElsewhere - (Number(line.assignedQty) || 0))
 
+  const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
+
+  const removeCell = (
+    <td className="px-2 py-2.5 align-top text-right">
+      {line.isExtra && (
+        <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+          <Trash2 size={13} />
+        </button>
+      )}
+    </td>
+  )
+
   if (!line.productId) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <p className="text-sm font-semibold text-gray-800">{line.name}</p>
-        <p className="text-xs text-amber-700 mt-1 flex items-center gap-1.5"><AlertTriangle size={12} /> No matching product in Inventory — cannot be issued from this flow.</p>
-      </div>
+      <tr className="bg-amber-50/40">
+        <td colSpan={4} className="px-3 py-3">
+          <p className="text-xs text-amber-700 flex items-center gap-1.5">
+            <AlertTriangle size={12} className="shrink-0" /> <span className="font-semibold text-gray-800">{line.name}</span> — No matching product in Inventory, cannot be issued from this flow.
+          </p>
+        </td>
+        {removeCell}
+      </tr>
     )
   }
 
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
-  const errorBorder = showError ? 'border-red-300 bg-red-50/30' : outOfStock ? 'border-amber-200 bg-amber-50/40' : 'border-surface-border'
 
-  if (trackingType === 'dual') {
+  const nameCell = (
+    <td className="px-3 py-2.5 align-top">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-sm font-medium text-gray-800">{line.productName}</span>
+        {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
+      </div>
+    </td>
+  )
+
+  const remarkCell = (
+    <td className="px-3 py-2.5 align-top">
+      <input
+        type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+        placeholder="Optional note…"
+        className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+      />
+    </td>
+  )
+
+  if (trackingType === 'dual' || trackingType === 'serial' || trackingType === 'mac') {
     // Serial + MAC both enabled — each unit carries one of each, paired at
     // the same index in line.serials/line.macs (not two independent lists).
-    // The picker below selects whole units, not identifiers, so toggling
-    // always adds/removes both values together.
+    // Toggling a dual-tracked unit always adds/removes both values together.
+    const isDual = trackingType === 'dual'
+    const kindLabel = isDual ? 'unit' : trackingType === 'serial' ? 'serial' : 'MAC'
     const units = getUnits({ productId: line.productId, storeId, status: 'Available' })
-      .filter(u => !pickedElsewhere.has(u.value) && !(u.mac && pickedElsewhere.has(u.mac)))
-    const picked = line.serials
-    const remainingAvailable = Math.max(0, units.length - picked.length)
-    const atRequiredCap = picked.length >= line.requiredQty
-    function toggle(unit) {
-      const idx = line.serials.indexOf(unit.value)
+      .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
+    // Units already checked on THIS line stay visible in the list (so they
+    // can be unchecked) — same self-inclusive live behavior as before.
+    const picked = isDual ? line.serials : (trackingType === 'serial' ? line.serials : line.macs)
+    const atCap = picked.length >= line.requiredQty
+
+    function applySelection(nextSerials, nextMacs) {
+      if (isDual) onChange({ serials: nextSerials, macs: nextMacs })
+      else onChange(trackingType === 'serial' ? { serials: nextSerials } : { macs: nextSerials })
+    }
+    function toggleUnit(u) {
+      const idx = picked.indexOf(u.value)
       const isPicked = idx !== -1
-      if (!isPicked && atRequiredCap) return
-      if (isPicked) {
-        onChange({ serials: line.serials.filter((_, i) => i !== idx), macs: line.macs.filter((_, i) => i !== idx) })
+      if (!isPicked && atCap) return
+      if (isDual) {
+        if (isPicked) applySelection(line.serials.filter((_, i) => i !== idx), line.macs.filter((_, i) => i !== idx))
+        else applySelection([...line.serials, u.value], [...line.macs, u.mac])
       } else {
-        onChange({ serials: [...line.serials, unit.value], macs: [...line.macs, unit.mac] })
+        applySelection(isPicked ? picked.filter(v => v !== u.value) : [...picked, u.value])
       }
     }
-    return (
-      <div className={`rounded-xl border p-4 space-y-3 ${errorBorder}`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
-            <p className="text-xs text-gray-400">Required: {line.requiredQty} · Serial + MAC-tracked</p>
-          </div>
-          <Badge variant={remainingAvailable > 0 ? 'green' : 'gray'} size="sm">{picked.length} selected · {remainingAvailable} available</Badge>
-        </div>
-        {units.length === 0 ? (
-          outOfStock ? (
-            <p className="text-xs text-amber-700 flex items-center gap-1.5"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
-          ) : (
-            <p className="text-xs text-gray-400 py-2">No available units for this product at this store.</p>
-          )
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-              {units.map(u => {
-                const isPicked = picked.includes(u.value)
-                const disabled = !isPicked && atRequiredCap
-                return (
-                  <label key={u.value} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono transition-colors ${
-                    isPicked ? 'border-brand-blue bg-brand-blue/5 text-brand-blue cursor-pointer'
-                      : disabled ? 'border-surface-border text-gray-300 cursor-not-allowed'
-                      : 'border-surface-border text-gray-600 hover:bg-gray-50 cursor-pointer'
-                  }`}>
-                    <input type="checkbox" checked={isPicked} disabled={disabled} onChange={() => toggle(u)} className="accent-brand-blue shrink-0" />
-                    <span className="truncate">{u.value} <span className="text-gray-300">/</span> MAC:{u.mac}</span>
-                  </label>
-                )
-              })}
-            </div>
-            {atRequiredCap && <p className="text-[11px] text-gray-400">Required quantity reached — uncheck a unit to pick a different one.</p>}
-          </>
-        )}
-        {showError && (
-          <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select at least one unit for this line.</p>
-        )}
-        <FormField label="Remark" hint="Optional note for this line">
-          <input
-            type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
-            placeholder="Optional note…"
-            className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-          />
-        </FormField>
-      </div>
-    )
-  }
-
-  if (trackingType === 'serial' || trackingType === 'mac') {
-    const kindLabel = trackingType === 'serial' ? 'Serial' : 'MAC'
-    const units = getUnits({ productId: line.productId, storeId, status: 'Available' }).filter(u => !pickedElsewhere.has(u.value))
-    const picked = trackingType === 'serial' ? line.serials : line.macs
-    // Units already checked on THIS line stay visible in the list (so they
-    // can be unchecked) but no longer count toward "available" — matching
-    // the same self-inclusive live-decrement the quantity-only input uses.
-    const remainingAvailable = Math.max(0, units.length - picked.length)
-    const atRequiredCap = picked.length >= line.requiredQty
-    function toggle(value) {
-      const isPicked = picked.includes(value)
-      if (!isPicked && atRequiredCap) return
-      const next = isPicked ? picked.filter(v => v !== value) : [...picked, value]
-      onChange(trackingType === 'serial' ? { serials: next } : { macs: next })
+    // Select-all/clear-all only ever act on the currently filtered/visible
+    // units — and, when selecting, only as many as still fit under the
+    // line's required-quantity cap — mirroring the same one-at-a-time cap
+    // toggleUnit() already enforces.
+    function selectAllVisible(visibleUnits, shouldSelect) {
+      if (shouldSelect) {
+        const room = Math.max(0, line.requiredQty - picked.length)
+        const toAdd = visibleUnits.filter(u => !picked.includes(u.value)).slice(0, room)
+        if (isDual) applySelection([...line.serials, ...toAdd.map(u => u.value)], [...line.macs, ...toAdd.map(u => u.mac)])
+        else applySelection([...picked, ...toAdd.map(u => u.value)])
+      } else {
+        const remove = new Set(visibleUnits.map(u => u.value))
+        if (isDual) {
+          const keepIdx = line.serials.map((_, i) => i).filter(i => !remove.has(line.serials[i]))
+          applySelection(keepIdx.map(i => line.serials[i]), keepIdx.map(i => line.macs[i]))
+        } else {
+          applySelection(picked.filter(v => !remove.has(v)))
+        }
+      }
     }
+
     return (
-      <div className={`rounded-xl border p-4 space-y-3 ${errorBorder}`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
-            <p className="text-xs text-gray-400">Required: {line.requiredQty} · {kindLabel}-tracked</p>
-          </div>
-          <Badge variant={remainingAvailable > 0 ? 'green' : 'gray'} size="sm">{picked.length} selected · {remainingAvailable} available</Badge>
-        </div>
-        {units.length === 0 ? (
-          outOfStock ? (
-            <p className="text-xs text-amber-700 flex items-center gap-1.5 py-2"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
+      <tr className={rowTone}>
+        {nameCell}
+        <td className="px-3 py-2.5 align-top">
+          {units.length === 0 ? (
+            <p className="text-xs text-gray-400 py-1.5">{outOfStock ? 'Out of stock at this store' : `No available ${isDual ? '' : kindLabel + ' '}units`}</p>
           ) : (
-            <p className="text-xs text-gray-400 py-2">No available {kindLabel.toLowerCase()} units for this product at this store.</p>
-          )
-        ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-              {units.map(u => {
-                const isPicked = picked.includes(u.value)
-                const disabled = !isPicked && atRequiredCap
-                return (
-                  <label key={u.value} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono transition-colors ${
-                    isPicked ? 'border-brand-blue bg-brand-blue/5 text-brand-blue cursor-pointer'
-                      : disabled ? 'border-surface-border text-gray-300 cursor-not-allowed'
-                      : 'border-surface-border text-gray-600 hover:bg-gray-50 cursor-pointer'
-                  }`}>
-                    <input type="checkbox" checked={isPicked} disabled={disabled} onChange={() => toggle(u.value)} className="accent-brand-blue" />
-                    {u.value}
-                  </label>
-                )
-              })}
-            </div>
-            {atRequiredCap && <p className="text-[11px] text-gray-400">Required quantity reached — uncheck a unit to pick a different one.</p>}
-          </>
-        )}
-        {showError && (
-          <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select at least one {kindLabel.toLowerCase()} for this line.</p>
-        )}
-        <FormField label="Remark" hint="Optional note for this line">
-          <input
-            type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
-            placeholder="Optional note…"
-            className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-          />
-        </FormField>
-      </div>
+            <UnitPickerPopover
+              units={units} picked={picked} atCap={atCap}
+              onToggle={toggleUnit} onSelectAll={selectAllVisible}
+              renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
+              emptyText="No matching units"
+            />
+          )}
+          {showError && (
+            <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Select at least one {kindLabel}.</p>
+          )}
+        </td>
+        {remarkCell}
+        <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
+          {outOfStock ? (
+            <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+          ) : (
+            <span className={picked.length >= line.requiredQty ? 'text-emerald-600 font-medium' : 'text-gray-500'}>
+              {picked.length}/{line.requiredQty} selected
+            </span>
+          )}
+        </td>
+        {removeCell}
+      </tr>
     )
   }
 
-  // Quantity-only
+  // Quantity-tracked
   return (
-    <div className={`rounded-xl border p-4 space-y-3 ${errorBorder}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
-          <p className="text-xs text-gray-400">Required: {line.requiredQty}</p>
-        </div>
-        <Badge variant={remainingInPool > 0 ? 'green' : outOfStock ? 'gray' : 'red'} size="sm">{remainingInPool} available</Badge>
-      </div>
-      <FormField label="Assign Qty">
+    <tr className={rowTone}>
+      {nameCell}
+      <td className="px-3 py-2.5 align-top">
         <input
           type="number" min="0" max={roomToGrow} disabled={outOfStock}
           value={line.assignedQty}
@@ -260,32 +313,48 @@ function HardwareLineCard({ line, storeId, otherLines, onChange, showError, outO
             const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
             onChange({ assignedQty: v })
           }}
-          className="w-32 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
-      </FormField>
-      {outOfStock ? (
-        <p className="text-xs text-amber-700 flex items-center gap-1.5"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
-      ) : showError && (
-        <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Enter a quantity to assign for this line.</p>
-      )}
-      <FormField label="Remark" hint="Optional note for this line">
-        <input
-          type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
-          placeholder="Optional note…"
-          className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-        />
-      </FormField>
-    </div>
+        {showError && !outOfStock && (
+          <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Enter a quantity.</p>
+        )}
+      </td>
+      {remarkCell}
+      <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
+        {outOfStock ? (
+          <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+        ) : (
+          <span className={remainingInPool > 0 ? 'text-gray-500' : 'text-red-600'}>Required {line.requiredQty} · {remainingInPool} available</span>
+        )}
+      </td>
+      {removeCell}
+    </tr>
   )
 }
 
-function WireLineCard({ line, storeId, otherLines, onChange, showError, outOfStock }) {
+function WireLineRow({ line, storeId, otherLines, onChange, onRemove, showError, outOfStock }) {
+  const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
+
+  const removeCell = (
+    <td className="px-2 py-2.5 align-top text-right">
+      {line.isExtra && (
+        <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+          <Trash2 size={13} />
+        </button>
+      )}
+    </td>
+  )
+
   if (!line.productId) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <p className="text-sm font-semibold text-gray-800">{line.name}</p>
-        <p className="text-xs text-amber-700 mt-1 flex items-center gap-1.5"><AlertTriangle size={12} /> No matching wire product in Inventory — cannot be issued from this flow.</p>
-      </div>
+      <tr className="bg-amber-50/40">
+        <td colSpan={5} className="px-3 py-3">
+          <p className="text-xs text-amber-700 flex items-center gap-1.5">
+            <AlertTriangle size={12} className="shrink-0" /> <span className="font-semibold text-gray-800">{line.name}</span> — No matching wire product in Inventory, cannot be issued from this flow.
+          </p>
+        </td>
+        {removeCell}
+      </tr>
     )
   }
 
@@ -293,62 +362,110 @@ function WireLineCard({ line, storeId, otherLines, onChange, showError, outOfSto
   const usedOnDrum = drumNumber => otherLines.reduce((s, l) => l.drumNumber === drumNumber ? s + (Number(l.assignedMeters) || 0) : s, 0)
   const selectedDrum = drums.find(d => d.drumNumber === line.drumNumber) ?? null
   // roomToGrow (excludes this line's own meters) caps the input; the
-  // dropdown option text and remaining-after-pick figure include this
-  // line's own meters so they visibly decrement as the user raises it.
+  // dropdown option text includes this line's own meters so it visibly
+  // decrements as the user raises it.
   const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
 
   return (
-    <div className={`rounded-xl border p-4 space-y-3 ${showError ? 'border-red-300 bg-red-50/30' : outOfStock ? 'border-amber-200 bg-amber-50/40' : 'border-surface-border'}`}>
-      <div>
-        <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
-        <p className="text-xs text-gray-400">Required: {line.requiredMeters} m</p>
-      </div>
-      {drums.length === 0 ? (
-        outOfStock ? (
-          <p className="text-xs text-amber-700 flex items-center gap-1.5 py-2"><AlertTriangle size={12} /> Out of stock at this store — this line will be left unfulfilled in this assignment.</p>
-        ) : (
-          <p className="text-xs text-gray-400 py-2">No drums with remaining meters for this product at this store.</p>
-        )
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Drum">
-            <select
-              value={line.drumNumber}
-              onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
-              className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-            >
-              <option value="">Select drum…</option>
-              {drums.map(d => {
-                const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
-                return (
-                  <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
-                )
-              })}
-            </select>
-          </FormField>
-          <FormField label="Meters">
-            <input
-              type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
-              value={line.assignedMeters}
-              onChange={e => {
-                const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
-                onChange({ assignedMeters: v })
-              }}
-              className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
-            />
-          </FormField>
+    <tr className={rowTone}>
+      <td className="px-3 py-2.5 align-top">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-sm font-medium text-gray-800">{line.productName}</span>
+          {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
         </div>
-      )}
-      {showError && (
-        <p className="text-xs text-red-600 flex items-center gap-1.5"><AlertTriangle size={12} /> Select a drum and enter meters to assign for this line.</p>
-      )}
-      <FormField label="Remark" hint="Optional note for this line">
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {drums.length === 0 ? (
+          <p className="text-xs text-gray-400 py-1.5">{outOfStock ? 'Out of stock' : 'No drums'}</p>
+        ) : (
+          <select
+            value={line.drumNumber}
+            onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
+            className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          >
+            <option value="">Select drum…</option>
+            {drums.map(d => {
+              const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
+              return (
+                <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
+              )
+            })}
+          </select>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+          value={line.assignedMeters}
+          onChange={e => {
+            const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
+            onChange({ assignedMeters: v })
+          }}
+          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+        />
+        {showError && (
+          <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Select a drum and enter meters.</p>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
         <input
           type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
           placeholder="Optional note…"
-          className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
         />
-      </FormField>
+      </td>
+      <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
+        {outOfStock ? (
+          <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+        ) : (
+          <span className="text-gray-500">Required {line.requiredMeters}m</span>
+        )}
+      </td>
+      {removeCell}
+    </tr>
+  )
+}
+
+// Reuses the same product-search-and-add UX as CreatePurchase.jsx's "Add
+// Hardware Outside PO" form (ProductPicker + a target quantity/meters
+// field) so an engineer can be issued a product the Work Order never
+// required — e.g. a spare part. The line this produces (see addExtraHardware/
+// addExtraWire in CreateAssignment below) is shaped identically to a
+// requirement-sourced line, just flagged `isExtra: true`, so every
+// completeness/out-of-stock/save rule already written for required lines
+// applies to it unchanged.
+function AddExtraProductForm({ type, products, onAdd, onCancel }) {
+  const [product, setProduct] = useState(null)
+  const [amount, setAmount] = useState('')
+  const [error, setError] = useState('')
+  const isWire = type === 'wire'
+
+  function handleAdd() {
+    if (!product) { setError('Select a product.'); return }
+    if (!amount || Number(amount) <= 0) { setError(`Enter a valid ${isWire ? 'meters' : 'quantity'}.`); return }
+    onAdd(product, Number(amount))
+    setProduct(null); setAmount(''); setError('')
+  }
+
+  return (
+    <div className="rounded-xl border border-dashed border-brand-blue/40 bg-brand-blue/5 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-800">Add {isWire ? 'Wire' : 'Hardware'} — Extra</p>
+        <button type="button" onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600"><X size={14} /></button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Product" required>
+          <ProductPicker products={products} value={product?.name ?? ''} placeholder={`Search ${isWire ? 'wire' : 'product'}…`} onSelect={setProduct} />
+        </FormField>
+        <FormField label={isWire ? 'Meters' : 'Quantity'} required>
+          <Input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
+        </FormField>
+      </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" icon={<Plus size={14} />} onClick={handleAdd}>Add {isWire ? 'Wire' : 'Product'}</Button>
+      </div>
     </div>
   )
 }
@@ -458,8 +575,16 @@ export default function CreateAssignment() {
   const [remarks, setRemarks] = useState('')
   const [hwLines, setHwLines] = useState([])
   const [wireLines, setWireLines] = useState([])
+  const [showAddExtra, setShowAddExtra] = useState(false)
   const [attemptedAction, setAttemptedAction] = useState(null)
   const [saveError, setSaveError] = useState('')
+
+  const products = getProducts().filter(p => p.status === 'active')
+  // Products already present as a line (required or extra) are hidden from
+  // "Add Product" so the same product can't be added as a second, redundant
+  // line in this same assignment.
+  const hardwareProductsToAdd = products.filter(p => p.productType === 'hardware' && !hwLines.some(l => l.productId === p.id))
+  const wireProductsToAdd = products.filter(p => p.productType === 'wire' && !wireLines.some(l => l.productId === p.id))
 
   const stores = getStores().filter(s => s.status === 'active')
   // Full store objects (not just the branch code) so the Branch dropdown
@@ -560,7 +685,7 @@ export default function CreateAssignment() {
   // ledger's read-only queries below can leave a phantom deduction behind.
   useEffect(() => {
     if (!workOrder || !store) { setHwLines([]); setWireLines([]); return }
-    // trackingType is intentionally NOT captured here — HardwareLineCard and
+    // trackingType is intentionally NOT captured here — HardwareLineRow and
     // every validity check below call liveTrackingType(productId) fresh
     // instead, so a Tracking Type edited in Product Management after this
     // Work Order/store was already selected is picked up immediately rather
@@ -578,6 +703,40 @@ export default function CreateAssignment() {
 
   function updateHwLine(idx, patch) { setHwLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
+
+  // Select Items' Hardware/Wire tab — same URL-driven pattern as CreatePO.jsx's
+  // Products step tabs, so reloading or sharing a link with &itemsTab=wire
+  // lands on that tab directly.
+  const itemsTabParam = searchParams.get('itemsTab')
+  const itemsTab = ['hardware', 'wire'].includes(itemsTabParam) ? itemsTabParam : 'hardware'
+  function setItemsTab(tab) {
+    setShowAddExtra(false)
+    patchSearchParams({ itemsTab: tab }, { replace: true })
+  }
+
+  // "+ Add Hardware"/"+ Add Wire" — lets the user assign a product beyond
+  // the Work Order's own requirement (e.g. a spare part). The resulting line
+  // is shaped identically to a requirement-sourced line — same productId/
+  // requiredQty/assignedQty/serials/macs/remark fields — just flagged
+  // `isExtra: true` for display and so it (alone) can be removed; every
+  // completeness/out-of-stock/save rule already written for required lines
+  // applies to it unchanged.
+  function addExtraHardware(product, qty) {
+    setHwLines(prev => [...prev, {
+      name: product.name, productId: product.id, productName: product.name, requiredQty: qty,
+      assignedQty: 0, serials: [], macs: [], remark: '', isExtra: true,
+    }])
+    setShowAddExtra(false)
+  }
+  function addExtraWire(product, meters) {
+    setWireLines(prev => [...prev, {
+      name: product.name, productId: product.id, productName: product.name, requiredMeters: meters,
+      drumNumber: '', assignedMeters: 0, remark: '', isExtra: true,
+    }])
+    setShowAddExtra(false)
+  }
+  function removeHwLine(idx) { setHwLines(prev => prev.filter((_, i) => i !== idx)) }
+  function removeWireLine(idx) { setWireLines(prev => prev.filter((_, i) => i !== idx)) }
 
   // Branch & Engineer section is always visible. The Work Order section
   // reveals once it's valid; Select Items reveals once a Work Order is
@@ -761,7 +920,7 @@ export default function CreateAssignment() {
 
           {/* ── Section 3: Select Items — reveals once a Work Order is picked ── */}
           {step1Valid && step2Valid && (
-            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-3">
+            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Select Items</p>
 
               {attemptedAction === 'step3' && !step3Valid && (
@@ -770,25 +929,94 @@ export default function CreateAssignment() {
                 </div>
               )}
 
-              {hwLines.length === 0 && wireLines.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">No requirement lines to fulfill for this Work Order.</p>
-              ) : (
-                <>
-                  {hwLines.map((l, idx) => (
-                    <HardwareLineCard key={`hw-${idx}`} line={l} storeId={store.id}
-                      otherLines={hwLines.filter((_, i) => i !== idx)}
-                      onChange={patch => updateHwLine(idx, patch)}
-                      outOfStock={isHwLineOutOfStock(l, store.id)}
-                      showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
-                  ))}
-                  {wireLines.map((l, idx) => (
-                    <WireLineCard key={`wire-${idx}`} line={l} storeId={store.id}
-                      otherLines={wireLines.filter((_, i) => i !== idx)}
-                      onChange={patch => updateWireLine(idx, patch)}
-                      outOfStock={isWireLineOutOfStock(l, store.id)}
-                      showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
-                  ))}
-                </>
+              <div className="flex gap-1 border-b border-surface-border -mt-1">
+                {['hardware', 'wire'].map(t => (
+                  <button
+                    key={t} type="button" onClick={() => setItemsTab(t)}
+                    className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors capitalize
+                      ${itemsTab === t ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {itemsTab === 'hardware' && (
+                <div className="space-y-3">
+                  {hwLines.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No hardware lines yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            {['Product', 'Assign', 'Remark', 'Status', ''].map((h, i) => (
+                              <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {hwLines.map((l, idx) => (
+                            <HardwareLineRow key={`hw-${idx}`} line={l} storeId={store.id}
+                              otherLines={hwLines.filter((_, i) => i !== idx)}
+                              onChange={patch => updateHwLine(idx, patch)}
+                              onRemove={() => removeHwLine(idx)}
+                              outOfStock={isHwLineOutOfStock(l, store.id)}
+                              showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {showAddExtra ? (
+                    <AddExtraProductForm type="hardware" products={hardwareProductsToAdd} onAdd={addExtraHardware} onCancel={() => setShowAddExtra(false)} />
+                  ) : (
+                    <button type="button" onClick={() => setShowAddExtra(true)}
+                      className="flex items-center gap-1.5 text-brand-blue text-sm font-medium hover:text-brand-blue-dark">
+                      <Plus size={14} /> Add Hardware
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {itemsTab === 'wire' && (
+                <div className="space-y-3">
+                  {wireLines.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-6">No wire lines yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            {['Wire', 'Drum', 'Meters', 'Remark', 'Status', ''].map((h, i) => (
+                              <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {wireLines.map((l, idx) => (
+                            <WireLineRow key={`wire-${idx}`} line={l} storeId={store.id}
+                              otherLines={wireLines.filter((_, i) => i !== idx)}
+                              onChange={patch => updateWireLine(idx, patch)}
+                              onRemove={() => removeWireLine(idx)}
+                              outOfStock={isWireLineOutOfStock(l, store.id)}
+                              showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {showAddExtra ? (
+                    <AddExtraProductForm type="wire" products={wireProductsToAdd} onAdd={addExtraWire} onCancel={() => setShowAddExtra(false)} />
+                  ) : (
+                    <button type="button" onClick={() => setShowAddExtra(true)}
+                      className="flex items-center gap-1.5 text-brand-blue text-sm font-medium hover:text-brand-blue-dark">
+                      <Plus size={14} /> Add Wire
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -833,6 +1061,7 @@ export default function CreateAssignment() {
                         <div key={`hw-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
                           <div>
                             <span className="font-medium text-gray-800">{l.productName}</span>
+                            {l.isExtra && <Badge variant="purple" size="sm" className="ml-1.5">Extra</Badge>}
                             {(l.serials.length || l.macs.length) ? (
                               <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
                             ) : null}
@@ -846,6 +1075,7 @@ export default function CreateAssignment() {
                         <div key={`wire-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
                           <div>
                             <span className="font-medium text-gray-800">{l.productName}</span>
+                            {l.isExtra && <Badge variant="purple" size="sm" className="ml-1.5">Extra</Badge>}
                             <p className="text-[11px] text-gray-400 font-mono mt-0.5">Drum {l.drumNumber}</p>
                           </div>
                           <span className="font-semibold text-gray-700">{l.assignedMeters} m</span>
