@@ -949,7 +949,7 @@ export default function CreateAssignment() {
           its prerequisite is satisfied, replacing the old wizard's discrete
           steps + Next/Back navigation. */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-6 pb-16 space-y-5">
+        <div className="p-6 pb-16 space-y-5">
           {saveError && (
             <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {saveError}
