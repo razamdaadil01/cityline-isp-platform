@@ -836,30 +836,32 @@ export default function CreateAssignment() {
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
             <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Branch & Engineer</p>
 
-            <FormField label="Branch" required>
-              <Select value={branchCode} onChange={e => selectBranch(e.target.value)}>
-                <option value="">Select branch…</option>
-                {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
-              </Select>
-            </FormField>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Branch" required>
+                <Select value={branchCode} onChange={e => selectBranch(e.target.value)}>
+                  <option value="">Select branch…</option>
+                  {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
+                </Select>
+              </FormField>
 
-            <FormField label="Engineer" required>
-              {!branchCode ? (
-                <Select value="" disabled className="disabled:text-gray-400 disabled:cursor-not-allowed">
-                  <option value="">Select a branch first</option>
-                </Select>
-              ) : engineers.length === 0 ? (
-                <p className="text-xs text-gray-400">No engineers have Work Orders assigned in this branch yet.</p>
-              ) : (
-                <Select value={engineer?.id ?? ''} onChange={e => {
-                  const picked = engineers.find(x => x.id === e.target.value) ?? null
-                  selectEngineer(picked)
-                }}>
-                  <option value="">Select engineer…</option>
-                  {engineers.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </Select>
-              )}
-            </FormField>
+              <FormField label="Engineer" required>
+                {!branchCode ? (
+                  <Select value="" disabled className="disabled:text-gray-400 disabled:cursor-not-allowed">
+                    <option value="">Select a branch first</option>
+                  </Select>
+                ) : engineers.length === 0 ? (
+                  <p className="text-xs text-gray-400">No engineers have Work Orders assigned in this branch yet.</p>
+                ) : (
+                  <Select value={engineer?.id ?? ''} onChange={e => {
+                    const picked = engineers.find(x => x.id === e.target.value) ?? null
+                    selectEngineer(picked)
+                  }}>
+                    <option value="">Select engineer…</option>
+                    {engineers.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </Select>
+                )}
+              </FormField>
+            </div>
           </div>
 
           {/* ── Section 2: Work Order — reveals once Branch + Engineer are set ── */}
@@ -867,25 +869,29 @@ export default function CreateAssignment() {
             <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Work Order</p>
 
-              <FormField label="Work Order Type" required hint="Only Installation has assignable Work Orders in this flow today">
-                <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); clearWorkOrder() }}>
-                  {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </Select>
-              </FormField>
+              <div className="grid grid-cols-3 gap-4">
+                <FormField label="Work Order Type" required hint="Only Installation has assignable Work Orders in this flow today">
+                  <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); clearWorkOrder() }}>
+                    {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </FormField>
 
-              <FormField label="Work Order" required hint="Only Work Orders with a completed Assign Team step, not yet issued hardware">
-                {workOrderType !== 'Installation' ? (
-                  <p className="text-xs text-gray-400 py-2">No {workOrderType} Work Orders are assignable from this flow yet.</p>
-                ) : (
-                  <WorkOrderPicker
-                    workOrders={workOrders}
-                    workOrder={workOrder}
-                    onSelect={selectWorkOrder}
-                    onClear={clearWorkOrder}
-                    placeholder="Search Work Order ID, customer, plan…"
-                  />
-                )}
-              </FormField>
+                <div className="col-span-2">
+                  <FormField label="Work Order" required hint="Only Work Orders with a completed Assign Team step, not yet issued hardware">
+                    {workOrderType !== 'Installation' ? (
+                      <p className="text-xs text-gray-400 py-2">No {workOrderType} Work Orders are assignable from this flow yet.</p>
+                    ) : (
+                      <WorkOrderPicker
+                        workOrders={workOrders}
+                        workOrder={workOrder}
+                        onSelect={selectWorkOrder}
+                        onClear={clearWorkOrder}
+                        placeholder="Search Work Order ID, customer, plan…"
+                      />
+                    )}
+                  </FormField>
+                </div>
+              </div>
 
               {/* Requirement — purely informational, so it never itself
                   gates progression. Shown directly below the search bar
