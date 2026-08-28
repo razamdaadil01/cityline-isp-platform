@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Search, AlertTriangle, ChevronDown, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Search, AlertTriangle, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { FormField, Select, Input, Textarea, SearchInput } from '../../components/ui/FormInputs'
+import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
 import ProductPicker from '../../components/inventory/ProductPicker'
 import { getStores } from '../../data/storeStore'
 import { getProduct, getProducts } from '../../data/productStore'
@@ -160,7 +160,14 @@ function UnitPickerPopover({ units, picked, atCap, onToggle, onSelectAll, render
   )
 }
 
-function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showError, outOfStock }) {
+// Unified row shape for both required (Work-Order-sourced) and user-added
+// "Extra" lines: Product | Serial No./Qty | Comment | status-or-action.
+// Required lines get a locked/disabled product <select> (the Work Order
+// fixed that product, it isn't user-choosable); Extra lines get the same
+// interactive ProductPicker search combobox used by the trailing "add new"
+// row, so the product on an Extra line can still be changed after it was
+// added.
+function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemove, showError, outOfStock }) {
   const trackingType = liveTrackingType(line.productId)
   // A dual-tracked line's serials/macs are paired 1:1 (same unit, two
   // identifiers) — Math.max avoids double-counting each physical unit the
@@ -175,16 +182,6 @@ function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showEr
 
   const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
 
-  const removeCell = (
-    <td className="px-2 py-2.5 align-top text-right">
-      {line.isExtra && (
-        <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-          <Trash2 size={13} />
-        </button>
-      )}
-    </td>
-  )
-
   if (!line.productId) {
     return (
       <tr className="bg-amber-50/40">
@@ -193,23 +190,33 @@ function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showEr
             <AlertTriangle size={12} className="shrink-0" /> <span className="font-semibold text-gray-800">{line.name}</span> — No matching product in Inventory, cannot be issued from this flow.
           </p>
         </td>
-        {removeCell}
       </tr>
     )
   }
 
-  const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
+  // Changing the product on an Extra line invalidates whatever was already
+  // picked against the old product — reset the tracking-specific fields so
+  // a serial/qty from product A never lingers on a line now pointing at B.
+  function changeProduct(product) {
+    onChange({ productId: product.id, productName: product.name, name: product.name, assignedQty: 0, serials: [], macs: [] })
+  }
 
   const nameCell = (
     <td className="px-3 py-2.5 align-top">
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-sm font-medium text-gray-800">{line.productName}</span>
-        {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
-      </div>
+      {line.isExtra ? (
+        <div className="space-y-1">
+          <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+          <Badge variant="purple" size="sm">Extra</Badge>
+        </div>
+      ) : (
+        <select disabled value={line.productId} className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500 disabled:cursor-not-allowed">
+          <option value={line.productId}>{line.productName}</option>
+        </select>
+      )}
     </td>
   )
 
-  const remarkCell = (
+  const commentCell = (
     <td className="px-3 py-2.5 align-top">
       <input
         type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
@@ -218,6 +225,14 @@ function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showEr
       />
     </td>
   )
+
+  const removeButton = line.isExtra && (
+    <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+      <Trash2 size={13} />
+    </button>
+  )
+
+  const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
 
   if (trackingType === 'dual' || trackingType === 'serial' || trackingType === 'mac') {
     // Serial + MAC both enabled — each unit carries one of each, paired at
@@ -286,17 +301,19 @@ function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showEr
             <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Select at least one {kindLabel}.</p>
           )}
         </td>
-        {remarkCell}
+        {commentCell}
         <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
-          {outOfStock ? (
-            <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
-          ) : (
-            <span className={picked.length >= line.requiredQty ? 'text-emerald-600 font-medium' : 'text-gray-500'}>
-              {picked.length}/{line.requiredQty} selected
-            </span>
-          )}
+          <div className="flex items-center justify-between gap-2">
+            {outOfStock ? (
+              <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+            ) : (
+              <span className={picked.length >= line.requiredQty ? 'text-emerald-600 font-medium' : 'text-gray-500'}>
+                {picked.length}/{line.requiredQty} selected
+              </span>
+            )}
+            {removeButton}
+          </div>
         </td>
-        {removeCell}
       </tr>
     )
   }
@@ -319,43 +336,145 @@ function HardwareLineRow({ line, storeId, otherLines, onChange, onRemove, showEr
           <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Enter a quantity.</p>
         )}
       </td>
-      {remarkCell}
+      {commentCell}
       <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
-        {outOfStock ? (
-          <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
-        ) : (
-          <span className={remainingInPool > 0 ? 'text-gray-500' : 'text-red-600'}>Required {line.requiredQty} · {remainingInPool} available</span>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          {outOfStock ? (
+            <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+          ) : (
+            <span className={remainingInPool > 0 ? 'text-gray-500' : 'text-red-600'}>Required {line.requiredQty} · {remainingInPool} available</span>
+          )}
+          {removeButton}
+        </div>
       </td>
-      {removeCell}
     </tr>
   )
 }
 
-function WireLineRow({ line, storeId, otherLines, onChange, onRemove, showError, outOfStock }) {
-  const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
+// Trailing, always-visible "add a line" row for the Hardware tab — replaces
+// the old separate "+ Add Hardware" link + popup form. Holds its own local
+// draft state (product/qty/picked units/remark) until the green + button is
+// clicked, at which point it calls onAdd() with a fully-formed line — shaped
+// identically to a requirement-sourced line, just flagged `isExtra: true` —
+// and resets itself back to empty so another can be added right away.
+// There's no fixed "required" target for a self-chosen line, so unlike
+// HardwareLineRow's picker (capped at line.requiredQty), this draft's
+// picker is never capped — requiredQty is set to whatever was picked at
+// the moment of confirming, which the resulting line then reports as
+// already fully satisfied.
+function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
+  const [product, setProduct] = useState(null)
+  const [qty, setQty] = useState('')
+  const [pickedUnits, setPickedUnits] = useState([]) // unit objects {value, mac?}
+  const [remark, setRemark] = useState('')
+  const [error, setError] = useState('')
 
-  const removeCell = (
-    <td className="px-2 py-2.5 align-top text-right">
-      {line.isExtra && (
-        <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-          <Trash2 size={13} />
+  const trackingType = product ? liveTrackingType(product.id) : null
+  const isTracked = !!trackingType && trackingType !== 'quantity'
+  const isDual = trackingType === 'dual'
+  const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
+  const units = isTracked
+    ? getUnits({ productId: product.id, storeId, status: 'Available' })
+      .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
+    : []
+  const picked = pickedUnits.map(u => u.value)
+
+  function selectProduct(p) {
+    setProduct(p); setQty(''); setPickedUnits([]); setError('')
+  }
+  function toggleUnit(u) {
+    setPickedUnits(prev => prev.some(x => x.value === u.value) ? prev.filter(x => x.value !== u.value) : [...prev, u])
+  }
+  function selectAllVisible(visibleUnits, shouldSelect) {
+    setPickedUnits(prev => {
+      if (shouldSelect) return [...prev, ...visibleUnits.filter(u => !prev.some(x => x.value === u.value))]
+      const remove = new Set(visibleUnits.map(u => u.value))
+      return prev.filter(x => !remove.has(x.value))
+    })
+  }
+
+  function handleConfirm() {
+    if (!product) { setError('Select a product.'); return }
+    if (isTracked) {
+      if (pickedUnits.length === 0) { setError('Select at least one unit.'); return }
+    } else if (!qty || Number(qty) <= 0) {
+      setError('Enter a valid quantity.'); return
+    }
+    onAdd({
+      name: product.name, productId: product.id, productName: product.name,
+      requiredQty: isTracked ? pickedUnits.length : Number(qty),
+      assignedQty: isTracked ? 0 : Number(qty),
+      serials: isDual || trackingType === 'serial' ? pickedUnits.map(u => u.value) : [],
+      macs: isDual ? pickedUnits.map(u => u.mac) : trackingType === 'mac' ? pickedUnits.map(u => u.value) : [],
+      remark: remark.trim(), isExtra: true,
+    })
+    setProduct(null); setQty(''); setPickedUnits([]); setRemark(''); setError('')
+  }
+
+  return (
+    <tr className="bg-emerald-50/20">
+      <td className="px-3 py-2.5 align-top">
+        <ProductPicker products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
+        {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!product ? (
+          <p className="text-xs text-gray-400 py-1.5">Select a product first</p>
+        ) : isTracked ? (
+          units.length === 0 ? (
+            <p className="text-xs text-gray-400 py-1.5">No available units</p>
+          ) : (
+            <UnitPickerPopover
+              units={units} picked={picked} atCap={false}
+              onToggle={toggleUnit} onSelectAll={selectAllVisible}
+              renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
+              emptyText="No matching units"
+            />
+          )
+        ) : (
+          <input
+            type="number" min="0" value={qty} onChange={e => setQty(e.target.value)}
+            placeholder="0"
+            className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          />
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="text" value={remark} onChange={e => setRemark(e.target.value)}
+          placeholder="Optional note…"
+          className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top text-right">
+        <button type="button" onClick={handleConfirm}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">
+          <Plus size={14} />
         </button>
-      )}
-    </td>
+      </td>
+    </tr>
   )
+}
+
+function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, showError, outOfStock }) {
+  const rowTone = showError ? 'bg-red-50/40' : outOfStock ? 'bg-amber-50/40' : ''
 
   if (!line.productId) {
     return (
       <tr className="bg-amber-50/40">
-        <td colSpan={5} className="px-3 py-3">
+        <td colSpan={4} className="px-3 py-3">
           <p className="text-xs text-amber-700 flex items-center gap-1.5">
             <AlertTriangle size={12} className="shrink-0" /> <span className="font-semibold text-gray-800">{line.name}</span> — No matching wire product in Inventory, cannot be issued from this flow.
           </p>
         </td>
-        {removeCell}
       </tr>
     )
+  }
+
+  // Changing the product on an Extra line invalidates whatever drum/meters
+  // were already picked against the old product.
+  function changeProduct(product) {
+    onChange({ productId: product.id, productName: product.name, name: product.name, drumNumber: '', assignedMeters: 0 })
   }
 
   const drums = getDrums({ productId: line.productId, storeId }).filter(d => d.remainingMeters > 0)
@@ -369,40 +488,46 @@ function WireLineRow({ line, storeId, otherLines, onChange, onRemove, showError,
   return (
     <tr className={rowTone}>
       <td className="px-3 py-2.5 align-top">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-sm font-medium text-gray-800">{line.productName}</span>
-          {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
-        </div>
+        {line.isExtra ? (
+          <div className="space-y-1">
+            <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+            <Badge variant="purple" size="sm">Extra</Badge>
+          </div>
+        ) : (
+          <select disabled value={line.productId} className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500 disabled:cursor-not-allowed">
+            <option value={line.productId}>{line.productName}</option>
+          </select>
+        )}
       </td>
       <td className="px-3 py-2.5 align-top">
         {drums.length === 0 ? (
           <p className="text-xs text-gray-400 py-1.5">{outOfStock ? 'Out of stock' : 'No drums'}</p>
         ) : (
-          <select
-            value={line.drumNumber}
-            onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
-            className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-          >
-            <option value="">Select drum…</option>
-            {drums.map(d => {
-              const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
-              return (
-                <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
-              )
-            })}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={line.drumNumber}
+              onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
+              className="flex-1 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+            >
+              <option value="">Select drum…</option>
+              {drums.map(d => {
+                const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
+                return (
+                  <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
+                )
+              })}
+            </select>
+            <input
+              type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+              value={line.assignedMeters}
+              onChange={e => {
+                const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
+                onChange({ assignedMeters: v })
+              }}
+              className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+            />
+          </div>
         )}
-      </td>
-      <td className="px-3 py-2.5 align-top">
-        <input
-          type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
-          value={line.assignedMeters}
-          onChange={e => {
-            const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
-            onChange({ assignedMeters: v })
-          }}
-          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
-        />
         {showError && (
           <p className="text-[11px] text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Select a drum and enter meters.</p>
         )}
@@ -415,58 +540,99 @@ function WireLineRow({ line, storeId, otherLines, onChange, onRemove, showError,
         />
       </td>
       <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
-        {outOfStock ? (
-          <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
-        ) : (
-          <span className="text-gray-500">Required {line.requiredMeters}m</span>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          {outOfStock ? (
+            <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+          ) : (
+            <span className="text-gray-500">Required {line.requiredMeters}m</span>
+          )}
+          {line.isExtra && (
+            <button type="button" onClick={onRemove} className="p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </td>
-      {removeCell}
     </tr>
   )
 }
 
-// Reuses the same product-search-and-add UX as CreatePurchase.jsx's "Add
-// Hardware Outside PO" form (ProductPicker + a target quantity/meters
-// field) so an engineer can be issued a product the Work Order never
-// required — e.g. a spare part. The line this produces (see addExtraHardware/
-// addExtraWire in CreateAssignment below) is shaped identically to a
-// requirement-sourced line, just flagged `isExtra: true`, so every
-// completeness/out-of-stock/save rule already written for required lines
-// applies to it unchanged.
-function AddExtraProductForm({ type, products, onAdd, onCancel }) {
+// Trailing, always-visible "add a line" row for the Wire tab — same pattern
+// as AddHardwareRow above (local draft state, green + confirms and resets).
+function AddWireRow({ products, otherLines, storeId, onAdd }) {
   const [product, setProduct] = useState(null)
-  const [amount, setAmount] = useState('')
+  const [drumNumber, setDrumNumber] = useState('')
+  const [meters, setMeters] = useState('')
+  const [remark, setRemark] = useState('')
   const [error, setError] = useState('')
-  const isWire = type === 'wire'
 
-  function handleAdd() {
+  const drums = product ? getDrums({ productId: product.id, storeId }).filter(d => d.remainingMeters > 0) : []
+  const usedOnDrum = dn => otherLines.reduce((s, l) => l.drumNumber === dn ? s + (Number(l.assignedMeters) || 0) : s, 0)
+  const selectedDrum = drums.find(d => d.drumNumber === drumNumber) ?? null
+  const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
+
+  function selectProduct(p) {
+    setProduct(p); setDrumNumber(''); setMeters(''); setError('')
+  }
+
+  function handleConfirm() {
     if (!product) { setError('Select a product.'); return }
-    if (!amount || Number(amount) <= 0) { setError(`Enter a valid ${isWire ? 'meters' : 'quantity'}.`); return }
-    onAdd(product, Number(amount))
-    setProduct(null); setAmount(''); setError('')
+    if (!drumNumber) { setError('Select a drum.'); return }
+    if (!meters || Number(meters) <= 0) { setError('Enter valid meters.'); return }
+    onAdd({
+      name: product.name, productId: product.id, productName: product.name,
+      requiredMeters: Number(meters), drumNumber, assignedMeters: Number(meters),
+      remark: remark.trim(), isExtra: true,
+    })
+    setProduct(null); setDrumNumber(''); setMeters(''); setRemark(''); setError('')
   }
 
   return (
-    <div className="rounded-xl border border-dashed border-brand-blue/40 bg-brand-blue/5 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-800">Add {isWire ? 'Wire' : 'Hardware'} — Extra</p>
-        <button type="button" onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600"><X size={14} /></button>
-      </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Product" required>
-          <ProductPicker products={products} value={product?.name ?? ''} placeholder={`Search ${isWire ? 'wire' : 'product'}…`} onSelect={setProduct} />
-        </FormField>
-        <FormField label={isWire ? 'Meters' : 'Quantity'} required>
-          <Input type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
-        </FormField>
-      </div>
-      <div className="flex justify-end gap-2 pt-1">
-        <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" icon={<Plus size={14} />} onClick={handleAdd}>Add {isWire ? 'Wire' : 'Product'}</Button>
-      </div>
-    </div>
+    <tr className="bg-emerald-50/20">
+      <td className="px-3 py-2.5 align-top">
+        <ProductPicker products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
+        {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!product ? (
+          <p className="text-xs text-gray-400 py-1.5">Select a product first</p>
+        ) : drums.length === 0 ? (
+          <p className="text-xs text-gray-400 py-1.5">No drums available</p>
+        ) : (
+          <div className="flex items-center gap-2">
+            <select
+              value={drumNumber} onChange={e => { setDrumNumber(e.target.value); setMeters('') }}
+              className="flex-1 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+            >
+              <option value="">Select drum…</option>
+              {drums.map(d => (
+                <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber))}m left</option>
+              ))}
+            </select>
+            <input
+              type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+              value={meters}
+              onChange={e => setMeters(String(Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))))}
+              placeholder="0m"
+              className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+            />
+          </div>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="text" value={remark} onChange={e => setRemark(e.target.value)}
+          placeholder="Optional note…"
+          className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top text-right">
+        <button type="button" onClick={handleConfirm}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">
+          <Plus size={14} />
+        </button>
+      </td>
+    </tr>
   )
 }
 
@@ -575,7 +741,6 @@ export default function CreateAssignment() {
   const [remarks, setRemarks] = useState('')
   const [hwLines, setHwLines] = useState([])
   const [wireLines, setWireLines] = useState([])
-  const [showAddExtra, setShowAddExtra] = useState(false)
   const [attemptedAction, setAttemptedAction] = useState(null)
   const [saveError, setSaveError] = useState('')
 
@@ -710,31 +875,16 @@ export default function CreateAssignment() {
   const itemsTabParam = searchParams.get('itemsTab')
   const itemsTab = ['hardware', 'wire'].includes(itemsTabParam) ? itemsTabParam : 'hardware'
   function setItemsTab(tab) {
-    setShowAddExtra(false)
     patchSearchParams({ itemsTab: tab }, { replace: true })
   }
 
-  // "+ Add Hardware"/"+ Add Wire" — lets the user assign a product beyond
-  // the Work Order's own requirement (e.g. a spare part). The resulting line
-  // is shaped identically to a requirement-sourced line — same productId/
-  // requiredQty/assignedQty/serials/macs/remark fields — just flagged
-  // `isExtra: true` for display and so it (alone) can be removed; every
+  // The trailing "add a line" row (AddHardwareRow/AddWireRow) builds the
+  // whole line itself and hands it here fully-formed — shaped identically
+  // to a requirement-sourced line, just flagged `isExtra: true` — so every
   // completeness/out-of-stock/save rule already written for required lines
   // applies to it unchanged.
-  function addExtraHardware(product, qty) {
-    setHwLines(prev => [...prev, {
-      name: product.name, productId: product.id, productName: product.name, requiredQty: qty,
-      assignedQty: 0, serials: [], macs: [], remark: '', isExtra: true,
-    }])
-    setShowAddExtra(false)
-  }
-  function addExtraWire(product, meters) {
-    setWireLines(prev => [...prev, {
-      name: product.name, productId: product.id, productName: product.name, requiredMeters: meters,
-      drumNumber: '', assignedMeters: 0, remark: '', isExtra: true,
-    }])
-    setShowAddExtra(false)
-  }
+  function addHwLine(line) { setHwLines(prev => [...prev, line]) }
+  function addWireLine(line) { setWireLines(prev => [...prev, line]) }
   function removeHwLine(idx) { setHwLines(prev => prev.filter((_, i) => i !== idx)) }
   function removeWireLine(idx) { setWireLines(prev => prev.filter((_, i) => i !== idx)) }
 
@@ -948,80 +1098,52 @@ export default function CreateAssignment() {
               </div>
 
               {itemsTab === 'hardware' && (
-                <div className="space-y-3">
-                  {hwLines.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-6">No hardware lines yet.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200">
-                            {['Product', 'Assign', 'Remark', 'Status', ''].map((h, i) => (
-                              <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {hwLines.map((l, idx) => (
-                            <HardwareLineRow key={`hw-${idx}`} line={l} storeId={store.id}
-                              otherLines={hwLines.filter((_, i) => i !== idx)}
-                              onChange={patch => updateHwLine(idx, patch)}
-                              onRemove={() => removeHwLine(idx)}
-                              outOfStock={isHwLineOutOfStock(l, store.id)}
-                              showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {showAddExtra ? (
-                    <AddExtraProductForm type="hardware" products={hardwareProductsToAdd} onAdd={addExtraHardware} onCancel={() => setShowAddExtra(false)} />
-                  ) : (
-                    <button type="button" onClick={() => setShowAddExtra(true)}
-                      className="flex items-center gap-1.5 text-brand-blue text-sm font-medium hover:text-brand-blue-dark">
-                      <Plus size={14} /> Add Hardware
-                    </button>
-                  )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {['Product', 'Serial No. / Qty', 'Comment', ''].map((h, i) => (
+                          <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {hwLines.map((l, idx) => (
+                        <HardwareLineRow key={`hw-${idx}`} line={l} storeId={store.id} products={hardwareProductsToAdd}
+                          otherLines={hwLines.filter((_, i) => i !== idx)}
+                          onChange={patch => updateHwLine(idx, patch)}
+                          onRemove={() => removeHwLine(idx)}
+                          outOfStock={isHwLineOutOfStock(l, store.id)}
+                          showError={attemptedAction === 'step3' && !isHwLineComplete(l, store.id)} />
+                      ))}
+                      <AddHardwareRow products={hardwareProductsToAdd} otherLines={hwLines} storeId={store.id} onAdd={addHwLine} />
+                    </tbody>
+                  </table>
                 </div>
               )}
 
               {itemsTab === 'wire' && (
-                <div className="space-y-3">
-                  {wireLines.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-6">No wire lines yet.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200">
-                            {['Wire', 'Drum', 'Meters', 'Remark', 'Status', ''].map((h, i) => (
-                              <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {wireLines.map((l, idx) => (
-                            <WireLineRow key={`wire-${idx}`} line={l} storeId={store.id}
-                              otherLines={wireLines.filter((_, i) => i !== idx)}
-                              onChange={patch => updateWireLine(idx, patch)}
-                              onRemove={() => removeWireLine(idx)}
-                              outOfStock={isWireLineOutOfStock(l, store.id)}
-                              showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {showAddExtra ? (
-                    <AddExtraProductForm type="wire" products={wireProductsToAdd} onAdd={addExtraWire} onCancel={() => setShowAddExtra(false)} />
-                  ) : (
-                    <button type="button" onClick={() => setShowAddExtra(true)}
-                      className="flex items-center gap-1.5 text-brand-blue text-sm font-medium hover:text-brand-blue-dark">
-                      <Plus size={14} /> Add Wire
-                    </button>
-                  )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {['Product', 'Drum / Meters', 'Comment', ''].map((h, i) => (
+                          <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {wireLines.map((l, idx) => (
+                        <WireLineRow key={`wire-${idx}`} line={l} storeId={store.id} products={wireProductsToAdd}
+                          otherLines={wireLines.filter((_, i) => i !== idx)}
+                          onChange={patch => updateWireLine(idx, patch)}
+                          onRemove={() => removeWireLine(idx)}
+                          outOfStock={isWireLineOutOfStock(l, store.id)}
+                          showError={attemptedAction === 'step3' && !isWireLineComplete(l, store.id)} />
+                      ))}
+                      <AddWireRow products={wireProductsToAdd} otherLines={wireLines} storeId={store.id} onAdd={addWireLine} />
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
