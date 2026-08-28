@@ -144,15 +144,19 @@ function UnitPickerPopover({ units, picked, atCap, onToggle, onSelectAll, render
 }
 
 // Unified, fully free-form row shape for both Work-Order-sourced and
-// user-added lines: Product | Serial No./Qty | Comment | status-or-action.
-// A required line only pre-populates this row as a starting suggestion —
-// the requirement itself lives independently in the read-only "Hardware /
-// Wire Required" panel above (Section 2), so nothing here is locked: the
-// Product dropdown is always the same interactive ProductPicker search
-// combobox regardless of where the row came from, the row can always be
-// removed, and neither the serial/MAC picker nor the qty input are capped
-// by (or even aware of) `line.requiredQty` — that field is kept on the line
-// purely as inherited reference data for saveAssignment(), never as a gate.
+// user-added lines: Product Name | Serial No. | Quantity | Available
+// Quantity | Comment | action. A required line only pre-populates this row
+// as a starting suggestion — the requirement itself lives independently in
+// the read-only "Hardware / Wire Required" panel above (Section 2), so
+// nothing here is locked: the Product dropdown is always the same
+// interactive ProductPicker search combobox regardless of where the row
+// came from, the row can always be removed, and neither the serial/MAC
+// picker nor the qty input are capped by (or even aware of)
+// `line.requiredQty` — that field is kept on the line purely as inherited
+// reference data for saveAssignment(), never as a gate. For serial/MAC-
+// tracked products, Quantity is a read-only field that mirrors however many
+// units are currently picked in the Serial No. column — it's derived, not
+// an independent input, so it always stays in sync automatically.
 function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock }) {
   const trackingType = liveTrackingType(line.productId)
   // A dual-tracked line's serials/macs are paired 1:1 (same unit, two
@@ -183,6 +187,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
       <Trash2 size={13} />
     </button>
   )
+  const actionCell = <td className="px-3 py-2.5 align-top text-right">{removeButton}</td>
 
   const commentCell = (
     <td className="px-3 py-2.5 align-top">
@@ -194,6 +199,22 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     </td>
   )
 
+  // Formalizes the "N available" figure (identical numbers as before) into
+  // its own read-only column instead of inline status text next to the row.
+  function availableCell(count) {
+    return (
+      <td className="px-3 py-2.5 align-top">
+        {outOfStock ? (
+          <span className="text-xs text-amber-700 flex items-center gap-1 py-1.5"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+        ) : (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{count.toLocaleString('en-IN')} available</div>
+        )}
+      </td>
+    )
+  }
+
+  const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
+
   if (!line.productId) {
     return (
       <tr className="bg-amber-50/30">
@@ -201,11 +222,11 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
           <ProductPicker products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
           <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> No product mapped to "{line.name}" — pick one to issue.</p>
         </td>
-        <td className="px-3 py-2.5 align-top">
+        <td className="px-3 py-2.5 align-top" colSpan={3}>
           <p className="text-xs text-gray-400 py-1.5">Pick a product first</p>
         </td>
         {commentCell}
-        <td className="px-3 py-2.5 align-top text-right">{removeButton}</td>
+        {actionCell}
       </tr>
     )
   }
@@ -282,25 +303,25 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
             />
           )}
         </td>
-        {commentCell}
-        <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
-          <div className="flex items-center justify-between gap-2">
-            {outOfStock ? (
-              <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
-            ) : (
-              <span className="text-gray-500">{picked.length} selected · {remainingAvailable} available</span>
-            )}
-            {removeButton}
-          </div>
+        <td className="px-3 py-2.5 align-top">
+          <input
+            type="number" value={picked.length} disabled readOnly
+            className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500"
+          />
         </td>
+        {availableCell(remainingAvailable)}
+        {commentCell}
+        {actionCell}
       </tr>
     )
   }
 
-  // Quantity-tracked
+  // Quantity-tracked — no Serial No. to pick, so that column is blank; the
+  // Quantity column stays the existing editable numeric input.
   return (
     <tr className={rowTone}>
       {nameCell}
+      <td className="px-3 py-2.5 align-top">{emptyCell}</td>
       <td className="px-3 py-2.5 align-top">
         <input
           type="number" min="0" max={roomToGrow} disabled={outOfStock}
@@ -312,17 +333,9 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
           className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
       </td>
+      {availableCell(remainingInPool)}
       {commentCell}
-      <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
-        <div className="flex items-center justify-between gap-2">
-          {outOfStock ? (
-            <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
-          ) : (
-            <span className="text-gray-500">{remainingInPool} available</span>
-          )}
-          {removeButton}
-        </div>
-      </td>
+      {actionCell}
     </tr>
   )
 }
@@ -352,6 +365,15 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
       .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
     : []
   const picked = pickedUnits.map(u => u.value)
+
+  // Reference-only figure for the Available Quantity column — same source
+  // numbers HardwareLineRow uses, purely informational here too; this
+  // draft's inputs were never capped by stock and still aren't.
+  const usedElsewhere = product ? otherLines.reduce((s, l) => l.productId === product.id ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : Math.max(l.serials.length, l.macs.length)) : s, 0) : 0
+  const grossAvailable = product && !isTracked ? getProductAvailability(product.id, storeId) : 0
+  const availableCount = !product ? null : isTracked ? Math.max(0, units.length - picked.length) : Math.max(0, grossAvailable - usedElsewhere)
+
+  const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
 
   function selectProduct(p) {
     setProduct(p); setQty(''); setPickedUnits([]); setError('')
@@ -392,25 +414,34 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </td>
       <td className="px-3 py-2.5 align-top">
-        {!product ? (
-          <p className="text-xs text-gray-400 py-1.5">Select a product first</p>
-        ) : isTracked ? (
-          units.length === 0 ? (
-            <p className="text-xs text-gray-400 py-1.5">No available units</p>
-          ) : (
-            <UnitPickerPopover
-              units={units} picked={picked} atCap={false}
-              onToggle={toggleUnit} onSelectAll={selectAllVisible}
-              renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
-              emptyText="No matching units"
-            />
-          )
+        {!product || !isTracked ? emptyCell : units.length === 0 ? (
+          <p className="text-xs text-gray-400 py-1.5">No available units</p>
+        ) : (
+          <UnitPickerPopover
+            units={units} picked={picked} atCap={false}
+            onToggle={toggleUnit} onSelectAll={selectAllVisible}
+            renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
+            emptyText="No matching units"
+          />
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!product ? emptyCell : isTracked ? (
+          <input
+            type="number" value={picked.length} disabled readOnly
+            className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500"
+          />
         ) : (
           <input
             type="number" min="0" value={qty} onChange={e => setQty(e.target.value)}
             placeholder="0"
             className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
           />
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {availableCount === null ? emptyCell : (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{availableCount.toLocaleString('en-IN')} available</div>
         )}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -449,6 +480,7 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
       <Trash2 size={13} />
     </button>
   )
+  const actionCell = <td className="px-3 py-2.5 align-top text-right">{removeButton}</td>
 
   const commentCell = (
     <td className="px-3 py-2.5 align-top">
@@ -467,11 +499,11 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
           <ProductPicker products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
           <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> No wire product mapped to "{line.name}" — pick one to issue.</p>
         </td>
-        <td className="px-3 py-2.5 align-top">
+        <td className="px-3 py-2.5 align-top" colSpan={3}>
           <p className="text-xs text-gray-400 py-1.5">Pick a product first</p>
         </td>
         {commentCell}
-        <td className="px-3 py-2.5 align-top text-right">{removeButton}</td>
+        {actionCell}
       </tr>
     )
   }
@@ -496,43 +528,43 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
         {drums.length === 0 ? (
           <p className="text-xs text-gray-400 py-1.5">{outOfStock ? 'Out of stock' : 'No drums'}</p>
         ) : (
-          <div className="flex items-center gap-2">
-            <select
-              value={line.drumNumber}
-              onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
-              className="flex-1 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-            >
-              <option value="">Select drum…</option>
-              {drums.map(d => {
-                const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
-                return (
-                  <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
-                )
-              })}
-            </select>
-            <input
-              type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
-              value={line.assignedMeters}
-              onChange={e => {
-                const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
-                onChange({ assignedMeters: v })
-              }}
-              className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
-            />
+          <select
+            value={line.drumNumber}
+            onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
+            className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          >
+            <option value="">Select drum…</option>
+            {drums.map(d => {
+              const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
+              return (
+                <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
+              )
+            })}
+          </select>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+          value={line.assignedMeters}
+          onChange={e => {
+            const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
+            onChange({ assignedMeters: v })
+          }}
+          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {outOfStock ? (
+          <span className="text-xs text-amber-700 flex items-center gap-1 py-1.5"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
+        ) : (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">
+            {selectedDrum ? `${roomToGrow.toLocaleString('en-IN')}m available` : '—'}
           </div>
         )}
       </td>
       {commentCell}
-      <td className="px-3 py-2.5 align-top text-xs whitespace-nowrap">
-        <div className="flex items-center justify-between gap-2">
-          {outOfStock ? (
-            <span className="text-amber-700 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
-          ) : (
-            <span className="text-gray-500">{selectedDrum ? `${roomToGrow}m left` : '—'}</span>
-          )}
-          {removeButton}
-        </div>
-      </td>
+      {actionCell}
     </tr>
   )
 }
@@ -567,6 +599,8 @@ function AddWireRow({ products, otherLines, storeId, onAdd }) {
     setProduct(null); setDrumNumber(''); setMeters(''); setRemark(''); setError('')
   }
 
+  const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
+
   return (
     <tr className="bg-emerald-50/20">
       <td className="px-3 py-2.5 align-top">
@@ -574,29 +608,32 @@ function AddWireRow({ products, otherLines, storeId, onAdd }) {
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </td>
       <td className="px-3 py-2.5 align-top">
-        {!product ? (
-          <p className="text-xs text-gray-400 py-1.5">Select a product first</p>
-        ) : drums.length === 0 ? (
+        {!product ? emptyCell : drums.length === 0 ? (
           <p className="text-xs text-gray-400 py-1.5">No drums available</p>
         ) : (
-          <div className="flex items-center gap-2">
-            <select
-              value={drumNumber} onChange={e => { setDrumNumber(e.target.value); setMeters('') }}
-              className="flex-1 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-            >
-              <option value="">Select drum…</option>
-              {drums.map(d => (
-                <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber))}m left</option>
-              ))}
-            </select>
-            <input
-              type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
-              value={meters}
-              onChange={e => setMeters(String(Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))))}
-              placeholder="0m"
-              className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
-            />
-          </div>
+          <select
+            value={drumNumber} onChange={e => { setDrumNumber(e.target.value); setMeters('') }}
+            className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          >
+            <option value="">Select drum…</option>
+            {drums.map(d => (
+              <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber))}m left</option>
+            ))}
+          </select>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+          value={meters}
+          onChange={e => setMeters(String(Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))))}
+          placeholder="0m"
+          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!selectedDrum ? emptyCell : (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{roomToGrow.toLocaleString('en-IN')}m available</div>
         )}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -1076,7 +1113,7 @@ export default function CreateAssignment() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        {['Product', 'Serial No. / Qty', 'Comment', ''].map((h, i) => (
+                        {['Product Name', 'Serial No.', 'Quantity', 'Available Quantity', 'Comment', ''].map((h, i) => (
                           <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -1100,7 +1137,7 @@ export default function CreateAssignment() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        {['Product', 'Drum / Meters', 'Comment', ''].map((h, i) => (
+                        {['Product Name', 'Drum No', 'Quantity', 'Available Quantity', 'Comment', ''].map((h, i) => (
                           <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
