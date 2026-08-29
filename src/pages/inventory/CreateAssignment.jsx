@@ -992,7 +992,7 @@ export default function CreateAssignment() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Assign Inventory</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {engineer ? <>To <span className="font-semibold text-gray-700">{engineer.name}</span>{workOrder ? <> for <span className="font-mono">{workOrder.id}</span></> : null}</> : 'Select a branch and engineer to begin'}
+              {engineer ? <>To <span className="font-semibold text-gray-700">{engineer.name}</span>{workOrder ? <> for <span className="font-mono">{workOrder.id}</span></> : null}</> : 'Select a store and engineer to begin'}
             </p>
           </div>
         </div>
@@ -1005,12 +1005,12 @@ export default function CreateAssignment() {
         <div className="p-6 pb-16 space-y-5">
           {/* ── Section 1: Branch & Engineer — always visible ── */}
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
-            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Branch & Engineer</p>
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Store & Engineer</p>
 
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Branch" required>
+              <FormField label="Store" required>
                 <Select value={branchCode} onChange={e => selectBranch(e.target.value)}>
-                  <option value="">Select branch…</option>
+                  <option value="">Select store…</option>
                   {branches.map(b => <option key={b.branchCode} value={b.branchCode}>{b.storeName} ({b.branchCode})</option>)}
                 </Select>
               </FormField>
@@ -1018,10 +1018,10 @@ export default function CreateAssignment() {
               <FormField label="Engineer" required>
                 {!branchCode ? (
                   <Select value="" disabled className="disabled:text-gray-400 disabled:cursor-not-allowed">
-                    <option value="">Select a branch first</option>
+                    <option value="">Select a store first</option>
                   </Select>
                 ) : engineers.length === 0 ? (
-                  <p className="text-xs text-gray-400">No engineers have Work Orders assigned in this branch yet.</p>
+                  <p className="text-xs text-gray-400">No engineers have Work Orders assigned in this store yet.</p>
                 ) : (
                   <Select value={engineer?.id ?? ''} onChange={e => {
                     const picked = engineers.find(x => x.id === e.target.value) ?? null
@@ -1213,11 +1213,8 @@ export default function CreateAssignment() {
                 <span className="font-medium text-gray-800">{workOrder.customerName}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500">Branch / Store</span>
-                <span className="font-medium text-gray-800">
-                  {store?.storeName ?? branchCode}
-                  {store && <span className="text-gray-400 font-normal"> ({branchCode})</span>}
-                </span>
+                <span className="text-gray-500">Store</span>
+                <span className="font-medium text-gray-800">{store?.storeName ?? branchCode}</span>
               </div>
             </div>
 
