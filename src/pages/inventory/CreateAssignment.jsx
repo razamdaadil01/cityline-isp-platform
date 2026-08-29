@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Search, AlertTriangle, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
+import Modal from '../../components/ui/Modal'
 import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
 import ProductPicker from '../../components/inventory/ProductPicker'
 import { getStores } from '../../data/storeStore'
@@ -760,6 +761,7 @@ export default function CreateAssignment() {
   const [wireLines, setWireLines] = useState([])
   const [attemptedAction, setAttemptedAction] = useState(null)
   const [saveError, setSaveError] = useState('')
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   const products = getProducts().filter(p => p.status === 'active')
   // Products already present as a line (required or extra) are hidden from
@@ -907,10 +909,11 @@ export default function CreateAssignment() {
 
   // Branch & Engineer section is always visible. The Work Order section
   // reveals once it's valid; Select Items reveals once a Work Order is
-  // picked; Confirm reveals once Select Items is valid. Each function only
-  // needs to cover what's newly required at that point — the JSX below
-  // already guards each later section on every earlier one being valid
-  // before it's even rendered.
+  // picked; the bottom "Assign Inventory" button (and the Confirm modal it
+  // opens) sit alongside Select Items once that section is reachable. Each
+  // function only needs to cover what's newly required at that point — the
+  // JSX below already guards each later section on every earlier one being
+  // valid before it's even rendered.
   function isStep1Valid() { return !!branchCode && !!engineer }
   function isStep2Valid() { return !!workOrderId }
   // Select Items is fully free-form — required lines only pre-populate it as
@@ -923,6 +926,19 @@ export default function CreateAssignment() {
     const hwCount = hwLines.reduce((s, l) => s + (liveTrackingType(l.productId) === 'quantity' ? (Number(l.assignedQty) || 0) : l.serials.length + l.macs.length), 0)
     const wireCount = wireLines.reduce((s, l) => s + (Number(l.assignedMeters) || 0), 0)
     return hwCount > 0 || wireCount > 0
+  }
+
+  // The page-level "Assign Inventory" button only opens the Confirm modal —
+  // same gating as before (isStep3Valid), just relocated from the old
+  // inline Confirm section's own submit button to this trigger. An invalid
+  // click surfaces the same error banner as before instead of opening the
+  // modal; a valid click clears any stale error/banner state before showing
+  // the summary.
+  function openConfirmModal() {
+    if (!isStep3Valid()) { setAttemptedAction('step3'); return }
+    setAttemptedAction(null)
+    setSaveError('')
+    setShowConfirmModal(true)
   }
 
   function handleAssign() {
@@ -987,12 +1003,6 @@ export default function CreateAssignment() {
           steps + Next/Back navigation. */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 pb-16 space-y-5">
-          {saveError && (
-            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {saveError}
-            </div>
-          )}
-
           {/* ── Section 1: Branch & Engineer — always visible ── */}
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
             <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Branch & Engineer</p>
@@ -1090,12 +1100,6 @@ export default function CreateAssignment() {
             <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Select Items</p>
 
-              {attemptedAction === 'step3' && !step3Valid && (
-                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) — assign a quantity, or pick serials/MACs — before continuing.
-                </div>
-              )}
-
               <div className="flex gap-1 border-b border-surface-border -mt-1">
                 {['hardware', 'wire'].map(t => (
                   <button
@@ -1158,109 +1162,136 @@ export default function CreateAssignment() {
             </div>
           )}
 
-          {/* ── Section 4: Confirm — reveals once Select Items has at least one valid line ── */}
-          {step1Valid && step2Valid && step3Valid && workOrder && (
-            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
-              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Confirm</p>
-
-              <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Engineer</span>
-                  <span className="font-semibold text-gray-800">{engineer.name}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Work Order</span>
-                  <span className="font-mono font-semibold text-gray-800">{workOrder.id}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Customer</span>
-                  <span className="font-medium text-gray-800">{workOrder.customerName}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Branch / Store</span>
-                  <span className="font-medium text-gray-800">
-                    {store?.storeName ?? branchCode}
-                    {store && <span className="text-gray-400 font-normal"> ({branchCode})</span>}
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-surface-border overflow-hidden">
-                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
-                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Issuing</p>
-                </div>
-                <div className="divide-y divide-surface-border">
-                  {issuedHwLines.length === 0 && issuedWireLines.length === 0 ? (
-                    <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Select Items.</p>
-                  ) : (
-                    <>
-                      {issuedHwLines.map((l, i) => (
-                        <div key={`hw-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                          <div>
-                            <span className="font-medium text-gray-800">{l.productName}</span>
-                            {l.isExtra && <Badge variant="purple" size="sm" className="ml-1.5">Extra</Badge>}
-                            {(l.serials.length || l.macs.length) ? (
-                              <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
-                            ) : null}
-                          </div>
-                          <span className="font-semibold text-gray-700">
-                            {liveTrackingType(l.productId) === 'quantity' ? l.assignedQty : l.serials.length + l.macs.length}
-                          </span>
-                        </div>
-                      ))}
-                      {issuedWireLines.map((l, i) => (
-                        <div key={`wire-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                          <div>
-                            <span className="font-medium text-gray-800">{l.productName}</span>
-                            {l.isExtra && <Badge variant="purple" size="sm" className="ml-1.5">Extra</Badge>}
-                            <p className="text-[11px] text-gray-400 font-mono mt-0.5">Drum {l.drumNumber}</p>
-                          </div>
-                          <span className="font-semibold text-gray-700">{l.assignedMeters} m</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {(outOfStockHwLines.length > 0 || outOfStockWireLines.length > 0) && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/40 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-amber-200">
-                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
-                      <AlertTriangle size={13} /> Not Fulfilled — Out of Stock
-                    </p>
-                  </div>
-                  <div className="divide-y divide-amber-200/60">
-                    {outOfStockHwLines.map((l, i) => (
-                      <div key={`hw-oos-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                        <span className="font-medium text-gray-800">{l.productName}</span>
-                        <span className="text-amber-700 text-xs">Required {l.requiredQty} · 0 available</span>
-                      </div>
-                    ))}
-                    {outOfStockWireLines.map((l, i) => (
-                      <div key={`wire-oos-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                        <span className="font-medium text-gray-800">{l.productName}</span>
-                        <span className="text-amber-700 text-xs">Required {l.requiredMeters}m · 0 available</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="px-4 py-2.5 text-[11px] text-amber-700 border-t border-amber-200/60">
-                    This will be a partial assignment — these lines are left pending and can be issued once stock is received.
-                  </p>
+          {/* ── Submit — reveals alongside Select Items; opens the Confirm modal ── */}
+          {step1Valid && step2Valid && (
+            <div className="space-y-3">
+              {attemptedAction === 'step3' && !step3Valid && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item (hardware or wire) — assign a quantity, or pick serials/MACs — before continuing.
                 </div>
               )}
-
-              <FormField label="Remarks" hint="Optional notes about this assignment">
-                <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes…" />
-              </FormField>
-
               <div className="flex justify-end">
-                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>Assign Inventory</Button>
+                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>Assign Inventory</Button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Confirm modal — same summary content the inline Confirm section
+          used to show, now behind the bottom "Assign Inventory" button.
+          Guarded on `workOrder` (not just `showConfirmModal`) since the
+          content below reads engineer/workOrder fields directly — the modal
+          can only ever be opened once both are set (openConfirmModal checks
+          step3Valid, which itself requires a Work Order to be non-empty). */}
+      {workOrder && (
+        <Modal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          size="lg"
+          title="Confirm Assignment"
+          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>Assign Inventory</Button>}
+        >
+          <div className="space-y-5">
+            {saveError && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {saveError}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Engineer</span>
+                <span className="font-semibold text-gray-800">{engineer.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Work Order</span>
+                <span className="font-mono font-semibold text-gray-800">{workOrder.id}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Customer</span>
+                <span className="font-medium text-gray-800">{workOrder.customerName}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Branch / Store</span>
+                <span className="font-medium text-gray-800">
+                  {store?.storeName ?? branchCode}
+                  {store && <span className="text-gray-400 font-normal"> ({branchCode})</span>}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-surface-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Issuing</p>
+              </div>
+              <div className="divide-y divide-surface-border">
+                {issuedHwLines.length === 0 && issuedWireLines.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Select Items.</p>
+                ) : (
+                  <>
+                    {issuedHwLines.map((l, i) => (
+                      <div key={`hw-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-800">{l.productName}</span>
+                          {l.isExtra && <Badge variant="purple" size="sm" className="ml-1.5">Extra</Badge>}
+                          {(l.serials.length || l.macs.length) ? (
+                            <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
+                          ) : null}
+                        </div>
+                        <span className="font-semibold text-gray-700">
+                          {liveTrackingType(l.productId) === 'quantity' ? l.assignedQty : l.serials.length + l.macs.length}
+                        </span>
+                      </div>
+                    ))}
+                    {issuedWireLines.map((l, i) => (
+                      <div key={`wire-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-800">{l.productName}</span>
+                          {l.isExtra && <Badge variant="purple" size="sm" className="ml-1.5">Extra</Badge>}
+                          <p className="text-[11px] text-gray-400 font-mono mt-0.5">Drum {l.drumNumber}</p>
+                        </div>
+                        <span className="font-semibold text-gray-700">{l.assignedMeters} m</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {(outOfStockHwLines.length > 0 || outOfStockWireLines.length > 0) && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/40 overflow-hidden">
+                <div className="px-4 py-3 border-b border-amber-200">
+                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <AlertTriangle size={13} /> Not Fulfilled — Out of Stock
+                  </p>
+                </div>
+                <div className="divide-y divide-amber-200/60">
+                  {outOfStockHwLines.map((l, i) => (
+                    <div key={`hw-oos-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <span className="font-medium text-gray-800">{l.productName}</span>
+                      <span className="text-amber-700 text-xs">Required {l.requiredQty} · 0 available</span>
+                    </div>
+                  ))}
+                  {outOfStockWireLines.map((l, i) => (
+                    <div key={`wire-oos-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <span className="font-medium text-gray-800">{l.productName}</span>
+                      <span className="text-amber-700 text-xs">Required {l.requiredMeters}m · 0 available</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="px-4 py-2.5 text-[11px] text-amber-700 border-t border-amber-200/60">
+                  This will be a partial assignment — these lines are left pending and can be issued once stock is received.
+                </p>
+              </div>
+            )}
+
+            <FormField label="Remarks" hint="Optional notes about this assignment">
+              <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes…" />
+            </FormField>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
