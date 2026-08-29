@@ -5,7 +5,6 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
-import ProductPicker from '../../components/inventory/ProductPicker'
 import { getStores } from '../../data/storeStore'
 import { getProduct, getProducts } from '../../data/productStore'
 import { getUnits, getDrums, getProductAvailability } from '../../data/inventoryLedger'
@@ -144,13 +143,85 @@ function UnitPickerPopover({ units, picked, atCap, onToggle, onSelectAll, render
   )
 }
 
+// Dropdown-styled product picker for the Select Items table — same click-
+// to-open/type-to-filter combobox interaction as WorkOrderPicker/
+// UnitPickerPopover above, but its closed state reads as a select (a
+// bordered box with a trailing chevron showing the current value or a
+// muted placeholder) rather than as a live search box. A local component
+// rather than reusing the shared ProductPicker.jsx (a plain text input
+// that only reveals its dropdown on focus/typing) so this table-specific
+// look doesn't change the product search field on CreatePO/CreatePurchase,
+// which still use ProductPicker.jsx as-is.
+function ProductDropdown({ products, value, onSelect, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [menuRect, setMenuRect] = useState({ top: 0, left: 0, width: 240 })
+  const wrapRef = useRef(null)
+  const btnRef = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function toggleOpen() {
+    if (open) { setOpen(false); return }
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 240) })
+    setQuery('')
+    setOpen(true)
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    if (!q) return products
+    return products.filter(p => p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q))
+  }, [products, query])
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button" ref={btnRef} onClick={toggleOpen}
+        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors"
+      >
+        <span className={`truncate text-left ${value ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{value || placeholder}</span>
+        <ChevronDown size={13} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div
+          style={{ position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width, zIndex: 9999 }}
+          className="bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden"
+        >
+          <div className="p-2 border-b border-surface-border">
+            <SearchInput value={query} onChange={e => setQuery(e.target.value)} placeholder="Search product…" />
+          </div>
+          <div className="max-h-56 overflow-y-auto divide-y divide-surface-border">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No matching products</p>
+            ) : filtered.map(p => (
+              <button
+                key={p.id} type="button"
+                onClick={() => { onSelect(p); setOpen(false); setQuery('') }}
+                className="flex flex-col w-full text-left px-3 py-2 gap-0.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <span>{p.name} {p.sku && <span className="text-gray-400">· {p.sku}</span>}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Unified, fully free-form row shape for both Work-Order-sourced and
-// user-added lines: Product Name | Serial No. | Quantity | Available
-// Quantity | Comment | action. A required line only pre-populates this row
+// user-added lines: Product Name | Serial No. / Mac No. | Quantity | Avl.
+// Qty. | Comment | action. A required line only pre-populates this row
 // as a starting suggestion — the requirement itself lives independently in
 // the read-only "Hardware / Wire Required" panel above (Section 2), so
 // nothing here is locked: the Product dropdown is always the same
-// interactive ProductPicker search combobox regardless of where the row
+// interactive ProductDropdown search combobox regardless of where the row
 // came from, the row can always be removed, and neither the serial/MAC
 // picker nor the qty input are capped by (or even aware of)
 // `line.requiredQty` — that field is kept on the line purely as inherited
@@ -200,15 +271,17 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     </td>
   )
 
-  // Formalizes the "N available" figure (identical numbers as before) into
-  // its own read-only column instead of inline status text next to the row.
+  // Formalizes the same availability figure used before into its own
+  // narrow, read-only "Avl. Qty." column instead of inline status text next
+  // to the row — just the bare number, since the column header already
+  // says what it is and there's little width to spare.
   function availableCell(count) {
     return (
       <td className="px-3 py-2.5 align-top">
         {outOfStock ? (
           <span className="text-xs text-amber-700 flex items-center gap-1 py-1.5"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
         ) : (
-          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{count.toLocaleString('en-IN')} available</div>
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{count.toLocaleString('en-IN')}</div>
         )}
       </td>
     )
@@ -220,7 +293,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     return (
       <tr className="bg-amber-50/30">
         <td className="px-3 py-2.5 align-top">
-          <ProductPicker products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
+          <ProductDropdown products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
           <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> No product mapped to "{line.name}" — pick one to issue.</p>
         </td>
         <td className="px-3 py-2.5 align-top" colSpan={3}>
@@ -235,7 +308,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
   const nameCell = (
     <td className="px-3 py-2.5 align-top">
       <div className="space-y-1">
-        <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+        <ProductDropdown products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
         {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
       </div>
     </td>
@@ -328,7 +401,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
             const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
             onChange({ assignedQty: v })
           }}
-          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+          className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
       </td>
       {availableCell(remainingInPool)}
@@ -408,7 +481,7 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
   return (
     <tr className="bg-emerald-50/20">
       <td className="px-3 py-2.5 align-top">
-        <ProductPicker products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
+        <ProductDropdown products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -430,13 +503,13 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
           <input
             type="number" min="0" value={qty} onChange={e => setQty(e.target.value)}
             placeholder="0"
-            className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+            className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
           />
         )}
       </td>
       <td className="px-3 py-2.5 align-top">
         {availableCount === null ? emptyCell : (
-          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{availableCount.toLocaleString('en-IN')} available</div>
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{availableCount.toLocaleString('en-IN')}</div>
         )}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -457,7 +530,7 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
 }
 
 // Same fully free-form treatment as HardwareLineRow above: the Product
-// dropdown is always the interactive ProductPicker, the row is always
+// dropdown is always the interactive ProductDropdown, the row is always
 // removable, and drum/meters are only ever capped by the drum's real
 // remaining stock — never by `line.requiredMeters`, which is kept purely as
 // inherited reference data.
@@ -491,7 +564,7 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
     return (
       <tr className="bg-amber-50/30">
         <td className="px-3 py-2.5 align-top">
-          <ProductPicker products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
+          <ProductDropdown products={products} value="" placeholder="Select product…" onSelect={changeProduct} />
           <p className="text-[11px] text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle size={11} className="shrink-0" /> No wire product mapped to "{line.name}" — pick one to issue.</p>
         </td>
         <td className="px-3 py-2.5 align-top" colSpan={3}>
@@ -515,7 +588,7 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
     <tr className={rowTone}>
       <td className="px-3 py-2.5 align-top">
         <div className="space-y-1">
-          <ProductPicker products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+          <ProductDropdown products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
           {line.isExtra && <Badge variant="purple" size="sm">Extra</Badge>}
         </div>
       </td>
@@ -546,7 +619,7 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
             const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
             onChange({ assignedMeters: v })
           }}
-          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+          className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -554,7 +627,7 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
           <span className="text-xs text-amber-700 flex items-center gap-1 py-1.5"><AlertTriangle size={11} className="shrink-0" /> Out of stock</span>
         ) : (
           <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">
-            {selectedDrum ? `${roomToGrow.toLocaleString('en-IN')}m available` : '—'}
+            {selectedDrum ? `${roomToGrow.toLocaleString('en-IN')}m` : '—'}
           </div>
         )}
       </td>
@@ -599,7 +672,7 @@ function AddWireRow({ products, otherLines, storeId, onAdd }) {
   return (
     <tr className="bg-emerald-50/20">
       <td className="px-3 py-2.5 align-top">
-        <ProductPicker products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
+        <ProductDropdown products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
         {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -623,12 +696,12 @@ function AddWireRow({ products, otherLines, storeId, onAdd }) {
           value={meters}
           onChange={e => setMeters(String(Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))))}
           placeholder="0m"
-          className="w-24 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+          className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
         />
       </td>
       <td className="px-3 py-2.5 align-top">
         {!selectedDrum ? emptyCell : (
-          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{roomToGrow.toLocaleString('en-IN')}m available</div>
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{roomToGrow.toLocaleString('en-IN')}m</div>
         )}
       </td>
       <td className="px-3 py-2.5 align-top">
@@ -1111,8 +1184,19 @@ export default function CreateAssignment() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        {['Product Name', 'Serial No.', 'Quantity', 'Available Quantity', 'Comment', ''].map((h, i) => (
-                          <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                        {/* Widths sum to 100% — Serial No. / Mac No. gets the
+                            space freed up by narrowing Quantity and Avl. Qty.
+                            (both only ever show a short number) so combined
+                            serial+mac pair entries never truncate. */}
+                        {[
+                          ['Product Name', 'w-[20%]'],
+                          ['Serial No. / Mac No.', 'w-[32%]'],
+                          ['Quantity', 'w-[8%]'],
+                          ['Avl. Qty.', 'w-[10%]'],
+                          ['Comment', 'w-[24%]'],
+                          ['', 'w-[6%]'],
+                        ].map(([h, w], i) => (
+                          <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1135,8 +1219,15 @@ export default function CreateAssignment() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        {['Product Name', 'Drum No', 'Quantity', 'Available Quantity', 'Comment', ''].map((h, i) => (
-                          <th key={i} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                        {[
+                          ['Product Name', 'w-[20%]'],
+                          ['Drum No', 'w-[26%]'],
+                          ['Quantity', 'w-[8%]'],
+                          ['Avl. Qty.', 'w-[10%]'],
+                          ['Comment', 'w-[30%]'],
+                          ['', 'w-[6%]'],
+                        ].map(([h, w], i) => (
+                          <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
                         ))}
                       </tr>
                     </thead>
