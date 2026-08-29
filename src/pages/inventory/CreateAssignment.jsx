@@ -305,10 +305,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
           )}
         </td>
         <td className="px-3 py-2.5 align-top">
-          <input
-            type="number" value={picked.length} disabled readOnly
-            className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500"
-          />
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{picked.length}</div>
         </td>
         {availableCell(remainingAvailable)}
         {commentCell}
@@ -428,10 +425,7 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
       </td>
       <td className="px-3 py-2.5 align-top">
         {!product ? emptyCell : isTracked ? (
-          <input
-            type="number" value={picked.length} disabled readOnly
-            className="w-20 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-gray-50 text-gray-500"
-          />
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{picked.length}</div>
         ) : (
           <input
             type="number" min="0" value={qty} onChange={e => setQty(e.target.value)}
