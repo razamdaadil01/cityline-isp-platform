@@ -33,6 +33,14 @@ import { logAudit } from './auditLogStore'
 
 export const USER_ASSIGNMENT_STATUSES = ['Handed Off']
 
+// 'new' (default) hands off held product(s) with no unit coming back —
+// today's only behavior until this field was added. 'replace' hands off a
+// new unit AND captures the faulty/old unit coming back from the customer
+// (see `returnedItem` below). 'disconnection' hands off nothing — it only
+// captures the unit being taken back. CreateUserAssignment.jsx's UI is the
+// only writer of this field today.
+export const ASSIGNMENT_TYPES = ['new', 'replace', 'disconnection']
+
 // Seeded so the Assignment List demonstrates its 'Assigned to User' line
 // status (see Assignments.jsx's lineStatus()) alongside 'Assigned to
 // Engineer' — matches the exact shape saveUserAssignment() itself produces,
@@ -46,7 +54,8 @@ const SEED = [
     id: 'USRA-000001', assignmentNumber: 'USR-2026-000001',
     engineerId: 'eng-001', engineerName: 'Arjun Kumar',
     workOrderType: 'Installation', workOrderId: 'INS-005', workOrderLabel: 'INS-005',
-    customerName: 'Preeti Agarwal',
+    customerName: 'Preeti Agarwal', customerId: null,
+    assignmentType: 'new', returnedItem: null,
     items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0001'], macs: [], qty: 1 }],
     remarks: 'Installation completed — ONT handed off to customer.',
     status: 'Handed Off', assignedBy: 'Arjun Kumar', assignedAt: '2026-06-03T12:00:00.000Z',
@@ -55,7 +64,8 @@ const SEED = [
     id: 'USRA-000002', assignmentNumber: 'USR-2026-000002',
     engineerId: 'eng-002', engineerName: 'Preethi Nair',
     workOrderType: 'Installation', workOrderId: 'INS-015', workOrderLabel: 'INS-015',
-    customerName: 'Kavita Rao',
+    customerName: 'Kavita Rao', customerId: null,
+    assignmentType: 'new', returnedItem: null,
     items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0002'], macs: [], qty: 1 }],
     remarks: 'Installation completed — ONT handed off to customer.',
     status: 'Handed Off', assignedBy: 'Preethi Nair', assignedAt: '2026-08-05T12:00:00.000Z',
@@ -64,7 +74,8 @@ const SEED = [
     id: 'USRA-000003', assignmentNumber: 'USR-2026-000003',
     engineerId: 'eng-001', engineerName: 'Arjun Kumar',
     workOrderType: 'Installation', workOrderId: 'INS-016', workOrderLabel: 'INS-016',
-    customerName: 'Manoj Deshmukh',
+    customerName: 'Manoj Deshmukh', customerId: null,
+    assignmentType: 'new', returnedItem: null,
     items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0003'], macs: [], qty: 1 }],
     remarks: 'Installation completed — ONT handed off to customer.',
     status: 'Handed Off', assignedBy: 'Arjun Kumar', assignedAt: '2026-08-07T12:00:00.000Z',
@@ -93,31 +104,43 @@ function nextUserAssignmentNumber() {
 
 // ── Step 2 reference lookup ──────────────────────────────────────────────
 // Normalizes each supported Work Order Type's own module into a common
-// { id, label, customerName, searchText } shape, reusing each module's own
-// getX() rather than duplicating its data. 'Network' and 'Project' have no
-// backing module anywhere in the app (grep confirms no networkStore.js/
-// projectStore.js, no workOrderType concept elsewhere either) — they
-// resolve to an empty list rather than fabricating records; Step 2's UI
-// shows an explicit "not available" state for those instead of a picker.
-// 'Incident' maps to outagesStore.js's Outages — the closest existing
-// concept to a network incident; outages are area-wide, so customerName is
-// always null for these rows.
+// { id, label, customerName, customerId, searchText } shape, reusing each
+// module's own getX() rather than duplicating its data. 'Network' and
+// 'Project' have no backing module anywhere in the app (grep confirms no
+// networkStore.js/projectStore.js, no workOrderType concept elsewhere
+// either) — they resolve to an empty list rather than fabricating records;
+// Step 2's UI shows an explicit "not available" state for those instead of
+// a picker. 'Incident' maps to outagesStore.js's Outages — the closest
+// existing concept to a network incident; outages are area-wide, so
+// customerName/customerId are always null for these rows.
+//
+// `customerId` is the "User Id" CreateUserAssignment.jsx displays read-only
+// once a reference is picked. Neither source module has a field literally
+// named customerId on every record, so it's approximated from the closest
+// real identifier each already carries: Installations only get a
+// `customerId` once their linked Lead has converted to a real Customer
+// record (see installationsStore.js's updateInstallationStatus — most
+// seeded Installations have no Lead behind them and so have no customerId
+// yet); Tickets carry a stable `accountNumber` from creation, used here as
+// the user-facing identifier. Neither is a perfect "the" customer ID, but
+// both are the closest existing field to one — flagged for review rather
+// than inventing a new customer-lookup module.
 export function getWorkOrderTypeRecords(type) {
   if (type === 'Installation') {
     return getInstallations().map(i => ({
-      id: i.id, label: i.id, customerName: i.customerName,
+      id: i.id, label: i.id, customerName: i.customerName, customerId: i.customerId ?? null,
       searchText: `${i.id} ${i.customerName} ${i.address ?? ''}`.toLowerCase(),
     }))
   }
   if (type === 'Ticket') {
     return getTickets().map(t => ({
-      id: t.id, label: t.id, customerName: t.customerName,
+      id: t.id, label: t.id, customerName: t.customerName, customerId: t.accountNumber ?? null,
       searchText: `${t.id} ${t.customerName} ${t.subject ?? ''}`.toLowerCase(),
     }))
   }
   if (type === 'Incident') {
     return getOutages().map(o => ({
-      id: o.id, label: o.id, customerName: null,
+      id: o.id, label: o.id, customerName: null, customerId: null,
       searchText: `${o.id} ${o.title ?? ''} ${(o.affectedAreas ?? []).join(' ')}`.toLowerCase(),
     }))
   }
@@ -184,14 +207,26 @@ export function getEngineerHeldQtyLocal(engineerId, productId) {
 
 // ── Save ─────────────────────────────────────────────────────────────────
 // data: { engineerId, engineerName, workOrderType, workOrderId, workOrderLabel,
-//         customerName, items: [{ productId, productName, serials, macs, qty }],
+//         customerName, customerId, assignmentType,
+//         items: [{ productId, productName, serials, macs, qty }],
+//         returnedItem: { productId, productName, identifier, remark } | null,
 //         remarks }
 // Throws if any item would take an engineer's held balance negative — the
 // wizard's own live "held" counters are meant to prevent this
 // interactively, but the store re-validates independently rather than
 // trusting the caller, the same discipline assignmentStore.js's
 // saveAssignment() already established for issuing from store stock.
+//
+// assignmentType-specific requirements: 'new' (default) and 'replace' both
+// require at least one handed-off item, same as always; 'disconnection'
+// hands off nothing, so `items` is allowed to be empty for it alone.
+// 'replace' and 'disconnection' both additionally require a `returnedItem`
+// — the unit coming back from the customer's side. Unlike held items,
+// returnedItem is captured as plain data with no stock validation: it's
+// coming from the customer, not the engineer's tracked holdings, so there's
+// nothing in this app's ledger to check it against.
 export function saveUserAssignment(data, actor = 'Admin User') {
+  const assignmentType = ASSIGNMENT_TYPES.includes(data.assignmentType) ? data.assignmentType : 'new'
   const heldValues = new Set(getEngineerHeldValues(data.engineerId))
 
   const items = (data.items || [])
@@ -212,8 +247,21 @@ export function saveUserAssignment(data, actor = 'Admin User') {
       return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty }
     })
 
-  if (items.length === 0) {
+  if (assignmentType !== 'disconnection' && items.length === 0) {
     throw new Error('Select at least one item to hand off.')
+  }
+
+  let returnedItem = null
+  if (assignmentType === 'replace' || assignmentType === 'disconnection') {
+    const productId = data.returnedItem?.productId
+    const identifier = (data.returnedItem?.identifier || '').trim()
+    if (!productId || !identifier) {
+      throw new Error('Capture the product and serial/MAC of the unit being returned.')
+    }
+    returnedItem = {
+      productId, productName: data.returnedItem?.productName ?? productId,
+      identifier, remark: data.returnedItem?.remark || '',
+    }
   }
 
   const assignment = {
@@ -221,8 +269,10 @@ export function saveUserAssignment(data, actor = 'Admin User') {
     assignmentNumber: nextUserAssignmentNumber(),
     engineerId: data.engineerId, engineerName: data.engineerName,
     workOrderType: data.workOrderType, workOrderId: data.workOrderId, workOrderLabel: data.workOrderLabel,
-    customerName: data.customerName ?? null,
+    customerName: data.customerName ?? null, customerId: data.customerId ?? null,
+    assignmentType,
     items,
+    returnedItem,
     remarks: data.remarks || '',
     status: 'Handed Off',
     assignedBy: actor, assignedAt: new Date().toISOString(),
@@ -231,10 +281,10 @@ export function saveUserAssignment(data, actor = 'Admin User') {
   notify()
 
   const itemCount = items.reduce((s, it) => s + (it.serials.length + it.macs.length || it.qty), 0)
-  logAudit({
-    action: 'Create', module: 'Inventory',
-    details: `Handed off ${itemCount} item(s) from ${data.engineerName} to ${data.customerName ?? assignment.workOrderLabel}`,
-  })
+  const details = assignmentType === 'disconnection'
+    ? `Disconnection — recovered ${returnedItem.productName} (${returnedItem.identifier}) from ${data.customerName ?? assignment.workOrderLabel}`
+    : `Handed off ${itemCount} item(s) from ${data.engineerName} to ${data.customerName ?? assignment.workOrderLabel}${returnedItem ? ` (replacing ${returnedItem.productName})` : ''}`
+  logAudit({ action: 'Create', module: 'Inventory', details })
 
   return assignment
 }

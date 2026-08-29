@@ -7,6 +7,8 @@ import { getUserAssignments, subscribeUserAssignments } from '../../data/userAss
 import { usePermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = { 'Handed Off': 'purple' }
+const TYPE_BADGE = { new: 'blue', replace: 'orange', disconnection: 'red' }
+const TYPE_LABEL = { new: 'New', replace: 'Replace', disconnection: 'Disconnection' }
 
 function itemsSummary(a) {
   const count = a.items.reduce((s, it) => s + (it.serials.length + it.macs.length || it.qty), 0)
@@ -88,6 +90,7 @@ export default function AssignToUser() {
               <tr className="border-b border-surface-border bg-gray-50/60">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Engineer</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Work Order</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Customer / Reference</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Items</th>
@@ -98,7 +101,7 @@ export default function AssignToUser() {
             <tbody className="divide-y divide-surface-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-14 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-4 py-14 text-center text-sm text-gray-400">
                     <Users size={32} className="mx-auto mb-2 text-gray-200" />
                     No user assignments found
                   </td>
@@ -107,6 +110,9 @@ export default function AssignToUser() {
                 <tr key={a.id} onClick={() => navigate(`/inventory/assign-to-user/${a.id}`)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(a.assignedAt || '').slice(0, 10)}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.engineerName}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <Badge variant={TYPE_BADGE[a.assignmentType] ?? 'blue'} size="sm">{TYPE_LABEL[a.assignmentType] ?? 'New'}</Badge>
+                  </td>
                   <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
                     <span className="font-mono">{a.workOrderLabel}</span>
                     <span className="text-gray-400"> · {a.workOrderType}</span>
