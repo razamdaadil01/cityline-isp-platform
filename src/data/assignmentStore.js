@@ -309,10 +309,16 @@ function computeGrossFromPurchases() {
   return { balanceByKey, units, drums }
 }
 
-function alreadyAssignedQty(productId, storeId) {
+// `excludeId` on all three below — used only by updateAssignment()'s own
+// validation — leaves one specific assignment's own prior lines out of the
+// "already assigned" tally, so editing that assignment sees its own picks
+// as still-available-to-pick instead of double-counting them against
+// themselves. Mirrors inventoryLedger.js's computeLedger()
+// `excludeAssignmentId` on the read side (see that file's note).
+function alreadyAssignedQty(productId, storeId, excludeId = null) {
   let sum = 0
   _assignments.forEach(a => {
-    if (a.status === 'Returned' || a.storeId !== storeId) return
+    if (a.status === 'Returned' || a.storeId !== storeId || a.id === excludeId) return
     a.hardwareLines.forEach(l => {
       if (l.productId !== productId || l.serials.length || l.macs.length) return
       sum += Number(l.assignedQty) || 0
@@ -321,25 +327,25 @@ function alreadyAssignedQty(productId, storeId) {
   return sum
 }
 
-function alreadyAssignedValues() {
+function alreadyAssignedValues(excludeId = null) {
   const set = new Set()
   _assignments.forEach(a => {
-    if (a.status === 'Returned') return
+    if (a.status === 'Returned' || a.id === excludeId) return
     a.hardwareLines.forEach(l => { l.serials.forEach(s => set.add(s)); l.macs.forEach(m => set.add(m)) })
   })
   return set
 }
 
-function alreadyAssignedMeters(drumNumber) {
+function alreadyAssignedMeters(drumNumber, excludeId = null) {
   let sum = 0
   _assignments.forEach(a => {
-    if (a.status === 'Returned') return
+    if (a.status === 'Returned' || a.id === excludeId) return
     a.wireLines.forEach(l => { if (l.drumNumber === drumNumber) sum += Number(l.assignedMeters) || 0 })
   })
   return sum
 }
 
-// ── Save ─────────────────────────────────────────────────────────────────
+// ── Save / Update ────────────────────────────────────────────────────────
 // data: { engineerId, engineerName, branchCode, workOrderId, workOrderLabel,
 //         storeId, storeName,
 //         hardwareLines: [{ productId, productName, requiredQty, assignedQty, serials, macs, remark }],
@@ -352,9 +358,18 @@ function alreadyAssignedMeters(drumNumber) {
 // interactively, but the store re-validates independently rather than
 // trusting the caller, the same way isConfirmable()-style gates elsewhere
 // in Inventory never assume the UI alone kept the data valid.
-export function saveAssignment(data) {
+//
+// Shared by saveAssignment() and updateAssignment() below. `idSeq` seeds
+// this call's line ids (so both callers get uniquely-prefixed
+// ASGI-*/ASGW-* ids without either needing to know the other's counter
+// scheme); `excludeId`, only ever the assignment's own id from
+// updateAssignment(), keeps its own prior lines out of the "already
+// assigned" tally it would otherwise be validated against — see the
+// excludeId note on alreadyAssignedQty()/alreadyAssignedValues()/
+// alreadyAssignedMeters() above.
+function validateLines(data, idSeq, excludeId = null) {
   const { balanceByKey, units, drums } = computeGrossFromPurchases()
-  const assignedValues = alreadyAssignedValues()
+  const assignedValues = alreadyAssignedValues(excludeId)
 
   const hardwareLines = (data.hardwareLines || [])
     .filter(l => (l.serials?.length) || (l.macs?.length) || (Number(l.assignedQty) || 0) > 0)
@@ -372,17 +387,17 @@ export function saveAssignment(data) {
         // unit count is the longer of the two lists, not their combined
         // length (which would double-count each physical unit).
         return {
-          id: `ASGI-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
+          id: `ASGI-${idSeq}-${idx}`, productId: l.productId, productName: l.productName,
           requiredQty: Number(l.requiredQty) || 0, assignedQty: Math.max(serials.length, macs.length), serials, macs,
           remark: l.remark?.trim() || '',
         }
       }
       const assignedQty = Number(l.assignedQty) || 0
       const gross = balanceByKey[`${l.productId}|${data.storeId}`] ?? 0
-      const available = gross - alreadyAssignedQty(l.productId, data.storeId)
+      const available = gross - alreadyAssignedQty(l.productId, data.storeId, excludeId)
       if (assignedQty > available) throw new Error(`Only ${available} of ${l.productName} available at ${data.storeName}.`)
       return {
-        id: `ASGI-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
+        id: `ASGI-${idSeq}-${idx}`, productId: l.productId, productName: l.productName,
         requiredQty: Number(l.requiredQty) || 0, assignedQty, serials: [], macs: [],
         remark: l.remark?.trim() || '',
       }
@@ -394,10 +409,10 @@ export function saveAssignment(data) {
       const assignedMeters = Number(l.assignedMeters) || 0
       const drum = drums.find(d => d.drumNumber === l.drumNumber && d.productId === l.productId && d.storeId === data.storeId)
       if (!drum) throw new Error(`Drum ${l.drumNumber} was not found at ${data.storeName}.`)
-      const remaining = drum.receivedMeters - alreadyAssignedMeters(l.drumNumber)
+      const remaining = drum.receivedMeters - alreadyAssignedMeters(l.drumNumber, excludeId)
       if (assignedMeters > remaining) throw new Error(`Only ${remaining}m remaining on drum ${l.drumNumber}.`)
       return {
-        id: `ASGW-${_nextInternalSeq}-${idx}`, productId: l.productId, productName: l.productName,
+        id: `ASGW-${idSeq}-${idx}`, productId: l.productId, productName: l.productName,
         requiredMeters: Number(l.requiredMeters) || 0, assignedMeters, drumNumber: l.drumNumber,
         remark: l.remark?.trim() || '',
       }
@@ -406,6 +421,12 @@ export function saveAssignment(data) {
   if (hardwareLines.length === 0 && wireLines.length === 0) {
     throw new Error('Select at least one item to assign.')
   }
+
+  return { hardwareLines, wireLines }
+}
+
+export function saveAssignment(data) {
+  const { hardwareLines, wireLines } = validateLines(data, _nextInternalSeq)
 
   const assignment = {
     id: `ASG-${String(_nextInternalSeq++).padStart(6, '0')}`,
@@ -429,4 +450,81 @@ export function saveAssignment(data) {
   })
 
   return assignment
+}
+
+// Edits an existing assignment in place — same `data` shape and validation
+// as saveAssignment(), with the assignment's own prior lines excluded from
+// the "already assigned" tally (see validateLines()'s note) so its own
+// picks are still available to keep, drop, or change. Keeps the original
+// id/assignmentNumber/status/assignedBy/assignedAt — those describe when
+// and by whom the assignment was first issued, which editing its contents
+// doesn't rewrite; the audit log entry below is the record of the edit
+// itself. Line ids are freshly minted (not reused from before the edit) —
+// nothing keys off a hardwareLine/wireLine id surviving an edit today.
+export function updateAssignment(id, data) {
+  const existing = _assignments.find(a => a.id === id)
+  if (!existing) throw new Error('Assignment not found.')
+
+  const { hardwareLines, wireLines } = validateLines(data, _nextInternalSeq++, id)
+
+  const updated = {
+    ...existing,
+    engineerId: data.engineerId, engineerName: data.engineerName,
+    branchCode: data.branchCode,
+    workOrderId: data.workOrderId, workOrderLabel: data.workOrderLabel ?? data.workOrderId,
+    storeId: data.storeId, storeName: data.storeName,
+    hardwareLines, wireLines,
+    remarks: data.remarks || '',
+  }
+  _assignments = _assignments.map(a => a.id === id ? updated : a)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Edited assignment ${existing.assignmentNumber} (${data.engineerName} for ${updated.workOrderLabel})`,
+  })
+
+  return updated
+}
+
+// ── Return one line to store ────────────────────────────────────────────
+// Reverses a single hardwareLine/wireLine — its serial/MAC unit(s) or
+// quantity/meters move back to store-available stock simply by removing
+// the line from this assignment's own hardwareLines/wireLines array.
+// inventoryLedger.js's computeLedger() derives every unit's status, balance
+// deduction, and drum remaining-meters purely from CURRENT non-Returned
+// assignments' line contents — once a line is gone, whatever it claimed is
+// automatically Available again with no separate ledger write needed (the
+// same reason alreadyAssignedQty()/alreadyAssignedValues()/
+// alreadyAssignedMeters() above only ever look at _assignments directly).
+// If removing this line empties the assignment entirely, the assignment's
+// own `status` flips to 'Returned' — never left dangling as 'Assigned'
+// with an empty line list, which would make getAssignableWorkOrders()
+// keep treating its Work Order as already issued despite nothing being
+// assigned any more. `lineKind` is 'hardware' or 'wire'; `lineId` is the
+// line's own `id` (e.g. 'ASGI-1-0'/'ASGW-1-0').
+export function returnAssignmentLine(assignmentId, lineKind, lineId) {
+  const assignment = _assignments.find(a => a.id === assignmentId)
+  if (!assignment) throw new Error('Assignment not found.')
+  if (assignment.status === 'Returned') throw new Error('This assignment has already been returned.')
+
+  const lines = lineKind === 'wire' ? assignment.wireLines : assignment.hardwareLines
+  const line = lines.find(l => l.id === lineId)
+  if (!line) throw new Error('Line not found on this assignment.')
+
+  const hardwareLines = lineKind === 'wire' ? assignment.hardwareLines : assignment.hardwareLines.filter(l => l.id !== lineId)
+  const wireLines = lineKind === 'wire' ? assignment.wireLines.filter(l => l.id !== lineId) : assignment.wireLines
+  const nowEmpty = hardwareLines.length === 0 && wireLines.length === 0
+
+  const updated = { ...assignment, hardwareLines, wireLines, status: nowEmpty ? 'Returned' : assignment.status }
+  _assignments = _assignments.map(a => a.id === assignmentId ? updated : a)
+  notify()
+
+  const qtyLabel = lineKind === 'wire' ? `${line.assignedMeters}m of ${line.productName}` : `${line.assignedQty} of ${line.productName}`
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Returned ${qtyLabel} from ${assignment.engineerName} back to ${assignment.storeName}${nowEmpty ? ' — assignment fully returned' : ''}`,
+  })
+
+  return updated
 }

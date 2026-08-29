@@ -1,13 +1,14 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, Filter, X, ChevronDown, Eye, UserCog,
-  CalendarDays, Users, ClipboardList,
+  Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2, RotateCcw, UserCog,
+  CalendarDays, Users, ClipboardList, AlertTriangle,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+import Modal from '../../components/ui/Modal'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
-import { getAssignments, subscribeAssignments } from '../../data/assignmentStore'
+import { getAssignments, subscribeAssignments, returnAssignmentLine } from '../../data/assignmentStore'
 import { getStores } from '../../data/storeStore'
 import { getUnits } from '../../data/inventoryLedger'
 import { usePermission } from '../../data/rolesStore'
@@ -67,6 +68,7 @@ function flattenRows(assignments) {
       const values = [...l.serials, ...l.macs]
       rows.push({
         key: `${a.id}-hw-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
+        lineId: l.id, lineKind: 'hardware',
         date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode, storeName: a.storeName,
         productName: l.productName,
         serialMacDrumLabel: values.length ? values.join(', ') : '—',
@@ -78,6 +80,7 @@ function flattenRows(assignments) {
     a.wireLines.forEach((l, i) => {
       rows.push({
         key: `${a.id}-wire-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
+        lineId: l.id, lineKind: 'wire',
         date: a.assignedAt, engineerName: a.engineerName, branchCode: a.branchCode, storeName: a.storeName,
         productName: l.productName,
         serialMacDrumLabel: l.drumNumber || '—',
@@ -95,6 +98,44 @@ export default function Assignments() {
   const navigate = useNavigate()
   const [assignments, setAssignments] = useState(getAssignments)
   useEffect(() => subscribeAssignments(setAssignments), [])
+
+  const [menuId, setMenuId] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuId) return
+    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [menuId])
+
+  function openMenu(e, id) {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    setMenuId(id)
+  }
+
+  // "Back to Store" reverses one line — removing it from the assignment's
+  // hardwareLines/wireLines is all that's needed since inventoryLedger.js's
+  // computeLedger() derives unit status/balances purely from current
+  // non-Returned assignment line contents (see returnAssignmentLine in
+  // assignmentStore.js). Confirmed via this Modal since the app has no
+  // window.confirm()/toast precedent for a destructive action like this.
+  const [returnTarget, setReturnTarget] = useState(null)
+  const [returnError, setReturnError] = useState('')
+
+  function confirmReturn() {
+    if (!returnTarget) return
+    try {
+      returnAssignmentLine(returnTarget.assignmentId, returnTarget.lineKind, returnTarget.lineId)
+      setReturnTarget(null)
+      setReturnError('')
+    } catch (err) {
+      setReturnError(err.message || 'Could not return this line to store.')
+    }
+  }
 
   const stores = getStores()
 
@@ -297,8 +338,7 @@ export default function Assignments() {
               ) : rows.map(r => (
                 <tr
                   key={r.key}
-                  onClick={() => navigate(`/inventory/assign/${r.assignmentId}`)}
-                  className="cursor-pointer hover:bg-blue-50/40 transition-colors"
+                  className="hover:bg-blue-50/40 transition-colors"
                 >
                   {visibleCols.has('assignmentNumber') && (
                     <td className="px-4 py-3">
@@ -323,11 +363,10 @@ export default function Assignments() {
                   {visibleCols.has('actions') && (
                     <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
                       <button
-                        onClick={() => navigate(`/inventory/assign/${r.assignmentId}`)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-gray-100 transition-colors mx-auto"
-                        title="View Assignment"
+                        onClick={e => openMenu(e, r.key)}
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.key ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
                       >
-                        <Eye size={14} />
+                        <MoreVertical size={15} />
                       </button>
                     </td>
                   )}
@@ -337,6 +376,59 @@ export default function Assignments() {
           </table>
         </div>
       </div>
+
+      {menuId && (() => {
+        const row = rows.find(r => r.key === menuId)
+        if (!row) return null
+        const alreadyWithUser = row.status === 'Assigned to User'
+        return (
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
+          >
+            <button onClick={() => { navigate(`/inventory/assign/${row.assignmentId}/edit`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+            </button>
+            <button
+              onClick={() => { if (alreadyWithUser) return; setReturnTarget(row); setReturnError(''); setMenuId(null) }}
+              disabled={alreadyWithUser}
+              title={alreadyWithUser ? 'Already handed off to a user — cannot return to store' : undefined}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${alreadyWithUser ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+            >
+              <RotateCcw size={13} className={alreadyWithUser ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Store
+            </button>
+          </div>
+        )
+      })()}
+
+      <Modal
+        isOpen={!!returnTarget}
+        onClose={() => { setReturnTarget(null); setReturnError('') }}
+        title="Return to Store"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setReturnTarget(null); setReturnError('') }}>Cancel</Button>
+            <Button onClick={confirmReturn}>Confirm</Button>
+          </>
+        }
+      >
+        {returnTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Move <span className="font-semibold text-gray-900">{returnTarget.qty} × {returnTarget.productName}</span> from{' '}
+              <span className="font-semibold text-gray-900">{returnTarget.engineerName}</span> back into available stock at{' '}
+              <span className="font-semibold text-gray-900">{returnTarget.storeName}</span>?
+            </p>
+            {returnError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {returnError}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -60,7 +60,14 @@ function resolveProductId(it) {
 // not just whatever the engineer happens to hold right now. No caller
 // outside the edit flow passes this, so every other read of this module is
 // completely unaffected.
-function computeLedger({ excludeUserAssignmentId } = {}) {
+//
+// `excludeAssignmentId` is the same idea one layer up — used only by
+// CreateAssignment.jsx's own Edit mode — and skips one specific engineer
+// Assignment entirely in the "Assignments: deductions" block just below, so
+// that assignment's own already-claimed units/qty/drum-meters revert to
+// "still Available at the store" for this one computation, letting the user
+// re-pick from (or change) exactly what it originally issued.
+function computeLedger({ excludeUserAssignmentId, excludeAssignmentId } = {}) {
   const balanceByKey = {} // `${productId}|${storeId}` -> cumulative receivedQty
   const units = []        // serial/MAC-tracked hardware, one row per physical unit
   const drums = []        // wire, one row per drum
@@ -157,7 +164,7 @@ function computeLedger({ excludeUserAssignmentId } = {}) {
   const drumsByNumber = new Map(drums.map(d => [d.drumNumber, d]))
 
   getAssignments()
-    .filter(a => a.status !== 'Returned')
+    .filter(a => a.status !== 'Returned' && a.id !== excludeAssignmentId)
     .forEach(a => {
       a.hardwareLines.forEach(l => {
         const values = [...l.serials, ...l.macs]
@@ -355,8 +362,11 @@ function computeLedger({ excludeUserAssignmentId } = {}) {
 
 // Flat [{ productId, storeId, availableQty }] — the base balance table
 // everything else (product rows, summary cards) aggregates from.
-export function getStockBalances() {
-  const { balanceByKey } = computeLedger()
+// `excludeAssignmentId` — CreateAssignment.jsx's Edit mode passing itself
+// through so its own already-issued quantity comes back as Available — see
+// computeLedger()'s file-level note.
+export function getStockBalances(excludeAssignmentId) {
+  const { balanceByKey } = computeLedger({ excludeAssignmentId })
   return Object.entries(balanceByKey).map(([key, availableQty]) => {
     const [productId, storeId] = key.split('|')
     return { productId, storeId, availableQty }
@@ -364,8 +374,8 @@ export function getStockBalances() {
 }
 
 // Total available for a product — across all stores, or narrowed to one.
-export function getProductAvailability(productId, storeId = null) {
-  return getStockBalances()
+export function getProductAvailability(productId, storeId = null, excludeAssignmentId) {
+  return getStockBalances(excludeAssignmentId)
     .filter(b => b.productId === productId && (storeId == null || b.storeId === storeId))
     .reduce((sum, b) => sum + b.availableQty, 0)
 }
@@ -375,10 +385,12 @@ export function getProductAvailability(productId, storeId = null) {
 // does THIS specific engineer currently hold" (status: 'Assigned to
 // Engineer' + engineerId together), rather than every engineer's pool.
 // `excludeUserAssignmentId` is CreateUserAssignment.jsx's Edit mode passing
-// itself through so its own already-handed-off units come back as held —
-// see computeLedger()'s file-level note.
-export function getUnits({ productId, storeId, status, engineerId, excludeUserAssignmentId } = {}) {
-  return computeLedger({ excludeUserAssignmentId }).units.filter(u =>
+// itself through so its own already-handed-off units come back as held;
+// `excludeAssignmentId` is CreateAssignment.jsx's own Edit mode doing the
+// same thing one layer up (its own already-issued units come back as
+// Available) — see computeLedger()'s file-level note for both.
+export function getUnits({ productId, storeId, status, engineerId, excludeUserAssignmentId, excludeAssignmentId } = {}) {
+  return computeLedger({ excludeUserAssignmentId, excludeAssignmentId }).units.filter(u =>
     (!productId || u.productId === productId) &&
     (!storeId || u.storeId === storeId) &&
     (!status || u.status === status) &&
@@ -387,8 +399,9 @@ export function getUnits({ productId, storeId, status, engineerId, excludeUserAs
 }
 
 // Per-drum wire rows, optionally narrowed by productId/storeId.
-export function getDrums({ productId, storeId } = {}) {
-  return computeLedger().drums.filter(d =>
+// `excludeAssignmentId` — see getUnits()'s note above; same idea for drums.
+export function getDrums({ productId, storeId, excludeAssignmentId } = {}) {
+  return computeLedger({ excludeAssignmentId }).drums.filter(d =>
     (!productId || d.productId === productId) &&
     (!storeId || d.storeId === storeId)
   )

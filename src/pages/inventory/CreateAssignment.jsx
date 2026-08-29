@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Search, AlertTriangle, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -9,8 +9,8 @@ import { getStores } from '../../data/storeStore'
 import { getProduct, getProducts } from '../../data/productStore'
 import { getUnits, getDrums, getProductAvailability } from '../../data/inventoryLedger'
 import {
-  getStoreForBranch, getEngineersForBranch, getAssignableWorkOrders, getWorkOrder,
-  resolveWorkOrderRequirement, saveAssignment, WORK_ORDER_TYPES,
+  getStoreForBranch, getEngineersForBranch, getAssignableWorkOrders, getWorkOrder, getAssignment,
+  resolveWorkOrderRequirement, saveAssignment, updateAssignment, WORK_ORDER_TYPES,
 } from '../../data/assignmentStore'
 
 // ── Select Items section line cards ─────────────────────────────────────
@@ -37,16 +37,19 @@ function liveTrackingType(productId) {
 // Raw store availability for a hardware line, ignoring what other lines on
 // THIS assignment might also want — used only to answer "does this store
 // have any of this product at all," not to cap an input.
-function hwLineAvailability(l, storeId) {
+// `excludeAssignmentId` — Edit mode passing itself through so this
+// assignment's own already-issued stock counts as Available again for the
+// purposes of editing it (see inventoryLedger.js's computeLedger() note).
+function hwLineAvailability(l, storeId, excludeAssignmentId) {
   if (!l.productId) return 0
   return liveTrackingType(l.productId) === 'quantity'
-    ? getProductAvailability(l.productId, storeId)
-    : getUnits({ productId: l.productId, storeId, status: 'Available' }).length
+    ? getProductAvailability(l.productId, storeId, excludeAssignmentId)
+    : getUnits({ productId: l.productId, storeId, status: 'Available', excludeAssignmentId }).length
 }
 
-function wireLineAvailability(l, storeId) {
+function wireLineAvailability(l, storeId, excludeAssignmentId) {
   if (!l.productId) return 0
-  return getDrums({ productId: l.productId, storeId })
+  return getDrums({ productId: l.productId, storeId, excludeAssignmentId })
     .filter(d => d.remainingMeters > 0)
     .reduce((s, d) => s + d.remainingMeters, 0)
 }
@@ -57,11 +60,11 @@ function wireLineAvailability(l, storeId) {
 // unrelated to whether the row started out Work-Order-required or was
 // added freely — Select Items no longer enforces any per-line "must be
 // fulfilled" rule at all (see isStep3Valid below).
-function isHwLineOutOfStock(l, storeId) {
-  return !!l.productId && Number(l.requiredQty) > 0 && hwLineAvailability(l, storeId) === 0
+function isHwLineOutOfStock(l, storeId, excludeAssignmentId) {
+  return !!l.productId && Number(l.requiredQty) > 0 && hwLineAvailability(l, storeId, excludeAssignmentId) === 0
 }
-function isWireLineOutOfStock(l, storeId) {
-  return !!l.productId && Number(l.requiredMeters) > 0 && wireLineAvailability(l, storeId) === 0
+function isWireLineOutOfStock(l, storeId, excludeAssignmentId) {
+  return !!l.productId && Number(l.requiredMeters) > 0 && wireLineAvailability(l, storeId, excludeAssignmentId) === 0
 }
 
 // Compact, bounded-height searchable multi-select for a single line's
@@ -229,14 +232,14 @@ function ProductDropdown({ products, value, onSelect, placeholder }) {
 // tracked products, Quantity is a read-only field that mirrors however many
 // units are currently picked in the Serial No. column — it's derived, not
 // an independent input, so it always stays in sync automatically.
-function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock }) {
+function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock, excludeAssignmentId }) {
   const trackingType = liveTrackingType(line.productId)
   // A dual-tracked line's serials/macs are paired 1:1 (same unit, two
   // identifiers) — Math.max avoids double-counting each physical unit the
   // way `serials.length + macs.length` would; for single-tracked lines one
   // of the two arrays is always empty, so this is unchanged for them.
   const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : Math.max(l.serials.length, l.macs.length)) : s, 0)
-  const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId) : 0
+  const grossAvailable = line.productId ? getProductAvailability(line.productId, storeId, excludeAssignmentId) : 0
   // Room left for THIS line to still grow into (excludes its own current
   // pick) — this remains a real physical-stock cap (can't assign more units
   // than the store actually has), unrelated to the Work Order's requirement.
@@ -322,7 +325,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
     // Toggling a dual-tracked unit always adds/removes both values together.
     const isDual = trackingType === 'dual'
     const kindLabel = isDual ? 'unit' : trackingType === 'serial' ? 'serial' : 'MAC'
-    const units = getUnits({ productId: line.productId, storeId, status: 'Available' })
+    const units = getUnits({ productId: line.productId, storeId, status: 'Available', excludeAssignmentId })
       .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
     // Units already checked on THIS line stay visible in the list (so they
     // can be unchecked) — same self-inclusive live behavior as before.
@@ -420,7 +423,7 @@ function HardwareLineRow({ line, storeId, otherLines, products, onChange, onRemo
 // HardwareLineRow's own picker, this draft's picker is never capped by a
 // "required" count — requiredQty is just set to whatever was picked at the
 // moment of confirming, kept only as reference data on the resulting line.
-function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
+function AddHardwareRow({ products, otherLines, storeId, onAdd, excludeAssignmentId }) {
   const [product, setProduct] = useState(null)
   const [qty, setQty] = useState('')
   const [pickedUnits, setPickedUnits] = useState([]) // unit objects {value, mac?}
@@ -432,7 +435,7 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
   const isDual = trackingType === 'dual'
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
   const units = isTracked
-    ? getUnits({ productId: product.id, storeId, status: 'Available' })
+    ? getUnits({ productId: product.id, storeId, status: 'Available', excludeAssignmentId })
       .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
     : []
   const picked = pickedUnits.map(u => u.value)
@@ -441,7 +444,7 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
   // numbers HardwareLineRow uses, purely informational here too; this
   // draft's inputs were never capped by stock and still aren't.
   const usedElsewhere = product ? otherLines.reduce((s, l) => l.productId === product.id ? s + (liveTrackingType(l.productId) === 'quantity' ? Number(l.assignedQty) || 0 : Math.max(l.serials.length, l.macs.length)) : s, 0) : 0
-  const grossAvailable = product && !isTracked ? getProductAvailability(product.id, storeId) : 0
+  const grossAvailable = product && !isTracked ? getProductAvailability(product.id, storeId, excludeAssignmentId) : 0
   const availableCount = !product ? null : isTracked ? Math.max(0, units.length - picked.length) : Math.max(0, grossAvailable - usedElsewhere)
 
   const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
@@ -534,7 +537,7 @@ function AddHardwareRow({ products, otherLines, storeId, onAdd }) {
 // removable, and drum/meters are only ever capped by the drum's real
 // remaining stock — never by `line.requiredMeters`, which is kept purely as
 // inherited reference data.
-function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock }) {
+function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, outOfStock, excludeAssignmentId }) {
   const rowTone = outOfStock ? 'bg-amber-50/40' : ''
 
   // Picking a product invalidates whatever drum/meters were already picked
@@ -576,7 +579,7 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
     )
   }
 
-  const drums = getDrums({ productId: line.productId, storeId }).filter(d => d.remainingMeters > 0)
+  const drums = getDrums({ productId: line.productId, storeId, excludeAssignmentId }).filter(d => d.remainingMeters > 0)
   const usedOnDrum = drumNumber => otherLines.reduce((s, l) => l.drumNumber === drumNumber ? s + (Number(l.assignedMeters) || 0) : s, 0)
   const selectedDrum = drums.find(d => d.drumNumber === line.drumNumber) ?? null
   // roomToGrow (excludes this line's own meters) caps the input; the
@@ -639,14 +642,14 @@ function WireLineRow({ line, storeId, otherLines, products, onChange, onRemove, 
 
 // Trailing, always-visible "add a line" row for the Wire tab — same pattern
 // as AddHardwareRow above (local draft state, green + confirms and resets).
-function AddWireRow({ products, otherLines, storeId, onAdd }) {
+function AddWireRow({ products, otherLines, storeId, onAdd, excludeAssignmentId }) {
   const [product, setProduct] = useState(null)
   const [drumNumber, setDrumNumber] = useState('')
   const [meters, setMeters] = useState('')
   const [remark, setRemark] = useState('')
   const [error, setError] = useState('')
 
-  const drums = product ? getDrums({ productId: product.id, storeId }).filter(d => d.remainingMeters > 0) : []
+  const drums = product ? getDrums({ productId: product.id, storeId, excludeAssignmentId }).filter(d => d.remainingMeters > 0) : []
   const usedOnDrum = dn => otherLines.reduce((s, l) => l.drumNumber === dn ? s + (Number(l.assignedMeters) || 0) : s, 0)
   const selectedDrum = drums.find(d => d.drumNumber === drumNumber) ?? null
   const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
@@ -802,7 +805,16 @@ function WorkOrderPicker({ workOrders, workOrder, onSelect, onClear, placeholder
 
 export default function CreateAssignment() {
   const navigate = useNavigate()
+  const { id: editId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Edit mode — route is /inventory/assign/:id/edit rather than .../new.
+  // `editId` is undefined on the create route, so every edit-mode branch
+  // below is a no-op there and behaves exactly as before. Looked up once
+  // per `editId` (never changes mid-session) rather than re-read on every
+  // render.
+  const existingAssignment = useMemo(() => editId ? getAssignment(editId) : null, [editId])
+  const isEditMode = !!existingAssignment
 
   // Merge-safe searchParams update — same pattern as CreatePurchase.jsx's
   // `?po=` selection, reused here rather than a new one-off (a plain
@@ -852,6 +864,27 @@ export default function CreateAssignment() {
   // assignmentStore.js for the shared list Assign to User reuses too.
   const workOrders = (branchCode && engineer && workOrderType === 'Installation') ? getAssignableWorkOrders(branchCode, engineer.name) : []
   const workOrder = workOrderId ? getWorkOrder(workOrderId) : null
+
+  // Prefill Branch/Engineer/Work Order/Remarks from the existing record in
+  // Edit mode — bypasses selectBranch()/selectEngineer()/selectWorkOrder()
+  // (which clear downstream selections and rewrite the URL) since this is a
+  // one-time load, not a user pick. `engineer` is built directly from the
+  // assignment's own engineerId/engineerName rather than looked up in
+  // `engineers` (branch-scoped, and getAssignableWorkOrders() would exclude
+  // this assignment's own Work Order from THAT list anyway, but not from
+  // getWorkOrder()'s direct id lookup below, so `workOrder` still resolves
+  // correctly). workOrderType is left at its 'Installation' default — no
+  // existing assignment can reference any other type, since getWorkOrder()
+  // only ever reads Installations. Select Items' own hwLines/wireLines are
+  // prefilled separately below, once `workOrder`/`store` resolve.
+  useEffect(() => {
+    if (!existingAssignment) return
+    setBranchCode(existingAssignment.branchCode)
+    setEngineer({ id: existingAssignment.engineerId, name: existingAssignment.engineerName })
+    setWorkOrderId(existingAssignment.workOrderId)
+    setRemarks(existingAssignment.remarks || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAssignment])
 
   // Selecting Branch/Engineer keeps `?branch=`/`?engineer=` in sync (and
   // clears whichever downstream selections no longer apply), same idea as
@@ -934,23 +967,60 @@ export default function CreateAssignment() {
   // handleAssign(), the Confirm section's "Assign Inventory" button) is the
   // sole place that appends to _assignments, so nothing here or in the
   // ledger's read-only queries below can leave a phantom deduction behind.
+  //
+  // Edit mode: as long as the Work Order hasn't been changed away from the
+  // one this assignment already references, each requirement line is
+  // pre-filled from this assignment's own matching hardwareLine/wireLine
+  // (by productId) instead of starting at zero, and any of its lines that
+  // AREN'T part of the current requirement (i.e. were added as "Extra" —
+  // see AddHardwareRow/AddWireRow) are appended as their own isExtra lines.
+  // If the user swaps to a different Work Order mid-edit, this stops
+  // applying — the new Work Order's requirement takes over fully empty,
+  // same as a fresh create, since the old assignment's lines no longer
+  // belong to what's now being edited.
   useEffect(() => {
     if (!workOrder || !store) { setHwLines([]); setWireLines([]); return }
+    const reuseExisting = existingAssignment && existingAssignment.workOrderId === workOrder.id
+    const existingHw = reuseExisting ? existingAssignment.hardwareLines : []
+    const existingWire = reuseExisting ? existingAssignment.wireLines : []
+    const existingHwByProduct = new Map(existingHw.filter(l => l.productId).map(l => [l.productId, l]))
+    const existingWireByProduct = new Map(existingWire.filter(l => l.productId).map(l => [l.productId, l]))
+
     // trackingType is intentionally NOT captured here — HardwareLineRow and
     // every validity check below call liveTrackingType(productId) fresh
     // instead, so a Tracking Type edited in Product Management after this
     // Work Order/store was already selected is picked up immediately rather
     // than staying stuck on whatever it was at the moment this effect ran.
-    setHwLines(requirement.hardware.map(h => ({
-      name: h.name, productId: h.productId, productName: h.productName, requiredQty: h.requiredQty,
-      assignedQty: 0, serials: [], macs: [], remark: '',
-    })))
-    setWireLines(requirement.wire.map(w => ({
-      name: w.name, productId: w.productId, productName: w.productName, requiredMeters: w.requiredMeters,
-      drumNumber: '', assignedMeters: 0, remark: '',
-    })))
+    const reqHwLines = requirement.hardware.map(h => {
+      const existing = h.productId ? existingHwByProduct.get(h.productId) : null
+      return {
+        name: h.name, productId: h.productId, productName: h.productName, requiredQty: h.requiredQty,
+        assignedQty: existing?.assignedQty ?? 0, serials: existing?.serials ?? [], macs: existing?.macs ?? [],
+        remark: existing?.remark ?? '',
+      }
+    })
+    const reqHwProductIds = new Set(reqHwLines.map(l => l.productId).filter(Boolean))
+    const extraHwLines = existingHw.filter(l => !reqHwProductIds.has(l.productId)).map(l => ({
+      name: l.productName, productId: l.productId, productName: l.productName, requiredQty: l.requiredQty,
+      assignedQty: l.assignedQty, serials: l.serials, macs: l.macs, remark: l.remark, isExtra: true,
+    }))
+    setHwLines([...reqHwLines, ...extraHwLines])
+
+    const reqWireLines = requirement.wire.map(w => {
+      const existing = w.productId ? existingWireByProduct.get(w.productId) : null
+      return {
+        name: w.name, productId: w.productId, productName: w.productName, requiredMeters: w.requiredMeters,
+        drumNumber: existing?.drumNumber ?? '', assignedMeters: existing?.assignedMeters ?? 0, remark: existing?.remark ?? '',
+      }
+    })
+    const reqWireProductIds = new Set(reqWireLines.map(l => l.productId).filter(Boolean))
+    const extraWireLines = existingWire.filter(l => !reqWireProductIds.has(l.productId)).map(l => ({
+      name: l.productName, productId: l.productId, productName: l.productName, requiredMeters: l.requiredMeters,
+      drumNumber: l.drumNumber, assignedMeters: l.assignedMeters, remark: l.remark, isExtra: true,
+    }))
+    setWireLines([...reqWireLines, ...extraWireLines])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workOrder?.id, store?.id])
+  }, [workOrder?.id, store?.id, existingAssignment])
 
   function updateHwLine(idx, patch) { setHwLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
@@ -1012,7 +1082,7 @@ export default function CreateAssignment() {
     if (!isStep3Valid()) { setAttemptedAction('step3'); return }
     setSaveError('')
     try {
-      const assignment = saveAssignment({
+      const payload = {
         engineerId: engineer.id, engineerName: engineer.name,
         branchCode, workOrderId: workOrder.id, workOrderLabel: workOrder.id,
         storeId: store.id, storeName: store.storeName,
@@ -1025,8 +1095,12 @@ export default function CreateAssignment() {
           assignedMeters: l.assignedMeters, drumNumber: l.drumNumber, remark: l.remark,
         })),
         remarks,
-      })
-      navigate(`/inventory/assign/${assignment.id}`)
+      }
+      // No detail page to land on (removed) — both create and edit return
+      // to the list.
+      if (isEditMode) updateAssignment(existingAssignment.id, payload)
+      else saveAssignment(payload)
+      navigate('/inventory/assign')
     } catch (err) {
       setSaveError(err.message || 'Could not save this assignment.')
     }
@@ -1038,8 +1112,8 @@ export default function CreateAssignment() {
   // isHwLineOutOfStock/isWireLineOutOfStock), but still worth surfacing
   // explicitly at Confirm so a partial assignment is visibly partial, not a
   // silently dropped line.
-  const outOfStockHwLines = hwLines.filter(l => isHwLineOutOfStock(l, store?.id))
-  const outOfStockWireLines = wireLines.filter(l => isWireLineOutOfStock(l, store?.id))
+  const outOfStockHwLines = hwLines.filter(l => isHwLineOutOfStock(l, store?.id, editId))
+  const outOfStockWireLines = wireLines.filter(l => isWireLineOutOfStock(l, store?.id, editId))
 
   const step1Valid = isStep1Valid()
   const step2Valid = isStep2Valid()
@@ -1057,7 +1131,7 @@ export default function CreateAssignment() {
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Assign Inventory</h1>
+            <h1 className="text-xl font-bold text-gray-900">{isEditMode ? 'Edit Assignment' : 'Assign Inventory'}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {engineer ? <>To <span className="font-semibold text-gray-700">{engineer.name}</span>{workOrder ? <> for <span className="font-mono">{workOrder.id}</span></> : null}</> : 'Select a store and engineer to begin'}
             </p>
@@ -1206,9 +1280,10 @@ export default function CreateAssignment() {
                           otherLines={hwLines.filter((_, i) => i !== idx)}
                           onChange={patch => updateHwLine(idx, patch)}
                           onRemove={() => removeHwLine(idx)}
-                          outOfStock={isHwLineOutOfStock(l, store.id)} />
+                          outOfStock={isHwLineOutOfStock(l, store.id, editId)}
+                          excludeAssignmentId={editId} />
                       ))}
-                      <AddHardwareRow products={hardwareProductsToAdd} otherLines={hwLines} storeId={store.id} onAdd={addHwLine} />
+                      <AddHardwareRow products={hardwareProductsToAdd} otherLines={hwLines} storeId={store.id} onAdd={addHwLine} excludeAssignmentId={editId} />
                     </tbody>
                   </table>
                 </div>
@@ -1237,9 +1312,10 @@ export default function CreateAssignment() {
                           otherLines={wireLines.filter((_, i) => i !== idx)}
                           onChange={patch => updateWireLine(idx, patch)}
                           onRemove={() => removeWireLine(idx)}
-                          outOfStock={isWireLineOutOfStock(l, store.id)} />
+                          outOfStock={isWireLineOutOfStock(l, store.id, editId)}
+                          excludeAssignmentId={editId} />
                       ))}
-                      <AddWireRow products={wireProductsToAdd} otherLines={wireLines} storeId={store.id} onAdd={addWireLine} />
+                      <AddWireRow products={wireProductsToAdd} otherLines={wireLines} storeId={store.id} onAdd={addWireLine} excludeAssignmentId={editId} />
                     </tbody>
                   </table>
                 </div>
@@ -1256,7 +1332,7 @@ export default function CreateAssignment() {
                 </div>
               )}
               <div className="flex justify-end">
-                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>Assign Inventory</Button>
+                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>{isEditMode ? 'Save Changes' : 'Assign Inventory'}</Button>
               </div>
             </div>
           )}
@@ -1264,18 +1340,19 @@ export default function CreateAssignment() {
       </div>
 
       {/* ── Confirm modal — same summary content the inline Confirm section
-          used to show, now behind the bottom "Assign Inventory" button.
-          Guarded on `workOrder` (not just `showConfirmModal`) since the
-          content below reads engineer/workOrder fields directly — the modal
-          can only ever be opened once both are set (openConfirmModal checks
-          step3Valid, which itself requires a Work Order to be non-empty). */}
+          used to show, now behind the bottom "Assign Inventory"/"Save
+          Changes" button. Guarded on `workOrder` (not just
+          `showConfirmModal`) since the content below reads engineer/
+          workOrder fields directly — the modal can only ever be opened once
+          both are set (openConfirmModal checks step3Valid, which itself
+          requires a Work Order to be non-empty). */}
       {workOrder && (
         <Modal
           isOpen={showConfirmModal}
           onClose={() => setShowConfirmModal(false)}
           size="lg"
-          title="Confirm Assignment"
-          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>Assign Inventory</Button>}
+          title={isEditMode ? 'Confirm Changes' : 'Confirm Assignment'}
+          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleAssign}>{isEditMode ? 'Save Changes' : 'Assign Inventory'}</Button>}
         >
           <div className="space-y-5">
             {saveError && (
