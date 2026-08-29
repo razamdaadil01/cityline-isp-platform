@@ -5,6 +5,7 @@ import Badge from '../../components/ui/Badge'
 import { getUserAssignment, subscribeUserAssignments } from '../../data/userAssignmentStore'
 
 const STATUS_BADGE = { 'Handed Off': 'purple' }
+const TYPE_LABEL = { new: 'New', replace: 'Replace', disconnection: 'Disconnection' }
 
 function InfoRow({ label, value }) {
   return (
@@ -91,6 +92,21 @@ export default function AssignToUserDetail() {
             </div>
           </div>
 
+          {assignment.returnedItem && (
+            <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-surface-border">
+                <h3 className="text-sm font-semibold text-gray-800">Unit Returned</h3>
+              </div>
+              <div className="px-5 py-4 space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-gray-800">{assignment.returnedItem.productName}</span>
+                  <span className="font-mono text-gray-500 text-xs">{assignment.returnedItem.identifier}</span>
+                </div>
+                {assignment.returnedItem.remark && <p className="text-xs text-gray-500">{assignment.returnedItem.remark}</p>}
+              </div>
+            </div>
+          )}
+
           {assignment.remarks && (
             <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
               <div className="px-5 py-3.5 border-b border-surface-border">
@@ -110,9 +126,11 @@ export default function AssignToUserDetail() {
             <InfoRow label="Assignment Number" value={<span className="font-mono text-brand-blue">{assignment.assignmentNumber}</span>} />
             <InfoRow label="Status" value={<Badge variant={STATUS_BADGE[assignment.status] ?? 'gray'} size="sm" dot>{assignment.status}</Badge>} />
             <InfoRow label="Engineer" value={assignment.engineerName} />
+            <InfoRow label="Assignment Type" value={TYPE_LABEL[assignment.assignmentType] ?? 'New'} />
             <InfoRow label="Work Order Type" value={assignment.workOrderType} />
             <InfoRow label="Work Order" value={<span className="font-mono">{assignment.workOrderLabel}</span>} />
             <InfoRow label="Customer" value={assignment.customerName} />
+            <InfoRow label="User Id" value={assignment.customerId} />
             <InfoRow label="Assigned By" value={assignment.assignedBy} />
             <InfoRow label="Assigned At" value={(assignment.assignedAt || '').slice(0, 16).replace('T', ' ')} />
           </div>

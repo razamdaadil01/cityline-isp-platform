@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, AlertTriangle, ChevronDown } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, AlertTriangle, ChevronDown, PackagePlus, RefreshCw, PackageX } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
@@ -8,7 +8,19 @@ import { FIELD_ENGINEERS } from '../../data/installationsStore'
 import { getProducts, getProduct } from '../../data/productStore'
 import { getUnits, getEngineerHeldQty } from '../../data/inventoryLedger'
 import { WORK_ORDER_TYPES } from '../../data/assignmentStore'
-import { getWorkOrderTypeRecords, saveUserAssignment } from '../../data/userAssignmentStore'
+import { ASSIGNMENT_TYPES, getWorkOrderTypeRecords, saveUserAssignment } from '../../data/userAssignmentStore'
+
+// Segmented-control config for the Assignment Type selector — same
+// bordered-button, icon+label style TicketCreate.jsx's own "Suggested
+// Assignment Type" choice uses (border-brand-blue bg-brand-blue/5 when
+// selected). 'new' is the default and today's only behavior; 'replace' and
+// 'disconnection' are new — see the top-level file note by ASSIGNMENT_TYPE_META's
+// usage below for what each does.
+const ASSIGNMENT_TYPE_META = {
+  new:          { label: 'New',          icon: PackagePlus, hint: 'Hand off held product(s) to the user' },
+  replace:      { label: 'Replace',      icon: RefreshCw,   hint: 'Hand off a new unit and record the old one coming back' },
+  disconnection: { label: 'Disconnection', icon: PackageX,   hint: 'No handoff — only record the unit being taken back' },
+}
 
 // Same live-lookup helper as CreateAssignment.jsx's — reads the product's
 // *current* Tracking Configuration on every call rather than a value cached
@@ -381,11 +393,15 @@ export default function CreateUserAssignment() {
   const [engineer, setEngineer] = useState(null)
   const [workOrderType, setWorkOrderType] = useState('Installation')
   const [reference, setReference] = useState(null)
+  const [assignmentType, setAssignmentType] = useState('new')
   const [handoffLines, setHandoffLines] = useState([])
+  const [returnedItem, setReturnedItem] = useState({ productId: '', productName: '', identifier: '', remark: '' })
   const [remarks, setRemarks] = useState('')
   const [attemptedAction, setAttemptedAction] = useState(null)
   const [saveError, setSaveError] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+
+  const activeProducts = useMemo(() => getProducts().filter(p => p.status === 'active'), [])
 
   const records = useMemo(() => getWorkOrderTypeRecords(workOrderType), [workOrderType])
 
@@ -408,6 +424,15 @@ export default function CreateUserAssignment() {
     setReference(rec)
     patchSearchParams({ reference: rec?.id ?? null }, { replace: true })
   }
+  // Switching Assignment Type clears the returned-item draft — a serial/MAC
+  // captured while on "Replace" shouldn't silently carry over if the user
+  // flips to "Disconnection" (different product likely, easy to miss a
+  // stale value otherwise).
+  function selectAssignmentType(type) {
+    setAssignmentType(type)
+    setReturnedItem({ productId: '', productName: '', identifier: '', remark: '' })
+    patchSearchParams({ type }, { replace: true })
+  }
 
   // Auto-select an Engineer carried in the URL (?engineer=<id>) on first
   // render — guarded on `!engineer` so it never fights a selection already
@@ -427,6 +452,13 @@ export default function CreateUserAssignment() {
   useEffect(() => {
     const typeFromUrl = searchParams.get('workOrderType')
     if (typeFromUrl && WORK_ORDER_TYPES.includes(typeFromUrl)) setWorkOrderType(typeFromUrl)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-select an Assignment Type carried in the URL (?type=<t>).
+  useEffect(() => {
+    const typeFromUrl = searchParams.get('type')
+    if (typeFromUrl && ASSIGNMENT_TYPES.includes(typeFromUrl)) setAssignmentType(typeFromUrl)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -488,15 +520,32 @@ export default function CreateUserAssignment() {
   }, [engineer, handoffLines])
 
   // Engineer section is always visible; Reference reveals once it's valid;
-  // Select Items reveals once a Reference is picked; the bottom "Assign to
-  // User" button (and the Confirm modal it opens) sit alongside Select
-  // Items once that section is reachable — same progressive-reveal
-  // structure as CreateAssignment.jsx, replacing the old 4-step wizard.
+  // Assignment Type reveals alongside Select Items once a Reference is
+  // picked; the bottom "Assign to User" button (and the Confirm modal it
+  // opens) sit alongside Select Items once that section is reachable —
+  // same progressive-reveal structure as CreateAssignment.jsx, replacing
+  // the old 4-step wizard.
   const engineerValid = !!engineer
   const referenceValid = !!engineer && !!reference
-  const itemsValid = handoffLines.some(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
 
   const issuedLines = handoffLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
+  const handoffValid = issuedLines.length > 0
+  const returnedItemValid = !!returnedItem.productId && !!returnedItem.identifier.trim()
+
+  // What's required to submit depends on Assignment Type: 'new' only ever
+  // needed a non-empty handoff; 'replace' needs BOTH a handoff and a
+  // returned unit; 'disconnection' hands off nothing, so it only needs the
+  // returned unit.
+  const itemsValid = assignmentType === 'disconnection' ? returnedItemValid
+    : assignmentType === 'replace' ? handoffValid && returnedItemValid
+    : handoffValid
+  const itemsErrorText = assignmentType === 'disconnection'
+    ? 'Capture the product and serial/MAC of the unit being returned.'
+    : assignmentType === 'replace' && !handoffValid && !returnedItemValid
+    ? 'Select at least one item to hand off, and capture the unit being returned.'
+    : assignmentType === 'replace' && !returnedItemValid
+    ? 'Capture the product and serial/MAC of the unit being returned.'
+    : 'Select at least one item to hand off.'
 
   // The page-level "Assign to User" button only opens the Confirm modal —
   // an invalid click surfaces the same error banner as before instead of
@@ -516,11 +565,13 @@ export default function CreateUserAssignment() {
       const assignment = saveUserAssignment({
         engineerId: engineer.id, engineerName: engineer.name,
         workOrderType, workOrderId: reference.id, workOrderLabel: reference.label,
-        customerName: reference.customerName,
+        customerName: reference.customerName, customerId: reference.customerId,
+        assignmentType,
         items: issuedLines.map(l => ({
           productId: l.productId, productName: l.productName,
           serials: l.serials, macs: l.macs, qty: l.qty,
         })),
+        returnedItem: assignmentType === 'new' ? null : returnedItem,
         remarks,
       })
       navigate(`/inventory/assign-to-user/${assignment.id}`)
@@ -608,18 +659,58 @@ export default function CreateUserAssignment() {
                       <span className="font-medium text-gray-800">{reference.customerName}</span>
                     </div>
                   )}
+                  {/* User Id — read-only, derived from the reference record
+                      itself (never a manual entry field); only shown
+                      alongside Customer, since a customer-less reference
+                      (an area-wide Incident) has no user identity to show
+                      either. See getWorkOrderTypeRecords()'s file-level note
+                      in userAssignmentStore.js for exactly which field this
+                      is sourced from per Work Order Type. */}
+                  {reference.customerName && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">User Id</span>
+                      <span className="font-mono font-medium text-gray-800">{reference.customerId ?? '—'}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* ── Section 3: Select Items — reveals once a Reference is picked.
-              No Hardware/Wire tabs (see the line-generation effect's note
-              above on why wire never appears in an engineer's holdings), and
-              no trailing "add a line" row — a handoff can only ever include
+          {/* ── Section 3: Assignment Type — reveals once Engineer + Reference
+              are both set, before Select Items. Segmented control, same
+              bordered-button style as TicketCreate.jsx's own "Suggested
+              Assignment Type" choice. Defaults to 'new'. ── */}
+          {referenceValid && (
+            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Assignment Type</p>
+              <div className="flex gap-3">
+                {ASSIGNMENT_TYPES.map(type => {
+                  const meta = ASSIGNMENT_TYPE_META[type]
+                  const Icon = meta.icon
+                  return (
+                    <button key={type} type="button" onClick={() => selectAssignmentType(type)}
+                      className={`flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                        assignmentType === type ? 'border-brand-blue bg-brand-blue/5 text-brand-blue' : 'border-surface-border text-gray-500 hover:border-gray-300'
+                      }`}>
+                      <Icon size={14} /> {meta.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-gray-400">{ASSIGNMENT_TYPE_META[assignmentType].hint}</p>
+            </div>
+          )}
+
+          {/* ── Section 4: Select Items — reveals once a Reference is picked,
+              hidden for Disconnection (no new hardware is handed off in that
+              mode — see the "Unit Being Returned" section below instead). No
+              Hardware/Wire tabs (see the line-generation effect's note above
+              on why wire never appears in an engineer's holdings), and no
+              trailing "add a line" row — a handoff can only ever include
               products the engineer already holds, so the line set stays
               fully derived from holdings. ── */}
-          {engineerValid && referenceValid && (
+          {engineerValid && referenceValid && assignmentType !== 'disconnection' && (
             <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Select Items</p>
 
@@ -659,12 +750,52 @@ export default function CreateUserAssignment() {
             </div>
           )}
 
-          {/* ── Submit — reveals alongside Select Items; opens the Confirm modal ── */}
+          {/* ── Section 5: Unit Being Returned/Replaced — reveals for
+              Replace and Disconnection only. Captures at minimum a product +
+              serial/MAC for the unit coming back from the customer's side;
+              this is plain data on the assignment record, never validated
+              against the engineer's holdings the way Select Items is — the
+              returned unit isn't coming from the engineer's tracked stock,
+              it's coming from the customer, so there's nothing in this
+              app's ledger to check it against. ── */}
+          {referenceValid && assignmentType !== 'new' && (
+            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                {assignmentType === 'replace' ? 'Unit Being Returned / Replaced' : 'Unit Being Returned'}
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Product" required>
+                  <ProductDropdown
+                    products={activeProducts} value={returnedItem.productName} placeholder="Select product…"
+                    onSelect={p => setReturnedItem(prev => ({ ...prev, productId: p.id, productName: p.name }))}
+                  />
+                </FormField>
+                <FormField label="Serial / MAC" required hint="As found on the unit taken back from the customer">
+                  <input
+                    type="text" value={returnedItem.identifier}
+                    onChange={e => setReturnedItem(prev => ({ ...prev, identifier: e.target.value }))}
+                    placeholder="e.g. ZTE-ONT-2026-0099 or MAC:4C:AA:BB:CC:DD:01"
+                    className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                  />
+                </FormField>
+              </div>
+              <FormField label="Remark" hint="Optional — e.g. reason for return">
+                <input
+                  type="text" value={returnedItem.remark}
+                  onChange={e => setReturnedItem(prev => ({ ...prev, remark: e.target.value }))}
+                  placeholder="Optional note…"
+                  className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                />
+              </FormField>
+            </div>
+          )}
+
+          {/* ── Submit — reveals alongside Assignment Type; opens the Confirm modal ── */}
           {engineerValid && referenceValid && (
             <div className="space-y-3">
               {attemptedAction === 'items' && !itemsValid && (
                 <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item to hand off.
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {itemsErrorText}
                 </div>
               )}
               <div className="flex justify-end">
@@ -705,6 +836,10 @@ export default function CreateUserAssignment() {
                 <span className="font-semibold text-gray-800">{engineer.name}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Type</span>
+                <span className="font-semibold text-gray-800">{ASSIGNMENT_TYPE_META[assignmentType].label}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">Work Order</span>
                 <span className="font-mono font-semibold text-gray-800">{reference.id} <span className="text-gray-400 font-sans">({workOrderType})</span></span>
               </div>
@@ -712,30 +847,60 @@ export default function CreateUserAssignment() {
                 <span className="text-gray-500">Customer</span>
                 <span className="font-medium text-gray-800">{reference.customerName ?? '—'}</span>
               </div>
+              {reference.customerName && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">User Id</span>
+                  <span className="font-mono font-medium text-gray-800">{reference.customerId ?? '—'}</span>
+                </div>
+              )}
             </div>
 
-            <div className="rounded-xl border border-surface-border overflow-hidden">
-              <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
-                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Handing Off</p>
-              </div>
-              <div className="divide-y divide-surface-border">
-                {issuedLines.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Select Items.</p>
-                ) : issuedLines.map((l, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-800">{l.productName}</span>
-                      {(l.serials.length || l.macs.length) ? (
-                        <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
-                      ) : null}
+            {/* No "Handing Off" card for Disconnection — nothing is handed
+                off in that mode, only recorded as returned below. */}
+            {assignmentType !== 'disconnection' && (
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Handing Off</p>
+                </div>
+                <div className="divide-y divide-surface-border">
+                  {issuedLines.length === 0 ? (
+                    <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Select Items.</p>
+                  ) : issuedLines.map((l, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-800">{l.productName}</span>
+                        {(l.serials.length || l.macs.length) ? (
+                          <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
+                        ) : null}
+                      </div>
+                      <span className="font-semibold text-gray-700">
+                        {liveTrackingType(l.productId) === 'quantity' ? l.qty : l.serials.length + l.macs.length}
+                      </span>
                     </div>
-                    <span className="font-semibold text-gray-700">
-                      {liveTrackingType(l.productId) === 'quantity' ? l.qty : l.serials.length + l.macs.length}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Returned-item summary — Replace and Disconnection only. */}
+            {assignmentType !== 'new' && (
+              <div className="rounded-xl border border-surface-border overflow-hidden">
+                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Unit Being Returned</p>
+                </div>
+                <div className="px-4 py-2.5">
+                  {returnedItemValid ? (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-800">{returnedItem.productName}</span>
+                      <span className="font-mono text-gray-500 text-xs">{returnedItem.identifier}</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-3.5">Not captured yet — go back to Unit Being Returned.</p>
+                  )}
+                  {returnedItem.remark && <p className="text-xs text-gray-500 mt-1.5">{returnedItem.remark}</p>}
+                </div>
+              </div>
+            )}
 
             <FormField label="Remarks" hint="Optional notes about this handoff">
               <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes…" />
