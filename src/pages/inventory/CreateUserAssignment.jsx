@@ -6,7 +6,7 @@ import Modal from '../../components/ui/Modal'
 import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 import { getProducts, getProduct } from '../../data/productStore'
-import { getUnits, getEngineerHeldQty } from '../../data/inventoryLedger'
+import { getUnits, getEngineerHeldQty, getEngineerHeldDrums } from '../../data/inventoryLedger'
 import { WORK_ORDER_TYPES } from '../../data/assignmentStore'
 import { ASSIGNMENT_TYPES, getWorkOrderTypeRecords, saveUserAssignment } from '../../data/userAssignmentStore'
 
@@ -233,7 +233,7 @@ function UnitPickerPopover({ units, picked, onToggle, onSelectAll, renderLabel, 
   )
 }
 
-// ── Select Items table row ───────────────────────────────────────────────
+// ── Select Items table rows — Hardware tab ───────────────────────────────
 // Same compact-table shape as CreateAssignment.jsx's HardwareLineRow
 // (Product Name | Serial No. / Mac No. | Quantity | Avl. Qty. | Comment),
 // adapted to this flow's holdings-based model: there's no Work Order
@@ -372,6 +372,89 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
   )
 }
 
+// ── Select Items table row — Wire tab ────────────────────────────────────
+// Same shape as CreateAssignment.jsx's WireLineRow (Product Name | Drum No |
+// Quantity | Avl. Qty. | Comment), adapted the same way HandoffLineRow above
+// adapts HardwareLineRow: one row per wire product the engineer holds meters
+// of (no "requirement", no unmapped branch, no add/remove), and every drum
+// figure is read from what THIS ENGINEER holds (getEngineerHeldDrums with
+// engineerId) rather than store stock. Drum No. is still a picker rather
+// than a fixed value — an engineer can hold meters cut from more than one
+// drum of the same wire product (e.g. two separate hardware handoffs), so
+// the row lets them choose which held drum this line draws from, same as
+// CreateAssignment.jsx's own drum picker does against store stock.
+function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
+  function changeProduct(product) {
+    onChange({ productId: product.id, productName: product.name, drumNumber: '', assignedMeters: 0 })
+  }
+
+  const nameCell = (
+    <td className="px-3 py-2.5 align-top">
+      <ProductDropdown products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+    </td>
+  )
+
+  const commentCell = (
+    <td className="px-3 py-2.5 align-top">
+      <input
+        type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+        placeholder="Optional note…"
+        className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+      />
+    </td>
+  )
+
+  const drums = getEngineerHeldDrums(engineerId, line.productId)
+  const usedOnDrum = drumNumber => otherLines.reduce((s, l) => l.drumNumber === drumNumber ? s + (Number(l.assignedMeters) || 0) : s, 0)
+  const selectedDrum = drums.find(d => d.drumNumber === line.drumNumber) ?? null
+  // roomToGrow (excludes this line's own meters) caps the input; the
+  // dropdown option text includes this line's own meters so it visibly
+  // decrements as the user raises it — same pattern as CreateAssignment.jsx.
+  const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
+
+  return (
+    <tr>
+      {nameCell}
+      <td className="px-3 py-2.5 align-top">
+        {drums.length === 0 ? (
+          <p className="text-xs text-gray-400 py-1.5">No drums held</p>
+        ) : (
+          <select
+            value={line.drumNumber}
+            onChange={e => onChange({ drumNumber: e.target.value, assignedMeters: 0 })}
+            className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          >
+            <option value="">Select drum…</option>
+            {drums.map(d => {
+              const selfMeters = d.drumNumber === line.drumNumber ? (Number(line.assignedMeters) || 0) : 0
+              return (
+                <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber) - selfMeters)}m left</option>
+              )
+            })}
+          </select>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+          value={line.assignedMeters}
+          onChange={e => {
+            const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
+            onChange({ assignedMeters: v })
+          }}
+          className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">
+          {selectedDrum ? `${roomToGrow.toLocaleString('en-IN')}m` : '—'}
+        </div>
+      </td>
+      {commentCell}
+    </tr>
+  )
+}
+
 export default function CreateUserAssignment() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -393,7 +476,8 @@ export default function CreateUserAssignment() {
   const [engineer, setEngineer] = useState(null)
   const [reference, setReference] = useState(null)
   const [assignmentType, setAssignmentType] = useState('new')
-  const [handoffLines, setHandoffLines] = useState([])
+  const [hwLines, setHwLines] = useState([])
+  const [wireLines, setWireLines] = useState([])
   const [remarks, setRemarks] = useState('')
   const [attemptedAction, setAttemptedAction] = useState(null)
   const [saveError, setSaveError] = useState('')
@@ -426,6 +510,15 @@ export default function CreateUserAssignment() {
   function selectAssignmentType(type) {
     setAssignmentType(type)
     patchSearchParams({ type }, { replace: true })
+  }
+
+  // Select Items' Hardware/Wire tab — same URL-driven pattern as
+  // CreateAssignment.jsx's own itemsTab, so reloading or sharing a link
+  // with &itemsTab=wire lands on that tab directly.
+  const itemsTabParam = searchParams.get('itemsTab')
+  const itemsTab = ['hardware', 'wire'].includes(itemsTabParam) ? itemsTabParam : 'hardware'
+  function setItemsTab(tab) {
+    patchSearchParams({ itemsTab: tab }, { replace: true })
   }
 
   // Auto-select an Engineer carried in the URL (?engineer=<id>) on first
@@ -463,19 +556,14 @@ export default function CreateUserAssignment() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [records])
 
-  // Rebuild Select Items' editable line state whenever the selected engineer
-  // changes — one line per product they currently hold ANY of (serial/MAC
-  // units with status 'Assigned to Engineer', or a positive net quantity via
-  // getEngineerHeldQty()). Unlike Assign to Engineer there's no
+  // Rebuild the Hardware tab's editable line state whenever the selected
+  // engineer changes — one line per product they currently hold ANY of
+  // (serial/MAC units with status 'Assigned to Engineer', or a positive net
+  // quantity via getEngineerHeldQty()). Unlike Assign to Engineer there's no
   // "requirement" driving this list — it's simply everything this engineer
-  // is currently holding, since a handoff can cover any of it. Wire
-  // products never appear here: wireLines issued to an engineer are only
-  // tracked at the drum/store level (see inventoryLedger.js's computeLedger,
-  // which populates assignedQtyByEngineerKey from hardwareLines only), so
-  // there's no per-engineer "held wire" concept to hand off — no Hardware/
-  // Wire tab split is needed as a result.
+  // is currently holding, since a handoff can cover any of it.
   useEffect(() => {
-    if (!engineer) { setHandoffLines([]); return }
+    if (!engineer) { setHwLines([]); return }
     const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
     const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
     const unitLines = [...productIdsWithUnits].map(productId => ({
@@ -485,17 +573,33 @@ export default function CreateUserAssignment() {
     const qtyLines = getProducts()
       .filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0)
       .map(p => ({ productId: p.id, productName: p.name, qty: 0, serials: [], macs: [], remark: '' }))
-    setHandoffLines([...unitLines, ...qtyLines])
+    setHwLines([...unitLines, ...qtyLines])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engineer?.id])
 
-  function updateLine(idx, patch) { setHandoffLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
+  // Rebuild the Wire tab's editable line state the same way — one line per
+  // wire product the engineer currently holds meters of, from ANY drum
+  // (getEngineerHeldDrums, see inventoryLedger.js's file-level note on why
+  // this needed its own per-engineer-per-drum tracking alongside the
+  // existing per-engineer-per-product tracking hardware already had).
+  useEffect(() => {
+    if (!engineer) { setWireLines([]); return }
+    const heldWireProductIds = new Set(getEngineerHeldDrums(engineer.id).map(d => d.productId))
+    setWireLines([...heldWireProductIds].map(productId => ({
+      productId, productName: getProduct(productId)?.name ?? productId,
+      drumNumber: '', assignedMeters: 0, remark: '',
+    })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineer?.id])
+
+  function updateHwLine(idx, patch) { setHwLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
+  function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
 
   // Products the engineer holds that don't already have their own line —
   // the pool offered by each row's Product Name dropdown, same
   // "already present as a line" exclusion CreateAssignment.jsx applies to
   // its own Product dropdown (see HandoffLineRow's file-level note above).
-  const heldProductsToAdd = useMemo(() => {
+  const heldHwProductsToAdd = useMemo(() => {
     if (!engineer) return []
     const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
     const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
@@ -503,8 +607,16 @@ export default function CreateUserAssignment() {
       ...[...productIdsWithUnits].map(id => getProduct(id)).filter(Boolean),
       ...getProducts().filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0),
     ]
-    return heldProducts.filter(p => !handoffLines.some(l => l.productId === p.id))
-  }, [engineer, handoffLines])
+    return heldProducts.filter(p => !hwLines.some(l => l.productId === p.id))
+  }, [engineer, hwLines])
+
+  // Same exclusion, against held wire products instead.
+  const heldWireProductsToAdd = useMemo(() => {
+    if (!engineer) return []
+    const heldWireProducts = [...new Set(getEngineerHeldDrums(engineer.id).map(d => d.productId))]
+      .map(id => getProduct(id)).filter(Boolean)
+    return heldWireProducts.filter(p => !wireLines.some(l => l.productId === p.id))
+  }, [engineer, wireLines])
 
   // Engineer & User is always visible (User just stays disabled until an
   // Engineer is picked); Assignment Type and Select Items both reveal once
@@ -519,8 +631,9 @@ export default function CreateUserAssignment() {
   const engineerValid = !!engineer
   const referenceValid = !!engineer && !!reference
 
-  const issuedLines = handoffLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
-  const itemsValid = issuedLines.length > 0
+  const issuedHwLines = hwLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
+  const issuedWireLines = wireLines.filter(l => l.drumNumber && Number(l.assignedMeters) > 0)
+  const itemsValid = issuedHwLines.length > 0 || issuedWireLines.length > 0
 
   // The page-level "Assign to User" button only opens the Confirm modal —
   // an invalid click surfaces the same error banner as before instead of
@@ -542,10 +655,16 @@ export default function CreateUserAssignment() {
         workOrderType: reference.type, workOrderId: reference.id, workOrderLabel: reference.label,
         customerName: reference.customerName, customerId: reference.customerId,
         assignmentType,
-        items: issuedLines.map(l => ({
-          productId: l.productId, productName: l.productName,
-          serials: l.serials, macs: l.macs, qty: l.qty,
-        })),
+        items: [
+          ...issuedHwLines.map(l => ({
+            productId: l.productId, productName: l.productName,
+            serials: l.serials, macs: l.macs, qty: l.qty, drumNumber: null,
+          })),
+          ...issuedWireLines.map(l => ({
+            productId: l.productId, productName: l.productName,
+            serials: [], macs: [], qty: l.assignedMeters, drumNumber: l.drumNumber,
+          })),
+        ],
         remarks,
       })
       navigate(`/inventory/assign-to-user/${assignment.id}`)
@@ -646,47 +765,94 @@ export default function CreateUserAssignment() {
           )}
 
           {/* ── Section 3: Select Items — reveals once a User is picked. Same
-              regardless of Assignment Type. No Hardware/Wire tabs (see the
-              line-generation effect's note above on why wire never appears
-              in an engineer's holdings), and no trailing "add a line" row —
-              a handoff can only ever include products the engineer already
-              holds, so the line set stays fully derived from holdings. ── */}
+              regardless of Assignment Type. Split into Hardware/Wire tabs,
+              same pattern as CreateAssignment.jsx, since an engineer can
+              hold both hardware and wire at once. No trailing "add a line"
+              row on either tab — a handoff can only ever include products
+              the engineer already holds, so each tab's line set stays fully
+              derived from holdings. ── */}
           {engineerValid && referenceValid && (
             <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Select Items</p>
 
-              {handoffLines.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">{engineer.name} has no hardware currently assigned to hand off.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        {/* Widths sum to 100% — same Serial No. / Mac No.
-                            widening (at Quantity/Avl. Qty.'s expense) as
-                            CreateAssignment.jsx's Hardware table; no action
-                            column here since rows can't be added or removed. */}
-                        {[
-                          ['Product Name', 'w-[20%]'],
-                          ['Serial No. / Mac No.', 'w-[32%]'],
-                          ['Quantity', 'w-[8%]'],
-                          ['Avl. Qty.', 'w-[10%]'],
-                          ['Comment', 'w-[30%]'],
-                        ].map(([h, w], i) => (
-                          <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
+              <div className="flex gap-1 border-b border-surface-border -mt-1">
+                {['hardware', 'wire'].map(t => (
+                  <button
+                    key={t} type="button" onClick={() => setItemsTab(t)}
+                    className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors capitalize
+                      ${itemsTab === t ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {itemsTab === 'hardware' && (
+                hwLines.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">{engineer.name} has no hardware currently assigned to hand off.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          {/* Widths sum to 100% — same Serial No. / Mac No.
+                              widening (at Quantity/Avl. Qty.'s expense) as
+                              CreateAssignment.jsx's Hardware table; no action
+                              column here since rows can't be added or removed. */}
+                          {[
+                            ['Product Name', 'w-[20%]'],
+                            ['Serial No. / Mac No.', 'w-[32%]'],
+                            ['Quantity', 'w-[8%]'],
+                            ['Avl. Qty.', 'w-[10%]'],
+                            ['Comment', 'w-[30%]'],
+                          ].map(([h, w], i) => (
+                            <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {hwLines.map((l, idx) => (
+                          <HandoffLineRow key={`hw-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
+                            otherLines={hwLines.filter((_, i) => i !== idx)}
+                            products={heldHwProductsToAdd}
+                            onChange={patch => updateHwLine(idx, patch)} />
                         ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {handoffLines.map((l, idx) => (
-                        <HandoffLineRow key={`${l.productId}-${idx}`} line={l} engineerId={engineer.id}
-                          otherLines={handoffLines.filter((_, i) => i !== idx)}
-                          products={heldProductsToAdd}
-                          onChange={patch => updateLine(idx, patch)} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+
+              {itemsTab === 'wire' && (
+                wireLines.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">No wire items held.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          {[
+                            ['Product Name', 'w-[20%]'],
+                            ['Drum No', 'w-[26%]'],
+                            ['Quantity', 'w-[8%]'],
+                            ['Avl. Qty.', 'w-[10%]'],
+                            ['Comment', 'w-[36%]'],
+                          ].map(([h, w], i) => (
+                            <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {wireLines.map((l, idx) => (
+                          <WireHandoffLineRow key={`wire-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
+                            otherLines={wireLines.filter((_, i) => i !== idx)}
+                            products={heldWireProductsToAdd}
+                            onChange={patch => updateWireLine(idx, patch)} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
               )}
             </div>
           )}
@@ -761,21 +927,34 @@ export default function CreateUserAssignment() {
                 <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Handing Off</p>
               </div>
               <div className="divide-y divide-surface-border">
-                {issuedLines.length === 0 ? (
+                {issuedHwLines.length === 0 && issuedWireLines.length === 0 ? (
                   <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Select Items.</p>
-                ) : issuedLines.map((l, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-800">{l.productName}</span>
-                      {(l.serials.length || l.macs.length) ? (
-                        <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
-                      ) : null}
-                    </div>
-                    <span className="font-semibold text-gray-700">
-                      {liveTrackingType(l.productId) === 'quantity' ? l.qty : l.serials.length + l.macs.length}
-                    </span>
-                  </div>
-                ))}
+                ) : (
+                  <>
+                    {issuedHwLines.map((l, i) => (
+                      <div key={`hw-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-800">{l.productName}</span>
+                          {(l.serials.length || l.macs.length) ? (
+                            <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
+                          ) : null}
+                        </div>
+                        <span className="font-semibold text-gray-700">
+                          {liveTrackingType(l.productId) === 'quantity' ? l.qty : l.serials.length + l.macs.length}
+                        </span>
+                      </div>
+                    ))}
+                    {issuedWireLines.map((l, i) => (
+                      <div key={`wire-${i}`} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-800">{l.productName}</span>
+                          <p className="text-[11px] text-gray-400 font-mono mt-0.5">Drum {l.drumNumber}</p>
+                        </div>
+                        <span className="font-semibold text-gray-700">{l.assignedMeters} m</span>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
 

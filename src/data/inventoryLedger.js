@@ -123,6 +123,18 @@ function computeLedger() {
   // cap (see getEngineerHeldQty below). Not netted against handoffs yet;
   // the User Assignments block further down does that.
   const assignedQtyByEngineerKey = {}
+  // `${engineerId}|${productId}|${drumNumber}` -> cumulative assignedMeters
+  // issued to that engineer specifically, from that specific drum — wire's
+  // equivalent of assignedQtyByEngineerKey above, needed for Assign to
+  // User's Wire tab. Keyed per-drum (not just per-product) because an
+  // engineer can hold meters cut from more than one drum of the same wire
+  // product; unlike a serial/MAC unit, a drum is never atomically "assigned
+  // to an engineer" as a whole (it's fungible meters shared with the
+  // store's own remaining stock), so this is tracked as its own running
+  // total rather than by mutating drum objects the way unit.engineerId
+  // does above. Not netted against handoffs yet; the User Assignments block
+  // further down does that.
+  const assignedMetersByEngineerDrumKey = {}
   // A dual-tracked unit is keyed by BOTH its serial (u.value) and its mac —
   // whichever identifier a downstream record (assignment line, replacement,
   // transfer, repair) carries still resolves to the one physical unit, so
@@ -171,6 +183,10 @@ function computeLedger() {
         const drum = drumsByNumber.get(l.drumNumber)
         if (drum) drum.remainingMeters = Math.max(0, drum.remainingMeters - (Number(l.assignedMeters) || 0))
         if (l.assignedMeters > 0) {
+          if (l.drumNumber) {
+            const engKey = `${a.engineerId}|${l.productId}|${l.drumNumber}`
+            assignedMetersByEngineerDrumKey[engKey] = (assignedMetersByEngineerDrumKey[engKey] ?? 0) + (Number(l.assignedMeters) || 0)
+          }
           movements.push({
             date: (a.assignedAt || '').slice(0, 10), productId: l.productId, movementType: 'Assignment',
             qty: l.assignedMeters, fromLabel: a.storeName, toLabel: a.engineerName,
@@ -188,6 +204,10 @@ function computeLedger() {
   // left the store's balance the moment it was assigned to the engineer;
   // handing it onward to a customer doesn't return it to any store.
   const handedOffQtyByEngineerKey = {} // `${engineerId}|${productId}` -> cumulative qty already handed to users
+  // `${engineerId}|${productId}|${drumNumber}` -> cumulative meters already
+  // handed to users from that specific held drum — wire's equivalent of
+  // handedOffQtyByEngineerKey above.
+  const handedOffMetersByEngineerDrumKey = {}
   getUserAssignments().forEach(ua => {
     const toLabel = ua.customerName || 'Customer'
     ua.items.forEach(it => {
@@ -204,6 +224,14 @@ function computeLedger() {
         movements.push({
           date: (ua.assignedAt || '').slice(0, 10), productId: it.productId, movementType: 'Assignment',
           qty: values.length, fromLabel: ua.engineerName, toLabel,
+          reference: ua.assignmentNumber, poReference: null,
+        })
+      } else if (it.drumNumber && Number(it.qty) > 0) {
+        const engKey = `${ua.engineerId}|${it.productId}|${it.drumNumber}`
+        handedOffMetersByEngineerDrumKey[engKey] = (handedOffMetersByEngineerDrumKey[engKey] ?? 0) + Number(it.qty)
+        movements.push({
+          date: (ua.assignedAt || '').slice(0, 10), productId: it.productId, movementType: 'Assignment',
+          qty: Number(it.qty), fromLabel: ua.engineerName, toLabel,
           reference: ua.assignmentNumber, poReference: null,
         })
       } else if (Number(it.qty) > 0) {
@@ -309,7 +337,10 @@ function computeLedger() {
     unit.repairRemarks = r.remarks
   })
 
-  return { balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey }
+  return {
+    balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey,
+    assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey,
+  }
 }
 
 // Flat [{ productId, storeId, availableQty }] — the base balance table
@@ -378,6 +409,32 @@ export function getEngineerHeldQty(engineerId, productId) {
   const { assignedQtyByEngineerKey, handedOffQtyByEngineerKey } = computeLedger()
   const key = `${engineerId}|${productId}`
   return Math.max(0, (assignedQtyByEngineerKey[key] ?? 0) - (handedOffQtyByEngineerKey[key] ?? 0))
+}
+
+// Wire's equivalent of getEngineerHeldQty above, one row per drum a
+// specific engineer currently holds meters from — net of assignedMeters
+// across their non-Returned Assignments, minus what they've already handed
+// off via UserAssignments, per drum (not just per product, since an
+// engineer can hold meters cut from more than one drum of the same
+// product). Optionally narrowed to a single product for Assign to User's
+// Wire tab, where each row already knows which product it's showing drums
+// for. Zero-remaining drums are filtered out, same as getDrums() filtering
+// to remainingMeters > 0 for store stock.
+export function getEngineerHeldDrums(engineerId, productId = null) {
+  const { drums, assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey } = computeLedger()
+  const drumsByNumber = new Map(drums.map(d => [d.drumNumber, d]))
+  return Object.entries(assignedMetersByEngineerDrumKey)
+    .map(([key, grossMeters]) => {
+      const [keyEngineerId, keyProductId, drumNumber] = key.split('|')
+      return { keyEngineerId, keyProductId, drumNumber, grossMeters }
+    })
+    .filter(d => d.keyEngineerId === engineerId && (!productId || d.keyProductId === productId))
+    .map(d => ({
+      productId: d.keyProductId, drumNumber: d.drumNumber,
+      remainingMeters: Math.max(0, d.grossMeters - (handedOffMetersByEngineerDrumKey[`${d.keyEngineerId}|${d.keyProductId}|${d.drumNumber}`] ?? 0)),
+      storeId: drumsByNumber.get(d.drumNumber)?.storeId ?? null,
+    }))
+    .filter(d => d.remainingMeters > 0)
 }
 
 // Movement log, newest first, optionally narrowed to one product.
