@@ -67,7 +67,6 @@ import PurchaseInvoiceView from './pages/inventory/PurchaseInvoiceView'
 import InventoryOverview from './pages/inventory/InventoryOverview'
 import Assignments from './pages/inventory/Assignments'
 import CreateAssignment from './pages/inventory/CreateAssignment'
-import AssignmentDetail from './pages/inventory/AssignmentDetail'
 import AssignToUser from './pages/inventory/AssignToUser'
 import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
 import StoreTransfer from './pages/inventory/StoreTransfer'
@@ -175,7 +174,7 @@ export default function App() {
           <Route path="/inventory/purchases/:id" element={<PurchaseDetail />} />
           <Route path="/inventory/assign" element={<Assignments />} />
           <Route path="/inventory/assign/new" element={<CreateAssignment />} />
-          <Route path="/inventory/assign/:id" element={<AssignmentDetail />} />
+          <Route path="/inventory/assign/:id/edit" element={<CreateAssignment />} />
           <Route path="/inventory/assign-to-user" element={<AssignToUser />} />
           <Route path="/inventory/assign-to-user/new" element={<CreateUserAssignment />} />
           <Route path="/inventory/assign-to-user/:id/edit" element={<CreateUserAssignment />} />
