@@ -50,7 +50,17 @@ function resolveProductId(it) {
 // Re-derives balances/units/drums/movements from every Confirmed Purchase.
 // Cheap enough to recompute on demand at this data scale (mock stage) rather
 // than maintain incrementally-updated state that could drift.
-function computeLedger() {
+//
+// `excludeUserAssignmentId` (used only by CreateUserAssignment.jsx's Edit
+// mode) skips one specific UserAssignment entirely when applying the "User
+// Assignments: engineer -> customer handoffs" block below — every unit/qty/
+// meters that assignment ever handed off reverts to "still held by the
+// engineer" for this one computation, so editing an existing handoff can
+// show (and let the user re-pick from) exactly what it originally included,
+// not just whatever the engineer happens to hold right now. No caller
+// outside the edit flow passes this, so every other read of this module is
+// completely unaffected.
+function computeLedger({ excludeUserAssignmentId } = {}) {
   const balanceByKey = {} // `${productId}|${storeId}` -> cumulative receivedQty
   const units = []        // serial/MAC-tracked hardware, one row per physical unit
   const drums = []        // wire, one row per drum
@@ -208,7 +218,7 @@ function computeLedger() {
   // handed to users from that specific held drum — wire's equivalent of
   // handedOffQtyByEngineerKey above.
   const handedOffMetersByEngineerDrumKey = {}
-  getUserAssignments().forEach(ua => {
+  getUserAssignments().filter(ua => ua.id !== excludeUserAssignmentId).forEach(ua => {
     const toLabel = ua.customerName || 'Customer'
     ua.items.forEach(it => {
       const values = [...it.serials, ...it.macs]
@@ -364,8 +374,11 @@ export function getProductAvailability(productId, storeId = null) {
 // engineerId — the last is how Assign to User's Step 3 asks "which units
 // does THIS specific engineer currently hold" (status: 'Assigned to
 // Engineer' + engineerId together), rather than every engineer's pool.
-export function getUnits({ productId, storeId, status, engineerId } = {}) {
-  return computeLedger().units.filter(u =>
+// `excludeUserAssignmentId` is CreateUserAssignment.jsx's Edit mode passing
+// itself through so its own already-handed-off units come back as held —
+// see computeLedger()'s file-level note.
+export function getUnits({ productId, storeId, status, engineerId, excludeUserAssignmentId } = {}) {
+  return computeLedger({ excludeUserAssignmentId }).units.filter(u =>
     (!productId || u.productId === productId) &&
     (!storeId || u.storeId === storeId) &&
     (!status || u.status === status) &&
@@ -405,8 +418,10 @@ export function getEngineerAssignedQty(productId, storeId = null) {
 // UserAssignments. Powers Assign to User's Step 3 cap on the quantity
 // input; serial/MAC holdings are read via getUnits({ status: 'Assigned to
 // Engineer', engineerId }) instead, since each unit is its own row there.
-export function getEngineerHeldQty(engineerId, productId) {
-  const { assignedQtyByEngineerKey, handedOffQtyByEngineerKey } = computeLedger()
+// `excludeUserAssignmentId` — see computeLedger()'s file-level note; used
+// only by CreateUserAssignment.jsx's Edit mode.
+export function getEngineerHeldQty(engineerId, productId, excludeUserAssignmentId) {
+  const { assignedQtyByEngineerKey, handedOffQtyByEngineerKey } = computeLedger({ excludeUserAssignmentId })
   const key = `${engineerId}|${productId}`
   return Math.max(0, (assignedQtyByEngineerKey[key] ?? 0) - (handedOffQtyByEngineerKey[key] ?? 0))
 }
@@ -419,9 +434,11 @@ export function getEngineerHeldQty(engineerId, productId) {
 // product). Optionally narrowed to a single product for Assign to User's
 // Wire tab, where each row already knows which product it's showing drums
 // for. Zero-remaining drums are filtered out, same as getDrums() filtering
-// to remainingMeters > 0 for store stock.
-export function getEngineerHeldDrums(engineerId, productId = null) {
-  const { drums, assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey } = computeLedger()
+// to remainingMeters > 0 for store stock. `excludeUserAssignmentId` — see
+// computeLedger()'s file-level note; used only by CreateUserAssignment.jsx's
+// Edit mode.
+export function getEngineerHeldDrums(engineerId, productId = null, excludeUserAssignmentId) {
+  const { drums, assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey } = computeLedger({ excludeUserAssignmentId })
   const drumsByNumber = new Map(drums.map(d => [d.drumNumber, d]))
   return Object.entries(assignedMetersByEngineerDrumKey)
     .map(([key, grossMeters]) => {
