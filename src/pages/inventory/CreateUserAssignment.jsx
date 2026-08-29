@@ -1,43 +1,41 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  ArrowLeft, ChevronLeft, ChevronRight, UserCog, ClipboardList,
-  PackageOpen, CheckCircle2, Search, AlertTriangle,
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle2, AlertTriangle, ChevronDown } from 'lucide-react'
 import Button from '../../components/ui/Button'
-import Badge from '../../components/ui/Badge'
-import { FormField, Select, Textarea } from '../../components/ui/FormInputs'
-import StepProgress from '../../components/customer-type/StepProgress'
+import Modal from '../../components/ui/Modal'
+import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 import { getProducts, getProduct } from '../../data/productStore'
 import { getUnits, getEngineerHeldQty } from '../../data/inventoryLedger'
 import { WORK_ORDER_TYPES } from '../../data/assignmentStore'
 import { getWorkOrderTypeRecords, saveUserAssignment } from '../../data/userAssignmentStore'
 
-const STEPS = [
-  { id: 1, label: 'Engineer',     icon: UserCog },
-  { id: 2, label: 'Reference',    icon: ClipboardList },
-  { id: 3, label: 'Hand Off',     icon: PackageOpen },
-  { id: 4, label: 'Confirm',      icon: CheckCircle2 },
-]
-
-// A dual-tracked product (Serial + MAC both enabled) is treated here as
-// serial-tracked — Hand Off moves whole physical units by their serial
-// identifier; a unit's paired MAC stays attached to the same ledger unit
-// object regardless (see inventoryLedger.js), it's just not carried as a
-// second explicit value on this handoff's own line record.
+// Same live-lookup helper as CreateAssignment.jsx's — reads the product's
+// *current* Tracking Configuration on every call rather than a value cached
+// once on the line, and distinguishes 'dual' (Serial Number AND MAC Number
+// both enabled — one physical unit carrying both identifiers) from single
+// 'serial'/'mac' tracking so HandoffLineRow can render the same combined
+// serial+mac picker CreateAssignment.jsx's HardwareLineRow does. The
+// previous version of this file collapsed 'dual' into 'serial' and silently
+// dropped the paired MAC — fixed here to match.
 function liveTrackingType(productId) {
   const p = getProduct(productId)
   if (!p) return 'quantity'
+  if (p.trackedBySerial && p.trackedByMac) return 'dual'
   if (p.trackedBySerial) return 'serial'
   if (p.trackedByMac) return 'mac'
   return 'quantity'
 }
 
-// ── Step 2 reference picker ─────────────────────────────────────────────
+// ── Reference picker ─────────────────────────────────────────────────────
 // Searchable combobox against getWorkOrderTypeRecords(type) — same
-// floating-dropdown pattern as CreatePurchase.jsx's POPicker. Selection is
-// always a real record object, never free text.
+// floating-dropdown pattern as CreatePurchase.jsx's POPicker and
+// CreateAssignment.jsx's WorkOrderPicker. Selection is always a real record
+// object, never free text. Unchanged from before this redesign — the
+// multi-Work-Order-Type search (Installation/Ticket/Incident, with Network/
+// Project resolving to an empty list) is a genuinely different concept from
+// CreateAssignment.jsx's Installation-only Work Orders and is preserved
+// as-is, just relocated into the new Section 2 row layout below.
 function ReferencePicker({ records, value, onSelect, placeholder }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -79,71 +77,286 @@ function ReferencePicker({ records, value, onSelect, placeholder }) {
   )
 }
 
-// ── Step 3 line cards ────────────────────────────────────────────────────
+// ── Product dropdown & unit picker popover ──────────────────────────────
+// Ported verbatim (same click-to-open/type-to-filter combobox interaction,
+// same closed-state "select" look) from CreateAssignment.jsx's Select Items
+// table — see that file for the shared origin of this pattern. Duplicated
+// here rather than extracted to a shared file since neither component was
+// already shared/exported; each page owns its own copy, same as
+// ReferencePicker above mirrors WorkOrderPicker without the two files
+// importing from each other.
+function ProductDropdown({ products, value, onSelect, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [menuRect, setMenuRect] = useState({ top: 0, left: 0, width: 240 })
+  const wrapRef = useRef(null)
+  const btnRef = useRef(null)
 
-function HandoffLineCard({ line, engineerId, otherLines, onChange }) {
-  const trackingType = liveTrackingType(line.productId)
-  const usedElsewhere = otherLines.reduce((s, l) => l.productId === line.productId ? s + (l.trackingType === 'quantity' ? Number(l.qty) || 0 : l.serials.length + l.macs.length) : s, 0)
+  useEffect(() => {
+    function handleClick(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
-  if (trackingType === 'serial' || trackingType === 'mac') {
-    const kindLabel = trackingType === 'serial' ? 'Serial' : 'MAC'
-    const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
-    const units = getUnits({ productId: line.productId, status: 'Assigned to Engineer', engineerId }).filter(u => !pickedElsewhere.has(u.value))
-    const picked = trackingType === 'serial' ? line.serials : line.macs
-    function toggle(value) {
-      const isPicked = picked.includes(value)
-      const next = isPicked ? picked.filter(v => v !== value) : [...picked, value]
-      onChange(trackingType === 'serial' ? { serials: next } : { macs: next })
-    }
-    return (
-      <div className="rounded-xl border border-surface-border p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
-          <Badge variant="purple" size="sm">{picked.length} selected · {units.length} held</Badge>
+  function toggleOpen() {
+    if (open) { setOpen(false); return }
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 240) })
+    setQuery('')
+    setOpen(true)
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    if (!q) return products
+    return products.filter(p => p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q))
+  }, [products, query])
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button" ref={btnRef} onClick={toggleOpen}
+        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors"
+      >
+        <span className={`truncate text-left ${value ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{value || placeholder}</span>
+        <ChevronDown size={13} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div
+          style={{ position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width, zIndex: 9999 }}
+          className="bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden"
+        >
+          <div className="p-2 border-b border-surface-border">
+            <SearchInput value={query} onChange={e => setQuery(e.target.value)} placeholder="Search product…" />
+          </div>
+          <div className="max-h-56 overflow-y-auto divide-y divide-surface-border">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">No matching products</p>
+            ) : filtered.map(p => (
+              <button
+                key={p.id} type="button"
+                onClick={() => { onSelect(p); setOpen(false); setQuery('') }}
+                className="flex flex-col w-full text-left px-3 py-2 gap-0.5 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <span>{p.name} {p.sku && <span className="text-gray-400">· {p.sku}</span>}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        {units.length === 0 ? (
-          <p className="text-xs text-gray-400 py-2">No available {kindLabel.toLowerCase()}s held by this engineer.</p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
-            {units.map(u => {
+      )}
+    </div>
+  )
+}
+
+// Compact, bounded-height searchable multi-select for a single line's
+// serial/MAC units — identical to CreateAssignment.jsx's UnitPickerPopover.
+function UnitPickerPopover({ units, picked, onToggle, onSelectAll, renderLabel, emptyText }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [menuRect, setMenuRect] = useState({ top: 0, left: 0, width: 260 })
+  const wrapRef = useRef(null)
+  const btnRef = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function toggleOpen() {
+    if (open) { setOpen(false); return }
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 260) })
+    setQuery('')
+    setOpen(true)
+  }
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    if (!q) return units
+    return units.filter(u => renderLabel(u).toLowerCase().includes(q))
+  }, [units, query, renderLabel])
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every(u => picked.includes(u.value))
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button" ref={btnRef} onClick={toggleOpen}
+        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white hover:bg-gray-50 transition-colors"
+      >
+        <span className={picked.length === 0 ? 'text-gray-400' : 'text-gray-700 font-medium'}>
+          {picked.length === 0 ? 'None selected' : `${picked.length} selected`}
+        </span>
+        <ChevronDown size={13} className="text-gray-400 shrink-0" />
+      </button>
+      {open && (
+        <div
+          style={{ position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width, zIndex: 9999 }}
+          className="bg-white border border-surface-border rounded-lg shadow-lg overflow-hidden"
+        >
+          <div className="p-2 border-b border-surface-border">
+            <SearchInput value={query} onChange={e => setQuery(e.target.value)} placeholder="Search serial/MAC…" />
+          </div>
+          <label className="flex items-center gap-2 px-3 py-2 text-xs text-gray-600 border-b border-surface-border cursor-pointer hover:bg-gray-50">
+            <input type="checkbox" checked={allVisibleSelected} onChange={() => onSelectAll(filtered, !allVisibleSelected)} className="accent-brand-blue" />
+            Select all{query ? ' (filtered)' : ''}
+          </label>
+          <div className="max-h-56 overflow-y-auto divide-y divide-surface-border">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">{emptyText}</p>
+            ) : filtered.map(u => {
               const isPicked = picked.includes(u.value)
               return (
-                <label key={u.value} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-xs font-mono transition-colors cursor-pointer ${
-                  isPicked ? 'border-brand-blue bg-brand-blue/5 text-brand-blue' : 'border-surface-border text-gray-600 hover:bg-gray-50'
-                }`}>
-                  <input type="checkbox" checked={isPicked} onChange={() => toggle(u.value)} className="accent-brand-blue" />
-                  {u.value}
+                <label key={u.value} className="flex items-center gap-2 px-3 py-2 text-xs font-mono transition-colors text-gray-700 cursor-pointer hover:bg-gray-50">
+                  <input type="checkbox" checked={isPicked} onChange={() => onToggle(u)} className="accent-brand-blue shrink-0" />
+                  <span className="truncate">{renderLabel(u)}</span>
                 </label>
               )
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Select Items table row ───────────────────────────────────────────────
+// Same compact-table shape as CreateAssignment.jsx's HardwareLineRow
+// (Product Name | Serial No. / Mac No. | Quantity | Avl. Qty. | Comment),
+// adapted to this flow's holdings-based model: there's no Work Order
+// "requirement" here, so every line already starts pointing at a real held
+// product (no "unmapped, pick one" branch), and "Avl. Qty." always reads
+// what THIS ENGINEER currently holds (getEngineerHeldQty / getUnits with
+// engineerId) — never store stock, which has no meaning in a handoff. The
+// Product Name dropdown only ever offers OTHER products the engineer holds
+// that don't already have their own line (`products`, computed at the page
+// level) — the same "already present as a line" exclusion CreateAssignment.jsx
+// applies to its own Product dropdown, just against held products instead of
+// the full catalog. In practice every held product already gets its own
+// line the moment an engineer is picked, so this pool is usually empty;
+// that's the correct behavior for a flow with no "add extra row" — a
+// handoff can never include a product the engineer doesn't hold.
+function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
+  const trackingType = liveTrackingType(line.productId)
+
+  function changeProduct(product) {
+    onChange({ productId: product.id, productName: product.name, qty: 0, serials: [], macs: [] })
+  }
+
+  const nameCell = (
+    <td className="px-3 py-2.5 align-top">
+      <ProductDropdown products={products} value={line.productName} placeholder="Select product…" onSelect={changeProduct} />
+    </td>
+  )
+
+  const commentCell = (
+    <td className="px-3 py-2.5 align-top">
+      <input
+        type="text" value={line.remark ?? ''} onChange={e => onChange({ remark: e.target.value })}
+        placeholder="Optional note…"
+        className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+      />
+    </td>
+  )
+
+  const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
+
+  function availableCell(count) {
+    return (
+      <td className="px-3 py-2.5 align-top">
+        <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{count.toLocaleString('en-IN')}</div>
+      </td>
     )
   }
 
-  // Quantity-only — capped at how much of this product the engineer still holds
-  const held = getEngineerHeldQty(engineerId, line.productId)
-  const roomToGrow = Math.max(0, held - usedElsewhere)
+  if (trackingType === 'dual' || trackingType === 'serial' || trackingType === 'mac') {
+    // Serial + MAC both enabled (dual) — each unit carries one of each,
+    // paired at the same index in line.serials/line.macs, same fix
+    // CreateAssignment.jsx's HardwareLineRow already applies: a dual-tracked
+    // unit is never split into two independent identifiers.
+    const isDual = trackingType === 'dual'
+    const kindLabel = isDual ? 'unit' : trackingType === 'serial' ? 'serial' : 'MAC'
+    const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
+    const units = getUnits({ productId: line.productId, status: 'Assigned to Engineer', engineerId })
+      .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
+    const picked = isDual ? line.serials : (trackingType === 'serial' ? line.serials : line.macs)
 
+    function applySelection(nextSerials, nextMacs) {
+      if (isDual) onChange({ serials: nextSerials, macs: nextMacs })
+      else onChange(trackingType === 'serial' ? { serials: nextSerials } : { macs: nextSerials })
+    }
+    function toggleUnit(u) {
+      const idx = picked.indexOf(u.value)
+      const isPicked = idx !== -1
+      if (isDual) {
+        if (isPicked) applySelection(line.serials.filter((_, i) => i !== idx), line.macs.filter((_, i) => i !== idx))
+        else applySelection([...line.serials, u.value], [...line.macs, u.mac])
+      } else {
+        applySelection(isPicked ? picked.filter(v => v !== u.value) : [...picked, u.value])
+      }
+    }
+    function selectAllVisible(visibleUnits, shouldSelect) {
+      if (shouldSelect) {
+        const toAdd = visibleUnits.filter(u => !picked.includes(u.value))
+        if (isDual) applySelection([...line.serials, ...toAdd.map(u => u.value)], [...line.macs, ...toAdd.map(u => u.mac)])
+        else applySelection([...picked, ...toAdd.map(u => u.value)])
+      } else {
+        const remove = new Set(visibleUnits.map(u => u.value))
+        if (isDual) {
+          const keepIdx = line.serials.map((_, i) => i).filter(i => !remove.has(line.serials[i]))
+          applySelection(keepIdx.map(i => line.serials[i]), keepIdx.map(i => line.macs[i]))
+        } else {
+          applySelection(picked.filter(v => !remove.has(v)))
+        }
+      }
+    }
+
+    return (
+      <tr>
+        {nameCell}
+        <td className="px-3 py-2.5 align-top">
+          {units.length === 0 ? (
+            <p className="text-xs text-gray-400 py-1.5">No {isDual ? '' : kindLabel + ' '}units held</p>
+          ) : (
+            <UnitPickerPopover
+              units={units} picked={picked}
+              onToggle={toggleUnit} onSelectAll={selectAllVisible}
+              renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
+              emptyText="No matching units"
+            />
+          )}
+        </td>
+        <td className="px-3 py-2.5 align-top">
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{picked.length}</div>
+        </td>
+        {availableCell(units.length)}
+        {commentCell}
+      </tr>
+    )
+  }
+
+  // Quantity-tracked — capped by however much of this product the engineer
+  // still holds (getEngineerHeldQty), never store stock.
+  const held = getEngineerHeldQty(engineerId, line.productId)
   return (
-    <div className="rounded-xl border border-surface-border p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-gray-800">{line.productName}</p>
-        <Badge variant="purple" size="sm">{held} held</Badge>
-      </div>
-      <FormField label="Hand Off Qty">
+    <tr>
+      {nameCell}
+      <td className="px-3 py-2.5 align-top">{emptyCell}</td>
+      <td className="px-3 py-2.5 align-top">
         <input
-          type="number" min="0" max={roomToGrow}
+          type="number" min="0" max={held}
           value={line.qty}
           onChange={e => {
-            const v = Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))
+            const v = Math.max(0, Math.min(held, Number(e.target.value) || 0))
             onChange({ qty: v })
           }}
-          className="w-32 px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
         />
-      </FormField>
-    </div>
+      </td>
+      {availableCell(held)}
+      {commentCell}
+    </tr>
   )
 }
 
@@ -151,62 +364,9 @@ export default function CreateUserAssignment() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const [engineer, setEngineer] = useState(null)
-  const [engineerSearch, setEngineerSearch] = useState('')
-  const [workOrderType, setWorkOrderType] = useState('Installation')
-  const [reference, setReference] = useState(null)
-  const [handoffLines, setHandoffLines] = useState([])
-  const [remarks, setRemarks] = useState('')
-  const [attemptedAction, setAttemptedAction] = useState(null)
-  const [saveError, setSaveError] = useState('')
-
-  const filteredEngineers = useMemo(() => {
-    const q = engineerSearch.toLowerCase().trim()
-    if (!q) return FIELD_ENGINEERS
-    return FIELD_ENGINEERS.filter(e => e.name.toLowerCase().includes(q))
-  }, [engineerSearch])
-
-  const records = useMemo(() => getWorkOrderTypeRecords(workOrderType), [workOrderType])
-
-  // Rebuild Step 3's editable line state whenever the selected engineer
-  // changes — one line per product they currently hold ANY of (serial/MAC
-  // units with status 'Assigned to Engineer', or a positive net quantity
-  // via getEngineerHeldQty()). Unlike Assign to Engineer there's no
-  // "requirement" driving this list — it's simply everything this engineer
-  // is currently holding, since a user handoff can cover any of it.
-  useEffect(() => {
-    if (!engineer) { setHandoffLines([]); return }
-    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
-    const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
-    const unitLines = [...productIdsWithUnits].map(productId => ({
-      productId, productName: getProduct(productId)?.name ?? productId,
-      trackingType: liveTrackingType(productId), qty: 0, serials: [], macs: [],
-    }))
-    const qtyLines = getProducts()
-      .filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0)
-      .map(p => ({ productId: p.id, productName: p.name, trackingType: 'quantity', qty: 0, serials: [], macs: [] }))
-    setHandoffLines([...unitLines, ...qtyLines])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engineer?.id])
-
-  function updateLine(idx, patch) { setHandoffLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
-
-  const stepParam = Number(searchParams.get('step'))
-  const step = [1, 2, 3, 4].includes(stepParam) ? stepParam : 1
-
-  function isStep1Valid() { return !!engineer }
-  function isStep2Valid() { return !!engineer && !!reference }
-  function isStep3Valid() {
-    return handoffLines.some(l => l.trackingType === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
-  }
-
-  const stepValid = { 1: isStep1Valid(), 2: isStep2Valid(), 3: isStep3Valid(), 4: true }
-  function isReachable(id) {
-    if (id === 1) return true
-    for (let i = 1; i < id; i++) if (!stepValid[i]) return false
-    return true
-  }
-
+  // Merge-safe searchParams update — same pattern as CreateAssignment.jsx's
+  // patchSearchParams, so selecting one field never drops another already
+  // in the URL.
   function patchSearchParams(patch, options) {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
@@ -218,28 +378,139 @@ export default function CreateUserAssignment() {
     }, options)
   }
 
-  function goTo(id) {
-    if (!isReachable(id)) return
-    setAttemptedAction(null)
-    patchSearchParams({ step: id })
+  const [engineer, setEngineer] = useState(null)
+  const [workOrderType, setWorkOrderType] = useState('Installation')
+  const [reference, setReference] = useState(null)
+  const [handoffLines, setHandoffLines] = useState([])
+  const [remarks, setRemarks] = useState('')
+  const [attemptedAction, setAttemptedAction] = useState(null)
+  const [saveError, setSaveError] = useState('')
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+
+  const records = useMemo(() => getWorkOrderTypeRecords(workOrderType), [workOrderType])
+
+  // Selecting Engineer/Work Order Type keeps `?engineer=`/`?workOrderType=`
+  // in sync (and clears the downstream Reference selection, which no longer
+  // applies), same idea as CreateAssignment.jsx's `?branch=`/`?engineer=`
+  // sync — so the URL always reflects exactly what's picked and a refresh
+  // (or a copy-pasted link) doesn't lose it.
+  function selectEngineer(picked) {
+    setEngineer(picked)
+    setReference(null)
+    patchSearchParams({ engineer: picked?.id ?? null, reference: null }, { replace: true })
   }
-  function goBack() {
-    setAttemptedAction(null)
-    if (step === 1) { navigate('/inventory/assign-to-user'); return }
-    patchSearchParams({ step: step - 1 })
+  function selectWorkOrderType(type) {
+    setWorkOrderType(type)
+    setReference(null)
+    patchSearchParams({ workOrderType: type, reference: null }, { replace: true })
   }
-  function goNext() {
-    if (step === 1 && !isStep1Valid()) { setAttemptedAction('step1'); return }
-    if (step === 2 && !isStep2Valid()) { setAttemptedAction('step2'); return }
-    if (step === 3 && !isStep3Valid()) { setAttemptedAction('step3'); return }
-    setAttemptedAction(null)
-    patchSearchParams({ step: Math.min(step + 1, 4) })
+  function selectReference(rec) {
+    setReference(rec)
+    patchSearchParams({ reference: rec?.id ?? null }, { replace: true })
   }
 
-  const issuedLines = handoffLines.filter(l => l.trackingType === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
+  // Auto-select an Engineer carried in the URL (?engineer=<id>) on first
+  // render — guarded on `!engineer` so it never fights a selection already
+  // made this session. Unlike CreateAssignment.jsx's engineer list, FIELD_ENGINEERS
+  // isn't scoped by any prior selection, so this resolves immediately rather
+  // than waiting on another effect.
+  useEffect(() => {
+    if (engineer) return
+    const engineerFromUrl = searchParams.get('engineer')
+    if (!engineerFromUrl) return
+    const match = FIELD_ENGINEERS.find(e => e.id === engineerFromUrl)
+    if (match) setEngineer(match)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-select a Work Order Type carried in the URL (?workOrderType=<t>).
+  useEffect(() => {
+    const typeFromUrl = searchParams.get('workOrderType')
+    if (typeFromUrl && WORK_ORDER_TYPES.includes(typeFromUrl)) setWorkOrderType(typeFromUrl)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-select a Reference record carried in the URL (?reference=<id>) —
+  // mirrors CreateAssignment.jsx's `?wo=` pre-select, resolving once
+  // `records` is populated for whichever Work Order Type was itself
+  // restored above. Guarded on `!reference` so it never fights a selection
+  // already made this session.
+  useEffect(() => {
+    if (reference) return
+    const referenceFromUrl = searchParams.get('reference')
+    if (!referenceFromUrl) return
+    const match = records.find(r => r.id === referenceFromUrl)
+    if (match) setReference(match)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records])
+
+  // Rebuild Select Items' editable line state whenever the selected engineer
+  // changes — one line per product they currently hold ANY of (serial/MAC
+  // units with status 'Assigned to Engineer', or a positive net quantity via
+  // getEngineerHeldQty()). Unlike Assign to Engineer there's no
+  // "requirement" driving this list — it's simply everything this engineer
+  // is currently holding, since a handoff can cover any of it. Wire
+  // products never appear here: wireLines issued to an engineer are only
+  // tracked at the drum/store level (see inventoryLedger.js's computeLedger,
+  // which populates assignedQtyByEngineerKey from hardwareLines only), so
+  // there's no per-engineer "held wire" concept to hand off — no Hardware/
+  // Wire tab split is needed as a result.
+  useEffect(() => {
+    if (!engineer) { setHandoffLines([]); return }
+    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
+    const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
+    const unitLines = [...productIdsWithUnits].map(productId => ({
+      productId, productName: getProduct(productId)?.name ?? productId,
+      qty: 0, serials: [], macs: [], remark: '',
+    }))
+    const qtyLines = getProducts()
+      .filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0)
+      .map(p => ({ productId: p.id, productName: p.name, qty: 0, serials: [], macs: [], remark: '' }))
+    setHandoffLines([...unitLines, ...qtyLines])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineer?.id])
+
+  function updateLine(idx, patch) { setHandoffLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
+
+  // Products the engineer holds that don't already have their own line —
+  // the pool offered by each row's Product Name dropdown, same
+  // "already present as a line" exclusion CreateAssignment.jsx applies to
+  // its own Product dropdown (see HandoffLineRow's file-level note above).
+  const heldProductsToAdd = useMemo(() => {
+    if (!engineer) return []
+    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
+    const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
+    const heldProducts = [
+      ...[...productIdsWithUnits].map(id => getProduct(id)).filter(Boolean),
+      ...getProducts().filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0),
+    ]
+    return heldProducts.filter(p => !handoffLines.some(l => l.productId === p.id))
+  }, [engineer, handoffLines])
+
+  // Engineer section is always visible; Reference reveals once it's valid;
+  // Select Items reveals once a Reference is picked; the bottom "Assign to
+  // User" button (and the Confirm modal it opens) sit alongside Select
+  // Items once that section is reachable — same progressive-reveal
+  // structure as CreateAssignment.jsx, replacing the old 4-step wizard.
+  const engineerValid = !!engineer
+  const referenceValid = !!engineer && !!reference
+  const itemsValid = handoffLines.some(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
+
+  const issuedLines = handoffLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
+
+  // The page-level "Assign to User" button only opens the Confirm modal —
+  // an invalid click surfaces the same error banner as before instead of
+  // opening the modal; a valid click clears any stale error/banner state
+  // before showing the summary.
+  function openConfirmModal() {
+    if (!itemsValid) { setAttemptedAction('items'); return }
+    setAttemptedAction(null)
+    setSaveError('')
+    setShowConfirmModal(true)
+  }
 
   function handleConfirm() {
-    if (!isStep3Valid()) { setAttemptedAction('step3'); return }
+    if (!itemsValid) { setAttemptedAction('items'); return }
     setSaveError('')
     try {
       const assignment = saveUserAssignment({
@@ -262,193 +533,216 @@ export default function CreateUserAssignment() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <div className="p-6 pb-0">
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/inventory/assign-to-user')}
-              className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Assign to User</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {engineer ? <>From <span className="font-semibold text-gray-700">{engineer.name}</span>{reference ? <> to <span className="font-mono">{reference.customerName ?? reference.label}</span></> : null}</> : 'Select an engineer to begin'}
-              </p>
-            </div>
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigate('/inventory/assign-to-user')}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Assign to User</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {engineer ? <>From <span className="font-semibold text-gray-700">{engineer.name}</span>{reference ? <> to <span className="font-mono">{reference.customerName ?? reference.label}</span></> : null}</> : 'Select an engineer to begin'}
+            </p>
           </div>
-          <StepProgress steps={STEPS} current={step} isReachable={isReachable} onSelect={goTo} />
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body — a single scrollable page; each section below reveals once
+          its prerequisite is satisfied, replacing the old wizard's discrete
+          steps + Next/Back navigation. Full-width, no side margins — same
+          as CreateAssignment.jsx. */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-6 pb-28">
+        <div className="p-6 pb-16 space-y-5">
+
+          {/* ── Section 1: Engineer — always visible. No Store/Branch field
+              here (unlike CreateAssignment.jsx) — this flow moves stock an
+              engineer already holds, it never draws from store stock. ── */}
           <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
-            {attemptedAction === 'step1' && !isStep1Valid() && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select an engineer to continue.
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Engineer</p>
+            <FormField label="Engineer" required hint="Who currently holds the hardware being handed off">
+              <Select value={engineer?.id ?? ''} onChange={e => {
+                const picked = FIELD_ENGINEERS.find(x => x.id === e.target.value) ?? null
+                selectEngineer(picked)
+              }}>
+                <option value="">Select engineer…</option>
+                {FIELD_ENGINEERS.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </Select>
+            </FormField>
+          </div>
+
+          {/* ── Section 2: Reference — reveals once Engineer is set ── */}
+          {engineerValid && (
+            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Reference</p>
+
+              <div className="grid grid-cols-3 gap-4">
+                <FormField label="Work Order Type" required>
+                  <Select value={workOrderType} onChange={e => selectWorkOrderType(e.target.value)}>
+                    {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </FormField>
+
+                <div className="col-span-2">
+                  <FormField label="Reference" required hint={`Search ${workOrderType} records`}>
+                    {records.length === 0 ? (
+                      <p className="text-xs text-gray-400 py-2">No {workOrderType} records are available to reference yet.</p>
+                    ) : (
+                      <ReferencePicker records={records} value={reference} onSelect={selectReference} placeholder={`Search ${workOrderType.toLowerCase()} ID or customer…`} />
+                    )}
+                  </FormField>
+                </div>
               </div>
-            )}
-            {attemptedAction === 'step2' && !isStep2Valid() && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a Work Order Type and a matching reference record to continue.
+
+              {reference && (
+                <div className="rounded-xl border border-surface-border bg-surface p-4 space-y-2">
+                  <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Reference Record</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{workOrderType} ID</span>
+                    <span className="font-mono font-semibold text-gray-800">{reference.id}</span>
+                  </div>
+                  {reference.customerName && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Customer</span>
+                      <span className="font-medium text-gray-800">{reference.customerName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Section 3: Select Items — reveals once a Reference is picked.
+              No Hardware/Wire tabs (see the line-generation effect's note
+              above on why wire never appears in an engineer's holdings), and
+              no trailing "add a line" row — a handoff can only ever include
+              products the engineer already holds, so the line set stays
+              fully derived from holdings. ── */}
+          {engineerValid && referenceValid && (
+            <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Select Items</p>
+
+              {handoffLines.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">{engineer.name} has no hardware currently assigned to hand off.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {/* Widths sum to 100% — same Serial No. / Mac No.
+                            widening (at Quantity/Avl. Qty.'s expense) as
+                            CreateAssignment.jsx's Hardware table; no action
+                            column here since rows can't be added or removed. */}
+                        {[
+                          ['Product Name', 'w-[20%]'],
+                          ['Serial No. / Mac No.', 'w-[32%]'],
+                          ['Quantity', 'w-[8%]'],
+                          ['Avl. Qty.', 'w-[10%]'],
+                          ['Comment', 'w-[30%]'],
+                        ].map(([h, w], i) => (
+                          <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {handoffLines.map((l, idx) => (
+                        <HandoffLineRow key={`${l.productId}-${idx}`} line={l} engineerId={engineer.id}
+                          otherLines={handoffLines.filter((_, i) => i !== idx)}
+                          products={heldProductsToAdd}
+                          onChange={patch => updateLine(idx, patch)} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Submit — reveals alongside Select Items; opens the Confirm modal ── */}
+          {engineerValid && referenceValid && (
+            <div className="space-y-3">
+              {attemptedAction === 'items' && !itemsValid && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item to hand off.
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>Assign to User</Button>
               </div>
-            )}
-            {attemptedAction === 'step3' && !isStep3Valid() && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select at least one item to hand off.
-              </div>
-            )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Confirm modal — same summary content the inline Confirm step used
+          to show, now behind the bottom "Assign to User" button. Guarded on
+          `reference` (not just `showConfirmModal`) since the content below
+          reads engineer/reference fields directly — the modal can only ever
+          be opened once both are set (openConfirmModal checks itemsValid,
+          which itself requires Select Items to be populated, which itself
+          requires a Reference). No "Not Fulfilled — Out of Stock" panel here
+          — lines only ever exist for products with positive held quantity,
+          so that state can't occur in this flow. */}
+      {reference && (
+        <Modal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          size="lg"
+          title="Confirm Handoff"
+          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>Assign to User</Button>}
+        >
+          <div className="space-y-5">
             {saveError && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {saveError}
               </div>
             )}
 
-            {/* ── Step 1: Engineer ── */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <FormField label="Engineer" required hint="Who currently holds the hardware being handed off">
-                  <div className="relative mb-2">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input value={engineerSearch} onChange={e => setEngineerSearch(e.target.value)} placeholder="Search engineer name…"
-                      className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue" />
-                  </div>
-                  {filteredEngineers.length === 0 ? (
-                    <p className="text-xs text-gray-400">No engineers match "{engineerSearch}".</p>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {filteredEngineers.map(e => (
-                        <button key={e.id} type="button" onClick={() => setEngineer(e)}
-                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-colors text-left ${
-                            engineer?.id === e.id ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:bg-gray-50'
-                          }`}>
-                          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 ${e.color}`}>{e.initials}</span>
-                          <span className={`text-sm font-medium ${engineer?.id === e.id ? 'text-brand-blue' : 'text-gray-700'}`}>{e.name}</span>
-                        </button>
-                      ))}
+            <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Engineer</span>
+                <span className="font-semibold text-gray-800">{engineer.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Work Order</span>
+                <span className="font-mono font-semibold text-gray-800">{reference.id} <span className="text-gray-400 font-sans">({workOrderType})</span></span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">Customer</span>
+                <span className="font-medium text-gray-800">{reference.customerName ?? '—'}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-surface-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Handing Off</p>
+              </div>
+              <div className="divide-y divide-surface-border">
+                {issuedLines.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Select Items.</p>
+                ) : issuedLines.map((l, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-800">{l.productName}</span>
+                      {(l.serials.length || l.macs.length) ? (
+                        <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
+                      ) : null}
                     </div>
-                  )}
-                </FormField>
+                    <span className="font-semibold text-gray-700">
+                      {liveTrackingType(l.productId) === 'quantity' ? l.qty : l.serials.length + l.macs.length}
+                    </span>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
 
-            {/* ── Step 2: Work Order Type + Reference ── */}
-            {step === 2 && (
-              <div className="space-y-4">
-                <FormField label="Work Order Type" required>
-                  <Select value={workOrderType} onChange={e => { setWorkOrderType(e.target.value); setReference(null) }}>
-                    {WORK_ORDER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </Select>
-                </FormField>
-
-                <FormField label="Reference" required hint={`Search ${workOrderType} records`}>
-                  {records.length === 0 ? (
-                    <p className="text-xs text-gray-400 py-2">No {workOrderType} records are available to reference yet.</p>
-                  ) : (
-                    <ReferencePicker records={records} value={reference} onSelect={setReference} placeholder={`Search ${workOrderType.toLowerCase()} ID or customer…`} />
-                  )}
-                </FormField>
-
-                {reference && (
-                  <div className="rounded-xl border border-surface-border bg-surface p-4 space-y-2">
-                    <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Reference Record</p>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">{workOrderType} ID</span>
-                      <span className="font-mono font-semibold text-gray-800">{reference.id}</span>
-                    </div>
-                    {reference.customerName && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">Customer</span>
-                        <span className="font-medium text-gray-800">{reference.customerName}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Step 3: Hand Off ── */}
-            {step === 3 && (
-              <div className="space-y-3">
-                {handoffLines.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6">{engineer?.name ?? 'This engineer'} has no hardware currently assigned to hand off.</p>
-                ) : (
-                  handoffLines.map((l, idx) => (
-                    <HandoffLineCard key={`${l.productId}-${idx}`} line={l} engineerId={engineer.id}
-                      otherLines={handoffLines.filter((_, i) => i !== idx)}
-                      onChange={patch => updateLine(idx, patch)} />
-                  ))
-                )}
-                <FormField label="Remarks" hint="Optional notes about this handoff">
-                  <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes…" />
-                </FormField>
-              </div>
-            )}
-
-            {/* ── Step 4: Confirm ── */}
-            {step === 4 && (
-              <div className="space-y-5">
-                <div className="rounded-xl border border-surface-border p-4 space-y-2.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Engineer</span>
-                    <span className="font-semibold text-gray-800">{engineer.name}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Work Order</span>
-                    <span className="font-mono font-semibold text-gray-800">{reference.id} <span className="text-gray-400 font-sans">({workOrderType})</span></span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Customer</span>
-                    <span className="font-medium text-gray-800">{reference.customerName ?? '—'}</span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-surface-border overflow-hidden">
-                  <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
-                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Handing Off</p>
-                  </div>
-                  <div className="divide-y divide-surface-border">
-                    {issuedLines.length === 0 ? (
-                      <p className="px-4 py-6 text-sm text-gray-400 text-center">Nothing selected yet — go back to Hand Off.</p>
-                    ) : issuedLines.map((l, i) => (
-                      <div key={i} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                        <div>
-                          <span className="font-medium text-gray-800">{l.productName}</span>
-                          {(l.serials.length || l.macs.length) ? (
-                            <p className="text-[11px] text-gray-400 font-mono mt-0.5">{[...l.serials, ...l.macs].join(', ')}</p>
-                          ) : null}
-                        </div>
-                        <span className="font-semibold text-gray-700">
-                          {l.trackingType === 'quantity' ? l.qty : l.serials.length + l.macs.length}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {remarks && (
-                  <div className="rounded-xl border border-surface-border p-4">
-                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">Remarks</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{remarks}</p>
-                  </div>
-                )}
-              </div>
-            )}
+            <FormField label="Remarks" hint="Optional notes about this handoff">
+              <Textarea rows={3} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any notes…" />
+            </FormField>
           </div>
-        </div>
-      </div>
-
-      {/* ── Bottom Bar ───────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-border px-6 py-3 flex items-center justify-between z-10">
-        <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={goBack}>Back</Button>
-        {step < 4 ? (
-          <Button size="sm" iconRight={<ChevronRight size={14} />} onClick={goNext}>Next</Button>
-        ) : (
-          <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>Assign to User</Button>
-        )}
-      </div>
+        </Modal>
+      )}
     </div>
   )
 }
