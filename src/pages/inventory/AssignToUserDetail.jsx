@@ -70,7 +70,7 @@ export default function AssignToUserDetail() {
                   <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
                     <th className="text-left px-3 py-2 font-semibold">Item</th>
                     <th className="text-right px-3 py-2 font-semibold">Qty</th>
-                    <th className="text-left px-3 py-2 font-semibold">Serial / MAC</th>
+                    <th className="text-left px-3 py-2 font-semibold">Serial / MAC / Drum</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
@@ -79,10 +79,11 @@ export default function AssignToUserDetail() {
                   ) : assignment.items.map((it, i) => (
                     <tr key={i}>
                       <td className="px-3 py-2 text-gray-700">{it.productName}</td>
-                      <td className="px-3 py-2 text-right font-semibold text-gray-800">{it.serials.length + it.macs.length || it.qty}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-gray-800">{it.serials.length + it.macs.length || it.qty}{it.drumNumber ? 'm' : ''}</td>
                       <td className="px-3 py-2 text-gray-500 font-mono">
                         {it.serials.length ? `Serials: ${it.serials.join(', ')}`
                           : it.macs.length ? `MACs: ${it.macs.join(', ')}`
+                          : it.drumNumber ? `Drum: ${it.drumNumber}`
                           : '—'}
                       </td>
                     </tr>

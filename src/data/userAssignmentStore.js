@@ -152,6 +152,7 @@ export function getWorkOrderTypeRecords(type) {
 function grossHeldByEngineer() {
   const qtyByKey = {} // `${engineerId}|${productId}` -> cumulative assignedQty (quantity-tracked only)
   const heldValuesByEngineer = {} // engineerId -> Set of serial/mac values currently on their assignments
+  const metersByDrumKey = {} // `${engineerId}|${productId}|${drumNumber}` -> cumulative assignedMeters
   getAssignments()
     .filter(a => a.status !== 'Returned')
     .forEach(a => {
@@ -165,8 +166,14 @@ function grossHeldByEngineer() {
           qtyByKey[key] = (qtyByKey[key] ?? 0) + l.assignedQty
         }
       })
+      a.wireLines.forEach(l => {
+        if (l.assignedMeters > 0 && l.drumNumber) {
+          const key = `${a.engineerId}|${l.productId}|${l.drumNumber}`
+          metersByDrumKey[key] = (metersByDrumKey[key] ?? 0) + (Number(l.assignedMeters) || 0)
+        }
+      })
     })
-  return { qtyByKey, heldValuesByEngineer }
+  return { qtyByKey, heldValuesByEngineer, metersByDrumKey }
 }
 
 function alreadyHandedOffValues() {
@@ -182,7 +189,18 @@ function alreadyHandedOffQty(engineerId, productId) {
   _userAssignments.forEach(ua => {
     if (ua.engineerId !== engineerId) return
     ua.items.forEach(it => {
-      if (it.productId === productId && !it.serials.length && !it.macs.length) sum += Number(it.qty) || 0
+      if (it.productId === productId && !it.serials.length && !it.macs.length && !it.drumNumber) sum += Number(it.qty) || 0
+    })
+  })
+  return sum
+}
+
+function alreadyHandedOffMeters(engineerId, productId, drumNumber) {
+  let sum = 0
+  _userAssignments.forEach(ua => {
+    if (ua.engineerId !== engineerId) return
+    ua.items.forEach(it => {
+      if (it.productId === productId && it.drumNumber === drumNumber) sum += Number(it.qty) || 0
     })
   })
   return sum
@@ -205,12 +223,26 @@ export function getEngineerHeldQtyLocal(engineerId, productId) {
   return Math.max(0, gross - alreadyHandedOffQty(engineerId, productId))
 }
 
+// Wire's equivalent of getEngineerHeldQtyLocal above — this store's own
+// validation-time check for a specific held drum; CreateUserAssignment.jsx's
+// Wire tab reads the equivalent live figure through inventoryLedger.js's
+// getEngineerHeldDrums() instead (same independent-paths reasoning as
+// getEngineerHeldValues()/getEngineerHeldQtyLocal() above).
+export function getEngineerHeldMetersLocal(engineerId, productId, drumNumber) {
+  const { metersByDrumKey } = grossHeldByEngineer()
+  const gross = metersByDrumKey[`${engineerId}|${productId}|${drumNumber}`] ?? 0
+  return Math.max(0, gross - alreadyHandedOffMeters(engineerId, productId, drumNumber))
+}
+
 // ── Save ─────────────────────────────────────────────────────────────────
 // data: { engineerId, engineerName, workOrderType, workOrderId, workOrderLabel,
 //         customerName, customerId, assignmentType,
-//         items: [{ productId, productName, serials, macs, qty }],
+//         items: [{ productId, productName, serials, macs, qty, drumNumber }],
 //         returnedItem: { productId, productName, identifier, remark } | null,
 //         remarks }
+// An item is one of three shapes: serial/MAC-tracked hardware (serials/macs
+// populated), quantity-tracked hardware (qty only), or wire (qty holds
+// meters, drumNumber identifies which held drum they're drawn from).
 // Throws if any item would take an engineer's held balance negative — the
 // wizard's own live "held" counters are meant to prevent this
 // interactively, but the store re-validates independently rather than
@@ -240,12 +272,17 @@ export function saveUserAssignment(data, actor = 'Admin User') {
         values.forEach(v => {
           if (!heldValues.has(v)) throw new Error(`${v} is not currently assigned to ${data.engineerName}.`)
         })
-        return { productId: it.productId, productName: it.productName, serials, macs, qty: values.length }
+        return { productId: it.productId, productName: it.productName, serials, macs, qty: values.length, drumNumber: null }
       }
       const qty = Number(it.qty) || 0
+      if (it.drumNumber) {
+        const available = getEngineerHeldMetersLocal(data.engineerId, it.productId, it.drumNumber)
+        if (qty > available) throw new Error(`${data.engineerName} only has ${available}m of ${it.productName} left on drum ${it.drumNumber} to hand off.`)
+        return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: it.drumNumber }
+      }
       const available = getEngineerHeldQtyLocal(data.engineerId, it.productId)
       if (qty > available) throw new Error(`${data.engineerName} only has ${available} of ${it.productName} left to hand off.`)
-      return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty }
+      return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: null }
     })
 
   if (items.length === 0) {
