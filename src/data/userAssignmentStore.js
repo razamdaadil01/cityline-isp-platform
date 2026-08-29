@@ -217,14 +217,15 @@ export function getEngineerHeldQtyLocal(engineerId, productId) {
 // trusting the caller, the same discipline assignmentStore.js's
 // saveAssignment() already established for issuing from store stock.
 //
-// assignmentType-specific requirements: 'new' (default) and 'replace' both
-// require at least one handed-off item, same as always; 'disconnection'
-// hands off nothing, so `items` is allowed to be empty for it alone.
-// 'replace' and 'disconnection' both additionally require a `returnedItem`
-// — the unit coming back from the customer's side. Unlike held items,
-// returnedItem is captured as plain data with no stock validation: it's
-// coming from the customer, not the engineer's tracked holdings, so there's
-// nothing in this app's ledger to check it against.
+// assignmentType is stored as-is on the record (New/Replace/Disconnection)
+// but doesn't currently change any validation or shape below — Select
+// Items' "at least one handed-off item" requirement applies the same way
+// regardless of type, same as CreateUserAssignment.jsx's page layout no
+// longer branches on it either. `returnedItem` (an optional unit coming
+// back from the customer, captured as plain data with no stock validation)
+// is accepted if the caller provides one, but nothing in this file requires
+// it yet — CreateUserAssignment.jsx doesn't currently collect it; wiring up
+// its own capture fields for Replace/Disconnection is a separate change.
 export function saveUserAssignment(data, actor = 'Admin User') {
   const assignmentType = ASSIGNMENT_TYPES.includes(data.assignmentType) ? data.assignmentType : 'new'
   const heldValues = new Set(getEngineerHeldValues(data.engineerId))
@@ -247,22 +248,16 @@ export function saveUserAssignment(data, actor = 'Admin User') {
       return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty }
     })
 
-  if (assignmentType !== 'disconnection' && items.length === 0) {
+  if (items.length === 0) {
     throw new Error('Select at least one item to hand off.')
   }
 
-  let returnedItem = null
-  if (assignmentType === 'replace' || assignmentType === 'disconnection') {
-    const productId = data.returnedItem?.productId
-    const identifier = (data.returnedItem?.identifier || '').trim()
-    if (!productId || !identifier) {
-      throw new Error('Capture the product and serial/MAC of the unit being returned.')
-    }
-    returnedItem = {
-      productId, productName: data.returnedItem?.productName ?? productId,
-      identifier, remark: data.returnedItem?.remark || '',
-    }
-  }
+  const returnedItem = data.returnedItem?.productId && (data.returnedItem?.identifier || '').trim()
+    ? {
+        productId: data.returnedItem.productId, productName: data.returnedItem.productName ?? data.returnedItem.productId,
+        identifier: data.returnedItem.identifier.trim(), remark: data.returnedItem.remark || '',
+      }
+    : null
 
   const assignment = {
     id: `USRA-${String(_nextInternalSeq++).padStart(6, '0')}`,
@@ -281,10 +276,10 @@ export function saveUserAssignment(data, actor = 'Admin User') {
   notify()
 
   const itemCount = items.reduce((s, it) => s + (it.serials.length + it.macs.length || it.qty), 0)
-  const details = assignmentType === 'disconnection'
-    ? `Disconnection — recovered ${returnedItem.productName} (${returnedItem.identifier}) from ${data.customerName ?? assignment.workOrderLabel}`
-    : `Handed off ${itemCount} item(s) from ${data.engineerName} to ${data.customerName ?? assignment.workOrderLabel}${returnedItem ? ` (replacing ${returnedItem.productName})` : ''}`
-  logAudit({ action: 'Create', module: 'Inventory', details })
+  logAudit({
+    action: 'Create', module: 'Inventory',
+    details: `Handed off ${itemCount} item(s) from ${data.engineerName} to ${data.customerName ?? assignment.workOrderLabel}`,
+  })
 
   return assignment
 }
