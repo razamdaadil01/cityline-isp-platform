@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, AlertTriangle, ChevronDown, PackagePlus, RefreshCw, PackageX } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, AlertTriangle, ChevronDown, Plus, PackagePlus, RefreshCw, PackageX } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Select, Textarea, SearchInput } from '../../components/ui/FormInputs'
@@ -245,10 +245,11 @@ function UnitPickerPopover({ units, picked, onToggle, onSelectAll, renderLabel, 
 // that don't already have their own line (`products`, computed at the page
 // level) — the same "already present as a line" exclusion CreateAssignment.jsx
 // applies to its own Product dropdown, just against held products instead of
-// the full catalog. In practice every held product already gets its own
-// line the moment an engineer is picked, so this pool is usually empty;
-// that's the correct behavior for a flow with no "add extra row" — a
-// handoff can never include a product the engineer doesn't hold.
+// the full catalog. Every held product gets its own line the moment an
+// engineer is picked, so this pool is usually empty for an EXISTING row's
+// own dropdown — it's really AddHandoffHwRow below (a held product that was
+// somehow not auto-generated, or one the user wants to re-add after this
+// pool's own exclusion logic runs) that makes use of it.
 function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
   const trackingType = liveTrackingType(line.productId)
 
@@ -273,6 +274,11 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
   )
 
   const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
+
+  // Held rows are never removable (unlike CreateAssignment.jsx's lines) —
+  // this empty cell only exists so the column count/widths line up with
+  // AddHandoffHwRow's trailing action column below.
+  const actionCell = <td className="px-3 py-2.5 align-top" />
 
   function availableCell(count) {
     return (
@@ -344,6 +350,7 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
         </td>
         {availableCell(units.length)}
         {commentCell}
+        {actionCell}
       </tr>
     )
   }
@@ -368,6 +375,121 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
       </td>
       {availableCell(held)}
       {commentCell}
+      {actionCell}
+    </tr>
+  )
+}
+
+// Trailing, always-visible "add a line" row for the Hardware tab — same
+// pattern as CreateAssignment.jsx's AddHardwareRow (local draft state,
+// green + confirms and resets), scoped to this flow's holdings: `products`
+// (heldHwProductsToAdd from the page) already excludes products already
+// shown as a row, so this dropdown only ever offers a held product with no
+// row yet — never an arbitrary store/catalog product. Units are read via
+// getUnits({ status: 'Assigned to Engineer', engineerId }) and quantity via
+// getEngineerHeldQty(engineerId, ...), same held-stock sources
+// HandoffLineRow itself reads from, never store availability.
+function AddHandoffHwRow({ products, otherLines, engineerId, onAdd }) {
+  const [product, setProduct] = useState(null)
+  const [qty, setQty] = useState('')
+  const [pickedUnits, setPickedUnits] = useState([]) // unit objects {value, mac?}
+  const [remark, setRemark] = useState('')
+  const [error, setError] = useState('')
+
+  const trackingType = product ? liveTrackingType(product.id) : null
+  const isTracked = !!trackingType && trackingType !== 'quantity'
+  const isDual = trackingType === 'dual'
+  const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
+  const units = isTracked
+    ? getUnits({ productId: product.id, status: 'Assigned to Engineer', engineerId })
+      .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
+    : []
+  const picked = pickedUnits.map(u => u.value)
+  const held = product && !isTracked ? getEngineerHeldQty(engineerId, product.id) : 0
+
+  const availableCount = !product ? null : isTracked ? units.length : held
+
+  const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
+
+  function selectProduct(p) {
+    setProduct(p); setQty(''); setPickedUnits([]); setError('')
+  }
+  function toggleUnit(u) {
+    setPickedUnits(prev => prev.some(x => x.value === u.value) ? prev.filter(x => x.value !== u.value) : [...prev, u])
+  }
+  function selectAllVisible(visibleUnits, shouldSelect) {
+    setPickedUnits(prev => {
+      if (shouldSelect) return [...prev, ...visibleUnits.filter(u => !prev.some(x => x.value === u.value))]
+      const remove = new Set(visibleUnits.map(u => u.value))
+      return prev.filter(x => !remove.has(x.value))
+    })
+  }
+
+  function handleConfirm() {
+    if (!product) { setError('Select a product.'); return }
+    if (isTracked) {
+      if (pickedUnits.length === 0) { setError('Select at least one unit.'); return }
+    } else if (!qty || Number(qty) <= 0) {
+      setError('Enter a valid quantity.'); return
+    }
+    onAdd({
+      productId: product.id, productName: product.name,
+      qty: isTracked ? 0 : Number(qty),
+      serials: isDual || trackingType === 'serial' ? pickedUnits.map(u => u.value) : [],
+      macs: isDual ? pickedUnits.map(u => u.mac) : trackingType === 'mac' ? pickedUnits.map(u => u.value) : [],
+      remark: remark.trim(),
+    })
+    setProduct(null); setQty(''); setPickedUnits([]); setRemark(''); setError('')
+  }
+
+  return (
+    <tr className="bg-emerald-50/20">
+      <td className="px-3 py-2.5 align-top">
+        <ProductDropdown products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
+        {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!product || !isTracked ? emptyCell : units.length === 0 ? (
+          <p className="text-xs text-gray-400 py-1.5">No units held</p>
+        ) : (
+          <UnitPickerPopover
+            units={units} picked={picked}
+            onToggle={toggleUnit} onSelectAll={selectAllVisible}
+            renderLabel={u => isDual ? `${u.value} / MAC:${u.mac}` : u.value}
+            emptyText="No matching units"
+          />
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!product ? emptyCell : isTracked ? (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{picked.length}</div>
+        ) : (
+          <input
+            type="number" min="0" max={held} value={qty}
+            onChange={e => setQty(String(Math.max(0, Math.min(held, Number(e.target.value) || 0))))}
+            placeholder="0"
+            className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          />
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {availableCount === null ? emptyCell : (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{availableCount.toLocaleString('en-IN')}</div>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="text" value={remark} onChange={e => setRemark(e.target.value)}
+          placeholder="Optional note…"
+          className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top text-right">
+        <button type="button" onClick={handleConfirm}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">
+          <Plus size={14} />
+        </button>
+      </td>
     </tr>
   )
 }
@@ -376,13 +498,14 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
 // Same shape as CreateAssignment.jsx's WireLineRow (Product Name | Drum No |
 // Quantity | Avl. Qty. | Comment), adapted the same way HandoffLineRow above
 // adapts HardwareLineRow: one row per wire product the engineer holds meters
-// of (no "requirement", no unmapped branch, no add/remove), and every drum
-// figure is read from what THIS ENGINEER holds (getEngineerHeldDrums with
-// engineerId) rather than store stock. Drum No. is still a picker rather
-// than a fixed value — an engineer can hold meters cut from more than one
-// drum of the same wire product (e.g. two separate hardware handoffs), so
-// the row lets them choose which held drum this line draws from, same as
-// CreateAssignment.jsx's own drum picker does against store stock.
+// of (no "requirement", no unmapped branch, never itself removable), and
+// every drum figure is read from what THIS ENGINEER holds
+// (getEngineerHeldDrums with engineerId) rather than store stock. Drum No.
+// is still a picker rather than a fixed value — an engineer can hold meters
+// cut from more than one drum of the same wire product (e.g. two separate
+// hardware handoffs), so the row lets them choose which held drum this line
+// draws from, same as CreateAssignment.jsx's own drum picker does against
+// store stock.
 function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
   function changeProduct(product) {
     onChange({ productId: product.id, productName: product.name, drumNumber: '', assignedMeters: 0 })
@@ -403,6 +526,11 @@ function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }
       />
     </td>
   )
+
+  // Held rows are never removable — this empty cell only exists so the
+  // column count/widths line up with AddHandoffWireRow's trailing action
+  // column below.
+  const actionCell = <td className="px-3 py-2.5 align-top" />
 
   const drums = getEngineerHeldDrums(engineerId, line.productId)
   const usedOnDrum = drumNumber => otherLines.reduce((s, l) => l.drumNumber === drumNumber ? s + (Number(l.assignedMeters) || 0) : s, 0)
@@ -451,6 +579,92 @@ function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }
         </div>
       </td>
       {commentCell}
+      {actionCell}
+    </tr>
+  )
+}
+
+// Trailing, always-visible "add a line" row for the Wire tab — same pattern
+// as AddHandoffHwRow above, scoped to held drums via getEngineerHeldDrums
+// instead of store getDrums; `products` (heldWireProductsToAdd from the
+// page) already excludes wire products already shown as a row.
+function AddHandoffWireRow({ products, otherLines, engineerId, onAdd }) {
+  const [product, setProduct] = useState(null)
+  const [drumNumber, setDrumNumber] = useState('')
+  const [meters, setMeters] = useState('')
+  const [remark, setRemark] = useState('')
+  const [error, setError] = useState('')
+
+  const drums = product ? getEngineerHeldDrums(engineerId, product.id) : []
+  const usedOnDrum = dn => otherLines.reduce((s, l) => l.drumNumber === dn ? s + (Number(l.assignedMeters) || 0) : s, 0)
+  const selectedDrum = drums.find(d => d.drumNumber === drumNumber) ?? null
+  const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
+
+  function selectProduct(p) {
+    setProduct(p); setDrumNumber(''); setMeters(''); setError('')
+  }
+
+  function handleConfirm() {
+    if (!product) { setError('Select a product.'); return }
+    if (!drumNumber) { setError('Select a drum.'); return }
+    if (!meters || Number(meters) <= 0) { setError('Enter valid meters.'); return }
+    onAdd({
+      productId: product.id, productName: product.name,
+      drumNumber, assignedMeters: Number(meters), remark: remark.trim(),
+    })
+    setProduct(null); setDrumNumber(''); setMeters(''); setRemark(''); setError('')
+  }
+
+  const emptyCell = <div className="px-2.5 py-1.5 text-xs text-gray-300 border border-surface-border rounded-lg bg-gray-50 text-center">—</div>
+
+  return (
+    <tr className="bg-emerald-50/20">
+      <td className="px-3 py-2.5 align-top">
+        <ProductDropdown products={products} value={product?.name ?? ''} placeholder="Select Product…" onSelect={selectProduct} />
+        {error && <p className="text-[11px] text-red-600 mt-1">{error}</p>}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!product ? emptyCell : drums.length === 0 ? (
+          <p className="text-xs text-gray-400 py-1.5">No drums held</p>
+        ) : (
+          <select
+            value={drumNumber} onChange={e => { setDrumNumber(e.target.value); setMeters('') }}
+            className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+          >
+            <option value="">Select drum…</option>
+            {drums.map(d => (
+              <option key={d.drumNumber} value={d.drumNumber}>{d.drumNumber} — {Math.max(0, d.remainingMeters - usedOnDrum(d.drumNumber))}m left</option>
+            ))}
+          </select>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="number" min="0" max={roomToGrow} disabled={!selectedDrum}
+          value={meters}
+          onChange={e => setMeters(String(Math.max(0, Math.min(roomToGrow, Number(e.target.value) || 0))))}
+          placeholder="0m"
+          className="w-16 px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:bg-gray-50"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        {!selectedDrum ? emptyCell : (
+          <div className="px-2.5 py-1.5 text-xs text-gray-500 bg-gray-50 border border-surface-border rounded-lg text-center">{roomToGrow.toLocaleString('en-IN')}m</div>
+        )}
+      </td>
+      <td className="px-3 py-2.5 align-top">
+        <input
+          type="text" value={remark} onChange={e => setRemark(e.target.value)}
+          placeholder="Optional note…"
+          className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+        />
+      </td>
+      <td className="px-3 py-2.5 align-top text-right">
+        <button type="button" onClick={handleConfirm}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">
+          <Plus size={14} />
+        </button>
+      </td>
     </tr>
   )
 }
@@ -594,6 +808,13 @@ export default function CreateUserAssignment() {
 
   function updateHwLine(idx, patch) { setHwLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
+
+  // AddHandoffHwRow/AddHandoffWireRow build the whole line themselves and
+  // hand it here fully-formed, shaped identically to an auto-generated
+  // holdings line — same pattern as CreateAssignment.jsx's addHwLine/
+  // addWireLine.
+  function addHwLine(line) { setHwLines(prev => [...prev, line]) }
+  function addWireLine(line) { setWireLines(prev => [...prev, line]) }
 
   // Products the engineer holds that don't already have their own line —
   // the pool offered by each row's Product Name dropdown, same
@@ -767,10 +988,13 @@ export default function CreateUserAssignment() {
           {/* ── Section 3: Select Items — reveals once a User is picked. Same
               regardless of Assignment Type. Split into Hardware/Wire tabs,
               same pattern as CreateAssignment.jsx, since an engineer can
-              hold both hardware and wire at once. No trailing "add a line"
-              row on either tab — a handoff can only ever include products
-              the engineer already holds, so each tab's line set stays fully
-              derived from holdings. ── */}
+              hold both hardware and wire at once. Each tab's line set is
+              seeded from holdings and can be extended via the trailing
+              AddHandoffHwRow/AddHandoffWireRow "add a line" row — but
+              (unlike CreateAssignment.jsx) that row's own Product dropdown
+              is still scoped to held-and-not-yet-listed products only, so a
+              handoff still can never include a product the engineer doesn't
+              actually hold. ── */}
           {engineerValid && referenceValid && (
             <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-4">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Select Items</p>
@@ -788,71 +1012,66 @@ export default function CreateUserAssignment() {
               </div>
 
               {itemsTab === 'hardware' && (
-                hwLines.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6">{engineer.name} has no hardware currently assigned to hand off.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          {/* Widths sum to 100% — same Serial No. / Mac No.
-                              widening (at Quantity/Avl. Qty.'s expense) as
-                              CreateAssignment.jsx's Hardware table; no action
-                              column here since rows can't be added or removed. */}
-                          {[
-                            ['Product Name', 'w-[20%]'],
-                            ['Serial No. / Mac No.', 'w-[32%]'],
-                            ['Quantity', 'w-[8%]'],
-                            ['Avl. Qty.', 'w-[10%]'],
-                            ['Comment', 'w-[30%]'],
-                          ].map(([h, w], i) => (
-                            <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {hwLines.map((l, idx) => (
-                          <HandoffLineRow key={`hw-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
-                            otherLines={hwLines.filter((_, i) => i !== idx)}
-                            products={heldHwProductsToAdd}
-                            onChange={patch => updateHwLine(idx, patch)} />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {/* Widths sum to 100% — same Serial No. / Mac No.
+                            widening (at Quantity/Avl. Qty.'s expense) as
+                            CreateAssignment.jsx's Hardware table. */}
+                        {[
+                          ['Product Name', 'w-[20%]'],
+                          ['Serial No. / Mac No.', 'w-[32%]'],
+                          ['Quantity', 'w-[8%]'],
+                          ['Avl. Qty.', 'w-[10%]'],
+                          ['Comment', 'w-[24%]'],
+                          ['', 'w-[6%]'],
+                        ].map(([h, w], i) => (
+                          <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {hwLines.map((l, idx) => (
+                        <HandoffLineRow key={`hw-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
+                          otherLines={hwLines.filter((_, i) => i !== idx)}
+                          products={heldHwProductsToAdd}
+                          onChange={patch => updateHwLine(idx, patch)} />
+                      ))}
+                      <AddHandoffHwRow products={heldHwProductsToAdd} otherLines={hwLines} engineerId={engineer.id} onAdd={addHwLine} />
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               {itemsTab === 'wire' && (
-                wireLines.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6">No wire items held.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          {[
-                            ['Product Name', 'w-[20%]'],
-                            ['Drum No', 'w-[26%]'],
-                            ['Quantity', 'w-[8%]'],
-                            ['Avl. Qty.', 'w-[10%]'],
-                            ['Comment', 'w-[36%]'],
-                          ].map(([h, w], i) => (
-                            <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {wireLines.map((l, idx) => (
-                          <WireHandoffLineRow key={`wire-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
-                            otherLines={wireLines.filter((_, i) => i !== idx)}
-                            products={heldWireProductsToAdd}
-                            onChange={patch => updateWireLine(idx, patch)} />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {[
+                          ['Product Name', 'w-[20%]'],
+                          ['Drum No', 'w-[26%]'],
+                          ['Quantity', 'w-[8%]'],
+                          ['Avl. Qty.', 'w-[10%]'],
+                          ['Comment', 'w-[30%]'],
+                          ['', 'w-[6%]'],
+                        ].map(([h, w], i) => (
+                          <th key={i} className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase whitespace-nowrap ${w}`}>{h}</th>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {wireLines.map((l, idx) => (
+                        <WireHandoffLineRow key={`wire-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
+                          otherLines={wireLines.filter((_, i) => i !== idx)}
+                          products={heldWireProductsToAdd}
+                          onChange={patch => updateWireLine(idx, patch)} />
+                      ))}
+                      <AddHandoffWireRow products={heldWireProductsToAdd} otherLines={wireLines} engineerId={engineer.id} onAdd={addWireLine} />
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
