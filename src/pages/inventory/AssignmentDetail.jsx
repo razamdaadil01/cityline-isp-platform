@@ -155,7 +155,6 @@ export default function AssignmentDetail() {
             <InfoRow label="Status" value={<Badge variant={STATUS_BADGE[assignment.status] ?? 'gray'} size="sm" dot>{assignment.status}</Badge>} />
             <InfoRow label="Engineer" value={assignment.engineerName} />
             <InfoRow label="Work Order" value={<span className="font-mono">{assignment.workOrderLabel}</span>} />
-            <InfoRow label="Branch" value={assignment.branchCode} />
             <InfoRow label="Store" value={store?.storeName} />
             <InfoRow label="Assigned By" value={assignment.assignedBy} />
             <InfoRow label="Assigned At" value={(assignment.assignedAt || '').slice(0, 16).replace('T', ' ')} />
