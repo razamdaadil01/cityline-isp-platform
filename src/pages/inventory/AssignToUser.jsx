@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Eye, Users, CalendarDays, UserCog, ClipboardList } from 'lucide-react'
+import { Plus, Search, Pencil, Users, CalendarDays, UserCog, ClipboardList } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getUserAssignments, subscribeUserAssignments } from '../../data/userAssignmentStore'
@@ -164,7 +164,7 @@ export default function AssignToUser() {
                   </td>
                 </tr>
               ) : rows.map(r => (
-                <tr key={r.key} onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}`)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
+                <tr key={r.key} onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}/edit`)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.engineerName}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -179,11 +179,11 @@ export default function AssignToUser() {
                   </td>
                   <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
                     <button
-                      onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}`)}
-                      title="View"
+                      onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}/edit`)}
+                      title="Edit"
                       className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors mx-auto"
                     >
-                      <Eye size={14} />
+                      <Pencil size={14} />
                     </button>
                   </td>
                 </tr>

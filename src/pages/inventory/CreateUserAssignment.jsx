@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, AlertTriangle, ChevronDown, Plus, PackagePlus, RefreshCw, PackageX } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -8,7 +8,7 @@ import { FIELD_ENGINEERS } from '../../data/installationsStore'
 import { getProducts, getProduct } from '../../data/productStore'
 import { getUnits, getEngineerHeldQty, getEngineerHeldDrums } from '../../data/inventoryLedger'
 import { WORK_ORDER_TYPES } from '../../data/assignmentStore'
-import { ASSIGNMENT_TYPES, getWorkOrderTypeRecords, saveUserAssignment } from '../../data/userAssignmentStore'
+import { ASSIGNMENT_TYPES, getWorkOrderTypeRecords, getUserAssignment, saveUserAssignment, updateUserAssignment } from '../../data/userAssignmentStore'
 
 // Segmented-control config for the Assignment Type selector — same
 // bordered-button, icon+label style TicketCreate.jsx's own "Suggested
@@ -250,7 +250,7 @@ function UnitPickerPopover({ units, picked, onToggle, onSelectAll, renderLabel, 
 // own dropdown — it's really AddHandoffHwRow below (a held product that was
 // somehow not auto-generated, or one the user wants to re-add after this
 // pool's own exclusion logic runs) that makes use of it.
-function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
+function HandoffLineRow({ line, engineerId, otherLines, products, onChange, excludeAssignmentId }) {
   const trackingType = liveTrackingType(line.productId)
 
   function changeProduct(product) {
@@ -296,7 +296,7 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
     const isDual = trackingType === 'dual'
     const kindLabel = isDual ? 'unit' : trackingType === 'serial' ? 'serial' : 'MAC'
     const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
-    const units = getUnits({ productId: line.productId, status: 'Assigned to Engineer', engineerId })
+    const units = getUnits({ productId: line.productId, status: 'Assigned to Engineer', engineerId, excludeUserAssignmentId: excludeAssignmentId })
       .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
     const picked = isDual ? line.serials : (trackingType === 'serial' ? line.serials : line.macs)
 
@@ -357,7 +357,7 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
 
   // Quantity-tracked — capped by however much of this product the engineer
   // still holds (getEngineerHeldQty), never store stock.
-  const held = getEngineerHeldQty(engineerId, line.productId)
+  const held = getEngineerHeldQty(engineerId, line.productId, excludeAssignmentId)
   return (
     <tr>
       {nameCell}
@@ -389,7 +389,7 @@ function HandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
 // getUnits({ status: 'Assigned to Engineer', engineerId }) and quantity via
 // getEngineerHeldQty(engineerId, ...), same held-stock sources
 // HandoffLineRow itself reads from, never store availability.
-function AddHandoffHwRow({ products, otherLines, engineerId, onAdd }) {
+function AddHandoffHwRow({ products, otherLines, engineerId, onAdd, excludeAssignmentId }) {
   const [product, setProduct] = useState(null)
   const [qty, setQty] = useState('')
   const [pickedUnits, setPickedUnits] = useState([]) // unit objects {value, mac?}
@@ -401,11 +401,11 @@ function AddHandoffHwRow({ products, otherLines, engineerId, onAdd }) {
   const isDual = trackingType === 'dual'
   const pickedElsewhere = new Set(otherLines.flatMap(l => [...l.serials, ...l.macs]))
   const units = isTracked
-    ? getUnits({ productId: product.id, status: 'Assigned to Engineer', engineerId })
+    ? getUnits({ productId: product.id, status: 'Assigned to Engineer', engineerId, excludeUserAssignmentId: excludeAssignmentId })
       .filter(u => !pickedElsewhere.has(u.value) && !(isDual && u.mac && pickedElsewhere.has(u.mac)))
     : []
   const picked = pickedUnits.map(u => u.value)
-  const held = product && !isTracked ? getEngineerHeldQty(engineerId, product.id) : 0
+  const held = product && !isTracked ? getEngineerHeldQty(engineerId, product.id, excludeAssignmentId) : 0
 
   const availableCount = !product ? null : isTracked ? units.length : held
 
@@ -506,7 +506,7 @@ function AddHandoffHwRow({ products, otherLines, engineerId, onAdd }) {
 // hardware handoffs), so the row lets them choose which held drum this line
 // draws from, same as CreateAssignment.jsx's own drum picker does against
 // store stock.
-function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }) {
+function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange, excludeAssignmentId }) {
   function changeProduct(product) {
     onChange({ productId: product.id, productName: product.name, drumNumber: '', assignedMeters: 0 })
   }
@@ -532,7 +532,7 @@ function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }
   // column below.
   const actionCell = <td className="px-3 py-2.5 align-top" />
 
-  const drums = getEngineerHeldDrums(engineerId, line.productId)
+  const drums = getEngineerHeldDrums(engineerId, line.productId, excludeAssignmentId)
   const usedOnDrum = drumNumber => otherLines.reduce((s, l) => l.drumNumber === drumNumber ? s + (Number(l.assignedMeters) || 0) : s, 0)
   const selectedDrum = drums.find(d => d.drumNumber === line.drumNumber) ?? null
   // roomToGrow (excludes this line's own meters) caps the input; the
@@ -588,14 +588,14 @@ function WireHandoffLineRow({ line, engineerId, otherLines, products, onChange }
 // as AddHandoffHwRow above, scoped to held drums via getEngineerHeldDrums
 // instead of store getDrums; `products` (heldWireProductsToAdd from the
 // page) already excludes wire products already shown as a row.
-function AddHandoffWireRow({ products, otherLines, engineerId, onAdd }) {
+function AddHandoffWireRow({ products, otherLines, engineerId, onAdd, excludeAssignmentId }) {
   const [product, setProduct] = useState(null)
   const [drumNumber, setDrumNumber] = useState('')
   const [meters, setMeters] = useState('')
   const [remark, setRemark] = useState('')
   const [error, setError] = useState('')
 
-  const drums = product ? getEngineerHeldDrums(engineerId, product.id) : []
+  const drums = product ? getEngineerHeldDrums(engineerId, product.id, excludeAssignmentId) : []
   const usedOnDrum = dn => otherLines.reduce((s, l) => l.drumNumber === dn ? s + (Number(l.assignedMeters) || 0) : s, 0)
   const selectedDrum = drums.find(d => d.drumNumber === drumNumber) ?? null
   const roomToGrow = selectedDrum ? Math.max(0, selectedDrum.remainingMeters - usedOnDrum(selectedDrum.drumNumber)) : 0
@@ -671,7 +671,16 @@ function AddHandoffWireRow({ products, otherLines, engineerId, onAdd }) {
 
 export default function CreateUserAssignment() {
   const navigate = useNavigate()
+  const { id: editId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Edit mode — route is /inventory/assign-to-user/:id/edit rather than
+  // .../new. `editId` is undefined on the create route, so every edit-mode
+  // branch below is a no-op there and behaves exactly as before. Looked up
+  // once per `editId` (never changes mid-session) rather than re-read on
+  // every render.
+  const existingAssignment = useMemo(() => editId ? getUserAssignment(editId) : null, [editId])
+  const isEditMode = !!existingAssignment
 
   // Merge-safe searchParams update — same pattern as CreateAssignment.jsx's
   // patchSearchParams, so selecting one field never drops another already
@@ -706,6 +715,22 @@ export default function CreateUserAssignment() {
   const records = useMemo(() => WORK_ORDER_TYPES.flatMap(type =>
     getWorkOrderTypeRecords(type).map(r => ({ ...r, type, searchText: `${r.searchText} ${type.toLowerCase()}` }))
   ), [])
+
+  // Prefill Engineer/User/Assignment Type/Remarks from the existing record
+  // in Edit mode — bypasses selectEngineer()/selectReference() (which clear
+  // downstream selections and rewrite the URL) since this is a one-time
+  // load, not a user pick. `records` is synchronous/static, so it's already
+  // populated by the time this runs — no loading race to guard against.
+  // Select Items' own hwLines/wireLines are prefilled separately below,
+  // since they depend on `engineer` being set first.
+  useEffect(() => {
+    if (!existingAssignment) return
+    setEngineer(FIELD_ENGINEERS.find(e => e.id === existingAssignment.engineerId) ?? null)
+    setReference(records.find(r => r.id === existingAssignment.workOrderId && r.type === existingAssignment.workOrderType) ?? null)
+    setAssignmentType(ASSIGNMENT_TYPES.includes(existingAssignment.assignmentType) ? existingAssignment.assignmentType : 'new')
+    setRemarks(existingAssignment.remarks || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAssignment])
 
   // Selecting Engineer keeps `?engineer=` in sync (and clears the downstream
   // User selection, which no longer applies), same idea as
@@ -776,35 +801,56 @@ export default function CreateUserAssignment() {
   // quantity via getEngineerHeldQty()). Unlike Assign to Engineer there's no
   // "requirement" driving this list — it's simply everything this engineer
   // is currently holding, since a handoff can cover any of it.
+  //
+  // Edit mode: `editId` is passed as `excludeUserAssignmentId` to both
+  // held-stock reads, so this specific assignment's own already-handed-off
+  // units/qty come back as "held" (see inventoryLedger.js's computeLedger()
+  // note) instead of looking already spoken for; existingAssignment.items
+  // is then merged in so those held lines start pre-populated with exactly
+  // what this assignment already picked, rather than at zero.
   useEffect(() => {
     if (!engineer) { setHwLines([]); return }
-    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
+    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id, excludeUserAssignmentId: editId })
     const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
-    const unitLines = [...productIdsWithUnits].map(productId => ({
-      productId, productName: getProduct(productId)?.name ?? productId,
-      qty: 0, serials: [], macs: [], remark: '',
-    }))
+    const existingByProduct = new Map((existingAssignment?.items ?? []).filter(it => !it.drumNumber).map(it => [it.productId, it]))
+    const unitLines = [...productIdsWithUnits].map(productId => {
+      const existing = existingByProduct.get(productId)
+      return {
+        productId, productName: getProduct(productId)?.name ?? productId,
+        qty: 0, serials: existing?.serials ?? [], macs: existing?.macs ?? [], remark: '',
+      }
+    })
     const qtyLines = getProducts()
-      .filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0)
-      .map(p => ({ productId: p.id, productName: p.name, qty: 0, serials: [], macs: [], remark: '' }))
+      .filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id, editId) > 0)
+      .map(p => {
+        const existing = existingByProduct.get(p.id)
+        return { productId: p.id, productName: p.name, qty: existing?.qty ?? 0, serials: [], macs: [], remark: '' }
+      })
     setHwLines([...unitLines, ...qtyLines])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engineer?.id])
+  }, [engineer?.id, editId, existingAssignment])
 
   // Rebuild the Wire tab's editable line state the same way — one line per
   // wire product the engineer currently holds meters of, from ANY drum
   // (getEngineerHeldDrums, see inventoryLedger.js's file-level note on why
   // this needed its own per-engineer-per-drum tracking alongside the
-  // existing per-engineer-per-product tracking hardware already had).
+  // existing per-engineer-per-product tracking hardware already had). Edit
+  // mode merges in existingAssignment's own wire item the same way as
+  // above — one item per product at most, since a single WireHandoffLineRow
+  // can only ever save one drum per product (see that component's note).
   useEffect(() => {
     if (!engineer) { setWireLines([]); return }
-    const heldWireProductIds = new Set(getEngineerHeldDrums(engineer.id).map(d => d.productId))
-    setWireLines([...heldWireProductIds].map(productId => ({
-      productId, productName: getProduct(productId)?.name ?? productId,
-      drumNumber: '', assignedMeters: 0, remark: '',
-    })))
+    const heldWireProductIds = new Set(getEngineerHeldDrums(engineer.id, null, editId).map(d => d.productId))
+    const existingByProduct = new Map((existingAssignment?.items ?? []).filter(it => it.drumNumber).map(it => [it.productId, it]))
+    setWireLines([...heldWireProductIds].map(productId => {
+      const existing = existingByProduct.get(productId)
+      return {
+        productId, productName: getProduct(productId)?.name ?? productId,
+        drumNumber: existing?.drumNumber ?? '', assignedMeters: existing?.qty ?? 0, remark: '',
+      }
+    }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engineer?.id])
+  }, [engineer?.id, editId, existingAssignment])
 
   function updateHwLine(idx, patch) { setHwLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
   function updateWireLine(idx, patch) { setWireLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l)) }
@@ -822,22 +868,22 @@ export default function CreateUserAssignment() {
   // its own Product dropdown (see HandoffLineRow's file-level note above).
   const heldHwProductsToAdd = useMemo(() => {
     if (!engineer) return []
-    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id })
+    const heldUnits = getUnits({ status: 'Assigned to Engineer', engineerId: engineer.id, excludeUserAssignmentId: editId })
     const productIdsWithUnits = new Set(heldUnits.map(u => u.productId))
     const heldProducts = [
       ...[...productIdsWithUnits].map(id => getProduct(id)).filter(Boolean),
-      ...getProducts().filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id) > 0),
+      ...getProducts().filter(p => !productIdsWithUnits.has(p.id) && getEngineerHeldQty(engineer.id, p.id, editId) > 0),
     ]
     return heldProducts.filter(p => !hwLines.some(l => l.productId === p.id))
-  }, [engineer, hwLines])
+  }, [engineer, hwLines, editId])
 
   // Same exclusion, against held wire products instead.
   const heldWireProductsToAdd = useMemo(() => {
     if (!engineer) return []
-    const heldWireProducts = [...new Set(getEngineerHeldDrums(engineer.id).map(d => d.productId))]
+    const heldWireProducts = [...new Set(getEngineerHeldDrums(engineer.id, null, editId).map(d => d.productId))]
       .map(id => getProduct(id)).filter(Boolean)
     return heldWireProducts.filter(p => !wireLines.some(l => l.productId === p.id))
-  }, [engineer, wireLines])
+  }, [engineer, wireLines, editId])
 
   // Engineer & User is always visible (User just stays disabled until an
   // Engineer is picked); Assignment Type and Select Items both reveal once
@@ -871,7 +917,7 @@ export default function CreateUserAssignment() {
     if (!itemsValid) { setAttemptedAction('items'); return }
     setSaveError('')
     try {
-      const assignment = saveUserAssignment({
+      const payload = {
         engineerId: engineer.id, engineerName: engineer.name,
         workOrderType: reference.type, workOrderId: reference.id, workOrderLabel: reference.label,
         customerName: reference.customerName, customerId: reference.customerId,
@@ -887,8 +933,12 @@ export default function CreateUserAssignment() {
           })),
         ],
         remarks,
-      })
-      navigate(`/inventory/assign-to-user/${assignment.id}`)
+      }
+      // No detail page to land on (removed) — both create and edit return
+      // to the list.
+      if (isEditMode) updateUserAssignment(existingAssignment.id, payload)
+      else saveUserAssignment(payload)
+      navigate('/inventory/assign-to-user')
     } catch (err) {
       setSaveError(err.message || 'Could not save this assignment.')
     }
@@ -906,7 +956,7 @@ export default function CreateUserAssignment() {
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Assign to User</h1>
+            <h1 className="text-xl font-bold text-gray-900">{isEditMode ? 'Edit User Assignment' : 'Assign to User'}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {engineer ? <>From <span className="font-semibold text-gray-700">{engineer.name}</span>{reference ? <> to <span className="font-mono">{reference.customerName ?? reference.label}</span></> : null}</> : 'Select an engineer to begin'}
             </p>
@@ -1036,9 +1086,10 @@ export default function CreateUserAssignment() {
                         <HandoffLineRow key={`hw-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
                           otherLines={hwLines.filter((_, i) => i !== idx)}
                           products={heldHwProductsToAdd}
-                          onChange={patch => updateHwLine(idx, patch)} />
+                          onChange={patch => updateHwLine(idx, patch)}
+                          excludeAssignmentId={editId} />
                       ))}
-                      <AddHandoffHwRow products={heldHwProductsToAdd} otherLines={hwLines} engineerId={engineer.id} onAdd={addHwLine} />
+                      <AddHandoffHwRow products={heldHwProductsToAdd} otherLines={hwLines} engineerId={engineer.id} onAdd={addHwLine} excludeAssignmentId={editId} />
                     </tbody>
                   </table>
                 </div>
@@ -1066,9 +1117,10 @@ export default function CreateUserAssignment() {
                         <WireHandoffLineRow key={`wire-${l.productId}-${idx}`} line={l} engineerId={engineer.id}
                           otherLines={wireLines.filter((_, i) => i !== idx)}
                           products={heldWireProductsToAdd}
-                          onChange={patch => updateWireLine(idx, patch)} />
+                          onChange={patch => updateWireLine(idx, patch)}
+                          excludeAssignmentId={editId} />
                       ))}
-                      <AddHandoffWireRow products={heldWireProductsToAdd} otherLines={wireLines} engineerId={engineer.id} onAdd={addWireLine} />
+                      <AddHandoffWireRow products={heldWireProductsToAdd} otherLines={wireLines} engineerId={engineer.id} onAdd={addWireLine} excludeAssignmentId={editId} />
                     </tbody>
                   </table>
                 </div>
@@ -1085,7 +1137,7 @@ export default function CreateUserAssignment() {
                 </div>
               )}
               <div className="flex justify-end">
-                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>Assign to User</Button>
+                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>{isEditMode ? 'Save Changes' : 'Assign to User'}</Button>
               </div>
             </div>
           )}
@@ -1093,21 +1145,21 @@ export default function CreateUserAssignment() {
       </div>
 
       {/* ── Confirm modal — same summary content the inline Confirm step used
-          to show, now behind the bottom "Assign to User" button. Guarded on
-          `reference` (not just `showConfirmModal`) since the content below
-          reads engineer/reference fields directly — the modal can only ever
-          be opened once both are set (openConfirmModal checks itemsValid,
-          which itself requires Select Items to be populated, which itself
-          requires a Reference). No "Not Fulfilled — Out of Stock" panel here
-          — lines only ever exist for products with positive held quantity,
-          so that state can't occur in this flow. */}
+          to show, now behind the bottom "Assign to User"/"Save Changes"
+          button. Guarded on `reference` (not just `showConfirmModal`) since
+          the content below reads engineer/reference fields directly — the
+          modal can only ever be opened once both are set (openConfirmModal
+          checks itemsValid, which itself requires Select Items to be
+          populated, which itself requires a Reference). No "Not Fulfilled —
+          Out of Stock" panel here — lines only ever exist for products with
+          positive held quantity, so that state can't occur in this flow. */}
       {reference && (
         <Modal
           isOpen={showConfirmModal}
           onClose={() => setShowConfirmModal(false)}
           size="lg"
-          title="Confirm Handoff"
-          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>Assign to User</Button>}
+          title={isEditMode ? 'Confirm Changes' : 'Confirm Handoff'}
+          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>{isEditMode ? 'Save Changes' : 'Assign to User'}</Button>}
         >
           <div className="space-y-5">
             {saveError && (

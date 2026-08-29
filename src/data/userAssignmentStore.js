@@ -176,18 +176,29 @@ function grossHeldByEngineer() {
   return { qtyByKey, heldValuesByEngineer, metersByDrumKey }
 }
 
-function alreadyHandedOffValues() {
+// `excludeId` on all three helpers below — and on the exported
+// getEngineerHeld*() functions that call them — lets updateUserAssignment()
+// (and its validation) leave one specific assignment's own prior handoff
+// out of the "already handed off" tally, so editing that assignment sees
+// its own items as still-available-to-pick instead of double-counting them
+// against themselves. Mirrors inventoryLedger.js's computeLedger()
+// `excludeUserAssignmentId` on the read side (see that file's note); kept
+// as a separate parameter here rather than merged into one shared helper,
+// consistent with this file's existing independent-validation-path
+// architecture.
+function alreadyHandedOffValues(excludeId = null) {
   const set = new Set()
   _userAssignments.forEach(ua => {
+    if (ua.id === excludeId) return
     ua.items.forEach(it => { it.serials.forEach(s => set.add(s)); it.macs.forEach(m => set.add(m)) })
   })
   return set
 }
 
-function alreadyHandedOffQty(engineerId, productId) {
+function alreadyHandedOffQty(engineerId, productId, excludeId = null) {
   let sum = 0
   _userAssignments.forEach(ua => {
-    if (ua.engineerId !== engineerId) return
+    if (ua.engineerId !== engineerId || ua.id === excludeId) return
     ua.items.forEach(it => {
       if (it.productId === productId && !it.serials.length && !it.macs.length && !it.drumNumber) sum += Number(it.qty) || 0
     })
@@ -195,10 +206,10 @@ function alreadyHandedOffQty(engineerId, productId) {
   return sum
 }
 
-function alreadyHandedOffMeters(engineerId, productId, drumNumber) {
+function alreadyHandedOffMeters(engineerId, productId, drumNumber, excludeId = null) {
   let sum = 0
   _userAssignments.forEach(ua => {
-    if (ua.engineerId !== engineerId) return
+    if (ua.engineerId !== engineerId || ua.id === excludeId) return
     ua.items.forEach(it => {
       if (it.productId === productId && it.drumNumber === drumNumber) sum += Number(it.qty) || 0
     })
@@ -211,16 +222,16 @@ function alreadyHandedOffMeters(engineerId, productId, drumNumber) {
 // CreateUserAssignment.jsx's Step 3 UI reads the equivalent live figure
 // through inventoryLedger.js's getUnits()/getEngineerHeldQty() instead (see
 // that file's own note on why the two paths are computed independently).
-export function getEngineerHeldValues(engineerId) {
+export function getEngineerHeldValues(engineerId, excludeId = null) {
   const { heldValuesByEngineer } = grossHeldByEngineer()
-  const handedOff = alreadyHandedOffValues()
+  const handedOff = alreadyHandedOffValues(excludeId)
   return [...(heldValuesByEngineer[engineerId] ?? [])].filter(v => !handedOff.has(v))
 }
 
-export function getEngineerHeldQtyLocal(engineerId, productId) {
+export function getEngineerHeldQtyLocal(engineerId, productId, excludeId = null) {
   const { qtyByKey } = grossHeldByEngineer()
   const gross = qtyByKey[`${engineerId}|${productId}`] ?? 0
-  return Math.max(0, gross - alreadyHandedOffQty(engineerId, productId))
+  return Math.max(0, gross - alreadyHandedOffQty(engineerId, productId, excludeId))
 }
 
 // Wire's equivalent of getEngineerHeldQtyLocal above — this store's own
@@ -228,13 +239,13 @@ export function getEngineerHeldQtyLocal(engineerId, productId) {
 // Wire tab reads the equivalent live figure through inventoryLedger.js's
 // getEngineerHeldDrums() instead (same independent-paths reasoning as
 // getEngineerHeldValues()/getEngineerHeldQtyLocal() above).
-export function getEngineerHeldMetersLocal(engineerId, productId, drumNumber) {
+export function getEngineerHeldMetersLocal(engineerId, productId, drumNumber, excludeId = null) {
   const { metersByDrumKey } = grossHeldByEngineer()
   const gross = metersByDrumKey[`${engineerId}|${productId}|${drumNumber}`] ?? 0
-  return Math.max(0, gross - alreadyHandedOffMeters(engineerId, productId, drumNumber))
+  return Math.max(0, gross - alreadyHandedOffMeters(engineerId, productId, drumNumber, excludeId))
 }
 
-// ── Save ─────────────────────────────────────────────────────────────────
+// ── Save / Update ────────────────────────────────────────────────────────
 // data: { engineerId, engineerName, workOrderType, workOrderId, workOrderLabel,
 //         customerName, customerId, assignmentType,
 //         items: [{ productId, productName, serials, macs, qty, drumNumber }],
@@ -258,9 +269,16 @@ export function getEngineerHeldMetersLocal(engineerId, productId, drumNumber) {
 // is accepted if the caller provides one, but nothing in this file requires
 // it yet — CreateUserAssignment.jsx doesn't currently collect it; wiring up
 // its own capture fields for Replace/Disconnection is a separate change.
-export function saveUserAssignment(data, actor = 'Admin User') {
+//
+// Shared by saveUserAssignment() and updateUserAssignment() below.
+// `excludeId` is only ever the assignment's own id, passed by
+// updateUserAssignment() so its own already-recorded items don't count
+// against themselves as "already handed off" — see the excludeId note on
+// getEngineerHeldValues()/getEngineerHeldQtyLocal()/getEngineerHeldMetersLocal()
+// above.
+function validateItems(data, excludeId = null) {
   const assignmentType = ASSIGNMENT_TYPES.includes(data.assignmentType) ? data.assignmentType : 'new'
-  const heldValues = new Set(getEngineerHeldValues(data.engineerId))
+  const heldValues = new Set(getEngineerHeldValues(data.engineerId, excludeId))
 
   const items = (data.items || [])
     .filter(it => (it.serials?.length) || (it.macs?.length) || (Number(it.qty) || 0) > 0)
@@ -276,11 +294,11 @@ export function saveUserAssignment(data, actor = 'Admin User') {
       }
       const qty = Number(it.qty) || 0
       if (it.drumNumber) {
-        const available = getEngineerHeldMetersLocal(data.engineerId, it.productId, it.drumNumber)
+        const available = getEngineerHeldMetersLocal(data.engineerId, it.productId, it.drumNumber, excludeId)
         if (qty > available) throw new Error(`${data.engineerName} only has ${available}m of ${it.productName} left on drum ${it.drumNumber} to hand off.`)
         return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: it.drumNumber }
       }
-      const available = getEngineerHeldQtyLocal(data.engineerId, it.productId)
+      const available = getEngineerHeldQtyLocal(data.engineerId, it.productId, excludeId)
       if (qty > available) throw new Error(`${data.engineerName} only has ${available} of ${it.productName} left to hand off.`)
       return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: null }
     })
@@ -295,6 +313,12 @@ export function saveUserAssignment(data, actor = 'Admin User') {
         identifier: data.returnedItem.identifier.trim(), remark: data.returnedItem.remark || '',
       }
     : null
+
+  return { assignmentType, items, returnedItem }
+}
+
+export function saveUserAssignment(data, actor = 'Admin User') {
+  const { assignmentType, items, returnedItem } = validateItems(data)
 
   const assignment = {
     id: `USRA-${String(_nextInternalSeq++).padStart(6, '0')}`,
@@ -319,4 +343,40 @@ export function saveUserAssignment(data, actor = 'Admin User') {
   })
 
   return assignment
+}
+
+// Edits an existing handoff in place — same `data` shape and validation as
+// saveUserAssignment(), with the assignment's own prior items excluded from
+// the "already handed off" tally (see validateItems()'s note) so its own
+// picks are still available to keep, drop, or change. Keeps the original
+// id/assignmentNumber/status/assignedBy/assignedAt — those describe when
+// and by whom the handoff was first recorded, which editing its contents
+// doesn't rewrite; the audit log entry below is the record of the edit
+// itself. Throws the same way saveUserAssignment() does if `id` doesn't
+// match an existing assignment.
+export function updateUserAssignment(id, data, actor = 'Admin User') {
+  const existing = _userAssignments.find(a => a.id === id)
+  if (!existing) throw new Error('Assignment not found.')
+
+  const { assignmentType, items, returnedItem } = validateItems(data, id)
+
+  const updated = {
+    ...existing,
+    engineerId: data.engineerId, engineerName: data.engineerName,
+    workOrderType: data.workOrderType, workOrderId: data.workOrderId, workOrderLabel: data.workOrderLabel,
+    customerName: data.customerName ?? null, customerId: data.customerId ?? null,
+    assignmentType,
+    items,
+    returnedItem,
+    remarks: data.remarks || '',
+  }
+  _userAssignments = _userAssignments.map(a => a.id === id ? updated : a)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Edited handoff ${existing.assignmentNumber} (${data.engineerName} → ${data.customerName ?? updated.workOrderLabel})`,
+  })
+
+  return updated
 }
