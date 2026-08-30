@@ -6,7 +6,7 @@
 // stock ledger will read from later.
 
 import { recalculatePOReceiptStatus, getPurchaseOrder } from './purchaseOrderStore'
-import { markAssetsInStockForPO } from './assetStore'
+import { markAssetsInStockForPO, confirmKitComponentsForAsset } from './assetStore'
 import { logAudit } from './auditLogStore'
 import { addNotification } from './notificationStore'
 
@@ -304,6 +304,20 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
     const linkedPO = getPurchaseOrder(purchase.poId)
     if (linkedPO?.poType === 'Asset Purchase') {
       markAssetsInStockForPO(purchase.poId)
+      // Kit Components Received (CreatePurchase.jsx) — only for a line that
+      // was actually received this round and carries confirmed kit rows
+      // (set only for a Splicing Machine asset's receipt line; every other
+      // item's assetId/kitComponents are absent, so this is a no-op for
+      // them and for every Standard PO above).
+      purchase.items.forEach(it => {
+        if (it.assetId && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
+          confirmKitComponentsForAsset(it.assetId, it.kitComponents.map(c => ({
+            id: c.id, componentType: c.componentType, componentName: c.componentName, quantity: c.quantity,
+            serialNumber: c.serialNumber, condition: c.condition,
+            receivedStatus: c.received ? 'Received' : 'Missing',
+          })))
+        }
+      })
     }
   }
 

@@ -18,6 +18,8 @@ import { getPurchaseOrders, getPurchaseOrder, getPoStatusLabel } from '../../dat
 import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } from '../../data/purchaseStore'
 import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
+import { getAssets } from '../../data/assetStore'
+import { ASSET_CONDITIONS } from '../../data/assetTaxonomy'
 
 const STEPS = [
   { id: 1, label: 'Select PO',        icon: ClipboardList },
@@ -31,13 +33,48 @@ const STEPS = [
 const RECEIVABLE_PO_STATUSES = ['Sent', 'Partially Received']
 const MAC_RE = /^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$/
 
-function itemFromPOLine(it, i) {
+// Asset Management's own linkage — a PO with poType 'Asset Purchase' has a
+// linked asset per line item (see AddAsset.jsx's "Save & Raise PO"), which
+// stamped that line's id as `POI-asset-${asset.id}` when it built the PO.
+// Matched here by exact id equality (not by parsing the asset id back out
+// of the string) so this stays correct even if that id format ever
+// changes shape, as long as it stays unique per PO. Standard POs never
+// match anything here (getAssets() has no asset with poId === a Standard
+// PO's id), so this is a no-op for the vast majority of POs.
+function linkedAssetForPOItem(po, poItem) {
+  if (!po || po.poType !== 'Asset Purchase') return null
+  return getAssets().find(a => a.poId === po.id && `POI-asset-${a.id}` === poItem.id) ?? null
+}
+
+// A Splicing Machine asset (assetTaxonomy.js: category 'field-splicing-
+// tools', type 'splicing-machine') is the only asset type with a Kit
+// Components sub-table — every other linked asset (or no linked asset at
+// all, i.e. every Standard PO line) carries an empty kitComponents array,
+// so CreatePurchase.jsx's "Kit Components Received" section never renders
+// for them.
+function requestedKitComponents(linkedAsset) {
+  if (linkedAsset?.categoryId !== 'field-splicing-tools' || linkedAsset?.typeId !== 'splicing-machine') return []
+  const rows = linkedAsset.fields?.kitComponents || []
+  // `received` defaults true (checked) — most components arrive as
+  // planned, so GRN only needs the exceptions unchecked. serialNumber/
+  // condition pre-fill from what was recorded at Add Asset time (often
+  // blank for serialNumber — per the PRD, it's frequently only known at
+  // physical delivery), both still editable here.
+  return rows.map(c => ({
+    id: c.id, componentType: c.componentType, componentName: c.componentName, quantity: c.quantity,
+    serialNumber: c.serialNumber || '', condition: c.condition || '', received: true,
+  }))
+}
+
+function itemFromPOLine(it, i, linkedAsset = null) {
   return {
     id: `tmp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
     source: 'po', type: it.type, productId: it.productId, productName: it.productName,
     sku: it.sku, unit: it.unit, poQty: it.qty, receivedQty: '',
     price: it.price, gstPercent: it.gstPercent,
     serials: [], macs: [], drumNumber: '', reason: '',
+    assetId: linkedAsset?.id ?? null,
+    kitComponents: requestedKitComponents(linkedAsset),
   }
 }
 
@@ -315,6 +352,70 @@ function SerialMacEntryModal({ isOpen, onClose, item, qty, trackedBySerial, trac
   )
 }
 
+// Shown only below a Splicing Machine asset's own receipt line (item.
+// kitComponents is only ever populated for that case — see
+// requestedKitComponents() above) — everything else in the GRN flow is
+// untouched. Component Type/Name/Quantity were fixed at Add Asset request
+// time and aren't re-editable here; only Serial Number, Condition, and the
+// Received/Missing confirmation are. onUpdate writes straight back into
+// this item's own kitComponents array (same item state every other field
+// on this card already flows through), so it's carried into buildPayload()
+// and, on Confirm, written onto the linked asset by purchaseStore.js's
+// confirmKitComponentsForAsset().
+function KitComponentsReceiptSection({ item, onUpdate }) {
+  if (!item.kitComponents || item.kitComponents.length === 0) return null
+
+  function updateComponent(id, patch) {
+    onUpdate({ kitComponents: item.kitComponents.map(c => c.id === id ? { ...c, ...patch } : c) })
+  }
+
+  return (
+    <div className="rounded-lg border border-surface-border bg-gray-50/60 p-3 space-y-2.5">
+      <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+        <PackageOpen size={13} className="text-brand-blue" /> Kit Components Received
+      </p>
+      <div className="space-y-2">
+        {item.kitComponents.map(c => (
+          <div key={c.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:items-center bg-white border border-surface-border rounded-lg p-2.5">
+            <div className="sm:col-span-3">
+              <p className="text-xs font-medium text-gray-800">{c.componentType || '—'}</p>
+              <p className="text-[11px] text-gray-400">{c.componentName || '—'} · Qty {c.quantity}</p>
+            </div>
+            <div className="sm:col-span-4">
+              <input
+                value={c.serialNumber}
+                onChange={e => updateComponent(c.id, { serialNumber: e.target.value })}
+                placeholder="Serial Number"
+                className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <select
+                value={c.condition}
+                onChange={e => updateComponent(c.id, { condition: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              >
+                <option value="">Condition…</option>
+                {ASSET_CONDITIONS.map(cond => <option key={cond} value={cond}>{cond}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2 flex items-center sm:justify-end gap-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer select-none">
+                <input
+                  type="checkbox" checked={c.received}
+                  onChange={e => updateComponent(c.id, { received: e.target.checked })}
+                  className="accent-brand-blue"
+                />
+                {c.received ? <span className="text-emerald-600">Received</span> : <span className="text-red-500">Missing</span>}
+              </label>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
@@ -391,6 +492,8 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
           </button>
         </div>
       ) : null}
+
+      <KitComponentsReceiptSection item={item} onUpdate={onUpdate} />
 
       {item.source === 'outside' && (
         <FormField label="Reason" hint="Why this was bought outside a PO">
@@ -524,7 +627,11 @@ export default function CreatePurchase() {
   const [vendorId, setVendorId] = useState(() => existing?.vendorId ?? poFromUrl?.vendorId ?? '')
   const [storeId, setStoreId] = useState(() => existing?.storeId ?? poFromUrl?.storeId ?? '')
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchaseDate ?? new Date().toISOString().slice(0, 10))
-  const [items, setItems] = useState(() => existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) })) ?? poFromUrl?.items.map(itemFromPOLine) ?? [])
+  const [items, setItems] = useState(() =>
+    existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) }))
+    ?? poFromUrl?.items.map((it, i) => itemFromPOLine(it, i, linkedAssetForPOItem(poFromUrl, it)))
+    ?? []
+  )
   const [remarks, setRemarks] = useState(existing?.remarks ?? '')
   const [attemptedAction, setAttemptedAction] = useState(null) // null | 'step1' | 'step2' | 'draft' | 'confirm'
 
@@ -566,7 +673,10 @@ export default function CreatePurchase() {
     setStoreId(po.storeId)
     // Re-selecting a PO replaces only the PO-sourced lines — any items
     // already added via "Add Hardware Outside PO" carry over.
-    setItems(prev => [...po.items.map(itemFromPOLine), ...prev.filter(it => it.source === 'outside')])
+    setItems(prev => [
+      ...po.items.map((it, i) => itemFromPOLine(it, i, linkedAssetForPOItem(po, it))),
+      ...prev.filter(it => it.source === 'outside'),
+    ])
     patchSearchParams({ po: po.id }, { replace: true })
   }
 
@@ -656,6 +766,7 @@ export default function CreatePurchase() {
         sku: it.sku, unit: it.unit, poQty: it.poQty, receivedQty: it.receivedQty,
         price: it.price, gstPercent: it.gstPercent,
         serials: it.serials, macs: it.macs, drumNumber: it.drumNumber, reason: it.reason,
+        assetId: it.assetId ?? null, kitComponents: it.kitComponents ?? [],
       })),
       remarks,
     }

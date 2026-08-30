@@ -120,11 +120,12 @@ export default function AssetDetail() {
                     <th className="text-left px-3 py-2 font-semibold">Serial Number</th>
                     <th className="text-right px-3 py-2 font-semibold">Quantity</th>
                     <th className="text-left px-3 py-2 font-semibold">Condition</th>
+                    <th className="text-left px-3 py-2 font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {kitRows.length === 0 ? (
-                    <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No kit components recorded.</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">No kit components recorded.</td></tr>
                   ) : kitRows.map(row => (
                     <tr key={row.id}>
                       <td className="px-3 py-2 text-gray-700">{row.componentType || <span className="text-gray-300">—</span>}</td>
@@ -132,6 +133,15 @@ export default function AssetDetail() {
                       <td className="px-3 py-2 text-gray-500 font-mono">{row.serialNumber || <span className="text-gray-300">—</span>}</td>
                       <td className="px-3 py-2 text-right text-gray-700">{row.quantity}</td>
                       <td className="px-3 py-2 text-gray-700">{row.condition || <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-2">
+                        {row.receivedStatus === 'Missing' ? (
+                          <Badge variant="red" size="sm" dot>Missing</Badge>
+                        ) : row.receivedStatus === 'Received' ? (
+                          <Badge variant="green" size="sm" dot>Received</Badge>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
