@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine } from '../../data/storeTransferStore'
@@ -263,10 +263,13 @@ export default function StoreTransfer() {
           <div
             ref={menuRef}
             style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
+            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-52"
           >
             <button onClick={() => { navigate(`/inventory/store-transfer/${row.transferId}/edit`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+            </button>
+            <button onClick={() => { navigate(`/inventory/store-transfer/${row.transferId}/challan`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+              <FileText size={13} className="text-gray-400 shrink-0" /> View Delivery Challan
             </button>
             <button
               onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
