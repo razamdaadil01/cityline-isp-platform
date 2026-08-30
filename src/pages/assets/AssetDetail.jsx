@@ -15,7 +15,7 @@ import { getWarrantyStatus } from '../../utils/warrantyStatus'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange', Retired: 'slate', Lost: 'black' }
 const REPAIR_STATUS_BADGE = { 'Under Repair': 'orange', 'Sent to Vendor': 'indigo', 'In Progress': 'yellow', 'Received Back': 'blue', Resolved: 'green' }
 const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'red', 'N/A': 'gray' }
 // The one field (per category) whose value the Purchase/Warranty card
@@ -176,6 +176,30 @@ export default function AssetDetail() {
           <InfoRow label="Added On" value={(asset.createdAt || '').slice(0, 10)} />
         </div>
 
+        {asset.status === 'Retired' && asset.retirementInfo && (
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card xl:col-span-2">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Retirement</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5">
+              <InfoRow label="Reason" value={asset.retirementInfo.reason} />
+              <InfoRow label="Retired On" value={(asset.retirementInfo.date || '').slice(0, 10)} />
+              <InfoRow label="Retired By" value={asset.retirementInfo.retiredBy} />
+            </div>
+            <p className="text-xs text-gray-500 mt-3">Full history below (purchase, assignment, return, repair) stays on record for audit.</p>
+          </div>
+        )}
+
+        {asset.status === 'Lost' && asset.lostInfo && (
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card xl:col-span-2">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Reported Lost</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5">
+              <InfoRow label="Reported On" value={(asset.lostInfo.date || '').slice(0, 10)} />
+              <InfoRow label="Reported By" value={asset.lostInfo.reportedBy} />
+            </div>
+            <InfoRow label="Reason / Notes" value={asset.lostInfo.reason} />
+            <p className="text-xs text-gray-500 mt-3">Full history below (purchase, assignment, return, repair) stays on record for audit.</p>
+          </div>
+        )}
+
         {asset.status === 'Assigned' && asset.assignedTo && (
           <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card xl:col-span-2">
             <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Assigned To</p>
@@ -267,7 +291,12 @@ export default function AssetDetail() {
                       <td className="px-3 py-2 text-right text-gray-700">{row.quantity}</td>
                       <td className="px-3 py-2 text-gray-700">{row.condition || <span className="text-gray-300">—</span>}</td>
                       <td className="px-3 py-2">
-                        {row.receivedStatus === 'Missing' ? (
+                        {row.receivedStatus === 'Lost' ? (
+                          // Phase 8 — visually distinct from 'Missing' (red):
+                          // Missing = not returned/unaccounted at a return
+                          // event; Lost = explicitly reported lost/stolen.
+                          <Badge variant="black" size="sm" dot>Lost</Badge>
+                        ) : row.receivedStatus === 'Missing' ? (
                           <Badge variant="red" size="sm" dot>Missing</Badge>
                         ) : row.receivedStatus === 'Received' ? (
                           <Badge variant="green" size="sm" dot>Received</Badge>

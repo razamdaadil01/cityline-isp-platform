@@ -10,6 +10,10 @@ const variants = {
   cyan: 'bg-cyan-100 text-cyan-700',
   indigo: 'bg-indigo-100 text-indigo-700',
   slate: 'bg-slate-100 text-slate-700',
+  // Reserved for 'Lost' — deliberately a dark/black tone rather than red,
+  // so it reads as visually distinct from Expired warranty (red) and
+  // Missing kit components (red) at a glance.
+  black: 'bg-gray-900 text-white',
 }
 
 const sizes = {

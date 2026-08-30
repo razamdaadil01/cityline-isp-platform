@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3 } from 'lucide-react'
+import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3, Archive, ShieldAlert } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES, checkWarrantyAlerts } from '../../data/assetStore'
@@ -8,9 +8,19 @@ import { ASSET_CATEGORIES, getAssetCategory } from '../../data/assetTaxonomy'
 import { getWarrantyStatus, WARRANTY_STATUSES } from '../../utils/warrantyStatus'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
+import RetireAssetModal from '../../components/assets/RetireAssetModal'
+import ReportLostModal from '../../components/assets/ReportLostModal'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
+// Phase 8 — Retired: gray/neutral (reuses 'slate', already distinct from
+// the 'gray' Draft badge). Lost: 'black' — deliberately dark rather than
+// red, so it never reads as the same signal as Expired warranty/Missing
+// kit components (both 'red').
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange', Retired: 'slate', Lost: 'black' }
 const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'red', 'N/A': 'gray' }
+// Phase 8 — terminal statuses excluded from active/assignable inventory;
+// no "Assign"/"Return" action is ever offered once an asset reaches either.
+const TERMINAL_STATUSES = new Set(['Retired', 'Lost'])
+const LOST_ELIGIBLE_STATUSES = new Set(['Assigned', 'In Stock', 'Under Repair'])
 
 export default function AssetList() {
   const navigate = useNavigate()
@@ -24,6 +34,8 @@ export default function AssetList() {
   const [search, setSearch] = useState('')
   const [assigningAsset, setAssigningAsset] = useState(null)
   const [returningAsset, setReturningAsset] = useState(null)
+  const [retiringAsset, setRetiringAsset] = useState(null)
+  const [reportingLostAsset, setReportingLostAsset] = useState(null)
 
   // ── Filter Drawer — same slide-in panel + Apply/Clear pattern already
   // used across this app's other list pages (e.g. Inventory's Assign to
@@ -265,6 +277,24 @@ export default function AssetList() {
                           <RotateCcw size={14} />
                         </button>
                       )}
+                      {LOST_ELIGIBLE_STATUSES.has(a.status) && (
+                        <button
+                          onClick={() => setReportingLostAsset(a)}
+                          title="Report Lost"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <ShieldAlert size={14} />
+                        </button>
+                      )}
+                      {!TERMINAL_STATUSES.has(a.status) && (
+                        <button
+                          onClick={() => setRetiringAsset(a)}
+                          title="Retire"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <Archive size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -276,6 +306,8 @@ export default function AssetList() {
 
       <AssignAssetModal isOpen={!!assigningAsset} onClose={() => setAssigningAsset(null)} asset={assigningAsset} />
       <ReturnAssetModal isOpen={!!returningAsset} onClose={() => setReturningAsset(null)} asset={returningAsset} />
+      <RetireAssetModal isOpen={!!retiringAsset} onClose={() => setRetiringAsset(null)} asset={retiringAsset} />
+      <ReportLostModal isOpen={!!reportingLostAsset} onClose={() => setReportingLostAsset(null)} asset={reportingLostAsset} />
     </div>
   )
 }
