@@ -6,6 +6,7 @@
 // stock ledger will read from later.
 
 import { recalculatePOReceiptStatus, getPurchaseOrder } from './purchaseOrderStore'
+import { markAssetsInStockForPO } from './assetStore'
 import { logAudit } from './auditLogStore'
 import { addNotification } from './notificationStore'
 
@@ -297,6 +298,13 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
 
   if (action === 'confirm' && purchase.poId) {
     recalculatePOReceiptStatus(purchase.poId, receivedByProductIdForPO(purchase.poId))
+    // Asset Management's own GRN linkage — see assetStore.js's own note.
+    // Standard POs (poType undefined/'Standard') never have a linked asset,
+    // so this is a no-op for the vast majority of Purchases.
+    const linkedPO = getPurchaseOrder(purchase.poId)
+    if (linkedPO?.poType === 'Asset Purchase') {
+      markAssetsInStockForPO(purchase.poId)
+    }
   }
 
   if (action === 'confirm') {

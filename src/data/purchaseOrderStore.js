@@ -14,6 +14,16 @@ export const PO_STATUSES = [
   'Partially Received', 'Fully Received', 'Closed', 'Cancelled',
 ]
 
+// 'Standard' is every PO raised directly from the Inventory module (Create
+// PO wizard) — the only kind that existed before Asset Management Phase 2.
+// 'Asset Purchase' is raised from Add Asset's "Save & Raise PO" action
+// (see assetStore.js/AddAsset.jsx) and carries exactly one line item, the
+// asset being purchased. Both kinds flow through the exact same
+// savePurchaseOrder()/approval/GRN pipeline below — poType is read-only
+// metadata for filtering (e.g. the Asset Management module's own "PO
+// Approval" tab), never a branch in this store's own logic.
+export const PO_TYPES = ['Standard', 'Asset Purchase']
+
 // Display-only relabeling — the stored/compared value stays 'Approval
 // Request' everywhere (so nothing that reads po.status directly needs to
 // change), but the UI shows the more descriptive "Sent for Approval" per
@@ -129,7 +139,7 @@ const SEED = [
     // the same 'Sent' status the no-approval-required path reaches.
     status: 'Sent', createdBy: 'Admin User', createdAt: '2026-08-10T08:30:00.000Z', approvalId: 'APR-2026-000011',
   },
-].map(po => ({ ...po, ...summarize(po.items) }))
+].map(po => ({ ...po, poType: 'Standard', ...summarize(po.items) }))
 
 // Seed sequence counters so the *next* live-created PO continues after the
 // seeded numbers instead of colliding with them — entity 1 has seeded POs
@@ -185,6 +195,7 @@ export function savePurchaseOrder(data, { editingId = null, action = 'draft' } =
         createdBy: 'Admin User',
         approvalId: null,
         status: 'Draft',
+        poType: 'Standard',
         ...data,
         ...summary,
       }

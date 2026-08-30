@@ -6,9 +6,21 @@ import { FormField, Select } from '../../components/ui/FormInputs'
 import {
   ASSET_CATEGORIES, getAssetCategory, getFieldsForType, KIT_COMPONENT_TYPES, ASSET_CONDITIONS,
 } from '../../data/assetTaxonomy'
-import { createAsset } from '../../data/assetStore'
+import { createAsset, updateAsset, assetDisplayName } from '../../data/assetStore'
+import { savePurchaseOrder, computeLineAmount } from '../../data/purchaseOrderStore'
+import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
+
+// Add Asset collects no Company/Entity or Store of its own (unlike the
+// Inventory module's Create PO wizard), so "Save & Raise PO" raises the
+// resulting Asset Purchase PO against these fixed defaults — the same
+// primary company entity (id 1) and Main Warehouse (STR-001) every other
+// Phase-1-era seed PO in purchaseOrderStore.js defaults to. A later phase
+// can turn these into real form fields if Asset Management ever needs
+// per-store asset purchasing; nothing here blocks that.
+const DEFAULT_PO_COMPANY_ENTITY_ID = 1
+const DEFAULT_PO_STORE_ID = 'STR-001'
 
 // A field counts as filled the same way across every input type (text/
 // number/date/select all end up as a non-empty string/number on
@@ -245,19 +257,63 @@ export default function AddAsset() {
     return { categoryId, categoryLabel: category.label, typeId, typeLabel: type.label, fields }
   }
 
-  // Save as Draft → status 'Draft'. Save & Raise PO → status 'PO Raised'
-  // only — per the brief, actually creating/wiring a PO from this asset is
-  // Phase 2; this phase just records the intent on the asset itself and
-  // returns to the list.
+  // Save as Draft → status 'Draft', no PO. Save & Raise PO → status
+  // 'PO Raised', then raises a real Purchase Order through the same
+  // savePurchaseOrder()/approval pipeline the Inventory module's own Create
+  // PO wizard uses (poType: 'Asset Purchase' is the only thing that marks
+  // it as asset-originated — everything else, including approval routing,
+  // is identical). The asset is created first so the PO's single line item
+  // can describe it, then patched with the resulting po.id once the PO
+  // exists — a PO can never be created before the asset it's for.
   function handleSave(status) {
     if (!allValid) { setShowErrors(true); return }
     setSaveError('')
     try {
-      createAsset(buildPayload(), status)
+      const asset = createAsset(buildPayload(), status)
+      if (status === 'PO Raised') {
+        raisePurchaseOrderForAsset(asset)
+      }
       navigate('/assets')
     } catch (err) {
       setSaveError(err.message || 'Could not save this asset.')
     }
+  }
+
+  // Builds and saves a one-line Asset Purchase PO for a just-created asset,
+  // then links it back onto the asset via poId. Follows savePurchaseOrder's
+  // 'send' action exactly as Inventory's own Create PO wizard does — if
+  // getInventorySettings(companyEntityId).poApprovalRequired is on, this
+  // routes to 'Approval Request' with a linked Approvals record; otherwise
+  // it goes straight to 'Sent'. No new approval logic here at all.
+  function raisePurchaseOrderForAsset(asset) {
+    const settings = getInventorySettings(DEFAULT_PO_COMPANY_ENTITY_ID)
+    const gstPercent = settings.defaultGstPercent
+    // Asset purchases don't carry a fixed catalog price the way a stocked
+    // Inventory product does — price starts at 0 and is filled in for real
+    // once the PO reaches the vendor/is priced, same as any other PO line
+    // can be edited before sending.
+    const price = 0
+    const item = {
+      id: `POI-asset-${asset.id}`,
+      type: 'hardware',
+      productId: '', productName: `${asset.categoryLabel} — ${asset.typeLabel}${assetDisplayName(asset) !== asset.typeLabel ? ` (${assetDisplayName(asset)})` : ''}`,
+      sku: '', unit: 'Piece', qty: 1, price, gstPercent,
+      amount: computeLineAmount(1, price, gstPercent),
+    }
+    const po = savePurchaseOrder({
+      poType: 'Asset Purchase',
+      companyEntityId: DEFAULT_PO_COMPANY_ENTITY_ID,
+      storeId: DEFAULT_PO_STORE_ID,
+      vendorId: asset.fields.vendorId || null,
+      orderDate: new Date().toISOString().slice(0, 10),
+      estimatedDeliveryDate: '',
+      gstPercent,
+      items: [item],
+      notes: `Auto-generated from Asset Management for asset ${asset.id}.`,
+      terms: settings.poTerms,
+      discount: 0, otherCharges: 0,
+    }, { action: 'send' })
+    updateAsset(asset.id, { poId: po.id })
   }
 
   return (

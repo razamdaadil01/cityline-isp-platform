@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FileText } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
 import { getAsset, subscribeAssets, assetDisplayName } from '../../data/assetStore'
 import { getFieldsForType } from '../../data/assetTaxonomy'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green' }
 
 // Which "section" a taxonomy field's value belongs in — purely by its key,
 // since every category's field keys already carry that meaning
@@ -67,18 +68,25 @@ export default function AssetDetail() {
   return (
     <div className="p-6 space-y-5">
       {/* Top bar */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/assets')}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-gray-900 font-mono">{asset.id}</h1>
-            <Badge variant={STATUS_BADGE[asset.status] ?? 'gray'} size="sm" dot>{asset.status}</Badge>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/assets')}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-gray-900 font-mono">{asset.id}</h1>
+              <Badge variant={STATUS_BADGE[asset.status] ?? 'gray'} size="sm" dot>{asset.status}</Badge>
+            </div>
+            <p className="text-sm text-gray-500 mt-0.5">{asset.categoryLabel} · {asset.typeLabel} · {assetDisplayName(asset)}</p>
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">{asset.categoryLabel} · {asset.typeLabel} · {assetDisplayName(asset)}</p>
         </div>
+        {asset.poId && (
+          <Button variant="secondary" size="sm" icon={<FileText size={14} />} onClick={() => navigate(`/inventory/purchase-orders/${asset.poId}`)}>
+            View PO
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
