@@ -35,9 +35,48 @@ export const REPAIR_STATUSES = ['Under Repair', 'Sent to Vendor', 'In Progress',
 export const REPAIR_PATHS = ['In-house', 'Vendor']
 export const REPAIR_RESOLUTIONS = ['Fixed', 'Beyond Repair']
 
-let _repairs = []
-let _nextInternalSeq = 1
-let _nextRepairSeq = 1
+// Seed data — Phase 7 Reports coverage: a recurring-fault asset (3 linked
+// repairs, 2 resolved + 1 active) and a single, non-recurring repair on a
+// separate asset. Linked via assetId to assetStore.js's own
+// AST-2026-000011/000012 seed assets. Field shapes match
+// raiseRepairRequest()/resolveRepair()'s own real output exactly.
+const SEED = [
+  {
+    id: 'AREP-000001', repairId: 'REP-2026-000001', assetId: 'AST-2026-000011',
+    faultDescription: 'Overheating', reportedBy: 'Admin User', reportedDate: '2026-02-10',
+    includeKitComponents: false, repairPath: 'In-house', isWarrantyClaim: false,
+    status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: null,
+    createdAt: '2026-02-10T09:00:00.000Z',
+  },
+  {
+    id: 'AREP-000002', repairId: 'REP-2026-000002', assetId: 'AST-2026-000011',
+    faultDescription: 'Display flicker', reportedBy: 'Admin User', reportedDate: '2026-05-18',
+    includeKitComponents: false, repairPath: 'Vendor', isWarrantyClaim: true,
+    status: 'Resolved', resolution: 'Fixed', remarks: 'Vendor replaced the display cable under warranty.', cost: null,
+    createdAt: '2026-05-18T10:00:00.000Z',
+  },
+  {
+    id: 'AREP-000003', repairId: 'REP-2026-000003', assetId: 'AST-2026-000011',
+    faultDescription: "Won't power on", reportedBy: 'Admin User', reportedDate: '2026-08-24',
+    includeKitComponents: false, repairPath: 'In-house', isWarrantyClaim: false,
+    status: 'In Progress', resolution: null, remarks: null, cost: null,
+    createdAt: '2026-08-24T09:15:00.000Z',
+  },
+  // Single, non-recurring repair on AST-2026-000012 — resolved 'Beyond
+  // Repair' as a warranty claim, so it appears in the Repair Log but not
+  // the Recurring Faults (2+ repairs) report.
+  {
+    id: 'AREP-000004', repairId: 'REP-2026-000004', assetId: 'AST-2026-000012',
+    faultDescription: 'Fuser unit failure — smoke smell during printing', reportedBy: 'Admin User', reportedDate: '2026-06-05',
+    includeKitComponents: false, repairPath: 'Vendor', isWarrantyClaim: true,
+    status: 'Resolved', resolution: 'Beyond Repair', remarks: 'Vendor assessed board damage beyond economical repair.', cost: null,
+    createdAt: '2026-06-05T11:00:00.000Z',
+  },
+]
+
+let _repairs = [...SEED]
+let _nextInternalSeq = SEED.length + 1
+let _nextRepairSeq = SEED.length + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._repairs])) }

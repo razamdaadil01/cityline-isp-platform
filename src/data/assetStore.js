@@ -166,16 +166,125 @@ const SEED = [
     status: 'In Stock', assignedTo: null, poId: null,
     createdBy: 'Admin User', createdAt: '2025-07-17T10:00:00.000Z',
   },
+  // ── Assignment/Return/Repair coverage for Phase 7 Reports — assets
+  // AST-2026-000008 through 000012, appended purely additively so the
+  // existing 000001-000007 seed assets above stay untouched.
+  {
+    id: 'AST-2026-000008',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'laptop', typeLabel: 'Laptop',
+    fields: {
+      assetName: 'Assigned — Laptop (Engineer Test)', brandName: 'Dell', modelName: 'Latitude 5440',
+      storageCapacity: '512GB SSD', ram: '16GB', processor: 'Intel Core i5-1335U',
+      serialNumber: 'DL-LAT5440-0008',
+      purchaseDate: '2026-08-05', warrantyStartDate: '2026-08-05', warrantyEndDate: '2029-08-04',
+      vendorId: 'VEN-003',
+    },
+    status: 'Assigned',
+    assignedTo: { engineerName: 'Arjun Kumar', branchCode: 'CNPL-001', assignedAt: '2026-08-20T10:00:00.000Z', assignedBy: 'Admin User' },
+    poId: null,
+    createdBy: 'Admin User', createdAt: '2026-08-06T10:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000009',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Assigned — Splicing Machine (Engineer Test)', brandName: 'Fujikura', modelName: '90S+',
+      serialNumber: 'FJK-90S-2026-0009',
+      purchaseDate: '2026-08-06', warrantyStartDate: '2026-08-06', warrantyEndDate: '2028-08-05',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-9a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0009', quantity: 1, condition: 'New', receivedStatus: 'Received' },
+        { id: 'kc-seed-9b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0009', quantity: 1, condition: 'New', receivedStatus: 'Received' },
+        { id: 'kc-seed-9c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0009', quantity: 1, condition: 'Good', receivedStatus: 'Received' },
+      ],
+    },
+    status: 'Assigned',
+    assignedTo: { engineerName: 'Preethi Nair', branchCode: 'CNPL-002', assignedAt: '2026-08-22T11:00:00.000Z', assignedBy: 'Admin User' },
+    poId: null,
+    createdBy: 'Admin User', createdAt: '2026-08-07T09:30:00.000Z',
+  },
+  // Return + Missing Component — Cleaver never came back with the unit; a
+  // real returnHistory entry (matching initiateAssetReturn()'s own output
+  // shape exactly) flags it for the Missing/Lost Component Report.
+  {
+    id: 'AST-2026-000010',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Return Test — Missing Cleaver', brandName: 'Fujikura', modelName: '70S',
+      serialNumber: 'FJK-70S-2026-0010',
+      purchaseDate: '2026-07-20', warrantyStartDate: '2026-07-20', warrantyEndDate: '2028-07-19',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-10a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: '', quantity: 1, condition: '', receivedStatus: 'Missing' },
+        { id: 'kc-seed-10b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0010', quantity: 1, condition: 'Fair', receivedStatus: 'Received' },
+        { id: 'kc-seed-10c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0010', quantity: 1, condition: 'Fair', receivedStatus: 'Received' },
+      ],
+    },
+    status: 'Under Repair', assignedTo: null, poId: null,
+    hasMissingComponents: true,
+    returnHistory: [
+      {
+        id: 'RTN-2026-000001',
+        date: '2026-08-25T14:00:00.000Z',
+        condition: 'Damaged',
+        remarks: 'Housing cracked after a field drop; Cleaver was not returned with the unit.',
+        initiatedBy: 'Admin User',
+        previousEngineer: 'Anita Sharma',
+        branchCode: 'CNPL-001',
+        resultStatus: 'Under Repair',
+        missingComponentIds: ['kc-seed-10a'],
+      },
+    ],
+    createdBy: 'Admin User', createdAt: '2026-07-21T09:00:00.000Z',
+  },
+  // Recurring Fault — 3 linked repairs in assetRepairStore.js's own SEED
+  // (2 resolved, 1 active), so this asset surfaces in both the Recurring
+  // Faults (2+ repairs) report and the full Repair Log.
+  {
+    id: 'AST-2026-000011',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'desktop', typeLabel: 'Desktop',
+    fields: {
+      assetName: 'Recurring Fault Test — Desktop', brandName: 'Dell', modelName: 'OptiPlex 7020',
+      storageCapacity: '1TB SSD', ram: '16GB', processor: 'Intel Core i5-13500',
+      serialNumber: 'DL-OPX7020-RF-0011',
+      purchaseDate: '2025-11-01', warrantyStartDate: '2025-11-01', warrantyEndDate: '2027-10-31',
+      vendorId: 'VEN-003',
+    },
+    status: 'Under Repair', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2025-11-02T10:00:00.000Z',
+  },
+  // Single, non-recurring repair — resolved 'Beyond Repair' under warranty,
+  // so it appears in the Repair Log but not the Recurring Faults report.
+  {
+    id: 'AST-2026-000012',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'printer', typeLabel: 'Printer',
+    fields: {
+      assetName: 'Single Repair Test — Printer', brandName: 'HP', modelName: 'LaserJet Pro M404dn',
+      storageCapacity: 'N/A', ram: '', processor: '',
+      serialNumber: 'HP-LJM404-SR-0012',
+      purchaseDate: '2025-12-01', warrantyStartDate: '2025-12-01', warrantyEndDate: '2026-11-30',
+      vendorId: 'VEN-003',
+    },
+    status: 'Under Repair', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2025-12-02T10:00:00.000Z',
+  },
 ]
 
 // hasMissingComponents/returnHistory/warrantyAlertsSent default onto every
 // seed asset here (mirrors purchaseOrderStore.js's own seed `.map(po => ({
 // ...po, poType: 'Standard', ... }))` pattern) rather than repeating all
-// three on every SEED literal above — none of the 3 seed assets has been
-// through a return or fired a warranty alert yet.
-let _assets = SEED.map(a => ({ ...a, hasMissingComponents: false, returnHistory: [], warrantyAlertsSent: [] }))
+// three on every SEED literal above — most seed assets have never been
+// through a return or fired a warranty alert; AST-2026-000010 overrides
+// hasMissingComponents/returnHistory with its own real values (defaults
+// spread first so the literal's own fields win).
+let _assets = SEED.map(a => ({ hasMissingComponents: false, returnHistory: [], warrantyAlertsSent: [], ...a }))
 let _nextSeq = SEED.length + 1
-let _nextReturnSeq = 1
+let _nextReturnSeq = 2
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._assets])) }
