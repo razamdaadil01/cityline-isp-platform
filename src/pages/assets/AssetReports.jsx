@@ -95,17 +95,18 @@ function recurringFaults(repairs) {
     .sort((a, b) => b.count - a.count)
 }
 
-// ── (e) Missing/Lost Component Report — an asset qualifies either via its
-// own hasMissingComponents flag (Phase 4b's Return flow) or by any kit
-// component currently sitting at receivedStatus: 'Missing' (Phase 3 GRN /
-// Phase 4b Return reconciliation both write that same field) — covers an
-// asset flagged either way even if one path was somehow skipped. Flagged
+// ── (e) Missing/Lost Component Report — an asset qualifies only via its
+// own hasMissingComponents flag, set specifically by initiateAssetReturn()
+// when a real Return flow marks a kit component as not-returned. A
+// component sitting at receivedStatus: 'Missing' on its own (e.g. seeded
+// directly, or flagged at GRN with no Return event behind it) does NOT
+// surface here — there's no real flagged date/event to report. Flagged
 // date is read off the most recent returnHistory entry that actually
 // listed a missing component, since that's the only place a "when" exists
 // for this. ────────────────────────────────────────────────────────────
 function missingComponentReport(assets) {
   return assets
-    .filter(a => a.hasMissingComponents || (a.fields?.kitComponents || []).some(c => c.receivedStatus === 'Missing'))
+    .filter(a => a.hasMissingComponents)
     .map(a => {
       const missingComponents = (a.fields?.kitComponents || []).filter(c => c.receivedStatus === 'Missing')
       const lastFlagged = (a.returnHistory || []).find(e => e.missingComponentIds?.length > 0)
