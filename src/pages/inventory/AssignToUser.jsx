@@ -1,12 +1,14 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Pencil, Users, CalendarDays, UserCog, ClipboardList } from 'lucide-react'
+import { Plus, Search, MoreVertical, Edit2, Undo2, Users, CalendarDays, UserCog, ClipboardList, AlertTriangle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
-import { getUserAssignments, subscribeUserAssignments } from '../../data/userAssignmentStore'
+import Modal from '../../components/ui/Modal'
+import { getUserAssignments, subscribeUserAssignments, reverseUserAssignmentItem } from '../../data/userAssignmentStore'
+import { getUnits } from '../../data/inventoryLedger'
 import { usePermission } from '../../data/rolesStore'
 
-const STATUS_BADGE = { 'Handed Off': 'purple' }
+const STATUS_BADGE = { 'Handed Off': 'purple', Reversed: 'gray' }
 const TYPE_BADGE = { new: 'blue', replace: 'orange', disconnection: 'red' }
 const TYPE_LABEL = { new: 'New', replace: 'Replace', disconnection: 'Disconnection' }
 
@@ -44,22 +46,41 @@ function userLabel(a) {
   return a.customerName ? `${a.customerName} · ${ref}` : ref
 }
 
+// A handed-off line is only offered for reversal while the unit it named is
+// still sitting untouched with the user — i.e. its live ledger status is
+// still 'Assigned to User' (not since Replaced, or moved on some other
+// way). Same idea as Assignments.jsx's own lineStatus()-gated "Back to
+// Store" and Store Transfer's isLineReversible(). Quantity/wire lines have
+// no discrete per-unit identity to check — same laxness Assign to
+// Engineer's own quantity-line return already accepts.
+function isItemReversible(it) {
+  const values = [...it.serials, ...it.macs]
+  if (!values.length) return true
+  return values.every(v => {
+    const unit = getUnits({ productId: it.productId }).find(u => u.value === v)
+    return !!unit && unit.status === 'Assigned to User'
+  })
+}
+
 // Flattens each assignment's items into one row per line — Date/Engineer/
 // Type/User repeat per line, Product/Serial-MAC/Qty vary per line — same
 // (record × item-line) flattening pattern Assignments.jsx uses for Assign
-// to Engineer, reused here so the two lists stay consistent.
+// to Engineer, reused here so the two lists stay consistent. Each row keeps
+// its own assignmentId + itemId so the 3-dot menu can target the exact line
+// to edit/reverse.
 function flattenRows(assignments) {
   const rows = []
   assignments.forEach(a => {
-    a.items.forEach((it, i) => {
+    a.items.forEach(it => {
       rows.push({
-        key: `${a.id}-${i}`, assignmentId: a.id, assignmentNumber: a.assignmentNumber,
+        key: `${a.id}-${it.id}`, assignmentId: a.id, itemId: it.id, assignmentNumber: a.assignmentNumber,
         date: a.assignedAt, engineerName: a.engineerName, assignmentType: a.assignmentType,
         userLabel: userLabel(a),
         productName: it.productName,
         serialMac: serialMacLabel(it),
         qty: qtyLabel(it),
         status: a.status,
+        reversible: isItemReversible(it),
       })
     })
   })
@@ -71,6 +92,44 @@ export default function AssignToUser() {
   const navigate = useNavigate()
   const [assignments, setAssignments] = useState(getUserAssignments)
   useEffect(() => subscribeUserAssignments(setAssignments), [])
+
+  const [menuId, setMenuId] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuId) return
+    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [menuId])
+
+  function openMenu(e, id) {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    setMenuId(id)
+  }
+
+  // "Reverse Handoff" undoes one line — removing it from the assignment's
+  // own `items` array is all that's needed since inventoryLedger.js's
+  // computeLedger() derives every unit's status/held balance purely from
+  // CURRENT user assignments' item contents (see
+  // reverseUserAssignmentItem in userAssignmentStore.js). Confirmed via
+  // this Modal, same as Assignments.jsx's own "Back to Store" confirmation.
+  const [reverseTarget, setReverseTarget] = useState(null)
+  const [reverseError, setReverseError] = useState('')
+
+  function confirmReverse() {
+    if (!reverseTarget) return
+    try {
+      reverseUserAssignmentItem(reverseTarget.assignmentId, reverseTarget.itemId)
+      setReverseTarget(null)
+      setReverseError('')
+    } catch (err) {
+      setReverseError(err.message || 'Could not reverse this handoff line.')
+    }
+  }
 
   // Assignment-record-level aggregates — these stay meaningful counted
   // against the raw records, not the flattened line rows below (a single
@@ -164,7 +223,7 @@ export default function AssignToUser() {
                   </td>
                 </tr>
               ) : rows.map(r => (
-                <tr key={r.key} onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}/edit`)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
+                <tr key={r.key} className="hover:bg-blue-50/40 transition-colors">
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.engineerName}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -177,13 +236,12 @@ export default function AssignToUser() {
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status}</Badge>
                   </td>
-                  <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
+                  <td className="px-4 py-3 w-16 text-center">
                     <button
-                      onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}/edit`)}
-                      title="Edit"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors mx-auto"
+                      onClick={e => openMenu(e, r.key)}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.key ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
                     >
-                      <Pencil size={14} />
+                      <MoreVertical size={15} />
                     </button>
                   </td>
                 </tr>
@@ -192,6 +250,58 @@ export default function AssignToUser() {
           </table>
         </div>
       </div>
+
+      {menuId && (() => {
+        const row = rows.find(r => r.key === menuId)
+        if (!row) return null
+        return (
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
+          >
+            <button onClick={() => { navigate(`/inventory/assign-to-user/${row.assignmentId}/edit`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+            </button>
+            <button
+              onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
+              disabled={!row.reversible}
+              title={!row.reversible ? 'This unit has already moved on with the user — cannot reverse' : undefined}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+            >
+              <Undo2 size={13} className={!row.reversible ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Engineer
+            </button>
+          </div>
+        )
+      })()}
+
+      <Modal
+        isOpen={!!reverseTarget}
+        onClose={() => { setReverseTarget(null); setReverseError('') }}
+        title="Back to Engineer"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setReverseTarget(null); setReverseError('') }}>Cancel</Button>
+            <Button onClick={confirmReverse}>Confirm</Button>
+          </>
+        }
+      >
+        {reverseTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Move <span className="font-semibold text-gray-900">{reverseTarget.qty} × {reverseTarget.productName}</span> from{' '}
+              <span className="font-semibold text-gray-900">{reverseTarget.userLabel}</span> back into{' '}
+              <span className="font-semibold text-gray-900">{reverseTarget.engineerName}</span>'s holdings?
+            </p>
+            {reverseError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {reverseError}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

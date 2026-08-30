@@ -71,7 +71,6 @@ import AssignToUser from './pages/inventory/AssignToUser'
 import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
 import StoreTransfer from './pages/inventory/StoreTransfer'
 import CreateStoreTransfer from './pages/inventory/CreateStoreTransfer'
-import StoreTransferDetail from './pages/inventory/StoreTransferDetail'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -180,7 +179,7 @@ export default function App() {
           <Route path="/inventory/assign-to-user/:id/edit" element={<CreateUserAssignment />} />
           <Route path="/inventory/store-transfer" element={<StoreTransfer />} />
           <Route path="/inventory/store-transfer/new" element={<CreateStoreTransfer />} />
-          <Route path="/inventory/store-transfer/:id" element={<StoreTransferDetail />} />
+          <Route path="/inventory/store-transfer/:id/edit" element={<CreateStoreTransfer />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />

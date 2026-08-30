@@ -67,7 +67,13 @@ function resolveProductId(it) {
 // that assignment's own already-claimed units/qty/drum-meters revert to
 // "still Available at the store" for this one computation, letting the user
 // re-pick from (or change) exactly what it originally issued.
-function computeLedger({ excludeUserAssignmentId, excludeAssignmentId } = {}) {
+//
+// `excludeStoreTransferId` is the same idea again, one layer over on the
+// Store Transfers block further down — used only by CreateStoreTransfer.jsx's
+// own Edit mode — and skips one specific transfer entirely, so its own
+// already-moved units/qty/drum-meters revert to "still at Store From" for
+// this one computation.
+function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeStoreTransferId } = {}) {
   const balanceByKey = {} // `${productId}|${storeId}` -> cumulative receivedQty
   const units = []        // serial/MAC-tracked hardware, one row per physical unit
   const drums = []        // wire, one row per drum
@@ -296,7 +302,21 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId } = {}) {
   // not one per whole transfer, since getMovements({ productId }) needs a
   // consistent productId per row to filter a specific product's Movement
   // History correctly when a single transfer covers multiple products.
-  getStoreTransfers().forEach(t => {
+  // A 'Reversed' transfer (every one of its lines individually reversed via
+  // storeTransferStore.js's reverseStoreTransferLine) is skipped outright —
+  // same idea as the Assignments block's own `a.status !== 'Returned'`
+  // filter above, though by the time a transfer reaches 'Reversed' its
+  // `items` array is already empty anyway, so this is mostly documentation.
+  // Processed oldest-first (the store prepends newest-first) — a unit or
+  // drum can in principle be transferred more than once while still
+  // 'Available'/holding meters, and each later transfer's own source
+  // (a unit currently at Store B, or a drum this same block created for an
+  // earlier transfer into Store B) only exists once that earlier transfer
+  // has already been applied.
+  ;[...getStoreTransfers()]
+    .filter(t => t.status !== 'Reversed' && t.id !== excludeStoreTransferId)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .forEach(t => {
     t.items.forEach(it => {
       const values = [...it.serials, ...it.macs]
       let movedQty = 0
@@ -311,6 +331,40 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId } = {}) {
           unit.lastTransferToStoreName = t.storeToName
           movedQty += 1
         })
+      } else if (it.drumNumber) {
+        // Wire — meters are cut from the specific source drum picked at
+        // Store From (which stays put there, same as an assignment's own
+        // per-drum deduction just above), and the moved length becomes its
+        // own drum row at Store To. That destination row is keyed by a
+        // transfer-scoped drum number (never the bare source drumNumber) so
+        // it can never collide with — or get its deduction target confused
+        // with — the source drum's own row still sitting at Store From; see
+        // this same drumsByNumber Map already being read by the Assignments
+        // block above. Inherits the source drum's own purchase/vendor
+        // history via spread, same traceability reasoning as the unit
+        // relocation branch above.
+        const sourceDrum = drumsByNumber.get(it.drumNumber)
+        const meters = Number(it.qty) || 0
+        movedQty = sourceDrum ? Math.min(meters, sourceDrum.remainingMeters) : 0
+        if (movedQty > 0) {
+          sourceDrum.remainingMeters -= movedQty
+          const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
+          let destDrum = drumsByNumber.get(destDrumNumber)
+          if (!destDrum) {
+            destDrum = {
+              ...sourceDrum, storeId: t.storeToId, drumNumber: destDrumNumber,
+              sourceDrumNumber: it.drumNumber, receivedMeters: 0, remainingMeters: 0, status: 'Available',
+            }
+            drums.push(destDrum)
+            drumsByNumber.set(destDrumNumber, destDrum)
+          }
+          destDrum.receivedMeters += movedQty
+          destDrum.remainingMeters += movedQty
+          destDrum.lastTransferNumber = t.transferNumber
+          destDrum.lastTransferredAt = t.date
+          destDrum.lastTransferFromStoreName = t.storeFromName
+          destDrum.lastTransferToStoreName = t.storeToName
+        }
       } else if (Number(it.qty) > 0) {
         const fromKey = `${it.productId}|${t.storeFromId}`
         const toKey = `${it.productId}|${t.storeToId}`
@@ -365,8 +419,8 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId } = {}) {
 // `excludeAssignmentId` — CreateAssignment.jsx's Edit mode passing itself
 // through so its own already-issued quantity comes back as Available — see
 // computeLedger()'s file-level note.
-export function getStockBalances(excludeAssignmentId) {
-  const { balanceByKey } = computeLedger({ excludeAssignmentId })
+export function getStockBalances(excludeAssignmentId, excludeStoreTransferId) {
+  const { balanceByKey } = computeLedger({ excludeAssignmentId, excludeStoreTransferId })
   return Object.entries(balanceByKey).map(([key, availableQty]) => {
     const [productId, storeId] = key.split('|')
     return { productId, storeId, availableQty }
@@ -374,8 +428,8 @@ export function getStockBalances(excludeAssignmentId) {
 }
 
 // Total available for a product — across all stores, or narrowed to one.
-export function getProductAvailability(productId, storeId = null, excludeAssignmentId) {
-  return getStockBalances(excludeAssignmentId)
+export function getProductAvailability(productId, storeId = null, excludeAssignmentId, excludeStoreTransferId) {
+  return getStockBalances(excludeAssignmentId, excludeStoreTransferId)
     .filter(b => b.productId === productId && (storeId == null || b.storeId === storeId))
     .reduce((sum, b) => sum + b.availableQty, 0)
 }
@@ -389,8 +443,8 @@ export function getProductAvailability(productId, storeId = null, excludeAssignm
 // `excludeAssignmentId` is CreateAssignment.jsx's own Edit mode doing the
 // same thing one layer up (its own already-issued units come back as
 // Available) — see computeLedger()'s file-level note for both.
-export function getUnits({ productId, storeId, status, engineerId, excludeUserAssignmentId, excludeAssignmentId } = {}) {
-  return computeLedger({ excludeUserAssignmentId, excludeAssignmentId }).units.filter(u =>
+export function getUnits({ productId, storeId, status, engineerId, excludeUserAssignmentId, excludeAssignmentId, excludeStoreTransferId } = {}) {
+  return computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeStoreTransferId }).units.filter(u =>
     (!productId || u.productId === productId) &&
     (!storeId || u.storeId === storeId) &&
     (!status || u.status === status) &&
@@ -399,9 +453,10 @@ export function getUnits({ productId, storeId, status, engineerId, excludeUserAs
 }
 
 // Per-drum wire rows, optionally narrowed by productId/storeId.
-// `excludeAssignmentId` — see getUnits()'s note above; same idea for drums.
-export function getDrums({ productId, storeId, excludeAssignmentId } = {}) {
-  return computeLedger({ excludeAssignmentId }).drums.filter(d =>
+// `excludeAssignmentId`/`excludeStoreTransferId` — see getUnits()'s note
+// above; same idea for drums.
+export function getDrums({ productId, storeId, excludeAssignmentId, excludeStoreTransferId } = {}) {
+  return computeLedger({ excludeAssignmentId, excludeStoreTransferId }).drums.filter(d =>
     (!productId || d.productId === productId) &&
     (!storeId || d.storeId === storeId)
   )
