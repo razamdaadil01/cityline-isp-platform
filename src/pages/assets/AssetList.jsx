@@ -5,8 +5,9 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES } from '../../data/assetStore'
 import { ASSET_CATEGORIES, getAssetCategory } from '../../data/assetTaxonomy'
+import AssetModuleTabs from './AssetModuleTabs'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green' }
 
 export default function AssetList() {
   const navigate = useNavigate()
@@ -69,6 +70,8 @@ export default function AssetList() {
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/assets/new')}>Add Asset</Button>
       </div>
+
+      <AssetModuleTabs />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">

@@ -7,7 +7,10 @@
 
 import { logAudit } from './auditLogStore'
 
-export const ASSET_STATUSES = ['Draft', 'PO Raised']
+// 'In Stock' is reached automatically, never chosen directly — see
+// markAssetsInStockForPO() below, called from purchaseStore.js when a GRN
+// (Purchase confirm) completes against the asset's linked Asset Purchase PO.
+export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock']
 
 let _assets = []
 let _nextSeq = 1
@@ -57,6 +60,10 @@ function buildAsset(data, status, actor) {
     fields: data.fields || {},
     status,
     assignedTo: null,
+    // Set after the fact, once "Save & Raise PO" has actually created the
+    // linked Purchase Order (see AddAsset.jsx) — a brand-new asset never
+    // carries this on creation itself, since the PO doesn't exist yet.
+    poId: null,
     createdBy: actor, createdAt: new Date().toISOString(),
   }
 }
@@ -93,6 +100,26 @@ export function updateAsset(id, data) {
   notify()
   logAudit({ action: 'Edit', module: 'Assets', details: `Updated asset ${id}` })
   return updated
+}
+
+// Called from purchaseStore.js's savePurchase() when a GRN (Purchase
+// confirm) completes against a PO whose poType is 'Asset Purchase' — every
+// asset linked to that PO (via asset.poId, set by AddAsset.jsx's "Save &
+// Raise PO") that's still sitting in 'PO Raised' moves to 'In Stock'.
+// Mirrors purchaseOrderStore.js's recalculatePOReceiptStatus() shape: the
+// caller (purchaseStore.js) already knows which PO was just received, this
+// store just applies the resulting asset-side status change. A no-op when
+// no asset is linked to the PO (e.g. a Standard PO, or an Asset Purchase PO
+// whose asset was somehow already advanced) — nothing to notify/log then.
+export function markAssetsInStockForPO(poId) {
+  const linked = _assets.filter(a => a.poId === poId && a.status === 'PO Raised')
+  if (linked.length === 0) return
+  const linkedIds = new Set(linked.map(a => a.id))
+  _assets = _assets.map(a => linkedIds.has(a.id) ? { ...a, status: 'In Stock' } : a)
+  notify()
+  linked.forEach(a => {
+    logAudit({ action: 'Edit', module: 'Assets', details: `Asset ${a.id} marked In Stock — GRN completed for linked PO` })
+  })
 }
 
 // filters: { category, type, status, search } — every filter is optional;
