@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { ArrowLeft, FileText, UserPlus } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import { getAsset, subscribeAssets, assetDisplayName } from '../../data/assetStore'
 import { getFieldsForType } from '../../data/assetTaxonomy'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple' }
 
 // Which "section" a taxonomy field's value belongs in — purely by its key,
 // since every category's field keys already carry that meaning
@@ -38,6 +39,8 @@ export default function AssetDetail() {
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeAssets(() => forceRerender(n => n + 1)), [])
 
+  const [assigning, setAssigning] = useState(false)
+
   const asset = getAsset(id)
 
   if (!asset) {
@@ -56,6 +59,7 @@ export default function AssetDetail() {
   const purchaseWarrantyFields = fieldDefs.filter(f => f.type !== 'kit-components' && PURCHASE_WARRANTY_KEYS.has(f.key))
   const kitComponentsField = fieldDefs.find(f => f.type === 'kit-components')
   const kitRows = kitComponentsField ? (asset.fields[kitComponentsField.key] || []) : []
+  const isSplicingMachine = asset.categoryId === 'field-splicing-tools' && asset.typeId === 'splicing-machine'
 
   function displayValue(field) {
     const raw = asset.fields[field.key]
@@ -82,11 +86,18 @@ export default function AssetDetail() {
             <p className="text-sm text-gray-500 mt-0.5">{asset.categoryLabel} · {asset.typeLabel} · {assetDisplayName(asset)}</p>
           </div>
         </div>
-        {asset.poId && (
-          <Button variant="secondary" size="sm" icon={<FileText size={14} />} onClick={() => navigate(`/inventory/purchase-orders/${asset.poId}`)}>
-            View PO
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {asset.status === 'In Stock' && (
+            <Button size="sm" icon={<UserPlus size={14} />} onClick={() => setAssigning(true)}>
+              Assign to Engineer
+            </Button>
+          )}
+          {asset.poId && (
+            <Button variant="secondary" size="sm" icon={<FileText size={14} />} onClick={() => navigate(`/inventory/purchase-orders/${asset.poId}`)}>
+              View PO
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -106,10 +117,29 @@ export default function AssetDetail() {
           <InfoRow label="Added On" value={(asset.createdAt || '').slice(0, 10)} />
         </div>
 
+        {asset.status === 'Assigned' && asset.assignedTo && (
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card xl:col-span-2">
+            <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Assigned To</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-5">
+              <InfoRow label="Engineer" value={asset.assignedTo.engineerName} />
+              <InfoRow label="Branch" value={asset.assignedTo.branchCode} />
+              <InfoRow label="Assigned On" value={(asset.assignedTo.assignedAt || '').slice(0, 10)} />
+            </div>
+          </div>
+        )}
+
         {kitComponentsField && (
           <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden xl:col-span-2">
             <div className="px-5 py-3.5 border-b border-surface-border">
               <h3 className="text-sm font-semibold text-gray-800">Kit Components</h3>
+              {/* Additive context only — components below keep showing their
+                  own Received/Missing status from Phase 3 GRN confirmation,
+                  unchanged; this just clarifies where the whole kit
+                  physically is right now, since it moves as one unit with
+                  the parent Splicing Machine (Phase 4a). */}
+              {isSplicingMachine && asset.status === 'Assigned' && asset.assignedTo && (
+                <p className="text-xs text-gray-500 mt-1">Currently assigned with {asset.assignedTo.engineerName}</p>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -150,6 +180,8 @@ export default function AssetDetail() {
           </div>
         )}
       </div>
+
+      <AssignAssetModal isOpen={assigning} onClose={() => setAssigning(false)} asset={asset} />
     </div>
   )
 }

@@ -10,7 +10,10 @@ import { logAudit } from './auditLogStore'
 // 'In Stock' is reached automatically, never chosen directly — see
 // markAssetsInStockForPO() below, called from purchaseStore.js when a GRN
 // (Purchase confirm) completes against the asset's linked Asset Purchase PO.
-export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock']
+// 'Assigned' is reached via assignAssetToEngineer() below (Phase 4a) — only
+// ever from 'In Stock'. There is no Return flow yet (Phase 4b); an
+// 'Assigned' asset simply stays there for now.
+export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned']
 
 let _assets = []
 let _nextSeq = 1
@@ -140,6 +143,25 @@ export function confirmKitComponentsForAsset(assetId, kitComponents) {
   _assets = _assets.map(a => a.id === assetId ? updated : a)
   notify()
   logAudit({ action: 'Edit', module: 'Assets', details: `Kit components confirmed at GRN for asset ${assetId}` })
+}
+
+// Phase 4a — Assign Asset to Engineer. Only allowed from 'In Stock' (an
+// asset still Draft/PO Raised has no physical unit to hand over yet, and
+// one already Assigned needs a Return, which doesn't exist yet per the
+// brief — see ASSET_STATUSES' own note). For a Splicing Machine asset, its
+// fields.kitComponents ride along implicitly: they're already child data on
+// this same asset record, so moving the asset to 'Assigned' is all that's
+// needed — nothing else to write. AssignAssetModal.jsx is the only caller.
+export function assignAssetToEngineer(assetId, { engineerName, branchCode, assignedBy = 'Admin User' }) {
+  const asset = getAsset(assetId)
+  if (!asset) throw new Error('Asset not found.')
+  if (asset.status !== 'In Stock') throw new Error('Only an asset that is In Stock can be assigned to an engineer.')
+  const assignedTo = { engineerName, branchCode, assignedAt: new Date().toISOString(), assignedBy }
+  const updated = { ...asset, status: 'Assigned', assignedTo }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+  logAudit({ action: 'Edit', module: 'Assets', details: `Assigned asset ${assetId} — ${assetDisplayName(asset)} — to ${engineerName}` })
+  return updated
 }
 
 // filters: { category, type, status, search } — every filter is optional;
