@@ -448,6 +448,14 @@ export function assignAssetToEngineer(assetId, { engineerName, branchCode, assig
   _assets = _assets.map(a => a.id === assetId ? updated : a)
   notify()
   logAudit({ action: 'Edit', module: 'Assets', details: `Assigned asset ${assetId} — ${assetDisplayName(asset)} — to ${engineerName}` })
+  addNotification({
+    type: 'asset_assigned',
+    title: 'Asset Assigned',
+    description: `Asset ${assetId} (${assetDisplayName(asset)}) assigned to ${engineerName}.`,
+    meta: `For ${engineerName} & Store Manager`,
+    reference: assetId,
+    color: 'blue',
+  })
   return updated
 }
 
@@ -518,6 +526,30 @@ export function initiateAssetReturn(assetId, { condition, remarks = '', kitCompo
     action: 'Edit', module: 'Assets',
     details: `Returned asset ${assetId} — ${assetDisplayName(asset)} — condition: ${condition}, now ${newStatus}${missingNote}`,
   })
+
+  addNotification({
+    type: 'asset_returned',
+    title: 'Asset Returned',
+    description: `Asset ${assetId} returned from ${entry.previousEngineer ?? 'engineer'} — condition: ${condition}.`,
+    meta: 'For Store Manager',
+    reference: assetId,
+    color: 'blue',
+  })
+
+  // Return flagged with discrepancy — a distinct notification from the
+  // plain return one above, mirroring purchaseStore.js's own
+  // 'purchase_discrepancy' GRN notification (same yellow "needs a look"
+  // color) rather than folding it into the return notification's text.
+  if (hasMissingComponents) {
+    addNotification({
+      type: 'asset_return_missing_components',
+      title: 'Return Discrepancy — Missing Components',
+      description: `Asset ${assetId}: ${missingComponentIds.length} kit component(s) reported missing at return.`,
+      meta: 'For Store Manager',
+      reference: assetId,
+      color: 'yellow',
+    })
+  }
 
   return updated
 }

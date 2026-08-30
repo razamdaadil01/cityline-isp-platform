@@ -30,6 +30,7 @@
 
 import { getAsset, updateAsset } from './assetStore'
 import { logAudit } from './auditLogStore'
+import { addNotification } from './notificationStore'
 
 export const REPAIR_STATUSES = ['Under Repair', 'Sent to Vendor', 'In Progress', 'Received Back', 'Resolved']
 export const REPAIR_PATHS = ['In-house', 'Vendor']
@@ -174,6 +175,14 @@ export function raiseRepairRequest(assetId, { faultDescription, reportedBy = 'Ad
     action: 'Create', module: 'Assets',
     details: `Raised repair ${repair.repairId} for asset ${assetId}${isWarrantyClaim ? ' (warranty claim)' : ''}`,
   })
+  addNotification({
+    type: 'asset_repair_raised',
+    title: 'Asset Sent for Repair',
+    description: `Asset ${assetId} sent for repair — ${repair.faultDescription}.`,
+    meta: 'For Store Manager',
+    reference: assetId,
+    color: 'blue',
+  })
   return repair
 }
 
@@ -217,6 +226,14 @@ export function resolveRepair(repairId, { resolution, remarks = '' }) {
   logAudit({
     action: 'Edit', module: 'Assets',
     details: `Resolved repair ${repair.repairId} — ${resolution}${resolution === 'Fixed' ? ' — asset back In Stock' : ' — asset remains Under Repair pending retirement'}`,
+  })
+  addNotification({
+    type: 'asset_repair_resolved',
+    title: 'Asset Repair Resolved',
+    description: `Asset ${repair.assetId} repair resolved: ${resolution}.`,
+    meta: 'For Store Manager',
+    reference: repair.assetId,
+    color: resolution === 'Fixed' ? 'blue' : 'red',
   })
   return updated
 }
