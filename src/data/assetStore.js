@@ -92,6 +92,80 @@ const SEED = [
     status: 'In Stock', assignedTo: null, poId: null,
     createdBy: 'Admin User', createdAt: '2026-08-02T11:15:00.000Z',
   },
+  // ── Phase 6 warranty-status coverage — one asset per computed status
+  // (Active / Expiring Soon / Expired), dated relative to "today"
+  // (2026-08-30) so getWarrantyStatus()/checkWarrantyAlerts() exercise
+  // every branch without waiting on real dates to shift. Clearly-labeled
+  // assetName values so they're easy to spot on the Asset List.
+  {
+    id: 'AST-2026-000004',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'laptop', typeLabel: 'Laptop',
+    fields: {
+      assetName: 'Warranty Test — Active', brandName: 'HP', modelName: 'ProBook 450 G10',
+      storageCapacity: '512GB SSD', ram: '16GB', processor: 'Intel Core i5-1335U',
+      serialNumber: 'HP-PB450-WT-0001',
+      // ~6 months out from today — well past the 30-day "Expiring Soon" window.
+      purchaseDate: '2026-08-01', warrantyStartDate: '2026-08-01', warrantyEndDate: '2027-02-28',
+      vendorId: 'VEN-003',
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2026-08-01T10:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000005',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'desktop', typeLabel: 'Desktop',
+    fields: {
+      assetName: 'Warranty Test — Expiring Soon (20d)', brandName: 'Dell', modelName: 'OptiPlex 7020',
+      storageCapacity: '1TB SSD', ram: '16GB', processor: 'Intel Core i5-13500',
+      serialNumber: 'DL-OPX7020-WT-0001',
+      // 20 days from today — inside the 30-day "Expiring Soon" window, past
+      // the 7-day notification threshold.
+      purchaseDate: '2025-09-19', warrantyStartDate: '2025-09-19', warrantyEndDate: '2026-09-19',
+      vendorId: 'VEN-003',
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2025-09-20T10:00:00.000Z',
+  },
+  // Splicing Machine — 5 days out, inside the 7-day notification threshold
+  // (the tightest of the 30/15/7 alerts), so checkWarrantyAlerts() has a
+  // real case to fire on load. 2 kit components, both already Received, to
+  // confirm they don't interfere with the parent's own warranty badge —
+  // kit components have no warranty field of their own and simply inherit
+  // the parent's status visually (see utils/warrantyStatus.js's own note).
+  {
+    id: 'AST-2026-000006',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Warranty Test — Expiring Soon (5d)', brandName: 'Fujikura', modelName: '80S',
+      serialNumber: 'FJK-80S-WT-0001',
+      purchaseDate: '2025-09-04', warrantyStartDate: '2025-09-04', warrantyEndDate: '2026-09-04',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-6a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-WT-0001', quantity: 1, condition: 'New', receivedStatus: 'Received' },
+        { id: 'kc-seed-6b', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-WT-0001', quantity: 1, condition: 'Good', receivedStatus: 'Received' },
+      ],
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2025-09-05T09:30:00.000Z',
+  },
+  {
+    id: 'AST-2026-000007',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'monitor', typeLabel: 'Monitor',
+    fields: {
+      assetName: 'Warranty Test — Expired', brandName: 'Dell', modelName: 'P2422H',
+      storageCapacity: 'N/A', ram: '', processor: '',
+      serialNumber: 'DL-P2422H-WT-0001',
+      // 45 days in the past — already Expired.
+      purchaseDate: '2025-07-16', warrantyStartDate: '2025-07-16', warrantyEndDate: '2026-07-16',
+      vendorId: 'VEN-003',
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2025-07-17T10:00:00.000Z',
+  },
 ]
 
 // hasMissingComponents/returnHistory/warrantyAlertsSent default onto every
