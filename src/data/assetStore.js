@@ -122,6 +122,26 @@ export function markAssetsInStockForPO(poId) {
   })
 }
 
+// Called from purchaseStore.js's savePurchase() when a GRN (Purchase
+// confirm) completes for a receipt line linked to a Splicing Machine asset
+// (CreatePurchase.jsx's own "Kit Components Received" section, shown only
+// for a receipt item whose linked asset is category 'field-splicing-tools'
+// / type 'splicing-machine'). Overwrites that asset's fields.kitComponents
+// with the GRN-confirmed rows — same array, same rows (matched by id),
+// just carrying the serial number/condition as actually confirmed at
+// physical receipt plus a receivedStatus ('Received'/'Missing') per
+// component. Kit components stay children of the parent asset record
+// throughout — this only updates their data in place, never gives them an
+// independent id/status/lifecycle of their own beyond the parent.
+export function confirmKitComponentsForAsset(assetId, kitComponents) {
+  const asset = getAsset(assetId)
+  if (!asset) return
+  const updated = { ...asset, fields: { ...asset.fields, kitComponents } }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+  logAudit({ action: 'Edit', module: 'Assets', details: `Kit components confirmed at GRN for asset ${assetId}` })
+}
+
 // filters: { category, type, status, search } — every filter is optional;
 // omitting all of them returns every asset, newest first.
 export function listAssets({ category, type, status, search } = {}) {
