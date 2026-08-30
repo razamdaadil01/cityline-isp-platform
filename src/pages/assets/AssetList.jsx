@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes } from 'lucide-react'
+import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES } from '../../data/assetStore'
 import { ASSET_CATEGORIES, getAssetCategory } from '../../data/assetTaxonomy'
+import AssignAssetModal from '../../components/assets/AssignAssetModal'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple' }
 
 export default function AssetList() {
   const navigate = useNavigate()
@@ -14,6 +15,7 @@ export default function AssetList() {
   useEffect(() => subscribeAssets(setAssets), [])
 
   const [search, setSearch] = useState('')
+  const [assigningAsset, setAssigningAsset] = useState(null)
 
   // ── Filter Drawer — same slide-in panel + Apply/Clear pattern already
   // used across this app's other list pages (e.g. Inventory's Assign to
@@ -182,7 +184,7 @@ export default function AssetList() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Warranty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned To</th>
-                <th className="px-4 py-3 w-16 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                <th className="px-4 py-3 w-20 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
@@ -201,15 +203,30 @@ export default function AssetList() {
                   <td className="px-4 py-3 text-gray-800 text-xs font-medium">{a.name}</td>
                   <td className="px-4 py-3"><Badge variant={STATUS_BADGE[a.status] ?? 'gray'} size="sm" dot>{a.status}</Badge></td>
                   <td className="px-4 py-3 text-gray-400 text-xs">—</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">—</td>
-                  <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={() => navigate(`/assets/${a.id}`)}
-                      title="View"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors mx-auto"
-                    >
-                      <Eye size={14} />
-                    </button>
+                  <td className="px-4 py-3 text-xs">
+                    {a.status === 'Assigned' && a.assignedTo
+                      ? <span className="text-gray-800 font-medium">{a.assignedTo.engineerName}</span>
+                      : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => navigate(`/assets/${a.id}`)}
+                        title="View"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+                      >
+                        <Eye size={14} />
+                      </button>
+                      {a.status === 'In Stock' && (
+                        <button
+                          onClick={() => setAssigningAsset(a)}
+                          title="Assign to Engineer"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+                        >
+                          <UserPlus size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -217,6 +234,8 @@ export default function AssetList() {
           </table>
         </div>
       </div>
+
+      <AssignAssetModal isOpen={!!assigningAsset} onClose={() => setAssigningAsset(null)} asset={assigningAsset} />
     </div>
   )
 }
