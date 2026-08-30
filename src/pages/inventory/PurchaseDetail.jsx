@@ -177,6 +177,57 @@ export default function PurchaseDetail() {
             </div>
           </div>
 
+          {/* Kit Components Received — only for a Splicing Machine asset's
+              own line item (item.kitComponents is only ever populated for
+              that case, see CreatePurchase.jsx's requestedKitComponents());
+              every other item never has a non-empty kitComponents array, so
+              this whole card is skipped for a purchase with none. Read-only
+              — this is a view page, confirmation happens in the GRN wizard. */}
+          {purchase.items.some(it => it.kitComponents?.length > 0) && (
+            <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-surface-border">
+                <h3 className="text-sm font-semibold text-gray-800">Kit Components Received</h3>
+              </div>
+              <div className="divide-y divide-surface-border">
+                {purchase.items.filter(it => it.kitComponents?.length > 0).map(it => (
+                  <div key={it.id} className="overflow-x-auto">
+                    <p className="px-5 pt-3 pb-1 text-xs font-medium text-gray-500">{it.productName}</p>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
+                          <th className="text-left px-3 py-2 font-semibold">Component Type</th>
+                          <th className="text-left px-3 py-2 font-semibold">Component Name</th>
+                          <th className="text-left px-3 py-2 font-semibold">Serial Number</th>
+                          <th className="text-left px-3 py-2 font-semibold">Condition</th>
+                          <th className="text-left px-3 py-2 font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-border">
+                        {it.kitComponents.map(c => (
+                          <tr key={c.id}>
+                            <td className="px-3 py-2 text-gray-700">{c.componentType || <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-2 text-gray-700">{c.componentName || <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-2 text-gray-500 font-mono">{c.serialNumber || <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-2 text-gray-700">{c.condition || <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-2">
+                              {c.receivedStatus === 'Missing' ? (
+                                <Badge variant="red" size="sm" dot>Missing</Badge>
+                              ) : c.receivedStatus === 'Received' ? (
+                                <Badge variant="green" size="sm" dot>Received</Badge>
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {purchase.remarks && (
             <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
               <div className="px-5 py-3.5 border-b border-surface-border">
