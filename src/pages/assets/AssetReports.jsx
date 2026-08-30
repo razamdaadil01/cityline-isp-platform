@@ -13,6 +13,8 @@ import { getWarrantyStatus, getWarrantyEndDate } from '../../utils/warrantyStatu
 // too, rather than sharing one) — kept local rather than imported.
 const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'red', 'N/A': 'gray' }
 const REPAIR_STATUS_BADGE = { 'Under Repair': 'orange', 'Sent to Vendor': 'indigo', 'In Progress': 'yellow', 'Received Back': 'blue', Resolved: 'green' }
+// Phase 8 — same Retired/Lost colors AssetList.jsx/AssetDetail.jsx use.
+const STATUS_BADGE = { Retired: 'slate', Lost: 'black' }
 
 function ReportCard({ title, count, children }) {
   return (
@@ -114,6 +116,21 @@ function missingComponentReport(assets) {
     })
 }
 
+// ── (f) Retired / Lost Assets — Phase 8 audit visibility. Reason/date are
+// read from whichever of retirementInfo/lostInfo applies to the asset's
+// own current terminal status. ───────────────────────────────────────────
+function retiredLostReport(assets) {
+  return assets
+    .filter(a => a.status === 'Retired' || a.status === 'Lost')
+    .map(a => ({
+      asset: a,
+      reason: a.status === 'Retired' ? a.retirementInfo?.reason : a.lostInfo?.reason,
+      date: a.status === 'Retired' ? a.retirementInfo?.date : a.lostInfo?.date,
+      by: a.status === 'Retired' ? a.retirementInfo?.retiredBy : a.lostInfo?.reportedBy,
+    }))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+}
+
 export default function AssetReports() {
   const navigate = useNavigate()
   const [assets, setAssets] = useState(getAssets)
@@ -127,6 +144,7 @@ export default function AssetReports() {
   const recurringRows = recurringFaults(repairs)
   const repairLog = [...repairs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   const missingRows = missingComponentReport(assets)
+  const retiredLostRows = retiredLostReport(assets)
 
   const th = 'text-left px-4 py-2.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px]'
   const td = 'px-4 py-2.5 text-gray-700'
@@ -326,6 +344,38 @@ export default function AssetReports() {
                         : <span className="text-gray-400">Flagged at return — component detail not on this asset</span>}
                     </td>
                     <td className={td}>{flaggedDate ? flaggedDate.slice(0, 10) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ReportCard>
+
+      {/* (f) Retired / Lost Assets */}
+      <ReportCard title="Retired / Lost Assets" count={`${retiredLostRows.length} asset${retiredLostRows.length !== 1 ? 's' : ''}`}>
+        {retiredLostRows.length === 0 ? <EmptyState /> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className={th}>Asset ID</th>
+                  <th className={th}>Name</th>
+                  <th className={th}>Status</th>
+                  <th className={th}>Reason</th>
+                  <th className={th}>Date</th>
+                  <th className={th}>By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {retiredLostRows.map(({ asset: a, reason, date, by }) => (
+                  <tr key={a.id}>
+                    <td className={`${td} font-mono text-brand-blue`}>{a.id}</td>
+                    <td className={td}>{assetDisplayName(a)}</td>
+                    <td className={td}><Badge variant={STATUS_BADGE[a.status] ?? 'gray'} size="sm" dot>{a.status}</Badge></td>
+                    <td className={td}>{reason || <span className="text-gray-300">—</span>}</td>
+                    <td className={td}>{date ? date.slice(0, 10) : '—'}</td>
+                    <td className={td}>{by || <span className="text-gray-300">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

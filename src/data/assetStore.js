@@ -16,8 +16,15 @@ import { daysUntilWarrantyEnd } from '../utils/warrantyStatus'
 // ever from 'In Stock'. 'Under Repair' is reached via initiateAssetReturn()
 // below (Phase 4b) when the returned condition is 'Damaged'/'Not Working' —
 // this phase only tracks it as a data state; no repair record/vendor
-// routing exists yet (that's Phase 5).
-export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned', 'Under Repair']
+// routing exists yet (that's Phase 5). 'Retired' and 'Lost' (Phase 8) are
+// both terminal, manually-triggered states reachable from any other status
+// via retireAsset()/reportAssetLost() below — see their own notes.
+export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned', 'Under Repair', 'Retired', 'Lost']
+
+// Phase 8 — retireAsset()'s own valid-reason check, and RetireAssetModal.jsx's
+// Reason dropdown options (PRD Section 12.4: "triggered when an asset is
+// beyond repair, obsolete, or end-of-life").
+export const ASSET_RETIREMENT_REASONS = ['Beyond Repair', 'Obsolete', 'End of Life']
 
 // Phase 4b — the condition options Return's own condition selector offers,
 // and initiateAssetReturn()'s own valid-input check. 'Working'/'Minor
@@ -275,14 +282,15 @@ const SEED = [
   },
 ]
 
-// hasMissingComponents/returnHistory/warrantyAlertsSent default onto every
-// seed asset here (mirrors purchaseOrderStore.js's own seed `.map(po => ({
-// ...po, poType: 'Standard', ... }))` pattern) rather than repeating all
-// three on every SEED literal above — most seed assets have never been
-// through a return or fired a warranty alert; AST-2026-000010 overrides
-// hasMissingComponents/returnHistory with its own real values (defaults
-// spread first so the literal's own fields win).
-let _assets = SEED.map(a => ({ hasMissingComponents: false, returnHistory: [], warrantyAlertsSent: [], ...a }))
+// hasMissingComponents/returnHistory/warrantyAlertsSent/retirementInfo/
+// lostInfo default onto every seed asset here (mirrors
+// purchaseOrderStore.js's own seed `.map(po => ({ ...po, poType:
+// 'Standard', ... }))` pattern) rather than repeating them all on every
+// SEED literal above — most seed assets have never been through a return,
+// fired a warranty alert, or been retired/reported lost; AST-2026-000010
+// overrides hasMissingComponents/returnHistory with its own real values
+// (defaults spread first so the literal's own fields win).
+let _assets = SEED.map(a => ({ hasMissingComponents: false, returnHistory: [], warrantyAlertsSent: [], retirementInfo: null, lostInfo: null, ...a }))
 let _nextSeq = SEED.length + 1
 let _nextReturnSeq = 2
 const _listeners = []
@@ -342,6 +350,10 @@ function buildAsset(data, status, actor) {
     // Phase 6 — populated by checkWarrantyAlerts() below; a brand-new
     // asset has never fired a warranty alert.
     warrantyAlertsSent: [],
+    // Phase 8 — populated by retireAsset()/reportAssetLost() below; a
+    // brand-new asset has never been retired or reported lost.
+    retirementInfo: null,
+    lostInfo: null,
     createdBy: actor, createdAt: new Date().toISOString(),
   }
 }
@@ -549,6 +561,72 @@ export function checkWarrantyAlerts() {
   })
 
   if (changed) notify()
+}
+
+// Phase 8 — Retirement (PRD Section 12.4). A manual admin action, never
+// automatic — including after a repair resolves as 'Beyond Repair', which
+// deliberately leaves the asset 'Under Repair' rather than retiring it
+// itself (see resolveRepair()'s own note in assetRepairStore.js); an admin
+// still has to retire it explicitly from here. Allowed from any status
+// except the two other terminal ones ('Retired'/'Lost') — retirement can
+// follow Beyond Repair, obsolescence, or end-of-life regardless of whether
+// the asset is currently In Stock, Assigned, or Under Repair.
+export function retireAsset(assetId, { reason, retiredBy = 'Admin User' }) {
+  const asset = getAsset(assetId)
+  if (!asset) throw new Error('Asset not found.')
+  if (asset.status === 'Retired' || asset.status === 'Lost') throw new Error('This asset has already been retired or reported lost.')
+  if (!ASSET_RETIREMENT_REASONS.includes(reason)) throw new Error('Select a valid retirement reason.')
+
+  const retirementInfo = { reason, date: new Date().toISOString(), retiredBy }
+  const updated = { ...asset, status: 'Retired', retirementInfo }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+  logAudit({ action: 'Edit', module: 'Assets', details: `Retired asset ${assetId} — ${assetDisplayName(asset)} — reason: ${reason}` })
+  return updated
+}
+
+// Phase 8 — Lost/Stolen (PRD Section 12.5): "can be reported at any time,
+// not only at return." Allowed from 'In Stock', 'Assigned', or 'Under
+// Repair' — not from the two terminal statuses. When componentId is given
+// (Splicing Machine kit component only), just that component's own
+// receivedStatus flips to 'Lost' (reusing the same Received/Missing/Lost
+// vocabulary the Kit Components table already renders — see Phase 3) and
+// the parent asset's status is untouched, since the rest of the kit is
+// still usable; lostInfo is still recorded on the parent for an audit
+// trail of who/when/why, just with its own componentId set rather than
+// null. Without componentId (the whole asset is lost/stolen), the asset
+// itself moves to 'Lost' — a terminal status excluded from
+// assignable/active inventory (AssetList.jsx/AssetDetail.jsx never show
+// "Assign" once status is 'Lost').
+const LOST_ELIGIBLE_STATUSES = ['In Stock', 'Assigned', 'Under Repair']
+
+export function reportAssetLost(assetId, { reason, reportedBy = 'Admin User', componentId = null }) {
+  const asset = getAsset(assetId)
+  if (!asset) throw new Error('Asset not found.')
+  if (asset.status === 'Retired' || asset.status === 'Lost') throw new Error('This asset has already been retired or reported lost.')
+  if (!reason?.trim()) throw new Error('A reason is required.')
+
+  const lostInfo = { reason: reason.trim(), date: new Date().toISOString(), reportedBy, componentId: componentId || null }
+
+  if (componentId) {
+    const existingKitComponents = asset.fields?.kitComponents
+    if (!Array.isArray(existingKitComponents) || !existingKitComponents.some(c => c.id === componentId)) {
+      throw new Error('Select a valid kit component to report lost.')
+    }
+    const updatedKitComponents = existingKitComponents.map(c => c.id === componentId ? { ...c, receivedStatus: 'Lost' } : c)
+    const updated = { ...asset, fields: { ...asset.fields, kitComponents: updatedKitComponents }, lostInfo }
+    _assets = _assets.map(a => a.id === assetId ? updated : a)
+    notify()
+    logAudit({ action: 'Edit', module: 'Assets', details: `Reported a kit component lost on asset ${assetId} — ${assetDisplayName(asset)}` })
+    return updated
+  }
+
+  if (!LOST_ELIGIBLE_STATUSES.includes(asset.status)) throw new Error('This asset cannot be reported lost from its current status.')
+  const updated = { ...asset, status: 'Lost', lostInfo }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+  logAudit({ action: 'Edit', module: 'Assets', details: `Reported asset ${assetId} — ${assetDisplayName(asset)} — lost` })
+  return updated
 }
 
 // filters: { category, type, status, search } — every filter is optional;
