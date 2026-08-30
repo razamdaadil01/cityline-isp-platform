@@ -10,17 +10,9 @@ import { createAsset, updateAsset, assetDisplayName } from '../../data/assetStor
 import { savePurchaseOrder, computeLineAmount } from '../../data/purchaseOrderStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getVendors } from '../../data/vendorStore'
+import { getActiveCompanyEntities } from '../../data/companyEntities'
+import { getStores } from '../../data/storeStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
-
-// Add Asset collects no Company/Entity or Store of its own (unlike the
-// Inventory module's Create PO wizard), so "Save & Raise PO" raises the
-// resulting Asset Purchase PO against these fixed defaults — the same
-// primary company entity (id 1) and Main Warehouse (STR-001) every other
-// Phase-1-era seed PO in purchaseOrderStore.js defaults to. A later phase
-// can turn these into real form fields if Asset Management ever needs
-// per-store asset purchasing; nothing here blocks that.
-const DEFAULT_PO_COMPANY_ENTITY_ID = 1
-const DEFAULT_PO_STORE_ID = 'STR-001'
 
 // A field counts as filled the same way across every input type (text/
 // number/date/select all end up as a non-empty string/number on
@@ -218,6 +210,16 @@ export default function AddAsset() {
   const [saveError, setSaveError] = useState('')
 
   const vendors = useMemo(() => getVendors().filter(v => v.status === 'active'), [])
+  // Same sources Inventory's own Create PO wizard (CreatePO.jsx) reads —
+  // Company/Entity and Store apply once per asset (not per category/type),
+  // so they're selected here rather than folded into assetTaxonomy.js's
+  // per-category field templates. Store is a flat, non-cascading list, same
+  // as CreatePO.jsx's own Delivery Store field (stores aren't scoped to a
+  // company entity in storeStore.js).
+  const entities = useMemo(() => getActiveCompanyEntities(), [])
+  const stores = useMemo(() => getStores().filter(s => s.status === 'active'), [])
+  const [companyEntityId, setCompanyEntityId] = useState(() => entities[0]?.id ?? null)
+  const [storeId, setStoreId] = useState('')
 
   const category = categoryId ? getAssetCategory(categoryId) : null
   const type = category?.types.find(t => t.id === typeId) ?? null
@@ -251,7 +253,12 @@ export default function AddAsset() {
   const vendorDefs = fieldDefs.filter(f => f.type === 'vendor-select')
   const kitDefs = fieldDefs.filter(f => f.type === 'kit-components')
 
-  const allValid = isFormValid(categoryId, typeId, fields)
+  // Company/Entity and Store are required same as Category/Type — the
+  // asset record itself doesn't store either (see buildPayload() below;
+  // assetStore.js's data model is unchanged), but both are needed to raise
+  // a correct Asset Purchase PO, so they're validated up front rather than
+  // discovered missing only when "Save & Raise PO" is clicked.
+  const allValid = isFormValid(categoryId, typeId, fields) && companyEntityId != null && !!storeId
 
   function buildPayload() {
     return { categoryId, categoryLabel: category.label, typeId, typeLabel: type.label, fields }
@@ -284,9 +291,13 @@ export default function AddAsset() {
   // 'send' action exactly as Inventory's own Create PO wizard does — if
   // getInventorySettings(companyEntityId).poApprovalRequired is on, this
   // routes to 'Approval Request' with a linked Approvals record; otherwise
-  // it goes straight to 'Sent'. No new approval logic here at all.
+  // it goes straight to 'Sent'. No new approval logic here at all. Reads
+  // companyEntityId/storeId from the user's own selection above (allValid
+  // already guarantees both are set before this can be called) — critically,
+  // this is what makes the approval check below run against the entity the
+  // user actually configured, instead of a fixed company entity's settings.
   function raisePurchaseOrderForAsset(asset) {
-    const settings = getInventorySettings(DEFAULT_PO_COMPANY_ENTITY_ID)
+    const settings = getInventorySettings(companyEntityId)
     const gstPercent = settings.defaultGstPercent
     // Asset purchases don't carry a fixed catalog price the way a stocked
     // Inventory product does — price starts at 0 and is filled in for real
@@ -302,8 +313,8 @@ export default function AddAsset() {
     }
     const po = savePurchaseOrder({
       poType: 'Asset Purchase',
-      companyEntityId: DEFAULT_PO_COMPANY_ENTITY_ID,
-      storeId: DEFAULT_PO_STORE_ID,
+      companyEntityId,
+      storeId,
       vendorId: asset.fields.vendorId || null,
       orderDate: new Date().toISOString().slice(0, 10),
       estimatedDeliveryDate: '',
@@ -338,7 +349,7 @@ export default function AddAsset() {
       )}
       {showErrors && !allValid && (
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-          <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a category, type, and fill every required field before saving.
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a category, type, company/entity, store, and fill every required field before saving.
         </div>
       )}
 
@@ -354,6 +365,25 @@ export default function AddAsset() {
             <Select value={typeId} onChange={selectType} disabled={!category}>
               <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
               {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </Select>
+          </FormField>
+        </div>
+
+        {/* Applies once per asset regardless of category/type — same
+            Company/Entity and Store sources CreatePO.jsx's own wizard uses,
+            required so the eventual PO (if raised) is created against the
+            entity whose Inventory Settings actually govern it. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+          <FormField label="Company / Entity" required>
+            <Select value={companyEntityId ?? ''} onChange={e => setCompanyEntityId(Number(e.target.value))}>
+              <option value="">Select company/entity…</option>
+              {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Store" required>
+            <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
+              <option value="">Select store…</option>
+              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
             </Select>
           </FormField>
         </div>
