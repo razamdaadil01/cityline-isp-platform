@@ -35,9 +35,93 @@ import { logAudit } from './auditLogStore'
 
 export const STORE_TRANSFER_STATUSES = ['Completed', 'Reversed']
 
-let _storeTransfers = []
-let _nextSeq = 1
-let _nextInternalSeq = 1
+// ── Seed data — so the Store Transfer list isn't empty on first load, and
+// so the Serial/MAC/Drum + Qty columns have a real example of all three
+// tracking types to display. Every line below moves stock that's actually
+// available at its Store From once purchaseStore.js's Confirmed receipts
+// and assignmentStore.js's own seeded deductions are netted out — checked
+// by hand against those two files' SEEDs:
+//   Main Warehouse (STR-001): Wall Mount Bracket 50 received − 2 already
+//     assigned (ASG-000002/000003) = 48 available; Patch Cord 80 − 10
+//     (ASG-000004) = 70 available (untouched here).
+//   Andheri Store (STR-002): ONT Device serials 0001-0003 are already
+//     'Assigned to User' (ASG-000001/5/6 + USRA-000001/2/3) — only
+//     0004-0008 are still 'Available'; Wall Mount Bracket 10 − 1
+//     (ASG-000001) = 9 available (untouched here); WiFi Router 10
+//     available (untouched by any assignment); Drop Wire drum DR-00871
+//     500m − 30m (ASG-000001) = 470m remaining.
+// None of the serials/drum used below (0004, 0005, DR-00871) are
+// referenced by any other seeded record (replacementStore.js/repairStore.js
+// have none), and no serial is reused across two of these transfers — the
+// same dedup guard saveStoreTransfer() enforces at save time. Bandra Store
+// (STR-003) has no purchases of its own in the seed data, so it only ever
+// appears as a Store To below, never a Store From.
+const SEED = [
+  {
+    id: 'STF-000001', transferNumber: 'TRF-2026-000001',
+    date: '2026-08-18T10:00:00.000Z',
+    storeFromId: 'STR-001', storeFromName: 'Main Warehouse',
+    storeToId: 'STR-002', storeToName: 'Andheri Store',
+    items: [
+      { id: 'STFI-1-0', productId: 'PRD-003', productName: 'Wall Mount Bracket', serials: [], macs: [], qty: 5, drumNumber: null, remark: '' },
+    ],
+    reason: 'Rebalancing stock ahead of installation drive',
+    assignedBy: 'Admin User',
+    status: 'Completed',
+  },
+  {
+    id: 'STF-000002', transferNumber: 'TRF-2026-000002',
+    date: '2026-08-19T11:30:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-003', storeToName: 'Bandra Store',
+    items: [
+      { id: 'STFI-2-0', productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0004'], macs: [], qty: 1, drumNumber: null, remark: 'For Bandra branch launch stock' },
+    ],
+    reason: '',
+    assignedBy: 'Admin User',
+    status: 'Completed',
+  },
+  {
+    id: 'STF-000003', transferNumber: 'TRF-2026-000003',
+    date: '2026-08-20T09:15:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-001', storeToName: 'Main Warehouse',
+    items: [
+      { id: 'STFI-3-0', productId: 'PRD-010', productName: 'Drop Wire', serials: [], macs: [], qty: 100, drumNumber: 'DR-00871', remark: '' },
+    ],
+    reason: '',
+    assignedBy: 'Admin User',
+    status: 'Completed',
+  },
+  {
+    id: 'STF-000004', transferNumber: 'TRF-2026-000004',
+    date: '2026-08-24T14:00:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-003', storeToName: 'Bandra Store',
+    items: [
+      { id: 'STFI-4-0', productId: 'PRD-002', productName: 'WiFi Router', serials: [], macs: [], qty: 3, drumNumber: null, remark: '' },
+    ],
+    reason: 'Bandra Store opening — initial stock allocation',
+    assignedBy: 'Admin User',
+    status: 'Completed',
+  },
+  {
+    id: 'STF-000005', transferNumber: 'TRF-2026-000005',
+    date: '2026-08-26T16:45:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-001', storeToName: 'Main Warehouse',
+    items: [
+      { id: 'STFI-5-0', productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0005'], macs: [], qty: 1, drumNumber: null, remark: '' },
+    ],
+    reason: '',
+    assignedBy: 'Admin User',
+    status: 'Completed',
+  },
+]
+
+let _storeTransfers = [...SEED]
+let _nextSeq = SEED.length + 1
+let _nextInternalSeq = SEED.length + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._storeTransfers])) }
