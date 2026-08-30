@@ -75,7 +75,6 @@ import DeliveryChallanView from './pages/inventory/DeliveryChallanView'
 import AssetList from './pages/assets/AssetList'
 import AddAsset from './pages/assets/AddAsset'
 import AssetDetail from './pages/assets/AssetDetail'
-import AssetPOApproval from './pages/assets/AssetPOApproval'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -188,7 +187,6 @@ export default function App() {
           <Route path="/inventory/store-transfer/:id/challan" element={<DeliveryChallanView />} />
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/new" element={<AddAsset />} />
-          <Route path="/assets/po-approval" element={<AssetPOApproval />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
