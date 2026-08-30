@@ -153,6 +153,15 @@ export function createDeliveryChallanForTransfer(transfer) {
     transferNumber: transfer.transferNumber,
     consignor: storeParty(transfer.storeFromId, transfer.storeFromName),
     consignee: storeParty(transfer.storeToId, transfer.storeToName),
+    // The companyEntities.js entity to show a logo for (DeliveryChallanView.jsx
+    // resolves it via getCompanyEntity(), same call PODetail.jsx makes off
+    // its own po.companyEntityId) — always null today for the same reason
+    // storeParty()'s gstin/address are: a Store isn't tied to any one
+    // entity in this data model (see that function's own note). Left as a
+    // real field rather than omitted so a future store↔entity link only
+    // needs to populate this one line; DeliveryChallanView.jsx already
+    // degrades to "no logo shown" when it resolves to null.
+    companyEntityId: null,
     // Derived from the Consignee's own address when available — see
     // storeParty()'s note on why that's null for every store today, so
     // this is always blank in practice until a store carries a real

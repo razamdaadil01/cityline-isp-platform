@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+import EntityBadge from '../../components/ui/EntityBadge'
 import { getPurchaseOrder, subscribePurchaseOrders, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getVendor } from '../../data/vendorStore'
 import { getStore } from '../../data/storeStore'
@@ -23,31 +24,6 @@ const STATUS_BADGE = {
 }
 
 const APPROVAL_STATUS_BADGE = { Pending: 'yellow', Approved: 'green', Rejected: 'red' }
-
-// Up to 2 initials from an entity's name (e.g. "Cityline Networks Pvt Ltd"
-// -> "CN") — the fallback badge when the entity has no logoUrl set, same
-// spirit as InvoicePDF.jsx's hardcoded "CL" box but actually derived from
-// the entity rather than a fixed string.
-function entityInitials(name) {
-  return (name || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(w => w[0])
-    .join('')
-    .toUpperCase()
-}
-
-function EntityBadge({ entity }) {
-  if (!entity) return null
-  return entity.logoUrl ? (
-    <img src={entity.logoUrl} alt={entity.name} className="w-4 h-4 rounded object-cover shrink-0" />
-  ) : (
-    <span className="w-4 h-4 rounded bg-brand-blue text-white text-[8px] font-bold flex items-center justify-center shrink-0">
-      {entityInitials(entity.name)}
-    </span>
-  )
-}
 
 function InfoRow({ label, value }) {
   return (

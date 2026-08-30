@@ -1,7 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { AlertTriangle, Printer, Download } from 'lucide-react'
 import Button from '../../components/ui/Button'
+import EntityBadge from '../../components/ui/EntityBadge'
 import { getDeliveryChallanByTransferId } from '../../data/deliveryChallanStore'
+import { getCompanyEntity } from '../../data/companyEntities'
 
 // Print-friendly Delivery Challan document — same A4-card + print button +
 // print-only CSS pattern as PurchaseInvoiceView.jsx (this app's one
@@ -36,6 +38,13 @@ export default function DeliveryChallanView() {
   }
 
   const { consignor, consignee } = challan
+  // Same resolution EntityBadge's other caller (PODetail.jsx) uses off its
+  // own po.companyEntityId — getCompanyEntity() returns null for an unset
+  // id, and EntityBadge itself already renders nothing for a null entity,
+  // so a challan with no resolvable entity (every challan today — see
+  // deliveryChallanStore.js's own companyEntityId note) just shows no logo,
+  // never an error.
+  const entity = getCompanyEntity(challan.companyEntityId)
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 print:bg-white print:py-0 print:px-0">
@@ -70,6 +79,20 @@ export default function DeliveryChallanView() {
 
         {/* ── HEADER ── */}
         <div className="px-8 pt-7 pb-5 border-b border-gray-200">
+          {/* Company logo, centered above the heading — only when a
+              companyEntities.js entity actually resolves (see
+              deliveryChallanStore.js's own companyEntityId note); omitted
+              entirely otherwise, same graceful degrade every other optional
+              field on this document already follows. */}
+          {entity && (
+            <div className="flex items-center justify-center gap-2.5 mb-3">
+              <EntityBadge entity={entity} size={36} />
+              <div className="text-center">
+                <p className="font-black text-gray-900 text-sm leading-tight">{entity.name}</p>
+                {entity.gstin && <p className="text-brand-blue text-[10px] font-semibold tracking-widest uppercase">GST: {entity.gstin}</p>}
+              </div>
+            </div>
+          )}
           <h1 className="text-center text-lg font-black tracking-widest text-gray-800 mb-5 uppercase">Delivery Challan</h1>
 
           <div className="flex items-start justify-between gap-4">
