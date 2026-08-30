@@ -5,7 +5,22 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine } from '../../data/storeTransferStore'
 import { getUnits, getDrums } from '../../data/inventoryLedger'
+import { getProduct } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
+
+// Same live-lookup helper as CreateStoreTransfer.jsx's/CreateAssignment.jsx's
+// own liveTrackingType — reads the product's *current* Tracking
+// Configuration so a quantity-tracked line (e.g. Wall Mount Bracket) never
+// gets misread as carrying a serial/MAC/drum identifier just because one of
+// its item fields happens to be non-empty.
+function liveTrackingType(productId) {
+  const p = getProduct(productId)
+  if (!p) return 'quantity'
+  if (p.trackedBySerial && p.trackedByMac) return 'dual'
+  if (p.trackedBySerial) return 'serial'
+  if (p.trackedByMac) return 'mac'
+  return 'quantity'
+}
 
 // A transferred line is only offered for reversal while what it moved is
 // still sitting untouched at Store To. Serial/MAC units are checked against
@@ -34,22 +49,53 @@ function isLineReversible(t, it) {
   return true
 }
 
+// Serial/MAC/Drum identifier for one line — same split Assignments.jsx's
+// own flattenRows() uses (a dedicated identifier column instead of folding
+// a bare quantity into it): a serial/MAC-tracked line shows its unit
+// value(s) (dual-tracked pairs each serial with its own MAC, same combined
+// display CreateStoreTransfer.jsx's own line rows use), a wire line shows
+// its drum number, and a quantity-tracked line — which has no unit
+// identifier at all — shows '—' rather than misleadingly echoing its qty.
+function serialMacDrumLabel(it, trackingType) {
+  if (it.drumNumber) return it.drumNumber
+  if (trackingType === 'dual') return it.serials.map((s, i) => `${s} / MAC:${it.macs[i] ?? '—'}`).join(', ') || '—'
+  if (trackingType === 'serial') return it.serials.join(', ') || '—'
+  if (trackingType === 'mac') return it.macs.join(', ') || '—'
+  return '—'
+}
+
+// Actual transferred quantity for one line, regardless of tracking type —
+// 1 (or more) for a serial/MAC unit, the real qty for a quantity-tracked
+// product, meters (suffixed) for a wire/drum line. Math.max(serials.length,
+// macs.length) rather than their combined length avoids double-counting a
+// dual-tracked unit (same fix Assign to User's own qtyLabel() applies) —
+// `it.qty` on a Store Transfer item is stored as serials.length +
+// macs.length (see storeTransferStore.js's validateAndBuildItems), which
+// would otherwise double it for dual-tracked lines.
+function qtyValue(it, trackingType) {
+  if (it.drumNumber) return `${it.qty}m`
+  if (trackingType === 'dual' || trackingType === 'serial' || trackingType === 'mac') return Math.max(it.serials.length, it.macs.length)
+  return it.qty
+}
+
 // Flattens { transfer, items: [...] } into one row per line — Date/Store
-// From/Store To/Assigned By repeat per line, Product Name and Serial Number
-// (or qty) vary per line, matching the table shape the PRD asks for. Each
-// row keeps its own transferId + itemId so the 3-dot menu can target the
-// exact line to edit/reverse.
+// From/Store To/Assigned By repeat per line, Product Name/Serial-MAC-Drum/
+// Qty vary per line, matching the table shape the PRD asks for (same
+// (record × item-line) flattening pattern Assignments.jsx uses for Assign
+// to Engineer). Each row keeps its own transferId + itemId so the 3-dot
+// menu can target the exact line to edit/reverse.
 function flattenRows(transfers) {
   const rows = []
   transfers.forEach(t => {
     t.items.forEach(it => {
+      const trackingType = liveTrackingType(it.productId)
       rows.push({
         key: `${t.id}-${it.id}`, transferId: t.id, itemId: it.id, transferNumber: t.transferNumber,
         date: t.date,
         storeFromName: t.storeFromName, storeToName: t.storeToName,
         productName: it.productName,
-        serialLabel: it.serials.length ? it.serials.join(', ') : it.macs.length ? it.macs.join(', ') : it.drumNumber ? `Drum: ${it.drumNumber}` : String(it.qty),
-        qtyLabel: it.drumNumber ? `${it.qty}m` : it.qty,
+        serialMacDrumLabel: serialMacDrumLabel(it, trackingType),
+        qty: qtyValue(it, trackingType),
         assignedBy: t.assignedBy,
         reversible: isLineReversible(t, it),
       })
@@ -120,7 +166,7 @@ export default function StoreTransfer() {
       r.productName.toLowerCase().includes(q) ||
       r.storeFromName.toLowerCase().includes(q) ||
       r.storeToName.toLowerCase().includes(q) ||
-      r.serialLabel.toLowerCase().includes(q) ||
+      r.serialMacDrumLabel.toLowerCase().includes(q) ||
       r.assignedBy.toLowerCase().includes(q)
     )
   }, [allRows, search])
@@ -168,11 +214,12 @@ export default function StoreTransfer() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store From</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store To</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial Number</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Transfer Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial/MAC/Drum</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Qty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned By</th>
                 <th className="px-4 py-3 w-16 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
@@ -180,18 +227,19 @@ export default function StoreTransfer() {
             <tbody className="divide-y divide-surface-border">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-14 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-4 py-14 text-center text-sm text-gray-400">
                     <StoreIcon size={32} className="mx-auto mb-2 text-gray-200" />
                     No store transfers found
                   </td>
                 </tr>
               ) : rows.map(r => (
                 <tr key={r.key} className="hover:bg-blue-50/40 transition-colors">
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
+                  <td className="px-4 py-3 text-gray-800 text-xs font-medium whitespace-nowrap">{r.productName}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.storeFromName}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.storeToName}</td>
-                  <td className="px-4 py-3 text-gray-800 text-xs font-medium whitespace-nowrap">{r.productName}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs font-mono">{r.serialLabel}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs font-mono">{r.serialMacDrumLabel}</td>
+                  <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.assignedBy}</td>
                   <td className="px-4 py-3 w-16 text-center">
                     <button
@@ -247,7 +295,7 @@ export default function StoreTransfer() {
         {reverseTarget && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Move <span className="font-semibold text-gray-900">{reverseTarget.qtyLabel} × {reverseTarget.productName}</span> back from{' '}
+              Move <span className="font-semibold text-gray-900">{reverseTarget.qty} × {reverseTarget.productName}</span> back from{' '}
               <span className="font-semibold text-gray-900">{reverseTarget.storeToName}</span> to{' '}
               <span className="font-semibold text-gray-900">{reverseTarget.storeFromName}</span>?
             </p>
