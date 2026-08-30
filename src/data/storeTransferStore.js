@@ -32,6 +32,7 @@
 // before applying one, as a last defensive line.
 
 import { logAudit } from './auditLogStore'
+import { createDeliveryChallanForTransfer } from './deliveryChallanStore'
 
 export const STORE_TRANSFER_STATUSES = ['Completed', 'Reversed']
 
@@ -123,6 +124,14 @@ let _storeTransfers = [...SEED]
 let _nextSeq = SEED.length + 1
 let _nextInternalSeq = SEED.length + 1
 const _listeners = []
+
+// The 5 seeded transfers above were never routed through saveStoreTransfer()
+// (they're literal records, not the result of calling it), so they'd
+// otherwise have no linked Delivery Challan despite saveStoreTransfer()
+// always generating one — reconciled here at module load, same "seed then
+// reconcile" pattern purchaseStore.js uses to backfill its own seeded POs'
+// receipt status.
+SEED.forEach(t => createDeliveryChallanForTransfer(t))
 
 function notify() { _listeners.forEach(fn => fn([..._storeTransfers])) }
 
@@ -218,6 +227,14 @@ export function saveStoreTransfer(data, actor = 'Admin User') {
   }
   _storeTransfers = [transfer, ..._storeTransfers]
   notify()
+
+  // GST Rule 55 (India) requires a Delivery Challan to accompany a
+  // non-sale movement of goods like this — auto-generated here as a direct
+  // side effect of saving the transfer, so no separate user action creates
+  // the record itself (see deliveryChallanStore.js for the document's own
+  // shape and its own note on why editing/reversing this transfer later
+  // doesn't regenerate it).
+  createDeliveryChallanForTransfer(transfer)
 
   const itemCount = items.reduce((s, it) => s + it.qty, 0)
   logAudit({
