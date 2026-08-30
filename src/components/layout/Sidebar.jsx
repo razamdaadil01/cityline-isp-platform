@@ -39,6 +39,7 @@ import {
   UserCheck,
   UserPlus,
   ArrowLeftRight,
+  HardDrive,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -94,6 +95,7 @@ const NAV_ITEMS = [
       { label: 'General Settings',   icon: SlidersHorizontal,  to: '/inventory/settings' },
     ],
   },
+  { label: 'Asset Management', icon: HardDrive,       to: '/assets'                    },
   { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },

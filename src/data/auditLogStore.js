@@ -6,7 +6,7 @@
 // write path every other Inventory store now calls into directly (never
 // from a UI component, so nothing can bypass it).
 
-export const MODULES = ['Customers', 'Billing', 'Resellers', 'Packages', 'Network', 'Support', 'Settings', 'Auth', 'Inventory']
+export const MODULES = ['Customers', 'Billing', 'Resellers', 'Packages', 'Network', 'Support', 'Settings', 'Auth', 'Inventory', 'Assets']
 export const ACTIONS = ['Create', 'Edit', 'Delete', 'Login', 'Logout', 'Export', 'View']
 
 // ── Seed generation — mock history only, not used by the real write path ──
