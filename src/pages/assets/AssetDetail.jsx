@@ -6,16 +6,22 @@ import Button from '../../components/ui/Button'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
 import RepairRequestModal from '../../components/assets/RepairRequestModal'
-import { getAsset, subscribeAssets, assetDisplayName } from '../../data/assetStore'
+import { getAsset, subscribeAssets, assetDisplayName, checkWarrantyAlerts } from '../../data/assetStore'
 import {
   getActiveRepairForAsset, getRepairsForAsset, updateRepairStatus, resolveRepair, subscribeAssetRepairs,
 } from '../../data/assetRepairStore'
 import { getFieldsForType } from '../../data/assetTaxonomy'
+import { getWarrantyStatus } from '../../utils/warrantyStatus'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 
 const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
 const REPAIR_STATUS_BADGE = { 'Under Repair': 'orange', 'Sent to Vendor': 'indigo', 'In Progress': 'yellow', 'Received Back': 'blue', Resolved: 'green' }
+const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'red', 'N/A': 'gray' }
+// The one field (per category) whose value the Purchase/Warranty card
+// shows the live warranty badge next to — same two keys
+// utils/warrantyStatus.js itself reads (getWarrantyEndDate()).
+function isWarrantyEndKey(key) { return key === 'warrantyEndDate' || key === 'warrantyDate' }
 // Sent to Vendor -> In Progress -> Received Back — Resolved is reached via
 // its own dedicated action (Mark Fixed / Beyond Repair) below, never via
 // this "advance one step" map.
@@ -49,6 +55,10 @@ export default function AssetDetail() {
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeAssets(() => forceRerender(n => n + 1)), [])
   useEffect(() => subscribeAssetRepairs(() => forceRerender(n => n + 1)), [])
+  // Phase 6 — same on-page-load scan AssetList.jsx runs (see
+  // assetStore.js's own note on checkWarrantyAlerts()); this app has no
+  // background job/cron to fire it any other way.
+  useEffect(() => { checkWarrantyAlerts() }, [])
 
   const [assigning, setAssigning] = useState(false)
   const [returning, setReturning] = useState(false)
@@ -77,6 +87,7 @@ export default function AssetDetail() {
   const isSplicingMachine = asset.categoryId === 'field-splicing-tools' && asset.typeId === 'splicing-machine'
   const activeRepair = getActiveRepairForAsset(asset.id)
   const repairs = getRepairsForAsset(asset.id)
+  const warrantyStatus = getWarrantyStatus(asset)
 
   function displayValue(field) {
     const raw = asset.fields[field.key]
@@ -146,7 +157,21 @@ export default function AssetDetail() {
           <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Purchase / Warranty Information</p>
           {purchaseWarrantyFields.length === 0 ? (
             <p className="text-xs text-gray-400">No purchase/warranty fields recorded for this type.</p>
-          ) : purchaseWarrantyFields.map(f => <InfoRow key={f.key} label={f.label} value={displayValue(f)} />)}
+          ) : purchaseWarrantyFields.map(f => {
+            const value = displayValue(f)
+            const showWarrantyBadge = isWarrantyEndKey(f.key) && value != null && warrantyStatus !== 'N/A'
+            return (
+              <InfoRow
+                key={f.key} label={f.label}
+                value={showWarrantyBadge ? (
+                  <span className="inline-flex items-center gap-2">
+                    {value}
+                    <Badge variant={WARRANTY_BADGE[warrantyStatus] ?? 'gray'} size="sm" dot>{warrantyStatus}</Badge>
+                  </span>
+                ) : value}
+              />
+            )
+          })}
           <InfoRow label="Added By" value={asset.createdBy} />
           <InfoRow label="Added On" value={(asset.createdAt || '').slice(0, 10)} />
         </div>

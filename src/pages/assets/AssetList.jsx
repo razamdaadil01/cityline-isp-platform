@@ -3,17 +3,23 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
-import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES } from '../../data/assetStore'
+import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES, checkWarrantyAlerts } from '../../data/assetStore'
 import { ASSET_CATEGORIES, getAssetCategory } from '../../data/assetTaxonomy'
+import { getWarrantyStatus, WARRANTY_STATUSES } from '../../utils/warrantyStatus'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
 
 const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
+const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'red', 'N/A': 'gray' }
 
 export default function AssetList() {
   const navigate = useNavigate()
   const [assets, setAssets] = useState(getAssets)
   useEffect(() => subscribeAssets(setAssets), [])
+  // Phase 6 — this app has no background job/cron, so the warranty-alert
+  // scan runs on page load instead (see assetStore.js's own note on
+  // checkWarrantyAlerts()).
+  useEffect(() => { checkWarrantyAlerts() }, [])
 
   const [search, setSearch] = useState('')
   const [assigningAsset, setAssigningAsset] = useState(null)
@@ -25,17 +31,19 @@ export default function AssetList() {
   const [filterCategory, setFilterCategory] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterWarranty, setFilterWarranty] = useState('')
 
-  const EMPTY_DRAFT = { category: '', type: '', status: '' }
+  const EMPTY_DRAFT = { category: '', type: '', status: '', warranty: '' }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draft, setDraft] = useState(EMPTY_DRAFT)
 
   function openDrawer() {
-    setDraft({ category: filterCategory, type: filterType, status: filterStatus })
+    setDraft({ category: filterCategory, type: filterType, status: filterStatus, warranty: filterWarranty })
     setDrawerOpen(true)
   }
   function applyDrawer() {
     setFilterCategory(draft.category); setFilterType(draft.type); setFilterStatus(draft.status)
+    setFilterWarranty(draft.warranty)
     setDrawerOpen(false)
   }
   function resetDrawer() { setDraft(EMPTY_DRAFT) }
@@ -44,25 +52,26 @@ export default function AssetList() {
   // own Store→Engineer selection uses.
   function setDraftCategory(v) { setDraft(prev => ({ ...prev, category: v, type: '' })) }
   function setDraftField(k, v) { setDraft(prev => ({ ...prev, [k]: v })) }
-  function clearAllFilters() { setFilterCategory(''); setFilterType(''); setFilterStatus('') }
+  function clearAllFilters() { setFilterCategory(''); setFilterType(''); setFilterStatus(''); setFilterWarranty('') }
 
-  const activeFiltersCount = [filterCategory, filterType, filterStatus].filter(Boolean).length
+  const activeFiltersCount = [filterCategory, filterType, filterStatus, filterWarranty].filter(Boolean).length
   const draftTypes = draft.category ? (getAssetCategory(draft.category)?.types ?? []) : []
 
-  const allRows = useMemo(() => assets.map(a => ({ ...a, name: assetDisplayName(a) })), [assets])
+  const allRows = useMemo(() => assets.map(a => ({ ...a, name: assetDisplayName(a), warrantyStatus: getWarrantyStatus(a) })), [assets])
   const rows = useMemo(() => {
     const q = search.toLowerCase().trim()
     return allRows.filter(a => {
       if (filterCategory && a.categoryId !== filterCategory) return false
       if (filterType && a.typeId !== filterType) return false
       if (filterStatus && a.status !== filterStatus) return false
+      if (filterWarranty && a.warrantyStatus !== filterWarranty) return false
       if (q) {
         const haystack = `${a.id} ${a.name} ${a.typeLabel} ${a.categoryLabel}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
       return true
     })
-  }, [allRows, search, filterCategory, filterType, filterStatus])
+  }, [allRows, search, filterCategory, filterType, filterStatus, filterWarranty])
 
   return (
     <div className="p-6 space-y-5">
@@ -161,6 +170,18 @@ export default function AssetList() {
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Warranty Status</label>
+              <div className="relative">
+                <select value={draft.warranty} onChange={e => setDraftField('warranty', e.target.value)}
+                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                  <option value="">All</option>
+                  {WARRANTY_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
           </div>
 
           <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-gray-50 flex items-center gap-3">
@@ -204,7 +225,11 @@ export default function AssetList() {
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.typeLabel}</td>
                   <td className="px-4 py-3 text-gray-800 text-xs font-medium">{a.name}</td>
                   <td className="px-4 py-3"><Badge variant={STATUS_BADGE[a.status] ?? 'gray'} size="sm" dot>{a.status}</Badge></td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">—</td>
+                  <td className="px-4 py-3">
+                    {a.warrantyStatus === 'N/A'
+                      ? <span className="text-gray-400 text-xs">—</span>
+                      : <Badge variant={WARRANTY_BADGE[a.warrantyStatus] ?? 'gray'} size="sm" dot>{a.warrantyStatus}</Badge>}
+                  </td>
                   <td className="px-4 py-3 text-xs">
                     {a.status === 'Assigned' && a.assignedTo
                       ? <span className="text-gray-800 font-medium">{a.assignedTo.engineerName}</span>
