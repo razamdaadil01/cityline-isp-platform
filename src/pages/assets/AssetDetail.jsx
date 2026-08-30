@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText, UserPlus, RotateCcw, AlertTriangle, ChevronDown } from 'lucide-react'
+import { ArrowLeft, FileText, UserPlus, RotateCcw, Wrench, AlertTriangle, ChevronDown } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
+import RepairRequestModal from '../../components/assets/RepairRequestModal'
 import { getAsset, subscribeAssets, assetDisplayName } from '../../data/assetStore'
+import {
+  getActiveRepairForAsset, getRepairsForAsset, updateRepairStatus, resolveRepair, subscribeAssetRepairs,
+} from '../../data/assetRepairStore'
 import { getFieldsForType } from '../../data/assetTaxonomy'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 
 const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
+const REPAIR_STATUS_BADGE = { 'Under Repair': 'orange', 'Sent to Vendor': 'indigo', 'In Progress': 'yellow', 'Received Back': 'blue', Resolved: 'green' }
+// Sent to Vendor -> In Progress -> Received Back — Resolved is reached via
+// its own dedicated action (Mark Fixed / Beyond Repair) below, never via
+// this "advance one step" map.
+const NEXT_REPAIR_STATUS = { 'Under Repair': 'Sent to Vendor', 'Sent to Vendor': 'In Progress', 'In Progress': 'Received Back' }
 
 // Which "section" a taxonomy field's value belongs in — purely by its key,
 // since every category's field keys already carry that meaning
@@ -39,10 +48,13 @@ export default function AssetDetail() {
 
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeAssets(() => forceRerender(n => n + 1)), [])
+  useEffect(() => subscribeAssetRepairs(() => forceRerender(n => n + 1)), [])
 
   const [assigning, setAssigning] = useState(false)
   const [returning, setReturning] = useState(false)
+  const [sendingForRepair, setSendingForRepair] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [repairHistoryOpen, setRepairHistoryOpen] = useState(false)
 
   const asset = getAsset(id)
 
@@ -63,6 +75,8 @@ export default function AssetDetail() {
   const kitComponentsField = fieldDefs.find(f => f.type === 'kit-components')
   const kitRows = kitComponentsField ? (asset.fields[kitComponentsField.key] || []) : []
   const isSplicingMachine = asset.categoryId === 'field-splicing-tools' && asset.typeId === 'splicing-machine'
+  const activeRepair = getActiveRepairForAsset(asset.id)
+  const repairs = getRepairsForAsset(asset.id)
 
   function displayValue(field) {
     const raw = asset.fields[field.key]
@@ -98,6 +112,11 @@ export default function AssetDetail() {
           {asset.status === 'Assigned' && (
             <Button size="sm" icon={<RotateCcw size={14} />} onClick={() => setReturning(true)}>
               Return
+            </Button>
+          )}
+          {asset.status === 'Under Repair' && !activeRepair && (
+            <Button size="sm" icon={<Wrench size={14} />} onClick={() => setSendingForRepair(true)}>
+              Send for Repair
             </Button>
           )}
           {asset.poId && (
@@ -139,6 +158,50 @@ export default function AssetDetail() {
               <InfoRow label="Engineer" value={asset.assignedTo.engineerName} />
               <InfoRow label="Branch" value={asset.assignedTo.branchCode} />
               <InfoRow label="Assigned On" value={(asset.assignedTo.assignedAt || '').slice(0, 10)} />
+            </div>
+          </div>
+        )}
+
+        {activeRepair && (
+          <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card xl:col-span-2">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Repair Status</p>
+              <div className="flex items-center gap-2">
+                {activeRepair.isWarrantyClaim && <Badge variant="cyan" size="sm">Warranty Claim</Badge>}
+                <Badge variant={REPAIR_STATUS_BADGE[activeRepair.status] ?? 'gray'} size="sm" dot>{activeRepair.status}</Badge>
+              </div>
+            </div>
+            <InfoRow label="Repair ID" value={activeRepair.repairId} />
+            <InfoRow label="Fault Description" value={activeRepair.faultDescription} />
+            <InfoRow label="Repair Path" value={activeRepair.repairPath} />
+            <InfoRow label="Reported By" value={activeRepair.reportedBy} />
+            <InfoRow label="Reported Date" value={activeRepair.reportedDate} />
+            {isSplicingMachine && (
+              <InfoRow label="Kit Components Included" value={activeRepair.includeKitComponents ? 'Yes' : 'No'} />
+            )}
+
+            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-surface-border">
+              {NEXT_REPAIR_STATUS[activeRepair.status] && (
+                <Button
+                  variant="secondary" size="sm"
+                  onClick={() => updateRepairStatus(activeRepair.id, NEXT_REPAIR_STATUS[activeRepair.status])}
+                >
+                  Advance to {NEXT_REPAIR_STATUS[activeRepair.status]}
+                </Button>
+              )}
+              {activeRepair.status === 'Received Back' && (
+                <>
+                  <Button size="sm" onClick={() => resolveRepair(activeRepair.id, { resolution: 'Fixed', remarks: '' })}>
+                    Mark Fixed
+                  </Button>
+                  <Button
+                    variant="danger" size="sm"
+                    onClick={() => resolveRepair(activeRepair.id, { resolution: 'Beyond Repair', remarks: '' })}
+                  >
+                    Beyond Repair
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -231,8 +294,43 @@ export default function AssetDetail() {
         </div>
       )}
 
+      {repairs.length > 0 && (
+        <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+          <button
+            type="button" onClick={() => setRepairHistoryOpen(o => !o)}
+            className="w-full flex items-center justify-between px-5 py-3.5 border-b border-surface-border text-left"
+          >
+            <h3 className="text-sm font-semibold text-gray-800">Repair History ({repairs.length})</h3>
+            <ChevronDown size={15} className={`text-gray-400 transition-transform ${repairHistoryOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {repairHistoryOpen && (
+            <div className="divide-y divide-surface-border">
+              {repairs.map(r => (
+                <div key={r.id} className="px-5 py-3.5 flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-semibold text-brand-blue">{r.repairId}</span>
+                      <Badge variant={REPAIR_STATUS_BADGE[r.status] ?? 'gray'} size="sm" dot>{r.status}</Badge>
+                      {r.isWarrantyClaim && <Badge variant="cyan" size="sm">Warranty Claim</Badge>}
+                      {r.resolution && <Badge variant={r.resolution === 'Fixed' ? 'green' : 'red'} size="sm">{r.resolution}</Badge>}
+                    </div>
+                    <p className="text-xs text-gray-700 mt-1">{r.faultDescription}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{r.repairPath}{r.remarks ? ` — ${r.remarks}` : ''}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-500">{r.reportedDate}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">by {r.reportedBy}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <AssignAssetModal isOpen={assigning} onClose={() => setAssigning(false)} asset={asset} />
       <ReturnAssetModal isOpen={returning} onClose={() => setReturning(false)} asset={asset} />
+      <RepairRequestModal isOpen={sendingForRepair} onClose={() => setSendingForRepair(false)} asset={asset} />
     </div>
   )
 }
