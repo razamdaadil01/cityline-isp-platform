@@ -15,8 +15,77 @@ import { logAudit } from './auditLogStore'
 // 'Assigned' asset simply stays there for now.
 export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned']
 
-let _assets = []
-let _nextSeq = 1
+// ── Seed data — so Phase 4a's Assign to Engineer action has real 'In Stock'
+// assets to test against without repeating Add Asset → PO → Approval → GRN
+// each time the dev server resets. No poId (these weren't created through a
+// real Asset Purchase PO — nothing in purchaseOrderStore.js's own seed data
+// is poType 'Asset Purchase' to link against, and a fabricated poId would
+// dangle when Asset Detail's "View PO" tries to resolve it), no
+// companyEntityId (assetStore.js's own asset shape has never carried one —
+// see Phase 2's note — Company/Entity only ever exists transiently in
+// AddAsset.jsx's own form state, used solely to build a PO payload). Vendor
+// ids reference vendorStore.js's real seeded vendors (VEN-002/VEN-003).
+const SEED = [
+  {
+    id: 'AST-2026-000001',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'laptop', typeLabel: 'Laptop',
+    fields: {
+      assetName: 'Field Ops Laptop 01', brandName: 'Dell', modelName: 'Latitude 5440',
+      storageCapacity: '512GB SSD', ram: '16GB', processor: 'Intel Core i5-1335U',
+      serialNumber: 'DL-LAT5440-0001',
+      purchaseDate: '2026-07-10', warrantyStartDate: '2026-07-10', warrantyEndDate: '2029-07-09',
+      vendorId: 'VEN-003',
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2026-07-12T10:00:00.000Z',
+  },
+  // Splicing Machine #1 — every kit component came through GRN clean
+  // (receivedStatus: 'Received' across the board), simulating a completed,
+  // discrepancy-free receipt.
+  {
+    id: 'AST-2026-000002',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Fusion Splicer Unit A', brandName: 'Fujikura', modelName: '90S+',
+      serialNumber: 'FJK-90S-2026-0001',
+      purchaseDate: '2026-07-15', warrantyStartDate: '2026-07-15', warrantyEndDate: '2028-07-14',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-1a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0001', quantity: 1, condition: 'New', receivedStatus: 'Received' },
+        { id: 'kc-seed-1b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0001', quantity: 1, condition: 'New', receivedStatus: 'Received' },
+        { id: 'kc-seed-1c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0001', quantity: 1, condition: 'Good', receivedStatus: 'Received' },
+      ],
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2026-07-16T09:30:00.000Z',
+  },
+  // Splicing Machine #2 — Clamping Tool never showed up at GRN
+  // (receivedStatus: 'Missing', no serial/condition ever recorded for it),
+  // simulating the missing-component scenario.
+  {
+    id: 'AST-2026-000003',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Fusion Splicer Unit B', brandName: 'Fujikura', modelName: '70S',
+      serialNumber: 'FJK-70S-2026-0002',
+      purchaseDate: '2026-08-01', warrantyStartDate: '2026-08-01', warrantyEndDate: '2028-07-31',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-2a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0002', quantity: 1, condition: 'Good', receivedStatus: 'Received' },
+        { id: 'kc-seed-2b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: '', quantity: 1, condition: '', receivedStatus: 'Missing' },
+        { id: 'kc-seed-2c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0002', quantity: 1, condition: 'New', receivedStatus: 'Received' },
+      ],
+    },
+    status: 'In Stock', assignedTo: null, poId: null,
+    createdBy: 'Admin User', createdAt: '2026-08-02T11:15:00.000Z',
+  },
+]
+
+let _assets = [...SEED]
+let _nextSeq = SEED.length + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._assets])) }
