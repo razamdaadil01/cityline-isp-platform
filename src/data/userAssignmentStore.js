@@ -31,7 +31,7 @@ import { getTickets } from './ticketsStore'
 import { getOutages } from './outagesStore'
 import { logAudit } from './auditLogStore'
 
-export const USER_ASSIGNMENT_STATUSES = ['Handed Off']
+export const USER_ASSIGNMENT_STATUSES = ['Handed Off', 'Reversed']
 
 // 'new' (default) hands off held product(s) with no unit coming back —
 // today's only behavior until this field was added. 'replace' hands off a
@@ -276,13 +276,14 @@ export function getEngineerHeldMetersLocal(engineerId, productId, drumNumber, ex
 // against themselves as "already handed off" — see the excludeId note on
 // getEngineerHeldValues()/getEngineerHeldQtyLocal()/getEngineerHeldMetersLocal()
 // above.
-function validateItems(data, excludeId = null) {
+function validateItems(data, seq, excludeId = null) {
   const assignmentType = ASSIGNMENT_TYPES.includes(data.assignmentType) ? data.assignmentType : 'new'
   const heldValues = new Set(getEngineerHeldValues(data.engineerId, excludeId))
 
   const items = (data.items || [])
     .filter(it => (it.serials?.length) || (it.macs?.length) || (Number(it.qty) || 0) > 0)
-    .map(it => {
+    .map((it, idx) => {
+      const id = `USRI-${seq}-${idx}`
       const serials = it.serials ?? []
       const macs = it.macs ?? []
       if (serials.length || macs.length) {
@@ -290,17 +291,17 @@ function validateItems(data, excludeId = null) {
         values.forEach(v => {
           if (!heldValues.has(v)) throw new Error(`${v} is not currently assigned to ${data.engineerName}.`)
         })
-        return { productId: it.productId, productName: it.productName, serials, macs, qty: values.length, drumNumber: null }
+        return { id, productId: it.productId, productName: it.productName, serials, macs, qty: values.length, drumNumber: null }
       }
       const qty = Number(it.qty) || 0
       if (it.drumNumber) {
         const available = getEngineerHeldMetersLocal(data.engineerId, it.productId, it.drumNumber, excludeId)
         if (qty > available) throw new Error(`${data.engineerName} only has ${available}m of ${it.productName} left on drum ${it.drumNumber} to hand off.`)
-        return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: it.drumNumber }
+        return { id, productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: it.drumNumber }
       }
       const available = getEngineerHeldQtyLocal(data.engineerId, it.productId, excludeId)
       if (qty > available) throw new Error(`${data.engineerName} only has ${available} of ${it.productName} left to hand off.`)
-      return { productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: null }
+      return { id, productId: it.productId, productName: it.productName, serials: [], macs: [], qty, drumNumber: null }
     })
 
   if (items.length === 0) {
@@ -318,10 +319,11 @@ function validateItems(data, excludeId = null) {
 }
 
 export function saveUserAssignment(data, actor = 'Admin User') {
-  const { assignmentType, items, returnedItem } = validateItems(data)
+  const seq = _nextInternalSeq++
+  const { assignmentType, items, returnedItem } = validateItems(data, seq)
 
   const assignment = {
-    id: `USRA-${String(_nextInternalSeq++).padStart(6, '0')}`,
+    id: `USRA-${String(seq).padStart(6, '0')}`,
     assignmentNumber: nextUserAssignmentNumber(),
     engineerId: data.engineerId, engineerName: data.engineerName,
     workOrderType: data.workOrderType, workOrderId: data.workOrderId, workOrderLabel: data.workOrderLabel,
@@ -358,7 +360,7 @@ export function updateUserAssignment(id, data, actor = 'Admin User') {
   const existing = _userAssignments.find(a => a.id === id)
   if (!existing) throw new Error('Assignment not found.')
 
-  const { assignmentType, items, returnedItem } = validateItems(data, id)
+  const { assignmentType, items, returnedItem } = validateItems(data, _nextInternalSeq++, id)
 
   const updated = {
     ...existing,
@@ -376,6 +378,48 @@ export function updateUserAssignment(id, data, actor = 'Admin User') {
   logAudit({
     action: 'Update', module: 'Inventory',
     details: `Edited handoff ${existing.assignmentNumber} (${data.engineerName} → ${data.customerName ?? updated.workOrderLabel})`,
+  })
+
+  return updated
+}
+
+// ── Reverse one handed-off item back to the engineer's holdings ─────────
+// Reverses a single handoff item — the inverse of the handoff itself: its
+// serial/MAC unit(s), quantity, or drum meters move back to "held by the
+// engineer" simply by removing the item from this assignment's own `items`
+// array — the exact same "the line is gone, so whatever it claimed reverts
+// automatically" mechanism assignmentStore.js's returnAssignmentLine() and
+// storeTransferStore.js's reverseStoreTransferLine() both use.
+// inventoryLedger.js's computeLedger() layers this store's handoffs on top
+// of assignmentStore.js's own 'Assigned to Engineer' units/qty/meters (see
+// its "User Assignments" block); once a handoff item is gone, the unit it
+// named simply never gets relabeled 'Assigned to User' for this
+// computation, so it reads back as still 'Assigned to Engineer' — no
+// separate ledger write needed. If removing this item empties the
+// assignment entirely, the assignment's own `status` flips to 'Reversed' —
+// never left dangling as 'Handed Off' with an empty item list.
+// `itemId` is the item's own `id` (e.g. 'USRI-1-0').
+export function reverseUserAssignmentItem(assignmentId, itemId) {
+  const assignment = _userAssignments.find(a => a.id === assignmentId)
+  if (!assignment) throw new Error('User assignment not found.')
+  if (assignment.status === 'Reversed') throw new Error('This handoff has already been reversed.')
+
+  const item = assignment.items.find(it => it.id === itemId)
+  if (!item) throw new Error('Line not found on this handoff.')
+
+  const items = assignment.items.filter(it => it.id !== itemId)
+  const nowEmpty = items.length === 0
+
+  const updated = { ...assignment, items, status: nowEmpty ? 'Reversed' : assignment.status }
+  _userAssignments = _userAssignments.map(a => a.id === assignmentId ? updated : a)
+  notify()
+
+  const qtyLabel = item.drumNumber
+    ? `${item.qty}m of ${item.productName} (Drum ${item.drumNumber})`
+    : `${item.serials.length || item.macs.length ? item.serials.length + item.macs.length : item.qty} of ${item.productName}`
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Reversed ${qtyLabel} — moved back from ${assignment.customerName ?? assignment.workOrderLabel} to ${assignment.engineerName}${nowEmpty ? ' — handoff fully reversed' : ''}`,
   })
 
   return updated
