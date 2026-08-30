@@ -72,6 +72,9 @@ import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
 import StoreTransfer from './pages/inventory/StoreTransfer'
 import CreateStoreTransfer from './pages/inventory/CreateStoreTransfer'
 import DeliveryChallanView from './pages/inventory/DeliveryChallanView'
+import AssetList from './pages/assets/AssetList'
+import AddAsset from './pages/assets/AddAsset'
+import AssetDetail from './pages/assets/AssetDetail'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import AreaMapping from './pages/AreaMapping'
@@ -182,6 +185,9 @@ export default function App() {
           <Route path="/inventory/store-transfer/new" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/edit" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/challan" element={<DeliveryChallanView />} />
+          <Route path="/assets" element={<AssetList />} />
+          <Route path="/assets/new" element={<AddAsset />} />
+          <Route path="/assets/:id" element={<AssetDetail />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />
