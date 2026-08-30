@@ -6,6 +6,8 @@
 // assignment, no repair/return logic; those are later phases per the brief.
 
 import { logAudit } from './auditLogStore'
+import { addNotification } from './notificationStore'
+import { daysUntilWarrantyEnd } from '../utils/warrantyStatus'
 
 // 'In Stock' is reached automatically, never chosen directly — see
 // markAssetsInStockForPO() below, called from purchaseStore.js when a GRN
@@ -92,11 +94,12 @@ const SEED = [
   },
 ]
 
-// hasMissingComponents/returnHistory default onto every seed asset here
-// (mirrors purchaseOrderStore.js's own seed `.map(po => ({ ...po, poType:
-// 'Standard', ... }))` pattern) rather than repeating both on every SEED
-// literal above — none of the 3 seed assets has been through a return yet.
-let _assets = SEED.map(a => ({ ...a, hasMissingComponents: false, returnHistory: [] }))
+// hasMissingComponents/returnHistory/warrantyAlertsSent default onto every
+// seed asset here (mirrors purchaseOrderStore.js's own seed `.map(po => ({
+// ...po, poType: 'Standard', ... }))` pattern) rather than repeating all
+// three on every SEED literal above — none of the 3 seed assets has been
+// through a return or fired a warranty alert yet.
+let _assets = SEED.map(a => ({ ...a, hasMissingComponents: false, returnHistory: [], warrantyAlertsSent: [] }))
 let _nextSeq = SEED.length + 1
 let _nextReturnSeq = 1
 const _listeners = []
@@ -153,6 +156,9 @@ function buildAsset(data, status, actor) {
     // asset has never been returned.
     hasMissingComponents: false,
     returnHistory: [],
+    // Phase 6 — populated by checkWarrantyAlerts() below; a brand-new
+    // asset has never fired a warranty alert.
+    warrantyAlertsSent: [],
     createdBy: actor, createdAt: new Date().toISOString(),
   }
 }
@@ -319,6 +325,47 @@ export function initiateAssetReturn(assetId, { condition, remarks = '', kitCompo
   })
 
   return updated
+}
+
+// Phase 6 — Warranty Management (PRD Section 9). This app has no
+// background job/cron, so there's no way to fire an alert the instant an
+// asset's warranty actually crosses a threshold — instead this scans on
+// demand, called from AssetList.jsx/AssetDetail.jsx on page load. Only
+// 'In Stock'/'Assigned' assets are checked (a Draft/PO Raised asset isn't
+// deployed yet, and an Under Repair one is already flagged some other
+// way). warrantyAlertsSent stores one key per (threshold, day) already
+// notified — e.g. '30d-2026-08-30' — so a re-scan later the same day never
+// re-notifies for the same asset+threshold, but a threshold nobody
+// addressed can still fire again the following day rather than going
+// permanently silent after its first alert.
+export const WARRANTY_ALERT_THRESHOLDS = [30, 15, 7]
+
+export function checkWarrantyAlerts() {
+  const today = new Date().toISOString().slice(0, 10)
+  let changed = false
+
+  _assets = _assets.map(asset => {
+    if (asset.status !== 'In Stock' && asset.status !== 'Assigned') return asset
+    const days = daysUntilWarrantyEnd(asset)
+    if (days === null || days < 0) return asset
+    const threshold = WARRANTY_ALERT_THRESHOLDS.find(t => days <= t)
+    if (threshold == null) return asset
+    const alertKey = `${threshold}d-${today}`
+    if ((asset.warrantyAlertsSent || []).includes(alertKey)) return asset
+
+    addNotification({
+      type: 'asset_warranty_expiring',
+      title: 'Asset Warranty Expiring Soon',
+      description: `${assetDisplayName(asset)} (${asset.id}) warranty expires in ${days} day${days === 1 ? '' : 's'}.`,
+      meta: `${threshold}-day alert`,
+      reference: asset.id,
+      color: 'yellow',
+    })
+    changed = true
+    return { ...asset, warrantyAlertsSent: [...(asset.warrantyAlertsSent || []), alertKey] }
+  })
+
+  if (changed) notify()
 }
 
 // filters: { category, type, status, search } — every filter is optional;
