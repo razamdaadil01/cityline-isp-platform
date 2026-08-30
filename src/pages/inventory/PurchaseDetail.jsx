@@ -210,9 +210,15 @@ export default function PurchaseDetail() {
                             <td className="px-3 py-2 text-gray-500 font-mono">{c.serialNumber || <span className="text-gray-300">—</span>}</td>
                             <td className="px-3 py-2 text-gray-700">{c.condition || <span className="text-gray-300">—</span>}</td>
                             <td className="px-3 py-2">
-                              {c.receivedStatus === 'Missing' ? (
+                              {/* purchase.items[i].kitComponents only ever carries the
+                                  `received` boolean captured in CreatePurchase.jsx —
+                                  `receivedStatus` ('Received'/'Missing') is computed and
+                                  written only onto the linked Asset record, by
+                                  confirmKitComponentsForAsset() in assetStore.js, not
+                                  back onto the Purchase record itself. */}
+                              {c.received === false ? (
                                 <Badge variant="red" size="sm" dot>Missing</Badge>
-                              ) : c.receivedStatus === 'Received' ? (
+                              ) : c.received === true ? (
                                 <Badge variant="green" size="sm" dot>Received</Badge>
                               ) : (
                                 <span className="text-gray-300">—</span>
