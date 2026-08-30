@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus } from 'lucide-react'
+import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES } from '../../data/assetStore'
 import { ASSET_CATEGORIES, getAssetCategory } from '../../data/assetTaxonomy'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
+import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
 
 export default function AssetList() {
   const navigate = useNavigate()
@@ -16,6 +17,7 @@ export default function AssetList() {
 
   const [search, setSearch] = useState('')
   const [assigningAsset, setAssigningAsset] = useState(null)
+  const [returningAsset, setReturningAsset] = useState(null)
 
   // ── Filter Drawer — same slide-in panel + Apply/Clear pattern already
   // used across this app's other list pages (e.g. Inventory's Assign to
@@ -226,6 +228,15 @@ export default function AssetList() {
                           <UserPlus size={14} />
                         </button>
                       )}
+                      {a.status === 'Assigned' && (
+                        <button
+                          onClick={() => setReturningAsset(a)}
+                          title="Return"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -236,6 +247,7 @@ export default function AssetList() {
       </div>
 
       <AssignAssetModal isOpen={!!assigningAsset} onClose={() => setAssigningAsset(null)} asset={assigningAsset} />
+      <ReturnAssetModal isOpen={!!returningAsset} onClose={() => setReturningAsset(null)} asset={returningAsset} />
     </div>
   )
 }

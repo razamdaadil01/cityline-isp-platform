@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText, UserPlus } from 'lucide-react'
+import { ArrowLeft, FileText, UserPlus, RotateCcw, AlertTriangle, ChevronDown } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
+import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
 import { getAsset, subscribeAssets, assetDisplayName } from '../../data/assetStore'
 import { getFieldsForType } from '../../data/assetTaxonomy'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 
-const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple' }
+const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange' }
 
 // Which "section" a taxonomy field's value belongs in — purely by its key,
 // since every category's field keys already carry that meaning
@@ -40,6 +41,8 @@ export default function AssetDetail() {
   useEffect(() => subscribeAssets(() => forceRerender(n => n + 1)), [])
 
   const [assigning, setAssigning] = useState(false)
+  const [returning, setReturning] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const asset = getAsset(id)
 
@@ -92,6 +95,11 @@ export default function AssetDetail() {
               Assign to Engineer
             </Button>
           )}
+          {asset.status === 'Assigned' && (
+            <Button size="sm" icon={<RotateCcw size={14} />} onClick={() => setReturning(true)}>
+              Return
+            </Button>
+          )}
           {asset.poId && (
             <Button variant="secondary" size="sm" icon={<FileText size={14} />} onClick={() => navigate(`/inventory/purchase-orders/${asset.poId}`)}>
               View PO
@@ -99,6 +107,13 @@ export default function AssetDetail() {
           )}
         </div>
       </div>
+
+      {asset.hasMissingComponents && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <p>Missing kit component(s) reported at last return — see Kit Components and Return History below.</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
@@ -181,7 +196,43 @@ export default function AssetDetail() {
         )}
       </div>
 
+      {asset.returnHistory && asset.returnHistory.length > 0 && (
+        <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+          <button
+            type="button" onClick={() => setHistoryOpen(o => !o)}
+            className="w-full flex items-center justify-between px-5 py-3.5 border-b border-surface-border text-left"
+          >
+            <h3 className="text-sm font-semibold text-gray-800">Return History ({asset.returnHistory.length})</h3>
+            <ChevronDown size={15} className={`text-gray-400 transition-transform ${historyOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {historyOpen && (
+            <div className="divide-y divide-surface-border">
+              {asset.returnHistory.map(entry => (
+                <div key={entry.id} className="px-5 py-3.5 flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-gray-800">{entry.condition}</span>
+                      <Badge variant={entry.resultStatus === 'Under Repair' ? 'orange' : 'green'} size="sm">{entry.resultStatus}</Badge>
+                      {entry.missingComponentIds?.length > 0 && (
+                        <Badge variant="red" size="sm" dot>{entry.missingComponentIds.length} missing</Badge>
+                      )}
+                    </div>
+                    {entry.previousEngineer && <p className="text-xs text-gray-500 mt-1">Returned from {entry.previousEngineer}{entry.branchCode ? ` (${entry.branchCode})` : ''}</p>}
+                    {entry.remarks && <p className="text-xs text-gray-600 mt-1">{entry.remarks}</p>}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-500">{(entry.date || '').slice(0, 10)}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">by {entry.initiatedBy}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <AssignAssetModal isOpen={assigning} onClose={() => setAssigning(false)} asset={asset} />
+      <ReturnAssetModal isOpen={returning} onClose={() => setReturning(false)} asset={asset} />
     </div>
   )
 }

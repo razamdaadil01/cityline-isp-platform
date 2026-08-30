@@ -11,9 +11,17 @@ import { logAudit } from './auditLogStore'
 // markAssetsInStockForPO() below, called from purchaseStore.js when a GRN
 // (Purchase confirm) completes against the asset's linked Asset Purchase PO.
 // 'Assigned' is reached via assignAssetToEngineer() below (Phase 4a) — only
-// ever from 'In Stock'. There is no Return flow yet (Phase 4b); an
-// 'Assigned' asset simply stays there for now.
-export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned']
+// ever from 'In Stock'. 'Under Repair' is reached via initiateAssetReturn()
+// below (Phase 4b) when the returned condition is 'Damaged'/'Not Working' —
+// this phase only tracks it as a data state; no repair record/vendor
+// routing exists yet (that's Phase 5).
+export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned', 'Under Repair']
+
+// Phase 4b — the condition options Return's own condition selector offers,
+// and initiateAssetReturn()'s own valid-input check. 'Working'/'Minor
+// Issue' route the asset back to 'In Stock'; 'Damaged'/'Not Working' route
+// it to 'Under Repair' — see initiateAssetReturn() below.
+export const ASSET_RETURN_CONDITIONS = ['Working', 'Minor Issue', 'Damaged', 'Not Working']
 
 // ── Seed data — so Phase 4a's Assign to Engineer action has real 'In Stock'
 // assets to test against without repeating Add Asset → PO → Approval → GRN
@@ -84,8 +92,13 @@ const SEED = [
   },
 ]
 
-let _assets = [...SEED]
+// hasMissingComponents/returnHistory default onto every seed asset here
+// (mirrors purchaseOrderStore.js's own seed `.map(po => ({ ...po, poType:
+// 'Standard', ... }))` pattern) rather than repeating both on every SEED
+// literal above — none of the 3 seed assets has been through a return yet.
+let _assets = SEED.map(a => ({ ...a, hasMissingComponents: false, returnHistory: [] }))
 let _nextSeq = SEED.length + 1
+let _nextReturnSeq = 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._assets])) }
@@ -136,6 +149,10 @@ function buildAsset(data, status, actor) {
     // linked Purchase Order (see AddAsset.jsx) — a brand-new asset never
     // carries this on creation itself, since the PO doesn't exist yet.
     poId: null,
+    // Phase 4b — populated by initiateAssetReturn() below; a brand-new
+    // asset has never been returned.
+    hasMissingComponents: false,
+    returnHistory: [],
     createdBy: actor, createdAt: new Date().toISOString(),
   }
 }
@@ -215,12 +232,12 @@ export function confirmKitComponentsForAsset(assetId, kitComponents) {
 }
 
 // Phase 4a — Assign Asset to Engineer. Only allowed from 'In Stock' (an
-// asset still Draft/PO Raised has no physical unit to hand over yet, and
-// one already Assigned needs a Return, which doesn't exist yet per the
-// brief — see ASSET_STATUSES' own note). For a Splicing Machine asset, its
-// fields.kitComponents ride along implicitly: they're already child data on
-// this same asset record, so moving the asset to 'Assigned' is all that's
-// needed — nothing else to write. AssignAssetModal.jsx is the only caller.
+// asset still Draft/PO Raised has no physical unit to hand over yet; one
+// already Assigned needs a Return first — see initiateAssetReturn() below).
+// For a Splicing Machine asset, its fields.kitComponents ride along
+// implicitly: they're already child data on this same asset record, so
+// moving the asset to 'Assigned' is all that's needed — nothing else to
+// write. AssignAssetModal.jsx is the only caller.
 export function assignAssetToEngineer(assetId, { engineerName, branchCode, assignedBy = 'Admin User' }) {
   const asset = getAsset(assetId)
   if (!asset) throw new Error('Asset not found.')
@@ -230,6 +247,77 @@ export function assignAssetToEngineer(assetId, { engineerName, branchCode, assig
   _assets = _assets.map(a => a.id === assetId ? updated : a)
   notify()
   logAudit({ action: 'Edit', module: 'Assets', details: `Assigned asset ${assetId} — ${assetDisplayName(asset)} — to ${engineerName}` })
+  return updated
+}
+
+// AST-YYYY-XXXXXX-shaped, mirroring generateAssetId()'s own convention.
+function nextReturnId() {
+  const year = new Date().getFullYear()
+  return `RTN-${year}-${String(_nextReturnSeq++).padStart(6, '0')}`
+}
+
+// Phase 4b — Return an Assigned asset. Per PRD Section 12.2: condition
+// determines where the asset lands next — 'Working'/'Minor Issue' → back
+// to 'In Stock'; 'Damaged'/'Not Working' → 'Under Repair' (a data state
+// only in this phase — no repair record/vendor routing yet, that's
+// Phase 5). `kitComponentsReturned` (Splicing Machine assets only, from
+// ReturnAssetModal.jsx's checklist) is [{ componentId, returned }] — any
+// component NOT ticked is reconciled onto the asset's own
+// fields.kitComponents as receivedStatus: 'Missing' (reusing Phase 3's
+// same Received/Missing vocabulary the Kit Components table already
+// renders), and hasMissingComponents is set so it's visible without
+// digging into history. Per the brief, a missing component never blocks
+// the return — the parent asset still lands on 'In Stock'/'Under Repair'
+// as its condition dictates either way; the missing flag is purely for
+// visibility/reporting. assignedTo is always cleared, regardless of
+// outcome — the asset is no longer with that engineer once returned.
+export function initiateAssetReturn(assetId, { condition, remarks = '', kitComponentsReturned = [], initiatedBy = 'Admin User' }) {
+  const asset = getAsset(assetId)
+  if (!asset) throw new Error('Asset not found.')
+  if (asset.status !== 'Assigned') throw new Error('Only an asset that is Assigned can be returned.')
+  if (!ASSET_RETURN_CONDITIONS.includes(condition)) throw new Error('Select a valid condition.')
+
+  const missingComponentIds = kitComponentsReturned.filter(kc => !kc.returned).map(kc => kc.componentId)
+  const hasMissingComponents = missingComponentIds.length > 0
+
+  const existingKitComponents = asset.fields?.kitComponents
+  const updatedKitComponents = Array.isArray(existingKitComponents)
+    ? existingKitComponents.map(c => {
+        const checked = kitComponentsReturned.find(kc => kc.componentId === c.id)
+        return checked ? { ...c, receivedStatus: checked.returned ? 'Received' : 'Missing' } : c
+      })
+    : existingKitComponents
+
+  const newStatus = (condition === 'Working' || condition === 'Minor Issue') ? 'In Stock' : 'Under Repair'
+
+  const entry = {
+    id: nextReturnId(),
+    date: new Date().toISOString(),
+    condition, remarks: remarks.trim(),
+    initiatedBy,
+    previousEngineer: asset.assignedTo?.engineerName ?? null,
+    branchCode: asset.assignedTo?.branchCode ?? null,
+    resultStatus: newStatus,
+    missingComponentIds,
+  }
+
+  const updated = {
+    ...asset,
+    status: newStatus,
+    assignedTo: null,
+    hasMissingComponents,
+    fields: updatedKitComponents ? { ...asset.fields, kitComponents: updatedKitComponents } : asset.fields,
+    returnHistory: [entry, ...(asset.returnHistory || [])],
+  }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+
+  const missingNote = hasMissingComponents ? ` — ${missingComponentIds.length} kit component(s) missing` : ''
+  logAudit({
+    action: 'Edit', module: 'Assets',
+    details: `Returned asset ${assetId} — ${assetDisplayName(asset)} — condition: ${condition}, now ${newStatus}${missingNote}`,
+  })
+
   return updated
 }
 
