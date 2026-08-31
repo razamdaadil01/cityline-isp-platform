@@ -113,9 +113,31 @@ export function generateSiteWorkOrderId() {
 // Seed data so there's a ready-made HDD project on app load (for testing
 // the Work Order flow without recreating one every session) — same
 // literal-id-plus-bumped-sequence convention as vendorStore.js's/
-// productStore.js's SEED arrays. Zero work orders, so its Work Orders tab
-// starts empty. VEN-001 (ZTE India Ltd) is seeded in vendorStore.js as an
-// HDD Contractor with a ₹220/m drilling rate to match.
+// productStore.js's SEED arrays. VEN-001 (ZTE India Ltd) is seeded in
+// vendorStore.js as an HDD Contractor with a ₹220/m drilling rate to match.
+//
+// One work order (WO-HDD-0001) is seeded too, with one completed segment,
+// so the CAPEX engine and Work Orders tab have real data on load instead of
+// all-zero placeholders:
+//   - Drilled Distance: segment.lengthDrilled (120) sums straight into
+//     drilledDistance below → header progress bar reads "120m / 2500m — 5%".
+//   - Drilling Cost: 120 (lengthDrilled) × 220 (project.drillingRate) = ₹26,400.
+//   - Labour Charges: this work order's labour.totalCost = ₹3,000
+//     (6 workers × ₹500/day, per-person rate type).
+//   - Material Cost: segment.ductsUsed (120) × the "40mm PLB HDPE Duct"
+//     product's purchasePrice (₹35, seeded in productStore.js) = ₹4,200,
+//     plus segment.couplersUsed (2) × "Coupler"'s purchasePrice (₹50) =
+//     ₹100 → ₹4,300 total, resolved live by getHDDProjectCapex()'s
+//     name-matching logic against project.technicalSpecs.ductType.
+//   - Live Total CAPEX: 26,400 + 3,000 + 4,300 = ₹33,700 on load.
+// requiredMaterials references the same two productStore.js items by id
+// (looked up by name below, not hardcoded, so it can't drift out of sync
+// with productStore.js's own id numbering) — it doesn't feed the CAPEX
+// calc (that's driven by the segment fields above), it's just the
+// material-allocation record the work order form itself would have saved.
+const _seedDuctProduct = getProducts().find(p => p.name === '40mm PLB HDPE Duct')
+const _seedCouplerProduct = getProducts().find(p => p.name === 'Coupler')
+
 const HDD_SEED = [
   {
     id: 'HDD-2026-0001',
@@ -132,8 +154,42 @@ const HDD_SEED = [
     vendor: 'VEN-001',
     drillingRate: 220,
     capex: null,
-    workOrders: [],
-    drilledDistance: 0,
+    workOrders: [
+      {
+        id: 'WO-HDD-0001',
+        projectId: 'HDD-2026-0001',
+        assignedEngineer: 'u3', // Arjun Kumar (userStore.js, role: engineer)
+        executionDate: new Date().toISOString().slice(0, 10),
+        status: 'Completed',
+        requiredMaterials: [
+          ...(_seedDuctProduct ? [{ itemId: _seedDuctProduct.id, quantity: 300 }] : []),
+          ...(_seedCouplerProduct ? [{ itemId: _seedCouplerProduct.id, quantity: 6 }] : []),
+        ],
+        segments: [
+          {
+            id: 'seg-hdd-2026-0001-1',
+            startPointName: 'Sector 62 Gate',
+            endPointName: 'Metro Pillar 142',
+            lengthDrilled: 120,
+            shotsTaken: 2,
+            ductsUsed: 120,
+            couplersUsed: 2,
+            chambersInstalled: 1,
+            chamberTag: 'CH-01',
+          },
+        ],
+        labour: {
+          headcount: 6,
+          rateType: 'Daily Wage — Per Person',
+          dailyRate: 500,
+          totalCost: 3000,
+        },
+        remarks: 'Hit gas pipeline, 1 hr delay',
+        attachments: [],
+        createdAt: new Date().toISOString().slice(0, 10),
+      },
+    ],
+    drilledDistance: 120,
     createdAt: '2026-08-01',
   },
 ]
@@ -142,10 +198,11 @@ let _hddProjects = [...HDD_SEED]
 let _siteProjects = []
 const _listeners = []
 
-// Continue the id sequence after the seeded project above so a live-created
-// HDD project never collides with it (same pattern as vendorStore.js's
+// Continue the id sequences after the seeded project/work order above so a
+// live-created one never collides with them (same pattern as vendorStore.js's
 // `_nextSeq = _vendors.length + 1`).
 _nextHDDProjectSeq = HDD_SEED.length + 1
+_nextHDDWorkOrderSeq = HDD_SEED[0].workOrders.length + 1
 
 function notify() { _listeners.forEach(fn => fn({ hddProjects: [..._hddProjects], siteProjects: [..._siteProjects] })) }
 
