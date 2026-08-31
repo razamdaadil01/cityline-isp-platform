@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
+import AddEditVendorModal from '../../components/inventory/AddEditVendorModal'
 import { getVendor, subscribeVendors, recordVendorPayment, getContacts } from '../../data/vendorStore'
 import { getPurchases } from '../../data/purchaseStore'
 import { getPurchaseOrders, getPoStatusLabel } from '../../data/purchaseOrderStore'
@@ -288,7 +289,7 @@ function UnitHistoryModal({ unit, onClose }) {
 // ── Header "Actions" dropdown (Export Excel / Record Payment / Edit Vendor) ──
 // Same trigger + menu pattern as SupportTicketDetail.jsx's HeaderActionsMenu.
 
-function VendorActionsMenu({ onExport, onRecordPayment, canEdit }) {
+function VendorActionsMenu({ onExport, onRecordPayment, onEdit, canEdit }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -319,6 +320,7 @@ function VendorActionsMenu({ onExport, onRecordPayment, canEdit }) {
           </button>
           {canEdit && (
             <button
+              onClick={() => { setOpen(false); onEdit() }}
               className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit Vendor
@@ -344,6 +346,7 @@ export default function VendorDetail() {
   const vendor = getVendor(id)
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
   const [expandedPurchases, setExpandedPurchases] = useState(new Set())
   const [lineDetail, setLineDetail] = useState(null)
   const [unitHistory, setUnitHistory] = useState(null)
@@ -555,6 +558,7 @@ export default function VendorDetail() {
             <VendorActionsMenu
               onExport={handleExport}
               onRecordPayment={() => setPaymentModalOpen(true)}
+              onEdit={() => setEditModalOpen(true)}
               canEdit={canEdit}
             />
           </div>
@@ -798,6 +802,7 @@ export default function VendorDetail() {
       </div>
 
       <RecordPaymentModal isOpen={paymentModalOpen} onClose={() => setPaymentModalOpen(false)} vendor={vendor} />
+      <AddEditVendorModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} editing={vendor} />
       <LineItemDetailModal detail={lineDetail} onClose={() => setLineDetail(null)} />
       <UnitHistoryModal unit={unitHistory} onClose={() => setUnitHistory(null)} />
     </div>
