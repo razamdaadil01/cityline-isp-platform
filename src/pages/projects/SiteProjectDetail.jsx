@@ -1,18 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ClipboardList, Boxes, FileText, Receipt, Copy, Phone, Plus, Trash2 } from 'lucide-react'
+import { ClipboardList, Boxes, Copy, Phone, Plus, Trash2, Download, Upload, ChevronRight } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
-import { getSiteProject, getSiteWorkOrders, addDPREntry, subscribeProjects } from '../../data/projectStore'
+import {
+  getSiteProject, getSiteWorkOrders, addDPREntry, saveSiteProject, saveSiteProjectDocument,
+  removeSiteProjectDocument, setSiteWorkOrderLabourCost, getSiteProjectCapex,
+  DOCUMENT_TYPES, SITE_PROJECT_STATUSES, subscribeProjects,
+} from '../../data/projectStore'
 import { getProduct, getProducts } from '../../data/productStore'
 import { getUsers } from '../../data/userStore'
 import { usePermission } from '../../data/rolesStore'
+import { exportWorkbook } from '../../utils/excelExport'
 
 const STATUS_BADGE = {
-  'NEW': 'gray', 'SURVEY': 'indigo', 'ACQUIRED': 'orange', 'IN_EXECUTION': 'orange', 'Live': 'green',
+  'NEW': 'gray', 'SURVEY': 'indigo', 'ACQUIRED': 'orange', 'IN_EXECUTION': 'orange', 'COMMISSIONED': 'green',
 }
+
+function nextSiteStatus(current) {
+  const idx = SITE_PROJECT_STATUSES.indexOf(current)
+  if (idx === -1 || idx === SITE_PROJECT_STATUSES.length - 1) return null
+  return SITE_PROJECT_STATUSES[idx + 1]
+}
+
+function slugify(text) { return text.toLowerCase().replace(/[^a-z0-9]+/g, '-') }
 
 // No separate stored status field for a work order — "Not Started" vs
 // "In Progress" is derived straight from whether it has any DPR entries
@@ -58,6 +71,42 @@ function capacitySummary(project) {
   let summary = `Total Capacity: ${parts.join(' | ')}`
   if (project.competitors?.length) summary += ` | Competitor: ${project.competitors.join(', ')}`
   return summary
+}
+
+// Requested (requiredMaterials) vs consumed (DPR entries' materialConsumed),
+// grouped by item, across every work order — plus scanned barcodes grouped
+// by the DPR entry's installationLocation, for the serialized-equipment
+// callout below the main table.
+function computeInventorySummary(workOrders) {
+  const issued = {}
+  const consumed = {}
+  const barcodesByLocation = {}
+
+  workOrders.forEach(wo => {
+    ;(wo.requiredMaterials ?? []).forEach(m => {
+      issued[m.itemId] = (issued[m.itemId] || 0) + (Number(m.quantity) || 0)
+    })
+    ;(wo.dprEntries ?? []).forEach(entry => {
+      ;(entry.materialConsumed ?? []).forEach(m => {
+        consumed[m.itemId] = (consumed[m.itemId] || 0) + (Number(m.quantity) || 0)
+      })
+      if ((entry.barcodesScanned ?? []).length > 0) {
+        const loc = entry.installationLocation || 'Unspecified'
+        barcodesByLocation[loc] = [...(barcodesByLocation[loc] ?? []), ...entry.barcodesScanned]
+      }
+    })
+  })
+
+  const itemIds = new Set([...Object.keys(issued), ...Object.keys(consumed)])
+  const rows = [...itemIds].map(itemId => ({
+    itemId,
+    name: getProduct(itemId)?.name ?? itemId,
+    requested: issued[itemId] || 0,
+    consumed: consumed[itemId] || 0,
+    balance: (issued[itemId] || 0) - (consumed[itemId] || 0),
+  }))
+
+  return { rows, barcodesByLocation }
 }
 
 function emptyMaterialRow() {
@@ -265,10 +314,210 @@ function WorkOrderDetailModal({ workOrder, onClose, onAddDPR }) {
   )
 }
 
+// ── Inventory & Consumption tab ──────────────────────────────────────────
+
+function InventoryConsumptionTab({ workOrders }) {
+  const { rows, barcodesByLocation } = computeInventorySummary(workOrders)
+
+  if (rows.length === 0) return <EmptyTabState icon={Boxes} text="No inventory recorded yet" />
+
+  return (
+    <div className="space-y-5">
+      <div className="overflow-x-auto rounded-xl border border-surface-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50/60 border-b border-surface-border">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Requested Qty</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Consumed Qty</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Balance</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-border">
+            {rows.map(r => (
+              <tr key={r.itemId}>
+                <td className="px-4 py-3 text-gray-800 font-medium">{r.name}</td>
+                <td className="px-4 py-3 text-right text-gray-600">{r.requested}</td>
+                <td className="px-4 py-3 text-right text-gray-600">{r.consumed}</td>
+                <td className={`px-4 py-3 text-right font-semibold ${r.balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{r.balance}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {Object.keys(barcodesByLocation).length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Scanned Serialized Equipment by Location</h4>
+          <div className="space-y-1.5">
+            {Object.entries(barcodesByLocation).map(([loc, codes]) => (
+              <p key={loc} className="text-xs text-gray-600">
+                <span className="font-medium text-gray-800">{loc}:</span> {codes.join(', ')}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Documents & Vault tab ────────────────────────────────────────────────
+
+function DocumentsVaultTab({ project, canEdit }) {
+  const documents = project.documents ?? []
+
+  function handleUpload(type, fileList) {
+    const file = fileList?.[0]
+    if (!file) return
+    saveSiteProjectDocument(project.id, { type, fileName: file.name })
+  }
+
+  return (
+    <div className="space-y-2">
+      {DOCUMENT_TYPES.map(type => {
+        const doc = documents.find(d => d.type === type)
+        const inputId = `doc-upload-${slugify(type)}`
+        return (
+          <div key={type} className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-surface-border">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-800">{type}</p>
+              {doc ? (
+                <p className="text-xs text-gray-500 truncate">{doc.fileName} · Uploaded {doc.uploadedAt}</p>
+              ) : (
+                <p className="text-xs text-gray-400">Not uploaded yet</p>
+              )}
+            </div>
+            {canEdit && (
+              <div className="flex items-center gap-2 shrink-0">
+                <input id={inputId} type="file" className="hidden" onChange={e => { handleUpload(type, e.target.files); e.target.value = '' }} />
+                <label htmlFor={inputId}>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-surface-border bg-white hover:bg-gray-50 text-gray-600 cursor-pointer transition-colors">
+                    <Upload size={13} /> {doc ? 'Replace' : 'Upload'}
+                  </span>
+                </label>
+                {doc && (
+                  <button
+                    type="button"
+                    onClick={() => removeSiteProjectDocument(project.id, type)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── CAPEX & Cost Ledger tab ───────────────────────────────────────────────
+
+function CapexCostLedgerTab({ project, workOrders, canEdit }) {
+  const capex = getSiteProjectCapex(project.id)
+  const [revenueShareDraft, setRevenueShareDraft] = useState(project.revenueShare ?? '')
+  const [labourDrafts, setLabourDrafts] = useState({})
+
+  function handleSaveRevenueShare() {
+    saveSiteProject({ ...project, revenueShare: revenueShareDraft.trim() || null })
+  }
+
+  function handleLogLabourCost(workOrderId) {
+    const value = labourDrafts[workOrderId]
+    if (value === undefined || value === '') return
+    setSiteWorkOrderLabourCost(workOrderId, Number(value) || 0)
+    setLabourDrafts(d => ({ ...d, [workOrderId]: '' }))
+  }
+
+  function handleExportCapex() {
+    exportWorkbook(`${project.name.replace(/\s+/g, '_')}_${project.id}_CAPEX.xlsx`, [
+      {
+        name: 'CAPEX Breakdown',
+        rows: [
+          { 'Cost Component': 'Labour Cost', 'Amount (₹)': capex.labourCost },
+          { 'Cost Component': 'Material Purchase Cost', 'Amount (₹)': capex.materialCost },
+          { 'Cost Component': 'Total CAPEX', 'Amount (₹)': capex.totalCapex },
+          { 'Cost Component': 'Revenue-share (not a cost)', 'Amount (₹)': project.revenueShare || '—' },
+        ],
+      },
+    ])
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-end">
+        <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExportCapex}>Export Excel</Button>
+      </div>
+
+      <div className="rounded-xl border border-surface-border divide-y divide-surface-border overflow-hidden">
+        {[
+          { label: 'Labour Cost', value: capex.labourCost },
+          { label: 'Material Purchase Cost', value: capex.materialCost },
+        ].map(row => (
+          <div key={row.label} className="flex items-center justify-between px-4 py-3 text-sm bg-white">
+            <span className="text-gray-600">{row.label}</span>
+            <span className="font-semibold text-gray-900">₹{row.value.toLocaleString('en-IN')}</span>
+          </div>
+        ))}
+        <div className="flex items-center justify-between px-4 py-3.5 text-sm bg-gray-50/60">
+          <span className="font-semibold text-gray-800">Total CAPEX (Labour + Material)</span>
+          <span className="font-bold text-brand-blue text-base">₹{capex.totalCapex.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-surface-border p-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-gray-800">Revenue-share Details</p>
+          <p className="text-xs text-gray-400">Not a cost — captured manually, e.g. "15%" or a flat figure.</p>
+        </div>
+        {canEdit ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <Input className="w-32" placeholder="e.g. 15%" value={revenueShareDraft} onChange={e => setRevenueShareDraft(e.target.value)} />
+            <Button size="sm" variant="secondary" onClick={handleSaveRevenueShare}>Save</Button>
+          </div>
+        ) : (
+          <span className="text-sm font-semibold text-gray-800 shrink-0">{project.revenueShare || '—'}</span>
+        )}
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Log Labour Cost per Work Order</h4>
+        {workOrders.length === 0 ? (
+          <p className="text-xs text-gray-400">No work orders yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {workOrders.map(wo => (
+              <div key={wo.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-surface-border">
+                <div className="min-w-0">
+                  <p className="text-xs font-mono text-gray-500">{wo.id}</p>
+                  <p className="text-sm text-gray-800 truncate">{wo.activityType}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-sm font-semibold text-gray-800">₹{(wo.labourCost ?? 0).toLocaleString('en-IN')}</span>
+                  {canEdit && (
+                    <>
+                      <Input type="number" min="0" className="w-24" placeholder="New ₹" value={labourDrafts[wo.id] ?? ''} onChange={e => setLabourDrafts(d => ({ ...d, [wo.id]: e.target.value }))} />
+                      <Button size="xs" variant="secondary" onClick={() => handleLogLabourCost(wo.id)}>Log</Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function SiteProjectDetail() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
   const canCreate = usePermission('Projects', 'Create')
+  const canEdit = usePermission('Projects', 'Edit')
 
   // Subscribing (without using the payload directly) just forces a
   // re-render whenever projectStore changes (mirrors HDDProjectDetail.jsx's
@@ -304,6 +553,12 @@ export default function SiteProjectDetail() {
     setDprWorkOrder(wo)
   }
 
+  const upcomingStatus = nextSiteStatus(project.status)
+  function handleAdvanceStatus() {
+    if (!upcomingStatus) return
+    saveSiteProject({ ...project, status: upcomingStatus })
+  }
+
   return (
     <div className="p-6 space-y-5">
       {/* Header summary card */}
@@ -323,6 +578,14 @@ export default function SiteProjectDetail() {
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h1 className="text-xl font-bold text-gray-900">{project.name}</h1>
               <Badge variant={STATUS_BADGE[project.status] ?? 'gray'} dot size="sm">{project.status}</Badge>
+              {canEdit && upcomingStatus && (
+                <button
+                  onClick={handleAdvanceStatus}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-surface-border text-xs text-gray-500 hover:border-brand-blue hover:text-brand-blue transition-colors"
+                >
+                  Advance to {upcomingStatus} <ChevronRight size={12} />
+                </button>
+              )}
             </div>
             <p className="text-xs text-gray-500 font-mono">{project.id}</p>
           </div>
@@ -435,9 +698,9 @@ export default function SiteProjectDetail() {
               </div>
             )
           )}
-          {activeTab === 'Inventory & Consumption' && <EmptyTabState icon={Boxes} text="No inventory recorded yet" />}
-          {activeTab === 'Documents & Vault' && <EmptyTabState icon={FileText} text="No documents uploaded yet" />}
-          {activeTab === 'CAPEX & Cost Ledger' && <EmptyTabState icon={Receipt} text="CAPEX tracking will be available once work orders are added" />}
+          {activeTab === 'Inventory & Consumption' && <InventoryConsumptionTab workOrders={workOrders} />}
+          {activeTab === 'Documents & Vault' && <DocumentsVaultTab project={project} canEdit={canEdit} />}
+          {activeTab === 'CAPEX & Cost Ledger' && <CapexCostLedgerTab project={project} workOrders={workOrders} canEdit={canEdit} />}
         </div>
       </div>
 

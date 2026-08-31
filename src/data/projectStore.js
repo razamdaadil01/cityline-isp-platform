@@ -5,7 +5,7 @@
 // built in Phase 2 (HDD) and Phase 5 (Site).
 
 import { logAudit } from './auditLogStore'
-import { getProducts } from './productStore'
+import { getProducts, getProduct } from './productStore'
 
 export const PROJECT_STATUSES = ['Planning', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
 
@@ -24,12 +24,15 @@ export const LABOUR_RATE_TYPES = ['Daily Wage — Per Person', 'Fixed Daily Cont
 
 // Site Project Creation Form (Phase 5) master lists. SITE_PROJECT_STATUSES
 // is a distinct lifecycle from HDD's PROJECT_STATUSES — a site project
-// moves NEW → SURVEY → ACQUIRED → IN_EXECUTION → Live, nothing like HDD's
-// Planning/On Hold/Cancelled set, so it gets its own array rather than
-// reusing that one.
+// moves NEW → SURVEY → ACQUIRED → IN_EXECUTION → COMMISSIONED, nothing like
+// HDD's Planning/On Hold/Cancelled set, so it gets its own array rather
+// than reusing that one.
 export const SITE_TYPES = ['Residential', 'Commercial', 'Mixed-Use']
 export const COMPETITOR_OPTIONS = ['Airtel', 'Jio Fiber', 'Tata Play', 'Local LCO', 'None/Monopoly']
-export const SITE_PROJECT_STATUSES = ['NEW', 'SURVEY', 'ACQUIRED', 'IN_EXECUTION', 'Live']
+export const SITE_PROJECT_STATUSES = ['NEW', 'SURVEY', 'ACQUIRED', 'IN_EXECUTION', 'COMMISSIONED']
+
+// Documents & Vault tab (Phase 7) — one fixed upload slot per document type.
+export const DOCUMENT_TYPES = ['Society NOC', 'Builder Agreement / MOU', 'Riser Permission Letter']
 
 // Site Work Order Creation Form (Phase 6) master list.
 export const SITE_ACTIVITY_TYPES = [
@@ -135,6 +138,8 @@ export function generateSiteWorkOrderId() {
 //   status                string   one of SITE_PROJECT_STATUSES, defaults to 'NEW'
 //   capex                 object   placeholder for capital-expenditure figures (later phase)
 //   workOrders            array    SiteWorkOrder[] — nested on the project record (Phase 6)
+//   documents             array    [{ type, fileName, uploadedAt }] — one per DOCUMENT_TYPES entry (Phase 7)
+//   revenueShare          string|null   manually captured, e.g. "15%" — display-only, not calculated (Phase 7)
 //   createdAt             string   ISO date
 //
 // SiteWorkOrder — one Site Project's building-centric work unit (Phase 6),
@@ -148,6 +153,7 @@ export function generateSiteWorkOrderId() {
 //   executionDate        string   ISO date
 //   targetDeadline       string   ISO date
 //   dprEntries           array    DPREntry[] (see below)
+//   labourCost           number|null   set via setSiteWorkOrderLabourCost() (Phase 7)
 //   createdAt            string   ISO date
 //
 // DPREntry — one Daily Progress Report entry logged against a work order:
@@ -272,6 +278,8 @@ const SITE_SEED = [
     expectedClosureDate: '2026-07-15',
     status: 'ACQUIRED',
     capex: null,
+    documents: [],
+    revenueShare: null,
     workOrders: [
       {
         id: 'WO-SITE-0001',
@@ -285,6 +293,12 @@ const SITE_SEED = [
         assignedTechnicians: ['u3'], // Arjun Kumar (userStore.js, role: engineer) — same as HDD seed
         executionDate: new Date().toISOString().slice(0, 10),
         targetDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        // Seeded so the CAPEX & Cost Ledger tab shows a real non-zero
+        // Labour Cost on load (Phase 7) — "16-Port FAT Box"/"1:16 PLC
+        // Splitter" have no Purchase Price in productStore.js's seed, so
+        // Material Purchase Cost is expected to show ₹0 until a matching
+        // item is added there.
+        labourCost: 4000,
         dprEntries: [
           {
             id: 'DPR-0001',
@@ -485,7 +499,7 @@ export function saveSiteProject(project) {
     status: SITE_PROJECT_STATUSES[0], builderName: '', contactPerson: '', contactNumber: '',
     address: '', pincode: '', geo: null, siteType: SITE_TYPES[0],
     capacity: null, competitors: [], expectedClosureDate: null, capex: null,
-    workOrders: [],
+    workOrders: [], documents: [], revenueShare: null,
     createdAt: new Date().toISOString().split('T')[0],
     ...project, id,
   }
@@ -518,7 +532,7 @@ export function saveSiteWorkOrder(workOrder) {
   const isNew = !existingWorkOrders.some(w => w.id === id)
 
   const saved = {
-    requiredMaterials: [], assignedTechnicians: [], dprEntries: [],
+    requiredMaterials: [], assignedTechnicians: [], dprEntries: [], labourCost: null,
     createdAt: new Date().toISOString().split('T')[0],
     ...workOrder, id, siteProjectId,
   }
@@ -575,4 +589,109 @@ export function addDPREntry(workOrderId, entry) {
     details: `Added DPR entry to work order ${workOrderId} for site project ${parentProject.name} (${parentProject.id})`,
   })
   return savedEntry
+}
+
+// Site Work Orders have no dedicated labour-tracking section the way HDD's
+// segments/labour object does (Phase 6 didn't add one) — a single optional
+// number field on the work order, set through this one small action, is
+// simpler than building out a whole per-day labour form for it. Same
+// global-lookup-by-id idiom as addDPREntry() above.
+export function setSiteWorkOrderLabourCost(workOrderId, labourCost) {
+  let parentProject = null
+  _siteProjects = _siteProjects.map(p => {
+    if (!(p.workOrders ?? []).some(w => w.id === workOrderId)) return p
+    parentProject = p
+    const newWorkOrders = p.workOrders.map(wo => wo.id === workOrderId ? { ...wo, labourCost: Number(labourCost) || 0 } : wo)
+    return { ...p, workOrders: newWorkOrders }
+  })
+
+  if (!parentProject) return null
+  notify()
+  logAudit({
+    action: 'Edit', module: 'Projects',
+    details: `Logged ₹${Number(labourCost) || 0} labour cost for work order ${workOrderId} (site project ${parentProject.name})`,
+  })
+  return true
+}
+
+// ── Site Project CAPEX (Phase 7) ─────────────────────────────────────────
+// Same "pure computed-on-read, not a stored field" reasoning as
+// getHDDProjectCapex() — Material Purchase Cost depends on Product
+// Management's Purchase Price too, so it needs to stay live if a price
+// changes later, not just when a work order/DPR entry is saved.
+
+const _warnedMissingSiteMaterialPrices = new Set()
+function priceForConsumedItem(itemId) {
+  const product = getProduct(itemId)
+  if (!product || product.purchasePrice == null) {
+    if (!_warnedMissingSiteMaterialPrices.has(itemId)) {
+      _warnedMissingSiteMaterialPrices.add(itemId)
+      console.warn(`[projectStore] No Product Management item with a Purchase Price found for id "${itemId}" — treating as ₹0.`)
+    }
+    return 0
+  }
+  return product.purchasePrice
+}
+
+export function getSiteProjectCapex(siteProjectId) {
+  const project = getSiteProject(siteProjectId)
+  if (!project) return { labourCost: 0, materialCost: 0, totalCapex: 0 }
+
+  const workOrders = project.workOrders ?? []
+
+  // Labour Cost — Σ (workOrder.labourCost), logged via setSiteWorkOrderLabourCost().
+  const labourCost = workOrders.reduce((sum, wo) => sum + (Number(wo.labourCost) || 0), 0)
+
+  // Material Purchase Cost — Σ (materialConsumed quantity × item's Purchase
+  // Price) across every DPR entry. Unlike HDD's duct/coupler keyword match
+  // (segments don't store item ids), a DPR's materialConsumed already
+  // carries a real productStore.js item id per row, so this looks the
+  // price up directly rather than searching by name.
+  const materialCost = workOrders.reduce((sum, wo) => {
+    const entries = wo.dprEntries ?? []
+    const workOrderMaterialCost = entries.reduce((entrySum, entry) => {
+      const consumed = entry.materialConsumed ?? []
+      return entrySum + consumed.reduce((cs, m) => cs + (Number(m.quantity) || 0) * priceForConsumedItem(m.itemId), 0)
+    }, 0)
+    return sum + workOrderMaterialCost
+  }, 0)
+
+  const totalCapex = labourCost + materialCost
+
+  return { labourCost, materialCost, totalCapex }
+}
+
+// ── Site Project Documents & Vault (Phase 7) ─────────────────────────────
+// documents is a flat array of { type, fileName, uploadedAt } — one slot
+// per DOCUMENT_TYPES entry, replaced on re-upload rather than appended, so
+// there's always at most one document per type (matches the fixed-row
+// upload UI, not a free-form multi-file list).
+
+export function saveSiteProjectDocument(siteProjectId, document) {
+  const project = getSiteProject(siteProjectId)
+  if (!project) return null
+
+  const doc = {
+    type: document.type,
+    fileName: document.fileName,
+    uploadedAt: document.uploadedAt || new Date().toISOString().split('T')[0],
+  }
+  const existing = project.documents ?? []
+  const newDocuments = existing.some(d => d.type === doc.type)
+    ? existing.map(d => d.type === doc.type ? doc : d)
+    : [...existing, doc]
+
+  _siteProjects = _siteProjects.map(p => p.id === siteProjectId ? { ...p, documents: newDocuments } : p)
+  notify()
+  logAudit({ action: 'Edit', module: 'Projects', details: `Uploaded ${doc.type} for site project ${project.name} (${siteProjectId})` })
+  return doc
+}
+
+export function removeSiteProjectDocument(siteProjectId, type) {
+  const project = getSiteProject(siteProjectId)
+  if (!project) return
+  const newDocuments = (project.documents ?? []).filter(d => d.type !== type)
+  _siteProjects = _siteProjects.map(p => p.id === siteProjectId ? { ...p, documents: newDocuments } : p)
+  notify()
+  logAudit({ action: 'Edit', module: 'Projects', details: `Removed ${type} from site project ${project.name} (${siteProjectId})` })
 }
