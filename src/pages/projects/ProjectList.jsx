@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, FolderKanban } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -12,6 +13,7 @@ const STATUS_BADGE = {
 
 export default function ProjectList() {
   const canCreate = usePermission('Projects', 'Create')
+  const navigate = useNavigate()
 
   const [hddProjects, setHddProjects] = useState(getHDDProjects)
   const [siteProjects, setSiteProjects] = useState(getSiteProjects)
@@ -22,9 +24,15 @@ export default function ProjectList() {
 
   const [typeModalOpen, setTypeModalOpen] = useState(false)
   const projects = [
-    ...hddProjects.map(p => ({ id: p.id, name: p.title, type: 'HDD / Backbone Route', status: p.status })),
-    ...siteProjects.map(p => ({ id: p.id, name: p.name, type: 'Site Project', status: p.status })),
+    ...hddProjects.map(p => ({ id: p.id, name: p.title, type: 'HDD / Backbone Route', status: p.status, kind: 'hdd' })),
+    ...siteProjects.map(p => ({ id: p.id, name: p.name, type: 'Site Project', status: p.status, kind: 'site' })),
   ]
+
+  // Site Project Details Page doesn't exist yet (Phase 5) — only HDD rows
+  // are clickable for now.
+  function openProject(p) {
+    if (p.kind === 'hdd') navigate(`/projects/hdd/${p.id}`)
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -58,7 +66,11 @@ export default function ProjectList() {
                   </td>
                 </tr>
               ) : projects.map(p => (
-                <tr key={p.id} className="hover:bg-blue-50/40 transition-colors">
+                <tr
+                  key={p.id}
+                  onClick={() => openProject(p)}
+                  className={`transition-colors ${p.kind === 'hdd' ? 'cursor-pointer hover:bg-blue-50/40' : ''}`}
+                >
                   <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.id}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{p.type}</td>

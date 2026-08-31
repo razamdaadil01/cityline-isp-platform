@@ -8,6 +8,15 @@ import { logAudit } from './auditLogStore'
 
 export const PROJECT_STATUSES = ['Planning', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
 
+// Planned Technical Specifications master lists (HDD Project Creation Form,
+// Phase 2) — plain exported arrays, same "editable master list" idiom as
+// PAYMENT_TERMS in vendorStore.js / UNIT_TYPES in productStore.js. Nothing
+// in the app has a Settings-managed editable-master-list UI yet, so these
+// stay static constants here rather than a DB-backed list.
+export const DUCT_TYPES = ['40mm PLB HDPE Duct', '2-Way Coupled Duct']
+export const FIBER_CORE_SIZES = ['48-Core Armored Fiber', '96-Core Armored Fiber']
+export const DISTANCE_UNITS = ['Meters', 'Kilometers']
+
 // ── ID generation ────────────────────────────────────────────────────────
 // Same PREFIX-YYYY-#### shape as customersData.js's nextIntercomCustomerId()
 // (RES/ENT-style ids), and the same simple incrementing-counter idiom as
@@ -43,11 +52,13 @@ export function generateSiteWorkOrderId() {
 //   title            string
 //   siteIncharge     string   userStore.js user id (Site Incharge / Project Owner)
 //   status           string   one of PROJECT_STATUSES
-//   routeGeometry    object   placeholder for the route's map geometry (Phase 2)
-//   technicalSpecs   object   placeholder for duct/chamber/cable specs (Phase 2)
+//   routeGeometry    object   { start: {name, lat, lng}, end: {name, lat, lng} }
+//   distance         number   total estimated route distance, in distanceUnit
+//   distanceUnit     string   one of DISTANCE_UNITS
+//   technicalSpecs   object   { ductType, fiberCoreSize, plannedChambers }
 //   vendor           string   vendorStore.js vendor id (HDD Contractor)
-//   drillingRate     number   snapshot of getVendorDrillingRate(vendor) at creation
-//   capex            object   placeholder for capital-expenditure figures (Phase 2)
+//   drillingRate     number   snapshot of getVendorDrillingRate(vendor) at creation (admin-overridable)
+//   capex            object   placeholder for capital-expenditure figures (Phase 4)
 //   createdAt        string   ISO date
 //
 // SiteProject — Site Project (FTTH/Commercial):
@@ -82,8 +93,8 @@ export function saveHDDProject(project) {
   const id = project.id ?? generateHDDProjectId()
   const isNew = !_hddProjects.some(p => p.id === id)
   const saved = {
-    status: PROJECT_STATUSES[0], routeGeometry: null, technicalSpecs: null,
-    vendor: null, drillingRate: null, capex: null,
+    status: PROJECT_STATUSES[0], routeGeometry: null, distance: null, distanceUnit: DISTANCE_UNITS[0],
+    technicalSpecs: null, vendor: null, drillingRate: null, capex: null,
     createdAt: new Date().toISOString().split('T')[0],
     ...project, id,
   }
