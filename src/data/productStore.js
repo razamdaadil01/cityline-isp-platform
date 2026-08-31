@@ -144,7 +144,38 @@ const WIRE_SEED = [
   status: 'active',
 }))
 
-const SEED = [...HARDWARE_SEED, ...WIRE_SEED]
+// HDD/Backbone Route Project execution materials (Project Management) —
+// Duct and Coupler didn't exist in the original hardware/wire catalogs.
+// Seeded here so projectStore.js's seeded HDD work order's ductsUsed/
+// couplersUsed segment fields have a real Purchase Price to match against
+// in getHDDProjectCapex()'s Material Cost calc. "40mm PLB HDPE Duct" is
+// named to match the seeded HDD project's technicalSpecs.ductType exactly
+// (that's what the matching logic searches for); "Coupler" just needs to
+// contain the keyword "coupler".
+const PROJECT_MATERIAL_SEED = [
+  { name: '40mm PLB HDPE Duct', productType: 'wire',     sku: 'WR-DUCT40-001', unitType: 'Meter', sellingPrice: 45, purchasePrice: 35, purchasedCompanyId: 2 },
+  { name: 'Coupler',            productType: 'hardware', sku: 'HW-CPLR-001',   unitType: 'Piece',  sellingPrice: 60, purchasePrice: 50, purchasedCompanyId: 1 },
+].map((m, i) => ({
+  id: `PRD-${String(HARDWARE_CATALOG.length + WIRE_SEED.length + i + 1).padStart(3, '0')}`,
+  productType: m.productType,
+  name: m.name,
+  sku: m.sku,
+  brand: '',
+  model: '',
+  imageUrl: '',
+  unitType: m.unitType,
+  sellingPrice: m.sellingPrice,
+  purchasePrice: m.purchasePrice,
+  reorderAlertQty: m.unitType === 'Meter' ? 100 : 20,
+  trackedBySerial: false,
+  trackedByMac: false,
+  drumNumberRequired: m.unitType === 'Meter',
+  purchasedCompanyId: m.purchasedCompanyId,
+  goodType: 'consumable',
+  status: 'active',
+}))
+
+const SEED = [...HARDWARE_SEED, ...WIRE_SEED, ...PROJECT_MATERIAL_SEED]
 
 let _products = [...SEED]
 // Next id continues after the highest numeric suffix actually in use —
