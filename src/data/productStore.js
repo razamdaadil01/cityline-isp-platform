@@ -63,11 +63,17 @@ const HARDWARE_PURCHASED_COMPANY = {
 // real serial-tracked product to exercise against out of the box.
 const SERIAL_TRACKED_HARDWARE = new Set(['ONT Device'])
 
+// ONT Device is also the one seeded item dual-tracked by MAC alongside its
+// serial — a real ONT carries both, and CreatePurchase.jsx's
+// SerialMacEntryModal already has a dedicated trackedBySerial && trackedByMac
+// branch that had no seeded product to exercise it before this.
+const MAC_TRACKED_HARDWARE = new Set(['ONT Device'])
+
 // Seeded from the existing shared hardware catalog so Product List isn't
 // empty on first load — sku/brand/model are left blank since hardwareCatalog
 // entries never carried them; trackedBySerial/trackedByMac both default to
 // false (quantity-tracked — no serial/MAC tracking configured yet for these
-// legacy items). IDs are
+// legacy items) except ONT Device, tracked by both. IDs are
 // assigned from each item's original HARDWARE_CATALOG index (not the
 // post-filter position) so the numbering below stays stable/traceable even
 // with "Drop Wire (per m)" filtered out.
@@ -95,7 +101,7 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     sellingPrice: item.unitPrice,
     reorderAlertQty: 10,
     trackedBySerial: SERIAL_TRACKED_HARDWARE.has(item.name),
-    trackedByMac: false,
+    trackedByMac: MAC_TRACKED_HARDWARE.has(item.name),
     drumNumberRequired: false,
     purchasedCompanyId: HARDWARE_PURCHASED_COMPANY[item.name] ?? null,
     goodType: 'consumable',
