@@ -12,7 +12,7 @@ import { usePermission } from '../../data/rolesStore'
 // Badge, so every value from either list needs an entry here.
 const STATUS_BADGE = {
   'Planning': 'gray', 'In Progress': 'blue', 'On Hold': 'yellow', 'Completed': 'green', 'Cancelled': 'red',
-  'NEW': 'gray', 'SURVEY': 'indigo', 'ACQUIRED': 'orange', 'IN_EXECUTION': 'orange', 'Live': 'green',
+  'NEW': 'gray', 'SURVEY': 'indigo', 'ACQUIRED': 'orange', 'IN_EXECUTION': 'orange', 'COMMISSIONED': 'green',
 }
 
 export default function ProjectList() {
