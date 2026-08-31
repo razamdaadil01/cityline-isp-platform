@@ -184,13 +184,31 @@ const SEED = [
     // past to read as an order closed out some time ago.
     status: 'Closed', createdBy: 'Pooja Mehta', createdAt: '2026-05-10T11:00:00.000Z', approvalId: null,
   },
+  // 'Sent' (displayed as "Sent to Vendor") with no Purchase/GRN raised
+  // against it yet — deliberately left fully unreceived, same as
+  // PO-000002/PO-000003/PO-000005 above, so it shows up in New Purchase's
+  // own "Select PO" step (CreatePurchase.jsx's RECEIVABLE_PO_STATUSES
+  // includes 'Sent') ready for a fresh receive. ONT Device is now
+  // trackedBySerial: true, trackedByMac: true (productStore.js) — PO Qty 5
+  // gives room to test both manual per-unit entry and the Serial+MAC CSV
+  // import across several units in one go.
+  {
+    id: 'PO-000009', poNumber: 'CITY/PO/2026/00008', companyEntityId: 1,
+    vendorId: 'VEN-001', storeId: 'STR-003',
+    orderDate: '2026-08-27', estimatedDeliveryDate: '2026-09-10', gstPercent: 18,
+    items: [
+      makeItem(15, { productId: 'PRD-001', productName: 'ONT Device', sku: '', unit: 'Piece', qty: 5, price: 1800, gstPercent: 18 }),
+    ],
+    notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Ravi Patel', createdAt: '2026-08-27T11:15:00.000Z', approvalId: null,
+  },
 ].map(po => ({ ...po, poType: 'Standard', ...summarize(po.items) }))
 
 // Seed sequence counters so the *next* live-created PO continues after the
 // seeded numbers instead of colliding with them — entity 1 has seeded POs
-// through 00007 (five POs plus the 00005 approval-demo and 00006 Approval
+// through 00008 (six POs plus the 00005 approval-demo and 00006 Approval
 // Request POs), entity 2 through 00002.
-_sequenceByEntity = { 1: 7, 2: 2 }
+_sequenceByEntity = { 1: 8, 2: 2 }
 
 let _pos = [...SEED]
 let _nextInternalSeq = _pos.length + 1
