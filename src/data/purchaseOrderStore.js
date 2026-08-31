@@ -139,13 +139,58 @@ const SEED = [
     // the same 'Sent' status the no-approval-required path reaches.
     status: 'Sent', createdBy: 'Admin User', createdAt: '2026-08-10T08:30:00.000Z', approvalId: 'APR-2026-000011',
   },
+  {
+    id: 'PO-000006', poNumber: 'CITY/PO/2026/00006', companyEntityId: 1,
+    vendorId: 'VEN-003', storeId: 'STR-002',
+    orderDate: '2026-08-25', estimatedDeliveryDate: '2026-09-08', gstPercent: 18,
+    items: [
+      makeItem(9, { productId: 'PRD-004', productName: 'POE Switch', sku: '', unit: 'Piece', qty: 6, price: 2200, gstPercent: 18 }),
+      makeItem(10, { productId: 'PRD-002', productName: 'WiFi Router', sku: '', unit: 'Piece', qty: 15, price: 1500, gstPercent: 18 }),
+    ],
+    notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    // Linked to the seeded 'Purchase Order' approval APR-2026-000012, still
+    // Pending — an Approval Request PO awaiting a live decision, so both
+    // this list and /approvals show a real Pending case without needing to
+    // raise one first.
+    status: 'Approval Request', createdBy: 'Anita Sharma', createdAt: '2026-08-25T10:20:00.000Z', approvalId: 'APR-2026-000012',
+  },
+  {
+    id: 'PO-000007', poNumber: 'CLF/PO/2026/00002', companyEntityId: 2,
+    vendorId: 'VEN-002', storeId: 'STR-003',
+    orderDate: '2026-08-18', estimatedDeliveryDate: '2026-09-01', gstPercent: 18,
+    items: [
+      makeItem(11, { productId: 'PRD-007', productName: 'Optical Splitter 1x8', sku: '', unit: 'Piece', qty: 30, price: 650, gstPercent: 18 }),
+      makeItem(12, { productId: 'PRD-008', productName: 'SFP Module 1G', sku: '', unit: 'Piece', qty: 15, price: 900, gstPercent: 18 }),
+    ],
+    notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    // Linked to the seeded 'Purchase Order' approval APR-2026-000013,
+    // already sent back — status 'Correction Required' (not 'Rejected'),
+    // matching syncPOStatusFromApproval()'s own status mapping for a
+    // Purchase-Order-type approval sent back via sendForCorrection().
+    status: 'Correction Required', createdBy: 'Salim Khan', createdAt: '2026-08-18T09:45:00.000Z', approvalId: 'APR-2026-000013',
+  },
+  {
+    id: 'PO-000008', poNumber: 'CITY/PO/2026/00007', companyEntityId: 1,
+    vendorId: 'VEN-001', storeId: 'STR-002',
+    orderDate: '2026-05-10', estimatedDeliveryDate: '2026-05-25', gstPercent: 18,
+    items: [
+      makeItem(13, { productId: 'PRD-001', productName: 'ONT Device', sku: '', unit: 'Piece', qty: 12, price: 1800, gstPercent: 18 }),
+      makeItem(14, { productId: 'PRD-006', productName: 'Patch Cord (LC-LC, 5m)', sku: '', unit: 'Piece', qty: 60, price: 90, gstPercent: 18 }),
+    ],
+    notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    // 'Closed' — a terminal status distinct from 'Fully Received' in
+    // PO_STATUSES; no live flow in this app transitions a PO into it yet
+    // (same as 'Cancelled'), so this is seeded directly, dated well in the
+    // past to read as an order closed out some time ago.
+    status: 'Closed', createdBy: 'Pooja Mehta', createdAt: '2026-05-10T11:00:00.000Z', approvalId: null,
+  },
 ].map(po => ({ ...po, poType: 'Standard', ...summarize(po.items) }))
 
 // Seed sequence counters so the *next* live-created PO continues after the
 // seeded numbers instead of colliding with them — entity 1 has seeded POs
-// through 00005 (three POs plus the 00005 approval-demo PO), entity 2
-// through 00001.
-_sequenceByEntity = { 1: 5, 2: 1 }
+// through 00007 (five POs plus the 00005 approval-demo and 00006 Approval
+// Request POs), entity 2 through 00002.
+_sequenceByEntity = { 1: 7, 2: 2 }
 
 let _pos = [...SEED]
 let _nextInternalSeq = _pos.length + 1
