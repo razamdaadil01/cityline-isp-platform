@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ClipboardList, Boxes, Receipt, Plus } from 'lucide-react'
+import { ClipboardList, Boxes, Plus, Download } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { getHDDProject, getHDDWorkOrders, subscribeProjects } from '../../data/projectStore'
+import { getHDDProject, getHDDWorkOrders, getHDDProjectCapex, subscribeProjects } from '../../data/projectStore'
 import { getVendor } from '../../data/vendorStore'
 import { getUsers } from '../../data/userStore'
 import { getProduct } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
+import { exportWorkbook } from '../../utils/excelExport'
 
 const STATUS_BADGE = {
   'Planning': 'gray', 'In Progress': 'indigo', 'On Hold': 'orange', 'Completed': 'green', 'Cancelled': 'red',
@@ -179,9 +180,24 @@ export default function HDDProjectDetail() {
   const progressPercent = totalDistanceMeters > 0 ? Math.min(100, (drilledMeters / totalDistanceMeters) * 100) : 0
 
   const workOrders = getHDDWorkOrders(project.id)
+  const capex = getHDDProjectCapex(project.id)
 
   function setActiveTab(t) {
     navigate(`/projects/hdd/${id}/${TAB_SLUGS[t]}`)
+  }
+
+  function handleExportCapex() {
+    exportWorkbook(`${project.title.replace(/\s+/g, '_')}_${project.id}_CAPEX.xlsx`, [
+      {
+        name: 'CAPEX Breakdown',
+        rows: [
+          { 'Cost Component': 'Contractor Drilling Cost', 'Amount (₹)': capex.drillingCost },
+          { 'Cost Component': 'Labour Charges', 'Amount (₹)': capex.labourCharges },
+          { 'Cost Component': 'Material / Hardware Cost', 'Amount (₹)': capex.materialCost },
+          { 'Cost Component': 'Total HDD Project CAPEX', 'Amount (₹)': capex.totalCapex },
+        ],
+      },
+    ])
   }
 
   return (
@@ -227,7 +243,7 @@ export default function HDDProjectDetail() {
               { label: 'Site Incharge', value: siteInchargeName },
               { label: 'Vendor', value: vendorName },
               { label: 'Drilling Rate / m', value: project.drillingRate != null ? `₹${project.drillingRate.toLocaleString('en-IN')}` : '—' },
-              { label: 'Live Total CAPEX', value: '₹0' },
+              { label: 'Live Total CAPEX', value: `₹${capex.totalCapex.toLocaleString('en-IN')}` },
             ].map(s => (
               <div key={s.label} className="text-center px-3 py-2.5 rounded-lg border border-surface-border bg-surface">
                 <p className="text-xs text-gray-400">{s.label}</p>
@@ -299,7 +315,32 @@ export default function HDDProjectDetail() {
             )
           )}
           {activeTab === 'Inventory' && <EmptyTabState icon={Boxes} text="No materials assigned yet" />}
-          {activeTab === 'CAPEX & Financials' && <EmptyTabState icon={Receipt} text="CAPEX tracking will be available once work orders are added" />}
+          {activeTab === 'CAPEX & Financials' && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExportCapex}>Export Excel</Button>
+              </div>
+              <div className="rounded-xl border border-surface-border divide-y divide-surface-border overflow-hidden">
+                {[
+                  { label: 'Contractor Drilling Cost', value: capex.drillingCost },
+                  { label: 'Labour Charges', value: capex.labourCharges },
+                  { label: 'Material / Hardware Cost', value: capex.materialCost },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between px-4 py-3 text-sm bg-white">
+                    <span className="text-gray-600">{row.label}</span>
+                    <span className="font-semibold text-gray-900">₹{row.value.toLocaleString('en-IN')}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between px-4 py-3.5 text-sm bg-gray-50/60">
+                  <span className="font-semibold text-gray-800">Total HDD Project CAPEX</span>
+                  <span className="font-bold text-brand-blue text-base">₹{capex.totalCapex.toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+              {workOrders.length === 0 && (
+                <p className="text-xs text-gray-400 text-center">No work orders yet — every figure above will update as work orders are added.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
