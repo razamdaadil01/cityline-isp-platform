@@ -334,7 +334,7 @@ export default function PurchaseOrders() {
                 {visibleCols.has('orderDate')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Order Date</th>}
                 {visibleCols.has('deliveryDate') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Delivery Date</th>}
                 {visibleCols.has('amount')       && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Amount</th>}
-                {visibleCols.has('status')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
+                {visibleCols.has('status')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[180px]">Status</th>}
                 {visibleCols.has('createdBy')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Created By</th>}
                 {visibleCols.has('actions')      && <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>}
               </tr>
@@ -365,7 +365,7 @@ export default function PurchaseOrders() {
                   {visibleCols.has('deliveryDate')  && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{po.estimatedDeliveryDate || '—'}</td>}
                   {visibleCols.has('amount')        && <td className="px-4 py-3 text-right text-gray-800 font-medium text-xs whitespace-nowrap">₹{po.grandTotal.toLocaleString('en-IN')}</td>}
                   {visibleCols.has('status') && (
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <Badge variant={STATUS_BADGE[po.status] ?? 'gray'} dot size="sm">{getPoStatusLabel(po.status)}</Badge>
                     </td>
                   )}
