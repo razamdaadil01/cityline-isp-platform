@@ -7,8 +7,12 @@ import ProjectTypeModal from '../../components/projects/ProjectTypeModal'
 import { getHDDProjects, getSiteProjects, subscribeProjects } from '../../data/projectStore'
 import { usePermission } from '../../data/rolesStore'
 
+// HDD's PROJECT_STATUSES and Site's SITE_PROJECT_STATUSES are two distinct
+// status sets (see projectStore.js) — both map into this one shared table's
+// Badge, so every value from either list needs an entry here.
 const STATUS_BADGE = {
   'Planning': 'gray', 'In Progress': 'blue', 'On Hold': 'yellow', 'Completed': 'green', 'Cancelled': 'red',
+  'NEW': 'gray', 'SURVEY': 'indigo', 'ACQUIRED': 'orange', 'IN_EXECUTION': 'orange', 'Live': 'green',
 }
 
 export default function ProjectList() {
@@ -25,13 +29,11 @@ export default function ProjectList() {
   const [typeModalOpen, setTypeModalOpen] = useState(false)
   const projects = [
     ...hddProjects.map(p => ({ id: p.id, name: p.title, type: 'HDD / Backbone Route', status: p.status, kind: 'hdd' })),
-    ...siteProjects.map(p => ({ id: p.id, name: p.name, type: 'Site Project', status: p.status, kind: 'site' })),
+    ...siteProjects.map(p => ({ id: p.id, name: p.name, type: 'Site Project (FTTH/Commercial)', status: p.status, kind: 'site' })),
   ]
 
-  // Site Project Details Page doesn't exist yet (Phase 5) — only HDD rows
-  // are clickable for now.
   function openProject(p) {
-    if (p.kind === 'hdd') navigate(`/projects/hdd/${p.id}`)
+    navigate(p.kind === 'hdd' ? `/projects/hdd/${p.id}` : `/projects/site/${p.id}`)
   }
 
   return (
@@ -69,7 +71,7 @@ export default function ProjectList() {
                 <tr
                   key={p.id}
                   onClick={() => openProject(p)}
-                  className={`transition-colors ${p.kind === 'hdd' ? 'cursor-pointer hover:bg-blue-50/40' : ''}`}
+                  className="cursor-pointer hover:bg-blue-50/40 transition-colors"
                 >
                   <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.id}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>

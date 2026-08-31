@@ -22,6 +22,15 @@ export const DISTANCE_UNITS = ['Meters', 'Kilometers']
 export const WORK_ORDER_STATUSES = ['Assigned', 'In-Progress', 'Completed']
 export const LABOUR_RATE_TYPES = ['Daily Wage — Per Person', 'Fixed Daily Contractor Labour Charge']
 
+// Site Project Creation Form (Phase 5) master lists. SITE_PROJECT_STATUSES
+// is a distinct lifecycle from HDD's PROJECT_STATUSES — a site project
+// moves NEW → SURVEY → ACQUIRED → IN_EXECUTION → Live, nothing like HDD's
+// Planning/On Hold/Cancelled set, so it gets its own array rather than
+// reusing that one.
+export const SITE_TYPES = ['Residential', 'Commercial', 'Mixed-Use']
+export const COMPETITOR_OPTIONS = ['Airtel', 'Jio Fiber', 'Tata Play', 'Local LCO', 'None/Monopoly']
+export const SITE_PROJECT_STATUSES = ['NEW', 'SURVEY', 'ACQUIRED', 'IN_EXECUTION', 'Live']
+
 // ── ID generation ────────────────────────────────────────────────────────
 // Same PREFIX-YYYY-#### shape as customersData.js's nextIntercomCustomerId()
 // (RES/ENT-style ids), and the same simple incrementing-counter idiom as
@@ -98,17 +107,25 @@ export function generateSiteWorkOrderId() {
 //   chamberTag         string|null   auto-assigned e.g. "CH-01" when chambersInstalled > 0 — sequential
 //                                     per project across all its segments (every work order), not global
 //
-// SiteProject — Site Project (FTTH/Commercial):
-//   id               string   generateSiteProjectId(), e.g. "PRJ-SITE-2026-0089"
-//   name             string
-//   builderName      string
-//   contactPerson    string
-//   siteType         string   e.g. "FTTH" | "Commercial"
-//   capacity         number   placeholder for planned home/unit count
-//   competitors      array    placeholder list of competing ISPs at the site
-//   status           string   one of PROJECT_STATUSES
-//   capex            object   placeholder for capital-expenditure figures (Phase 5)
-//   createdAt        string   ISO date
+// SiteProject — Site Project (FTTH/Commercial), Phase 5:
+//   id                    string   generateSiteProjectId(), e.g. "PRJ-SITE-2026-0089"
+//   name                  string   Project Site Name, e.g. "Ace City"
+//   builderName           string
+//   contactPerson         string
+//   contactNumber         string
+//   address               string
+//   pincode               string
+//   geo                   object   { lat, lng }
+//   siteType              string   one of SITE_TYPES
+//   capacity              object   shape depends on siteType —
+//                                  Residential: { homePasses, flatsCount, towersCount }
+//                                  Commercial:  { shopUnits }
+//                                  Mixed-Use:   { residentialUnits, commercialUnits }
+//   competitors           array    subset of COMPETITOR_OPTIONS
+//   expectedClosureDate   string   ISO date
+//   status                string   one of SITE_PROJECT_STATUSES, defaults to 'NEW'
+//   capex                 object   placeholder for capital-expenditure figures (later phase)
+//   createdAt             string   ISO date
 
 // Seed data so there's a ready-made HDD project on app load (for testing
 // the Work Order flow without recreating one every session) — same
@@ -372,8 +389,9 @@ export function saveSiteProject(project) {
   const id = project.id ?? generateSiteProjectId()
   const isNew = !_siteProjects.some(p => p.id === id)
   const saved = {
-    status: PROJECT_STATUSES[0], builderName: '', contactPerson: '', siteType: 'FTTH',
-    capacity: null, competitors: [], capex: null,
+    status: SITE_PROJECT_STATUSES[0], builderName: '', contactPerson: '', contactNumber: '',
+    address: '', pincode: '', geo: null, siteType: SITE_TYPES[0],
+    capacity: null, competitors: [], expectedClosureDate: null, capex: null,
     createdAt: new Date().toISOString().split('T')[0],
     ...project, id,
   }
