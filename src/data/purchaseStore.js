@@ -284,6 +284,35 @@ const SEED = [
     remarks: 'Vendor shipped 5 extra Wall Mount Brackets by mistake — kept as buffer stock rather than returned.',
     status: 'Confirmed', createdBy: 'Anita Sharma', createdAt: '2026-08-30T09:20:00.000Z',
   },
+  // Dual serial+MAC tracking demo — ONT Device is now the one product
+  // configured trackedBySerial: true, trackedByMac: true (productStore.js),
+  // so this is the first seed Purchase item to actually populate both
+  // serials[] and macs[] together, exercising CreatePurchase.jsx's
+  // SerialMacEntryModal's trackedBySerial && trackedByMac branch with real
+  // data. Outside PO, matching the existing ONT Device replenishment
+  // pattern above (PUR-000003/PUR-000005) — no currently-open PO carries
+  // an ONT Device line to receive against realistically (PO-000001 is
+  // still Draft, PO-000008 is already Closed). Serials continue the exact
+  // 'ZTE-ONT-2026-000N' sequence those two purchases already established
+  // (0001-0008 used), rather than a divergent format.
+  {
+    id: 'PUR-000011', purchaseNumber: 'PUR-2026-000011',
+    poId: null, poNumber: null,
+    vendorId: 'VEN-001', vendorName: 'ZTE India Ltd',
+    storeId: 'STR-001', storeName: 'Main Warehouse', companyEntityId: 1,
+    purchaseDate: '2026-08-29',
+    items: [
+      makeItem(15, {
+        source: 'outside', productId: 'PRD-001', productName: 'ONT Device', unit: 'Piece',
+        poQty: 0, receivedQty: 3, price: 1800, gstPercent: 18,
+        reason: 'Dual-tracked ONT batch — serial and MAC captured together at receipt for full field traceability',
+        serials: ['ZTE-ONT-2026-0009', 'ZTE-ONT-2026-0010', 'ZTE-ONT-2026-0011'],
+        macs: ['A4:B1:C2:10:00:09', 'A4:B1:C2:10:00:0A', 'A4:B1:C2:10:00:0B'],
+      }),
+    ],
+    remarks: 'ONT Device batch received with both serial number and MAC address logged per unit.',
+    status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-29T14:20:00.000Z',
+  },
 ].map(pur => ({ ...pur, ...summarizePurchase(pur.items) }))
 
 _nextSeq = SEED.length + 1
