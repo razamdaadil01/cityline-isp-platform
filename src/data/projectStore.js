@@ -5,6 +5,7 @@
 // built in Phase 2 (HDD) and Phase 5 (Site).
 
 import { logAudit } from './auditLogStore'
+import { getProducts } from './productStore'
 
 export const PROJECT_STATUSES = ['Planning', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
 
@@ -243,6 +244,71 @@ export function saveHDDWorkOrder(projectId, workOrder) {
     details: `${isNew ? 'Created' : 'Updated'} work order ${saved.id} for HDD project ${project.title} (${projectId})`,
   })
   return saved
+}
+
+// ── HDD Project CAPEX (Phase 4) ─────────────────────────────────────────
+// Pure computed-on-read functions, not a stored/cached field — CAPEX
+// depends on Product Management's Purchase Price too (not just the
+// project's own saved data), so recomputing from scratch on every call is
+// what keeps it "live" if an item's price changes later, not just when a
+// work order is saved. Called directly from the Project Details page,
+// which already re-renders on every projectStore change via
+// subscribeProjects (same reactivity as Drilled Distance).
+
+// Best-effort match against Product Management: find an item whose name
+// contains `keyword` (case-insensitive) and has a Purchase Price set.
+// Ducts are matched against the project's own technicalSpecs.ductType
+// (e.g. "40mm PLB HDPE Duct") since that's the exact duct this project
+// uses; Couplers have no per-project spec, so they're matched against the
+// generic keyword "coupler" instead. Neither duct types nor a "Coupler"
+// item exist in Product Management's seed data today, so this normally
+// falls back to ₹0 — logged once per keyword (not on every render) so a
+// missing master item is easy to notice without spamming the console.
+const _warnedMissingCapexItems = new Set()
+function findItemPurchasePrice(products, keyword, contextLabel) {
+  const q = keyword.trim().toLowerCase()
+  const match = products.find(p => p.name.toLowerCase().includes(q))
+  if (!match || match.purchasePrice == null) {
+    if (!_warnedMissingCapexItems.has(q)) {
+      _warnedMissingCapexItems.add(q)
+      console.warn(`[projectStore] No Product Management item with a Purchase Price found matching "${keyword}" (${contextLabel}) — treating as ₹0. Add a matching item in Product Management to price this automatically.`)
+    }
+    return 0
+  }
+  return match.purchasePrice
+}
+
+export function getHDDProjectCapex(projectId) {
+  const project = getHDDProject(projectId)
+  if (!project) return { drillingCost: 0, labourCharges: 0, materialCost: 0, totalCapex: 0 }
+
+  const workOrders = project.workOrders ?? []
+  const allSegments = workOrders.flatMap(wo => wo.segments ?? [])
+
+  // 1. Contractor Drilling Cost — Σ (segment.lengthDrilled × project.drillingRate)
+  const drillingRate = Number(project.drillingRate) || 0
+  const drillingCost = allSegments.reduce((sum, seg) => sum + (Number(seg.lengthDrilled) || 0) * drillingRate, 0)
+
+  // 2. Labour Charges — Σ (workOrder.labour.totalCost)
+  const labourCharges = workOrders.reduce((sum, wo) => sum + (Number(wo.labour?.totalCost) || 0), 0)
+
+  // 3. Material / Hardware Cost — segments don't record per-item material
+  // consumption directly, only ductsUsed (meters) and couplersUsed (count),
+  // so those are priced against Product Management's Purchase Price instead
+  // of requiredMaterials (which is a separate, unrelated allocation list).
+  const products = getProducts()
+  const ductPricePerMeter = findItemPurchasePrice(products, project.technicalSpecs?.ductType || 'duct', `${projectId}'s duct type`)
+  const couplerPricePerUnit = findItemPurchasePrice(products, 'coupler', `${projectId}'s couplers`)
+  const materialCost = allSegments.reduce((sum, seg) => {
+    const ductCost = (Number(seg.ductsUsed) || 0) * ductPricePerMeter
+    const couplerCost = (Number(seg.couplersUsed) || 0) * couplerPricePerUnit
+    return sum + ductCost + couplerCost
+  }, 0)
+
+  // 4. Total HDD Project CAPEX
+  const totalCapex = drillingCost + labourCharges + materialCost
+
+  return { drillingCost, labourCharges, materialCost, totalCapex }
 }
 
 export function saveSiteProject(project) {
