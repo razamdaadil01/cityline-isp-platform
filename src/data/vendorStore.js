@@ -13,6 +13,17 @@ import { logAudit } from './auditLogStore'
 
 export const PAYMENT_TERMS = ['Advance', 'Net 15', 'Net 30', 'Net 45', 'Net 60']
 
+// Project Management (HDD/Backbone Route Projects, Phase 1) tags a vendor as
+// an HDD Contractor so the HDD project creation form (Phase 2) can look up
+// their per-meter drilling rate via getVendorDrillingRate() below.
+// isHDDContractor defaults false on every vendor unless explicitly set —
+// SEED vendors below are all general hardware/fiber suppliers, none tagged.
+export function getVendorDrillingRate(vendorId) {
+  const vendor = getVendor(vendorId)
+  if (!vendor?.isHDDContractor) return null
+  return vendor.drillingRatePerMeter ?? null
+}
+
 // Vendors now carry a `contacts` array (Add/Edit Vendor's modal supports
 // multiple, same repeatable-row pattern as the Add Store modal) rather than
 // a single `primaryContact` object. getContacts() is the one place that
@@ -179,6 +190,7 @@ export function saveVendor(vendor) {
       totalPurchases: 0, totalPaid: 0, outstanding: 0,
       lastPurchaseDate: null, lastPaymentDate: null, status: 'active',
       payments: [],
+      isHDDContractor: false, drillingRatePerMeter: null,
       ...vendor, id,
     }
     _vendors = [..._vendors, saved]

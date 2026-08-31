@@ -10,7 +10,7 @@ import { getUsers } from './userStore'
 
 export const MODULES = [
   'Dashboard', 'Customers', 'Sales', 'Billing', 'Support',
-  'Network', 'Inventory', 'Reports', 'Settings', 'Resellers', 'Audit Log',
+  'Network', 'Inventory', 'Projects', 'Reports', 'Settings', 'Resellers', 'Audit Log',
 ]
 
 export const ACTIONS = ['View', 'Create', 'Edit', 'Delete']

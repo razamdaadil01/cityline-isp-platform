@@ -99,6 +99,10 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     imageUrl: '',
     unitType: 'Piece',
     sellingPrice: item.unitPrice,
+    // Material Cost calc (Project Management, later phase) needs each item's
+    // purchase cost, not just its selling price — seeded here at a plausible
+    // margin below sellingPrice since no real purchase-price data exists yet.
+    purchasePrice: Math.round(item.unitPrice * 0.8),
     reorderAlertQty: 10,
     trackedBySerial: SERIAL_TRACKED_HARDWARE.has(item.name),
     trackedByMac: MAC_TRACKED_HARDWARE.has(item.name),
@@ -118,9 +122,9 @@ const HARDWARE_SEED = HARDWARE_CATALOG
 // seed data for now; it's still picked up correctly everywhere that reads
 // purchasedCompanyId (the Product Management column, Create PO's grouping).
 const WIRE_SEED = [
-  { name: '4 Core Fiber Cable', sku: 'WR-4CFC-001', sellingPrice: 12 },
-  { name: 'Drop Wire',          sku: 'WR-DW-001',   sellingPrice: 8 },
-  { name: '6 Core Fiber Cable', sku: 'WR-6CFC-001', sellingPrice: 18 },
+  { name: '4 Core Fiber Cable', sku: 'WR-4CFC-001', sellingPrice: 12, purchasePrice: 9 },
+  { name: 'Drop Wire',          sku: 'WR-DW-001',   sellingPrice: 8,  purchasePrice: 6 },
+  { name: '6 Core Fiber Cable', sku: 'WR-6CFC-001', sellingPrice: 18, purchasePrice: 14 },
 ].map((w, i) => ({
   id: `PRD-${String(HARDWARE_CATALOG.length + i + 1).padStart(3, '0')}`,
   productType: 'wire',
@@ -131,6 +135,7 @@ const WIRE_SEED = [
   imageUrl: '',
   unitType: 'Meter',
   sellingPrice: w.sellingPrice,
+  purchasePrice: w.purchasePrice,
   reorderAlertQty: 100,
   trackedBySerial: false,
   trackedByMac: false,

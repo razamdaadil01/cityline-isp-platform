@@ -72,6 +72,9 @@ import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
 import StoreTransfer from './pages/inventory/StoreTransfer'
 import CreateStoreTransfer from './pages/inventory/CreateStoreTransfer'
 import DeliveryChallanView from './pages/inventory/DeliveryChallanView'
+import ProjectList from './pages/projects/ProjectList'
+import CreateHDDProject from './pages/projects/CreateHDDProject'
+import CreateSiteProject from './pages/projects/CreateSiteProject'
 import AssetList from './pages/assets/AssetList'
 import AddAsset from './pages/assets/AddAsset'
 import AssetDetail from './pages/assets/AssetDetail'
@@ -186,6 +189,9 @@ export default function App() {
           <Route path="/inventory/store-transfer/new" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/edit" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/challan" element={<DeliveryChallanView />} />
+          <Route path="/projects" element={<ProjectList />} />
+          <Route path="/projects/new/hdd" element={<CreateHDDProject />} />
+          <Route path="/projects/new/site" element={<CreateSiteProject />} />
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/new" element={<AddAsset />} />
           <Route path="/assets/reports" element={<AssetReports />} />

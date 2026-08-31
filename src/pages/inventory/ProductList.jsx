@@ -47,20 +47,21 @@ const GOOD_TYPE_LABEL = Object.fromEntries(GOOD_TYPES.map(g => [g.value, g.label
 function emptyHardwareForm() {
   return {
     name: '', sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
-    sellingPrice: '', unitType: 'Piece', reorderAlertQty: '',
+    sellingPrice: '', purchasePrice: '', unitType: 'Piece', reorderAlertQty: '',
     trackingQuantity: true, trackedBySerial: false, trackedByMac: false,
   }
 }
 
 function emptyWireForm() {
-  return { name: '', sku: '', brand: '', sellingPrice: '', reorderAlertQty: '' }
+  return { name: '', sku: '', brand: '', sellingPrice: '', purchasePrice: '', reorderAlertQty: '' }
 }
 
 function productToForm(product) {
   if (product.productType === 'wire') {
     return {
       name: product.name, sku: product.sku, brand: product.brand,
-      sellingPrice: String(product.sellingPrice ?? ''), reorderAlertQty: String(product.reorderAlertQty ?? ''),
+      sellingPrice: String(product.sellingPrice ?? ''), purchasePrice: String(product.purchasePrice ?? ''),
+      reorderAlertQty: String(product.reorderAlertQty ?? ''),
     }
   }
   // Backward-compatible with any product record that only ever carried the
@@ -75,6 +76,7 @@ function productToForm(product) {
     goodType: product.goodType || 'consumable',
     model: product.model,
     imageUrl: product.imageUrl, sellingPrice: String(product.sellingPrice ?? ''),
+    purchasePrice: String(product.purchasePrice ?? ''),
     unitType: product.unitType || 'Piece', reorderAlertQty: String(product.reorderAlertQty ?? ''),
     trackingQuantity: !trackedBySerial && !trackedByMac, trackedBySerial, trackedByMac,
   }
@@ -160,6 +162,8 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
     }
     if (form.sellingPrice === '' || Number.isNaN(Number(form.sellingPrice)) || Number(form.sellingPrice) < 0)
       errs.sellingPrice = 'Enter a valid selling price.'
+    if (form.purchasePrice === '' || Number.isNaN(Number(form.purchasePrice)) || Number(form.purchasePrice) < 0)
+      errs.purchasePrice = 'Enter a valid purchase price.'
     if (form.reorderAlertQty === '' || Number.isNaN(Number(form.reorderAlertQty)) || Number(form.reorderAlertQty) < 0)
       errs.reorderAlertQty = 'Enter a valid reorder alert quantity.'
     if (tab === 'hardware' && !form.trackingQuantity && !form.trackedBySerial && !form.trackedByMac)
@@ -182,6 +186,7 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
         imageUrl: '',
         unitType: 'Meter',
         sellingPrice: Number(form.sellingPrice),
+        purchasePrice: Number(form.purchasePrice),
         reorderAlertQty: Number(form.reorderAlertQty),
         trackedBySerial: false,
         trackedByMac: false,
@@ -201,6 +206,7 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
         imageUrl: form.imageUrl.trim(),
         unitType: form.unitType,
         sellingPrice: Number(form.sellingPrice),
+        purchasePrice: Number(form.purchasePrice),
         reorderAlertQty: Number(form.reorderAlertQty),
         trackedBySerial: form.trackingQuantity ? false : form.trackedBySerial,
         trackedByMac: form.trackingQuantity ? false : form.trackedByMac,
@@ -277,6 +283,9 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               </FormField>
               <FormField label="Selling Price" required error={errors.sellingPrice}>
                 <Input type="number" min="0" placeholder="0.00" value={hwForm.sellingPrice} onChange={e => setField('sellingPrice', e.target.value)} />
+              </FormField>
+              <FormField label="Purchase Price" required error={errors.purchasePrice}>
+                <Input type="number" min="0" placeholder="0.00" value={hwForm.purchasePrice} onChange={e => setField('purchasePrice', e.target.value)} />
               </FormField>
               <FormField label="Unit Type" required>
                 <Select value={hwForm.unitType} onChange={e => setField('unitType', e.target.value)}>
@@ -364,6 +373,9 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               </FormField>
               <FormField label="Selling Price / Meter" required error={errors.sellingPrice}>
                 <Input type="number" min="0" placeholder="0.00" value={wireForm.sellingPrice} onChange={e => setField('sellingPrice', e.target.value)} />
+              </FormField>
+              <FormField label="Purchase Price / Meter" required error={errors.purchasePrice}>
+                <Input type="number" min="0" placeholder="0.00" value={wireForm.purchasePrice} onChange={e => setField('purchasePrice', e.target.value)} />
               </FormField>
               <FormField label="Reorder Alert Qty / Meter" required error={errors.reorderAlertQty}>
                 <Input type="number" min="0" placeholder="e.g. 100" value={wireForm.reorderAlertQty} onChange={e => setField('reorderAlertQty', e.target.value)} />
