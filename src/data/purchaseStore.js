@@ -199,6 +199,91 @@ const SEED = [
     remarks: 'WiFi Router and Wall Mount Bracket stock replenishment ahead of Andheri branch installs.',
     status: 'Confirmed', createdBy: 'Admin User', createdAt: '2026-08-22T10:15:00.000Z',
   },
+  // 'Received' — the one PURCHASE_STATUSES value besides Draft/Confirmed/
+  // Cancelled with no seed example before this: goods have physically
+  // arrived and been logged against the PO, but not yet run through the
+  // 'confirm' action (no live flow reaches this status either — same as
+  // 'Cancelled' below — so it's seeded directly). Deliberately an exact,
+  // no-discrepancy receipt so this row demonstrates the status on its own,
+  // not mixed with a short/extra scenario. Linked to PO-000005 (still
+  // 'Sent') — status 'Received' is NOT 'Confirmed', so this purchase is
+  // excluded from the reconciliation loop below and leaves PO-000005's own
+  // status untouched.
+  {
+    id: 'PUR-000007', purchaseNumber: 'PUR-2026-000007',
+    poId: 'PO-000005', poNumber: 'CITY/PO/2026/00005',
+    vendorId: 'VEN-002', vendorName: 'Sterlite Technologies',
+    storeId: 'STR-002', storeName: 'Andheri Store', companyEntityId: 1,
+    purchaseDate: '2026-08-28',
+    items: [
+      makeItem(10, { productId: 'PRD-005', productName: 'Drop Wire (per m)', unit: 'Piece', poQty: 500, receivedQty: 500, price: 12, gstPercent: 18 }),
+    ],
+    remarks: 'Drop wire drum delivered and logged at the store — pending final confirmation before GRN close-out.',
+    status: 'Received', createdBy: 'Vinod Sharma', createdAt: '2026-08-28T13:00:00.000Z',
+  },
+  // 'Cancelled' — the other unrepresented PURCHASE_STATUSES value; no live
+  // flow reaches it either (same as 'Received' above), so seeded directly.
+  // receivedQty is 0 throughout — the vendor never actually delivered
+  // against this entry, so it carries no real stock/value, matching what a
+  // cancelled receipt should read as.
+  {
+    id: 'PUR-000008', purchaseNumber: 'PUR-2026-000008',
+    poId: null, poNumber: null,
+    vendorId: 'VEN-001', vendorName: 'ZTE India Ltd',
+    storeId: 'STR-003', storeName: 'Bandra Store', companyEntityId: 2,
+    purchaseDate: '2026-08-19',
+    items: [
+      makeItem(11, {
+        source: 'outside', productId: 'PRD-002', productName: 'WiFi Router', unit: 'Piece',
+        poQty: 0, receivedQty: 0, price: 1500, gstPercent: 18,
+        reason: 'Emergency stock top-up ahead of a large residential rollout',
+      }),
+    ],
+    remarks: 'Entry cancelled — vendor could not fulfil the requested quantity; no stock was actually received.',
+    status: 'Cancelled', createdBy: 'Pooja Mehta', createdAt: '2026-08-19T15:30:00.000Z',
+  },
+  // Dedicated, single-focus Short Received demo — PO-000002 (previously
+  // 'Sent', no Confirmed receipt against it yet; the existing PUR-000002
+  // above is only a Draft against the same PO, so it never reconciled).
+  // Confirming this one runs it through the same reconciliation
+  // recalculatePOReceiptStatus() every other Confirmed+PO-linked seed
+  // Purchase does (see the loop at the bottom of this file), which moves
+  // PO-000002 from 'Sent' to 'Partially Received' — an intended, realistic
+  // consequence of seeding a real GRN against it, not a logic change.
+  {
+    id: 'PUR-000009', purchaseNumber: 'PUR-2026-000009',
+    poId: 'PO-000002', poNumber: 'CITY/PO/2026/00002',
+    vendorId: 'VEN-002', vendorName: 'Sterlite Technologies',
+    storeId: 'STR-002', storeName: 'Andheri Store', companyEntityId: 1,
+    purchaseDate: '2026-08-29',
+    items: [
+      makeItem(12, { productId: 'PRD-007', productName: 'Optical Splitter 1x8', unit: 'Piece', poQty: 20, receivedQty: 12, price: 650, gstPercent: 18 }),
+      makeItem(13, { productId: 'PRD-008', productName: 'SFP Module 1G', unit: 'Piece', poQty: 10, receivedQty: 10, price: 900, gstPercent: 18 }),
+    ],
+    remarks: 'Optical Splitter shipment short by 8 units — vendor confirmed the balance will follow in a separate shipment.',
+    status: 'Confirmed', createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z',
+  },
+  // Dedicated, single-focus Extra Received demo against a real PO (not the
+  // trivial "every Outside-PO item is Extra by construction" case the other
+  // seed rows above already show) — a genuine over-delivery on one line of
+  // an already-'Partially Received' PO (PO-000003, already carrying
+  // PUR-000001's receipt). Only the Bracket line is repeated here (Patch
+  // Cord is deliberately left out of this purchase) — an item's shortQty/
+  // extraQty is computed only from its own poQty/receivedQty on this one
+  // record, not PO-000003's running balance, so re-quoting Patch Cord's
+  // full ordered qty here would misreport it as freshly short again.
+  {
+    id: 'PUR-000010', purchaseNumber: 'PUR-2026-000010',
+    poId: 'PO-000003', poNumber: 'CITY/PO/2026/00003',
+    vendorId: 'VEN-003', vendorName: 'TP-Link India Pvt Ltd',
+    storeId: 'STR-001', storeName: 'Main Warehouse', companyEntityId: 1,
+    purchaseDate: '2026-08-30',
+    items: [
+      makeItem(14, { productId: 'PRD-003', productName: 'Wall Mount Bracket', unit: 'Piece', poQty: 50, receivedQty: 55, price: 150, gstPercent: 18 }),
+    ],
+    remarks: 'Vendor shipped 5 extra Wall Mount Brackets by mistake — kept as buffer stock rather than returned.',
+    status: 'Confirmed', createdBy: 'Anita Sharma', createdAt: '2026-08-30T09:20:00.000Z',
+  },
 ].map(pur => ({ ...pur, ...summarizePurchase(pur.items) }))
 
 _nextSeq = SEED.length + 1
