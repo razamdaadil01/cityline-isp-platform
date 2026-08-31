@@ -242,8 +242,68 @@ const HDD_SEED = [
   },
 ]
 
+// Seed data so there's a ready-made Site project on app load too, same
+// reasoning and convention as HDD_SEED above — one project, one work
+// order, one DPR entry, so the Site Details Page's Work Orders tab and a
+// work order's DPR list both have real data to click through instead of
+// empty states. requiredMaterials/materialConsumed reference "16-Port FAT
+// Box" and "1:16 PLC Splitter" by name directly as itemId — neither exists
+// in productStore.js's seed (only "Optical Splitter 1x8" is close), and
+// unlike HDD's CAPEX-driving duct/coupler items, nothing in Phase 6 reads
+// a Purchase Price off these yet, so a plain name-as-id is enough: every
+// display spot already falls back to `getProduct(itemId)?.name ?? itemId`,
+// so the literal name renders correctly either way.
+const SITE_SEED = [
+  {
+    id: 'PRJ-SITE-2026-0001',
+    name: 'Ace City',
+    builderName: 'Ace Group',
+    contactPerson: 'R.K. Sharma',
+    contactNumber: '+91-9876543210',
+    address: 'Ace City, Sector 1, Greater Noida West, Uttar Pradesh',
+    pincode: '201009',
+    geo: { lat: 28.535, lng: 77.391 },
+    siteType: 'Residential',
+    // Field names match the real capacity shape saveSiteProject()/
+    // capacitySummary() use for Residential (homePasses, not
+    // totalHomePasses) — same 850/800/4 figures either way.
+    capacity: { homePasses: 850, flatsCount: 800, towersCount: 4 },
+    competitors: ['Jio Fiber', 'Airtel'],
+    expectedClosureDate: '2026-07-15',
+    status: 'ACQUIRED',
+    capex: null,
+    workOrders: [
+      {
+        id: 'WO-SITE-0001',
+        siteProjectId: 'PRJ-SITE-2026-0001',
+        activityType: 'FAT Box Mounting & Splicing',
+        targetLocation: 'Tower A - Floors 1 to 10',
+        requiredMaterials: [
+          { itemId: '16-Port FAT Box', quantity: 10 },
+          { itemId: '1:16 PLC Splitter', quantity: 10 },
+        ],
+        assignedTechnicians: ['u3'], // Arjun Kumar (userStore.js, role: engineer) — same as HDD seed
+        executionDate: new Date().toISOString().slice(0, 10),
+        targetDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        dprEntries: [
+          {
+            id: 'DPR-0001',
+            date: new Date().toISOString().slice(0, 10),
+            workDoneToday: 'Mounted 6 FAT boxes in Tower A, pulled 180m fiber',
+            materialConsumed: [{ itemId: '16-Port FAT Box', quantity: 6 }],
+            barcodesScanned: ['FAT-88102', 'FAT-88103', 'FAT-88104', 'FAT-88105', 'FAT-88106', 'FAT-88107'],
+            installationLocation: 'Floor 1-6',
+          },
+        ],
+        createdAt: new Date().toISOString().slice(0, 10),
+      },
+    ],
+    createdAt: '2026-08-15',
+  },
+]
+
 let _hddProjects = [...HDD_SEED]
-let _siteProjects = []
+let _siteProjects = [...SITE_SEED]
 const _listeners = []
 
 // Continue the id sequences after the seeded project/work order above so a
@@ -251,6 +311,8 @@ const _listeners = []
 // `_nextSeq = _vendors.length + 1`).
 _nextHDDProjectSeq = HDD_SEED.length + 1
 _nextHDDWorkOrderSeq = HDD_SEED[0].workOrders.length + 1
+_nextSiteProjectSeq = SITE_SEED.length + 1
+_nextSiteWorkOrderSeq = SITE_SEED[0].workOrders.length + 1
 
 function notify() { _listeners.forEach(fn => fn({ hddProjects: [..._hddProjects], siteProjects: [..._siteProjects] })) }
 
@@ -475,6 +537,9 @@ let _nextDPREntrySeq = 1
 function nextDPREntryId() {
   return `DPR-${String(_nextDPREntrySeq++).padStart(4, '0')}`
 }
+// Continue past the DPR entry seeded on SITE_SEED's work order above so a
+// live-added entry never collides with it.
+_nextDPREntrySeq = SITE_SEED[0].workOrders[0].dprEntries.length + 1
 
 // Looks the work order up by id across every site project rather than
 // taking a siteProjectId param — site work order ids are already globally
