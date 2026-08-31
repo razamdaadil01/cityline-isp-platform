@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ClipboardList, Boxes, Receipt } from 'lucide-react'
+import { ClipboardList, Boxes, Receipt, Plus } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
-import { getHDDProject, subscribeProjects } from '../../data/projectStore'
+import Button from '../../components/ui/Button'
+import Modal from '../../components/ui/Modal'
+import { getHDDProject, getHDDWorkOrders, subscribeProjects } from '../../data/projectStore'
 import { getVendor } from '../../data/vendorStore'
 import { getUsers } from '../../data/userStore'
+import { getProduct } from '../../data/productStore'
+import { usePermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = {
   'Planning': 'gray', 'In Progress': 'indigo', 'On Hold': 'orange', 'Completed': 'green', 'Cancelled': 'red',
+}
+
+const WORK_ORDER_STATUS_BADGE = {
+  'Assigned': 'gray', 'In-Progress': 'indigo', 'Completed': 'green',
 }
 
 const TABS = ['Work Orders', 'Inventory', 'CAPEX & Financials']
@@ -16,18 +24,123 @@ const SLUG_TO_TAB = Object.fromEntries(Object.entries(TAB_SLUGS).map(([k, v]) =>
 
 function unitAbbrev(unit) { return unit === 'Kilometers' ? 'km' : 'm' }
 
-function EmptyTabState({ icon: Icon, text }) {
+function EmptyTabState({ icon: Icon, text, action }) {
   return (
     <div className="py-14 text-center text-sm text-gray-400">
       <Icon size={28} className="mx-auto mb-2 text-gray-200" />
       {text}
+      {action && <div className="mt-4">{action}</div>}
     </div>
+  )
+}
+
+function WorkOrderDetailModal({ workOrder, onClose }) {
+  const isOpen = !!workOrder
+  if (!isOpen) return null
+
+  const engineerName = getUsers().find(u => u.id === workOrder.assignedEngineer)?.name ?? '—'
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={workOrder.id} size="lg">
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div><p className="text-xs text-gray-400">Assigned Engineer</p><p className="font-medium text-gray-800">{engineerName}</p></div>
+          <div><p className="text-xs text-gray-400">Execution Date</p><p className="font-medium text-gray-800">{workOrder.executionDate}</p></div>
+          <div><p className="text-xs text-gray-400">Status</p><Badge variant={WORK_ORDER_STATUS_BADGE[workOrder.status] ?? 'gray'} dot size="sm">{workOrder.status}</Badge></div>
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Segments</h4>
+          {(workOrder.segments ?? []).length === 0 ? (
+            <p className="text-xs text-gray-400">No segments recorded.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-surface-border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50/60 border-b border-surface-border">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Start → End</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Length (m)</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Shots</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Ducts (m)</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Couplers</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-500 uppercase tracking-wide">Chambers</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {workOrder.segments.map((seg, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-gray-700">
+                        {seg.startPointName} → {seg.endPointName}
+                        {seg.chamberTag && <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue text-[10px] font-mono font-semibold">{seg.chamberTag}</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-700">{seg.lengthDrilled}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{seg.shotsTaken}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{seg.ductsUsed}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{seg.couplersUsed}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{seg.chambersInstalled}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Required Materials</h4>
+          {(workOrder.requiredMaterials ?? []).length === 0 ? (
+            <p className="text-xs text-gray-400">No materials allocated.</p>
+          ) : (
+            <div className="space-y-1">
+              {workOrder.requiredMaterials.map((m, i) => (
+                <div key={i} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-1.5">
+                  <span className="text-gray-700">{getProduct(m.itemId)?.name ?? m.itemId}</span>
+                  <span className="text-gray-500">Qty: {m.quantity}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Daily Labour</h4>
+          {workOrder.labour ? (
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div><p className="text-xs text-gray-400">Headcount</p><p className="font-medium text-gray-800">{workOrder.labour.headcount}</p></div>
+              <div><p className="text-xs text-gray-400">Rate Type</p><p className="font-medium text-gray-800">{workOrder.labour.rateType}</p></div>
+              <div><p className="text-xs text-gray-400">Total Cost</p><p className="font-medium text-gray-800">₹{(workOrder.labour.totalCost ?? 0).toLocaleString('en-IN')}</p></div>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">No labour data recorded.</p>
+          )}
+        </div>
+
+        {workOrder.remarks && (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Remarks</h4>
+            <p className="text-sm text-gray-700">{workOrder.remarks}</p>
+          </div>
+        )}
+
+        {(workOrder.attachments ?? []).length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Attachments</h4>
+            <div className="space-y-1">
+              {workOrder.attachments.map((a, i) => (
+                <p key={i} className="text-xs text-gray-600">{a.name} <span className="text-gray-400">({a.sizeLabel})</span></p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
   )
 }
 
 export default function HDDProjectDetail() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
+  const canCreate = usePermission('Projects', 'Create')
 
   // Subscribing (without using the payload directly) just forces a
   // re-render whenever projectStore changes, so the getHDDProject(id)
@@ -36,6 +149,8 @@ export default function HDDProjectDetail() {
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeProjects(() => forceRerender(n => n + 1)), [])
   const project = getHDDProject(id)
+
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState(null)
 
   const activeTab = SLUG_TO_TAB[tab] ?? 'Work Orders'
   useEffect(() => {
@@ -54,6 +169,16 @@ export default function HDDProjectDetail() {
   const vendorName = getVendor(project.vendor)?.companyName ?? '—'
   const unit = unitAbbrev(project.distanceUnit)
   const totalDistance = project.distance ?? 0
+
+  // Drilled Distance is always captured in meters (Segment.lengthDrilled);
+  // normalize both sides to meters for the percentage, then display the
+  // drilled figure back in the project's own chosen unit.
+  const totalDistanceMeters = project.distanceUnit === 'Kilometers' ? totalDistance * 1000 : totalDistance
+  const drilledMeters = project.drilledDistance ?? 0
+  const drilledDisplay = project.distanceUnit === 'Kilometers' ? Number((drilledMeters / 1000).toFixed(2)) : drilledMeters
+  const progressPercent = totalDistanceMeters > 0 ? Math.min(100, (drilledMeters / totalDistanceMeters) * 100) : 0
+
+  const workOrders = getHDDWorkOrders(project.id)
 
   function setActiveTab(t) {
     navigate(`/projects/hdd/${id}/${TAB_SLUGS[t]}`)
@@ -90,10 +215,10 @@ export default function HDDProjectDetail() {
           <div>
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
               <span>Drilled Distance</span>
-              <span>0{unit} / {totalDistance}{unit} — 0%</span>
+              <span>{drilledDisplay}{unit} / {totalDistance}{unit} — {progressPercent.toFixed(0)}%</span>
             </div>
             <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full bg-brand-blue rounded-full" style={{ width: '0%' }} />
+              <div className="h-full bg-brand-blue rounded-full transition-all" style={{ width: `${progressPercent}%` }} />
             </div>
           </div>
 
@@ -115,24 +240,70 @@ export default function HDDProjectDetail() {
 
       {/* Tabs */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-        <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
-          {TABS.map(t => (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`shrink-0 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
-                ${activeTab === t ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'}`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center justify-between border-b border-surface-border">
+          <div className="flex overflow-x-auto scrollbar-none">
+            {TABS.map(t => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t)}
+                className={`shrink-0 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                  ${activeTab === t ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          {activeTab === 'Work Orders' && workOrders.length > 0 && canCreate && (
+            <div className="pr-4">
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate(`/projects/hdd/${id}/work-orders/new`)}>Add Work Order</Button>
+            </div>
+          )}
         </div>
         <div className="p-5 sm:p-6">
-          {activeTab === 'Work Orders' && <EmptyTabState icon={ClipboardList} text="No work orders yet" />}
+          {activeTab === 'Work Orders' && (
+            workOrders.length === 0 ? (
+              <EmptyTabState
+                icon={ClipboardList}
+                text="No work orders yet"
+                action={canCreate && (
+                  <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate(`/projects/hdd/${id}/work-orders/new`)}>Add Work Order</Button>
+                )}
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-surface-border">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Work Order No</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned Engineer</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Execution Date</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Segments</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {workOrders.map(wo => (
+                      <tr key={wo.id} onClick={() => setSelectedWorkOrder(wo)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
+                        <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{wo.id}</td>
+                        <td className="px-4 py-3 text-gray-800 font-medium">{getUsers().find(u => u.id === wo.assignedEngineer)?.name ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{wo.executionDate}</td>
+                        <td className="px-4 py-3 text-right text-gray-600">{(wo.segments ?? []).length}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={WORK_ORDER_STATUS_BADGE[wo.status] ?? 'gray'} dot size="sm">{wo.status}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
           {activeTab === 'Inventory' && <EmptyTabState icon={Boxes} text="No materials assigned yet" />}
           {activeTab === 'CAPEX & Financials' && <EmptyTabState icon={Receipt} text="CAPEX tracking will be available once work orders are added" />}
         </div>
       </div>
+
+      <WorkOrderDetailModal workOrder={selectedWorkOrder} onClose={() => setSelectedWorkOrder(null)} />
     </div>
   )
 }
