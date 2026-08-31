@@ -17,6 +17,10 @@ export const DUCT_TYPES = ['40mm PLB HDPE Duct', '2-Way Coupled Duct']
 export const FIBER_CORE_SIZES = ['48-Core Armored Fiber', '96-Core Armored Fiber']
 export const DISTANCE_UNITS = ['Meters', 'Kilometers']
 
+// HDD Work Order Creation Form (Phase 3) master lists.
+export const WORK_ORDER_STATUSES = ['Assigned', 'In-Progress', 'Completed']
+export const LABOUR_RATE_TYPES = ['Daily Wage — Per Person', 'Fixed Daily Contractor Labour Charge']
+
 // ── ID generation ────────────────────────────────────────────────────────
 // Same PREFIX-YYYY-#### shape as customersData.js's nextIntercomCustomerId()
 // (RES/ENT-style ids), and the same simple incrementing-counter idiom as
@@ -59,7 +63,39 @@ export function generateSiteWorkOrderId() {
 //   vendor           string   vendorStore.js vendor id (HDD Contractor)
 //   drillingRate     number   snapshot of getVendorDrillingRate(vendor) at creation (admin-overridable)
 //   capex            object   placeholder for capital-expenditure figures (Phase 4)
+//   workOrders       array    HDDWorkOrder[] — nested on the project record (Phase 3)
+//   drilledDistance  number   sum of lengthDrilled across every segment of every work order, in meters —
+//                             recalculated by saveHDDWorkOrder() on every save
 //   createdAt        string   ISO date
+//
+// HDDWorkOrder — one HDD project's daily execution unit (Phase 3):
+//   id                 string   generateHDDWorkOrderId(), e.g. "WO-HDD-0012"
+//   projectId          string   parent HDDProject id
+//   assignedEngineer   string   userStore.js user id
+//   executionDate      string   ISO date
+//   status             string   one of WORK_ORDER_STATUSES
+//   requiredMaterials  array    [{ itemId, quantity }] — itemId is a productStore.js product id
+//   segments           array    Segment[] (see below)
+//   labour             object   { headcount, rateType, dailyRate, totalCost } — rateType one of
+//                                LABOUR_RATE_TYPES; dailyRate is null for the Fixed rate type;
+//                                totalCost is headcount × dailyRate for Per-Person, or the
+//                                admin-entered fixed amount otherwise
+//   remarks            string   daily site notes
+//   attachments        array    [{ name, sizeLabel }] — filenames only, no real upload backend (matches
+//                                TicketCreate.jsx's attachment convention)
+//   createdAt          string   ISO date
+//
+// Segment — one drilled stretch within a work order (Phase 3):
+//   id                 string   client-generated, not persisted-unique across work orders
+//   startPointName     string
+//   endPointName       string
+//   lengthDrilled      number   meters
+//   shotsTaken         number
+//   ductsUsed          number   meters
+//   couplersUsed       number
+//   chambersInstalled  number
+//   chamberTag         string|null   auto-assigned e.g. "CH-01" when chambersInstalled > 0 — sequential
+//                                     per project across all its segments (every work order), not global
 //
 // SiteProject — Site Project (FTTH/Commercial):
 //   id               string   generateSiteProjectId(), e.g. "PRJ-SITE-2026-0089"
@@ -95,12 +131,84 @@ export function saveHDDProject(project) {
   const saved = {
     status: PROJECT_STATUSES[0], routeGeometry: null, distance: null, distanceUnit: DISTANCE_UNITS[0],
     technicalSpecs: null, vendor: null, drillingRate: null, capex: null,
+    workOrders: [], drilledDistance: 0,
     createdAt: new Date().toISOString().split('T')[0],
     ...project, id,
   }
   _hddProjects = isNew ? [..._hddProjects, saved] : _hddProjects.map(p => p.id === id ? saved : p)
   notify()
   logAudit({ action: isNew ? 'Create' : 'Edit', module: 'Projects', details: `${isNew ? 'Created' : 'Updated'} HDD project ${saved.title} (${saved.id})` })
+  return saved
+}
+
+// ── HDD Work Orders (Phase 3) ───────────────────────────────────────────
+// Nested on the parent HDDProject record (project.workOrders) rather than
+// a separate top-level array — simplest shape given HDDProject already
+// exists and every read/write is always scoped to one project.
+
+export function getHDDWorkOrders(projectId) {
+  return getHDDProject(projectId)?.workOrders ?? []
+}
+
+// Chamber tags are sequential per project across every segment of every
+// work order (never reused, never reset per work order) — shared by
+// saveHDDWorkOrder() and previewChamberTags() below so the tag a user sees
+// while filling the form is exactly the tag it gets on save. excludeId lets
+// re-saving an existing work order recompute its own segments' tags without
+// double-counting its previous ones.
+function computeSegmentsWithChamberTags(existingWorkOrders, segments, excludeId) {
+  let chamberSeq = 0
+  existingWorkOrders.forEach(wo => {
+    if (wo.id === excludeId) return
+    ;(wo.segments ?? []).forEach(seg => {
+      const m = seg.chamberTag?.match(/^CH-(\d+)$/)
+      if (m) chamberSeq = Math.max(chamberSeq, Number(m[1]))
+    })
+  })
+  return segments.map(seg => {
+    const chambersInstalled = Number(seg.chambersInstalled) || 0
+    const chamberTag = chambersInstalled > 0 ? `CH-${String(++chamberSeq).padStart(2, '0')}` : null
+    return { ...seg, chambersInstalled, chamberTag }
+  })
+}
+
+// Non-consuming — safe to call on every render while the Add Work Order
+// form is open, mirrors productStore.js's previewNextProductId(). Lets the
+// Segments Builder show the real chamber tag a segment will get before the
+// work order is actually saved.
+export function previewChamberTags(projectId, segments, excludeWorkOrderId = null) {
+  const existingWorkOrders = getHDDWorkOrders(projectId)
+  return computeSegmentsWithChamberTags(existingWorkOrders, segments, excludeWorkOrderId)
+}
+
+export function saveHDDWorkOrder(projectId, workOrder) {
+  const project = getHDDProject(projectId)
+  if (!project) return null
+
+  const existingWorkOrders = project.workOrders ?? []
+  const id = workOrder.id ?? generateHDDWorkOrderId()
+  const isNew = !existingWorkOrders.some(w => w.id === id)
+  const segments = computeSegmentsWithChamberTags(existingWorkOrders, workOrder.segments ?? [], id)
+
+  const saved = {
+    status: WORK_ORDER_STATUSES[0], requiredMaterials: [], labour: null,
+    remarks: '', attachments: [],
+    createdAt: new Date().toISOString().split('T')[0],
+    ...workOrder, id, projectId, segments,
+  }
+
+  const newWorkOrders = isNew ? [...existingWorkOrders, saved] : existingWorkOrders.map(w => w.id === id ? saved : w)
+  const drilledDistance = newWorkOrders.reduce(
+    (sum, wo) => sum + (wo.segments ?? []).reduce((s, seg) => s + (Number(seg.lengthDrilled) || 0), 0),
+    0
+  )
+
+  _hddProjects = _hddProjects.map(p => p.id === projectId ? { ...p, workOrders: newWorkOrders, drilledDistance } : p)
+  notify()
+  logAudit({
+    action: isNew ? 'Create' : 'Edit', module: 'Projects',
+    details: `${isNew ? 'Created' : 'Updated'} work order ${saved.id} for HDD project ${project.title} (${projectId})`,
+  })
   return saved
 }
 

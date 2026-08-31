@@ -76,6 +76,7 @@ import ProjectList from './pages/projects/ProjectList'
 import CreateHDDProject from './pages/projects/CreateHDDProject'
 import CreateSiteProject from './pages/projects/CreateSiteProject'
 import HDDProjectDetail from './pages/projects/HDDProjectDetail'
+import CreateHDDWorkOrder from './pages/projects/CreateHDDWorkOrder'
 import AssetList from './pages/assets/AssetList'
 import AddAsset from './pages/assets/AddAsset'
 import AssetDetail from './pages/assets/AssetDetail'
@@ -195,6 +196,7 @@ export default function App() {
           <Route path="/projects/new/site" element={<CreateSiteProject />} />
           <Route path="/projects/hdd/:id" element={<HDDProjectDetail />} />
           <Route path="/projects/hdd/:id/:tab" element={<HDDProjectDetail />} />
+          <Route path="/projects/hdd/:id/work-orders/new" element={<CreateHDDWorkOrder />} />
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/new" element={<AddAsset />} />
           <Route path="/assets/reports" element={<AssetReports />} />
