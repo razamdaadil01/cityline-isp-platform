@@ -154,6 +154,71 @@ const SEED = [
     remarks: '',
     status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-06T09:00:00.000Z',
   },
+  // ── Three fully-'Returned' assignments — ASSIGNMENT_STATUSES' other
+  // value had no seed example before this. hardwareLines/wireLines are
+  // empty on all three, matching returnAssignmentLine()'s own real
+  // invariant exactly: it always deletes a line from the array on return,
+  // and only ever flips status to 'Returned' once every line is gone — a
+  // 'Returned' assignment in this app never has any lines left to show.
+  // Their former engineer/store/units are correctly free again as a
+  // result: getAssignableWorkOrders() only excludes a Work Order for a
+  // non-'Returned' assignment (INS-012/013/014 below are open again),
+  // and alreadyAssignedQty()/alreadyAssignedValues()/alreadyAssignedMeters()
+  // here plus inventoryLedger.js's own computeLedger() (`a.status !==
+  // 'Returned'`) both skip these three entirely — the serial+MAC pair,
+  // the WiFi Router unit, and the drum meters they once claimed all read
+  // as 'Available' again with no separate ledger write needed.
+  //
+  // IMPORTANT UI caveat: Assignments.jsx's flattenRows() produces one row
+  // per hardwareLine/wireLine, never one row per assignment record — with
+  // no lines left, these three produce zero rows on /inventory/assign
+  // (the same reason they never show an "Edit"/"Back to Store" entry
+  // point there either; nothing in this app's UI reads an assignment's
+  // raw status literally, only that line-level fallback). Their 'Returned'
+  // status is real and fully exercises the underlying data model exactly
+  // as a genuine return would, it just isn't a row this particular list
+  // can render — there's no "assignment" left to show once every line is
+  // gone, the same reason a fully-returned store transfer/PO leaves no
+  // outstanding line item to display either.
+  //
+  // Work Orders INS-012/013/014 (Andheri Store branch CNPL-002, team
+  // eng-001 Arjun Kumar + eng-002 Preethi Nair) were free of any prior
+  // assignment before this — used here rather than reusing
+  // INS-005/006/009/011/015/016 above, which already carry a live
+  // 'Assigned' record apiece.
+  {
+    id: 'ASG-000007', assignmentNumber: 'ASG-2026-000007',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-012', workOrderLabel: 'INS-012',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [],
+    wireLines: [],
+    remarks: 'Originally issued 1 ONT Device (serial ZTE-ONT-2026-0009 / MAC A4:B1:C2:10:00:09) for this install — job rescheduled before deployment, unit returned unused to Andheri Store.',
+    status: 'Returned', assignedBy: 'Admin User', assignedAt: '2026-08-10T10:00:00.000Z',
+  },
+  {
+    id: 'ASG-000008', assignmentNumber: 'ASG-2026-000008',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-013', workOrderLabel: 'INS-013',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [],
+    wireLines: [],
+    remarks: 'Originally issued 1 WiFi Router for this install — found defective on pre-install check, returned to Andheri Store for RMA.',
+    status: 'Returned', assignedBy: 'Admin User', assignedAt: '2026-08-12T11:30:00.000Z',
+  },
+  {
+    id: 'ASG-000009', assignmentNumber: 'ASG-2026-000009',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-014', workOrderLabel: 'INS-014',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [],
+    wireLines: [],
+    remarks: 'Originally issued 15m off Drop Wire drum DR-00871 for this install — job cancelled before the run was made, meters returned unspooled to the drum.',
+    status: 'Returned', assignedBy: 'Admin User', assignedAt: '2026-08-14T09:45:00.000Z',
+  },
 ]
 
 _nextSeq = SEED.length + 1
