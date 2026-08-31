@@ -51,6 +51,10 @@ const SEED = [
     lastPurchaseDate: '2026-07-12',
     lastPaymentDate: '2026-07-20',
     status: 'active',
+    // Tagged as an HDD Contractor so Project Management's seeded HDD project
+    // (projectStore.js) has a real vendor + drilling rate to reference.
+    isHDDContractor: true,
+    drillingRatePerMeter: 220,
     // Newest first (matches recordVendorPayment()'s own prepend order).
     // Amounts sum to totalPaid (385000) above; the newest date matches
     // lastPaymentDate above.

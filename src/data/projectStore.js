@@ -109,9 +109,42 @@ export function generateSiteWorkOrderId() {
 //   capex            object   placeholder for capital-expenditure figures (Phase 5)
 //   createdAt        string   ISO date
 
-let _hddProjects = []
+// Seed data so there's a ready-made HDD project on app load (for testing
+// the Work Order flow without recreating one every session) — same
+// literal-id-plus-bumped-sequence convention as vendorStore.js's/
+// productStore.js's SEED arrays. Zero work orders, so its Work Orders tab
+// starts empty. VEN-001 (ZTE India Ltd) is seeded in vendorStore.js as an
+// HDD Contractor with a ₹220/m drilling rate to match.
+const HDD_SEED = [
+  {
+    id: 'HDD-2026-0001',
+    title: 'Sector 62 Backbone Route',
+    siteIncharge: 'u2', // Anita Sharma (userStore.js)
+    status: 'In Progress',
+    routeGeometry: {
+      start: { name: 'Sector 62 Gate', lat: 28.6139, lng: 77.2090 },
+      end: { name: 'Sector 128 Chowk', lat: 28.5921, lng: 77.3266 },
+    },
+    distance: 2500,
+    distanceUnit: 'Meters',
+    technicalSpecs: { ductType: '40mm PLB HDPE Duct', fiberCoreSize: '48-Core Armored Fiber', plannedChambers: 6 },
+    vendor: 'VEN-001',
+    drillingRate: 220,
+    capex: null,
+    workOrders: [],
+    drilledDistance: 0,
+    createdAt: '2026-08-01',
+  },
+]
+
+let _hddProjects = [...HDD_SEED]
 let _siteProjects = []
 const _listeners = []
+
+// Continue the id sequence after the seeded project above so a live-created
+// HDD project never collides with it (same pattern as vendorStore.js's
+// `_nextSeq = _vendors.length + 1`).
+_nextHDDProjectSeq = HDD_SEED.length + 1
 
 function notify() { _listeners.forEach(fn => fn({ hddProjects: [..._hddProjects], siteProjects: [..._siteProjects] })) }
 
