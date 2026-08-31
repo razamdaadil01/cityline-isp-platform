@@ -40,6 +40,7 @@ import {
   UserPlus,
   ArrowLeftRight,
   HardDrive,
+  FolderKanban,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -96,6 +97,7 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Asset Management', icon: HardDrive,       to: '/assets'                    },
+  { label: 'Projects',         icon: FolderKanban,    to: '/projects'                  },
   { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },

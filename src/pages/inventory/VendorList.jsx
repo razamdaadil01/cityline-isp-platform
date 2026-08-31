@@ -31,6 +31,7 @@ function emptyForm() {
   return {
     companyName: '', gstNumber: '', address: '', paymentTerms: PAYMENT_TERMS[0],
     contacts: [{ ...EMPTY_CONTACT }],
+    isHDDContractor: false, drillingRatePerMeter: '',
   }
 }
 
@@ -39,6 +40,8 @@ function vendorToForm(vendor) {
     companyName: vendor.companyName, gstNumber: vendor.gstNumber, address: vendor.address,
     paymentTerms: vendor.paymentTerms,
     contacts: getContacts(vendor).length ? getContacts(vendor).map(c => ({ ...c })) : [{ ...EMPTY_CONTACT }],
+    isHDDContractor: !!vendor.isHDDContractor,
+    drillingRatePerMeter: vendor.drillingRatePerMeter != null ? String(vendor.drillingRatePerMeter) : '',
   }
 }
 
@@ -66,6 +69,9 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
     }
     if (!form.gstNumber.trim()) errs.gstNumber = 'GST number is required.'
     if (!form.address.trim()) errs.address = 'Address is required.'
+    if (form.isHDDContractor && (form.drillingRatePerMeter === '' || Number.isNaN(Number(form.drillingRatePerMeter)) || Number(form.drillingRatePerMeter) < 0)) {
+      errs.drillingRatePerMeter = 'Enter a valid drilling rate per meter.'
+    }
     return { ...errs, ...validateContacts(form.contacts) }
   }
 
@@ -79,6 +85,8 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
       address: form.address.trim(),
       paymentTerms: form.paymentTerms,
       contacts: form.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() })),
+      isHDDContractor: form.isHDDContractor,
+      drillingRatePerMeter: form.isHDDContractor ? Number(form.drillingRatePerMeter) : null,
     })
     onClose()
   }
@@ -114,6 +122,20 @@ function AddEditVendorModal({ isOpen, onClose, editing }) {
               {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
           </FormField>
+          <label className="flex items-center gap-2.5 rounded-lg border border-surface-border px-3.5 py-3 bg-gray-50/60 cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-brand-blue"
+              checked={form.isHDDContractor}
+              onChange={e => setField('isHDDContractor', e.target.checked)}
+            />
+            <span className="text-sm text-gray-700">HDD Contractor</span>
+          </label>
+          {form.isHDDContractor && (
+            <FormField label="Drilling Rate per Meter" required error={errors.drillingRatePerMeter} hint="Used by HDD/Backbone Route Projects to calculate drilling cost.">
+              <Input type="number" min="0" placeholder="e.g. 220" value={form.drillingRatePerMeter} onChange={e => setField('drillingRatePerMeter', e.target.value)} />
+            </FormField>
+          )}
         </div>
 
         <div className="pt-4 border-t border-surface-border">
