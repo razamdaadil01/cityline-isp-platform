@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3, Archive, ShieldAlert } from 'lucide-react'
+import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3, Archive, ShieldAlert, MoreVertical } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES, checkWarrantyAlerts } from '../../data/assetStore'
@@ -36,6 +36,33 @@ export default function AssetList() {
   const [returningAsset, setReturningAsset] = useState(null)
   const [retiringAsset, setRetiringAsset] = useState(null)
   const [reportingLostAsset, setReportingLostAsset] = useState(null)
+
+  // Row "⋮" actions menu — same fixed-position-menu-rendered-outside-the-
+  // table pattern as VendorList.jsx's kebab menu (avoids the table's own
+  // overflow-x-auto clipping a menu that would otherwise be positioned
+  // relative to the row).
+  const [menuId, setMenuId] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuId) return
+    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
+    function handleKeyDown(e) { if (e.key === 'Escape') setMenuId(null) }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuId])
+
+  function openMenu(e, id) {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    setMenuId(id)
+  }
 
   // ── Filter Drawer — same slide-in panel + Apply/Clear pattern already
   // used across this app's other list pages (e.g. Inventory's Assign to
@@ -250,52 +277,13 @@ export default function AssetList() {
                       ? <span className="text-gray-800 font-medium">{a.assignedTo.engineerName}</span>
                       : <span className="text-gray-400">—</span>}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => navigate(`/assets/${a.id}`)}
-                        title="View"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-                      >
-                        <Eye size={14} />
-                      </button>
-                      {a.status === 'In Stock' && (
-                        <button
-                          onClick={() => setAssigningAsset(a)}
-                          title="Assign to Engineer"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-                        >
-                          <UserPlus size={14} />
-                        </button>
-                      )}
-                      {a.status === 'Assigned' && (
-                        <button
-                          onClick={() => setReturningAsset(a)}
-                          title="Return"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-                        >
-                          <RotateCcw size={14} />
-                        </button>
-                      )}
-                      {LOST_ELIGIBLE_STATUSES.has(a.status) && (
-                        <button
-                          onClick={() => setReportingLostAsset(a)}
-                          title="Report Lost"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <ShieldAlert size={14} />
-                        </button>
-                      )}
-                      {!TERMINAL_STATUSES.has(a.status) && (
-                        <button
-                          onClick={() => setRetiringAsset(a)}
-                          title="Retire"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                        >
-                          <Archive size={14} />
-                        </button>
-                      )}
-                    </div>
+                  <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={e => openMenu(e, a.id)}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === a.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <MoreVertical size={15} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -303,6 +291,57 @@ export default function AssetList() {
           </table>
         </div>
       </div>
+
+      {menuId && (() => {
+        const a = rows.find(r => r.id === menuId)
+        if (!a) return null
+        return (
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
+          >
+            <button
+              onClick={() => { navigate(`/assets/${a.id}`); setMenuId(null) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Eye size={13} className="text-brand-blue shrink-0" /> View
+            </button>
+            {a.status === 'In Stock' && (
+              <button
+                onClick={() => { setAssigningAsset(a); setMenuId(null) }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <UserPlus size={13} className="text-gray-400 shrink-0" /> Assign to Engineer
+              </button>
+            )}
+            {a.status === 'Assigned' && (
+              <button
+                onClick={() => { setReturningAsset(a); setMenuId(null) }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <RotateCcw size={13} className="text-gray-400 shrink-0" /> Return
+              </button>
+            )}
+            {LOST_ELIGIBLE_STATUSES.has(a.status) && (
+              <button
+                onClick={() => { setReportingLostAsset(a); setMenuId(null) }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <ShieldAlert size={13} className="text-red-400 shrink-0" /> Report Lost
+              </button>
+            )}
+            {!TERMINAL_STATUSES.has(a.status) && (
+              <button
+                onClick={() => { setRetiringAsset(a); setMenuId(null) }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Archive size={13} className="text-gray-400 shrink-0" /> Retire
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       <AssignAssetModal isOpen={!!assigningAsset} onClose={() => setAssigningAsset(null)} asset={assigningAsset} />
       <ReturnAssetModal isOpen={!!returningAsset} onClose={() => setReturningAsset(null)} asset={returningAsset} />
