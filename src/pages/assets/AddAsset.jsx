@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { FormField, Select } from '../../components/ui/FormInputs'
 import {
-  ASSET_CATEGORIES, getAssetCategory, getFieldsForType, KIT_COMPONENT_TYPES, ASSET_CONDITIONS,
+  ASSET_CATEGORIES, getAssetCategory, getAssetType, getFieldsForType, KIT_COMPONENT_TYPES, ASSET_CONDITIONS,
 } from '../../data/assetTaxonomy'
 import { createAsset, updateAsset, assetDisplayName } from '../../data/assetStore'
 import { savePurchaseOrder, computeLineAmount } from '../../data/purchaseOrderStore'
@@ -203,8 +203,29 @@ function FormSection({ label, defs, fields, onChange, showErrors, vendors }) {
 
 export default function AddAsset() {
   const navigate = useNavigate()
-  const [categoryId, setCategoryId] = useState('')
-  const [typeId, setTypeId] = useState('')
+  // Category/Type live in the URL (/assets/new/:categoryId?/:typeId?), not
+  // local state — deriving them fresh from useParams() on every render
+  // (same convention as VendorDetail.jsx/HDDProjectDetail.jsx reading their
+  // own :id/:tab straight off useParams() rather than mirroring it into
+  // state) means back/forward navigation and direct/shareable links just
+  // work, with no separate state to keep in sync with the URL.
+  const { categoryId: urlCategoryId, typeId: urlTypeId } = useParams()
+  const categoryId = urlCategoryId && getAssetCategory(urlCategoryId) ? urlCategoryId : ''
+  const category = categoryId ? getAssetCategory(categoryId) : null
+  const typeId = category && urlTypeId && getAssetType(categoryId, urlTypeId) ? urlTypeId : ''
+  const type = typeId ? getAssetType(categoryId, typeId) : null
+
+  // A URL naming an unknown category, or a type that doesn't exist under
+  // it (including one left over after the category segment was edited by
+  // hand), falls back to the bare /assets/new rather than silently
+  // rendering an empty form for a combination that was never actually
+  // selected.
+  useEffect(() => {
+    const categoryInvalid = !!urlCategoryId && !getAssetCategory(urlCategoryId)
+    const typeInvalid = !!urlTypeId && (!categoryId || !getAssetType(categoryId, urlTypeId))
+    if (categoryInvalid || typeInvalid) navigate('/assets/new', { replace: true })
+  }, [urlCategoryId, urlTypeId, categoryId, navigate])
+
   const [fields, setFields] = useState({})
   const [showErrors, setShowErrors] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -221,12 +242,13 @@ export default function AddAsset() {
   const [companyEntityId, setCompanyEntityId] = useState(() => entities[0]?.id ?? null)
   const [storeId, setStoreId] = useState('')
 
-  const category = categoryId ? getAssetCategory(categoryId) : null
-  const type = category?.types.find(t => t.id === typeId) ?? null
-
+  // Picking a new category drops any previously-selected type from the URL
+  // (the old type may not even exist under the new category) — replacing
+  // history, not pushing, so the back button doesn't need one step per
+  // dropdown change.
   function selectCategory(e) {
-    setCategoryId(e.target.value)
-    setTypeId('')
+    const nextCategoryId = e.target.value
+    navigate(nextCategoryId ? `/assets/new/${nextCategoryId}` : '/assets/new', { replace: true })
     setFields({})
   }
   // Any field marked autofillFromAssetType (Ladder's "Type", Authority/
@@ -237,7 +259,7 @@ export default function AddAsset() {
   // exact thing they just chose.
   function selectType(e) {
     const nextTypeId = e.target.value
-    setTypeId(nextTypeId)
+    navigate(nextTypeId ? `/assets/new/${categoryId}/${nextTypeId}` : `/assets/new/${categoryId}`, { replace: true })
     if (!nextTypeId) { setFields({}); return }
     const defs = getFieldsForType(categoryId, nextTypeId)
     const autofilled = {}

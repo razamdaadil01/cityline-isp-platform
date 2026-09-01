@@ -204,6 +204,8 @@ export default function App() {
           <Route path="/projects/site/:id/work-orders/new" element={<CreateSiteWorkOrder />} />
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/new" element={<AddAsset />} />
+          <Route path="/assets/new/:categoryId" element={<AddAsset />} />
+          <Route path="/assets/new/:categoryId/:typeId" element={<AddAsset />} />
           <Route path="/assets/reports" element={<AssetReports />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
           <Route path="/reports" element={<Reports />} />
