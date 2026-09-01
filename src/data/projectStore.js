@@ -191,6 +191,14 @@ export function generateSiteWorkOrderId() {
 // material-allocation record the work order form itself would have saved.
 const _seedDuctProduct = getProducts().find(p => p.name === '40mm PLB HDPE Duct')
 const _seedCouplerProduct = getProducts().find(p => p.name === 'Coupler')
+// Same dynamic-lookup-by-name idiom for the seeded Site work order below,
+// now that productStore.js's PROJECT_MATERIAL_SEED carries real "16-Port
+// FAT Box"/"1:16 PLC Splitter" items — referencing their real ids (instead
+// of the item name as a stand-in itemId) means the CAPEX Material Cost calc
+// matches them on the normal id lookup, not just priceForConsumedItem()'s
+// name-match fallback.
+const _seedFatBoxProduct = getProducts().find(p => p.name === '16-Port FAT Box')
+const _seedSplitterProduct = getProducts().find(p => p.name === '1:16 PLC Splitter')
 
 const HDD_SEED = [
   {
@@ -253,12 +261,10 @@ const HDD_SEED = [
 // order, one DPR entry, so the Site Details Page's Work Orders tab and a
 // work order's DPR list both have real data to click through instead of
 // empty states. requiredMaterials/materialConsumed reference "16-Port FAT
-// Box" and "1:16 PLC Splitter" by name directly as itemId — neither exists
-// in productStore.js's seed (only "Optical Splitter 1x8" is close), and
-// unlike HDD's CAPEX-driving duct/coupler items, nothing in Phase 6 reads
-// a Purchase Price off these yet, so a plain name-as-id is enough: every
-// display spot already falls back to `getProduct(itemId)?.name ?? itemId`,
-// so the literal name renders correctly either way.
+// Box" and "1:16 PLC Splitter" by their real productStore.js ids (looked up
+// by name above, same idiom as _seedDuctProduct/_seedCouplerProduct) so
+// getSiteProjectCapex()'s Material Purchase Cost calc resolves a real
+// Purchase Price for them instead of falling back to ₹0.
 const SITE_SEED = [
   {
     id: 'PRJ-SITE-2026-0001',
@@ -287,24 +293,24 @@ const SITE_SEED = [
         activityType: 'FAT Box Mounting & Splicing',
         targetLocation: 'Tower A - Floors 1 to 10',
         requiredMaterials: [
-          { itemId: '16-Port FAT Box', quantity: 10 },
-          { itemId: '1:16 PLC Splitter', quantity: 10 },
+          ...(_seedFatBoxProduct ? [{ itemId: _seedFatBoxProduct.id, quantity: 10 }] : []),
+          ...(_seedSplitterProduct ? [{ itemId: _seedSplitterProduct.id, quantity: 10 }] : []),
         ],
         assignedTechnicians: ['u3'], // Arjun Kumar (userStore.js, role: engineer) — same as HDD seed
         executionDate: new Date().toISOString().slice(0, 10),
         targetDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-        // Seeded so the CAPEX & Cost Ledger tab shows a real non-zero
-        // Labour Cost on load (Phase 7) — "16-Port FAT Box"/"1:16 PLC
-        // Splitter" have no Purchase Price in productStore.js's seed, so
-        // Material Purchase Cost is expected to show ₹0 until a matching
-        // item is added there.
+        // Seeded so the CAPEX & Cost Ledger tab shows real non-zero
+        // figures on load (Phase 7): Labour Cost from labourCost below, and
+        // Material Purchase Cost from the DPR entry's materialConsumed
+        // (6 × "16-Port FAT Box"'s ₹780 purchasePrice, seeded in
+        // productStore.js's PROJECT_MATERIAL_SEED = ₹4,680).
         labourCost: 4000,
         dprEntries: [
           {
             id: 'DPR-0001',
             date: new Date().toISOString().slice(0, 10),
             workDoneToday: 'Mounted 6 FAT boxes in Tower A, pulled 180m fiber',
-            materialConsumed: [{ itemId: '16-Port FAT Box', quantity: 6 }],
+            materialConsumed: _seedFatBoxProduct ? [{ itemId: _seedFatBoxProduct.id, quantity: 6 }] : [],
             barcodesScanned: ['FAT-88102', 'FAT-88103', 'FAT-88104', 'FAT-88105', 'FAT-88106', 'FAT-88107'],
             installationLocation: 'Floor 1-6',
           },
@@ -620,13 +626,22 @@ export function setSiteWorkOrderLabourCost(workOrderId, labourCost) {
 // Management's Purchase Price too, so it needs to stay live if a price
 // changes later, not just when a work order/DPR entry is saved.
 
+// Looks up by real product id first (the normal case — the Add Work
+// Order/DPR forms' Item dropdowns always store a genuine productStore.js
+// id). Falls back to a case-insensitive exact name match so a record whose
+// itemId is actually a plain item name (e.g. seed/import data written
+// before a matching Product Management item existed) still resolves once
+// one does, rather than silently pricing at ₹0 forever.
 const _warnedMissingSiteMaterialPrices = new Set()
 function priceForConsumedItem(itemId) {
+  const products = getProducts()
   const product = getProduct(itemId)
+    ?? products.find(p => p.name.trim().toLowerCase() === String(itemId).trim().toLowerCase())
+
   if (!product || product.purchasePrice == null) {
     if (!_warnedMissingSiteMaterialPrices.has(itemId)) {
       _warnedMissingSiteMaterialPrices.add(itemId)
-      console.warn(`[projectStore] No Product Management item with a Purchase Price found for id "${itemId}" — treating as ₹0.`)
+      console.warn(`[projectStore] No Product Management item with a Purchase Price found for "${itemId}" (matched by id or by exact name) — treating as ₹0. Add a matching item in Product Management to price this automatically.`)
     }
     return 0
   }
@@ -644,9 +659,11 @@ export function getSiteProjectCapex(siteProjectId) {
 
   // Material Purchase Cost — Σ (materialConsumed quantity × item's Purchase
   // Price) across every DPR entry. Unlike HDD's duct/coupler keyword match
-  // (segments don't store item ids), a DPR's materialConsumed already
-  // carries a real productStore.js item id per row, so this looks the
-  // price up directly rather than searching by name.
+  // (segments don't store item ids at all), a DPR's materialConsumed
+  // normally carries a real productStore.js item id per row, so this looks
+  // the price up by id first — priceForConsumedItem() falls back to an
+  // exact name match for older/seed rows that only ever recorded a plain
+  // item name.
   const materialCost = workOrders.reduce((sum, wo) => {
     const entries = wo.dprEntries ?? []
     const workOrderMaterialCost = entries.reduce((entrySum, entry) => {
