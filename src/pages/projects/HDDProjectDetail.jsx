@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ClipboardList, Boxes, Plus, Download } from 'lucide-react'
+import { ClipboardList, Plus, Download } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { getHDDProject, getHDDWorkOrders, getHDDProjectCapex, subscribeProjects } from '../../data/projectStore'
+import InventoryConsumptionTable from '../../components/projects/InventoryConsumptionTable'
+import { getHDDProject, getHDDWorkOrders, getHDDProjectCapex, getHDDInventorySummary, subscribeProjects } from '../../data/projectStore'
 import { getVendor } from '../../data/vendorStore'
 import { getUsers } from '../../data/userStore'
 import { getProduct } from '../../data/productStore'
@@ -181,6 +182,7 @@ export default function HDDProjectDetail() {
 
   const workOrders = getHDDWorkOrders(project.id)
   const capex = getHDDProjectCapex(project.id)
+  const inventorySummary = getHDDInventorySummary(project.id)
 
   function setActiveTab(t) {
     navigate(`/projects/hdd/${id}/${TAB_SLUGS[t]}`)
@@ -314,7 +316,9 @@ export default function HDDProjectDetail() {
               </div>
             )
           )}
-          {activeTab === 'Inventory' && <EmptyTabState icon={Boxes} text="No materials assigned yet" />}
+          {activeTab === 'Inventory' && (
+            <InventoryConsumptionTable rows={inventorySummary.rows} emptyText="No materials assigned yet" />
+          )}
           {activeTab === 'CAPEX & Financials' && (
             <div className="space-y-4">
               <div className="flex justify-end">

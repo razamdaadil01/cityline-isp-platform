@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ClipboardList, Boxes, Copy, Phone, Plus, Trash2, Download, Upload, ChevronRight } from 'lucide-react'
+import { ClipboardList, Copy, Phone, Plus, Trash2, Download, Upload, ChevronRight } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
+import InventoryConsumptionTable from '../../components/projects/InventoryConsumptionTable'
 import {
   getSiteProject, getSiteWorkOrders, addDPREntry, saveSiteProject, saveSiteProjectDocument,
   removeSiteProjectDocument, setSiteWorkOrderLabourCost, getSiteProjectCapex,
@@ -314,53 +315,9 @@ function WorkOrderDetailModal({ workOrder, onClose, onAddDPR }) {
   )
 }
 
-// ── Inventory & Consumption tab ──────────────────────────────────────────
-
-function InventoryConsumptionTab({ workOrders }) {
-  const { rows, barcodesByLocation } = computeInventorySummary(workOrders)
-
-  if (rows.length === 0) return <EmptyTabState icon={Boxes} text="No inventory recorded yet" />
-
-  return (
-    <div className="space-y-5">
-      <div className="overflow-x-auto rounded-xl border border-surface-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/60 border-b border-surface-border">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Requested Qty</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Consumed Qty</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Balance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {rows.map(r => (
-              <tr key={r.itemId}>
-                <td className="px-4 py-3 text-gray-800 font-medium">{r.name}</td>
-                <td className="px-4 py-3 text-right text-gray-600">{r.requested}</td>
-                <td className="px-4 py-3 text-right text-gray-600">{r.consumed}</td>
-                <td className={`px-4 py-3 text-right font-semibold ${r.balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{r.balance}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {Object.keys(barcodesByLocation).length > 0 && (
-        <div>
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Scanned Serialized Equipment by Location</h4>
-          <div className="space-y-1.5">
-            {Object.entries(barcodesByLocation).map(([loc, codes]) => (
-              <p key={loc} className="text-xs text-gray-600">
-                <span className="font-medium text-gray-800">{loc}:</span> {codes.join(', ')}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+// Inventory & Consumption tab rendering itself lives in the shared
+// InventoryConsumptionTable component (used by HDDProjectDetail.jsx too) —
+// only the aggregation above is Site-specific.
 
 // ── Documents & Vault tab ────────────────────────────────────────────────
 
@@ -543,6 +500,7 @@ export default function SiteProjectDetail() {
   }
 
   const workOrders = getSiteWorkOrders(project.id)
+  const inventorySummary = computeInventorySummary(workOrders)
 
   function setActiveTab(t) {
     navigate(`/projects/site/${id}/${TAB_SLUGS[t]}`)
@@ -698,7 +656,9 @@ export default function SiteProjectDetail() {
               </div>
             )
           )}
-          {activeTab === 'Inventory & Consumption' && <InventoryConsumptionTab workOrders={workOrders} />}
+          {activeTab === 'Inventory & Consumption' && (
+            <InventoryConsumptionTable rows={inventorySummary.rows} barcodesByLocation={inventorySummary.barcodesByLocation} />
+          )}
           {activeTab === 'Documents & Vault' && <DocumentsVaultTab project={project} canEdit={canEdit} />}
           {activeTab === 'CAPEX & Cost Ledger' && <CapexCostLedgerTab project={project} workOrders={workOrders} canEdit={canEdit} />}
         </div>

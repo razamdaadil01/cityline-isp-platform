@@ -433,6 +433,18 @@ export function saveHDDWorkOrder(projectId, workOrder) {
   return saved
 }
 
+// Looks up a product by its real id first (the normal case — every Item
+// dropdown across the Work Order/DPR forms stores a genuine productStore.js
+// id), falling back to a case-insensitive exact name match so a record
+// whose itemId is actually a plain item name (e.g. older seed/import data
+// written before a matching Product Management item existed) still
+// resolves once one does, instead of silently failing forever. Shared by
+// getSiteProjectCapex()'s price lookup and getHDDInventorySummary()'s
+// duct/coupler name matching below.
+function resolveProduct(itemId) {
+  return getProduct(itemId) ?? getProducts().find(p => p.name.trim().toLowerCase() === String(itemId).trim().toLowerCase())
+}
+
 // ── HDD Project CAPEX (Phase 4) ─────────────────────────────────────────
 // Pure computed-on-read functions, not a stored/cached field — CAPEX
 // depends on Product Management's Purchase Price too (not just the
@@ -496,6 +508,47 @@ export function getHDDProjectCapex(projectId) {
   const totalCapex = drillingCost + labourCharges + materialCost
 
   return { drillingCost, labourCharges, materialCost, totalCapex }
+}
+
+// Inventory tab data (Requested vs Consumed vs Balance, grouped by item).
+// Requested comes straight from requiredMaterials, same as Site's
+// computeInventorySummary(). Consumed can't be grouped by item the same
+// way, though — segments only track a ductsUsed/couplersUsed count, not
+// which specific productStore.js item each use maps to — so each requested
+// item's consumed figure is resolved the same way getHDDProjectCapex()
+// prices it: by matching that item's name against the project's own
+// technicalSpecs.ductType, or against the generic "coupler" keyword. Any
+// requested item that matches neither just shows 0 consumed rather than
+// erroring — there's no other consumption tracking to fall back to yet.
+export function getHDDInventorySummary(projectId) {
+  const project = getHDDProject(projectId)
+  if (!project) return { rows: [] }
+
+  const workOrders = project.workOrders ?? []
+  const allSegments = workOrders.flatMap(wo => wo.segments ?? [])
+  const totalDuctsUsed = allSegments.reduce((sum, seg) => sum + (Number(seg.ductsUsed) || 0), 0)
+  const totalCouplersUsed = allSegments.reduce((sum, seg) => sum + (Number(seg.couplersUsed) || 0), 0)
+  const ductKeyword = (project.technicalSpecs?.ductType || 'duct').trim().toLowerCase()
+
+  const requested = {}
+  workOrders.forEach(wo => {
+    ;(wo.requiredMaterials ?? []).forEach(m => {
+      requested[m.itemId] = (requested[m.itemId] || 0) + (Number(m.quantity) || 0)
+    })
+  })
+
+  const rows = Object.keys(requested).map(itemId => {
+    const product = resolveProduct(itemId)
+    const name = product?.name ?? itemId
+    const nameLower = name.toLowerCase()
+    let consumed = 0
+    if (nameLower.includes(ductKeyword)) consumed = totalDuctsUsed
+    else if (nameLower.includes('coupler')) consumed = totalCouplersUsed
+    const requestedQty = requested[itemId]
+    return { itemId, name, requested: requestedQty, consumed, balance: requestedQty - consumed }
+  })
+
+  return { rows }
 }
 
 export function saveSiteProject(project) {
@@ -626,17 +679,9 @@ export function setSiteWorkOrderLabourCost(workOrderId, labourCost) {
 // Management's Purchase Price too, so it needs to stay live if a price
 // changes later, not just when a work order/DPR entry is saved.
 
-// Looks up by real product id first (the normal case — the Add Work
-// Order/DPR forms' Item dropdowns always store a genuine productStore.js
-// id). Falls back to a case-insensitive exact name match so a record whose
-// itemId is actually a plain item name (e.g. seed/import data written
-// before a matching Product Management item existed) still resolves once
-// one does, rather than silently pricing at ₹0 forever.
 const _warnedMissingSiteMaterialPrices = new Set()
 function priceForConsumedItem(itemId) {
-  const products = getProducts()
-  const product = getProduct(itemId)
-    ?? products.find(p => p.name.trim().toLowerCase() === String(itemId).trim().toLowerCase())
+  const product = resolveProduct(itemId)
 
   if (!product || product.purchasePrice == null) {
     if (!_warnedMissingSiteMaterialPrices.has(itemId)) {
