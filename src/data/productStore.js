@@ -144,17 +144,23 @@ const WIRE_SEED = [
   status: 'active',
 }))
 
-// HDD/Backbone Route Project execution materials (Project Management) —
-// Duct and Coupler didn't exist in the original hardware/wire catalogs.
-// Seeded here so projectStore.js's seeded HDD work order's ductsUsed/
-// couplersUsed segment fields have a real Purchase Price to match against
-// in getHDDProjectCapex()'s Material Cost calc. "40mm PLB HDPE Duct" is
+// HDD/Backbone Route Project and Site Project execution materials (Project
+// Management) — none of these existed in the original hardware/wire
+// catalogs. Seeded here so their respective CAPEX Material Cost calcs
+// (getHDDProjectCapex()/getSiteProjectCapex()) have a real Purchase Price
+// to match against instead of falling back to ₹0. "40mm PLB HDPE Duct" is
 // named to match the seeded HDD project's technicalSpecs.ductType exactly
-// (that's what the matching logic searches for); "Coupler" just needs to
-// contain the keyword "coupler".
+// (that's what HDD's matching logic searches for); "Coupler" just needs to
+// contain the keyword "coupler". "16-Port FAT Box" and "1:16 PLC Splitter"
+// match the exact item names the seeded Site work order's requiredMaterials/
+// DPR materialConsumed rows reference (Site's matching is by exact
+// case-insensitive name, not a keyword substring — see priceForConsumedItem
+// in projectStore.js).
 const PROJECT_MATERIAL_SEED = [
-  { name: '40mm PLB HDPE Duct', productType: 'wire',     sku: 'WR-DUCT40-001', unitType: 'Meter', sellingPrice: 45, purchasePrice: 35, purchasedCompanyId: 2 },
-  { name: 'Coupler',            productType: 'hardware', sku: 'HW-CPLR-001',   unitType: 'Piece',  sellingPrice: 60, purchasePrice: 50, purchasedCompanyId: 1 },
+  { name: '40mm PLB HDPE Duct', productType: 'wire',     sku: 'WR-DUCT40-001', unitType: 'Meter', sellingPrice: 45,  purchasePrice: 35,  purchasedCompanyId: 2 },
+  { name: 'Coupler',            productType: 'hardware', sku: 'HW-CPLR-001',   unitType: 'Piece',  sellingPrice: 60,  purchasePrice: 50,  purchasedCompanyId: 1 },
+  { name: '16-Port FAT Box',    productType: 'hardware', sku: 'HW-FAT16-001',  unitType: 'Piece',  sellingPrice: 950, purchasePrice: 780, purchasedCompanyId: 2 },
+  { name: '1:16 PLC Splitter',  productType: 'hardware', sku: 'HW-SPLT16-001', unitType: 'Piece',  sellingPrice: 480, purchasePrice: 380, purchasedCompanyId: 2 },
 ].map((m, i) => ({
   id: `PRD-${String(HARDWARE_CATALOG.length + WIRE_SEED.length + i + 1).padStart(3, '0')}`,
   productType: m.productType,
