@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, Plus, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, Plus, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion, Save } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { FormField, Select } from '../../components/ui/FormInputs'
 import {
@@ -201,13 +201,12 @@ function FormSection({ label, defs, fields, onChange, showErrors, vendors }) {
   )
 }
 
-// basePath/returnTo/returnLabel let this same wizard be mounted under
-// different route namespaces (currently only Purchase Orders' "Add
-// Purchase Order → Asset" flow at /inventory/purchase-orders/new/asset)
-// without hardcoding where its own category/type sub-routes live or where
-// Back/Cancel/Save should land — App.jsx's <Route> element supplies these
-// per mount point.
-export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets', returnLabel = 'Assets' }) {
+// basePath/returnTo let this same wizard be mounted under different route
+// namespaces (currently only Purchase Orders' "Add Purchase Order → Asset"
+// flow at /inventory/purchase-orders/new/asset) without hardcoding where
+// its own category/type sub-routes live or where Back/Cancel/Save should
+// land — App.jsx's <Route> element supplies these per mount point.
+export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets' }) {
   const navigate = useNavigate()
   // Category/Type live in the URL (basePath/:categoryId?/:typeId?), not
   // local state — deriving them fresh from useParams() on every render
@@ -356,96 +355,107 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
   }
 
   return (
-    <div className="p-6 pb-10 space-y-5">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate(returnTo)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div>
-          <nav className="flex items-center gap-1 text-xs font-medium text-gray-400 mb-0.5">
-            <button onClick={() => navigate(returnTo)} className="hover:text-brand-blue transition-colors">{returnLabel}</button>
-            <ChevronRight size={12} className="text-gray-300" />
-            <span className="text-gray-500">Add Asset</span>
-          </nav>
-          <h1 className="text-xl font-bold text-gray-900">Add Asset</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Record a single asset into inventory.</p>
+    <div className="flex flex-col min-h-screen">
+      {/* Header — same back-arrow + title treatment as Inventory's Create PO
+          wizard (CreatePO.jsx), just without its StepProgress since this
+          form is intentionally single-page rather than multi-step. */}
+      <div className="p-6 pb-0">
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigate(returnTo)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Add Asset</h1>
+          </div>
         </div>
       </div>
 
-      {saveError && (
-        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-          <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {saveError}
-        </div>
-      )}
-      {showErrors && !allValid && (
-        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-          <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a category, type, company/entity, store, and fill every required field before saving.
-        </div>
-      )}
+      {/* Body — same scroll area / max-width / card container as CreatePO.jsx */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-6 pb-28">
+          <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
+            {saveError && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {saveError}
+              </div>
+            )}
+            {showErrors && !allValid && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a category, type, company/entity, store, and fill every required field before saving.
+              </div>
+            )}
 
-      <div className="bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
-          <FormField label="Category" required>
-            <Select value={categoryId} onChange={selectCategory}>
-              <option value="">Select category…</option>
-              {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Type" required>
-            <Select value={typeId} onChange={selectType} disabled={!category}>
-              <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
-              {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </Select>
-          </FormField>
-        </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Category" required>
+                <Select value={categoryId} onChange={selectCategory}>
+                  <option value="">Select category…</option>
+                  {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Type" required>
+                <Select value={typeId} onChange={selectType} disabled={!category}>
+                  <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
+                  {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </Select>
+              </FormField>
+            </div>
 
-        {/* Applies once per asset regardless of category/type — same
-            Company/Entity and Store sources CreatePO.jsx's own wizard uses,
-            required so the eventual PO (if raised) is created against the
-            entity whose Inventory Settings actually govern it. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
-          <FormField label="Company / Entity" required>
-            <Select value={companyEntityId ?? ''} onChange={e => setCompanyEntityId(Number(e.target.value))}>
-              <option value="">Select company/entity…</option>
-              {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Store" required>
-            <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
-              <option value="">Select store…</option>
-              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
-            </Select>
-          </FormField>
-        </div>
+            {/* Applies once per asset regardless of category/type — same
+                Company/Entity and Store sources CreatePO.jsx's own wizard uses,
+                required so the eventual PO (if raised) is created against the
+                entity whose Inventory Settings actually govern it. */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Company / Entity" required>
+                <Select value={companyEntityId ?? ''} onChange={e => setCompanyEntityId(Number(e.target.value))}>
+                  <option value="">Select company/entity…</option>
+                  {entities.map(en => <option key={en.id} value={en.id}>{en.name}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Store" required>
+                <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
+                  <option value="">Select store…</option>
+                  {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
+                </Select>
+              </FormField>
+            </div>
 
-        {type ? (
-          <div className="space-y-5 pt-1">
-            <FormSection label="Basic Details" defs={basicDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-            <FormSection label="Purchase & Warranty" defs={dateDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-            <FormSection label="Vendor" defs={vendorDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-            {kitDefs.length > 0 && (
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3 pb-1.5 border-b border-surface-border">Kit Components</p>
-                {kitDefs.map(f => (
-                  <AssetField key={f.key} field={f} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-                ))}
+            {type ? (
+              <div className="space-y-5 pt-1">
+                <FormSection label="Basic Details" defs={basicDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
+                <FormSection label="Purchase & Warranty" defs={dateDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
+                <FormSection label="Vendor" defs={vendorDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
+                {kitDefs.length > 0 && (
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3 pb-1.5 border-b border-surface-border">Kit Components</p>
+                    {kitDefs.map(f => (
+                      <AssetField key={f.key} field={f} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2.5 py-12 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">
+                <FileQuestion size={22} className="text-gray-300" />
+                <p className="text-sm text-gray-400">Select a category and type to continue.</p>
               </div>
             )}
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-2.5 py-12 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">
-            <FileQuestion size={22} className="text-gray-300" />
-            <p className="text-sm text-gray-400">Select a category and type to continue.</p>
-          </div>
-        )}
+        </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3">
-        <Button variant="secondary" size="sm" onClick={() => handleSave('Draft')}>Save as Draft</Button>
-        <Button size="sm" icon={<ClipboardList size={14} />} onClick={() => handleSave('PO Raised')}>Save &amp; Raise PO</Button>
+      {/* Bottom Bar — same fixed placement/sizing as CreatePO.jsx's Back/
+          Save Draft/Send PO bar: Back bottom-left, primary actions
+          bottom-right. There's no prior/next step to move between here, so
+          Back always returns to returnTo instead of decrementing a step. */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-surface-border px-6 py-3 flex items-center justify-between z-10">
+        <Button variant="secondary" size="sm" icon={<ChevronLeft size={14} />} onClick={() => navigate(returnTo)}>Back</Button>
+        <div className="flex items-center gap-3">
+          <Button variant="secondary" size="sm" icon={<Save size={14} />} onClick={() => handleSave('Draft')}>Save as Draft</Button>
+          <Button size="sm" icon={<ClipboardList size={14} />} onClick={() => handleSave('PO Raised')}>Save &amp; Raise PO</Button>
+        </div>
       </div>
     </div>
   )
