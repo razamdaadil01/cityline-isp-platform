@@ -176,6 +176,18 @@ export default function App() {
           <Route path="/inventory/settings" element={<InventorySettings />} />
           <Route path="/inventory/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/inventory/purchase-orders/new" element={<CreatePO />} />
+          <Route
+            path="/inventory/purchase-orders/new/asset"
+            element={<AddAsset basePath="/inventory/purchase-orders/new/asset" returnTo="/inventory/purchase-orders" returnLabel="Purchase Orders" />}
+          />
+          <Route
+            path="/inventory/purchase-orders/new/asset/:categoryId"
+            element={<AddAsset basePath="/inventory/purchase-orders/new/asset" returnTo="/inventory/purchase-orders" returnLabel="Purchase Orders" />}
+          />
+          <Route
+            path="/inventory/purchase-orders/new/asset/:categoryId/:typeId"
+            element={<AddAsset basePath="/inventory/purchase-orders/new/asset" returnTo="/inventory/purchase-orders" returnLabel="Purchase Orders" />}
+          />
           <Route path="/inventory/purchase-orders/:id/edit" element={<CreatePO />} />
           <Route path="/inventory/purchase-orders/:id" element={<PODetail />} />
           <Route path="/inventory/purchases" element={<Purchases />} />
@@ -203,9 +215,6 @@ export default function App() {
           <Route path="/projects/site/:id/:tab" element={<SiteProjectDetail />} />
           <Route path="/projects/site/:id/work-orders/new" element={<CreateSiteWorkOrder />} />
           <Route path="/assets" element={<AssetList />} />
-          <Route path="/assets/new" element={<AddAsset />} />
-          <Route path="/assets/new/:categoryId" element={<AddAsset />} />
-          <Route path="/assets/new/:categoryId/:typeId" element={<AddAsset />} />
           <Route path="/assets/reports" element={<AssetReports />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
           <Route path="/reports" element={<Reports />} />
