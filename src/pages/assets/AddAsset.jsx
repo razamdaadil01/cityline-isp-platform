@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Plus, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { FormField, Select } from '../../components/ui/FormInputs'
 import {
@@ -201,9 +201,15 @@ function FormSection({ label, defs, fields, onChange, showErrors, vendors }) {
   )
 }
 
-export default function AddAsset() {
+// basePath/returnTo/returnLabel let this same wizard be mounted under
+// different route namespaces (currently only Purchase Orders' "Add
+// Purchase Order → Asset" flow at /inventory/purchase-orders/new/asset)
+// without hardcoding where its own category/type sub-routes live or where
+// Back/Cancel/Save should land — App.jsx's <Route> element supplies these
+// per mount point.
+export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets', returnLabel = 'Assets' }) {
   const navigate = useNavigate()
-  // Category/Type live in the URL (/assets/new/:categoryId?/:typeId?), not
+  // Category/Type live in the URL (basePath/:categoryId?/:typeId?), not
   // local state — deriving them fresh from useParams() on every render
   // (same convention as VendorDetail.jsx/HDDProjectDetail.jsx reading their
   // own :id/:tab straight off useParams() rather than mirroring it into
@@ -217,14 +223,14 @@ export default function AddAsset() {
 
   // A URL naming an unknown category, or a type that doesn't exist under
   // it (including one left over after the category segment was edited by
-  // hand), falls back to the bare /assets/new rather than silently
+  // hand), falls back to the bare basePath rather than silently
   // rendering an empty form for a combination that was never actually
   // selected.
   useEffect(() => {
     const categoryInvalid = !!urlCategoryId && !getAssetCategory(urlCategoryId)
     const typeInvalid = !!urlTypeId && (!categoryId || !getAssetType(categoryId, urlTypeId))
-    if (categoryInvalid || typeInvalid) navigate('/assets/new', { replace: true })
-  }, [urlCategoryId, urlTypeId, categoryId, navigate])
+    if (categoryInvalid || typeInvalid) navigate(basePath, { replace: true })
+  }, [urlCategoryId, urlTypeId, categoryId, basePath, navigate])
 
   const [fields, setFields] = useState({})
   const [showErrors, setShowErrors] = useState(false)
@@ -248,7 +254,7 @@ export default function AddAsset() {
   // dropdown change.
   function selectCategory(e) {
     const nextCategoryId = e.target.value
-    navigate(nextCategoryId ? `/assets/new/${nextCategoryId}` : '/assets/new', { replace: true })
+    navigate(nextCategoryId ? `${basePath}/${nextCategoryId}` : basePath, { replace: true })
     setFields({})
   }
   // Any field marked autofillFromAssetType (Ladder's "Type", Authority/
@@ -259,7 +265,7 @@ export default function AddAsset() {
   // exact thing they just chose.
   function selectType(e) {
     const nextTypeId = e.target.value
-    navigate(nextTypeId ? `/assets/new/${categoryId}/${nextTypeId}` : `/assets/new/${categoryId}`, { replace: true })
+    navigate(nextTypeId ? `${basePath}/${categoryId}/${nextTypeId}` : `${basePath}/${categoryId}`, { replace: true })
     if (!nextTypeId) { setFields({}); return }
     const defs = getFieldsForType(categoryId, nextTypeId)
     const autofilled = {}
@@ -302,7 +308,7 @@ export default function AddAsset() {
       if (status === 'PO Raised') {
         raisePurchaseOrderForAsset(asset)
       }
-      navigate('/assets')
+      navigate(returnTo)
     } catch (err) {
       setSaveError(err.message || 'Could not save this asset.')
     }
@@ -353,12 +359,17 @@ export default function AddAsset() {
     <div className="p-6 pb-10 space-y-5">
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate('/assets')}
+          onClick={() => navigate(returnTo)}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
         >
           <ArrowLeft size={16} />
         </button>
         <div>
+          <nav className="flex items-center gap-1 text-xs font-medium text-gray-400 mb-0.5">
+            <button onClick={() => navigate(returnTo)} className="hover:text-brand-blue transition-colors">{returnLabel}</button>
+            <ChevronRight size={12} className="text-gray-300" />
+            <span className="text-gray-500">Add Asset</span>
+          </nav>
           <h1 className="text-xl font-bold text-gray-900">Add Asset</h1>
           <p className="text-sm text-gray-500 mt-0.5">Record a single asset into inventory.</p>
         </div>

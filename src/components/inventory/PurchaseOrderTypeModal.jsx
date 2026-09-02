@@ -15,7 +15,7 @@ const PO_TYPES = [
     label: 'Asset',
     description: 'Register a new fixed asset — laptops, network gear, furniture and the like.',
     icon: HardDrive,
-    to: '/assets/new',
+    to: '/inventory/purchase-orders/new/asset',
   },
 ]
 
