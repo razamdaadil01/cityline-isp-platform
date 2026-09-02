@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { FormField, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
+import PurchaseOrderTypeModal from '../../components/inventory/PurchaseOrderTypeModal'
 import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getVendors, getContacts } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
@@ -120,6 +121,7 @@ export default function PurchaseOrders() {
 
   const [remindPO, setRemindPO] = useState(null)
   const [toast, setToast] = useState('')
+  const [typeModalOpen, setTypeModalOpen] = useState(false)
 
   useEffect(() => {
     if (!toast) return
@@ -206,7 +208,7 @@ export default function PurchaseOrders() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/purchase-orders/new')}>Add Purchase Order</Button>}
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => setTypeModalOpen(true)}>Add Purchase Order</Button>}
         </div>
       </div>
 
@@ -434,6 +436,8 @@ export default function PurchaseOrders() {
           </div>
         )
       })()}
+
+      <PurchaseOrderTypeModal isOpen={typeModalOpen} onClose={() => setTypeModalOpen(false)} />
 
       <RemindModal
         isOpen={!!remindPO}

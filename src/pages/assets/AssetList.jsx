@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3, Archive, ShieldAlert, MoreVertical } from 'lucide-react'
+import { Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3, Archive, ShieldAlert, MoreVertical } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES, checkWarrantyAlerts } from '../../data/assetStore'
@@ -121,7 +121,6 @@ export default function AssetList() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" icon={<BarChart3 size={14} />} onClick={() => navigate('/assets/reports')}>Reports</Button>
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/assets/new')}>Add Asset</Button>
         </div>
       </div>
 
