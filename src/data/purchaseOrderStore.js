@@ -24,6 +24,20 @@ export const PO_STATUSES = [
 // Approval" tab), never a branch in this store's own logic.
 export const PO_TYPES = ['Standard', 'Asset Purchase']
 
+// Display-only relabeling for the Purchase Orders list's "Purchase Type"
+// column — same pattern as PO_STATUS_LABELS/getPoStatusLabel below, so the
+// stored/compared value stays 'Standard'/'Asset Purchase' everywhere (the
+// note above already documents why) while the UI reads "Product"/"Asset",
+// matching the wording of the Add Purchase Order choice screen that
+// actually sets this field (PurchaseOrderTypeModal.jsx).
+export const PO_TYPE_LABELS = {
+  'Standard': 'Product',
+  'Asset Purchase': 'Asset',
+}
+export function getPoTypeLabel(poType) {
+  return PO_TYPE_LABELS[poType] ?? poType
+}
+
 // Display-only relabeling — the stored/compared value stays 'Approval
 // Request' everywhere (so nothing that reads po.status directly needs to
 // change), but the UI shows the more descriptive "Sent for Approval" per

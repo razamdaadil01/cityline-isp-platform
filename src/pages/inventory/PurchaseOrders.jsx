@@ -9,10 +9,9 @@ import Modal from '../../components/ui/Modal'
 import { FormField, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import PurchaseOrderTypeModal from '../../components/inventory/PurchaseOrderTypeModal'
-import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES, getPoStatusLabel } from '../../data/purchaseOrderStore'
+import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES, getPoStatusLabel, getPoTypeLabel } from '../../data/purchaseOrderStore'
 import { getVendors, getContacts } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
-import { getCompanyEntity } from '../../data/companyEntities'
 import { usePermission } from '../../data/rolesStore'
 import { logAudit } from '../../data/auditLogStore'
 
@@ -27,10 +26,19 @@ const STATUS_BADGE = {
   Cancelled: 'red',
 }
 
+// Distinguishes the two flows the "+ Add Purchase Order" choice screen
+// (PurchaseOrderTypeModal.jsx) can start — 'Standard' (Product) vs
+// 'Asset Purchase' (Asset), stored on po.poType — same colors-by-key
+// pattern as STATUS_BADGE above.
+const PO_TYPE_BADGE = {
+  'Standard': 'blue',
+  'Asset Purchase': 'purple',
+}
+
 const PO_TABLE_COLUMNS = [
   { key: 'poNumber',      label: 'PO Number',    visible: true, defaultVisible: true, locked: true },
+  { key: 'purchaseType',  label: 'Purchase Type',visible: true, defaultVisible: true },
   { key: 'vendor',        label: 'Vendor',       visible: true, defaultVisible: true },
-  { key: 'company',       label: 'Company Name', visible: true, defaultVisible: true },
   { key: 'store',         label: 'Store',        visible: true, defaultVisible: true },
   { key: 'orderDate',     label: 'Order Date',   visible: true, defaultVisible: true },
   { key: 'deliveryDate',  label: 'Delivery Date',visible: true, defaultVisible: true },
@@ -112,7 +120,6 @@ export default function PurchaseOrders() {
   const stores = getStores()
   const vendorName = id => vendors.find(v => v.id === id)?.companyName ?? '—'
   const storeInfo = id => stores.find(s => s.id === id) ?? null
-  const companyName = id => getCompanyEntity(id)?.name ?? '—'
 
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:inventoryPOTable', PO_TABLE_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
@@ -349,8 +356,8 @@ export default function PurchaseOrders() {
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('poNumber')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[170px]">PO Number</th>}
+                {visibleCols.has('purchaseType') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Purchase Type</th>}
                 {visibleCols.has('vendor')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Vendor</th>}
-                {visibleCols.has('company')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Company Name</th>}
                 {visibleCols.has('store')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store</th>}
                 {visibleCols.has('orderDate')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Order Date</th>}
                 {visibleCols.has('deliveryDate') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Delivery Date</th>}
@@ -379,8 +386,12 @@ export default function PurchaseOrders() {
                       <span className="font-mono text-xs font-semibold text-brand-blue">{po.poNumber}</span>
                     </td>
                   )}
+                  {visibleCols.has('purchaseType') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge variant={PO_TYPE_BADGE[po.poType] ?? 'gray'} size="sm">{getPoTypeLabel(po.poType)}</Badge>
+                    </td>
+                  )}
                   {visibleCols.has('vendor')        && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{vendorName(po.vendorId)}</td>}
-                  {visibleCols.has('company')       && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{companyName(po.companyEntityId)}</td>}
                   {visibleCols.has('store')         && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{storeInfo(po.storeId)?.storeName ?? '—'}</td>}
                   {visibleCols.has('orderDate')     && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{po.orderDate}</td>}
                   {visibleCols.has('deliveryDate')  && <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{po.estimatedDeliveryDate || '—'}</td>}
