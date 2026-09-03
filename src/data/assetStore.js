@@ -42,11 +42,12 @@ export const ASSET_RETURN_CONDITIONS = ['Working', 'Minor Issue', 'Damaged', 'No
 // (assetStore.js's own asset shape has never carried one — see Phase 2's
 // note — Company/Entity only ever exists transiently in AddAsset.jsx's own
 // form state, used solely to build a PO payload). Vendor ids reference
-// vendorStore.js's real seeded vendors (VEN-002/VEN-003). The one exception
-// is AST-2026-000013 below, deliberately linked to the seeded PO-000010 so
-// the Purchases (GRN) wizard's Kit Components Received section
+// vendorStore.js's real seeded vendors (VEN-002/VEN-003). The exceptions
+// are AST-2026-000013 through AST-2026-000018 below, deliberately linked to
+// purchaseOrderStore.js's own seeded Asset Purchase POs (one per Asset
+// Category) so the Purchases (GRN) wizard's Select PO step and receipt UI
 // (CreatePurchase.jsx's linkedAssetForPOItem()/requestedKitComponents())
-// has a real un-received Splicing Machine case to render against.
+// have a real un-received case for every category to render against.
 const SEED = [
   {
     id: 'AST-2026-000001',
@@ -311,6 +312,81 @@ const SEED = [
     },
     status: 'PO Raised', assignedTo: null, poId: 'PO-000010',
     createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z',
+  },
+  // ── One 'PO Raised' asset per remaining Asset Category, each linked to
+  // its own seeded Asset Purchase PO (PO-000012 through PO-000016 in
+  // purchaseOrderStore.js) the same way AST-2026-000013 links to PO-000010
+  // above — poId plus a `POI-asset-${id}` line-item id on that PO — so
+  // every category's GRN receipt path (not just Splicing Machine's kit
+  // confirmation) has a real case to walk through Purchases' "Select PO"
+  // step end to end.
+  {
+    id: 'AST-2026-000014',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'desktop', typeLabel: 'Desktop',
+    fields: {
+      assetName: 'Front Office Desktop 01', brandName: 'Dell', modelName: 'OptiPlex 7020',
+      storageCapacity: '1TB SSD', ram: '16GB', processor: 'Intel Core i5-13500',
+      serialNumber: 'DL-OPX7020-AST-0014',
+      purchaseDate: '2026-08-30', warrantyStartDate: '2026-08-30', warrantyEndDate: '2029-08-29',
+      vendorId: 'VEN-002',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000012',
+    createdBy: 'Neha Gupta', createdAt: '2026-08-30T09:45:00.000Z',
+  },
+  // Second Splicing Machine still awaiting GRN (distinct from
+  // AST-2026-000013 above) — its own kit component ids so neither seed's
+  // rows collide once both are received.
+  {
+    id: 'AST-2026-000015',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Fusion Splicer Unit D', brandName: 'Fujikura', modelName: '90S+',
+      serialNumber: 'FJK-90S-2026-0015',
+      purchaseDate: '2026-08-31', warrantyStartDate: '2026-08-31', warrantyEndDate: '2028-08-30',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-15a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0015', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-15b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0015', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-15c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0015', quantity: 1, condition: 'New' },
+      ],
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000013',
+    createdBy: 'Salim Khan', createdAt: '2026-08-31T14:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000016',
+    categoryId: 'ladder', categoryLabel: 'Ladder',
+    typeId: 'aluminium-ladder', typeLabel: 'Aluminium Ladder',
+    fields: {
+      ladderName: 'Field Ladder 01', type: 'Aluminium Ladder', height: '12 ft', maxLoadCapacity: '150 kg',
+      brand: 'Bathla', purchaseDate: '2026-09-01', warrantyDate: '2027-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000014',
+    createdBy: 'Anita Sharma', createdAt: '2026-09-01T10:15:00.000Z',
+  },
+  {
+    id: 'AST-2026-000017',
+    categoryId: 'authority-access', categoryLabel: 'Authority/Access',
+    typeId: 'safety-gear', typeLabel: 'Safety Gear',
+    fields: {
+      cardAssetType: 'Safety Gear', cardIdNumber: 'SG-2026-0017', issuedTo: 'eng-004',
+      validFrom: '2026-09-01', validTo: '2027-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000015',
+    createdBy: 'Ravi Patel', createdAt: '2026-08-28T15:30:00.000Z',
+  },
+  {
+    id: 'AST-2026-000018',
+    categoryId: 'generic-tools', categoryLabel: 'Generic Tools',
+    typeId: 'drill-machine', typeLabel: 'Drill Machine',
+    fields: {
+      toolName: 'Cordless Drill Machine 01', category: 'Drill Machine', brand: 'Bosch', quantity: 1,
+      serialNumber: 'BSH-DRL-2026-0018', purchaseDate: '2026-08-26',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
   },
 ]
 

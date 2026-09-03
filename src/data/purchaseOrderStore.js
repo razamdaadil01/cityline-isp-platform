@@ -248,13 +248,74 @@ const SEED = [
     notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
     status: 'Fully Received', createdBy: 'Pooja Mehta', createdAt: '2026-08-05T09:00:00.000Z', approvalId: null,
   },
+  // ── One Asset Purchase PO per Asset Category (assetTaxonomy.js) — all
+  // 'Sent' ("Sent to Vendor") and unreceived, so every category's GRN
+  // receipt path can be walked end to end via Purchases' "Select PO" step,
+  // same linkage convention as PO-000010 above: each item id is
+  // `POI-asset-${asset.id}`, matching a real 'PO Raised' asset in
+  // assetStore.js so CreatePurchase.jsx's linkedAssetForPOItem() resolves
+  // it. Only the Splicing Machine one (PO-000013 / AST-2026-000015) carries
+  // kitComponents — every other category is deliberately not kit-eligible,
+  // exercising the plain Asset receipt path instead.
+  {
+    id: 'PO-000012', poNumber: 'CITY/PO/2026/00011', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-002', storeId: 'STR-001',
+    orderDate: '2026-08-30', estimatedDeliveryDate: '2026-09-13', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000014', { productId: '', productName: 'IT Asset — Desktop (Front Office Desktop 01)', sku: '', unit: 'Piece', qty: 1, price: 46610, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Neha Gupta', createdAt: '2026-08-30T09:45:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000013', poNumber: 'CITY/PO/2026/00012', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-002', storeId: 'STR-002',
+    orderDate: '2026-08-31', estimatedDeliveryDate: '2026-09-14', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000015', { productId: '', productName: 'Field & Splicing Tools — Splicing Machine (Fusion Splicer Unit D)', sku: '', unit: 'Piece', qty: 1, price: 35593, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Salim Khan', createdAt: '2026-08-31T14:00:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000014', poNumber: 'CITY/PO/2026/00013', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-001', storeId: 'STR-003',
+    orderDate: '2026-09-01', estimatedDeliveryDate: '2026-09-10', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000016', { productId: '', productName: 'Ladder — Aluminium Ladder (Field Ladder 01)', sku: '', unit: 'Piece', qty: 1, price: 5500, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Anita Sharma', createdAt: '2026-09-01T10:15:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000015', poNumber: 'CITY/PO/2026/00014', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-003', storeId: 'STR-001',
+    orderDate: '2026-08-28', estimatedDeliveryDate: '2026-09-08', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000017', { productId: '', productName: 'Authority/Access — Safety Gear (SG-2026-0017)', sku: '', unit: 'Piece', qty: 1, price: 2712, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Ravi Patel', createdAt: '2026-08-28T15:30:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000016', poNumber: 'CITY/PO/2026/00015', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-001', storeId: 'STR-002',
+    orderDate: '2026-08-26', estimatedDeliveryDate: '2026-09-05', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000018', { productId: '', productName: 'Generic Tools — Drill Machine (Cordless Drill Machine 01)', sku: '', unit: 'Piece', qty: 1, price: 7542, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z', approvalId: null,
+  },
 ].map(po => ({ ...po, poType: po.poType ?? 'Standard', ...summarize(po.items) }))
 
 // Seed sequence counters so the *next* live-created PO continues after the
 // seeded numbers instead of colliding with them — entity 1 has seeded POs
-// through 00010 (the original eight Product POs through 00008, plus two
-// seeded Asset Purchase POs at 00009/00010 above), entity 2 through 00002.
-_sequenceByEntity = { 1: 10, 2: 2 }
+// through 00015 (the original eight Product POs through 00008, the two
+// earlier seeded Asset Purchase POs at 00009/00010, and the five
+// one-per-category Asset Purchase POs at 00011-00015 above), entity 2
+// through 00002.
+_sequenceByEntity = { 1: 15, 2: 2 }
 
 let _pos = [...SEED]
 let _nextInternalSeq = _pos.length + 1
