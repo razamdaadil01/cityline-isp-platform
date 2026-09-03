@@ -29,14 +29,18 @@ function isFormValid(categoryId, typeId, fields) {
 }
 
 // ── Kit Components — Splicing Machine's own repeatable sub-table ────────
+function emptyKitComponent() {
+  return {
+    id: `kc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    componentType: '', componentName: '', serialNumber: '', quantity: 1, condition: '',
+  }
+}
+
 function KitComponentsTable({ value, onChange }) {
   const rows = value || []
 
   function addRow() {
-    onChange([...rows, {
-      id: `kc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      componentType: '', componentName: '', serialNumber: '', quantity: 1, condition: '',
-    }])
+    onChange([...rows, emptyKitComponent()])
   }
   function updateRow(id, patch) { onChange(rows.map(r => r.id === id ? { ...r, ...patch } : r)) }
   function removeRow(id) { onChange(rows.filter(r => r.id !== id)) }
@@ -268,7 +272,14 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
     if (!nextTypeId) { setFields({}); return }
     const defs = getFieldsForType(categoryId, nextTypeId)
     const autofilled = {}
-    defs.forEach(f => { if (f.autofillFromAssetType) autofilled[f.key] = category.types.find(t => t.id === nextTypeId)?.label })
+    defs.forEach(f => {
+      if (f.autofillFromAssetType) autofilled[f.key] = category.types.find(t => t.id === nextTypeId)?.label
+      // Kit Components starts with one empty row already visible — same
+      // shape KitComponentsTable's own "+ Add Component" creates — so the
+      // user isn't forced to click it just to see the first row. Still
+      // removable like any other row; this only seeds the initial state.
+      if (f.type === 'kit-components') autofilled[f.key] = [emptyKitComponent()]
+    })
     setFields(autofilled)
   }
   function updateField(key, value) { setFields(prev => ({ ...prev, [key]: value })) }
