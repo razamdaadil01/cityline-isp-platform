@@ -178,15 +178,7 @@ export default function App() {
           <Route path="/inventory/purchase-orders/new" element={<CreatePO />} />
           <Route
             path="/inventory/purchase-orders/new/asset"
-            element={<AddAsset basePath="/inventory/purchase-orders/new/asset" returnTo="/inventory/purchase-orders" />}
-          />
-          <Route
-            path="/inventory/purchase-orders/new/asset/:categoryId"
-            element={<AddAsset basePath="/inventory/purchase-orders/new/asset" returnTo="/inventory/purchase-orders" />}
-          />
-          <Route
-            path="/inventory/purchase-orders/new/asset/:categoryId/:typeId"
-            element={<AddAsset basePath="/inventory/purchase-orders/new/asset" returnTo="/inventory/purchase-orders" />}
+            element={<AddAsset returnTo="/inventory/purchase-orders" />}
           />
           <Route path="/inventory/purchase-orders/:id/edit" element={<CreatePO />} />
           <Route path="/inventory/purchase-orders/:id" element={<PODetail />} />

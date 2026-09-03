@@ -34,17 +34,22 @@ const STEPS = [
 const RECEIVABLE_PO_STATUSES = ['Sent', 'Partially Received']
 const MAC_RE = /^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$/
 
-// Asset Management's own linkage — a PO with poType 'Asset Purchase' has a
-// linked asset per line item (see AddAsset.jsx's "Save & Raise PO"), which
-// stamped that line's id as `POI-asset-${asset.id}` when it built the PO.
-// Matched here by exact id equality (not by parsing the asset id back out
-// of the string) so this stays correct even if that id format ever
-// changes shape, as long as it stays unique per PO. Standard POs never
-// match anything here (getAssets() has no asset with poId === a Standard
-// PO's id), so this is a no-op for the vast majority of POs.
-function linkedAssetForPOItem(po, poItem) {
-  if (!po || po.poType !== 'Asset Purchase') return null
-  return getAssets().find(a => a.poId === po.id && `POI-asset-${a.id}` === poItem.id) ?? null
+// Asset Management's own linkage — a PO with poType 'Asset Purchase' can
+// carry several lines (one per Category/Type/Qty combo — see AddAsset.jsx's
+// "Save & Raise PO", which now supports multiple items per PO), each with
+// one or more linked assets — `qty` of them, all created together via
+// createAssetsBulk() and stamped with this same line's id as their own
+// poItemId. Matched here by poId + poItemId (not by parsing anything out of
+// the line's own id) so this holds regardless of how many units a line
+// ordered. Standard POs never match anything here (getAssets() has no asset
+// with poId === a Standard PO's id), so this is a no-op for the vast
+// majority of POs. Order matches creation order (assetStore.js's
+// createAssetsBulk() prepends new assets, getAssets() returns them in that
+// same relative order), so array index lines up with "Unit 1, Unit 2, …"
+// below.
+function linkedAssetsForPOItem(po, poItem) {
+  if (!po || po.poType !== 'Asset Purchase') return []
+  return getAssets().filter(a => a.poId === po.id && a.poItemId === poItem.id)
 }
 
 // A Splicing Machine asset (assetTaxonomy.js: category 'field-splicing-
@@ -52,10 +57,14 @@ function linkedAssetForPOItem(po, poItem) {
 // Components sub-table — every other linked asset (or no linked asset at
 // all, i.e. every Standard PO line) carries an empty kitComponents array,
 // so CreatePurchase.jsx's "Kit Components Received" section never renders
-// for them.
-function requestedKitComponents(linkedAsset) {
-  if (linkedAsset?.categoryId !== 'field-splicing-tools' || linkedAsset?.typeId !== 'splicing-machine') return []
-  const rows = linkedAsset.fields?.kitComponents || []
+// for them. Only the line's first/primary linked asset is ever checked — a
+// Splicing Machine line is expected to stay qty 1 in practice (see
+// AddAsset.jsx's own note), so a qty>1 Splicing Machine line would only
+// surface/confirm its first unit's kit components, a known simplification
+// rather than a fully per-unit kit UI.
+function requestedKitComponents(primaryAsset) {
+  if (primaryAsset?.categoryId !== 'field-splicing-tools' || primaryAsset?.typeId !== 'splicing-machine') return []
+  const rows = primaryAsset.fields?.kitComponents || []
   // `received` defaults true (checked) — most components arrive as
   // planned, so GRN only needs the exceptions unchecked. serialNumber/
   // condition pre-fill from what was recorded at Add Asset time (often
@@ -70,30 +79,46 @@ function requestedKitComponents(linkedAsset) {
 // Everything below Kit Components a linked asset carries — the same
 // dynamic fields captured on the Add Asset form (Asset Name, Brand, Model,
 // RAM, etc. — assetTaxonomy.js's getFieldsForType(categoryId, typeId)
-// template) — copied here as this line's "as-ordered" reference. One copy
-// per received unit (assetFieldSets, resized alongside serials/macs below)
-// so the receiving person can review/correct each unit's details without
-// touching what was originally entered at PO creation time.
+// template) — copied here as reference. One entry per received unit
+// (assetFieldSets, resized alongside serials below) so the receiving person
+// can review/correct each unit's details without touching what was
+// originally entered at PO creation time.
 function assetDetailFieldsOnly(fields) {
   if (!fields) return {}
   const { kitComponents, ...rest } = fields
   return rest
 }
 
-function itemFromPOLine(it, i, linkedAsset = null) {
-  const assetOriginalFields = linkedAsset ? assetDetailFieldsOnly(linkedAsset.fields) : null
+function itemFromPOLine(it, i, linkedAssets = []) {
+  const primaryAsset = linkedAssets[0] ?? null
+  const assetOriginalFields = primaryAsset ? assetDetailFieldsOnly(primaryAsset.fields) : null
   return {
     id: `tmp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
+    // The PO's own line id — distinct from this Purchase item's own `id`
+    // above (a fresh tmp id local to this wizard session). An Asset line's
+    // productId is always '' (see AddAsset.jsx — no catalog product to
+    // reference), so a PO with several asset lines would otherwise have
+    // every one of them collapse onto the same '' key when
+    // receivedByProductIdForPO()/recalculatePOReceiptStatus()
+    // (purchaseStore.js/purchaseOrderStore.js) aggregate received qty per
+    // line across Purchases — poLineId is what lets those fall back to a
+    // per-line-unique key instead, without changing anything for a real
+    // catalog product (whose already-unique productId is still preferred).
+    poLineId: it.id,
     source: 'po', type: it.type, productId: it.productId, productName: it.productName,
     sku: it.sku, unit: it.unit, poQty: it.qty, receivedQty: '',
     price: it.price, gstPercent: it.gstPercent,
     serials: [], macs: [], drumNumber: '', reason: '',
-    assetId: linkedAsset?.id ?? null,
-    assetCategoryId: linkedAsset?.categoryId ?? null,
-    assetTypeId: linkedAsset?.typeId ?? null,
+    // One entry per linked asset (usually poQty of them) — assetIds[i] is
+    // the real Asset record backing that unit slot, or null for a slot
+    // beyond however many assets actually exist (e.g. an over-receipt past
+    // what was ordered) — see resizeIds()/AssetUnitDetailsSection below.
+    assetIds: linkedAssets.map(a => a.id),
+    assetCategoryId: primaryAsset?.categoryId ?? null,
+    assetTypeId: primaryAsset?.typeId ?? null,
     assetOriginalFields,
-    assetFieldSets: assetOriginalFields ? [{ ...assetOriginalFields }] : [],
-    kitComponents: requestedKitComponents(linkedAsset),
+    assetFieldSets: linkedAssets.map(a => assetDetailFieldsOnly(a.fields)),
+    kitComponents: requestedKitComponents(primaryAsset),
   }
 }
 
@@ -107,10 +132,20 @@ function resizeArray(arr, len) {
 // received unit instead of one string — a newly-added unit slot (Received
 // Qty raised past what's already there) starts as a fresh copy of the
 // as-ordered reference (`template`) rather than blank, since it's the same
-// item that was ordered; a shrunk slot is simply dropped.
+// item that was ordered; a shrunk slot is simply dropped. Existing slots
+// (which may carry a real linked asset's own fields, not just the template)
+// are left untouched.
 function resizeFieldSets(sets, len, template) {
   const next = sets.slice(0, len)
   while (next.length < len) next.push({ ...template })
+  return next
+}
+
+// Same idea again, for assetIds — a newly-added unit slot has no real Asset
+// record behind it (null), same reasoning as resizeFieldSets() above.
+function resizeIds(ids, len) {
+  const next = ids.slice(0, len)
+  while (next.length < len) next.push(null)
   return next
 }
 
@@ -446,8 +481,8 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
   )
 }
 
-// Shown only for an Asset-flow receipt line (item.assetId set — see
-// linkedAssetForPOItem() above) in place of the Product flow's "Enter
+// Shown only for an Asset-flow receipt line (item.assetIds non-empty — see
+// linkedAssetsForPOItem() above) in place of the Product flow's "Enter
 // Serials & MACs" modal — one expandable card per received unit
 // (assetFieldSets/serials, both resized alongside Received Qty by
 // ReceiptItemCard's own setReceivedQty()), each holding that unit's Serial
@@ -457,15 +492,17 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
 // shipped differently. Reuses AddAsset.jsx's own AssetDetailFields
 // renderer (includeKitComponents={false} — Kit Components already has its
 // own separate section below, KitComponentsReceiptSection) rather than a
-// second copy of that rendering. Only one physical Asset record exists per
-// Asset Purchase PO line (qty is always 1 when raised via AddAsset.jsx's
-// "Save & Raise PO"), so on Confirm only Unit 1's fields are written back
-// onto it — see purchaseStore.js's own note at the write-back call site.
+// second copy of that rendering. Each unit slot maps 1:1 to its own real
+// Asset record (item.assetIds[i]) whenever one exists, so on Confirm every
+// unit's corrected fields are written back onto its own asset — see
+// purchaseStore.js's own note at the write-back call site; a slot beyond
+// however many assets actually exist (e.g. an over-receipt) has no record
+// to write into.
 function AssetUnitDetailsSection({ item, onUpdate }) {
   const vendors = getVendors().filter(v => v.status === 'active')
-  // Unit 1 is virtually always the only unit in practice (see note above),
-  // so it starts expanded; any further unit from an over-receipt starts
-  // collapsed so the step stays usable even at a high Received Qty.
+  // Unit 1 always starts expanded so the common case (qty 1) needs no
+  // extra click; any further unit starts collapsed so the step stays
+  // usable even at a high Received Qty.
   const [expanded, setExpanded] = useState(() => new Set([0]))
 
   function toggle(i) {
@@ -520,19 +557,19 @@ function AssetUnitDetailsSection({ item, onUpdate }) {
 function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
-  // An Asset-flow line (item.assetId set — see linkedAssetForPOItem() above)
-  // has no catalog productId to read trackedBySerial/trackedByMac off of,
-  // so it fell through this gate entirely and never got serial capture at
-  // GRN. Every individually-tracked asset needs its own serial regardless
-  // of category (Authority/Access included, even though that category's
-  // own Add Asset fields don't carry a serialNumber field — this is a
-  // receipt-time capture, not an Add Asset one), so any asset line is
-  // trackedBySerial too; MAC stays product-only since Asset Management has
-  // no MAC concept.
-  const trackedBySerial = !!product?.trackedBySerial || !!item.assetId
+  // An Asset-flow line (item.assetIds non-empty — see
+  // linkedAssetsForPOItem() above) has no catalog productId to read
+  // trackedBySerial/trackedByMac off of, so it fell through this gate
+  // entirely and never got serial capture at GRN. Every individually-
+  // tracked asset needs its own serial regardless of category (Authority/
+  // Access included, even though that category's own Add Asset fields
+  // don't carry a serialNumber field — this is a receipt-time capture, not
+  // an Add Asset one), so any asset line is trackedBySerial too; MAC stays
+  // product-only since Asset Management has no MAC concept.
+  const isAssetItem = Array.isArray(item.assetIds) && item.assetIds.length > 0
+  const trackedBySerial = !!product?.trackedBySerial || isAssetItem
   const trackedByMac = !!product?.trackedByMac
   const isTracked = !isWire && (trackedBySerial || trackedByMac)
-  const isAssetItem = !!item.assetId
   const [modalOpen, setModalOpen] = useState(false)
 
   function setReceivedQty(qtyStr) {
@@ -540,7 +577,10 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
     const patch = { receivedQty: qtyStr }
     if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
     if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
-    if (isAssetItem) patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, qty, item.assetOriginalFields)
+    if (isAssetItem) {
+      patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, qty, item.assetOriginalFields)
+      patch.assetIds = resizeIds(item.assetIds, qty)
+    }
     onUpdate(patch)
   }
 
@@ -743,7 +783,7 @@ export default function CreatePurchase() {
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchaseDate ?? new Date().toISOString().slice(0, 10))
   const [items, setItems] = useState(() =>
     existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) }))
-    ?? poFromUrl?.items.map((it, i) => itemFromPOLine(it, i, linkedAssetForPOItem(poFromUrl, it)))
+    ?? poFromUrl?.items.map((it, i) => itemFromPOLine(it, i, linkedAssetsForPOItem(poFromUrl, it)))
     ?? []
   )
   const [remarks, setRemarks] = useState(existing?.remarks ?? '')
@@ -788,7 +828,7 @@ export default function CreatePurchase() {
     // Re-selecting a PO replaces only the PO-sourced lines — any items
     // already added via "Add Hardware Outside PO" carry over.
     setItems(prev => [
-      ...po.items.map((it, i) => itemFromPOLine(it, i, linkedAssetForPOItem(po, it))),
+      ...po.items.map((it, i) => itemFromPOLine(it, i, linkedAssetsForPOItem(po, it))),
       ...prev.filter(it => it.source === 'outside'),
     ])
     patchSearchParams({ po: po.id }, { replace: true })
@@ -838,9 +878,10 @@ export default function CreatePurchase() {
       if (it.type === 'wire') return !!it.drumNumber?.trim()
       const product = getProduct(it.productId)
       // Same trackedBySerial-or-asset-line rule ReceiptItemCard uses above —
-      // an Asset-flow item (it.assetId set) requires Serial Number here too,
-      // even though it has no catalog product to read trackedBySerial off.
-      const trackedBySerial = !!product?.trackedBySerial || !!it.assetId
+      // an Asset-flow item (it.assetIds non-empty) requires Serial Number
+      // here too, even though it has no catalog product to read
+      // trackedBySerial off.
+      const trackedBySerial = !!product?.trackedBySerial || (Array.isArray(it.assetIds) && it.assetIds.length > 0)
       const serialsOk = !trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
       const macsOk = !product?.trackedByMac || (it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim())))
       return serialsOk && macsOk
@@ -880,11 +921,11 @@ export default function CreatePurchase() {
       storeId, storeName: store?.storeName ?? '',
       companyEntityId, purchaseDate,
       items: numericItems.map(it => ({
-        id: it.id, source: it.source, type: it.type, productId: it.productId, productName: it.productName,
+        id: it.id, poLineId: it.poLineId ?? null, source: it.source, type: it.type, productId: it.productId, productName: it.productName,
         sku: it.sku, unit: it.unit, poQty: it.poQty, receivedQty: it.receivedQty,
         price: it.price, gstPercent: it.gstPercent,
         serials: it.serials, macs: it.macs, drumNumber: it.drumNumber, reason: it.reason,
-        assetId: it.assetId ?? null, kitComponents: it.kitComponents ?? [],
+        assetIds: it.assetIds ?? [], kitComponents: it.kitComponents ?? [],
         assetCategoryId: it.assetCategoryId ?? null, assetTypeId: it.assetTypeId ?? null,
         assetOriginalFields: it.assetOriginalFields ?? null, assetFieldSets: it.assetFieldSets ?? [],
       })),
