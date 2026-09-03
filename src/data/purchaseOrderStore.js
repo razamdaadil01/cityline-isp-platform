@@ -216,13 +216,41 @@ const SEED = [
     notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
     status: 'Sent', createdBy: 'Ravi Patel', createdAt: '2026-08-27T11:15:00.000Z', approvalId: null,
   },
-].map(po => ({ ...po, poType: 'Standard', ...summarize(po.items) }))
+  // ── Asset Purchase seeds — poType: 'Asset Purchase' (see PO_TYPES above)
+  // so the Purchase Orders list's "Purchase Type" column shows both badge
+  // variants on load rather than only ever seeing "Product" until a live
+  // Add Asset "Save & Raise PO" is run. Line items mirror the shape
+  // AddAsset.jsx's raisePurchaseOrderForAsset() builds for a real
+  // asset-originated PO (productId: '', qty 1, a descriptive productName)
+  // rather than a catalog product — no linked asset record exists for
+  // these since they're seeded directly, not raised through the wizard.
+  {
+    id: 'PO-000010', poNumber: 'CITY/PO/2026/00009', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-001', storeId: 'STR-002',
+    orderDate: '2026-08-29', estimatedDeliveryDate: '2026-09-12', gstPercent: 18,
+    items: [
+      makeItem(16, { productId: '', productName: 'Field & Splicing Tools — Splicing Machine', sku: '', unit: 'Piece', qty: 1, price: 38136, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000011', poNumber: 'CITY/PO/2026/00010', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-003', storeId: 'STR-003',
+    orderDate: '2026-08-05', estimatedDeliveryDate: '2026-08-20', gstPercent: 18,
+    items: [
+      makeItem(17, { productId: '', productName: 'IT Asset — Laptop', sku: '', unit: 'Piece', qty: 1, price: 15678, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Fully Received', createdBy: 'Pooja Mehta', createdAt: '2026-08-05T09:00:00.000Z', approvalId: null,
+  },
+].map(po => ({ ...po, poType: po.poType ?? 'Standard', ...summarize(po.items) }))
 
 // Seed sequence counters so the *next* live-created PO continues after the
 // seeded numbers instead of colliding with them — entity 1 has seeded POs
-// through 00008 (six POs plus the 00005 approval-demo and 00006 Approval
-// Request POs), entity 2 through 00002.
-_sequenceByEntity = { 1: 8, 2: 2 }
+// through 00010 (the original eight Product POs through 00008, plus two
+// seeded Asset Purchase POs at 00009/00010 above), entity 2 through 00002.
+_sequenceByEntity = { 1: 10, 2: 2 }
 
 let _pos = [...SEED]
 let _nextInternalSeq = _pos.length + 1
