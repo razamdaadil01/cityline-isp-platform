@@ -419,7 +419,16 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
 function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
-  const trackedBySerial = !!product?.trackedBySerial
+  // An Asset-flow line (item.assetId set — see linkedAssetForPOItem() above)
+  // has no catalog productId to read trackedBySerial/trackedByMac off of,
+  // so it fell through this gate entirely and never got serial capture at
+  // GRN. Every individually-tracked asset needs its own serial regardless
+  // of category (Authority/Access included, even though that category's
+  // own Add Asset fields don't carry a serialNumber field — this is a
+  // receipt-time capture, not an Add Asset one), so any asset line is
+  // trackedBySerial too; MAC stays product-only since Asset Management has
+  // no MAC concept.
+  const trackedBySerial = !!product?.trackedBySerial || !!item.assetId
   const trackedByMac = !!product?.trackedByMac
   const isTracked = !isWire && (trackedBySerial || trackedByMac)
   const [modalOpen, setModalOpen] = useState(false)
@@ -723,7 +732,11 @@ export default function CreatePurchase() {
     return receivedItems.every(it => {
       if (it.type === 'wire') return !!it.drumNumber?.trim()
       const product = getProduct(it.productId)
-      const serialsOk = !product?.trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
+      // Same trackedBySerial-or-asset-line rule ReceiptItemCard uses above —
+      // an Asset-flow item (it.assetId set) requires Serial Number here too,
+      // even though it has no catalog product to read trackedBySerial off.
+      const trackedBySerial = !!product?.trackedBySerial || !!it.assetId
+      const serialsOk = !trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
       const macsOk = !product?.trackedByMac || (it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim())))
       return serialsOk && macsOk
     })
