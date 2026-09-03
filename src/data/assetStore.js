@@ -540,6 +540,40 @@ export function confirmKitComponentsForAsset(assetId, kitComponents) {
   logAudit({ action: 'Edit', module: 'Assets', details: `Kit components confirmed at GRN for asset ${assetId}` })
 }
 
+// Called from purchaseStore.js's savePurchase() when a GRN (Purchase
+// confirm) completes for an Asset Purchase PO's receipt line — the
+// receiving person can review/correct the same Add Asset detail fields
+// (Asset Name, Brand, Model, RAM, etc. — CreatePurchase.jsx's own
+// AssetUnitDetailsSection, reusing AddAsset.jsx's AssetDetailFields
+// renderer) if the vendor actually shipped something different from what
+// was ordered. `correctedFields` never includes kitComponents — that's
+// confirmed separately via confirmKitComponentsForAsset() above — so this
+// merge can never clobber it regardless of call order. Only logs an audit
+// entry (and only for the fields that actually changed) rather than one
+// unconditionally on every confirm, so a receipt that needed no
+// corrections doesn't add audit noise; the original PO-time value is
+// preserved in that audit trail (old → new) since the asset record itself
+// only ever holds the current value, same as any other Edit here.
+export function confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber } = {}) {
+  const asset = getAsset(assetId)
+  if (!asset) return
+  const changed = Object.keys(correctedFields).filter(key => {
+    const before = asset.fields?.[key] ?? ''
+    const after = correctedFields[key] ?? ''
+    return String(before) !== String(after)
+  })
+  const updated = { ...asset, fields: { ...asset.fields, ...correctedFields } }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+  if (changed.length > 0) {
+    const changes = changed.map(key => `${key}: "${asset.fields?.[key] ?? ''}" → "${correctedFields[key] ?? ''}"`).join('; ')
+    logAudit({
+      action: 'Edit', module: 'Assets',
+      details: `Corrected at GRN receipt${poNumber ? ` of ${poNumber}` : ''} for asset ${assetId} — ${changes}`,
+    })
+  }
+}
+
 // Phase 4a — Assign Asset to Engineer. Only allowed from 'In Stock' (an
 // asset still Draft/PO Raised has no physical unit to hand over yet; one
 // already Assigned needs a Return first — see initiateAssetReturn() below).
