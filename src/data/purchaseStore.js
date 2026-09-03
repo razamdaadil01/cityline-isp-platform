@@ -6,7 +6,7 @@
 // stock ledger will read from later.
 
 import { recalculatePOReceiptStatus, getPurchaseOrder } from './purchaseOrderStore'
-import { markAssetsInStockForPO, confirmKitComponentsForAsset } from './assetStore'
+import { markAssetsInStockForPO, confirmKitComponentsForAsset, confirmAssetDetailFieldsAtGRN } from './assetStore'
 import { logAudit } from './auditLogStore'
 import { addNotification } from './notificationStore'
 
@@ -430,6 +430,16 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
             serialNumber: c.serialNumber, condition: c.condition,
             receivedStatus: c.received ? 'Received' : 'Missing',
           })))
+        }
+        // Asset detail fields reviewed/corrected at GRN (CreatePurchase.jsx's
+        // AssetUnitDetailsSection) — only one physical Asset record exists
+        // per Asset Purchase PO line (qty is always 1 when raised via
+        // AddAsset.jsx's "Save & Raise PO"), so only Unit 1's field set is
+        // the one written back onto it; any further units from an
+        // over-receipt were captured for the record but have no separate
+        // Asset Management record of their own to update.
+        if (it.assetId && Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets) && it.assetFieldSets.length > 0) {
+          confirmAssetDetailFieldsAtGRN(it.assetId, it.assetFieldSets[0], { poNumber: purchase.poNumber })
         }
       })
     }

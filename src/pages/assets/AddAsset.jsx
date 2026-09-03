@@ -205,6 +205,39 @@ function FormSection({ label, defs, fields, onChange, showErrors, vendors }) {
   )
 }
 
+// The dynamic Category/Type field template (assetTaxonomy.js's own
+// getFieldsForType()) rendered as Basic Details/Purchase & Warranty/
+// Vendor/Kit Components sections — extracted out of AddAsset's own render
+// body so CreatePurchase.jsx's Asset PO receipt step (added later, to let
+// the receiving person review/correct these same fields per unit) can
+// reuse the exact same rendering instead of a second copy of it.
+// includeKitComponents={false} lets a caller that already has its own Kit
+// Components UI (CreatePurchase.jsx's own GRN-time confirmation section)
+// skip rendering it a second time here.
+export function AssetDetailFields({ categoryId, typeId, fields, onChange, showErrors, vendors, includeKitComponents = true }) {
+  const fieldDefs = categoryId && typeId ? getFieldsForType(categoryId, typeId) : []
+  const basicDefs = fieldDefs.filter(f => f.type !== 'date' && f.type !== 'vendor-select' && f.type !== 'kit-components')
+  const dateDefs = fieldDefs.filter(f => f.type === 'date')
+  const vendorDefs = fieldDefs.filter(f => f.type === 'vendor-select')
+  const kitDefs = includeKitComponents ? fieldDefs.filter(f => f.type === 'kit-components') : []
+
+  return (
+    <div className="space-y-5">
+      <FormSection label="Basic Details" defs={basicDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
+      <FormSection label="Purchase & Warranty" defs={dateDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
+      <FormSection label="Vendor" defs={vendorDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
+      {kitDefs.length > 0 && (
+        <div>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3 pb-1.5 border-b border-surface-border">Kit Components</p>
+          {kitDefs.map(f => (
+            <AssetField key={f.key} field={f} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // basePath/returnTo let this same wizard be mounted under different route
 // namespaces (currently only Purchase Orders' "Add Purchase Order → Asset"
 // flow at /inventory/purchase-orders/new/asset) without hardcoding where
@@ -283,13 +316,6 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
     setFields(autofilled)
   }
   function updateField(key, value) { setFields(prev => ({ ...prev, [key]: value })) }
-
-  const fieldDefs = type ? getFieldsForType(categoryId, typeId) : []
-  // Presentational-only grouping — see FormSection's own note.
-  const basicDefs = fieldDefs.filter(f => f.type !== 'date' && f.type !== 'vendor-select' && f.type !== 'kit-components')
-  const dateDefs = fieldDefs.filter(f => f.type === 'date')
-  const vendorDefs = fieldDefs.filter(f => f.type === 'vendor-select')
-  const kitDefs = fieldDefs.filter(f => f.type === 'kit-components')
 
   // Company/Entity and Store are required same as Category/Type — the
   // asset record itself doesn't store either (see buildPayload() below;
@@ -434,18 +460,8 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
             </div>
 
             {type ? (
-              <div className="space-y-5 pt-1">
-                <FormSection label="Basic Details" defs={basicDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-                <FormSection label="Purchase & Warranty" defs={dateDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-                <FormSection label="Vendor" defs={vendorDefs} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-                {kitDefs.length > 0 && (
-                  <div>
-                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3 pb-1.5 border-b border-surface-border">Kit Components</p>
-                    {kitDefs.map(f => (
-                      <AssetField key={f.key} field={f} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
-                    ))}
-                  </div>
-                )}
+              <div className="pt-1">
+                <AssetDetailFields categoryId={categoryId} typeId={typeId} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-2.5 py-12 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">

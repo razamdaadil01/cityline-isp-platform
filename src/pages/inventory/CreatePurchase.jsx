@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, PackageOpen, Calculator,
+  ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, PackageOpen, Calculator,
   AlertTriangle, Save, CheckCircle2, Trash2, Plus, X, Download, Upload,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -20,6 +20,7 @@ import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
 import { ASSET_CONDITIONS } from '../../data/assetTaxonomy'
+import { AssetDetailFields } from '../assets/AddAsset'
 
 const STEPS = [
   { id: 1, label: 'Select PO',        icon: ClipboardList },
@@ -66,7 +67,21 @@ function requestedKitComponents(linkedAsset) {
   }))
 }
 
+// Everything below Kit Components a linked asset carries — the same
+// dynamic fields captured on the Add Asset form (Asset Name, Brand, Model,
+// RAM, etc. — assetTaxonomy.js's getFieldsForType(categoryId, typeId)
+// template) — copied here as this line's "as-ordered" reference. One copy
+// per received unit (assetFieldSets, resized alongside serials/macs below)
+// so the receiving person can review/correct each unit's details without
+// touching what was originally entered at PO creation time.
+function assetDetailFieldsOnly(fields) {
+  if (!fields) return {}
+  const { kitComponents, ...rest } = fields
+  return rest
+}
+
 function itemFromPOLine(it, i, linkedAsset = null) {
+  const assetOriginalFields = linkedAsset ? assetDetailFieldsOnly(linkedAsset.fields) : null
   return {
     id: `tmp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
     source: 'po', type: it.type, productId: it.productId, productName: it.productName,
@@ -74,6 +89,10 @@ function itemFromPOLine(it, i, linkedAsset = null) {
     price: it.price, gstPercent: it.gstPercent,
     serials: [], macs: [], drumNumber: '', reason: '',
     assetId: linkedAsset?.id ?? null,
+    assetCategoryId: linkedAsset?.categoryId ?? null,
+    assetTypeId: linkedAsset?.typeId ?? null,
+    assetOriginalFields,
+    assetFieldSets: assetOriginalFields ? [{ ...assetOriginalFields }] : [],
     kitComponents: requestedKitComponents(linkedAsset),
   }
 }
@@ -81,6 +100,17 @@ function itemFromPOLine(it, i, linkedAsset = null) {
 function resizeArray(arr, len) {
   const next = arr.slice(0, len)
   while (next.length < len) next.push('')
+  return next
+}
+
+// Same idea as resizeArray() above, one asset-detail-fields object per
+// received unit instead of one string — a newly-added unit slot (Received
+// Qty raised past what's already there) starts as a fresh copy of the
+// as-ordered reference (`template`) rather than blank, since it's the same
+// item that was ordered; a shrunk slot is simply dropped.
+function resizeFieldSets(sets, len, template) {
+  const next = sets.slice(0, len)
+  while (next.length < len) next.push({ ...template })
   return next
 }
 
@@ -416,6 +446,77 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
   )
 }
 
+// Shown only for an Asset-flow receipt line (item.assetId set — see
+// linkedAssetForPOItem() above) in place of the Product flow's "Enter
+// Serials & MACs" modal — one expandable card per received unit
+// (assetFieldSets/serials, both resized alongside Received Qty by
+// ReceiptItemCard's own setReceivedQty()), each holding that unit's Serial
+// Number plus the full Add Asset detail fields (Asset Name, Brand, Model,
+// RAM, etc.), pre-filled from what was captured at PO creation and
+// editable here so the receiver can correct anything the vendor actually
+// shipped differently. Reuses AddAsset.jsx's own AssetDetailFields
+// renderer (includeKitComponents={false} — Kit Components already has its
+// own separate section below, KitComponentsReceiptSection) rather than a
+// second copy of that rendering. Only one physical Asset record exists per
+// Asset Purchase PO line (qty is always 1 when raised via AddAsset.jsx's
+// "Save & Raise PO"), so on Confirm only Unit 1's fields are written back
+// onto it — see purchaseStore.js's own note at the write-back call site.
+function AssetUnitDetailsSection({ item, onUpdate }) {
+  const vendors = getVendors().filter(v => v.status === 'active')
+  // Unit 1 is virtually always the only unit in practice (see note above),
+  // so it starts expanded; any further unit from an over-receipt starts
+  // collapsed so the step stays usable even at a high Received Qty.
+  const [expanded, setExpanded] = useState(() => new Set([0]))
+
+  function toggle(i) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i); else next.add(i)
+      return next
+    })
+  }
+  function updateUnitField(i, key, value) {
+    onUpdate({ assetFieldSets: item.assetFieldSets.map((set, idx) => idx === i ? { ...set, [key]: value } : set) })
+  }
+  function updateUnitSerial(i, value) {
+    onUpdate({ serials: item.serials.map((s, idx) => idx === i ? value : s) })
+  }
+
+  return (
+    <div className="space-y-2">
+      {item.assetFieldSets.map((fieldSet, i) => (
+        <div key={i} className="rounded-lg border border-surface-border overflow-hidden">
+          <button
+            type="button" onClick={() => toggle(i)}
+            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50/60 hover:bg-gray-100 transition-colors text-left"
+          >
+            <span className="text-xs font-semibold text-gray-700">
+              Unit {i + 1}{item.assetFieldSets.length > 1 ? ` of ${item.assetFieldSets.length}` : ''}
+            </span>
+            <ChevronDown size={14} className={`text-gray-400 transition-transform ${expanded.has(i) ? 'rotate-180' : ''}`} />
+          </button>
+          {expanded.has(i) && (
+            <div className="p-3 space-y-4 bg-white border-t border-surface-border">
+              <FormField label="Serial Number" required>
+                <Input
+                  value={item.serials[i] ?? ''}
+                  onChange={e => updateUnitSerial(i, e.target.value)}
+                  placeholder="Serial Number"
+                />
+              </FormField>
+              <AssetDetailFields
+                categoryId={item.assetCategoryId} typeId={item.assetTypeId}
+                fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
+                vendors={vendors} includeKitComponents={false}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
@@ -431,6 +532,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const trackedBySerial = !!product?.trackedBySerial || !!item.assetId
   const trackedByMac = !!product?.trackedByMac
   const isTracked = !isWire && (trackedBySerial || trackedByMac)
+  const isAssetItem = !!item.assetId
   const [modalOpen, setModalOpen] = useState(false)
 
   function setReceivedQty(qtyStr) {
@@ -438,6 +540,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
     const patch = { receivedQty: qtyStr }
     if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
     if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
+    if (isAssetItem) patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, qty, item.assetOriginalFields)
     onUpdate(patch)
   }
 
@@ -490,6 +593,8 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
         <FormField label="Drum Number" required hint="Required whenever a quantity is received">
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
+      ) : isAssetItem && qty > 0 ? (
+        <AssetUnitDetailsSection item={item} onUpdate={onUpdate} />
       ) : isTracked && qty > 0 ? (
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
           <p className={`text-xs font-medium flex items-center gap-1.5 ${showWarning ? 'text-amber-700' : 'text-gray-600'}`}>
@@ -510,7 +615,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
         </FormField>
       )}
 
-      {isTracked && qty > 0 && (
+      {isTracked && qty > 0 && !isAssetItem && (
         <SerialMacEntryModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
@@ -780,6 +885,8 @@ export default function CreatePurchase() {
         price: it.price, gstPercent: it.gstPercent,
         serials: it.serials, macs: it.macs, drumNumber: it.drumNumber, reason: it.reason,
         assetId: it.assetId ?? null, kitComponents: it.kitComponents ?? [],
+        assetCategoryId: it.assetCategoryId ?? null, assetTypeId: it.assetTypeId ?? null,
+        assetOriginalFields: it.assetOriginalFields ?? null, assetFieldSets: it.assetFieldSets ?? [],
       })),
       remarks,
     }
