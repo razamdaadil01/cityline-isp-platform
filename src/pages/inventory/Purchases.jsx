@@ -8,16 +8,26 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getPurchases, subscribePurchases, PURCHASE_STATUSES } from '../../data/purchaseStore'
-import { getPurchaseOrders, subscribePurchaseOrders } from '../../data/purchaseOrderStore'
+import { getPurchaseOrders, subscribePurchaseOrders, getPoTypeLabel } from '../../data/purchaseOrderStore'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
 import { usePermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', Confirmed: 'green', Cancelled: 'red' }
 
+// Same colors-by-poType map as the Purchase Orders table's own Purchase
+// Type column (PurchaseOrders.jsx) — a GRN doesn't store its own type, it's
+// derived from the PO it was raised against (poTypeFor() below), so reusing
+// the exact same badge styling keeps the two tables visually consistent.
+const PO_TYPE_BADGE = {
+  'Standard': 'blue',
+  'Asset Purchase': 'purple',
+}
+
 const PURCHASE_TABLE_COLUMNS = [
   { key: 'purchaseNumber', label: 'Purchase Number', visible: true, defaultVisible: true, locked: true },
   { key: 'poNumber',       label: 'PO Number',        visible: true, defaultVisible: true },
+  { key: 'purchaseType',   label: 'Purchase Type',    visible: true, defaultVisible: true },
   { key: 'vendor',         label: 'Vendor',           visible: true, defaultVisible: true },
   { key: 'store',          label: 'Store',            visible: true, defaultVisible: true },
   { key: 'purchaseDate',   label: 'Purchase Date',    visible: true, defaultVisible: true },
@@ -38,6 +48,12 @@ export default function Purchases() {
   const stores = getStores()
   const vendorName = id => vendors.find(v => v.id === id)?.companyName ?? '—'
   const storeInfo = id => stores.find(s => s.id === id) ?? null
+  // A Purchase/GRN doesn't carry its own Product/Asset type — it's raised
+  // against a specific PO (via poId), so the Purchase Type column just
+  // reads that PO's own purchaseType/poType rather than duplicating it
+  // onto every Purchase record. "Outside PO" purchases (poId null) have no
+  // PO to derive from, so this returns null for them.
+  const poTypeFor = poId => pos.find(po => po.id === poId)?.poType ?? null
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -292,6 +308,7 @@ export default function Purchases() {
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('purchaseNumber') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[170px]">Purchase Number</th>}
                 {visibleCols.has('poNumber')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">PO Number</th>}
+                {visibleCols.has('purchaseType')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Purchase Type</th>}
                 {visibleCols.has('vendor')          && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Vendor</th>}
                 {visibleCols.has('store')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store</th>}
                 {visibleCols.has('purchaseDate')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Purchase Date</th>}
@@ -308,7 +325,9 @@ export default function Purchases() {
                     No purchases found
                   </td>
                 </tr>
-              ) : filtered.map(p => (
+              ) : filtered.map(p => {
+                const poType = poTypeFor(p.poId)
+                return (
                 <tr
                   key={p.id}
                   onClick={() => navigate(`/inventory/purchases/${p.id}`)}
@@ -322,6 +341,11 @@ export default function Purchases() {
                   {visibleCols.has('poNumber') && (
                     <td className="px-4 py-3 whitespace-nowrap">
                       {p.poId ? <span className="font-mono text-xs text-gray-600">{p.poNumber}</span> : <Badge variant="purple" size="sm">Outside PO</Badge>}
+                    </td>
+                  )}
+                  {visibleCols.has('purchaseType') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {poType ? <Badge variant={PO_TYPE_BADGE[poType] ?? 'gray'} size="sm">{getPoTypeLabel(poType)}</Badge> : <span className="text-gray-400 text-xs">—</span>}
                     </td>
                   )}
                   {visibleCols.has('vendor')       && <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{vendorName(p.vendorId)}</td>}
@@ -344,7 +368,8 @@ export default function Purchases() {
                     </td>
                   )}
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
