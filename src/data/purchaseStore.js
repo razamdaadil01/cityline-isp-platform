@@ -367,13 +367,23 @@ export function getLastPurchasePrice(productId) {
 // linked to `poId` — a PO can be received across multiple partial
 // Purchases, so this always re-derives from the full history rather than
 // tracking a running total separately (single source of truth).
+// Keyed by productId when the item has one (every Standard PO line, since
+// it references a real catalog product) — an Asset PO line's productId is
+// always '' (AddAsset.jsx has no catalog product to reference), which
+// would otherwise collapse every asset line on the same PO onto one shared
+// '' key, so those fall back to poLineId instead (the originating PO
+// line's own stable id, copied onto this Purchase item by
+// CreatePurchase.jsx's itemFromPOLine() — see its own note). Matched
+// against the same fallback on the PO's own item id in
+// recalculatePOReceiptStatus() below.
 function receivedByProductIdForPO(poId) {
   const map = {}
   _purchases.forEach(pur => {
     if (pur.poId !== poId || pur.status !== 'Confirmed') return
     pur.items.forEach(it => {
       if (it.source !== 'po') return
-      map[it.productId] = (map[it.productId] ?? 0) + (Number(it.receivedQty) || 0)
+      const key = it.productId || it.poLineId
+      map[key] = (map[key] ?? 0) + (Number(it.receivedQty) || 0)
     })
   })
   return map
@@ -420,26 +430,32 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
       markAssetsInStockForPO(purchase.poId)
       // Kit Components Received (CreatePurchase.jsx) — only for a line that
       // was actually received this round and carries confirmed kit rows
-      // (set only for a Splicing Machine asset's receipt line; every other
-      // item's assetId/kitComponents are absent, so this is a no-op for
-      // them and for every Standard PO above).
+      // (set only for a Splicing Machine asset's receipt line, and only
+      // ever from its first/primary unit — see CreatePurchase.jsx's own
+      // requestedKitComponents() note; every other item's
+      // assetIds/kitComponents are absent, so this is a no-op for them and
+      // for every Standard PO above).
       purchase.items.forEach(it => {
-        if (it.assetId && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
-          confirmKitComponentsForAsset(it.assetId, it.kitComponents.map(c => ({
+        const assetIds = Array.isArray(it.assetIds) ? it.assetIds : []
+        if (assetIds[0] && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
+          confirmKitComponentsForAsset(assetIds[0], it.kitComponents.map(c => ({
             id: c.id, componentType: c.componentType, componentName: c.componentName, quantity: c.quantity,
             serialNumber: c.serialNumber, condition: c.condition,
             receivedStatus: c.received ? 'Received' : 'Missing',
           })))
         }
         // Asset detail fields reviewed/corrected at GRN (CreatePurchase.jsx's
-        // AssetUnitDetailsSection) — only one physical Asset record exists
-        // per Asset Purchase PO line (qty is always 1 when raised via
-        // AddAsset.jsx's "Save & Raise PO"), so only Unit 1's field set is
-        // the one written back onto it; any further units from an
-        // over-receipt were captured for the record but have no separate
-        // Asset Management record of their own to update.
-        if (it.assetId && Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets) && it.assetFieldSets.length > 0) {
-          confirmAssetDetailFieldsAtGRN(it.assetId, it.assetFieldSets[0], { poNumber: purchase.poNumber })
+        // AssetUnitDetailsSection) — a PO line can now order several units
+        // (createAssetsBulk() at Add Asset time creates one real Asset
+        // record per unit, see AddAsset.jsx), so every unit slot that maps
+        // to a real asset (assetIds[i] set) gets its own corrected field
+        // set written back onto it; a slot beyond however many assets
+        // actually exist (e.g. an over-receipt past what was ordered) has
+        // no record to write into and is skipped.
+        if (Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets)) {
+          assetIds.forEach((assetId, i) => {
+            if (assetId && it.assetFieldSets[i]) confirmAssetDetailFieldsAtGRN(assetId, it.assetFieldSets[i], { poNumber: purchase.poNumber })
+          })
         }
       })
     }

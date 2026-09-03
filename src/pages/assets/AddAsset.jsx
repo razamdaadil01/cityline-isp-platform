@@ -1,12 +1,12 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronLeft, Plus, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion, Save } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, ChevronLeft, Plus, Trash2, X, AlertTriangle, ClipboardList, PackagePlus, FileQuestion, Save } from 'lucide-react'
 import Button from '../../components/ui/Button'
-import { FormField, Select } from '../../components/ui/FormInputs'
+import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import {
   ASSET_CATEGORIES, getAssetCategory, getAssetType, getFieldsForType, KIT_COMPONENT_TYPES, ASSET_CONDITIONS,
 } from '../../data/assetTaxonomy'
-import { createAsset, updateAsset, assetDisplayName } from '../../data/assetStore'
+import { createAssetsBulk, updateAsset, assetDisplayName } from '../../data/assetStore'
 import { savePurchaseOrder, computeLineAmount } from '../../data/purchaseOrderStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getVendors } from '../../data/vendorStore'
@@ -238,44 +238,110 @@ export function AssetDetailFields({ categoryId, typeId, fields, onChange, showEr
   )
 }
 
-// basePath/returnTo let this same wizard be mounted under different route
+function emptyLineItem() {
+  return {
+    id: `li-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    categoryId: '', typeId: '', qty: 1, fields: {},
+  }
+}
+
+// One repeatable "+ Add Another Item" row — same card/remove-button/
+// "+ Add …" pattern as this codebase's other dynamic row builders (e.g.
+// CreateHDDWorkOrder.jsx's Segments). Category/Type/Quantity/dynamic
+// fields all live on this one line item now, instead of AddAsset's own
+// top-level state — a single PO can carry several of these, one Asset
+// Purchase PO line per card (see AddAsset's own handleSave()/
+// raisePurchaseOrderForAssets() below).
+function LineItemCard({ item, index, onUpdate, onRemove, showRemove, showErrors, vendors }) {
+  const category = item.categoryId ? getAssetCategory(item.categoryId) : null
+  const type = category && item.typeId ? getAssetType(item.categoryId, item.typeId) : null
+
+  function selectCategory(e) {
+    onUpdate({ categoryId: e.target.value, typeId: '', fields: {} })
+  }
+  // Any field marked autofillFromAssetType (Ladder's "Type", Authority/
+  // Access's "Card/Asset Type", Generic Tools' "Category" — see
+  // assetTaxonomy.js) is pre-filled here, the moment a type is picked, with
+  // that type's own label — read-only from then on (AssetField disables
+  // it). Kit Components starts with one empty row already visible for the
+  // same reason AddAsset always has (see emptyKitComponent()'s own note).
+  function selectType(e) {
+    const nextTypeId = e.target.value
+    if (!nextTypeId) { onUpdate({ typeId: '', fields: {} }); return }
+    const defs = getFieldsForType(item.categoryId, nextTypeId)
+    const autofilled = {}
+    defs.forEach(f => {
+      if (f.autofillFromAssetType) autofilled[f.key] = category.types.find(t => t.id === nextTypeId)?.label
+      if (f.type === 'kit-components') autofilled[f.key] = [emptyKitComponent()]
+    })
+    onUpdate({ typeId: nextTypeId, fields: autofilled })
+  }
+  function updateField(key, value) { onUpdate({ fields: { ...item.fields, [key]: value } }) }
+  function updateQty(value) { onUpdate({ qty: Math.max(1, Number(value) || 1) }) }
+
+  return (
+    <div className="rounded-xl border border-surface-border p-4 space-y-4 relative">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-600">Item {index + 1}</p>
+        {showRemove && (
+          <button
+            type="button" onClick={onRemove}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <FormField label="Category" required>
+          <Select value={item.categoryId} onChange={selectCategory}>
+            <option value="">Select category…</option>
+            {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Type" required>
+          <Select value={item.typeId} onChange={selectType} disabled={!category}>
+            <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
+            {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Quantity" required>
+          <Input type="number" min="1" value={item.qty} onChange={e => updateQty(e.target.value)} />
+        </FormField>
+      </div>
+
+      {type ? (
+        <AssetDetailFields
+          categoryId={item.categoryId} typeId={item.typeId} fields={item.fields}
+          onChange={updateField} showErrors={showErrors} vendors={vendors}
+        />
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-2.5 py-10 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">
+          <FileQuestion size={20} className="text-gray-300" />
+          <p className="text-sm text-gray-400">Select a category and type to continue.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// returnTo lets this same wizard be mounted under different route
 // namespaces (currently only Purchase Orders' "Add Purchase Order → Asset"
 // flow at /inventory/purchase-orders/new/asset) without hardcoding where
-// its own category/type sub-routes live or where Back/Cancel/Save should
-// land — App.jsx's <Route> element supplies these per mount point.
-export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets' }) {
+// Back/Cancel/Save should land — App.jsx's <Route> element supplies this
+// per mount point.
+export default function AddAsset({ returnTo = '/assets' }) {
   const navigate = useNavigate()
-  // Category/Type live in the URL (basePath/:categoryId?/:typeId?), not
-  // local state — deriving them fresh from useParams() on every render
-  // (same convention as VendorDetail.jsx/HDDProjectDetail.jsx reading their
-  // own :id/:tab straight off useParams() rather than mirroring it into
-  // state) means back/forward navigation and direct/shareable links just
-  // work, with no separate state to keep in sync with the URL.
-  const { categoryId: urlCategoryId, typeId: urlTypeId } = useParams()
-  const categoryId = urlCategoryId && getAssetCategory(urlCategoryId) ? urlCategoryId : ''
-  const category = categoryId ? getAssetCategory(categoryId) : null
-  const typeId = category && urlTypeId && getAssetType(categoryId, urlTypeId) ? urlTypeId : ''
-  const type = typeId ? getAssetType(categoryId, typeId) : null
 
-  // A URL naming an unknown category, or a type that doesn't exist under
-  // it (including one left over after the category segment was edited by
-  // hand), falls back to the bare basePath rather than silently
-  // rendering an empty form for a combination that was never actually
-  // selected.
-  useEffect(() => {
-    const categoryInvalid = !!urlCategoryId && !getAssetCategory(urlCategoryId)
-    const typeInvalid = !!urlTypeId && (!categoryId || !getAssetType(categoryId, urlTypeId))
-    if (categoryInvalid || typeInvalid) navigate(basePath, { replace: true })
-  }, [urlCategoryId, urlTypeId, categoryId, basePath, navigate])
-
-  const [fields, setFields] = useState({})
+  const [lineItems, setLineItems] = useState(() => [emptyLineItem()])
   const [showErrors, setShowErrors] = useState(false)
   const [saveError, setSaveError] = useState('')
 
   const vendors = useMemo(() => getVendors().filter(v => v.status === 'active'), [])
   // Same sources Inventory's own Create PO wizard (CreatePO.jsx) reads —
-  // Company/Entity and Store apply once per asset (not per category/type),
-  // so they're selected here rather than folded into assetTaxonomy.js's
+  // Company/Entity and Store apply once per PO (not per line item), so
+  // they're selected here rather than folded into assetTaxonomy.js's
   // per-category field templates. Store is a flat, non-cascading list, same
   // as CreatePO.jsx's own Delivery Store field (stores aren't scoped to a
   // company entity in storeStore.js).
@@ -284,75 +350,67 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
   const [companyEntityId, setCompanyEntityId] = useState(() => entities[0]?.id ?? null)
   const [storeId, setStoreId] = useState('')
 
-  // Picking a new category drops any previously-selected type from the URL
-  // (the old type may not even exist under the new category) — replacing
-  // history, not pushing, so the back button doesn't need one step per
-  // dropdown change.
-  function selectCategory(e) {
-    const nextCategoryId = e.target.value
-    navigate(nextCategoryId ? `${basePath}/${nextCategoryId}` : basePath, { replace: true })
-    setFields({})
+  function updateLineItem(id, patch) {
+    setLineItems(prev => prev.map(li => li.id === id ? { ...li, ...patch } : li))
   }
-  // Any field marked autofillFromAssetType (Ladder's "Type", Authority/
-  // Access's "Card/Asset Type", Generic Tools' "Category" — see
-  // assetTaxonomy.js) is pre-filled here, the moment a type is picked,
-  // with that type's own label — read-only from then on (AssetField
-  // disables it), so the user is never asked to redundantly re-enter the
-  // exact thing they just chose.
-  function selectType(e) {
-    const nextTypeId = e.target.value
-    navigate(nextTypeId ? `${basePath}/${categoryId}/${nextTypeId}` : `${basePath}/${categoryId}`, { replace: true })
-    if (!nextTypeId) { setFields({}); return }
-    const defs = getFieldsForType(categoryId, nextTypeId)
-    const autofilled = {}
-    defs.forEach(f => {
-      if (f.autofillFromAssetType) autofilled[f.key] = category.types.find(t => t.id === nextTypeId)?.label
-      // Kit Components starts with one empty row already visible — same
-      // shape KitComponentsTable's own "+ Add Component" creates — so the
-      // user isn't forced to click it just to see the first row. Still
-      // removable like any other row; this only seeds the initial state.
-      if (f.type === 'kit-components') autofilled[f.key] = [emptyKitComponent()]
-    })
-    setFields(autofilled)
-  }
-  function updateField(key, value) { setFields(prev => ({ ...prev, [key]: value })) }
+  function addLineItem() { setLineItems(prev => [...prev, emptyLineItem()]) }
+  function removeLineItem(id) { setLineItems(prev => prev.filter(li => li.id !== id)) }
 
-  // Company/Entity and Store are required same as Category/Type — the
-  // asset record itself doesn't store either (see buildPayload() below;
-  // assetStore.js's data model is unchanged), but both are needed to raise
-  // a correct Asset Purchase PO, so they're validated up front rather than
-  // discovered missing only when "Save & Raise PO" is clicked.
-  const allValid = isFormValid(categoryId, typeId, fields) && companyEntityId != null && !!storeId
+  // Company/Entity and Store are required same as every line's own
+  // Category/Type/Quantity — the asset record itself doesn't store either
+  // (see raisePurchaseOrderForAssets() below; assetStore.js's data model is
+  // unchanged), but both are needed to raise a correct Asset Purchase PO,
+  // so they're validated up front rather than discovered missing only when
+  // "Save & Raise PO" is clicked.
+  const allValid = lineItems.length > 0
+    && lineItems.every(li => isFormValid(li.categoryId, li.typeId, li.fields) && Number(li.qty) >= 1)
+    && companyEntityId != null && !!storeId
 
-  function buildPayload() {
-    return { categoryId, categoryLabel: category.label, typeId, typeLabel: type.label, fields }
-  }
-
-  // Save as Draft → status 'Draft', no PO. Save & Raise PO → status
-  // 'PO Raised', then raises a real Purchase Order through the same
-  // savePurchaseOrder()/approval pipeline the Inventory module's own Create
-  // PO wizard uses (poType: 'Asset Purchase' is the only thing that marks
-  // it as asset-originated — everything else, including approval routing,
-  // is identical). The asset is created first so the PO's single line item
-  // can describe it, then patched with the resulting po.id once the PO
-  // exists — a PO can never be created before the asset it's for.
+  // Save as Draft → every created asset status 'Draft', no PO. Save &
+  // Raise PO → status 'PO Raised', then raises one real Purchase Order
+  // carrying one line per item above, through the same savePurchaseOrder()/
+  // approval pipeline the Inventory module's own Create PO wizard uses
+  // (poType: 'Asset Purchase' is the only thing that marks it as
+  // asset-originated — everything else, including approval routing, is
+  // identical). Assets are created first so the PO's own lines can
+  // describe them, then each is patched with the resulting po.id/poItemId
+  // once the PO exists — a PO can never be created before the assets it's
+  // for.
   function handleSave(status) {
     if (!allValid) { setShowErrors(true); return }
     setSaveError('')
     try {
-      const asset = createAsset(buildPayload(), status)
+      // One physical Asset record per unit — a line item's own Quantity is
+      // how many identical copies createAssetsBulk() stamps out, all
+      // sharing that line's Category/Type/fields as entered here (per-unit
+      // differences, e.g. a corrected Model Name or Serial Number, are
+      // captured later at GRN receipt — see CreatePurchase.jsx's
+      // AssetUnitDetailsSection).
+      const createdByLine = lineItems.map(li => {
+        const category = getAssetCategory(li.categoryId)
+        const type = getAssetType(li.categoryId, li.typeId)
+        const qty = Math.max(1, Number(li.qty) || 1)
+        const payload = { categoryId: li.categoryId, categoryLabel: category.label, typeId: li.typeId, typeLabel: type.label }
+        const assets = createAssetsBulk(
+          Array.from({ length: qty }, () => ({ ...payload, fields: { ...li.fields } })),
+          status,
+        )
+        return { qty, assets }
+      })
       if (status === 'PO Raised') {
-        raisePurchaseOrderForAsset(asset)
+        raisePurchaseOrderForAssets(createdByLine)
       }
       navigate(returnTo)
     } catch (err) {
-      setSaveError(err.message || 'Could not save this asset.')
+      setSaveError(err.message || 'Could not save these assets.')
     }
   }
 
-  // Builds and saves a one-line Asset Purchase PO for a just-created asset,
-  // then links it back onto the asset via poId. Follows savePurchaseOrder's
-  // 'send' action exactly as Inventory's own Create PO wizard does — if
+  // Builds and saves one Asset Purchase PO carrying one line per item above
+  // (each line's `qty` matching how many assets were just created for it),
+  // then links every created asset back onto its own line via
+  // poId/poItemId. Follows savePurchaseOrder's 'send' action exactly as
+  // Inventory's own Create PO wizard does — if
   // getInventorySettings(companyEntityId).poApprovalRequired is on, this
   // routes to 'Approval Request' with a linked Approvals record; otherwise
   // it goes straight to 'Sent'. No new approval logic here at all. Reads
@@ -360,7 +418,10 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
   // already guarantees both are set before this can be called) — critically,
   // this is what makes the approval check below run against the entity the
   // user actually configured, instead of a fixed company entity's settings.
-  function raisePurchaseOrderForAsset(asset) {
+  // The PO's overall Vendor is the first line whose own fields carry one
+  // (only IT Asset/Field & Splicing Tools categories have a Vendor field at
+  // all) — a PO has one Vendor, same as the Product PO wizard.
+  function raisePurchaseOrderForAssets(createdByLine) {
     const settings = getInventorySettings(companyEntityId)
     const gstPercent = settings.defaultGstPercent
     // Asset purchases don't carry a fixed catalog price the way a stocked
@@ -368,27 +429,38 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
     // once the PO reaches the vendor/is priced, same as any other PO line
     // can be edited before sending.
     const price = 0
-    const item = {
-      id: `POI-asset-${asset.id}`,
-      type: 'hardware',
-      productId: '', productName: `${asset.categoryLabel} — ${asset.typeLabel}${assetDisplayName(asset) !== asset.typeLabel ? ` (${assetDisplayName(asset)})` : ''}`,
-      sku: '', unit: 'Piece', qty: 1, price, gstPercent,
-      amount: computeLineAmount(1, price, gstPercent),
-    }
+    const items = createdByLine.map(({ qty, assets }) => {
+      const sample = assets[0]
+      const sampleName = assetDisplayName(sample)
+      return {
+        id: `POI-asset-${sample.id}`,
+        type: 'hardware',
+        productId: '',
+        productName: `${sample.categoryLabel} — ${sample.typeLabel}${sampleName !== sample.typeLabel ? ` (${sampleName})` : ''}${qty > 1 ? ` × ${qty}` : ''}`,
+        sku: '', unit: 'Piece', qty, price, gstPercent,
+        amount: computeLineAmount(qty, price, gstPercent),
+      }
+    })
+    const totalAssets = createdByLine.reduce((sum, c) => sum + c.assets.length, 0)
+    const vendorId = createdByLine.map(c => c.assets[0]?.fields?.vendorId).find(Boolean) || null
     const po = savePurchaseOrder({
       poType: 'Asset Purchase',
       companyEntityId,
       storeId,
-      vendorId: asset.fields.vendorId || null,
+      vendorId,
       orderDate: new Date().toISOString().slice(0, 10),
       estimatedDeliveryDate: '',
       gstPercent,
-      items: [item],
-      notes: `Auto-generated from Asset Management for asset ${asset.id}.`,
+      items,
+      notes: `Auto-generated from Asset Management for ${totalAssets} asset(s).`,
       terms: settings.poTerms,
       discount: 0, otherCharges: 0,
     }, { action: 'send' })
-    updateAsset(asset.id, { poId: po.id })
+
+    createdByLine.forEach(({ assets }, i) => {
+      const poItemId = items[i].id
+      assets.forEach(a => updateAsset(a.id, { poId: po.id, poItemId }))
+    })
   }
 
   return (
@@ -421,29 +493,15 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
             )}
             {showErrors && !allValid && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a category, type, company/entity, store, and fill every required field before saving.
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a company/entity, store, and a category, type, and quantity for every item, filling in every required field, before saving.
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Category" required>
-                <Select value={categoryId} onChange={selectCategory}>
-                  <option value="">Select category…</option>
-                  {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Type" required>
-                <Select value={typeId} onChange={selectType} disabled={!category}>
-                  <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
-                  {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                </Select>
-              </FormField>
-            </div>
-
-            {/* Applies once per asset regardless of category/type — same
-                Company/Entity and Store sources CreatePO.jsx's own wizard uses,
-                required so the eventual PO (if raised) is created against the
-                entity whose Inventory Settings actually govern it. */}
+            {/* Applies once per PO regardless of how many items it carries —
+                same Company/Entity and Store sources CreatePO.jsx's own
+                wizard uses, required so the eventual PO (if raised) is
+                created against the entity whose Inventory Settings actually
+                govern it. */}
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Company / Entity" required>
                 <Select value={companyEntityId ?? ''} onChange={e => setCompanyEntityId(Number(e.target.value))}>
@@ -459,16 +517,26 @@ export default function AddAsset({ basePath = '/assets/new', returnTo = '/assets
               </FormField>
             </div>
 
-            {type ? (
-              <div className="pt-1">
-                <AssetDetailFields categoryId={categoryId} typeId={typeId} fields={fields} onChange={updateField} showErrors={showErrors} vendors={vendors} />
+            <div className="space-y-3 pt-2 border-t border-surface-border">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Items</p>
+              <div className="space-y-3">
+                {lineItems.map((li, i) => (
+                  <LineItemCard
+                    key={li.id} item={li} index={i}
+                    onUpdate={patch => updateLineItem(li.id, patch)}
+                    onRemove={() => removeLineItem(li.id)}
+                    showRemove={lineItems.length > 1}
+                    showErrors={showErrors} vendors={vendors}
+                  />
+                ))}
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2.5 py-12 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">
-                <FileQuestion size={22} className="text-gray-300" />
-                <p className="text-sm text-gray-400">Select a category and type to continue.</p>
-              </div>
-            )}
+              <button
+                type="button" onClick={addLineItem}
+                className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark transition-colors"
+              >
+                <Plus size={13} /> Add Another Item
+              </button>
+            </div>
           </div>
         </div>
       </div>

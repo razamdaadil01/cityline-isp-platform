@@ -310,16 +310,19 @@ const SEED = [
         { id: 'kc-seed-13c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0013', quantity: 1, condition: 'New' },
       ],
     },
-    status: 'PO Raised', assignedTo: null, poId: 'PO-000010',
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000010', poItemId: 'POI-asset-AST-2026-000013',
     createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z',
   },
   // ── One 'PO Raised' asset per remaining Asset Category, each linked to
   // its own seeded Asset Purchase PO (PO-000012 through PO-000016 in
   // purchaseOrderStore.js) the same way AST-2026-000013 links to PO-000010
-  // above — poId plus a `POI-asset-${id}` line-item id on that PO — so
-  // every category's GRN receipt path (not just Splicing Machine's kit
-  // confirmation) has a real case to walk through Purchases' "Select PO"
-  // step end to end.
+  // above — poId + poItemId (a PO can now carry several asset lines, so
+  // poItemId identifies which one) — so every category's GRN receipt path
+  // (not just Splicing Machine's kit confirmation) has a real case to walk
+  // through Purchases' "Select PO" step end to end. PO-000012 now carries
+  // two lines (this Desktop plus AST-2026-000018's Drill Machine below) and
+  // PO-000016 three (AST-2026-000019/020/021 below), demonstrating a
+  // multi-item Asset PO; PO-000010/013/014/015 each stay single-item.
   {
     id: 'AST-2026-000014',
     categoryId: 'it-asset', categoryLabel: 'IT Asset',
@@ -331,12 +334,14 @@ const SEED = [
       purchaseDate: '2026-08-30', warrantyStartDate: '2026-08-30', warrantyEndDate: '2029-08-29',
       vendorId: 'VEN-002',
     },
-    status: 'PO Raised', assignedTo: null, poId: 'PO-000012',
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000012', poItemId: 'POI-asset-AST-2026-000014',
     createdBy: 'Neha Gupta', createdAt: '2026-08-30T09:45:00.000Z',
   },
   // Second Splicing Machine still awaiting GRN (distinct from
   // AST-2026-000013 above) — its own kit component ids so neither seed's
-  // rows collide once both are received.
+  // rows collide once both are received. Deliberately kept as PO-000013's
+  // only line — see purchaseOrderStore.js's own note on why the Splicing
+  // Machine kit-component test case stays isolated to a single-item PO.
   {
     id: 'AST-2026-000015',
     categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
@@ -352,7 +357,7 @@ const SEED = [
         { id: 'kc-seed-15c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0015', quantity: 1, condition: 'New' },
       ],
     },
-    status: 'PO Raised', assignedTo: null, poId: 'PO-000013',
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000013', poItemId: 'POI-asset-AST-2026-000015',
     createdBy: 'Salim Khan', createdAt: '2026-08-31T14:00:00.000Z',
   },
   {
@@ -363,7 +368,7 @@ const SEED = [
       ladderName: 'Field Ladder 01', type: 'Aluminium Ladder', height: '12 ft', maxLoadCapacity: '150 kg',
       brand: 'Bathla', purchaseDate: '2026-09-01', warrantyDate: '2027-09-01',
     },
-    status: 'PO Raised', assignedTo: null, poId: 'PO-000014',
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000014', poItemId: 'POI-asset-AST-2026-000016',
     createdBy: 'Anita Sharma', createdAt: '2026-09-01T10:15:00.000Z',
   },
   {
@@ -374,9 +379,12 @@ const SEED = [
       cardAssetType: 'Safety Gear', cardIdNumber: 'SG-2026-0017', issuedTo: 'eng-004',
       validFrom: '2026-09-01', validTo: '2027-09-01',
     },
-    status: 'PO Raised', assignedTo: null, poId: 'PO-000015',
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000015', poItemId: 'POI-asset-AST-2026-000017',
     createdBy: 'Ravi Patel', createdAt: '2026-08-28T15:30:00.000Z',
   },
+  // Now PO-000012's second line (moved from its own now-retired single-item
+  // PO so that PO demonstrates 2 line items — see purchaseOrderStore.js's
+  // own note) rather than PO-000016's only line.
   {
     id: 'AST-2026-000018',
     categoryId: 'generic-tools', categoryLabel: 'Generic Tools',
@@ -385,7 +393,46 @@ const SEED = [
       toolName: 'Cordless Drill Machine 01', category: 'Drill Machine', brand: 'Bosch', quantity: 1,
       serialNumber: 'BSH-DRL-2026-0018', purchaseDate: '2026-08-26',
     },
-    status: 'PO Raised', assignedTo: null, poId: 'PO-000016',
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000012', poItemId: 'POI-asset-AST-2026-000018',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
+  // ── PO-000016's 3 lines — 3 different Category/Type combos in one PO,
+  // demonstrating the multi-item Asset PO end to end at a higher line count
+  // than PO-000012's 2.
+  {
+    id: 'AST-2026-000019',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'laptop', typeLabel: 'Laptop',
+    fields: {
+      assetName: 'Sales Laptop 02', brandName: 'Dell', modelName: 'Latitude 5440',
+      storageCapacity: '512GB SSD', ram: '16GB', processor: 'Intel Core i5-1335U',
+      serialNumber: 'DL-LAT5440-AST-0019',
+      purchaseDate: '2026-09-01', warrantyStartDate: '2026-09-01', warrantyEndDate: '2029-08-31',
+      vendorId: 'VEN-003',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016', poItemId: 'POI-asset-AST-2026-000019',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000020',
+    categoryId: 'generic-tools', categoryLabel: 'Generic Tools',
+    typeId: 'crimping-tool', typeLabel: 'Crimping Tool',
+    fields: {
+      toolName: 'RJ45 Crimping Tool 01', category: 'Crimping Tool', brand: 'Klein Tools', quantity: 1,
+      serialNumber: '', purchaseDate: '2026-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016', poItemId: 'POI-asset-AST-2026-000020',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000021',
+    categoryId: 'ladder', categoryLabel: 'Ladder',
+    typeId: 'extension-ladder', typeLabel: 'Extension Ladder',
+    fields: {
+      ladderName: 'Field Ladder 02', type: 'Extension Ladder', height: '20 ft', maxLoadCapacity: '180 kg',
+      brand: 'Bathla', purchaseDate: '2026-09-01', warrantyDate: '2027-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016', poItemId: 'POI-asset-AST-2026-000021',
     createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
   },
 ]
@@ -447,10 +494,15 @@ function buildAsset(data, status, actor) {
     fields: data.fields || {},
     status,
     assignedTo: null,
-    // Set after the fact, once "Save & Raise PO" has actually created the
-    // linked Purchase Order (see AddAsset.jsx) — a brand-new asset never
-    // carries this on creation itself, since the PO doesn't exist yet.
-    poId: null,
+    // Both set after the fact, once "Save & Raise PO" has actually created
+    // the linked Purchase Order (see AddAsset.jsx) — a brand-new asset never
+    // carries these on creation itself, since the PO doesn't exist yet.
+    // poItemId identifies which of that PO's (possibly several) asset lines
+    // this asset belongs to — CreatePurchase.jsx's linkedAssetsForPOItem()
+    // matches on poId + poItemId together, since one PO can now carry
+    // multiple Category/Type/Qty line items, each with its own poItemId
+    // shared by every unit createAssetsBulk() stamped out for that line.
+    poId: null, poItemId: null,
     // Phase 4b — populated by initiateAssetReturn() below; a brand-new
     // asset has never been returned.
     hasMissingComponents: false,
