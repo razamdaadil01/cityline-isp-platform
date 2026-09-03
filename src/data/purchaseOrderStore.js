@@ -228,8 +228,12 @@ const SEED = [
     id: 'PO-000010', poNumber: 'CITY/PO/2026/00009', companyEntityId: 1, poType: 'Asset Purchase',
     vendorId: 'VEN-001', storeId: 'STR-002',
     orderDate: '2026-08-29', estimatedDeliveryDate: '2026-09-12', gstPercent: 18,
+    // Item id follows AddAsset.jsx's raisePurchaseOrderForAsset() convention
+    // exactly (`POI-asset-${asset.id}`) so CreatePurchase.jsx's
+    // linkedAssetForPOItem() finds the seeded AST-2026-000013 (assetStore.js)
+    // as this line's linked asset, same as it would for a live-raised one.
     items: [
-      makeItem(16, { productId: '', productName: 'Field & Splicing Tools — Splicing Machine', sku: '', unit: 'Piece', qty: 1, price: 38136, gstPercent: 18 }),
+      makeItem('asset-AST-2026-000013', { productId: '', productName: 'Field & Splicing Tools — Splicing Machine (Fusion Splicer Unit C)', sku: '', unit: 'Piece', qty: 1, price: 38136, gstPercent: 18 }),
     ],
     notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
     status: 'Sent', createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z', approvalId: null,

@@ -35,13 +35,18 @@ export const ASSET_RETURN_CONDITIONS = ['Working', 'Minor Issue', 'Damaged', 'No
 // ── Seed data — so Phase 4a's Assign to Engineer action has real 'In Stock'
 // assets to test against without repeating Add Asset → PO → Approval → GRN
 // each time the dev server resets. No poId (these weren't created through a
-// real Asset Purchase PO — nothing in purchaseOrderStore.js's own seed data
-// is poType 'Asset Purchase' to link against, and a fabricated poId would
-// dangle when Asset Detail's "View PO" tries to resolve it), no
-// companyEntityId (assetStore.js's own asset shape has never carried one —
-// see Phase 2's note — Company/Entity only ever exists transiently in
-// AddAsset.jsx's own form state, used solely to build a PO payload). Vendor
-// ids reference vendorStore.js's real seeded vendors (VEN-002/VEN-003).
+// real Asset Purchase PO — until purchaseOrderStore.js's own seed data
+// added its two Asset Purchase POs, nothing there was poType 'Asset
+// Purchase' to link against, and a fabricated poId would dangle when Asset
+// Detail's "View PO" tries to resolve it), no companyEntityId
+// (assetStore.js's own asset shape has never carried one — see Phase 2's
+// note — Company/Entity only ever exists transiently in AddAsset.jsx's own
+// form state, used solely to build a PO payload). Vendor ids reference
+// vendorStore.js's real seeded vendors (VEN-002/VEN-003). The one exception
+// is AST-2026-000013 below, deliberately linked to the seeded PO-000010 so
+// the Purchases (GRN) wizard's Kit Components Received section
+// (CreatePurchase.jsx's linkedAssetForPOItem()/requestedKitComponents())
+// has a real un-received Splicing Machine case to render against.
 const SEED = [
   {
     id: 'AST-2026-000001',
@@ -279,6 +284,33 @@ const SEED = [
     },
     status: 'Under Repair', assignedTo: null, poId: null,
     createdBy: 'Admin User', createdAt: '2025-12-02T10:00:00.000Z',
+  },
+  // Linked to the seeded Asset Purchase PO PO-000010 (purchaseOrderStore.js)
+  // — status stays 'PO Raised' (not 'In Stock') since that PO is still
+  // 'Sent', not yet received; markAssetsInStockForPO() (called from
+  // purchaseStore.js once a real GRN against PO-000010 is confirmed) will
+  // flip this to 'In Stock' the same way it does for a live Add Asset → Save
+  // & Raise PO asset. kitComponents carries no receivedStatus yet — that's
+  // only set once GRN receipt actually confirms each one — so the Purchases
+  // wizard's Select PO step can pull this in as a genuine "not yet
+  // received" Splicing Machine case.
+  {
+    id: 'AST-2026-000013',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Fusion Splicer Unit C', brandName: 'Fujikura', modelName: '80S',
+      serialNumber: 'FJK-80S-2026-0013',
+      purchaseDate: '2026-08-29', warrantyStartDate: '2026-08-29', warrantyEndDate: '2028-08-28',
+      vendorId: 'VEN-001',
+      kitComponents: [
+        { id: 'kc-seed-13a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0013', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-13b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0013', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-13c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0013', quantity: 1, condition: 'New' },
+      ],
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000010',
+    createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z',
   },
 ]
 
