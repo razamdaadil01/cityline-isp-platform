@@ -522,8 +522,18 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
   // so expand/collapse clicks don't clutter Back); collapsing the
   // currently-expanded one just clears both params, returning to the
   // ?po=...&step=2 base state and the Unit-1 default above.
+  //
+  // Collapse only fires when the URL is *explicitly* tracking this unit
+  // (hasValidUrlUnit && expandedIndex === i) — not just whenever the
+  // clicked index happens to match expandedIndex's fallback value. With no
+  // valid unit/item pair in the URL yet, expandedIndex defaults to 0 (Unit
+  // 1 open) purely as a rendering fallback; without the hasValidUrlUnit
+  // guard, the very first click on that already-open default unit would
+  // satisfy `expandedIndex === i` and take the collapse branch — clearing
+  // params that were never set, so the URL never actually gets the pair
+  // written and toggling again looks like a no-op.
   function toggle(i) {
-    if (expandedIndex === i) {
+    if (hasValidUrlUnit && expandedIndex === i) {
       patchSearchParams({ item: null, unit: null }, { replace: true })
     } else {
       patchSearchParams({ item: item.poLineId, unit: i + 1 }, { replace: true })
