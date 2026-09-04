@@ -224,9 +224,17 @@ function FormSection({ label, defs, fields, onChange, showErrors, vendors }) {
 // number, a warranty date). Defaults to false so AddAsset.jsx's own wizard
 // and CreatePurchase.jsx's GRN per-unit step keep rendering every field,
 // unchanged.
-export function AssetDetailFields({ categoryId, typeId, fields, onChange, showErrors, vendors, includeKitComponents = true, onlyTemplateFields = false }) {
+//
+// excludeKeys lets a caller drop specific fields by key regardless of
+// scope — used by the same Asset Master modal to hide 'brandName'/
+// 'modelName'/'brand' (IT Asset/Field & Splicing Tools/Ladder/Generic
+// Tools' own dynamic Brand/Model fields), which duplicate that modal's own
+// fixed top-level Brand/Model inputs. Defaults to an empty array so no
+// other caller is affected.
+export function AssetDetailFields({ categoryId, typeId, fields, onChange, showErrors, vendors, includeKitComponents = true, onlyTemplateFields = false, excludeKeys = [] }) {
   let fieldDefs = categoryId && typeId ? getFieldsForType(categoryId, typeId) : []
   if (onlyTemplateFields) fieldDefs = fieldDefs.filter(f => (f.scope ?? 'template') === 'template')
+  if (excludeKeys.length > 0) fieldDefs = fieldDefs.filter(f => !excludeKeys.includes(f.key))
   const basicDefs = fieldDefs.filter(f => f.type !== 'date' && f.type !== 'vendor-select' && f.type !== 'kit-components')
   const dateDefs = fieldDefs.filter(f => f.type === 'date')
   const vendorDefs = fieldDefs.filter(f => f.type === 'vendor-select')
