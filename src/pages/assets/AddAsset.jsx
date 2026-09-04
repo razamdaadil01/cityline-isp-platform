@@ -214,8 +214,19 @@ function FormSection({ label, defs, fields, onChange, showErrors, vendors }) {
 // includeKitComponents={false} lets a caller that already has its own Kit
 // Components UI (CreatePurchase.jsx's own GRN-time confirmation section)
 // skip rendering it a second time here.
-export function AssetDetailFields({ categoryId, typeId, fields, onChange, showErrors, vendors, includeKitComponents = true }) {
-  const fieldDefs = categoryId && typeId ? getFieldsForType(categoryId, typeId) : []
+//
+// onlyTemplateFields={true} additionally drops every field whose taxonomy
+// entry is scope: 'instance' (Serial Number, every date field — see
+// assetTaxonomy.js's own note on `scope`) before rendering anything below —
+// used by Asset Master's Add/Edit Asset Model modal, which asks for a
+// model-wide *default* value per field and can't sensibly default a value
+// that's inherently unique per physical unit or per purchase (a serial
+// number, a warranty date). Defaults to false so AddAsset.jsx's own wizard
+// and CreatePurchase.jsx's GRN per-unit step keep rendering every field,
+// unchanged.
+export function AssetDetailFields({ categoryId, typeId, fields, onChange, showErrors, vendors, includeKitComponents = true, onlyTemplateFields = false }) {
+  let fieldDefs = categoryId && typeId ? getFieldsForType(categoryId, typeId) : []
+  if (onlyTemplateFields) fieldDefs = fieldDefs.filter(f => (f.scope ?? 'template') === 'template')
   const basicDefs = fieldDefs.filter(f => f.type !== 'date' && f.type !== 'vendor-select' && f.type !== 'kit-components')
   const dateDefs = fieldDefs.filter(f => f.type === 'date')
   const vendorDefs = fieldDefs.filter(f => f.type === 'vendor-select')

@@ -168,6 +168,7 @@ function AddEditAssetModelModal({ isOpen, onClose, editing }) {
             <AssetDetailFields
               categoryId={form.categoryId} typeId={form.typeId} fields={form.fieldDefaults}
               onChange={updateFieldDefault} showErrors={false} vendors={vendors}
+              onlyTemplateFields
             />
           </div>
         ) : (
