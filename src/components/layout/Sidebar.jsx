@@ -41,6 +41,7 @@ import {
   ArrowLeftRight,
   HardDrive,
   FolderKanban,
+  LayoutTemplate,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -92,6 +93,7 @@ const NAV_ITEMS = [
       { label: 'Asset Management',   icon: HardDrive,         to: '/assets' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
+      { label: 'Asset Master',       icon: LayoutTemplate,     to: '/inventory/asset-master' },
       { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },
       { label: 'Store Management',   icon: Store,              to: '/inventory/stores'   },
       { label: 'General Settings',   icon: SlidersHorizontal,  to: '/inventory/settings' },
