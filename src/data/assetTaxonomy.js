@@ -36,12 +36,16 @@
 //     spec/attribute true of every unit, e.g. RAM, Processor, Height) and
 //     is safe to carry a reusable default value in Asset Master. 'instance'
 //     marks a field whose value is inherently unique per physical unit or
-//     per purchase transaction — Serial Number, and every date field (the
+//     per purchase transaction: Serial Number; every date field (the
 //     "Purchase & Warranty" section AssetDetailFields groups them under:
 //     Purchase Date, Warranty Start/End Date, Ladder's Warranty Date,
-//     Authority/Access's Valid From/To) — these can never have a sensible
-//     model-wide default, so Asset Master's Add/Edit Asset Model form
-//     filters them out of its "Default Field Values" step (via
+//     Authority/Access's Valid From/To); Asset Name (a per-unit nickname
+//     like "Sales Laptop 02", distinct from Asset Master's own template-
+//     identifying "Name" field, e.g. "Fujikura 90S+ Splicing Machine"); and
+//     Vendor (which vendor supplied a given unit is a per-purchase/per-PO
+//     decision, not a fixed attribute of the model). These can never have a
+//     sensible model-wide default, so Asset Master's Add/Edit Asset Model
+//     form filters them out of its "Default Field Values" step (via
 //     AssetDetailFields' onlyTemplateFields prop). AddAsset.jsx's own wizard
 //     and the GRN per-unit receipt step are unaffected — both still render
 //     every field regardless of scope, since scope only matters when asking
@@ -65,7 +69,7 @@ export const ASSET_CATEGORIES = [
       { id: 'printer', label: 'Printer' },
     ],
     fields: [
-      { key: 'assetName', label: 'Asset Name', type: 'text', required: true },
+      { key: 'assetName', label: 'Asset Name', type: 'text', required: true, scope: 'instance' },
       { key: 'brandName', label: 'Brand Name', type: 'text', required: true },
       { key: 'modelName', label: 'Model Name', type: 'text', required: true },
       { key: 'storageCapacity', label: 'SSD/Storage Capacity', type: 'text', required: true },
@@ -75,7 +79,7 @@ export const ASSET_CATEGORIES = [
       { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true, scope: 'instance' },
       { key: 'warrantyStartDate', label: 'Warranty Start Date', type: 'date', required: true, scope: 'instance' },
       { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', required: true, scope: 'instance' },
-      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true },
+      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true, scope: 'instance' },
     ],
   },
   {
@@ -92,14 +96,14 @@ export const ASSET_CATEGORIES = [
     // splicing machine/OTDR/power meter) — Asset Name/Brand/Model/Serial
     // are kept since a tool still needs to be identifiable the same way.
     fields: [
-      { key: 'assetName', label: 'Asset Name', type: 'text', required: true },
+      { key: 'assetName', label: 'Asset Name', type: 'text', required: true, scope: 'instance' },
       { key: 'brandName', label: 'Brand Name', type: 'text', required: true },
       { key: 'modelName', label: 'Model Name', type: 'text', required: true },
       { key: 'serialNumber', label: 'Serial Number', type: 'text', required: true, scope: 'instance' },
       { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true, scope: 'instance' },
       { key: 'warrantyStartDate', label: 'Warranty Start Date', type: 'date', required: true, scope: 'instance' },
       { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', required: true, scope: 'instance' },
-      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true },
+      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true, scope: 'instance' },
       // Splicing-Machine-only repeatable sub-table.
       { key: 'kitComponents', label: 'Kit Components', type: 'kit-components', required: false, appliesToTypes: ['splicing-machine'] },
     ],
