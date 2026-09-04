@@ -498,19 +498,36 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
 // purchaseStore.js's own note at the write-back call site; a slot beyond
 // however many assets actually exist (e.g. an over-receipt) has no record
 // to write into.
-function AssetUnitDetailsSection({ item, onUpdate }) {
+function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchParams }) {
   const vendors = getVendors().filter(v => v.status === 'active')
-  // Unit 1 always starts expanded so the common case (qty 1) needs no
-  // extra click; any further unit starts collapsed so the step stays
-  // usable even at a high Received Qty.
-  const [expanded, setExpanded] = useState(() => new Set([0]))
+  // Derived straight from the URL (&item=<poLineId>&unit=<n>) rather than
+  // its own local state — same convention as this wizard's own
+  // showAddOutside above — so a reload/deep-link/Back-Forward always shows
+  // whichever unit the URL names, and expand/collapse never needs its own
+  // effect to stay in sync. `item` disambiguates when a PO has more than
+  // one line item; poLineId is the original PO line's own stable id (see
+  // itemFromPOLine()'s own note), unlike this receipt item's own `id`
+  // which is freshly regenerated on every load. Unit 1 is the default when
+  // nothing valid is in the URL, so the common case (qty 1) needs no extra
+  // click; a stale/invalid pair (wrong item, out-of-range unit — e.g. an
+  // old link to a PO that has since been re-received with fewer units)
+  // falls back to that same default instead of erroring.
+  const urlUnit = Number(searchParams.get('unit'))
+  const hasValidUrlUnit = searchParams.get('item') === item.poLineId
+    && Number.isInteger(urlUnit) && urlUnit >= 1 && urlUnit <= item.assetFieldSets.length
+  const expandedIndex = hasValidUrlUnit ? urlUnit - 1 : 0
 
+  // Expanding a unit replaces the URL's &item=/&unit= pair (so only one
+  // "current" unit is ever tracked, replacing history rather than pushing
+  // so expand/collapse clicks don't clutter Back); collapsing the
+  // currently-expanded one just clears both params, returning to the
+  // ?po=...&step=2 base state and the Unit-1 default above.
   function toggle(i) {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i); else next.add(i)
-      return next
-    })
+    if (expandedIndex === i) {
+      patchSearchParams({ item: null, unit: null }, { replace: true })
+    } else {
+      patchSearchParams({ item: item.poLineId, unit: i + 1 }, { replace: true })
+    }
   }
   function updateUnitField(i, key, value) {
     onUpdate({ assetFieldSets: item.assetFieldSets.map((set, idx) => idx === i ? { ...set, [key]: value } : set) })
@@ -530,9 +547,9 @@ function AssetUnitDetailsSection({ item, onUpdate }) {
             <span className="text-xs font-semibold text-gray-700">
               Unit {i + 1}{item.assetFieldSets.length > 1 ? ` of ${item.assetFieldSets.length}` : ''}
             </span>
-            <ChevronDown size={14} className={`text-gray-400 transition-transform ${expanded.has(i) ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`text-gray-400 transition-transform ${expandedIndex === i ? 'rotate-180' : ''}`} />
           </button>
-          {expanded.has(i) && (
+          {expandedIndex === i && (
             <div className="p-3 space-y-4 bg-white border-t border-surface-border">
               <FormField label="Serial Number" required>
                 <Input
@@ -554,7 +571,7 @@ function AssetUnitDetailsSection({ item, onUpdate }) {
   )
 }
 
-function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
+function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParams, patchSearchParams }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
   // An Asset-flow line (item.assetIds non-empty — see
@@ -634,7 +651,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
       ) : isAssetItem && qty > 0 ? (
-        <AssetUnitDetailsSection item={item} onUpdate={onUpdate} />
+        <AssetUnitDetailsSection item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} />
       ) : isTracked && qty > 0 ? (
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
           <p className={`text-xs font-medium flex items-center gap-1.5 ${showWarning ? 'text-amber-700' : 'text-gray-600'}`}>
@@ -1093,6 +1110,7 @@ export default function CreatePurchase() {
                         onUpdate={patch => updateItem(item.id, patch)}
                         onRemove={() => removeItem(item.id)}
                         showValidation={attemptedAction === 'step2'}
+                        searchParams={searchParams} patchSearchParams={patchSearchParams}
                       />
                     ))}
                   </div>
