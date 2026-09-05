@@ -7,6 +7,7 @@
 // AddAsset.jsx or the PO/GRN flow yet.
 
 import { logAudit } from './auditLogStore'
+import { getFieldsForType, getAssetType, BRAND_MODEL_FIELD_KEYS } from './assetTaxonomy'
 
 let _assetModels = []
 // No seed data yet — the catalog starts empty; ids are still assigned
@@ -56,6 +57,39 @@ export function saveAssetModel(model) {
     details: `${isNew ? 'Added' : 'Updated'} asset model ${saved.name} (${saved.id})`,
   })
   return saved
+}
+
+// Resolves one Asset Master model into a { fieldKey: value } object of
+// starting values for every template-scoped field its own Category/Type
+// combination defines (assetTaxonomy.js's getFieldsForType()) — the single
+// place this resolution logic lives, used by CreatePurchase.jsx's GRN
+// receipt step to pre-fill a unit's spec fields (RAM, Processor, Brand
+// Name, Model Name, etc.) whenever that PO line was raised from a saved
+// model. Priority per field: the model's own saved default (fieldDefaults)
+// first; then, for the Brand/Model fields Asset Master's own Add/Edit modal
+// asks about separately rather than folding into fieldDefaults (see
+// BRAND_MODEL_FIELD_KEYS), the model's own top-level brand/model; then an
+// autofillFromAssetType field's own type label. Instance-scoped fields
+// (Serial Number, every date field, Vendor, Asset Name) are skipped
+// entirely — a saved template can never supply a value that's inherently
+// unique per physical unit or per purchase, so those stay blank for
+// whoever's filling that field in to enter fresh.
+export function resolveAssetModelTemplateFields(model) {
+  if (!model) return {}
+  const defs = getFieldsForType(model.categoryId, model.typeId)
+  const type = getAssetType(model.categoryId, model.typeId)
+  const fields = {}
+  defs.forEach(f => {
+    if ((f.scope ?? 'template') === 'instance') return
+    if (model.fieldDefaults && model.fieldDefaults[f.key] !== undefined) {
+      fields[f.key] = model.fieldDefaults[f.key]
+    } else if (BRAND_MODEL_FIELD_KEYS.includes(f.key)) {
+      fields[f.key] = f.key === 'modelName' ? (model.model || '') : (model.brand || '')
+    } else if (f.autofillFromAssetType) {
+      fields[f.key] = type?.label
+    }
+  })
+  return fields
 }
 
 // Asset models are never hard-deleted once an Asset PO could reference them

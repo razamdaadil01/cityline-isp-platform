@@ -19,7 +19,7 @@ import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } 
 import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
-import { getAssetModel } from '../../data/assetModelStore'
+import { getAssetModel, resolveAssetModelTemplateFields } from '../../data/assetModelStore'
 import { ASSET_CONDITIONS } from '../../data/assetTaxonomy'
 import { AssetDetailFields } from '../assets/AddAsset'
 
@@ -91,19 +91,24 @@ function assetDetailFieldsOnly(fields) {
 }
 
 // The Asset Master template (if any) this PO line was raised from — see
-// AddAsset.jsx's own note on assetModelId. A model's own fieldDefaults only
-// ever holds template-scoped fields to begin with (Asset Master's Add/Edit
+// AddAsset.jsx's own note on assetModelId. Asset PO creation no longer
+// captures any dynamic field at all (Category/Type/Price only — see
+// AddAsset.jsx's AssetItemRow), so every spec field a unit needs at GRN
+// (RAM, Processor, Brand Name, Model Name, etc.) comes from here rather
+// than already being baked onto the asset's own record the way it briefly
+// was in an earlier phase. resolveAssetModelTemplateFields() only ever
+// returns template-scoped fields to begin with (Asset Master's Add/Edit
 // modal never collects Serial Number, Vendor, Asset Name, or any date field
 // into fieldDefaults — see assetTaxonomy.js's `scope` note), so spreading
 // it here can never leak an instance-specific value into a unit's starting
 // fields; there's nothing to filter out. Used as a fallback *underneath*
-// each real asset's own recorded fields (never overriding them) purely so a
-// model default added/edited after this PO was raised still reaches a
-// not-yet-received line — the common case (a value already baked onto the
-// asset from AddAsset.jsx's own pre-fill at PO creation) is unaffected.
+// each real asset's own recorded fields (never overriding them) so a model
+// default added/edited after this PO was raised still reaches a
+// not-yet-received line, and so a receiver's own correction at GRN — once
+// this store's the only place recording it — always wins on a later edit.
 function modelTemplateDefaults(assetModelId) {
   if (!assetModelId) return {}
-  return getAssetModel(assetModelId)?.fieldDefaults ?? {}
+  return resolveAssetModelTemplateFields(getAssetModel(assetModelId))
 }
 
 function itemFromPOLine(it, i, linkedAssets = []) {
