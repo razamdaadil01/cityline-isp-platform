@@ -515,7 +515,7 @@ export default function AddAsset({ returnTo = '/assets' }) {
           Array.from({ length: qty }, () => ({ ...payload, fields: { ...li.fields } })),
           status,
         )
-        return { qty, price, assets }
+        return { qty, price, assets, modelId: li.modelId ?? null }
       })
       if (status === 'PO Raised') {
         raisePurchaseOrderForAssets(createdByLine)
@@ -548,7 +548,7 @@ export default function AddAsset({ returnTo = '/assets' }) {
     // as before Asset Master existed) or pre-filled from the selected Asset
     // Master template's defaultPrice — same as any other PO line, it stays
     // editable in the wizard right up until Save & Raise PO is clicked.
-    const items = createdByLine.map(({ qty, price, assets }) => {
+    const items = createdByLine.map(({ qty, price, assets, modelId }) => {
       const sample = assets[0]
       const sampleName = assetDisplayName(sample)
       return {
@@ -558,6 +558,12 @@ export default function AddAsset({ returnTo = '/assets' }) {
         productName: `${sample.categoryLabel} — ${sample.typeLabel}${sampleName !== sample.typeLabel ? ` (${sampleName})` : ''}${qty > 1 ? ` × ${qty}` : ''}`,
         sku: '', unit: 'Piece', qty, price, gstPercent,
         amount: computeLineAmount(qty, price, gstPercent),
+        // Which Asset Master template (if any) this line was raised from —
+        // null for the manual one-off flow. CreatePurchase.jsx's GRN receipt
+        // step reads this back to pre-fill each unit's spec fields from the
+        // model's own fieldDefaults, closing the loop Asset Master started:
+        // capture a spec once, reuse it at both PO creation and receipt.
+        assetModelId: modelId,
       }
     })
     const totalAssets = createdByLine.reduce((sum, c) => sum + c.assets.length, 0)
