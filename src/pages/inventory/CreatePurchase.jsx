@@ -19,6 +19,7 @@ import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } 
 import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
+import { getAssetModel } from '../../data/assetModelStore'
 import { ASSET_CONDITIONS } from '../../data/assetTaxonomy'
 import { AssetDetailFields } from '../assets/AddAsset'
 
@@ -89,9 +90,27 @@ function assetDetailFieldsOnly(fields) {
   return rest
 }
 
+// The Asset Master template (if any) this PO line was raised from — see
+// AddAsset.jsx's own note on assetModelId. A model's own fieldDefaults only
+// ever holds template-scoped fields to begin with (Asset Master's Add/Edit
+// modal never collects Serial Number, Vendor, Asset Name, or any date field
+// into fieldDefaults — see assetTaxonomy.js's `scope` note), so spreading
+// it here can never leak an instance-specific value into a unit's starting
+// fields; there's nothing to filter out. Used as a fallback *underneath*
+// each real asset's own recorded fields (never overriding them) purely so a
+// model default added/edited after this PO was raised still reaches a
+// not-yet-received line — the common case (a value already baked onto the
+// asset from AddAsset.jsx's own pre-fill at PO creation) is unaffected.
+function modelTemplateDefaults(assetModelId) {
+  if (!assetModelId) return {}
+  return getAssetModel(assetModelId)?.fieldDefaults ?? {}
+}
+
 function itemFromPOLine(it, i, linkedAssets = []) {
   const primaryAsset = linkedAssets[0] ?? null
-  const assetOriginalFields = primaryAsset ? assetDetailFieldsOnly(primaryAsset.fields) : null
+  const assetModelId = it.assetModelId ?? null
+  const modelDefaults = modelTemplateDefaults(assetModelId)
+  const assetOriginalFields = primaryAsset ? { ...modelDefaults, ...assetDetailFieldsOnly(primaryAsset.fields) } : null
   return {
     id: `tmp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
     // The PO's own line id — distinct from this Purchase item's own `id`
@@ -116,8 +135,9 @@ function itemFromPOLine(it, i, linkedAssets = []) {
     assetIds: linkedAssets.map(a => a.id),
     assetCategoryId: primaryAsset?.categoryId ?? null,
     assetTypeId: primaryAsset?.typeId ?? null,
+    assetModelId,
     assetOriginalFields,
-    assetFieldSets: linkedAssets.map(a => assetDetailFieldsOnly(a.fields)),
+    assetFieldSets: linkedAssets.map(a => ({ ...modelDefaults, ...assetDetailFieldsOnly(a.fields) })),
     kitComponents: requestedKitComponents(primaryAsset),
   }
 }
@@ -954,6 +974,7 @@ export default function CreatePurchase() {
         serials: it.serials, macs: it.macs, drumNumber: it.drumNumber, reason: it.reason,
         assetIds: it.assetIds ?? [], kitComponents: it.kitComponents ?? [],
         assetCategoryId: it.assetCategoryId ?? null, assetTypeId: it.assetTypeId ?? null,
+        assetModelId: it.assetModelId ?? null,
         assetOriginalFields: it.assetOriginalFields ?? null, assetFieldSets: it.assetFieldSets ?? [],
       })),
       remarks,
