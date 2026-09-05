@@ -12,18 +12,9 @@ import {
   getAssetModels, subscribeAssetModels, saveAssetModel, setAssetModelStatus,
   isAssetModelNameTaken, previewNextAssetModelId,
 } from '../../data/assetModelStore'
-import { ASSET_CATEGORIES, getAssetCategory, getAssetType, getFieldsForType } from '../../data/assetTaxonomy'
+import { ASSET_CATEGORIES, getAssetCategory, getAssetType, getFieldsForType, BRAND_MODEL_FIELD_KEYS } from '../../data/assetTaxonomy'
 import { AssetDetailFields } from '../assets/AddAsset'
 import { getVendors } from '../../data/vendorStore'
-
-// Dynamic-field keys that duplicate this modal's own fixed top-level
-// Brand/Model inputs — 'brandName'/'modelName' (IT Asset, Field & Splicing
-// Tools) and 'brand' (Ladder, Generic Tools) are plain "what brand/model is
-// this" text fields with no meaning beyond what Brand/Model already
-// capture here, so they're hidden from "Default Field Values" to avoid
-// asking for the same thing twice. No category defines a bare 'model' key
-// (only 'modelName'), so it isn't listed. Authority/Access has neither.
-const DUPLICATE_BRAND_MODEL_KEYS = ['brandName', 'modelName', 'brand']
 
 function emptyForm() {
   return { categoryId: '', typeId: '', name: '', brand: '', model: '', defaultPrice: '', fieldDefaults: {} }
@@ -177,7 +168,7 @@ function AddEditAssetModelModal({ isOpen, onClose, editing }) {
             <AssetDetailFields
               categoryId={form.categoryId} typeId={form.typeId} fields={form.fieldDefaults}
               onChange={updateFieldDefault} showErrors={false} vendors={vendors}
-              onlyTemplateFields excludeKeys={DUPLICATE_BRAND_MODEL_KEYS}
+              onlyTemplateFields excludeKeys={BRAND_MODEL_FIELD_KEYS}
             />
           </div>
         ) : (

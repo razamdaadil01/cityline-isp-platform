@@ -51,6 +51,20 @@
 //     every field regardless of scope, since scope only matters when asking
 //     "what's the default for every unit," not when entering one real unit.
 
+// Dynamic-field keys that duplicate Asset Master's own fixed top-level
+// Brand/Model inputs — 'brandName'/'modelName' (IT Asset, Field & Splicing
+// Tools) and 'brand' (Ladder, Generic Tools) are plain "what brand/model is
+// this" text fields with no meaning beyond what a Name/Brand/Model/Default
+// Price section already captures. Exported (rather than kept local to one
+// page) because two different screens need it: Asset Master's Add/Edit
+// modal hides these from its "Default Field Values" step (see
+// AssetMaster.jsx), and the Asset PO wizard's "Select from Asset Master"
+// step (AddAsset.jsx) maps a picked model's own top-level brand/model onto
+// these same keys when pre-filling a line item. No category defines a bare
+// 'model' key (only 'modelName'), so it isn't listed. Authority/Access has
+// neither.
+export const BRAND_MODEL_FIELD_KEYS = ['brandName', 'modelName', 'brand']
+
 export const KIT_COMPONENT_TYPES = [
   'Cleaver', 'Clamping Tool', 'Fiber Cutter', 'Cleaning Kit', 'Carrying Case', 'Battery', 'Charger', 'Other',
 ]

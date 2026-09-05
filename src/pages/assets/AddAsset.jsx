@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import {
   ASSET_CATEGORIES, getAssetCategory, getAssetType, getFieldsForType, KIT_COMPONENT_TYPES, ASSET_CONDITIONS,
+  BRAND_MODEL_FIELD_KEYS,
 } from '../../data/assetTaxonomy'
 import { createAssetsBulk, updateAsset, assetDisplayName } from '../../data/assetStore'
 import { savePurchaseOrder, computeLineAmount } from '../../data/purchaseOrderStore'
@@ -13,6 +14,8 @@ import { getVendors } from '../../data/vendorStore'
 import { getActiveCompanyEntities } from '../../data/companyEntities'
 import { getStores } from '../../data/storeStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
+import { getAssetModels } from '../../data/assetModelStore'
+import AssetModelPicker from '../../components/inventory/AssetModelPicker'
 
 // A field counts as filled the same way across every input type (text/
 // number/date/select all end up as a non-empty string/number on
@@ -260,23 +263,30 @@ export function AssetDetailFields({ categoryId, typeId, fields, onChange, showEr
 function emptyLineItem() {
   return {
     id: `li-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    categoryId: '', typeId: '', qty: 1, fields: {},
+    categoryId: '', typeId: '', qty: 1, fields: {}, price: '', modelId: null,
   }
 }
 
 // One repeatable "+ Add Another Item" row — same card/remove-button/
 // "+ Add …" pattern as this codebase's other dynamic row builders (e.g.
-// CreateHDDWorkOrder.jsx's Segments). Category/Type/Quantity/dynamic
+// CreateHDDWorkOrder.jsx's Segments). Category/Type/Quantity/Price/dynamic
 // fields all live on this one line item now, instead of AddAsset's own
 // top-level state — a single PO can carry several of these, one Asset
 // Purchase PO line per card (see AddAsset's own handleSave()/
 // raisePurchaseOrderForAssets() below).
-function LineItemCard({ item, index, onUpdate, onRemove, showRemove, showErrors, vendors }) {
+//
+// `assetModels` (active-status only, passed down from AddAsset) drives the
+// "Select from Asset Master" step below — a line starts in picker mode
+// whenever any saved model exists at all, so a user reaches the manual
+// Category/Type flow either by explicitly choosing "one-off asset" or by
+// mounting this card when no model has been saved yet for anything.
+function LineItemCard({ item, index, onUpdate, onRemove, showRemove, showErrors, vendors, assetModels }) {
   const category = item.categoryId ? getAssetCategory(item.categoryId) : null
   const type = category && item.typeId ? getAssetType(item.categoryId, item.typeId) : null
+  const [mode, setMode] = useState(() => (item.categoryId || assetModels.length === 0) ? 'manual' : 'picker')
 
   function selectCategory(e) {
-    onUpdate({ categoryId: e.target.value, typeId: '', fields: {} })
+    onUpdate({ categoryId: e.target.value, typeId: '', fields: {}, modelId: null })
   }
   // Any field marked autofillFromAssetType (Ladder's "Type", Authority/
   // Access's "Card/Asset Type", Generic Tools' "Category" — see
@@ -286,17 +296,65 @@ function LineItemCard({ item, index, onUpdate, onRemove, showRemove, showErrors,
   // same reason AddAsset always has (see emptyKitComponent()'s own note).
   function selectType(e) {
     const nextTypeId = e.target.value
-    if (!nextTypeId) { onUpdate({ typeId: '', fields: {} }); return }
+    if (!nextTypeId) { onUpdate({ typeId: '', fields: {}, modelId: null }); return }
     const defs = getFieldsForType(item.categoryId, nextTypeId)
     const autofilled = {}
     defs.forEach(f => {
       if (f.autofillFromAssetType) autofilled[f.key] = category.types.find(t => t.id === nextTypeId)?.label
       if (f.type === 'kit-components') autofilled[f.key] = [emptyKitComponent()]
     })
-    onUpdate({ typeId: nextTypeId, fields: autofilled })
+    onUpdate({ typeId: nextTypeId, fields: autofilled, modelId: null })
   }
   function updateField(key, value) { onUpdate({ fields: { ...item.fields, [key]: value } }) }
   function updateQty(value) { onUpdate({ qty: Math.max(1, Number(value) || 1) }) }
+  function updatePrice(value) { onUpdate({ price: value }) }
+
+  // Pre-fills this line from a saved Asset Master template — Category,
+  // Type and Price come straight from the model; every taxonomy field that
+  // isn't scope: 'instance' (see assetTaxonomy.js's own note) gets a
+  // starting value too, in priority order: the model's own saved default
+  // (fieldDefaults), then — for the Brand/Model fields Asset Master's own
+  // modal asks about separately, see BRAND_MODEL_FIELD_KEYS — the model's
+  // top-level brand/model, then the same autofillFromAssetType/
+  // kit-components starting values selectType() above already computes for
+  // the fully-manual flow. Instance-scoped fields (Serial Number, every
+  // date field, Vendor, Asset Name) are deliberately left blank: those are
+  // per-unit/per-purchase data a saved template can't supply, so whoever's
+  // filling this line still enters them fresh, same as the manual flow
+  // always required. Every field this fills stays a normal editable input
+  // afterward — nothing here locks anything, matching how CreatePO.jsx's
+  // own ProductPicker only pre-fills a starting price, never locks it.
+  function selectModel(model) {
+    const defs = getFieldsForType(model.categoryId, model.typeId)
+    const type = getAssetType(model.categoryId, model.typeId)
+    const startingFields = {}
+    defs.forEach(f => {
+      if ((f.scope ?? 'template') === 'instance') return
+      if (model.fieldDefaults && model.fieldDefaults[f.key] !== undefined) {
+        startingFields[f.key] = model.fieldDefaults[f.key]
+      } else if (BRAND_MODEL_FIELD_KEYS.includes(f.key)) {
+        startingFields[f.key] = f.key === 'modelName' ? (model.model || '') : (model.brand || '')
+      } else if (f.autofillFromAssetType) {
+        startingFields[f.key] = type?.label
+      } else if (f.type === 'kit-components') {
+        startingFields[f.key] = []
+      }
+    })
+    onUpdate({
+      categoryId: model.categoryId, typeId: model.typeId,
+      fields: startingFields, price: String(model.defaultPrice ?? ''), modelId: model.id,
+    })
+    setMode('manual')
+  }
+
+  // "Change" — clears everything this line has so far and returns to the
+  // Asset Master picker, the same escape hatch the "Or create a one-off
+  // asset" link offers below, just reachable after a model was already
+  // picked instead of only before.
+  function clearSelection() {
+    onUpdate({ categoryId: '', typeId: '', fields: {}, price: '', modelId: null })
+    setMode('picker')
+  }
 
   return (
     <div className="rounded-xl border border-surface-border p-4 space-y-4 relative">
@@ -312,34 +370,70 @@ function LineItemCard({ item, index, onUpdate, onRemove, showRemove, showErrors,
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <FormField label="Category" required>
-          <Select value={item.categoryId} onChange={selectCategory}>
-            <option value="">Select category…</option>
-            {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Type" required>
-          <Select value={item.typeId} onChange={selectType} disabled={!category}>
-            <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
-            {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Quantity" required>
-          <Input type="number" min="1" value={item.qty} onChange={e => updateQty(e.target.value)} />
-        </FormField>
-      </div>
-
-      {type ? (
-        <AssetDetailFields
-          categoryId={item.categoryId} typeId={item.typeId} fields={item.fields}
-          onChange={updateField} showErrors={showErrors} vendors={vendors}
-        />
-      ) : (
-        <div className="flex flex-col items-center justify-center gap-2.5 py-10 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">
-          <FileQuestion size={20} className="text-gray-300" />
-          <p className="text-sm text-gray-400">Select a category and type to continue.</p>
+      {mode === 'picker' ? (
+        <div className="rounded-lg border-2 border-dashed border-surface-border p-4 space-y-3 bg-gray-50/60">
+          <div>
+            <p className="text-xs font-semibold text-gray-600 mb-1.5">Select from Asset Master</p>
+            <AssetModelPicker
+              assetModels={assetModels}
+              placeholder="Search asset models by name, brand, or model…"
+              onSelect={selectModel}
+              getHint={m => `Default Price: ₹${Number(m.defaultPrice ?? 0).toLocaleString('en-IN')}`}
+            />
+          </div>
+          <button
+            type="button" onClick={() => setMode('manual')}
+            className="text-xs font-medium text-brand-blue hover:text-brand-blue-dark hover:underline transition-colors"
+          >
+            Or create a one-off asset (not from a saved model)
+          </button>
         </div>
+      ) : (
+        <>
+          {item.modelId ? (
+            <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-brand-blue/5 border border-brand-blue/20 text-xs text-brand-blue">
+              <span>Based on Asset Master: <span className="font-semibold">{assetModels.find(m => m.id === item.modelId)?.name ?? item.modelId}</span></span>
+              <button type="button" onClick={clearSelection} className="text-brand-blue/70 hover:text-brand-blue font-medium underline">Change</button>
+            </div>
+          ) : assetModels.length > 0 ? (
+            <button type="button" onClick={() => setMode('picker')} className="text-xs font-medium text-brand-blue hover:underline">
+              ← Select from Asset Master instead
+            </button>
+          ) : null}
+
+          <div className="grid grid-cols-4 gap-4">
+            <FormField label="Category" required>
+              <Select value={item.categoryId} onChange={selectCategory}>
+                <option value="">Select category…</option>
+                {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Type" required>
+              <Select value={item.typeId} onChange={selectType} disabled={!category}>
+                <option value="">{category ? 'Select type…' : 'Select a category first'}</option>
+                {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Quantity" required>
+              <Input type="number" min="1" value={item.qty} onChange={e => updateQty(e.target.value)} />
+            </FormField>
+            <FormField label="Price">
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={item.price} onChange={e => updatePrice(e.target.value)} />
+            </FormField>
+          </div>
+
+          {type ? (
+            <AssetDetailFields
+              categoryId={item.categoryId} typeId={item.typeId} fields={item.fields}
+              onChange={updateField} showErrors={showErrors} vendors={vendors}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2.5 py-10 px-4 border-2 border-dashed border-surface-border rounded-lg bg-gray-50/60">
+              <FileQuestion size={20} className="text-gray-300" />
+              <p className="text-sm text-gray-400">Select a category and type to continue.</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -358,6 +452,12 @@ export default function AddAsset({ returnTo = '/assets' }) {
   const [saveError, setSaveError] = useState('')
 
   const vendors = useMemo(() => getVendors().filter(v => v.status === 'active'), [])
+  // Active-status Asset Master templates only — an inactive/retired model
+  // shouldn't be offered as a starting point for a new purchase, same as
+  // Product PO creation's own ProductPicker never needs an active filter
+  // because productStore.js has no analogous "don't show me this" toggle
+  // (Products are just filtered active in their own picker usages already).
+  const assetModels = useMemo(() => getAssetModels().filter(m => m.status === 'active'), [])
   // Same sources Inventory's own Create PO wizard (CreatePO.jsx) reads —
   // Company/Entity and Store apply once per PO (not per line item), so
   // they're selected here rather than folded into assetTaxonomy.js's
@@ -409,12 +509,13 @@ export default function AddAsset({ returnTo = '/assets' }) {
         const category = getAssetCategory(li.categoryId)
         const type = getAssetType(li.categoryId, li.typeId)
         const qty = Math.max(1, Number(li.qty) || 1)
+        const price = Math.max(0, Number(li.price) || 0)
         const payload = { categoryId: li.categoryId, categoryLabel: category.label, typeId: li.typeId, typeLabel: type.label }
         const assets = createAssetsBulk(
           Array.from({ length: qty }, () => ({ ...payload, fields: { ...li.fields } })),
           status,
         )
-        return { qty, assets }
+        return { qty, price, assets }
       })
       if (status === 'PO Raised') {
         raisePurchaseOrderForAssets(createdByLine)
@@ -443,12 +544,11 @@ export default function AddAsset({ returnTo = '/assets' }) {
   function raisePurchaseOrderForAssets(createdByLine) {
     const settings = getInventorySettings(companyEntityId)
     const gstPercent = settings.defaultGstPercent
-    // Asset purchases don't carry a fixed catalog price the way a stocked
-    // Inventory product does — price starts at 0 and is filled in for real
-    // once the PO reaches the vendor/is priced, same as any other PO line
-    // can be edited before sending.
-    const price = 0
-    const items = createdByLine.map(({ qty, assets }) => {
+    // Each line's own price — either typed in manually (defaults to 0, same
+    // as before Asset Master existed) or pre-filled from the selected Asset
+    // Master template's defaultPrice — same as any other PO line, it stays
+    // editable in the wizard right up until Save & Raise PO is clicked.
+    const items = createdByLine.map(({ qty, price, assets }) => {
       const sample = assets[0]
       const sampleName = assetDisplayName(sample)
       return {
@@ -545,7 +645,7 @@ export default function AddAsset({ returnTo = '/assets' }) {
                     onUpdate={patch => updateLineItem(li.id, patch)}
                     onRemove={() => removeLineItem(li.id)}
                     showRemove={lineItems.length > 1}
-                    showErrors={showErrors} vendors={vendors}
+                    showErrors={showErrors} vendors={vendors} assetModels={assetModels}
                   />
                 ))}
               </div>
