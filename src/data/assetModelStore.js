@@ -81,6 +81,19 @@ export function resolveAssetModelTemplateFields(model) {
   const fields = {}
   defs.forEach(f => {
     if ((f.scope ?? 'template') === 'instance') return
+    // Kit Components is template-scoped but still skipped — a model's own
+    // kit list (fieldDefaults.kitComponents) is a template, not a real
+    // receipt; the per-unit kit confirmation at GRN is a separate,
+    // independently-tracked flow (CreatePurchase.jsx's
+    // KitComponentsReceiptSection / confirmKitComponentsForAsset()) that
+    // writes onto the asset's own fields.kitComponents directly. Letting
+    // this resolver's output flow into a unit's generic fields object
+    // would risk a later field correction at GRN
+    // (confirmAssetDetailFieldsAtGRN, which writes the whole per-unit
+    // fields object back onto the asset) silently overwriting whatever
+    // Kit Components Received actually confirmed with this stale template
+    // array instead.
+    if (f.type === 'kit-components') return
     if (model.fieldDefaults && model.fieldDefaults[f.key] !== undefined) {
       fields[f.key] = model.fieldDefaults[f.key]
     } else if (BRAND_MODEL_FIELD_KEYS.includes(f.key)) {
