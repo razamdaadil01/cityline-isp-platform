@@ -9,10 +9,77 @@
 import { logAudit } from './auditLogStore'
 import { getFieldsForType, getAssetType, BRAND_MODEL_FIELD_KEYS } from './assetTaxonomy'
 
-let _assetModels = []
-// No seed data yet — the catalog starts empty; ids are still assigned
-// sequentially from 1 the same way productStore.js's _nextSeq is.
-let _nextSeq = 1
+// Seeded so /inventory/asset-master isn't empty on first load and Asset PO
+// creation's AssetModelPicker has real models to search against — one per
+// Asset Category, covering both a kit-eligible type (Splicing Machine) and
+// four non-kit types. `fieldDefaults` only ever holds template-scoped
+// values (see assetTaxonomy.js's own `scope` note and
+// resolveAssetModelTemplateFields()'s skip list) — brand/model duplicate
+// keys (brandName/modelName/brand) are deliberately omitted here since
+// Asset Master's own form never collects them into fieldDefaults either
+// (BRAND_MODEL_FIELD_KEYS), and any autofillFromAssetType field (Ladder's
+// own "Type", Authority/Access's "Card/Asset Type", Generic Tools'
+// "Category") is set to that type's own label, matching what selecting
+// the type in the modal itself would have produced.
+const SEED = [
+  {
+    id: 'AST-MDL-001',
+    categoryId: 'it-asset', typeId: 'laptop',
+    name: 'Dell Latitude 5440', brand: 'Dell', model: 'Latitude 5440',
+    defaultPrice: 65000,
+    fieldDefaults: { ram: '16GB', processor: 'Intel i5-1335U', storageCapacity: '512GB SSD' },
+    status: 'active',
+  },
+  // Splicing Machine — the one kit-eligible type; kit rows use the
+  // template-variant shape (componentType/componentName/quantity only, no
+  // serialNumber/condition — see AddAsset.jsx's emptyKitComponentTemplate()).
+  // assetTaxonomy.js defines no other spec fields for this category
+  // (Battery Type/Splice Time don't exist there), so fieldDefaults carries
+  // only the kit list.
+  {
+    id: 'AST-MDL-002',
+    categoryId: 'field-splicing-tools', typeId: 'splicing-machine',
+    name: 'Fujikura 90S+ Splicing Machine', brand: 'Fujikura', model: '90S+',
+    defaultPrice: 185000,
+    fieldDefaults: {
+      kitComponents: [
+        { id: 'kc-tpl-fsm90s-1', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', quantity: 1 },
+        { id: 'kc-tpl-fsm90s-2', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', quantity: 1 },
+        { id: 'kc-tpl-fsm90s-3', componentType: 'Carrying Case', componentName: 'Hard Transport Case', quantity: 1 },
+      ],
+    },
+    status: 'active',
+  },
+  {
+    id: 'AST-MDL-003',
+    categoryId: 'ladder', typeId: 'extension-ladder',
+    name: 'Bathla Advance 4-Step', brand: 'Bathla', model: 'Advance',
+    defaultPrice: 8500,
+    fieldDefaults: { type: 'Extension Ladder', height: '13 ft', maxLoadCapacity: '150 kg' },
+    status: 'active',
+  },
+  {
+    id: 'AST-MDL-004',
+    categoryId: 'authority-access', typeId: 'safety-gear',
+    name: '3M Safety Harness Kit', brand: '3M', model: 'Harness-Kit-2026',
+    defaultPrice: 3200,
+    fieldDefaults: { cardAssetType: 'Safety Gear' },
+    status: 'active',
+  },
+  {
+    id: 'AST-MDL-005',
+    categoryId: 'generic-tools', typeId: 'crimping-tool',
+    name: 'RJ45 Pro Crimping Tool', brand: 'Generic', model: 'CT-RJ45',
+    defaultPrice: 1500,
+    fieldDefaults: { category: 'Crimping Tool' },
+    status: 'active',
+  },
+]
+
+let _assetModels = [...SEED]
+// Continues after the highest seeded AST-MDL-### suffix, same convention
+// productStore.js's own _nextSeq uses.
+let _nextSeq = SEED.length + 1
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._assetModels])) }
