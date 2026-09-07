@@ -17,6 +17,14 @@ import { getAssetModels } from '../../data/assetModelStore'
 import AssetModelPicker from '../../components/inventory/AssetModelPicker'
 
 // ── Kit Components — Splicing Machine's own repeatable sub-table ────────
+// Two variants share this one table: 'instance' (the default — a real
+// physical unit's own kit) carries Serial Number + Condition per row,
+// since those only exist once a component has actually been received.
+// 'template' (Asset Master's own Add/Edit Asset Model modal) omits both
+// entirely — a reusable model template has no physical unit yet, so
+// neither field means anything — leaving Component Type/Name/Qty as the
+// only columns, matching the fixed Name/Brand/Model/Default Price
+// section's own "this describes the model, not a unit" framing.
 function emptyKitComponent() {
   return {
     id: `kc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -24,11 +32,22 @@ function emptyKitComponent() {
   }
 }
 
-function KitComponentsTable({ value, onChange }) {
+// Template-variant row — deliberately never carries serialNumber/condition
+// keys at all (not just blank/hidden inputs for them), so an Asset Model's
+// own saved kit list can never contain instance data by construction.
+function emptyKitComponentTemplate() {
+  return {
+    id: `kc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    componentType: '', componentName: '', quantity: 1,
+  }
+}
+
+function KitComponentsTable({ value, onChange, variant = 'instance' }) {
   const rows = value || []
+  const isTemplate = variant === 'template'
 
   function addRow() {
-    onChange([...rows, emptyKitComponent()])
+    onChange([...rows, isTemplate ? emptyKitComponentTemplate() : emptyKitComponent()])
   }
   function updateRow(id, patch) { onChange(rows.map(r => r.id === id ? { ...r, ...patch } : r)) }
   function removeRow(id) { onChange(rows.filter(r => r.id !== id)) }
@@ -56,9 +75,9 @@ function KitComponentsTable({ value, onChange }) {
             <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide">
               <th className="text-left px-3 py-2 font-semibold">Component Type</th>
               <th className="text-left px-3 py-2 font-semibold">Component Name</th>
-              <th className="text-left px-3 py-2 font-semibold">Serial Number</th>
-              <th className="text-left px-3 py-2 font-semibold w-20">Quantity</th>
-              <th className="text-left px-3 py-2 font-semibold w-28">Condition</th>
+              {!isTemplate && <th className="text-left px-3 py-2 font-semibold">Serial Number</th>}
+              <th className="text-left px-3 py-2 font-semibold w-20">{isTemplate ? 'Qty' : 'Quantity'}</th>
+              {!isTemplate && <th className="text-left px-3 py-2 font-semibold w-28">Condition</th>}
               <th className="w-8" />
             </tr>
           </thead>
@@ -80,13 +99,15 @@ function KitComponentsTable({ value, onChange }) {
                     className="w-full px-2 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
                   />
                 </td>
-                <td className="px-2 py-1.5">
-                  <input
-                    type="text" value={row.serialNumber} onChange={e => updateRow(row.id, { serialNumber: e.target.value })}
-                    placeholder="Optional"
-                    className="w-full px-2 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-                  />
-                </td>
+                {!isTemplate && (
+                  <td className="px-2 py-1.5">
+                    <input
+                      type="text" value={row.serialNumber} onChange={e => updateRow(row.id, { serialNumber: e.target.value })}
+                      placeholder="Optional"
+                      className="w-full px-2 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                    />
+                  </td>
+                )}
                 <td className="px-2 py-1.5">
                   <input
                     type="number" min="1" value={row.quantity}
@@ -94,15 +115,17 @@ function KitComponentsTable({ value, onChange }) {
                     className="w-full px-2 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
                   />
                 </td>
-                <td className="px-2 py-1.5">
-                  <select
-                    value={row.condition} onChange={e => updateRow(row.id, { condition: e.target.value })}
-                    className="w-full px-2 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-                  >
-                    <option value="">Select…</option>
-                    {ASSET_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </td>
+                {!isTemplate && (
+                  <td className="px-2 py-1.5">
+                    <select
+                      value={row.condition} onChange={e => updateRow(row.id, { condition: e.target.value })}
+                      className="w-full px-2 py-1.5 text-xs border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                    >
+                      <option value="">Select…</option>
+                      {ASSET_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </td>
+                )}
                 <td className="px-2 py-1.5 text-right">
                   <button type="button" onClick={() => removeRow(row.id)} className="text-gray-400 hover:text-red-500 transition-colors">
                     <X size={13} />
@@ -129,7 +152,7 @@ function KitComponentsTable({ value, onChange }) {
 // field carries a small "Recommended"/"Optional" hint so that labeling is
 // consistent across all 5 category forms without each one needing its own
 // copy.
-function AssetField({ field, fields, onChange, showErrors, vendors }) {
+function AssetField({ field, fields, onChange, showErrors, vendors, kitVariant = 'instance' }) {
   const value = fields[field.key]
   const isEmpty = value === undefined || value === null || String(value).trim() === ''
   const showError = showErrors && field.required && field.type !== 'kit-components' && isEmpty
@@ -137,7 +160,7 @@ function AssetField({ field, fields, onChange, showErrors, vendors }) {
   if (field.type === 'kit-components') {
     return (
       <div className="col-span-2">
-        <KitComponentsTable value={value} onChange={v => onChange(field.key, v)} />
+        <KitComponentsTable value={value} onChange={v => onChange(field.key, v)} variant={kitVariant} />
       </div>
     )
   }
@@ -235,9 +258,14 @@ export function AssetDetailFields({ categoryId, typeId, fields, onChange, showEr
       <FormSection label="Vendor" defs={vendorDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
       {kitDefs.length > 0 && (
         <div>
-          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3 pb-1.5 border-b border-surface-border">Kit Components</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3 pb-1.5 border-b border-surface-border">
+            {onlyTemplateFields ? 'Kit Components (template)' : 'Kit Components'}
+          </p>
           {kitDefs.map(f => (
-            <AssetField key={f.key} field={f} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
+            <AssetField
+              key={f.key} field={f} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors}
+              kitVariant={onlyTemplateFields ? 'template' : 'instance'}
+            />
           ))}
         </div>
       )}
