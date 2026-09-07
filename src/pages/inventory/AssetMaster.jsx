@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2,
-  CheckCircle2, XCircle, LayoutTemplate,
+  CheckCircle2, XCircle, LayoutTemplate, AlertTriangle,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -16,8 +16,23 @@ import { ASSET_CATEGORIES, getAssetCategory, getAssetType, getFieldsForType, BRA
 import { AssetDetailFields } from '../assets/AddAsset'
 import { getVendors } from '../../data/vendorStore'
 
+// Asset Register entries (assetStore.js) don't yet carry a link back to
+// the Asset Master model they were created from — the PO → GRN pipeline
+// only tracks assetModelId on the PO's own line item (purchaseOrderStore.js,
+// set by AddAsset.jsx's AssetItemRow), never propagated onto the resulting
+// Asset record itself (assetStore.js's buildAsset() has no such field).
+// Without that link, "how many of this model are currently In Stock" can't
+// actually be computed — filtering getAssets() by a field that doesn't
+// exist on any record would just always return 0, which would look like a
+// real computed answer ("none in stock") rather than "unknown," a strictly
+// worse and misleading result. So this returns null (rendered as "—" below)
+// until Asset Register entries gain that link — not a fabricated number.
+function availableQtyForModel(model) {
+  return null
+}
+
 function emptyForm() {
-  return { categoryId: '', typeId: '', name: '', brand: '', model: '', defaultPrice: '', fieldDefaults: {} }
+  return { categoryId: '', typeId: '', name: '', brand: '', model: '', defaultPrice: '', reorderAlertQty: '', fieldDefaults: {} }
 }
 
 function modelToForm(model) {
@@ -25,6 +40,7 @@ function modelToForm(model) {
     categoryId: model.categoryId, typeId: model.typeId,
     name: model.name, brand: model.brand || '', model: model.model || '',
     defaultPrice: String(model.defaultPrice ?? ''),
+    reorderAlertQty: model.reorderAlertQty != null ? String(model.reorderAlertQty) : '',
     fieldDefaults: { ...model.fieldDefaults },
   }
 }
@@ -93,6 +109,9 @@ function AddEditAssetModelModal({ isOpen, onClose, editing }) {
       errs.name = `"${form.name.trim()}" already exists. Please use a different name.`
     if (form.defaultPrice === '' || Number.isNaN(Number(form.defaultPrice)) || Number(form.defaultPrice) < 0)
       errs.defaultPrice = 'Enter a valid default price.'
+    // Optional — only validated when the author actually typed something.
+    if (form.reorderAlertQty !== '' && (Number.isNaN(Number(form.reorderAlertQty)) || Number(form.reorderAlertQty) < 0))
+      errs.reorderAlertQty = 'Enter a valid reorder alert quantity.'
     return errs
   }
 
@@ -107,6 +126,7 @@ function AddEditAssetModelModal({ isOpen, onClose, editing }) {
       brand: form.brand.trim(),
       model: form.model.trim(),
       defaultPrice: Number(form.defaultPrice),
+      reorderAlertQty: form.reorderAlertQty === '' ? null : Number(form.reorderAlertQty),
       fieldDefaults: form.fieldDefaults,
       status: editing?.status ?? 'active',
     })
@@ -153,6 +173,9 @@ function AddEditAssetModelModal({ isOpen, onClose, editing }) {
           </FormField>
           <FormField label="Default Price" required error={errors.defaultPrice}>
             <Input type="number" min="0" placeholder="0.00" value={form.defaultPrice} onChange={e => setField('defaultPrice', e.target.value)} />
+          </FormField>
+          <FormField label="Reorder Alert Qty" hint="Optional" error={errors.reorderAlertQty}>
+            <Input type="number" min="0" placeholder="e.g. 3" value={form.reorderAlertQty} onChange={e => setField('reorderAlertQty', e.target.value)} />
           </FormField>
           <FormField label="Brand">
             <Input placeholder="e.g. Fujikura" value={form.brand} onChange={e => setField('brand', e.target.value)} />
@@ -429,6 +452,8 @@ export default function AssetMaster() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Brand</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Model</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Default Price</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Available Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Reorder Alert Qty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
               </tr>
@@ -436,7 +461,7 @@ export default function AssetMaster() {
             <tbody className="divide-y divide-surface-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-14 text-center text-sm text-gray-400">
+                  <td colSpan={11} className="px-4 py-14 text-center text-sm text-gray-400">
                     <LayoutTemplate size={32} className="mx-auto mb-2 text-gray-200" />
                     No asset models found
                   </td>
@@ -444,6 +469,8 @@ export default function AssetMaster() {
               ) : filtered.map(m => {
                 const category = getAssetCategory(m.categoryId)
                 const type = getAssetType(m.categoryId, m.typeId)
+                const availableQty = availableQtyForModel(m)
+                const lowStock = availableQty != null && m.reorderAlertQty != null && availableQty < m.reorderAlertQty
                 return (
                   <tr key={m.id} className="hover:bg-gray-50/70 transition-colors">
                     <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{m.id}</td>
@@ -455,6 +482,17 @@ export default function AssetMaster() {
                     <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{m.brand || '—'}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{m.model || '—'}</td>
                     <td className="px-4 py-3 text-right text-gray-800 font-medium text-xs whitespace-nowrap">₹{Number(m.defaultPrice).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {availableQty == null ? (
+                        <span className="text-gray-300 text-xs" title="Asset Register entries don't yet link back to their Asset Master model — Available Qty can't be computed until that link exists.">—</span>
+                      ) : (
+                        <span className={`font-semibold text-xs ${lowStock ? 'text-red-600' : 'text-gray-800'}`}>
+                          {availableQty}
+                          {lowStock && <AlertTriangle size={12} className="inline-block ml-1.5 text-amber-500" />}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 text-xs whitespace-nowrap">{m.reorderAlertQty ?? '—'}</td>
                     <td className="px-4 py-3">
                       <Badge variant={m.status === 'active' ? 'green' : 'gray'} dot size="sm">{m.status === 'active' ? 'Active' : 'Inactive'}</Badge>
                     </td>
