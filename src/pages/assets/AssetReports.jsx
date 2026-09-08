@@ -296,6 +296,7 @@ export default function AssetReports() {
                   <th className={th}>Path</th>
                   <th className={th}>Status</th>
                   <th className={th}>Resolution</th>
+                  <th className={th}>Cost</th>
                   <th className={th}>Date</th>
                 </tr>
               </thead>
@@ -310,6 +311,7 @@ export default function AssetReports() {
                       <td className={td}>{r.repairPath}{r.isWarrantyClaim ? ' (Warranty)' : ''}</td>
                       <td className={td}><Badge variant={REPAIR_STATUS_BADGE[r.status] ?? 'gray'} size="sm" dot>{r.status}</Badge></td>
                       <td className={td}>{r.resolution || <span className="text-gray-300">—</span>}</td>
+                      <td className={td}>{r.cost != null ? `₹${r.cost.toLocaleString('en-IN')}` : <span className="text-gray-300">—</span>}</td>
                       <td className={td}>{r.reportedDate}</td>
                     </tr>
                   )

@@ -46,7 +46,7 @@ const SEED = [
     id: 'AREP-000001', repairId: 'REP-2026-000001', assetId: 'AST-2026-000011',
     faultDescription: 'Overheating', reportedBy: 'Admin User', reportedDate: '2026-02-10',
     photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
-    status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: null,
+    status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: 450,
     createdAt: '2026-02-10T09:00:00.000Z',
   },
   {
@@ -214,17 +214,25 @@ export function updateRepairStatus(repairId, newStatus) {
 }
 
 // 'Fixed' -> the asset returns to 'In Stock'. 'Beyond Repair' -> the asset
-// deliberately STAYS 'Under Repair' — Retirement is a separate, not-yet-
-// built action (future scope per the brief); leaving it Under Repair keeps
-// it visibly flagged for manual retirement later rather than silently
-// reverting it to a usable-looking status.
-export function resolveRepair(repairId, { resolution, remarks = '' }) {
+// deliberately STAYS 'Under Repair' — AssetDetail.jsx now surfaces an
+// explicit "Retire it now?" prompt for exactly this state (asset.status
+// 'Under Repair' with its most recent repair resolved 'Beyond Repair'),
+// but retirement itself stays a separate, deliberately-confirmed action
+// (RetireAssetModal) rather than an automatic status change here.
+//
+// `cost` is never enforced as zero for a warranty claim — "no cost" for a
+// warranty claim is a UI convenience (AssetDetail.jsx hides the Cost input
+// and shows a static "No cost (Warranty Claim)" note instead of asking),
+// not a business rule this store checks or overrides; whatever cost value
+// is passed is stored as-is. Blank/undefined/null all normalize to null.
+export function resolveRepair(repairId, { resolution, remarks = '', cost = null }) {
   const repair = getAssetRepair(repairId)
   if (!repair) throw new Error('Repair record not found.')
   if (repair.status === 'Resolved') throw new Error('This repair has already been resolved.')
   if (!REPAIR_RESOLUTIONS.includes(resolution)) throw new Error('Select a valid resolution.')
 
-  const updated = { ...repair, status: 'Resolved', resolution, remarks: remarks.trim() }
+  const normalizedCost = cost === '' || cost === null || cost === undefined ? null : Number(cost)
+  const updated = { ...repair, status: 'Resolved', resolution, remarks: remarks.trim(), cost: normalizedCost }
   _repairs = _repairs.map(r => r.id === repairId ? updated : r)
   notify()
 
@@ -234,7 +242,7 @@ export function resolveRepair(repairId, { resolution, remarks = '' }) {
 
   logAudit({
     action: 'Edit', module: 'Assets',
-    details: `Resolved repair ${repair.repairId} — ${resolution}${resolution === 'Fixed' ? ' — asset back In Stock' : ' — asset remains Under Repair pending retirement'}`,
+    details: `Resolved repair ${repair.repairId} — ${resolution}${normalizedCost != null ? ` — cost ₹${normalizedCost.toLocaleString('en-IN')}` : ''}${resolution === 'Fixed' ? ' — asset back In Stock' : ' — asset remains Under Repair pending retirement'}`,
   })
   addNotification({
     type: 'asset_repair_resolved',
