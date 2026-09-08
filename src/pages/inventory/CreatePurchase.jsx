@@ -20,7 +20,7 @@ import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
 import { getAssetModel, resolveAssetModelTemplateFields } from '../../data/assetModelStore'
-import { ASSET_CONDITIONS } from '../../data/assetTaxonomy'
+import { ASSET_CONDITIONS, getFieldsForType } from '../../data/assetTaxonomy'
 import { AssetDetailFields } from '../assets/AddAsset'
 
 const STEPS = [
@@ -88,6 +88,29 @@ function assetDetailFieldsOnly(fields) {
   if (!fields) return {}
   const { kitComponents, ...rest } = fields
   return rest
+}
+
+// isStep2Valid() below only ever enforced Serial Number for an asset line
+// (via `serials`/`serialsOk`) — every other assetTaxonomy.js `required:
+// true` field (Asset Name, Brand Name, Purchase Date, Warranty Start/End
+// Date, Vendor, etc.) could be left blank at GRN and the receiver could
+// still confirm the purchase. That's what let a unit's warranty dates go
+// permanently unset, which is how isAssetWithinWarranty() in
+// assetRepairStore.js ends up always returning false for it later. This
+// checks one unit's assetFieldSets entry against every required field its
+// own Category/Type defines — except 'serialNumber', which stays
+// exclusively validated via `serials`/`serialsOk` (AssetUnitDetailsSection
+// still separately renders Serial Number bound to that array, not to this
+// fields object — see its own note), and 'kit-components', which has no
+// meaningful "filled" state and is confirmed through its own separate
+// KitComponentsReceiptSection instead.
+function assetUnitFieldsComplete(fieldSet, categoryId, typeId) {
+  const requiredDefs = getFieldsForType(categoryId, typeId)
+    .filter(f => f.required && f.key !== 'serialNumber' && f.type !== 'kit-components')
+  return requiredDefs.every(f => {
+    const v = fieldSet?.[f.key]
+    return v !== undefined && v !== null && String(v).trim() !== ''
+  })
 }
 
 // The Asset Master template (if any) this PO line was raised from — see
@@ -523,7 +546,7 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
 // purchaseStore.js's own note at the write-back call site; a slot beyond
 // however many assets actually exist (e.g. an over-receipt) has no record
 // to write into.
-function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchParams }) {
+function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchParams, showValidation }) {
   const vendors = getVendors().filter(v => v.status === 'active')
   // Derived straight from the URL (&item=<poLineId>&unit=<n>) rather than
   // its own local state — same convention as this wizard's own
@@ -573,35 +596,47 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
 
   return (
     <div className="space-y-2">
-      {item.assetFieldSets.map((fieldSet, i) => (
-        <div key={i} className="rounded-lg border border-surface-border overflow-hidden">
-          <button
-            type="button" onClick={() => toggle(i)}
-            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50/60 hover:bg-gray-100 transition-colors text-left"
-          >
-            <span className="text-xs font-semibold text-gray-700">
-              Unit {i + 1}{item.assetFieldSets.length > 1 ? ` of ${item.assetFieldSets.length}` : ''}
-            </span>
-            <ChevronDown size={14} className={`text-gray-400 transition-transform ${expandedIndex === i ? 'rotate-180' : ''}`} />
-          </button>
-          {expandedIndex === i && (
-            <div className="p-3 space-y-4 bg-white border-t border-surface-border">
-              <FormField label="Serial Number" required>
-                <Input
-                  value={item.serials[i] ?? ''}
-                  onChange={e => updateUnitSerial(i, e.target.value)}
-                  placeholder="Serial Number"
+      {item.assetFieldSets.map((fieldSet, i) => {
+        const serialMissing = !(item.serials[i] ?? '').trim()
+        // Same required-field set isStep2Valid()'s own assetFieldsOk check
+        // enforces, surfaced here per-unit so a receiver blocked from
+        // proceeding can actually see which collapsed unit(s) need
+        // attention without expanding every one — see
+        // assetUnitFieldsComplete()'s own note.
+        const fieldsIncomplete = !assetUnitFieldsComplete(fieldSet, item.assetCategoryId, item.assetTypeId)
+        const showUnitWarning = showValidation && (serialMissing || fieldsIncomplete)
+        return (
+          <div key={i} className="rounded-lg border border-surface-border overflow-hidden">
+            <button
+              type="button" onClick={() => toggle(i)}
+              className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50/60 hover:bg-gray-100 transition-colors text-left"
+            >
+              <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                Unit {i + 1}{item.assetFieldSets.length > 1 ? ` of ${item.assetFieldSets.length}` : ''}
+                {showUnitWarning && <AlertTriangle size={12} className="text-amber-500" />}
+              </span>
+              <ChevronDown size={14} className={`text-gray-400 transition-transform ${expandedIndex === i ? 'rotate-180' : ''}`} />
+            </button>
+            {expandedIndex === i && (
+              <div className="p-3 space-y-4 bg-white border-t border-surface-border">
+                <FormField label="Serial Number" required error={showValidation && serialMissing ? 'Serial Number is required.' : undefined}>
+                  <Input
+                    value={item.serials[i] ?? ''}
+                    onChange={e => updateUnitSerial(i, e.target.value)}
+                    placeholder="Serial Number"
+                    error={showValidation && serialMissing}
+                  />
+                </FormField>
+                <AssetDetailFields
+                  categoryId={item.assetCategoryId} typeId={item.assetTypeId}
+                  fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
+                  vendors={vendors} includeKitComponents={false} showErrors={showValidation}
                 />
-              </FormField>
-              <AssetDetailFields
-                categoryId={item.assetCategoryId} typeId={item.assetTypeId}
-                fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
-                vendors={vendors} includeKitComponents={false}
-              />
-            </div>
-          )}
-        </div>
-      ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -686,7 +721,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
       ) : isAssetItem && qty > 0 ? (
-        <AssetUnitDetailsSection item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} />
+        <AssetUnitDetailsSection item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} showValidation={showValidation} />
       ) : isTracked && qty > 0 ? (
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
           <p className={`text-xs font-medium flex items-center gap-1.5 ${showWarning ? 'text-amber-700' : 'text-gray-600'}`}>
@@ -929,14 +964,22 @@ export default function CreatePurchase() {
     return receivedItems.every(it => {
       if (it.type === 'wire') return !!it.drumNumber?.trim()
       const product = getProduct(it.productId)
+      const isAssetLine = Array.isArray(it.assetIds) && it.assetIds.length > 0
       // Same trackedBySerial-or-asset-line rule ReceiptItemCard uses above —
       // an Asset-flow item (it.assetIds non-empty) requires Serial Number
       // here too, even though it has no catalog product to read
       // trackedBySerial off.
-      const trackedBySerial = !!product?.trackedBySerial || (Array.isArray(it.assetIds) && it.assetIds.length > 0)
+      const trackedBySerial = !!product?.trackedBySerial || isAssetLine
       const serialsOk = !trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
       const macsOk = !product?.trackedByMac || (it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim())))
-      return serialsOk && macsOk
+      // Every other required asset detail field (Asset Name, Brand Name,
+      // Purchase Date, Warranty Start/End Date, Vendor, etc.) per unit —
+      // see assetUnitFieldsComplete()'s own note on why this was missing.
+      const assetFieldsOk = !isAssetLine || (
+        it.assetFieldSets.length === it.receivedQty
+        && it.assetFieldSets.every(fs => assetUnitFieldsComplete(fs, it.assetCategoryId, it.assetTypeId))
+      )
+      return serialsOk && macsOk && assetFieldsOk
     })
   }
 
@@ -1063,7 +1106,7 @@ export default function CreatePurchase() {
             {attemptedAction === 'step2' && !isStep2Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                Enter at least one Received Qty above 0, and fill in Drum Number / Serial / MAC fields for every line with a quantity received.
+                Enter at least one Received Qty above 0, and fill in Drum Number / Serial / MAC fields — plus every required asset detail (Asset Name, Brand, Warranty dates, etc.) for each unit — for every line with a quantity received.
               </div>
             )}
             {attemptedAction === 'draft' && !canSaveDraft && (

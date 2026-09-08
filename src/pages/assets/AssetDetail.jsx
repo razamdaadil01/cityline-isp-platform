@@ -14,6 +14,16 @@ import { getFieldsForType } from '../../data/assetTaxonomy'
 import { getWarrantyStatus } from '../../utils/warrantyStatus'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
+import { getUsers } from '../../data/userStore'
+
+// Resolves a repair record's technicianId (userStore.js's own id, picked
+// via EmployeeSelect in RepairRequestModal.jsx — no dedicated "technician"
+// role exists, same as HDD/Site Project's own "Technician Assignment"
+// fields reuse the same unfiltered employee list) into a display name.
+function technicianName(technicianId) {
+  if (!technicianId) return null
+  return getUsers().find(u => u.id === technicianId)?.name ?? technicianId
+}
 
 const STATUS_BADGE = { Draft: 'gray', 'PO Raised': 'indigo', 'In Stock': 'green', Assigned: 'purple', 'Under Repair': 'orange', Retired: 'slate', Lost: 'black' }
 const REPAIR_STATUS_BADGE = { 'Under Repair': 'orange', 'Sent to Vendor': 'indigo', 'In Progress': 'yellow', 'Received Back': 'blue', Resolved: 'green' }
@@ -125,7 +135,14 @@ export default function AssetDetail() {
               Return
             </Button>
           )}
-          {asset.status === 'Under Repair' && !activeRepair && (
+          {/* Two entry points into the same modal: an asset already 'Under
+              Repair' (reached via the Return flow's Damaged/Not Working
+              path) and, now, an asset still 'Assigned' — an engineer
+              reporting a fault directly without first returning it.
+              raiseRepairRequest() itself handles the status transition
+              correctly either way (see its own note), so no separate
+              modal/flow is needed for the second case. */}
+          {(asset.status === 'Assigned' || asset.status === 'Under Repair') && !activeRepair && (
             <Button size="sm" icon={<Wrench size={14} />} onClick={() => setSendingForRepair(true)}>
               Send for Repair
             </Button>
@@ -223,8 +240,14 @@ export default function AssetDetail() {
             <InfoRow label="Repair ID" value={activeRepair.repairId} />
             <InfoRow label="Fault Description" value={activeRepair.faultDescription} />
             <InfoRow label="Repair Path" value={activeRepair.repairPath} />
+            {activeRepair.repairPath === 'In-house' && (
+              <InfoRow label="Assigned Technician" value={technicianName(activeRepair.technicianId)} />
+            )}
             <InfoRow label="Reported By" value={activeRepair.reportedBy} />
             <InfoRow label="Reported Date" value={activeRepair.reportedDate} />
+            {activeRepair.photos?.length > 0 && (
+              <InfoRow label="Photos" value={`${activeRepair.photos.length} attached`} />
+            )}
             {isSplicingMachine && (
               <InfoRow label="Kit Components Included" value={activeRepair.includeKitComponents ? 'Yes' : 'No'} />
             )}
@@ -369,7 +392,9 @@ export default function AssetDetail() {
                       {r.resolution && <Badge variant={r.resolution === 'Fixed' ? 'green' : 'red'} size="sm">{r.resolution}</Badge>}
                     </div>
                     <p className="text-xs text-gray-700 mt-1">{r.faultDescription}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{r.repairPath}{r.remarks ? ` — ${r.remarks}` : ''}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {r.repairPath}{r.repairPath === 'In-house' && r.technicianId ? ` — ${technicianName(r.technicianId)}` : ''}{r.remarks ? ` — ${r.remarks}` : ''}
+                    </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-gray-500">{r.reportedDate}</p>

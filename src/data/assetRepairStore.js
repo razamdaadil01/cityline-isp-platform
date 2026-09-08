@@ -45,21 +45,21 @@ const SEED = [
   {
     id: 'AREP-000001', repairId: 'REP-2026-000001', assetId: 'AST-2026-000011',
     faultDescription: 'Overheating', reportedBy: 'Admin User', reportedDate: '2026-02-10',
-    includeKitComponents: false, repairPath: 'In-house', isWarrantyClaim: false,
+    photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
     status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: null,
     createdAt: '2026-02-10T09:00:00.000Z',
   },
   {
     id: 'AREP-000002', repairId: 'REP-2026-000002', assetId: 'AST-2026-000011',
     faultDescription: 'Display flicker', reportedBy: 'Admin User', reportedDate: '2026-05-18',
-    includeKitComponents: false, repairPath: 'Vendor', isWarrantyClaim: true,
+    photos: [], includeKitComponents: false, repairPath: 'Vendor', technicianId: null, isWarrantyClaim: true,
     status: 'Resolved', resolution: 'Fixed', remarks: 'Vendor replaced the display cable under warranty.', cost: null,
     createdAt: '2026-05-18T10:00:00.000Z',
   },
   {
     id: 'AREP-000003', repairId: 'REP-2026-000003', assetId: 'AST-2026-000011',
     faultDescription: "Won't power on", reportedBy: 'Admin User', reportedDate: '2026-08-24',
-    includeKitComponents: false, repairPath: 'In-house', isWarrantyClaim: false,
+    photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
     status: 'In Progress', resolution: null, remarks: null, cost: null,
     createdAt: '2026-08-24T09:15:00.000Z',
   },
@@ -69,7 +69,7 @@ const SEED = [
   {
     id: 'AREP-000004', repairId: 'REP-2026-000004', assetId: 'AST-2026-000012',
     faultDescription: 'Fuser unit failure — smoke smell during printing', reportedBy: 'Admin User', reportedDate: '2026-06-05',
-    includeKitComponents: false, repairPath: 'Vendor', isWarrantyClaim: true,
+    photos: [], includeKitComponents: false, repairPath: 'Vendor', technicianId: null, isWarrantyClaim: true,
     status: 'Resolved', resolution: 'Beyond Repair', remarks: 'Vendor assessed board damage beyond economical repair.', cost: null,
     createdAt: '2026-06-05T11:00:00.000Z',
   },
@@ -140,11 +140,15 @@ export function isSplicingMachineAsset(asset) {
 // idempotent regardless of caller). isWarrantyClaim is auto-computed, never
 // asked of the user — true only when the chosen path is 'Vendor' AND
 // today falls inside the asset's own warranty window.
-export function raiseRepairRequest(assetId, { faultDescription, reportedBy = 'Admin User', includeKitComponents = false, repairPath }) {
+export function raiseRepairRequest(assetId, {
+  faultDescription, reportedBy = 'Admin User', includeKitComponents = false, repairPath,
+  technicianId = null, photos = [],
+}) {
   const asset = getAsset(assetId)
   if (!asset) throw new Error('Asset not found.')
   if (!faultDescription?.trim()) throw new Error('Fault description is required.')
   if (!REPAIR_PATHS.includes(repairPath)) throw new Error('Select a repair path.')
+  if (repairPath === 'In-house' && !technicianId) throw new Error('Select an assigned technician for an in-house repair.')
   if (getActiveRepairForAsset(assetId)) throw new Error('This asset already has an active repair in progress.')
 
   const isWarrantyClaim = repairPath === 'Vendor' && isAssetWithinWarranty(asset)
@@ -155,8 +159,13 @@ export function raiseRepairRequest(assetId, { faultDescription, reportedBy = 'Ad
     assetId,
     faultDescription: faultDescription.trim(),
     reportedBy, reportedDate: new Date().toISOString().slice(0, 10),
+    photos: Array.isArray(photos) ? photos : [],
     includeKitComponents: isSplicingMachineAsset(asset) ? !!includeKitComponents : false,
     repairPath,
+    // Only meaningful for an In-house repair (the field/modal both gate it
+    // on repairPath === 'In-house' too) — always null for a Vendor repair,
+    // same as includeKitComponents staying false outside Splicing Machine.
+    technicianId: repairPath === 'In-house' ? technicianId : null,
     isWarrantyClaim,
     status: 'Under Repair',
     resolution: null,
