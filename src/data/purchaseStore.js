@@ -452,9 +452,28 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
         // set written back onto it; a slot beyond however many assets
         // actually exist (e.g. an over-receipt past what was ordered) has
         // no record to write into and is skipped.
+        //
+        // The canonical Serial Number the receiver types (item.serials[i]
+        // on CreatePurchase.jsx's own accordion, bound there rather than to
+        // assetFieldSets[i] — see AssetUnitDetailsSection's own note) lives
+        // on a completely separate array from assetFieldSets, so it's
+        // merged in here rather than arriving already part of it. Both
+        // arrays are resized together, to the same receivedQty, by
+        // ReceiptItemCard's own setReceivedQty() (trackedBySerial is always
+        // true for an asset line), so index i lines up the same physical
+        // unit across assetIds/assetFieldSets/serials for both a single-
+        // unit line and a multi-unit one — each serials[i] merges onto
+        // exactly the asset assetIds[i] resolves to. A blank serials[i]
+        // (an over-receipt slot with no serial entered, or none at all) is
+        // left out of the merge so it can never blank out an already-
+        // recorded serialNumber.
         if (Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets)) {
+          const serials = Array.isArray(it.serials) ? it.serials : []
           assetIds.forEach((assetId, i) => {
-            if (assetId && it.assetFieldSets[i]) confirmAssetDetailFieldsAtGRN(assetId, it.assetFieldSets[i], { poNumber: purchase.poNumber })
+            if (!assetId || !it.assetFieldSets[i]) return
+            const correctedFields = { ...it.assetFieldSets[i] }
+            if (serials[i]?.trim()) correctedFields.serialNumber = serials[i].trim()
+            confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber: purchase.poNumber })
           })
         }
       })
