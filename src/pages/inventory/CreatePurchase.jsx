@@ -631,6 +631,26 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
                   categoryId={item.assetCategoryId} typeId={item.assetTypeId}
                   fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
                   vendors={vendors} includeKitComponents={false} showErrors={showValidation}
+                  // 'serialNumber' is excluded here the same way Asset
+                  // Master's own modal excludes 'brandName'/'modelName'/
+                  // 'brand' — Basic Details would otherwise render it a
+                  // second time (getFieldsForType() includes it, and
+                  // nothing else here filters it out), bound to
+                  // fieldSet.serialNumber (the asset's own already-recorded
+                  // value, if any) rather than the canonical item.serials[i]
+                  // the explicit "Serial Number" field above is bound to.
+                  // That orphaned copy could show a stale/legacy value
+                  // (e.g. a seeded asset's original serial) right next to a
+                  // blank required field asking for the same thing — see
+                  // the recent investigation. Note: excluding it here is a
+                  // display-only fix — fieldSet.serialNumber still rides
+                  // along inside assetFieldSets[i] and still reaches
+                  // confirmAssetDetailFieldsAtGRN's write-back unedited;
+                  // item.serials[i] itself is never merged into that
+                  // write-back at all (it's persisted separately, only onto
+                  // this Purchase record's own `serials` array) — a real,
+                  // separate gap this fix does not touch.
+                  excludeKeys={['serialNumber']}
                 />
               </div>
             )}
