@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText, UserPlus, RotateCcw, Wrench, AlertTriangle, ChevronDown } from 'lucide-react'
+import { ArrowLeft, FileText, UserPlus, RotateCcw, Wrench, AlertTriangle, ChevronDown, Archive, ShieldAlert } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+import { FormField, Input } from '../../components/ui/FormInputs'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
 import RepairRequestModal from '../../components/assets/RepairRequestModal'
+import RetireAssetModal from '../../components/assets/RetireAssetModal'
+import ReportLostModal from '../../components/assets/ReportLostModal'
 import { getAsset, subscribeAssets, assetDisplayName, checkWarrantyAlerts } from '../../data/assetStore'
 import {
   getActiveRepairForAsset, getRepairsForAsset, updateRepairStatus, resolveRepair, subscribeAssetRepairs,
@@ -15,6 +18,15 @@ import { getWarrantyStatus } from '../../utils/warrantyStatus'
 import { getVendors } from '../../data/vendorStore'
 import { FIELD_ENGINEERS } from '../../data/installationsStore'
 import { getUsers } from '../../data/userStore'
+
+// Report Lost is only offered from a status where "this thing physically
+// exists somewhere and might have gone missing" makes sense — same list
+// reportAssetLost()'s own LOST_ELIGIBLE_STATUSES in assetStore.js checks
+// (not exported from there, so kept in sync here rather than importing a
+// page-local constant across files). Retire has no such list: retireAsset()
+// itself allows any status except the two other terminal ones, so that gate
+// is just "not already Retired or Lost", checked inline where it's used.
+const LOST_ELIGIBLE_STATUSES = ['Assigned', 'In Stock', 'Under Repair']
 
 // Resolves a repair record's technicianId (userStore.js's own id, picked
 // via EmployeeSelect in RepairRequestModal.jsx — no dedicated "technician"
@@ -32,10 +44,20 @@ const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'r
 // shows the live warranty badge next to — same two keys
 // utils/warrantyStatus.js itself reads (getWarrantyEndDate()).
 function isWarrantyEndKey(key) { return key === 'warrantyEndDate' || key === 'warrantyDate' }
-// Sent to Vendor -> In Progress -> Received Back — Resolved is reached via
-// its own dedicated action (Mark Fixed / Beyond Repair) below, never via
-// this "advance one step" map.
-const NEXT_REPAIR_STATUS = { 'Under Repair': 'Sent to Vendor', 'Sent to Vendor': 'In Progress', 'In Progress': 'Received Back' }
+// The "advance one step" sequence branches by repairPath — a Vendor repair
+// genuinely leaves the building (Sent to Vendor -> In Progress -> Received
+// Back), but an In-house repair never does, so forcing it through the same
+// "Sent to Vendor" label made no sense for a technician working on-site.
+// In-house instead goes straight Under Repair -> In Progress, and becomes
+// resolvable from there — RESOLVABLE_REPAIR_STATUS below is what actually
+// gates the Mark Fixed / Beyond Repair buttons per path, since In-house has
+// no "Received Back" step to converge on. Resolved itself is always reached
+// via that dedicated action, never via this "advance one step" map.
+const NEXT_REPAIR_STATUS_BY_PATH = {
+  Vendor: { 'Under Repair': 'Sent to Vendor', 'Sent to Vendor': 'In Progress', 'In Progress': 'Received Back' },
+  'In-house': { 'Under Repair': 'In Progress' },
+}
+const RESOLVABLE_REPAIR_STATUS_BY_PATH = { Vendor: 'Received Back', 'In-house': 'In Progress' }
 
 // Which "section" a taxonomy field's value belongs in — purely by its key,
 // since every category's field keys already carry that meaning
@@ -73,8 +95,19 @@ export default function AssetDetail() {
   const [assigning, setAssigning] = useState(false)
   const [returning, setReturning] = useState(false)
   const [sendingForRepair, setSendingForRepair] = useState(false)
+  const [retiring, setRetiring] = useState(false)
+  const [reportingLost, setReportingLost] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [repairHistoryOpen, setRepairHistoryOpen] = useState(false)
+  // Typed just before resolving the active repair — reset whenever the
+  // active repair's own identity changes (a fresh "Send for Repair" later,
+  // once this one resolves) so a stale amount can never carry over onto a
+  // different repair's own resolution. Derived from `id` (the route param)
+  // rather than `asset.id` so this hook can run before the "asset not
+  // found" early return below, same as every other hook on this page.
+  const activeRepair = getActiveRepairForAsset(id)
+  const [resolveCost, setResolveCost] = useState('')
+  useEffect(() => { setResolveCost('') }, [activeRepair?.id])
 
   const asset = getAsset(id)
 
@@ -95,9 +128,19 @@ export default function AssetDetail() {
   const kitComponentsField = fieldDefs.find(f => f.type === 'kit-components')
   const kitRows = kitComponentsField ? (asset.fields[kitComponentsField.key] || []) : []
   const isSplicingMachine = asset.categoryId === 'field-splicing-tools' && asset.typeId === 'splicing-machine'
-  const activeRepair = getActiveRepairForAsset(asset.id)
   const repairs = getRepairsForAsset(asset.id)
   const warrantyStatus = getWarrantyStatus(asset)
+  // F2 — a "Beyond Repair" outcome deliberately leaves the asset sitting at
+  // 'Under Repair' (see resolveRepair()'s own note) rather than auto-
+  // retiring it; this surfaces the prompt to actually do something about
+  // that instead of the admin having to notice and navigate to the list
+  // page. getRepairsForAsset() is already newest-first, so repairs[0] is
+  // the most recent one regardless of how many past cycles this asset has
+  // had. Gated on asset.status still being 'Under Repair' so the prompt
+  // disappears the moment it's retired (or reassigned some other way) —
+  // no separate dismiss/acknowledge state to track.
+  const mostRecentRepair = repairs[0] ?? null
+  const showBeyondRepairPrompt = asset.status === 'Under Repair' && mostRecentRepair?.resolution === 'Beyond Repair'
 
   function displayValue(field) {
     const raw = asset.fields[field.key]
@@ -152,8 +195,33 @@ export default function AssetDetail() {
               View PO
             </Button>
           )}
+          {/* Retire/Report Lost — previously only reachable from
+              AssetList.jsx's own row menu (RetireAssetModal/ReportLostModal,
+              reused here unchanged). Same gating those menu items use. */}
+          {asset.status !== 'Retired' && asset.status !== 'Lost' && (
+            <Button variant="secondary" size="sm" icon={<Archive size={14} />} onClick={() => setRetiring(true)}>
+              Retire Asset
+            </Button>
+          )}
+          {LOST_ELIGIBLE_STATUSES.includes(asset.status) && (
+            <Button variant="secondary" size="sm" icon={<ShieldAlert size={14} />} onClick={() => setReportingLost(true)}>
+              Report Lost
+            </Button>
+          )}
         </div>
       </div>
+
+      {showBeyondRepairPrompt && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <div className="flex-1 flex items-center justify-between gap-3 flex-wrap">
+            <p>This asset was marked Beyond Repair — Retire it now?</p>
+            <Button variant="danger" size="sm" icon={<Archive size={14} />} onClick={() => setRetiring(true)}>
+              Retire Now
+            </Button>
+          </div>
+        </div>
+      )}
 
       {asset.hasMissingComponents && (
         <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
@@ -252,29 +320,51 @@ export default function AssetDetail() {
               <InfoRow label="Kit Components Included" value={activeRepair.includeKitComponents ? 'Yes' : 'No'} />
             )}
 
-            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-surface-border">
-              {NEXT_REPAIR_STATUS[activeRepair.status] && (
-                <Button
-                  variant="secondary" size="sm"
-                  onClick={() => updateRepairStatus(activeRepair.id, NEXT_REPAIR_STATUS[activeRepair.status])}
-                >
-                  Advance to {NEXT_REPAIR_STATUS[activeRepair.status]}
-                </Button>
-              )}
-              {activeRepair.status === 'Received Back' && (
-                <>
-                  <Button size="sm" onClick={() => resolveRepair(activeRepair.id, { resolution: 'Fixed', remarks: '' })}>
-                    Mark Fixed
-                  </Button>
-                  <Button
-                    variant="danger" size="sm"
-                    onClick={() => resolveRepair(activeRepair.id, { resolution: 'Beyond Repair', remarks: '' })}
-                  >
-                    Beyond Repair
-                  </Button>
-                </>
-              )}
-            </div>
+            {(() => {
+              const nextStatus = NEXT_REPAIR_STATUS_BY_PATH[activeRepair.repairPath]?.[activeRepair.status]
+              const resolvable = activeRepair.status === RESOLVABLE_REPAIR_STATUS_BY_PATH[activeRepair.repairPath]
+              const resolveCostValue = activeRepair.isWarrantyClaim
+                ? null
+                : (resolveCost === '' ? null : Number(resolveCost))
+              return (
+                <div className="mt-4 pt-3 border-t border-surface-border space-y-3">
+                  {resolvable && (
+                    activeRepair.isWarrantyClaim ? (
+                      <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-2">
+                        No cost (Warranty Claim)
+                      </p>
+                    ) : (
+                      <FormField label="Cost" hint="Optional — ₹">
+                        <Input type="number" min="0" value={resolveCost} onChange={e => setResolveCost(e.target.value)} placeholder="0" />
+                      </FormField>
+                    )
+                  )}
+                  <div className="flex items-center gap-2">
+                    {nextStatus && (
+                      <Button
+                        variant="secondary" size="sm"
+                        onClick={() => updateRepairStatus(activeRepair.id, nextStatus)}
+                      >
+                        Advance to {nextStatus}
+                      </Button>
+                    )}
+                    {resolvable && (
+                      <>
+                        <Button size="sm" onClick={() => resolveRepair(activeRepair.id, { resolution: 'Fixed', remarks: '', cost: resolveCostValue })}>
+                          Mark Fixed
+                        </Button>
+                        <Button
+                          variant="danger" size="sm"
+                          onClick={() => resolveRepair(activeRepair.id, { resolution: 'Beyond Repair', remarks: '', cost: resolveCostValue })}
+                        >
+                          Beyond Repair
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
 
@@ -390,6 +480,7 @@ export default function AssetDetail() {
                       <Badge variant={REPAIR_STATUS_BADGE[r.status] ?? 'gray'} size="sm" dot>{r.status}</Badge>
                       {r.isWarrantyClaim && <Badge variant="cyan" size="sm">Warranty Claim</Badge>}
                       {r.resolution && <Badge variant={r.resolution === 'Fixed' ? 'green' : 'red'} size="sm">{r.resolution}</Badge>}
+                      {r.cost != null && <span className="text-xs font-medium text-gray-600">₹{r.cost.toLocaleString('en-IN')}</span>}
                     </div>
                     <p className="text-xs text-gray-700 mt-1">{r.faultDescription}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
@@ -410,6 +501,8 @@ export default function AssetDetail() {
       <AssignAssetModal isOpen={assigning} onClose={() => setAssigning(false)} asset={asset} />
       <ReturnAssetModal isOpen={returning} onClose={() => setReturning(false)} asset={asset} />
       <RepairRequestModal isOpen={sendingForRepair} onClose={() => setSendingForRepair(false)} asset={asset} />
+      <RetireAssetModal isOpen={retiring} onClose={() => setRetiring(false)} asset={asset} />
+      <ReportLostModal isOpen={reportingLost} onClose={() => setReportingLost(false)} asset={asset} />
     </div>
   )
 }
