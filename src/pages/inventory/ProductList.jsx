@@ -334,7 +334,7 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
         {tab === 'hardware' ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <FormField label="Category" required error={errors.categoryId}>
                 <Select value={hwForm.categoryId} onChange={selectCategory}>
                   <option value="">Select category…</option>
@@ -343,13 +343,15 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               </FormField>
               <FormField label="Subcategory" required error={errors.subcategoryId}>
                 <Select value={hwForm.subcategoryId} onChange={selectSubcategory} disabled={!hwForm.categoryId}>
-                  <option value="">{hwForm.categoryId ? 'Select subcategory…' : 'Select a category first'}</option>
+                  <option value="">{hwForm.categoryId ? 'Select subcategory…' : 'Select category first'}</option>
                   {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </Select>
               </FormField>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <FormField label="Specification" required error={errors.specificationId}>
                 <Select value={hwForm.specificationId} onChange={selectSpecification} disabled={!hwForm.subcategoryId}>
-                  <option value="">{hwForm.subcategoryId ? 'Select specification…' : 'Select a subcategory first'}</option>
+                  <option value="">{hwForm.subcategoryId ? 'Select specification…' : 'Select subcategory first'}</option>
                   {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </Select>
               </FormField>
