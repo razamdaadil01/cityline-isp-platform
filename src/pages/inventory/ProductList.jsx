@@ -11,11 +11,30 @@ import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
-  isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
+  isProductNameTaken, isProductClassificationTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
   getTrackingLabel,
 } from '../../data/productStore'
+import {
+  getCategories, getSubcategories, getSpecifications,
+  getCategory, getSubcategory, getSpecification,
+  subscribeProductTaxonomy,
+} from '../../data/productTaxonomyStore'
 import { usePermission } from '../../data/rolesStore'
 import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
+
+// Hardware products' own `name` is auto-generated from their Category ->
+// Subcategory -> Specification selection rather than typed — stored on the
+// same `name` field every other reader (search, ProductPicker, Create PO)
+// already expects, so nothing downstream needs to change. Returns '' until
+// all three are actually selected (and resolvable — a stale id pointing at
+// a since-removed taxonomy entry also falls back to '').
+function computeGeneratedName(categoryId, subcategoryId, specificationId) {
+  const category = categoryId ? getCategory(categoryId) : null
+  const subcategory = subcategoryId ? getSubcategory(subcategoryId) : null
+  const specification = specificationId ? getSpecification(specificationId) : null
+  if (!category || !subcategory || !specification) return ''
+  return `${category.label} — ${subcategory.label} — ${specification.label}`
+}
 
 const PRODUCT_TABLE_COLUMNS = [
   { key: 'productId',     label: 'Product ID',     visible: true, defaultVisible: true },
@@ -46,7 +65,8 @@ const GOOD_TYPE_LABEL = Object.fromEntries(GOOD_TYPES.map(g => [g.value, g.label
 // block below for how the three checkboxes' disabled states interact.
 function emptyHardwareForm() {
   return {
-    name: '', sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
+    categoryId: '', subcategoryId: '', specificationId: '',
+    sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
     sellingPrice: '', purchasePrice: '', unitType: 'Piece', reorderAlertQty: '',
     trackingQuantity: true, trackedBySerial: false, trackedByMac: false,
   }
@@ -71,7 +91,12 @@ function productToForm(product) {
   const trackedBySerial = product.trackedBySerial ?? (product.trackingType === 'serial')
   const trackedByMac = product.trackedByMac ?? (product.trackingType === 'mac')
   return {
-    name: product.name, sku: product.sku, brand: product.brand,
+    // Legacy hardware products (created before Product Taxonomy existed)
+    // carry no categoryId/subcategoryId/specificationId — these simply come
+    // back '' for them, which is what drives AddEditProductModal's "Legacy
+    // product" note and forces a fresh reclassification before save.
+    categoryId: product.categoryId || '', subcategoryId: product.subcategoryId || '', specificationId: product.specificationId || '',
+    sku: product.sku, brand: product.brand,
     purchasedCompanyId: product.purchasedCompanyId != null ? String(product.purchasedCompanyId) : '',
     goodType: product.goodType || 'consumable',
     model: product.model,
@@ -116,9 +141,46 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   const form = tab === 'wire' ? wireForm : hwForm
   const setForm = tab === 'wire' ? setWireForm : setHwForm
 
+  // Re-render if the taxonomy itself changes while this modal is open (e.g.
+  // a category gets deactivated in another tab) — same tick-only pattern
+  // ProductTaxonomy.jsx's own page uses, since the dropdown options below
+  // are read fresh from the store's getters on every render rather than
+  // kept in local state.
+  const [, setTaxonomyTick] = useState(0)
+  useEffect(() => subscribeProductTaxonomy(() => setTaxonomyTick(t => t + 1)), [])
+
+  const activeCategories = getCategories().filter(c => c.status === 'active')
+  const activeSubcategories = hwForm.categoryId ? getSubcategories(hwForm.categoryId).filter(s => s.status === 'active') : []
+  const activeSpecifications = hwForm.subcategoryId ? getSpecifications(hwForm.subcategoryId).filter(s => s.status === 'active') : []
+  const generatedName = computeGeneratedName(hwForm.categoryId, hwForm.subcategoryId, hwForm.specificationId)
+  // A hardware product saved before Product Taxonomy existed has no
+  // categoryId at all — shown as a read-only "Legacy product" note (its own
+  // free-text name, for reference) until the admin picks a category, at
+  // which point it's mid-reclassification and the note gives way to the
+  // live generated-name preview above. Saving still requires all three
+  // dropdowns regardless — this note is just a display affordance, not a
+  // separate validation path.
+  const isLegacyUnclassified = !!editing && editing.productType === 'hardware' && !editing.categoryId
+
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function selectCategory(e) {
+    const categoryId = e.target.value
+    setHwForm(f => ({ ...f, categoryId, subcategoryId: '', specificationId: '' }))
+    setErrors(er => ({ ...er, categoryId: undefined, subcategoryId: undefined, specificationId: undefined, classification: undefined }))
+  }
+  function selectSubcategory(e) {
+    const subcategoryId = e.target.value
+    setHwForm(f => ({ ...f, subcategoryId, specificationId: '' }))
+    setErrors(er => ({ ...er, subcategoryId: undefined, specificationId: undefined, classification: undefined }))
+  }
+  function selectSpecification(e) {
+    const specificationId = e.target.value
+    setHwForm(f => ({ ...f, specificationId }))
+    setErrors(er => ({ ...er, specificationId: undefined, classification: undefined }))
   }
 
   function switchTab(next) {
@@ -152,10 +214,25 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   function validate() {
     const errs = {}
     const excludeId = editing?.id ?? null
-    if (!form.name.trim()) {
-      errs.name = tab === 'wire' ? 'Wire name is required.' : 'Product name is required.'
-    } else if (isProductNameTaken(form.name.trim(), excludeId)) {
-      errs.name = `"${form.name.trim()}" already exists. Please use a different product name.`
+    if (tab === 'wire') {
+      if (!form.name.trim()) {
+        errs.name = 'Wire name is required.'
+      } else if (isProductNameTaken(form.name.trim(), excludeId)) {
+        errs.name = `"${form.name.trim()}" already exists. Please use a different product name.`
+      }
+    } else {
+      // Hardware's own name is auto-generated from these three selections
+      // (see computeGeneratedName()) rather than typed, so there's no free
+      // -text field to validate — each dropdown is required in its own
+      // right, and the only meaningful duplicate check is the id triple
+      // itself (isProductClassificationTaken), not the generated string.
+      if (!hwForm.categoryId) errs.categoryId = 'Select a category.'
+      if (!hwForm.subcategoryId) errs.subcategoryId = 'Select a subcategory.'
+      if (!hwForm.specificationId) errs.specificationId = 'Select a specification.'
+      if (hwForm.categoryId && hwForm.subcategoryId && hwForm.specificationId &&
+          isProductClassificationTaken(hwForm.categoryId, hwForm.subcategoryId, hwForm.specificationId, excludeId)) {
+        errs.classification = 'A product with this classification already exists.'
+      }
     }
     if (form.sku.trim() && isSkuTaken(form.sku.trim(), excludeId)) {
       errs.sku = `"${form.sku.trim()}" already exists. Please use a different SKU.`
@@ -197,7 +274,10 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
       saveProduct({
         id: editing?.id,
         productType: 'hardware',
-        name: form.name.trim(),
+        name: computeGeneratedName(hwForm.categoryId, hwForm.subcategoryId, hwForm.specificationId),
+        categoryId: hwForm.categoryId,
+        subcategoryId: hwForm.subcategoryId,
+        specificationId: hwForm.specificationId,
         sku: form.sku.trim(),
         brand: form.brand.trim(),
         purchasedCompanyId: form.purchasedCompanyId ? Number(form.purchasedCompanyId) : null,
@@ -254,10 +334,47 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
         {tab === 'hardware' ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Product Name" required error={errors.name}>
-                <Input placeholder="e.g. ONT Device" value={hwForm.name} onChange={e => setField('name', e.target.value)} />
+            <div className="grid grid-cols-3 gap-4">
+              <FormField label="Category" required error={errors.categoryId}>
+                <Select value={hwForm.categoryId} onChange={selectCategory}>
+                  <option value="">Select category…</option>
+                  {activeCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </Select>
               </FormField>
+              <FormField label="Subcategory" required error={errors.subcategoryId}>
+                <Select value={hwForm.subcategoryId} onChange={selectSubcategory} disabled={!hwForm.categoryId}>
+                  <option value="">{hwForm.categoryId ? 'Select subcategory…' : 'Select a category first'}</option>
+                  {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Specification" required error={errors.specificationId}>
+                <Select value={hwForm.specificationId} onChange={selectSpecification} disabled={!hwForm.subcategoryId}>
+                  <option value="">{hwForm.subcategoryId ? 'Select specification…' : 'Select a subcategory first'}</option>
+                  {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </Select>
+              </FormField>
+            </div>
+
+            {errors.classification && <p className="text-xs text-red-500">{errors.classification}</p>}
+
+            {isLegacyUnclassified && !hwForm.categoryId && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                <Info size={14} className="shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">Legacy product — reclassify to update.</p>
+                  <p className="mt-0.5">Current name: <span className="font-semibold">{editing.name}</span></p>
+                </div>
+              </div>
+            )}
+
+            {generatedName && (
+              <div className="rounded-lg border border-surface-border bg-gray-50/60 px-3 py-2.5">
+                <p className="text-xs text-gray-500">Product Name (auto-generated)</p>
+                <p className="text-sm font-semibold text-gray-800">{generatedName}</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-surface-border">
               <FormField label="SKU ID" error={errors.sku}>
                 <Input placeholder="e.g. HW-ONT-001" value={hwForm.sku} onChange={e => setField('sku', e.target.value)} />
               </FormField>
