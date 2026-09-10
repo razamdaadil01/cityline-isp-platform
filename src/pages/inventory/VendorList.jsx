@@ -117,10 +117,7 @@ export default function VendorList() {
         </div>
       </div>
 
-      <StatCard
-        icon={Wrench} label="In Repair" value={inRepairCount}
-        sub="units sent for repair, across all vendors" color="orange"
-      />
+      <StatCard icon={Wrench} label="In Repair" value={inRepairCount} color="orange" />
 
       <div className="relative w-72">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
