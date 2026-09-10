@@ -26,6 +26,7 @@ const SEED = [
     status: 'Sent for Repair', expectedDeliveryDate: '2026-09-05',
     sentAt: '2026-08-15T10:00:00.000Z', sentBy: 'Admin User',
     remarks: 'Reported dead-on-arrival by field engineer; sent back for warranty repair.',
+    isWarrantyClaim: true, cost: null,
   },
   {
     id: 'RPR-000002', productId: 'PRD-001', productName: 'ONT Device',
@@ -34,6 +35,7 @@ const SEED = [
     status: 'In Service', expectedDeliveryDate: '2026-08-30',
     sentAt: '2026-08-10T10:00:00.000Z', sentBy: 'Admin User',
     remarks: 'Intermittent optical signal loss — vendor has acknowledged and begun diagnostics.',
+    isWarrantyClaim: false, cost: 850,
   },
 ]
 
@@ -58,7 +60,17 @@ export function subscribeRepairs(fn) {
 // Always starts life as 'Sent for Repair' — 'In Service'/'Returned' are
 // later, separate transitions this function doesn't make (no UI drives
 // those yet either).
-export function saveRepair({ productId, productName, value, kind, vendorId, vendorName, expectedDeliveryDate, remarks }, actor = 'Admin User') {
+//
+// `isWarrantyClaim`/`cost` — the caller computes isWarrantyClaim itself via
+// inventoryLedger.js's isUnitWithinWarranty() (same pattern
+// assetRepairStore.js's raiseRepairRequest() uses for isAssetWithinWarranty())
+// and passes it straight through rather than this store re-deriving it, since
+// deriving it here would need the unit object this store deliberately never
+// reads (see file-level note above: this store never imports
+// inventoryLedger.js back). cost is the entered Estimated Cost when it's a
+// paid repair, or null when isWarrantyClaim is true — genuinely free, not
+// just an unset field.
+export function saveRepair({ productId, productName, value, kind, vendorId, vendorName, expectedDeliveryDate, remarks, isWarrantyClaim = false, cost = null }, actor = 'Admin User') {
   const repair = {
     id: `RPR-${String(_nextSeq++).padStart(6, '0')}`,
     productId, productName, value, kind,
@@ -66,12 +78,13 @@ export function saveRepair({ productId, productName, value, kind, vendorId, vend
     status: 'Sent for Repair', expectedDeliveryDate,
     sentAt: new Date().toISOString(), sentBy: actor,
     remarks: (remarks || '').trim(),
+    isWarrantyClaim, cost: isWarrantyClaim ? null : cost,
   }
   _repairs = [repair, ..._repairs]
   notify()
   logAudit({
     action: 'Create', module: 'Inventory',
-    details: `${value} (${productName}) sent for repair to ${vendorName}`,
+    details: `${value} (${productName}) sent for repair to ${vendorName}${isWarrantyClaim ? ' (warranty claim)' : ''}`,
   })
   return repair
 }

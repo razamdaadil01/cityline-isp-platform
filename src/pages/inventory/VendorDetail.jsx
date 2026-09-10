@@ -761,14 +761,14 @@ export default function VendorDetail() {
           )}
           {activeTab === 'Repairing Pending' && (
             vendorRepairs.length === 0 ? (
-              <EmptyStateTable icon={Wrench} columns={['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Status']} />
+              <EmptyStateTable icon={Wrench} columns={['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Cost', 'Status']} />
             ) : (
               <div className="rounded-xl border border-surface-border overflow-hidden">
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50/60 border-b border-surface-border">
-                      {['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Status'].map(c => (
+                      {['Serial / Unit', 'Product Name', 'Expected Delivery Date', 'Cost', 'Status'].map(c => (
                         <th key={c} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{c}</th>
                       ))}
                     </tr>
@@ -788,7 +788,15 @@ export default function VendorDetail() {
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{r.productName}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{r.expectedDeliveryDate}</td>
-                        <td className="px-4 py-3"><Badge variant={r.status === 'In Service' ? 'blue' : 'purple'} size="sm" dot>{(r.unit?.status ?? r.status)}</Badge></td>
+                        <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">
+                          {r.isWarrantyClaim ? 'No cost (Warranty Claim)' : (r.cost != null ? `₹${r.cost.toLocaleString('en-IN')}` : '—')}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant={r.status === 'In Service' ? 'blue' : 'purple'} size="sm" dot>{(r.unit?.status ?? r.status)}</Badge>
+                            {r.isWarrantyClaim && <Badge variant="cyan" size="sm">Warranty Claim</Badge>}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

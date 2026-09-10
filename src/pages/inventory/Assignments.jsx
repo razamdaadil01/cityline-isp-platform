@@ -14,7 +14,7 @@ import { getAssignments, subscribeAssignments, returnAssignmentLine, removeUnitF
 import { getStores } from '../../data/storeStore'
 import { getVendors, getVendor } from '../../data/vendorStore'
 import { saveRepair } from '../../data/repairStore'
-import { getUnits } from '../../data/inventoryLedger'
+import { getUnits, isUnitWithinWarranty } from '../../data/inventoryLedger'
 import { usePermission } from '../../data/rolesStore'
 
 // Line-level status shown per row — deliberately only these three values
@@ -113,6 +113,7 @@ function SendForRepairModal({ target, onClose }) {
   const [selectedValue, setSelectedValue] = useState('')
   const [vendorId, setVendorId] = useState('')
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
+  const [cost, setCost] = useState('')
   const [remarks, setRemarks] = useState('')
   const [error, setError] = useState('')
 
@@ -121,17 +122,45 @@ function SendForRepairModal({ target, onClose }) {
       setSelectedValue(target.units[0]?.value ?? '')
       setVendorId('')
       setExpectedDeliveryDate('')
+      setCost('')
       setRemarks('')
       setError('')
     }
   }, [isOpen, target])
 
+  // Re-resolved from the live ledger by selectedValue (not just once at
+  // open) so switching units on a multi-unit line re-checks warranty
+  // coverage for whichever unit is currently picked, per Phase A's
+  // vendorId/warrantyStartDate/warrantyEndDate additions to each unit's
+  // origin. A unit with no warranty dates recorded at all (e.g. a legacy
+  // unit that predates those GRN fields) reads as false here, same as one
+  // that's genuinely out of warranty — isUnitWithinWarranty() already
+  // treats missing dates as "not covered" rather than throwing.
+  const selectedUnit = isOpen
+    ? getUnits({ productId: target.productId }).find(u => u.value === selectedValue) ?? null
+    : null
+  const isWarrantyClaim = !!selectedUnit && isUnitWithinWarranty(selectedUnit)
+
   function handleConfirm() {
     if (!selectedValue) { setError('Select which unit is being sent for repair.'); return }
-    if (!vendorId) { setError('Select a vendor.'); return }
     if (!expectedDeliveryDate) { setError('Enter an expected delivery date.'); return }
+
+    let resolvedVendorId, resolvedVendorName, resolvedCost
+    if (isWarrantyClaim) {
+      // Locked to the unit's own originating vendor — never the manually
+      // picked vendorId, which stays untouched/unused on this path.
+      resolvedVendorId = selectedUnit.vendorId
+      resolvedVendorName = selectedUnit.vendorName
+      resolvedCost = null
+    } else {
+      if (!vendorId) { setError('Select a vendor.'); return }
+      if (cost === '' || Number(cost) < 0) { setError('Enter an estimated cost.'); return }
+      resolvedVendorId = vendorId
+      resolvedVendorName = getVendor(vendorId)?.companyName ?? ''
+      resolvedCost = Number(cost)
+    }
+
     const unit = target.units.find(u => u.value === selectedValue)
-    const vendor = getVendor(vendorId)
     try {
       // Repair record written first — if the assignment-side removal below
       // somehow fails, this still leaves a real paper trail for the unit
@@ -139,8 +168,9 @@ function SendForRepairModal({ target, onClose }) {
       saveRepair({
         productId: target.productId, productName: target.productName,
         value: unit.value, kind: unit.kind,
-        vendorId, vendorName: vendor?.companyName ?? '',
+        vendorId: resolvedVendorId, vendorName: resolvedVendorName,
         expectedDeliveryDate, remarks,
+        isWarrantyClaim, cost: resolvedCost,
       })
       removeUnitFromAssignmentLine(target.assignmentId, target.lineId, unit.value)
       onClose()
@@ -179,12 +209,27 @@ function SendForRepairModal({ target, onClose }) {
             </FormField>
           )}
 
-          <FormField label="Vendor" required>
-            <Select value={vendorId} onChange={e => setVendorId(e.target.value)}>
-              <option value="">Select vendor…</option>
-              {vendors.map(v => <option key={v.id} value={v.id}>{v.companyName}</option>)}
-            </Select>
-          </FormField>
+          {isWarrantyClaim ? (
+            <FormField label="Vendor" hint="Locked — this unit is still within warranty, so it must go back to its original purchase vendor.">
+              <div className="flex items-center gap-2">
+                <Input value={selectedUnit.vendorName || '—'} disabled className="flex-1" />
+                <Badge variant="cyan" size="sm">Warranty Claim — No Cost</Badge>
+              </div>
+            </FormField>
+          ) : (
+            <FormField label="Vendor" required>
+              <Select value={vendorId} onChange={e => setVendorId(e.target.value)}>
+                <option value="">Select vendor…</option>
+                {vendors.map(v => <option key={v.id} value={v.id}>{v.companyName}</option>)}
+              </Select>
+            </FormField>
+          )}
+
+          {!isWarrantyClaim && (
+            <FormField label="Estimated Cost" required hint="No warranty coverage found for this unit — this will be a paid repair.">
+              <Input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="e.g. 1500" />
+            </FormField>
+          )}
 
           <FormField label="Expected Delivery Date" required>
             <Input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} />
