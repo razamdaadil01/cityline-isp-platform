@@ -156,6 +156,14 @@ function itemFromPOLine(it, i, linkedAssets = []) {
     sku: it.sku, unit: it.unit, poQty: it.qty, receivedQty: '',
     price: it.price, gstPercent: it.gstPercent,
     serials: [], macs: [], drumNumber: '', reason: '',
+    // Batch-level (once per line, regardless of Received Qty) — unlike an
+    // Asset line's own per-unit purchaseDate/warrantyStartDate/
+    // warrantyEndDate (assetTaxonomy.js), a whole receipt of e.g. 5 ONT
+    // Devices shares one Purchase Date and one Warranty Start/End Date, not
+    // one each. Only meaningful for a real catalog product line (never
+    // read/validated for an Asset-flow line, which has its own equivalent —
+    // see isStep2Valid()'s own note) but harmless to seed blank here either way.
+    purchaseDate: '', warrantyStartDate: '', warrantyEndDate: '',
     // One entry per linked asset (usually poQty of them) — assetIds[i] is
     // the real Asset record backing that unit slot, or null for a slot
     // beyond however many assets actually exist (e.g. an over-receipt past
@@ -736,6 +744,26 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
         </div>
       </div>
 
+      {!isAssetItem && (
+        // Once per line, not per unit — an Asset-flow line already asks for
+        // its own equivalent per unit (AssetUnitDetailsSection below), so
+        // this only ever renders for a real catalog product line (hardware
+        // or wire). Same required-field rigor isStep2Valid() enforces for
+        // an Asset line's own purchaseDate/warrantyStartDate/
+        // warrantyEndDate — see that function's own note.
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <FormField label="Purchase Date" required hint="Required whenever a quantity is received" error={showValidation && !item.purchaseDate ? 'Required.' : undefined}>
+            <Input type="date" value={item.purchaseDate} onChange={e => onUpdate({ purchaseDate: e.target.value })} error={showValidation && !item.purchaseDate} />
+          </FormField>
+          <FormField label="Warranty Start Date" required error={showValidation && !item.warrantyStartDate ? 'Required.' : undefined}>
+            <Input type="date" value={item.warrantyStartDate} onChange={e => onUpdate({ warrantyStartDate: e.target.value })} error={showValidation && !item.warrantyStartDate} />
+          </FormField>
+          <FormField label="Warranty End Date" required error={showValidation && !item.warrantyEndDate ? 'Required.' : undefined}>
+            <Input type="date" value={item.warrantyEndDate} onChange={e => onUpdate({ warrantyEndDate: e.target.value })} error={showValidation && !item.warrantyEndDate} />
+          </FormField>
+        </div>
+      )}
+
       {isWire ? (
         <FormField label="Drum Number" required hint="Required whenever a quantity is received">
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
@@ -806,6 +834,7 @@ function AddOutsideItemForm({ products, onAdd, onCancel }) {
       serials: product.trackedBySerial ? resizeArray([], receivedQty) : [],
       macs: product.trackedByMac ? resizeArray([], receivedQty) : [],
       drumNumber: '', reason: reason.trim(),
+      purchaseDate: '', warrantyStartDate: '', warrantyEndDate: '',
     }, itemRemarks.trim())
   }
 
@@ -889,7 +918,16 @@ export default function CreatePurchase() {
   const [storeId, setStoreId] = useState(() => existing?.storeId ?? poFromUrl?.storeId ?? '')
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchaseDate ?? new Date().toISOString().slice(0, 10))
   const [items, setItems] = useState(() =>
-    existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) }))
+    existing?.items.map(it => ({
+      ...it, receivedQty: String(it.receivedQty),
+      // A Draft saved before this batch-date capture existed (e.g. this
+      // store's own seeded PUR-000002) has no purchaseDate/warrantyStartDate/
+      // warrantyEndDate keys at all — default them here rather than leaving
+      // undefined, same as receivedQty's own normalization above, so the
+      // date <Input>s stay controlled instead of switching from
+      // uncontrolled once a value is typed.
+      purchaseDate: it.purchaseDate ?? '', warrantyStartDate: it.warrantyStartDate ?? '', warrantyEndDate: it.warrantyEndDate ?? '',
+    }))
     ?? poFromUrl?.items.map((it, i) => itemFromPOLine(it, i, linkedAssetsForPOItem(poFromUrl, it)))
     ?? []
   )
@@ -982,9 +1020,16 @@ export default function CreatePurchase() {
     const receivedItems = numericItems.filter(it => it.receivedQty > 0)
     if (receivedItems.length === 0) return false
     return receivedItems.every(it => {
-      if (it.type === 'wire') return !!it.drumNumber?.trim()
-      const product = getProduct(it.productId)
       const isAssetLine = Array.isArray(it.assetIds) && it.assetIds.length > 0
+      // Purchase Date / Warranty Start/End Date — once per line, not per
+      // unit (see ReceiptItemCard's own note and itemFromPOLine()'s), so
+      // this checks the line's own three fields directly rather than
+      // per-unit arrays. An Asset-flow line already enforces its own
+      // per-unit equivalent below (assetFieldsOk, via assetUnitFieldsComplete()),
+      // so it's excluded here rather than asked twice.
+      const batchDatesOk = isAssetLine || (!!it.purchaseDate && !!it.warrantyStartDate && !!it.warrantyEndDate)
+      if (it.type === 'wire') return !!it.drumNumber?.trim() && batchDatesOk
+      const product = getProduct(it.productId)
       // Same trackedBySerial-or-asset-line rule ReceiptItemCard uses above —
       // an Asset-flow item (it.assetIds non-empty) requires Serial Number
       // here too, even though it has no catalog product to read
@@ -999,7 +1044,7 @@ export default function CreatePurchase() {
         it.assetFieldSets.length === it.receivedQty
         && it.assetFieldSets.every(fs => assetUnitFieldsComplete(fs, it.assetCategoryId, it.assetTypeId))
       )
-      return serialsOk && macsOk && assetFieldsOk
+      return serialsOk && macsOk && assetFieldsOk && batchDatesOk
     })
   }
 
@@ -1040,6 +1085,7 @@ export default function CreatePurchase() {
         sku: it.sku, unit: it.unit, poQty: it.poQty, receivedQty: it.receivedQty,
         price: it.price, gstPercent: it.gstPercent,
         serials: it.serials, macs: it.macs, drumNumber: it.drumNumber, reason: it.reason,
+        purchaseDate: it.purchaseDate || '', warrantyStartDate: it.warrantyStartDate || '', warrantyEndDate: it.warrantyEndDate || '',
         assetIds: it.assetIds ?? [], kitComponents: it.kitComponents ?? [],
         assetCategoryId: it.assetCategoryId ?? null, assetTypeId: it.assetTypeId ?? null,
         assetModelId: it.assetModelId ?? null,
