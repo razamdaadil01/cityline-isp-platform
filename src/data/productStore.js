@@ -239,7 +239,42 @@ const CLASSIFIED_HARDWARE_SEED = [
   status: 'active',
 }))
 
+// Retroactive classification for every product seeded before Product
+// Taxonomy existed (PRD-001 through PRD-015, minus the PRD-005 gap left by
+// "Drop Wire (per m)" being filtered out of HARDWARE_SEED above) — assigns
+// each a real Category/Subcategory/Specification from productTaxonomyStore.js
+// (extended with the new 'Network Accessories'/'Splicing & Termination'
+// categories — see that file's own CATEGORY_SEED note — for the items that
+// had no reasonable fit in the original ONT/Router/Cable-only tree) and
+// regenerates `name` from that triple via classifiedName(), same mechanism
+// CLASSIFIED_HARDWARE_SEED above already uses. CLASSIFIED_HARDWARE_SEED's
+// own products (PRD-016+) are deliberately absent from this map — they
+// already carry their own classification, so leaving them out here means
+// the .map() below just returns them unchanged.
+const LEGACY_PRODUCT_CLASSIFICATION = {
+  'PRD-001': ['PTAX-CAT-001', 'PTAX-SUB-006', 'PTAX-SPEC-011'], // ONT Device -> ONT / Standard / GPON
+  'PRD-002': ['PTAX-CAT-002', 'PTAX-SUB-007', 'PTAX-SPEC-012'], // WiFi Router -> Router / Standard / Dual Band
+  'PRD-003': ['PTAX-CAT-004', 'PTAX-SUB-009', 'PTAX-SPEC-016'], // Wall Mount Bracket -> Network Accessories / Mounting Hardware / Wall Mount Bracket
+  'PRD-004': ['PTAX-CAT-004', 'PTAX-SUB-010', 'PTAX-SPEC-017'], // POE Switch -> Network Accessories / Networking Equipment / PoE Switch
+  'PRD-006': ['PTAX-CAT-005', 'PTAX-SUB-012', 'PTAX-SPEC-019'], // Patch Cord (LC-LC, 5m) -> Splicing & Termination / Patch Cords / LC-LC 5m
+  'PRD-007': ['PTAX-CAT-005', 'PTAX-SUB-013', 'PTAX-SPEC-020'], // Optical Splitter 1x8 -> Splicing & Termination / Optical Splitters / 1x8 PLC
+  'PRD-008': ['PTAX-CAT-004', 'PTAX-SUB-011', 'PTAX-SPEC-018'], // SFP Module 1G -> Network Accessories / Transceivers / SFP 1G
+  'PRD-009': ['PTAX-CAT-003', 'PTAX-SUB-004', 'PTAX-SPEC-013'], // 4 Core Fiber Cable -> Cable / Fiber / 4 Core
+  'PRD-010': ['PTAX-CAT-003', 'PTAX-SUB-005', 'PTAX-SPEC-009'], // Drop Wire -> Cable / Drop Wire / Single Core
+  'PRD-011': ['PTAX-CAT-003', 'PTAX-SUB-004', 'PTAX-SPEC-014'], // 6 Core Fiber Cable -> Cable / Fiber / 6 Core
+  'PRD-012': ['PTAX-CAT-003', 'PTAX-SUB-008', 'PTAX-SPEC-015'], // 40mm PLB HDPE Duct -> Cable / Conduit / 40mm PLB HDPE
+  'PRD-013': ['PTAX-CAT-005', 'PTAX-SUB-015', 'PTAX-SPEC-023'], // Coupler -> Splicing & Termination / Couplers & Connectors / Fiber Coupler
+  'PRD-014': ['PTAX-CAT-005', 'PTAX-SUB-014', 'PTAX-SPEC-022'], // 16-Port FAT Box -> Splicing & Termination / Splice Enclosures / 16-Port FAT Box
+  'PRD-015': ['PTAX-CAT-005', 'PTAX-SUB-013', 'PTAX-SPEC-021'], // 1:16 PLC Splitter -> Splicing & Termination / Optical Splitters / 1:16 PLC
+}
+
 const SEED = [...HARDWARE_SEED, ...WIRE_SEED, ...PROJECT_MATERIAL_SEED, ...CLASSIFIED_HARDWARE_SEED]
+  .map(p => {
+    const triple = LEGACY_PRODUCT_CLASSIFICATION[p.id]
+    if (!triple) return p
+    const [categoryId, subcategoryId, specificationId] = triple
+    return { ...p, categoryId, subcategoryId, specificationId, name: classifiedName(categoryId, subcategoryId, specificationId) }
+  })
 
 let _products = [...SEED]
 // Next id continues after the highest numeric suffix actually in use —

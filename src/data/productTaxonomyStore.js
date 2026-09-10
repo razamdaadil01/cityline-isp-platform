@@ -9,10 +9,18 @@
 import { logAudit } from './auditLogStore'
 
 // Seeded so /inventory/product-taxonomy isn't empty on first load.
+// 'Network Accessories' and 'Splicing & Termination' were added to
+// retroactively classify productStore.js's original legacy catalog
+// (Wall Mount Bracket, POE Switch, Patch Cord, Optical Splitter, SFP
+// Module, Coupler, FAT Box, PLC Splitter) — none of those are an ONT, a
+// Router, or a Cable, so forcing them into the original three would have
+// been a bad fit rather than a genuine classification.
 const CATEGORY_SEED = [
   { id: 'PTAX-CAT-001', label: 'ONT', status: 'active' },
   { id: 'PTAX-CAT-002', label: 'Router', status: 'active' },
   { id: 'PTAX-CAT-003', label: 'Cable', status: 'active' },
+  { id: 'PTAX-CAT-004', label: 'Network Accessories', status: 'active' },
+  { id: 'PTAX-CAT-005', label: 'Splicing & Termination', status: 'active' },
 ]
 
 // 'Drop Wire' (PTAX-SUB-005) is seeded alongside 'Fiber' under the existing
@@ -24,14 +32,35 @@ const CATEGORY_SEED = [
 // here is tab-scoped — so a Wire product can be classified under any
 // Category (e.g. a wire-type accessory sold under 'Router'), same as a
 // Hardware product could in principle pick 'Cable' if that ever made sense.
+// 'Standard' (PTAX-SUB-006/007) covers the original generic 'ONT Device'/
+// 'WiFi Router' catalog entries, which predate the Dual Band/Single Band
+// and WiFi 6 subcategories and were never actually that specific — same
+// label reused across both Categories (ONT and Router), which is fine
+// since subcategory labels are only unique within their own categoryId.
 const SUBCATEGORY_SEED = [
   { id: 'PTAX-SUB-001', categoryId: 'PTAX-CAT-001', label: 'Dual Band', status: 'active' },
   { id: 'PTAX-SUB-002', categoryId: 'PTAX-CAT-001', label: 'Single Band', status: 'active' },
   { id: 'PTAX-SUB-003', categoryId: 'PTAX-CAT-002', label: 'WiFi 6', status: 'active' },
   { id: 'PTAX-SUB-004', categoryId: 'PTAX-CAT-003', label: 'Fiber', status: 'active' },
   { id: 'PTAX-SUB-005', categoryId: 'PTAX-CAT-003', label: 'Drop Wire', status: 'active' },
+  { id: 'PTAX-SUB-006', categoryId: 'PTAX-CAT-001', label: 'Standard', status: 'active' },
+  { id: 'PTAX-SUB-007', categoryId: 'PTAX-CAT-002', label: 'Standard', status: 'active' },
+  { id: 'PTAX-SUB-008', categoryId: 'PTAX-CAT-003', label: 'Conduit', status: 'active' },
+  { id: 'PTAX-SUB-009', categoryId: 'PTAX-CAT-004', label: 'Mounting Hardware', status: 'active' },
+  { id: 'PTAX-SUB-010', categoryId: 'PTAX-CAT-004', label: 'Networking Equipment', status: 'active' },
+  { id: 'PTAX-SUB-011', categoryId: 'PTAX-CAT-004', label: 'Transceivers', status: 'active' },
+  { id: 'PTAX-SUB-012', categoryId: 'PTAX-CAT-005', label: 'Patch Cords', status: 'active' },
+  { id: 'PTAX-SUB-013', categoryId: 'PTAX-CAT-005', label: 'Optical Splitters', status: 'active' },
+  { id: 'PTAX-SUB-014', categoryId: 'PTAX-CAT-005', label: 'Splice Enclosures', status: 'active' },
+  { id: 'PTAX-SUB-015', categoryId: 'PTAX-CAT-005', label: 'Couplers & Connectors', status: 'active' },
 ]
 
+// PTAX-SPEC-011 onward retroactively classify productStore.js's original
+// legacy catalog (see CATEGORY_SEED's own note) — each label deliberately
+// keeps the distinguishing detail from that product's old free-text name
+// (e.g. '16-Port FAT Box', 'LC-LC 5m') rather than a generic placeholder,
+// so the generated 3-part name stays as identifiable as the name it
+// replaces instead of collapsing into something uselessly generic.
 const SPECIFICATION_SEED = [
   { id: 'PTAX-SPEC-001', subcategoryId: 'PTAX-SUB-001', label: 'GPON', status: 'active' },
   { id: 'PTAX-SPEC-002', subcategoryId: 'PTAX-SUB-001', label: 'EPON', status: 'active' },
@@ -43,6 +72,19 @@ const SPECIFICATION_SEED = [
   { id: 'PTAX-SPEC-008', subcategoryId: 'PTAX-SUB-004', label: 'Multi Mode', status: 'active' },
   { id: 'PTAX-SPEC-009', subcategoryId: 'PTAX-SUB-005', label: 'Single Core', status: 'active' },
   { id: 'PTAX-SPEC-010', subcategoryId: 'PTAX-SUB-005', label: 'Multi Core', status: 'active' },
+  { id: 'PTAX-SPEC-011', subcategoryId: 'PTAX-SUB-006', label: 'GPON', status: 'active' },
+  { id: 'PTAX-SPEC-012', subcategoryId: 'PTAX-SUB-007', label: 'Dual Band', status: 'active' },
+  { id: 'PTAX-SPEC-013', subcategoryId: 'PTAX-SUB-004', label: '4 Core', status: 'active' },
+  { id: 'PTAX-SPEC-014', subcategoryId: 'PTAX-SUB-004', label: '6 Core', status: 'active' },
+  { id: 'PTAX-SPEC-015', subcategoryId: 'PTAX-SUB-008', label: '40mm PLB HDPE', status: 'active' },
+  { id: 'PTAX-SPEC-016', subcategoryId: 'PTAX-SUB-009', label: 'Wall Mount Bracket', status: 'active' },
+  { id: 'PTAX-SPEC-017', subcategoryId: 'PTAX-SUB-010', label: 'PoE Switch', status: 'active' },
+  { id: 'PTAX-SPEC-018', subcategoryId: 'PTAX-SUB-011', label: 'SFP 1G', status: 'active' },
+  { id: 'PTAX-SPEC-019', subcategoryId: 'PTAX-SUB-012', label: 'LC-LC 5m', status: 'active' },
+  { id: 'PTAX-SPEC-020', subcategoryId: 'PTAX-SUB-013', label: '1x8 PLC', status: 'active' },
+  { id: 'PTAX-SPEC-021', subcategoryId: 'PTAX-SUB-013', label: '1:16 PLC', status: 'active' },
+  { id: 'PTAX-SPEC-022', subcategoryId: 'PTAX-SUB-014', label: '16-Port FAT Box', status: 'active' },
+  { id: 'PTAX-SPEC-023', subcategoryId: 'PTAX-SUB-015', label: 'Fiber Coupler', status: 'active' },
 ]
 
 let _categories = [...CATEGORY_SEED]
