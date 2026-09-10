@@ -213,6 +213,21 @@ export function isProductNameTaken(name, excludeId = null) {
   return _products.some(p => p.id !== excludeId && p.name.trim().toLowerCase() === q)
 }
 
+// Hardware products are now classified via productTaxonomyStore's Category ->
+// Subcategory -> Specification (their own `name` is auto-generated from that
+// triple, not free-text — see ProductList.jsx's computeGeneratedName()), so
+// the meaningful duplicate check for them is the id triple itself rather than
+// the generated string: two hardware products with the identical
+// classification and no other differentiator would be indistinguishable.
+// Never called for Wire products — that tab still keeps its own free-text
+// name, checked via isProductNameTaken above.
+export function isProductClassificationTaken(categoryId, subcategoryId, specificationId, excludeId = null) {
+  return _products.some(p =>
+    p.id !== excludeId &&
+    p.categoryId === categoryId && p.subcategoryId === subcategoryId && p.specificationId === specificationId
+  )
+}
+
 export function isSkuTaken(sku, excludeId = null) {
   const q = sku.trim().toLowerCase()
   if (!q) return false
