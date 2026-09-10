@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2, RotateCcw, UserCog,
-  CalendarDays, Users, ClipboardList, AlertTriangle, Wrench,
+  CalendarDays, Users, ClipboardList, AlertTriangle, Wrench, Trash2,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
+import ScrapUnitModal from '../../components/inventory/ScrapUnitModal'
 import { getAssignments, subscribeAssignments, returnAssignmentLine, removeUnitFromAssignmentLine } from '../../data/assignmentStore'
 import { getStores } from '../../data/storeStore'
 import { getVendors, getVendor } from '../../data/vendorStore'
@@ -256,18 +257,49 @@ export default function Assignments() {
   // a specific unit from.
   const [repairTarget, setRepairTarget] = useState(null)
 
-  function openSendForRepair(row) {
+  // Shared by both "Send for Repair" and "Scrap" below — resolves the LIVE
+  // assignment/line for a row and builds its unit list (index-paired
+  // serials/macs, preferring a unit's serial as its reference value when it
+  // has one — see removeUnitFromAssignmentLine()'s own note on dual-tracked
+  // pairing), rather than each action re-deriving this independently.
+  function lineTargetForRow(row) {
     const assignment = assignments.find(a => a.id === row.assignmentId)
     const line = assignment?.hardwareLines.find(l => l.id === row.lineId)
-    if (!assignment || !line) return
+    if (!assignment || !line) return null
     const count = Math.max(line.serials.length, line.macs.length)
     const units = Array.from({ length: count }, (_, i) =>
       line.serials[i] ? { value: line.serials[i], kind: 'serial' } : { value: line.macs[i], kind: 'mac' }
     )
+    return { assignment, line, units }
+  }
+
+  function openSendForRepair(row) {
+    const resolved = lineTargetForRow(row)
+    if (!resolved) return
+    const { assignment, line, units } = resolved
     setRepairTarget({
       assignmentId: assignment.id, lineId: line.id,
       productId: line.productId, productName: line.productName,
       engineerName: assignment.engineerName, storeName: assignment.storeName,
+      units,
+    })
+    setMenuId(null)
+  }
+
+  // "Scrap" — same gating/lookup as "Send for Repair" above, but removes
+  // the unit via the same single-unit removal (not "Back to Store"'s
+  // whole-line removal) and needs storeId (not just storeName) since
+  // scrapStore.js's record shape carries both.
+  const [scrapTarget, setScrapTarget] = useState(null)
+
+  function openScrap(row) {
+    const resolved = lineTargetForRow(row)
+    if (!resolved) return
+    const { assignment, line, units } = resolved
+    setScrapTarget({
+      assignmentId: assignment.id, lineId: line.id,
+      productId: line.productId, productName: line.productName,
+      storeId: assignment.storeId, storeName: assignment.storeName,
       units,
     })
     setMenuId(null)
@@ -524,9 +556,12 @@ export default function Assignments() {
         // already handed off to a user is gone the same way it is for
         // "Back to Store" above.
         const isSerialMacTracked = row.lineKind === 'hardware' && row.serialMacDrumLabel !== '—'
-        const canSendForRepair = isSerialMacTracked && !alreadyWithUser
+        const canActOnUnit = isSerialMacTracked && !alreadyWithUser
         const repairDisabledReason = alreadyWithUser
           ? 'Already handed off to a user — cannot send for repair'
+          : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
+        const scrapDisabledReason = alreadyWithUser
+          ? 'Already handed off to a user — cannot scrap'
           : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
         return (
           <div
@@ -546,12 +581,20 @@ export default function Assignments() {
               <RotateCcw size={13} className={alreadyWithUser ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Store
             </button>
             <button
-              onClick={() => { if (!canSendForRepair) return; openSendForRepair(row) }}
-              disabled={!canSendForRepair}
+              onClick={() => { if (!canActOnUnit) return; openSendForRepair(row) }}
+              disabled={!canActOnUnit}
               title={repairDisabledReason}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canSendForRepair ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canActOnUnit ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
             >
-              <Wrench size={13} className={canSendForRepair ? 'text-brand-orange shrink-0' : 'text-gray-300 shrink-0'} /> Send for Repair
+              <Wrench size={13} className={canActOnUnit ? 'text-brand-orange shrink-0' : 'text-gray-300 shrink-0'} /> Send for Repair
+            </button>
+            <button
+              onClick={() => { if (!canActOnUnit) return; openScrap(row) }}
+              disabled={!canActOnUnit}
+              title={scrapDisabledReason}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canActOnUnit ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
+            >
+              <Trash2 size={13} className={canActOnUnit ? 'text-red-500 shrink-0' : 'text-gray-300 shrink-0'} /> Scrap
             </button>
           </div>
         )
@@ -586,6 +629,11 @@ export default function Assignments() {
       </Modal>
 
       <SendForRepairModal target={repairTarget} onClose={() => setRepairTarget(null)} />
+      <ScrapUnitModal
+        target={scrapTarget}
+        onClose={() => setScrapTarget(null)}
+        onScrapped={unit => removeUnitFromAssignmentLine(scrapTarget.assignmentId, scrapTarget.lineId, unit.value)}
+      />
     </div>
   )
 }

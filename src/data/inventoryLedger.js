@@ -6,8 +6,8 @@
 //
 // Phase 5 (Engineer Assignment) layers assignmentStore.js's confirmed
 // deductions on top of the purchase-derived state below — a unit/drum's
-// `status`/remaining figures reflect assignments automatically. Damaged/
-// Scrap movements are still a later phase.
+// `status`/remaining figures reflect assignments automatically. Repairs
+// and Scrap are layered the same way, further down.
 
 import { getProducts } from './productStore'
 import { getPurchases, subscribePurchases } from './purchaseStore'
@@ -15,7 +15,8 @@ import { getAssignments, subscribeAssignments } from './assignmentStore'
 import { getReplacements, subscribeReplacements } from './replacementStore'
 import { getUserAssignments, subscribeUserAssignments } from './userAssignmentStore'
 import { getStoreTransfers, subscribeStoreTransfers } from './storeTransferStore'
-import { getRepairs } from './repairStore'
+import { getRepairs, subscribeRepairs } from './repairStore'
+import { getScraps, subscribeScraps } from './scrapStore'
 
 function normalizeMatchKey(s) {
   return (s || '').trim().toLowerCase()
@@ -408,6 +409,27 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
     unit.repairRemarks = r.remarks
   })
 
+  // ── Scrap: unit permanently written off ──────────────────────────────────
+  // Same layering mechanism as Repairs just above — Inventory Overview's
+  // Units tab and the product table's own Scrap column/stat both read this
+  // same live unit.status, so scrapping a unit is visible everywhere a
+  // unit's status already surfaces. Applied last, after Repairs — a scrapped
+  // unit's state is permanent and final, so if a unit somehow carries both a
+  // stale repair record and a later scrap record (vendor couldn't fix it
+  // after all), Scrap always wins. Doesn't touch balanceByKey, same reasoning
+  // as Repairs/Assignments/Replacements above — a scrapped serial/MAC unit's
+  // "no longer available" state lives entirely in this per-unit status
+  // (getUnits({status: 'Available'}) simply stops matching it), not in the
+  // quantity-tracked balance table.
+  getScraps().forEach(s => {
+    const unit = unitsByValue.get(s.value)
+    if (!unit || unit.productId !== s.productId) return
+    unit.status = 'Scrapped'
+    unit.scrapRecordId = s.id
+    unit.scrapReason = s.reason
+    unit.scrappedAt = s.scrappedAt
+  })
+
   return {
     balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey,
     assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey,
@@ -584,22 +606,32 @@ export function getUnitTrail(unit) {
       detail: `Ticket ${unit.replacementTicketNumber}${unit.replacementRemarks ? ` — ${unit.replacementRemarks}` : ''}`,
     })
   }
+  if (unit.scrapRecordId) {
+    trail.push({
+      date: (unit.scrappedAt || '').slice(0, 10), action: 'Scrapped',
+      detail: unit.scrapReason || 'No reason recorded',
+    })
+  }
   return trail
 }
 
 // No independent notify loop — the ledger has no state of its own to
 // notify about, so this just re-exposes purchaseStore's, assignmentStore's,
-// replacementStore's, userAssignmentStore's and storeTransferStore's own
-// pub/subs. Consumers re-run their selectors (getStockBalances() etc.) on
-// fire, from a new receipt, a new assignment, a new replacement, a new user
-// handoff, or a new store transfer. repairStore.js has no pub/sub of its
-// own yet (it's seed-only — see its file-level note), so there's nothing to
-// re-export for it here; add it once a real write path exists.
+// replacementStore's, userAssignmentStore's, storeTransferStore's,
+// repairStore's and scrapStore's own pub/subs. Consumers re-run their
+// selectors (getStockBalances() etc.) on fire, from a new receipt, a new
+// assignment, a new replacement, a new user handoff, a new store transfer,
+// a new repair, or a new scrap.
 export function subscribeInventoryLedger(fn) {
   const unsubPurchases = subscribePurchases(() => fn())
   const unsubAssignments = subscribeAssignments(() => fn())
   const unsubReplacements = subscribeReplacements(() => fn())
   const unsubUserAssignments = subscribeUserAssignments(() => fn())
   const unsubStoreTransfers = subscribeStoreTransfers(() => fn())
-  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments(); unsubStoreTransfers() }
+  const unsubRepairs = subscribeRepairs(() => fn())
+  const unsubScraps = subscribeScraps(() => fn())
+  return () => {
+    unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments(); unsubStoreTransfers()
+    unsubRepairs(); unsubScraps()
+  }
 }
