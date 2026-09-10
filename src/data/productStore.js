@@ -5,6 +5,7 @@
 
 import { HARDWARE_CATALOG } from './hardwareCatalog'
 import { logAudit } from './auditLogStore'
+import { getCategory, getSubcategory, getSpecification } from './productTaxonomyStore'
 
 export const UNIT_TYPES = ['Piece', 'Box', 'Packet']
 export const TRACKING_TYPES = [
@@ -181,7 +182,64 @@ const PROJECT_MATERIAL_SEED = [
   status: 'active',
 }))
 
-const SEED = [...HARDWARE_SEED, ...WIRE_SEED, ...PROJECT_MATERIAL_SEED]
+// Same join productStore.js's own AddEditProductModal (ProductList.jsx)
+// uses at save time — computeGeneratedName() there isn't exported, so this
+// is a deliberate one-off duplicate for seed-time use, not a shared utility.
+// Kept in exact sync with those three seeded Product Taxonomy ids (see
+// productTaxonomyStore.js's own CATEGORY_SEED/SUBCATEGORY_SEED/
+// SPECIFICATION_SEED) rather than hardcoding the generated string, so a
+// typo in either file surfaces immediately as a broken/blank seeded name
+// instead of silently drifting from what those ids actually resolve to.
+function classifiedName(categoryId, subcategoryId, specificationId) {
+  const category = getCategory(categoryId)
+  const subcategory = getSubcategory(subcategoryId)
+  const specification = getSpecification(specificationId)
+  return `${category.label} — ${subcategory.label} — ${specification.label}`
+}
+
+// A handful of Hardware products seeded WITH their Product Taxonomy
+// classification already set (categoryId/subcategoryId/specificationId +
+// the resulting generated name) — every other seeded product above predates
+// that taxonomy and is deliberately left unclassified (see
+// AddEditProductModal's "Legacy product — reclassify to update" handling),
+// so Product Management otherwise had no classified rows to test the new
+// Category/Subcategory columns and filters against.
+const CLASSIFIED_HARDWARE_SEED = [
+  {
+    categoryId: 'PTAX-CAT-001', subcategoryId: 'PTAX-SUB-001', specificationId: 'PTAX-SPEC-001', // ONT -> Dual Band -> GPON
+    sku: 'HW-ONT-DB-GPON-001', brand: 'ZTE', model: 'F670L', sellingPrice: 2200, purchasePrice: 1760,
+    purchasedCompanyId: 1, trackedBySerial: true, trackedByMac: true,
+  },
+  {
+    categoryId: 'PTAX-CAT-002', subcategoryId: 'PTAX-SUB-003', specificationId: 'PTAX-SPEC-005', // Router -> WiFi 6 -> Dual Band
+    sku: 'HW-RTR-WIFI6-DB-001', brand: 'TP-Link', model: 'Archer AX55', sellingPrice: 3200, purchasePrice: 2560,
+    purchasedCompanyId: 1, trackedBySerial: false, trackedByMac: false,
+  },
+  {
+    categoryId: 'PTAX-CAT-001', subcategoryId: 'PTAX-SUB-002', specificationId: 'PTAX-SPEC-004', // ONT -> Single Band -> EPON
+    sku: 'HW-ONT-SB-EPON-001', brand: 'Huawei', model: 'HG8010H', sellingPrice: 1600, purchasePrice: 1280,
+    purchasedCompanyId: 1, trackedBySerial: true, trackedByMac: true,
+  },
+].map((c, i) => ({
+  id: `PRD-${String(HARDWARE_CATALOG.length + WIRE_SEED.length + PROJECT_MATERIAL_SEED.length + i + 1).padStart(3, '0')}`,
+  productType: 'hardware',
+  name: classifiedName(c.categoryId, c.subcategoryId, c.specificationId),
+  categoryId: c.categoryId, subcategoryId: c.subcategoryId, specificationId: c.specificationId,
+  sku: c.sku, brand: c.brand, model: c.model,
+  imageUrl: '',
+  unitType: 'Piece',
+  sellingPrice: c.sellingPrice,
+  purchasePrice: c.purchasePrice,
+  reorderAlertQty: 10,
+  trackedBySerial: c.trackedBySerial,
+  trackedByMac: c.trackedByMac,
+  drumNumberRequired: false,
+  purchasedCompanyId: c.purchasedCompanyId,
+  goodType: 'consumable',
+  status: 'active',
+}))
+
+const SEED = [...HARDWARE_SEED, ...WIRE_SEED, ...PROJECT_MATERIAL_SEED, ...CLASSIFIED_HARDWARE_SEED]
 
 let _products = [...SEED]
 // Next id continues after the highest numeric suffix actually in use —
