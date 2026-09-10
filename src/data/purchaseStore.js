@@ -127,6 +127,11 @@ const SEED = [
         poQty: 0, receivedQty: 3, price: 1800, gstPercent: 18,
         reason: 'Urgent field requirement for a VIP customer install',
         serials: ['ZTE-ONT-2026-0001', 'ZTE-ONT-2026-0002', 'ZTE-ONT-2026-0003'],
+        // Still within warranty — started a year ago, runs two more years —
+        // so ZTE-ONT-2026-0002 (ASG-000005, assigned to Preethi Nair) demos
+        // Assignments.jsx's "Send for Repair" locked-vendor/no-cost path.
+        // See PUR-000005 below for this batch's out-of-warranty counterpart.
+        purchaseDate: '2025-09-10', warrantyStartDate: '2025-09-10', warrantyEndDate: '2028-09-10',
       }),
     ],
     remarks: 'Emergency stock-out purchase — approved verbally by Ops Manager.',
@@ -168,6 +173,13 @@ const SEED = [
         poQty: 0, receivedQty: 5, price: 1800, gstPercent: 18,
         reason: 'Replenishment for upcoming Andheri branch installations',
         serials: ['ZTE-ONT-2026-0004', 'ZTE-ONT-2026-0005', 'ZTE-ONT-2026-0006', 'ZTE-ONT-2026-0007', 'ZTE-ONT-2026-0008'],
+        // Warranty expired a year ago — ZTE-ONT-2026-0006 (ASG-000010,
+        // assignmentStore.js, assigned to Preethi Nair) demos Assignments.jsx's
+        // "Send for Repair" manual-vendor/Estimated Cost path. 0004/0005 are
+        // already out at other stores via storeTransferStore.js and 0007/0008
+        // stay free — none of them are warranty-sensitive today, so sharing
+        // this line item's dates with 0006 is harmless.
+        purchaseDate: '2024-09-10', warrantyStartDate: '2024-09-10', warrantyEndDate: '2025-09-10',
       }),
     ],
     remarks: 'ONT Device stock replenishment ahead of Andheri branch installs.',
