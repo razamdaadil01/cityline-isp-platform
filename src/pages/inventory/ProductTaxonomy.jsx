@@ -116,8 +116,20 @@ export default function ProductTaxonomy() {
 
   const categories = getCategories()
 
-  const [expandedCategories, setExpandedCategories] = useState(new Set())
-  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set())
+  // First Category (and its first Subcategory, if any) starts expanded so
+  // the Category -> Subcategory -> Specification nesting is visible on
+  // first load without a click — everything else still starts collapsed.
+  // Lazy initializers so this only ever runs once, on mount; toggling
+  // afterward behaves exactly as before.
+  const [expandedCategories, setExpandedCategories] = useState(() => {
+    const first = getCategories()[0]
+    return first ? new Set([first.id]) : new Set()
+  })
+  const [expandedSubcategories, setExpandedSubcategories] = useState(() => {
+    const first = getCategories()[0]
+    const firstSub = first ? getSubcategories(first.id)[0] : null
+    return firstSub ? new Set([firstSub.id]) : new Set()
+  })
 
   function toggleCategory(id) {
     setExpandedCategories(prev => {
