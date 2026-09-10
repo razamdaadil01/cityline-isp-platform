@@ -2,14 +2,17 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2, RotateCcw, UserCog,
-  CalendarDays, Users, ClipboardList, AlertTriangle,
+  CalendarDays, Users, ClipboardList, AlertTriangle, Wrench,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
-import { getAssignments, subscribeAssignments, returnAssignmentLine } from '../../data/assignmentStore'
+import { getAssignments, subscribeAssignments, returnAssignmentLine, removeUnitFromAssignmentLine } from '../../data/assignmentStore'
 import { getStores } from '../../data/storeStore'
+import { getVendors, getVendor } from '../../data/vendorStore'
+import { saveRepair } from '../../data/repairStore'
 import { getUnits } from '../../data/inventoryLedger'
 import { usePermission } from '../../data/rolesStore'
 
@@ -93,6 +96,114 @@ function flattenRows(assignments) {
   return rows.sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
+// ── Send for Repair modal ────────────────────────────────────────────────
+// `target` is built by the row menu below from the LIVE assignment/line
+// (not from the flattened row's own display-only serialMacDrumLabel
+// string) — { assignmentId, lineId, productId, productName, engineerName,
+// storeName, units: [{ value, kind }] }. `units` holds one entry per
+// physical unit on the line — index-paired with the line's own
+// serials/macs (see assignmentStore.js's own note on dual-tracked
+// pairing), preferring a unit's serial as its display/reference value
+// when it has one, falling back to its MAC otherwise, so a dual-tracked
+// unit is never listed twice.
+function SendForRepairModal({ target, onClose }) {
+  const isOpen = !!target
+  const vendors = getVendors().filter(v => v.status === 'active')
+  const [selectedValue, setSelectedValue] = useState('')
+  const [vendorId, setVendorId] = useState('')
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
+  const [remarks, setRemarks] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedValue(target.units[0]?.value ?? '')
+      setVendorId('')
+      setExpectedDeliveryDate('')
+      setRemarks('')
+      setError('')
+    }
+  }, [isOpen, target])
+
+  function handleConfirm() {
+    if (!selectedValue) { setError('Select which unit is being sent for repair.'); return }
+    if (!vendorId) { setError('Select a vendor.'); return }
+    if (!expectedDeliveryDate) { setError('Enter an expected delivery date.'); return }
+    const unit = target.units.find(u => u.value === selectedValue)
+    const vendor = getVendor(vendorId)
+    try {
+      // Repair record written first — if the assignment-side removal below
+      // somehow fails, this still leaves a real paper trail for the unit
+      // rather than silently dropping it with no record it ever left.
+      saveRepair({
+        productId: target.productId, productName: target.productName,
+        value: unit.value, kind: unit.kind,
+        vendorId, vendorName: vendor?.companyName ?? '',
+        expectedDeliveryDate, remarks,
+      })
+      removeUnitFromAssignmentLine(target.assignmentId, target.lineId, unit.value)
+      onClose()
+    } catch (err) {
+      setError(err.message || 'Could not send this unit for repair.')
+    }
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen} onClose={onClose} title="Send for Repair" size="sm"
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button icon={<Wrench size={14} />} onClick={handleConfirm}>Send for Repair</Button>
+      </>}
+    >
+      {target && (
+        <div className="space-y-4">
+          <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700">
+            <p className="font-medium">{target.productName}</p>
+            <p className="text-xs text-gray-500 mt-0.5">From {target.engineerName} · {target.storeName}</p>
+          </div>
+
+          {target.units.length > 1 ? (
+            <FormField label="Unit" required hint="This line has more than one unit — pick which one is being sent.">
+              <Select value={selectedValue} onChange={e => setSelectedValue(e.target.value)}>
+                <option value="">Select unit…</option>
+                {target.units.map(u => (
+                  <option key={u.value} value={u.value}>{u.value} ({u.kind === 'mac' ? 'MAC' : 'Serial'})</option>
+                ))}
+              </Select>
+            </FormField>
+          ) : (
+            <FormField label="Unit">
+              <Input value={target.units[0]?.value ?? ''} disabled />
+            </FormField>
+          )}
+
+          <FormField label="Vendor" required>
+            <Select value={vendorId} onChange={e => setVendorId(e.target.value)}>
+              <option value="">Select vendor…</option>
+              {vendors.map(v => <option key={v.id} value={v.id}>{v.companyName}</option>)}
+            </Select>
+          </FormField>
+
+          <FormField label="Expected Delivery Date" required>
+            <Input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} />
+          </FormField>
+
+          <FormField label="Remarks" hint="Optional">
+            <Textarea rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="e.g. Reported dead-on-arrival by field engineer" />
+          </FormField>
+
+          {error && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 export default function Assignments() {
   const canCreate = usePermission('Inventory', 'Create')
   const navigate = useNavigate()
@@ -135,6 +246,31 @@ export default function Assignments() {
     } catch (err) {
       setReturnError(err.message || 'Could not return this line to store.')
     }
+  }
+
+  // "Send for Repair" — only ever meaningful for a hardware line with a
+  // real serial/MAC identity (see canSendForRepair below); built from the
+  // LIVE assignment/line via row.assignmentId/lineId rather than the
+  // flattened row's own display-only serialMacDrumLabel string, so
+  // SendForRepairModal always gets the real serials/macs arrays to pick
+  // a specific unit from.
+  const [repairTarget, setRepairTarget] = useState(null)
+
+  function openSendForRepair(row) {
+    const assignment = assignments.find(a => a.id === row.assignmentId)
+    const line = assignment?.hardwareLines.find(l => l.id === row.lineId)
+    if (!assignment || !line) return
+    const count = Math.max(line.serials.length, line.macs.length)
+    const units = Array.from({ length: count }, (_, i) =>
+      line.serials[i] ? { value: line.serials[i], kind: 'serial' } : { value: line.macs[i], kind: 'mac' }
+    )
+    setRepairTarget({
+      assignmentId: assignment.id, lineId: line.id,
+      productId: line.productId, productName: line.productName,
+      engineerName: assignment.engineerName, storeName: assignment.storeName,
+      units,
+    })
+    setMenuId(null)
   }
 
   const stores = getStores()
@@ -381,11 +517,22 @@ export default function Assignments() {
         const row = rows.find(r => r.key === menuId)
         if (!row) return null
         const alreadyWithUser = row.status === 'Assigned to User'
+        // Only a hardware line with a real serial/MAC identity has a
+        // discrete unit to send to a vendor — a quantity-tracked hardware
+        // line or any wire line (drum meterage) has no such identity (per
+        // repairStore.js's own value/kind-per-unit shape), and a unit
+        // already handed off to a user is gone the same way it is for
+        // "Back to Store" above.
+        const isSerialMacTracked = row.lineKind === 'hardware' && row.serialMacDrumLabel !== '—'
+        const canSendForRepair = isSerialMacTracked && !alreadyWithUser
+        const repairDisabledReason = alreadyWithUser
+          ? 'Already handed off to a user — cannot send for repair'
+          : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
         return (
           <div
             ref={menuRef}
             style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
+            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
           >
             <button onClick={() => { navigate(`/inventory/assign/${row.assignmentId}/edit`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
@@ -397,6 +544,14 @@ export default function Assignments() {
               className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${alreadyWithUser ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
             >
               <RotateCcw size={13} className={alreadyWithUser ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Store
+            </button>
+            <button
+              onClick={() => { if (!canSendForRepair) return; openSendForRepair(row) }}
+              disabled={!canSendForRepair}
+              title={repairDisabledReason}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canSendForRepair ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
+            >
+              <Wrench size={13} className={canSendForRepair ? 'text-brand-orange shrink-0' : 'text-gray-300 shrink-0'} /> Send for Repair
             </button>
           </div>
         )
@@ -429,6 +584,8 @@ export default function Assignments() {
           </div>
         )}
       </Modal>
+
+      <SendForRepairModal target={repairTarget} onClose={() => setRepairTarget(null)} />
     </div>
   )
 }

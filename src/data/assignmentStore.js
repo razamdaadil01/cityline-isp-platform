@@ -593,3 +593,57 @@ export function returnAssignmentLine(assignmentId, lineKind, lineId) {
 
   return updated
 }
+
+// ── Remove a single serial/MAC unit from a hardware line ────────────────
+// Same effect as returnAssignmentLine() above, but scoped to one physical
+// unit within a multi-unit line rather than the whole line — needed by
+// "Send for Repair" (Assignments.jsx), which sends back exactly one
+// serial/MAC at a time; the line's other units (still genuinely with the
+// engineer) must stay untouched. `value` is a serial or MAC string already
+// present on the line (resolved by the caller from that line's own
+// serials/macs array, same convention as saveRepair()'s own value/kind).
+//
+// Dual-tracked units are paired 1:1 by index (validateLines()'s own note
+// on hardwareLines) — removing the entry at whichever index `value` is
+// found at removes both its serial and its MAC together, so a dual-tracked
+// unit can never end up with an orphaned MAC (or serial) left behind on
+// the line after its pair is sent for repair.
+//
+// If this was the line's only remaining unit, falls through to
+// returnAssignmentLine()'s own whole-line removal (and its
+// assignment-status-flip to 'Returned' once the assignment is fully
+// empty) rather than leaving a hardwareLine with empty serials/macs and
+// assignedQty 0 sitting on the assignment.
+export function removeUnitFromAssignmentLine(assignmentId, lineId, value) {
+  const assignment = _assignments.find(a => a.id === assignmentId)
+  if (!assignment) throw new Error('Assignment not found.')
+  if (assignment.status === 'Returned') throw new Error('This assignment has already been returned.')
+
+  const line = assignment.hardwareLines.find(l => l.id === lineId)
+  if (!line) throw new Error('Line not found on this assignment.')
+
+  const serialIdx = line.serials.indexOf(value)
+  const macIdx = line.macs.indexOf(value)
+  if (serialIdx === -1 && macIdx === -1) throw new Error(`${value} was not found on this line.`)
+  const idx = serialIdx !== -1 ? serialIdx : macIdx
+
+  const serials = line.serials.filter((_, i) => i !== idx)
+  const macs = line.macs.filter((_, i) => i !== idx)
+
+  if (serials.length === 0 && macs.length === 0) {
+    return returnAssignmentLine(assignmentId, 'hardware', lineId)
+  }
+
+  const updatedLine = { ...line, serials, macs, assignedQty: Math.max(serials.length, macs.length) }
+  const hardwareLines = assignment.hardwareLines.map(l => l.id === lineId ? updatedLine : l)
+  const updated = { ...assignment, hardwareLines }
+  _assignments = _assignments.map(a => a.id === assignmentId ? updated : a)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Removed ${value} (${line.productName}) from ${assignment.engineerName}'s assignment ${assignment.assignmentNumber}`,
+  })
+
+  return updated
+}

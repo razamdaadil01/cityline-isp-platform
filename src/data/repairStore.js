@@ -5,18 +5,12 @@
 // layers these on top of its purchase/assignment-derived unit state, but
 // this store never imports inventoryLedger.js back.
 //
-// This is currently a read-only, seed-only data model — nothing in the app
-// yet CREATES a repair record. The most natural real trigger is Support/
-// Tickets' existing "Mark as Replaced" flow (InventoryOverview.jsx's
-// MarkReplacedModal, backed by replacementStore.js): today that flow only
-// models "swap this faulty unit out for good," but in practice a faulty
-// unit is often sent back to the vendor for repair rather than scrapped.
-// A future phase should extend that same flow (or add a sibling "Send for
-// Repair" action next to "Mark as Replaced" on Inventory Overview's Units
-// tab) to call a saveRepairRecord()-equivalent here, the same way
-// replacementStore.js is called today. Until that exists, the two seed
-// records below stand in so Vendor Detail's Repairing Pending tab has real,
-// clickable units to show rather than a permanently empty state.
+// saveRepair() below is the real write path — Assignments.jsx's "Send for
+// Repair" action (Assign to Engineer's row menu) is the first real caller,
+// following the exact same shape saveReplacement() (replacementStore.js)
+// already established for "Mark as Replaced".
+
+import { logAudit } from './auditLogStore'
 
 export const REPAIR_STATUSES = ['Sent for Repair', 'In Service', 'Returned']
 
@@ -24,7 +18,7 @@ export const REPAIR_STATUSES = ['Sent for Repair', 'In Service', 'Returned']
 // Ltd's ONT Device receipt, purchaseStore.js) — that link is what lets
 // Vendor Detail's serial click open the exact same getUnitTrail() history
 // popup Inventory Overview itself uses for a unit.
-const _repairs = [
+const SEED = [
   {
     id: 'RPR-000001', productId: 'PRD-001', productName: 'ONT Device',
     value: 'ZTE-ONT-2026-0001', kind: 'serial',
@@ -43,11 +37,44 @@ const _repairs = [
   },
 ]
 
-// No pub/sub yet — there's no write path to notify about (see note above).
-// Add the usual _listeners/notify()/subscribeRepairs() trio here once a real
-// "send for repair" action exists to call it.
+let _repairs = [...SEED]
+let _nextSeq = SEED.length + 1
+const _listeners = []
+
+function notify() { _listeners.forEach(fn => fn([..._repairs])) }
+
 export function getRepairs() { return _repairs }
 export function getRepairsByVendor(vendorId) { return _repairs.filter(r => r.vendorId === vendorId) }
+
+export function subscribeRepairs(fn) {
+  _listeners.push(fn)
+  return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
+}
+
+// `value`/`kind` identify the physical unit the same way replacementStore.js's
+// saveReplacement() does (a serial or MAC string, plus which one it is) —
+// the caller (Assignments.jsx's "Send for Repair" action) resolves these
+// from the assignment line's own serials/macs array, never free-typed.
+// Always starts life as 'Sent for Repair' — 'In Service'/'Returned' are
+// later, separate transitions this function doesn't make (no UI drives
+// those yet either).
+export function saveRepair({ productId, productName, value, kind, vendorId, vendorName, expectedDeliveryDate, remarks }, actor = 'Admin User') {
+  const repair = {
+    id: `RPR-${String(_nextSeq++).padStart(6, '0')}`,
+    productId, productName, value, kind,
+    vendorId, vendorName,
+    status: 'Sent for Repair', expectedDeliveryDate,
+    sentAt: new Date().toISOString(), sentBy: actor,
+    remarks: (remarks || '').trim(),
+  }
+  _repairs = [repair, ..._repairs]
+  notify()
+  logAudit({
+    action: 'Create', module: 'Inventory',
+    details: `${value} (${productName}) sent for repair to ${vendorName}`,
+  })
+  return repair
+}
 
 // Vendor Management's list-level "In Repair" KPI card — count of units
 // actually sitting with a vendor right now (status 'Sent for Repair')
