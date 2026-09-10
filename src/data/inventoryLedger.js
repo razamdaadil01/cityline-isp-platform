@@ -101,7 +101,15 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
           productId, storeId: pur.storeId,
           purchaseId: pur.id, purchaseNumber: pur.purchaseNumber,
           poId: pur.poId, poNumber: pur.poNumber,
-          vendorName: pur.vendorName, receivedDate: pur.purchaseDate,
+          vendorId: pur.vendorId, vendorName: pur.vendorName, receivedDate: pur.purchaseDate,
+          // Line-item-level fields (batch Purchase Date/Warranty dates entered
+          // on the GRN Product Receipt step) — distinct from receivedDate
+          // above, which is the whole-receipt date. Kept under their own key
+          // (itemPurchaseDate) rather than reusing `purchaseDate` so callers
+          // can't confuse the two scopes.
+          itemPurchaseDate: it.purchaseDate,
+          warrantyStartDate: it.warrantyStartDate,
+          warrantyEndDate: it.warrantyEndDate,
         }
 
         if (it.type === 'wire' && it.drumNumber?.trim()) {
@@ -472,6 +480,18 @@ export function getUnits({ productId, storeId, status, engineerId, excludeUserAs
     (!status || u.status === status) &&
     (!engineerId || u.engineerId === engineerId)
   )
+}
+
+// Product/serial-MAC equivalent of assetRepairStore.js's
+// isAssetWithinWarranty() — same lexicographic date-string compare, just
+// reading the unit's own warrantyStartDate/warrantyEndDate (see origin in
+// computeLedger()) instead of asset.fields.*.
+export function isUnitWithinWarranty(unit) {
+  const start = unit?.warrantyStartDate
+  const end = unit?.warrantyEndDate
+  if (!start || !end) return false
+  const today = new Date().toISOString().slice(0, 10)
+  return today >= start && today <= end
 }
 
 // Per-drum wire rows, optionally narrowed by productId/storeId.
