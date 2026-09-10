@@ -48,3 +48,13 @@ const _repairs = [
 // "send for repair" action exists to call it.
 export function getRepairs() { return _repairs }
 export function getRepairsByVendor(vendorId) { return _repairs.filter(r => r.vendorId === vendorId) }
+
+// Vendor Management's list-level "In Repair" KPI card — count of units
+// actually sitting with a vendor right now (status 'Sent for Repair')
+// across every vendor's own Repairing Pending tab, not just one. 'In
+// Service' (vendor has acknowledged and started work) and 'Returned' both
+// mean the unit is no longer just sitting there awaiting action, so neither
+// counts here — only the exact 'Sent for Repair' status does.
+export function getInRepairCount() {
+  return _repairs.filter(r => r.status === 'Sent for Repair').length
+}

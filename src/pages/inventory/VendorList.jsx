@@ -1,14 +1,40 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Search, X, MoreVertical, Eye, Edit2, CheckCircle2, XCircle, Truck,
+  Plus, Search, X, MoreVertical, Eye, Edit2, CheckCircle2, XCircle, Truck, Wrench,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import AddEditVendorModal from '../../components/inventory/AddEditVendorModal'
 import { getVendors, subscribeVendors, setVendorStatus, getContacts } from '../../data/vendorStore'
+import { getInRepairCount } from '../../data/repairStore'
 import { usePermission } from '../../data/rolesStore'
+
+// Same icon-box stat card shape used elsewhere for list-page KPI cards
+// (Resellers.jsx/UserManagement.jsx each define their own local copy rather
+// than importing one shared component — following that same convention
+// here instead of introducing a new shared dependency for a single card).
+function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
+  const colors = {
+    blue:   'bg-brand-blue/10 text-brand-blue',
+    orange: 'bg-brand-orange/10 text-brand-orange',
+    green:  'bg-emerald-100 text-emerald-600',
+    red:    'bg-red-100 text-red-600',
+  }
+  return (
+    <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 flex items-center gap-4 w-full sm:w-64">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colors[color]}`}>
+        <Icon size={18} />
+      </div>
+      <div>
+        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-xl font-bold text-gray-900 leading-tight">{value}</p>
+        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  )
+}
 
 const VENDOR_TABLE_COLUMNS = [
   { key: 'companyName',   label: 'Vendor Name',        visible: true, defaultVisible: true, locked: true },
@@ -72,6 +98,12 @@ export default function VendorList() {
     setMenuId(null)
   }
 
+  // Recomputed on every render straight from repairStore.js's own records
+  // (not stored in state) — repairStore.js has no write path/pub-sub yet
+  // (see its own note), so there's nothing to subscribe to; this just always
+  // reflects whatever getRepairs() currently holds, across every vendor.
+  const inRepairCount = getInRepairCount()
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -84,6 +116,11 @@ export default function VendorList() {
           {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Vendor</Button>}
         </div>
       </div>
+
+      <StatCard
+        icon={Wrench} label="In Repair" value={inRepairCount}
+        sub="units sent for repair, across all vendors" color="orange"
+      />
 
       <div className="relative w-72">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
