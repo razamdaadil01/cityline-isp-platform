@@ -219,6 +219,29 @@ const SEED = [
     remarks: 'Originally issued 15m off Drop Wire drum DR-00871 for this install — job cancelled before the run was made, meters returned unspooled to the drum.',
     status: 'Returned', assignedBy: 'Admin User', assignedAt: '2026-08-14T09:45:00.000Z',
   },
+  // A clean, unentangled "Assigned to Engineer" ONT serial for demoing
+  // Assignments.jsx's warranty-based "Send for Repair" routing — unlike
+  // ZTE-ONT-2026-0001/0002/0003 above (each already carries either a live
+  // repairStore.js record or a userAssignmentStore.js customer handoff),
+  // ZTE-ONT-2026-0006 has neither, so it's freely actionable. Its PUR-000005
+  // batch is seeded with an expired warranty window (see purchaseStore.js),
+  // so this demos the manual-vendor/Estimated Cost path — ASG-000005/serial
+  // 0002 above is still the within-warranty/locked-vendor counterpart.
+  // Reuses INS-012 (Preethi Nair, Andheri Store), free again since
+  // ASG-000007's own assignment against it was returned.
+  {
+    id: 'ASG-000010', assignmentNumber: 'ASG-2026-000010',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-012', workOrderLabel: 'INS-012',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [
+      { id: 'ASGI-10-0', productId: 'PRD-001', productName: 'ONT Device', requiredQty: 1, assignedQty: 1, serials: ['ZTE-ONT-2026-0006'], macs: [], remark: '' },
+    ],
+    wireLines: [],
+    remarks: '',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-24T09:00:00.000Z',
+  },
 ]
 
 _nextSeq = SEED.length + 1
