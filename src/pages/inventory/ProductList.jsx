@@ -99,6 +99,8 @@ function ClassificationDropdowns({ categoryId, subcategoryId, specificationId, o
 const PRODUCT_TABLE_COLUMNS = [
   { key: 'productId',     label: 'Product ID',     visible: true, defaultVisible: true },
   { key: 'name',          label: 'Product Name',   visible: true, defaultVisible: true, locked: true },
+  { key: 'category',      label: 'Category',       visible: true, defaultVisible: true },
+  { key: 'subcategory',   label: 'Subcategory',    visible: true, defaultVisible: true },
   { key: 'sku',           label: 'SKU',            visible: true, defaultVisible: true },
   { key: 'productType',   label: 'Type',           visible: true, defaultVisible: true },
   { key: 'brand',         label: 'Brand',          visible: true, defaultVisible: true },
@@ -547,7 +549,22 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
 // ── Filter drawer ────────────────────────────────────────────────────────────
 
+// Category/Subcategory/Specification filter options come straight from
+// productTaxonomyStore (active only) — same source ClassificationDropdowns
+// uses in the Add/Edit modal — rather than derived from products-in-use the
+// way Brand's own filter list is, since browsing "which categories exist"
+// should stay consistent with how the classification dropdowns work.
 function FilterDrawer({ open, onClose, draft, setDraftField, onApply, onReset, brands, activeCount }) {
+  const activeCategories = getCategories().filter(c => c.status === 'active')
+  // 'unclassified' is a sentinel value (not a real productTaxonomyStore id —
+  // those all look like PTAX-CAT-###) matching legacy products with no
+  // categoryId at all. Selected, it has nothing to cascade into, so
+  // Subcategory/Specification are disabled rather than shown empty.
+  const activeSubcategories = (draft.categoryId && draft.categoryId !== 'unclassified')
+    ? getSubcategories(draft.categoryId).filter(s => s.status === 'active') : []
+  const activeSpecifications = draft.subcategoryId
+    ? getSpecifications(draft.subcategoryId).filter(s => s.status === 'active') : []
+
   return (
     <div className={`fixed inset-0 z-50 transition-opacity duration-300 ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
@@ -574,6 +591,49 @@ function FilterDrawer({ open, onClose, draft, setDraftField, onApply, onReset, b
                   <span className="text-sm text-gray-700 capitalize">{v || 'All'}</span>
                 </label>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Category</label>
+            <div className="relative">
+              <select value={draft.categoryId} onChange={e => setDraftField('categoryId', e.target.value)}
+                className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                <option value="">All</option>
+                <option value="unclassified">Unclassified</option>
+                {activeCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Subcategory</label>
+            <div className="relative">
+              <select
+                value={draft.subcategoryId} onChange={e => setDraftField('subcategoryId', e.target.value)}
+                disabled={!draft.categoryId || draft.categoryId === 'unclassified'}
+                className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                <option value="">{draft.categoryId && draft.categoryId !== 'unclassified' ? 'All' : 'Select a category first'}</option>
+                {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Specification</label>
+            <div className="relative">
+              <select
+                value={draft.specificationId} onChange={e => setDraftField('specificationId', e.target.value)}
+                disabled={!draft.subcategoryId}
+                className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                <option value="">{draft.subcategoryId ? 'All' : 'Select a subcategory first'}</option>
+                {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
 
@@ -659,31 +719,53 @@ export default function ProductList() {
   }
 
   const [filterProductType, setFilterProductType] = useState('')
+  const [filterCategoryId, setFilterCategoryId] = useState('')
+  const [filterSubcategoryId, setFilterSubcategoryId] = useState('')
+  const [filterSpecificationId, setFilterSpecificationId] = useState('')
   const [filterBrand, setFilterBrand] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
-  const EMPTY_DRAFT = { productType: '', brand: '', status: '' }
+  const EMPTY_DRAFT = { productType: '', categoryId: '', subcategoryId: '', specificationId: '', brand: '', status: '' }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draft, setDraft] = useState(EMPTY_DRAFT)
 
   function openDrawer() {
-    setDraft({ productType: filterProductType, brand: filterBrand, status: filterStatus })
+    setDraft({
+      productType: filterProductType, categoryId: filterCategoryId, subcategoryId: filterSubcategoryId,
+      specificationId: filterSpecificationId, brand: filterBrand, status: filterStatus,
+    })
     setDrawerOpen(true)
   }
   function applyDrawer() {
     setFilterProductType(draft.productType)
+    setFilterCategoryId(draft.categoryId)
+    setFilterSubcategoryId(draft.subcategoryId)
+    setFilterSpecificationId(draft.specificationId)
     setFilterBrand(draft.brand)
     setFilterStatus(draft.status)
     setDrawerOpen(false)
   }
   function resetDrawer() { setDraft(EMPTY_DRAFT) }
-  function setDraftField(k, v) { setDraft(prev => ({ ...prev, [k]: v })) }
-
-  function clearAllFilters() {
-    setFilterProductType(''); setFilterBrand(''); setFilterStatus('')
+  // Picking a new Category clears any Subcategory/Specification already
+  // drafted from the previous category, and picking a new Subcategory
+  // clears Specification — same cascading-reset rule
+  // ClassificationDropdowns' selectCategory/selectSubcategory use in the
+  // Add/Edit modal, and the same pattern AssetMaster.jsx's own filter
+  // drawer uses for its Category/Type filters.
+  function setDraftField(k, v) {
+    setDraft(prev => {
+      if (k === 'categoryId') return { ...prev, categoryId: v, subcategoryId: '', specificationId: '' }
+      if (k === 'subcategoryId') return { ...prev, subcategoryId: v, specificationId: '' }
+      return { ...prev, [k]: v }
+    })
   }
 
-  const activeFiltersCount = [filterProductType, filterBrand, filterStatus].filter(Boolean).length
+  function clearAllFilters() {
+    setFilterProductType(''); setFilterCategoryId(''); setFilterSubcategoryId(''); setFilterSpecificationId('')
+    setFilterBrand(''); setFilterStatus('')
+  }
+
+  const activeFiltersCount = [filterProductType, filterCategoryId, filterSubcategoryId, filterSpecificationId, filterBrand, filterStatus].filter(Boolean).length
 
   const brands = useMemo(() => [...new Set(products.map(p => p.brand).filter(Boolean))].sort(), [products])
 
@@ -692,11 +774,16 @@ export default function ProductList() {
     return products.filter(p => {
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false
       if (filterProductType && p.productType !== filterProductType) return false
+      if (filterCategoryId === 'unclassified') {
+        if (p.categoryId) return false
+      } else if (filterCategoryId && p.categoryId !== filterCategoryId) return false
+      if (filterSubcategoryId && p.subcategoryId !== filterSubcategoryId) return false
+      if (filterSpecificationId && p.specificationId !== filterSpecificationId) return false
       if (filterBrand && p.brand !== filterBrand) return false
       if (filterStatus && p.status !== filterStatus) return false
       return true
     })
-  }, [products, search, filterProductType, filterBrand, filterStatus])
+  }, [products, search, filterProductType, filterCategoryId, filterSubcategoryId, filterSpecificationId, filterBrand, filterStatus])
 
   function openAdd() {
     setSearchParams(prev => {
@@ -791,6 +878,8 @@ export default function ProductList() {
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('productId')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product ID</th>}
                 {visibleCols.has('name')            && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[180px]">Product Name</th>}
+                {visibleCols.has('category')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Category</th>}
+                {visibleCols.has('subcategory')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Subcategory</th>}
                 {visibleCols.has('sku')             && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">SKU</th>}
                 {visibleCols.has('productType')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
                 {visibleCols.has('brand')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Brand</th>}
@@ -814,12 +903,30 @@ export default function ProductList() {
                     No products found
                   </td>
                 </tr>
-              ) : filtered.map(p => (
+              ) : filtered.map(p => {
+                const category = getCategory(p.categoryId)
+                const subcategory = getSubcategory(p.subcategoryId)
+                return (
                 <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
                   {visibleCols.has('productId') && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.id}</td>}
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-800">{p.name}</span>
+                    </td>
+                  )}
+                  {/* Legacy products (saved before Product Taxonomy existed) carry no
+                      categoryId/subcategoryId — shown as "Unclassified" here rather
+                      than this table's usual "—" empty-value convention (Brand/Model
+                      etc.), since it's an actionable state (see AddEditProductModal's
+                      own "reclassify to update" note) rather than a genuinely empty field. */}
+                  {visibleCols.has('category') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {category ? <span className="text-gray-600 text-xs">{category.label}</span> : <Badge variant="gray" size="sm">Unclassified</Badge>}
+                    </td>
+                  )}
+                  {visibleCols.has('subcategory') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {subcategory ? <span className="text-gray-600 text-xs">{subcategory.label}</span> : <Badge variant="gray" size="sm">Unclassified</Badge>}
                     </td>
                   )}
                   {visibleCols.has('sku')  && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.sku || '—'}</td>}
@@ -861,7 +968,7 @@ export default function ProductList() {
                     </td>
                   )}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
