@@ -11,7 +11,7 @@ import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
-  isProductNameTaken, isProductClassificationTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
+  isProductClassificationTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
   getTrackingLabel,
 } from '../../data/productStore'
 import {
@@ -34,6 +34,66 @@ function computeGeneratedName(categoryId, subcategoryId, specificationId) {
   const specification = specificationId ? getSpecification(specificationId) : null
   if (!category || !subcategory || !specification) return ''
   return `${category.label} — ${subcategory.label} — ${specification.label}`
+}
+
+// Category / Subcategory / Specification dropdowns — one shared block used
+// identically by both the Hardware and Wire tabs below (rather than two
+// near-duplicate copies), since both now classify products against the
+// exact same productTaxonomyStore tree and generate `name` the same way.
+// Category+Subcategory in one row, Specification alone in the row below —
+// three columns in a single row left the Specification placeholder text
+// clipped.
+function ClassificationDropdowns({ categoryId, subcategoryId, specificationId, onSelectCategory, onSelectSubcategory, onSelectSpecification, errors, isLegacyUnclassified, legacyName }) {
+  const activeCategories = getCategories().filter(c => c.status === 'active')
+  const activeSubcategories = categoryId ? getSubcategories(categoryId).filter(s => s.status === 'active') : []
+  const activeSpecifications = subcategoryId ? getSpecifications(subcategoryId).filter(s => s.status === 'active') : []
+  const generatedName = computeGeneratedName(categoryId, subcategoryId, specificationId)
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Category" required error={errors.categoryId}>
+          <Select value={categoryId} onChange={onSelectCategory}>
+            <option value="">Select category…</option>
+            {activeCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Subcategory" required error={errors.subcategoryId}>
+          <Select value={subcategoryId} onChange={onSelectSubcategory} disabled={!categoryId}>
+            <option value="">{categoryId ? 'Select subcategory…' : 'Select category first'}</option>
+            {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </Select>
+        </FormField>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Specification" required error={errors.specificationId}>
+          <Select value={specificationId} onChange={onSelectSpecification} disabled={!subcategoryId}>
+            <option value="">{subcategoryId ? 'Select specification…' : 'Select subcategory first'}</option>
+            {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </Select>
+        </FormField>
+      </div>
+
+      {errors.classification && <p className="text-xs text-red-500">{errors.classification}</p>}
+
+      {isLegacyUnclassified && !categoryId && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          <Info size={14} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Legacy product — reclassify to update.</p>
+            <p className="mt-0.5">Current name: <span className="font-semibold">{legacyName}</span></p>
+          </div>
+        </div>
+      )}
+
+      {generatedName && (
+        <div className="rounded-lg border border-surface-border bg-gray-50/60 px-3 py-2.5">
+          <p className="text-xs text-gray-500">Product Name (auto-generated)</p>
+          <p className="text-sm font-semibold text-gray-800">{generatedName}</p>
+        </div>
+      )}
+    </>
+  )
 }
 
 const PRODUCT_TABLE_COLUMNS = [
@@ -73,13 +133,17 @@ function emptyHardwareForm() {
 }
 
 function emptyWireForm() {
-  return { name: '', sku: '', brand: '', sellingPrice: '', purchasePrice: '', reorderAlertQty: '' }
+  return { categoryId: '', subcategoryId: '', specificationId: '', sku: '', brand: '', sellingPrice: '', purchasePrice: '', reorderAlertQty: '' }
 }
 
 function productToForm(product) {
   if (product.productType === 'wire') {
     return {
-      name: product.name, sku: product.sku, brand: product.brand,
+      // Same legacy handling as hardware below — a Wire product saved
+      // before Product Taxonomy existed has no categoryId, coming back ''
+      // here so AddEditProductModal's "Legacy product" note kicks in.
+      categoryId: product.categoryId || '', subcategoryId: product.subcategoryId || '', specificationId: product.specificationId || '',
+      sku: product.sku, brand: product.brand,
       sellingPrice: String(product.sellingPrice ?? ''), purchasePrice: String(product.purchasePrice ?? ''),
       reorderAlertQty: String(product.reorderAlertQty ?? ''),
     }
@@ -149,37 +213,37 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   const [, setTaxonomyTick] = useState(0)
   useEffect(() => subscribeProductTaxonomy(() => setTaxonomyTick(t => t + 1)), [])
 
-  const activeCategories = getCategories().filter(c => c.status === 'active')
-  const activeSubcategories = hwForm.categoryId ? getSubcategories(hwForm.categoryId).filter(s => s.status === 'active') : []
-  const activeSpecifications = hwForm.subcategoryId ? getSpecifications(hwForm.subcategoryId).filter(s => s.status === 'active') : []
-  const generatedName = computeGeneratedName(hwForm.categoryId, hwForm.subcategoryId, hwForm.specificationId)
-  // A hardware product saved before Product Taxonomy existed has no
-  // categoryId at all — shown as a read-only "Legacy product" note (its own
-  // free-text name, for reference) until the admin picks a category, at
+  // A product (Hardware or Wire) saved before Product Taxonomy existed has
+  // no categoryId at all — shown as a read-only "Legacy product" note (its
+  // own free-text name, for reference) until the admin picks a category, at
   // which point it's mid-reclassification and the note gives way to the
-  // live generated-name preview above. Saving still requires all three
-  // dropdowns regardless — this note is just a display affordance, not a
-  // separate validation path.
-  const isLegacyUnclassified = !!editing && editing.productType === 'hardware' && !editing.categoryId
+  // live generated-name preview. Saving still requires all three dropdowns
+  // regardless — this note is just a display affordance, not a separate
+  // validation path.
+  const isLegacyUnclassified = !!editing && !editing.categoryId
 
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
   }
 
+  // Generic over whichever tab is active — `setForm`/`form` already alias
+  // to hwForm/wireForm based on `tab`, so these three handlers (and the
+  // ClassificationDropdowns block below) are shared as-is by both tabs
+  // rather than duplicated per tab.
   function selectCategory(e) {
     const categoryId = e.target.value
-    setHwForm(f => ({ ...f, categoryId, subcategoryId: '', specificationId: '' }))
+    setForm(f => ({ ...f, categoryId, subcategoryId: '', specificationId: '' }))
     setErrors(er => ({ ...er, categoryId: undefined, subcategoryId: undefined, specificationId: undefined, classification: undefined }))
   }
   function selectSubcategory(e) {
     const subcategoryId = e.target.value
-    setHwForm(f => ({ ...f, subcategoryId, specificationId: '' }))
+    setForm(f => ({ ...f, subcategoryId, specificationId: '' }))
     setErrors(er => ({ ...er, subcategoryId: undefined, specificationId: undefined, classification: undefined }))
   }
   function selectSpecification(e) {
     const specificationId = e.target.value
-    setHwForm(f => ({ ...f, specificationId }))
+    setForm(f => ({ ...f, specificationId }))
     setErrors(er => ({ ...er, specificationId: undefined, classification: undefined }))
   }
 
@@ -214,25 +278,21 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   function validate() {
     const errs = {}
     const excludeId = editing?.id ?? null
-    if (tab === 'wire') {
-      if (!form.name.trim()) {
-        errs.name = 'Wire name is required.'
-      } else if (isProductNameTaken(form.name.trim(), excludeId)) {
-        errs.name = `"${form.name.trim()}" already exists. Please use a different product name.`
-      }
-    } else {
-      // Hardware's own name is auto-generated from these three selections
-      // (see computeGeneratedName()) rather than typed, so there's no free
-      // -text field to validate — each dropdown is required in its own
-      // right, and the only meaningful duplicate check is the id triple
-      // itself (isProductClassificationTaken), not the generated string.
-      if (!hwForm.categoryId) errs.categoryId = 'Select a category.'
-      if (!hwForm.subcategoryId) errs.subcategoryId = 'Select a subcategory.'
-      if (!hwForm.specificationId) errs.specificationId = 'Select a specification.'
-      if (hwForm.categoryId && hwForm.subcategoryId && hwForm.specificationId &&
-          isProductClassificationTaken(hwForm.categoryId, hwForm.subcategoryId, hwForm.specificationId, excludeId)) {
-        errs.classification = 'A product with this classification already exists.'
-      }
+    // Both tabs' own name is auto-generated from these three selections
+    // (see computeGeneratedName()) rather than typed, so there's no free
+    // -text field to validate — each dropdown is required in its own
+    // right, and the only meaningful duplicate check is the id triple
+    // itself (isProductClassificationTaken), not the generated string.
+    // Checked across both product types together (not scoped to `tab`) —
+    // Hardware and Wire share one taxonomy tree, so an identical
+    // classification would be just as indistinguishable across tabs as
+    // within one.
+    if (!form.categoryId) errs.categoryId = 'Select a category.'
+    if (!form.subcategoryId) errs.subcategoryId = 'Select a subcategory.'
+    if (!form.specificationId) errs.specificationId = 'Select a specification.'
+    if (form.categoryId && form.subcategoryId && form.specificationId &&
+        isProductClassificationTaken(form.categoryId, form.subcategoryId, form.specificationId, excludeId)) {
+      errs.classification = 'A product with this classification already exists.'
     }
     if (form.sku.trim() && isSkuTaken(form.sku.trim(), excludeId)) {
       errs.sku = `"${form.sku.trim()}" already exists. Please use a different SKU.`
@@ -256,7 +316,10 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
       saveProduct({
         id: editing?.id,
         productType: 'wire',
-        name: form.name.trim(),
+        name: computeGeneratedName(wireForm.categoryId, wireForm.subcategoryId, wireForm.specificationId),
+        categoryId: wireForm.categoryId,
+        subcategoryId: wireForm.subcategoryId,
+        specificationId: wireForm.specificationId,
         sku: form.sku.trim(),
         brand: form.brand.trim(),
         model: '',
@@ -334,47 +397,11 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
         {tab === 'hardware' ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Category" required error={errors.categoryId}>
-                <Select value={hwForm.categoryId} onChange={selectCategory}>
-                  <option value="">Select category…</option>
-                  {activeCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Subcategory" required error={errors.subcategoryId}>
-                <Select value={hwForm.subcategoryId} onChange={selectSubcategory} disabled={!hwForm.categoryId}>
-                  <option value="">{hwForm.categoryId ? 'Select subcategory…' : 'Select category first'}</option>
-                  {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                </Select>
-              </FormField>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Specification" required error={errors.specificationId}>
-                <Select value={hwForm.specificationId} onChange={selectSpecification} disabled={!hwForm.subcategoryId}>
-                  <option value="">{hwForm.subcategoryId ? 'Select specification…' : 'Select subcategory first'}</option>
-                  {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                </Select>
-              </FormField>
-            </div>
-
-            {errors.classification && <p className="text-xs text-red-500">{errors.classification}</p>}
-
-            {isLegacyUnclassified && !hwForm.categoryId && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                <Info size={14} className="shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Legacy product — reclassify to update.</p>
-                  <p className="mt-0.5">Current name: <span className="font-semibold">{editing.name}</span></p>
-                </div>
-              </div>
-            )}
-
-            {generatedName && (
-              <div className="rounded-lg border border-surface-border bg-gray-50/60 px-3 py-2.5">
-                <p className="text-xs text-gray-500">Product Name (auto-generated)</p>
-                <p className="text-sm font-semibold text-gray-800">{generatedName}</p>
-              </div>
-            )}
+            <ClassificationDropdowns
+              categoryId={hwForm.categoryId} subcategoryId={hwForm.subcategoryId} specificationId={hwForm.specificationId}
+              onSelectCategory={selectCategory} onSelectSubcategory={selectSubcategory} onSelectSpecification={selectSpecification}
+              errors={errors} isLegacyUnclassified={isLegacyUnclassified} legacyName={editing?.name}
+            />
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-surface-border">
               <FormField label="SKU ID" error={errors.sku}>
@@ -477,10 +504,13 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Wire Name" required error={errors.name}>
-                <Input placeholder="e.g. CAT6 Cable" value={wireForm.name} onChange={e => setField('name', e.target.value)} />
-              </FormField>
+            <ClassificationDropdowns
+              categoryId={wireForm.categoryId} subcategoryId={wireForm.subcategoryId} specificationId={wireForm.specificationId}
+              onSelectCategory={selectCategory} onSelectSubcategory={selectSubcategory} onSelectSpecification={selectSpecification}
+              errors={errors} isLegacyUnclassified={isLegacyUnclassified} legacyName={editing?.name}
+            />
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-surface-border">
               <FormField label="SKU ID" error={errors.sku}>
                 <Input placeholder="e.g. WR-CAT6-001" value={wireForm.sku} onChange={e => setField('sku', e.target.value)} />
               </FormField>

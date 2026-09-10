@@ -1,10 +1,10 @@
 // Product Taxonomy master store — module-level pub/sub pattern (mirrors
 // assetModelStore.js/productStore.js). Backs Inventory's Product Taxonomy
 // (Configuration): a 3-level admin-configurable classification — Category ->
-// Subcategory -> Specification (e.g. ONT -> Dual Band -> GPON) — that a
-// later phase will wire the Add Product form's dropdowns to read from
-// instead of a free-text Product Name. This phase only builds the taxonomy
-// master itself; productStore.js and the Add/Edit Product form are untouched.
+// Subcategory -> Specification (e.g. ONT -> Dual Band -> GPON). One shared
+// tree, not scoped per product type — ProductList.jsx's Add/Edit Product
+// modal wires both its Hardware and Wire tabs' Category/Subcategory/
+// Specification dropdowns to these same getters.
 
 import { logAudit } from './auditLogStore'
 
@@ -15,11 +15,21 @@ const CATEGORY_SEED = [
   { id: 'PTAX-CAT-003', label: 'Cable', status: 'active' },
 ]
 
+// 'Drop Wire' (PTAX-SUB-005) is seeded alongside 'Fiber' under the existing
+// 'Cable' category rather than under a new top-level category — the Wire
+// tab's own seeded products (productStore.js's WIRE_SEED: "4/6 Core Fiber
+// Cable", "Drop Wire") are all realistically "Cable" items already; a
+// second "Wire" category next to "Cable" would just be a confusing
+// near-duplicate. Wire and Hardware share this one taxonomy tree — nothing
+// here is tab-scoped — so a Wire product can be classified under any
+// Category (e.g. a wire-type accessory sold under 'Router'), same as a
+// Hardware product could in principle pick 'Cable' if that ever made sense.
 const SUBCATEGORY_SEED = [
   { id: 'PTAX-SUB-001', categoryId: 'PTAX-CAT-001', label: 'Dual Band', status: 'active' },
   { id: 'PTAX-SUB-002', categoryId: 'PTAX-CAT-001', label: 'Single Band', status: 'active' },
   { id: 'PTAX-SUB-003', categoryId: 'PTAX-CAT-002', label: 'WiFi 6', status: 'active' },
   { id: 'PTAX-SUB-004', categoryId: 'PTAX-CAT-003', label: 'Fiber', status: 'active' },
+  { id: 'PTAX-SUB-005', categoryId: 'PTAX-CAT-003', label: 'Drop Wire', status: 'active' },
 ]
 
 const SPECIFICATION_SEED = [
@@ -31,6 +41,8 @@ const SPECIFICATION_SEED = [
   { id: 'PTAX-SPEC-006', subcategoryId: 'PTAX-SUB-003', label: 'Tri Band', status: 'active' },
   { id: 'PTAX-SPEC-007', subcategoryId: 'PTAX-SUB-004', label: 'Single Mode', status: 'active' },
   { id: 'PTAX-SPEC-008', subcategoryId: 'PTAX-SUB-004', label: 'Multi Mode', status: 'active' },
+  { id: 'PTAX-SPEC-009', subcategoryId: 'PTAX-SUB-005', label: 'Single Core', status: 'active' },
+  { id: 'PTAX-SPEC-010', subcategoryId: 'PTAX-SUB-005', label: 'Multi Core', status: 'active' },
 ]
 
 let _categories = [...CATEGORY_SEED]

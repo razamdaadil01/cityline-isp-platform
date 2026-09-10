@@ -208,19 +208,24 @@ export function subscribeProducts(fn) {
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
 }
 
+// No longer called by ProductList.jsx's Add/Edit Product modal — both the
+// Hardware and Wire tabs now classify via productTaxonomyStore and validate
+// through isProductClassificationTaken below instead of a free-text name.
+// Kept exported in case something else still wants a plain name-uniqueness
+// check (e.g. a future product type that stays free-text).
 export function isProductNameTaken(name, excludeId = null) {
   const q = name.trim().toLowerCase()
   return _products.some(p => p.id !== excludeId && p.name.trim().toLowerCase() === q)
 }
 
-// Hardware products are now classified via productTaxonomyStore's Category ->
-// Subcategory -> Specification (their own `name` is auto-generated from that
-// triple, not free-text — see ProductList.jsx's computeGeneratedName()), so
-// the meaningful duplicate check for them is the id triple itself rather than
-// the generated string: two hardware products with the identical
-// classification and no other differentiator would be indistinguishable.
-// Never called for Wire products — that tab still keeps its own free-text
-// name, checked via isProductNameTaken above.
+// Both Hardware and Wire products are classified via productTaxonomyStore's
+// Category -> Subcategory -> Specification (their own `name` is auto-
+// generated from that triple, not free-text — see ProductList.jsx's
+// computeGeneratedName()), so the meaningful duplicate check is the id
+// triple itself rather than the generated string: two products with an
+// identical classification and no other differentiator would be
+// indistinguishable. Checked across both product types together — not
+// scoped by productType — since they share one taxonomy tree.
 export function isProductClassificationTaken(categoryId, subcategoryId, specificationId, excludeId = null) {
   return _products.some(p =>
     p.id !== excludeId &&
