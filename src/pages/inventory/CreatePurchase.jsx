@@ -686,15 +686,16 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
 }
 
 // Shown instead of AssetUnitDetailsSection's per-unit accordion for a
-// non-kit asset line whose Received Qty is exactly 1 (ReceiptItemCard's own
-// showInlineSerialMac) — a single "Unit 1 of 1" toggle would add a click
-// for no benefit when there's only one unit. Serial No./MAC ID already
-// moved into ReceiptItemCard's own top-level row for this case, so this
-// holds only the remaining spec/correction fields (Asset Name, Brand Name,
-// Model Name, SSD/Storage Capacity, RAM, Processor) plus Purchase &
-// Warranty/Vendor, unchanged from what AssetUnitDetailsSection itself
-// would otherwise show — always visible, no toggle, since there's only one
-// field set to show.
+// non-kit asset line with a single unit — Received Qty 0 (not yet
+// arrived) or 1 (received), ReceiptItemCard's own showInlineSerialMac — a
+// "Unit 1 of 1" toggle would add a click for no benefit when there's only
+// one unit, and these fields are meant to be fillable before Received Qty
+// is even set to 1. Serial No./MAC ID already moved into ReceiptItemCard's
+// own top-level row for this case, so this holds only the remaining spec/
+// correction fields (Asset Name, Brand Name, Model Name, SSD/Storage
+// Capacity, RAM, Processor) plus Purchase & Warranty/Vendor, unchanged
+// from what AssetUnitDetailsSection itself would otherwise show — always
+// visible, no toggle, since there's only one field set to show.
 function AssetSpecFieldsPanel({ item, onUpdate, showValidation }) {
   const vendors = getVendors().filter(v => v.status === 'active')
   const fieldSet = item.assetFieldSets[0] ?? {}
@@ -751,14 +752,24 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
     // higher typed number while everything behind it silently caps at 1.
     const qty = isAssetItem ? Math.min(rawQty, 1) : rawQty
     const patch = { receivedQty: isAssetItem ? String(qty) : qtyStr }
-    if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
-    // A non-kit asset line captures MAC ID too (isNonKitAssetItem below) —
-    // independent of trackedByMac, which only ever reflects a real catalog
-    // product's own setting.
-    if (trackedByMac || isAssetItem) patch.macs = resizeArray(item.macs, qty)
     if (isAssetItem) {
-      patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, qty, item.assetOriginalFields)
-      patch.assetIds = resizeIds(item.assetIds, qty)
+      // Never resize an asset line's own serials/macs/assetFieldSets/
+      // assetIds down to 0 — there's always at least one real linked asset
+      // per line (exactly one now that PO Qty is locked to 1; a legacy
+      // multi-asset line predating that lock keeps whatever it already has
+      // instead of losing everything). Received Qty 0 is this line's
+      // normal starting state ("not yet arrived"), and Serial No./MAC ID/
+      // Identification & Specifications are all meant to be fillable then
+      // too (see showInlineSerialMac below) — resizing to `qty` directly
+      // would wipe all of that out the moment Received Qty reads 0.
+      const resizeLen = Math.max(qty, 1)
+      patch.serials = resizeArray(item.serials, resizeLen)
+      patch.macs = resizeArray(item.macs, resizeLen)
+      patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, resizeLen, item.assetOriginalFields)
+      patch.assetIds = resizeIds(item.assetIds, resizeLen)
+    } else {
+      if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
+      if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
     }
     onUpdate(patch)
   }
@@ -768,15 +779,17 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
   const enteredCount = isTracked ? countEnteredUnits(item, trackedBySerial, trackedByMac, qty) : 0
   const showWarning = showValidation && isTracked && qty > 0 && enteredCount < qty
   // A non-kit asset line collapses Serial No./MAC ID straight into the
-  // top-level row once received (no "Unit 1 of 1" accordion needed for a
-  // single unit) — see the row/below-row rendering further down. qty === 1
-  // is the only way this is ever true for a freshly-received line now that
-  // setReceivedQty() clamps an asset line's own Received Qty to 0 or 1; a
-  // >1 case can still exist on an already-saved legacy Purchase from before
-  // that clamp existed, in which case this stays false and the per-unit
-  // accordion (AssetUnitDetailsSection, with Serial No./MAC ID moved to the
-  // top of each unit's own block) renders instead, same as before.
-  const showInlineSerialMac = isNonKitAssetItem && qty === 1
+  // top-level row (no "Unit 1 of 1" accordion needed for a single unit) —
+  // see the row/below-row rendering further down. True at both Received
+  // Qty 0 (not yet arrived — this line's normal starting state) and 1
+  // (received), so Serial No./MAC ID/Identification & Specifications are
+  // all visible and editable from the start, not gated behind marking the
+  // unit received first. qty <= 1 covers both of those; a >1 case can
+  // still exist on an already-saved legacy Purchase from before Received
+  // Qty was clamped to 0/1, in which case this stays false and the
+  // per-unit accordion (AssetUnitDetailsSection, with Serial No./MAC ID at
+  // the top of each unit's own block) renders instead, same as before.
+  const showInlineSerialMac = isNonKitAssetItem && qty <= 1
   function updateInlineSerial(value) {
     const next = [...item.serials]; next[0] = value
     onUpdate({ serials: next })
@@ -810,9 +823,11 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
         // partial/over-shipment tracking against an ordered qty makes sense
         // — an Asset line's qty is just "how many of this exact asset
         // arrived," so those two columns are dropped here entirely. Serial
-        // No./MAC ID fold into this same row only when there's exactly one
-        // unit to capture (showInlineSerialMac) — otherwise they move into
-        // each unit's own block below (AssetUnitDetailsSection).
+        // No./MAC ID fold into this same row whenever there's a single unit
+        // to capture (showInlineSerialMac, true at Received Qty 0 or 1) so
+        // they're fillable before the unit is even marked received —
+        // otherwise (a legacy multi-unit line) they move into each unit's
+        // own block below (AssetUnitDetailsSection).
         <div className={`grid grid-cols-2 ${showInlineSerialMac ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3`}>
           <div>
             <label className="block text-[11px] text-gray-500 mb-1">PO Qty</label>
@@ -890,8 +905,10 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
       ) : showInlineSerialMac ? (
-        // Exactly one unit — Serial No./MAC ID already live in the row
-        // above, so this holds only the remaining spec/correction fields.
+        // A single unit (Received Qty 0 or 1) — Serial No./MAC ID already
+        // live in the row above, so this holds only the remaining spec/
+        // correction fields, visible and editable from the start rather
+        // than waiting for Received Qty to be set to 1.
         <AssetSpecFieldsPanel item={item} onUpdate={onUpdate} showValidation={showValidation} />
       ) : isAssetItem && qty > 0 ? (
         <AssetUnitDetailsSection
