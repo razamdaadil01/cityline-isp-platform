@@ -828,7 +828,11 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
         // they're fillable before the unit is even marked received —
         // otherwise (a legacy multi-unit line) they move into each unit's
         // own block below (AssetUnitDetailsSection).
-        <div className={`grid grid-cols-2 ${showInlineSerialMac ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3`}>
+        // gap-x-5/gap-y-4 matches FormSection's own grid (Identification &
+        // Specifications below) rather than this card's tighter gap-3 —
+        // needed here specifically so MAC ID's "Optional" hint text has
+        // room to breathe before the Amount column starts.
+        <div className={`grid grid-cols-2 ${showInlineSerialMac ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-x-5 gap-y-4`}>
           <div>
             <label className="block text-[11px] text-gray-500 mb-1">PO Qty</label>
             <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
