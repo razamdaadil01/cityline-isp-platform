@@ -741,8 +741,16 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
   const [modalOpen, setModalOpen] = useState(false)
 
   function setReceivedQty(qtyStr) {
-    const qty = Math.max(0, Number(qtyStr) || 0)
-    const patch = { receivedQty: qtyStr }
+    const rawQty = Math.max(0, Number(qtyStr) || 0)
+    // An asset line's own PO Qty is always 1 now (AddAsset.jsx locks it at
+    // creation), so Received Qty can only ever be 0 (not yet arrived) or 1
+    // (received) — clamped here rather than just relying on the input's own
+    // max="1" (a native stepper affordance only, not a hard block on typed
+    // input), and the stored value itself is clamped too, not just the qty
+    // used to resize the arrays below, so the field can't keep showing a
+    // higher typed number while everything behind it silently caps at 1.
+    const qty = isAssetItem ? Math.min(rawQty, 1) : rawQty
+    const patch = { receivedQty: isAssetItem ? String(qty) : qtyStr }
     if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
     // A non-kit asset line captures MAC ID too (isNonKitAssetItem below) —
     // independent of trackedByMac, which only ever reflects a real catalog
@@ -759,11 +767,15 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
   const qty = Number(item.receivedQty) || 0
   const enteredCount = isTracked ? countEnteredUnits(item, trackedBySerial, trackedByMac, qty) : 0
   const showWarning = showValidation && isTracked && qty > 0 && enteredCount < qty
-  // A non-kit asset line with exactly one unit collapses Serial No./MAC ID
-  // straight into the top-level row (no "Unit 1 of 1" accordion needed for
-  // a single unit) — see the row/below-row rendering further down. Any
-  // other Received Qty (0, or >1) keeps the per-unit accordion, now with
-  // Serial No./MAC ID at the top of each unit's own block instead.
+  // A non-kit asset line collapses Serial No./MAC ID straight into the
+  // top-level row once received (no "Unit 1 of 1" accordion needed for a
+  // single unit) — see the row/below-row rendering further down. qty === 1
+  // is the only way this is ever true for a freshly-received line now that
+  // setReceivedQty() clamps an asset line's own Received Qty to 0 or 1; a
+  // >1 case can still exist on an already-saved legacy Purchase from before
+  // that clamp existed, in which case this stays false and the per-unit
+  // accordion (AssetUnitDetailsSection, with Serial No./MAC ID moved to the
+  // top of each unit's own block) renders instead, same as before.
   const showInlineSerialMac = isNonKitAssetItem && qty === 1
   function updateInlineSerial(value) {
     const next = [...item.serials]; next[0] = value
@@ -807,7 +819,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
             <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
           </div>
           <FormField label="Received Qty">
-            <Input type="number" min="0" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
+            <Input type="number" min="0" max="1" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
           </FormField>
           {showInlineSerialMac && (
             <>
@@ -836,7 +848,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
             <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
           </div>
           <FormField label={isWire ? 'Received (m)' : 'Received Qty'}>
-            <Input type="number" min="0" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
+            <Input type="number" min="0" max={isKitAssetItem ? 1 : undefined} value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
           </FormField>
           <div>
             <label className="block text-[11px] text-gray-500 mb-1">Short</label>
