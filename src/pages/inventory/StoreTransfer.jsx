@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText, PackageCheck } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine } from '../../data/storeTransferStore'
+import Badge from '../../components/ui/Badge'
+import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine, receiveStoreTransfer } from '../../data/storeTransferStore'
 import { getUnits, getDrums } from '../../data/inventoryLedger'
 import { getProduct } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
@@ -23,25 +24,36 @@ function liveTrackingType(productId) {
 }
 
 // A transferred line is only offered for reversal while what it moved is
-// still sitting untouched at Store To. Serial/MAC units are checked against
-// their own live ledger status (same idea as Assignments.jsx's own
-// lineStatus() gating "Back to Store"); wire lines are checked against the
-// specific transfer-scoped destination drum inventoryLedger.js's Store
-// Transfers block creates for them (see that file), so a line can't be
-// reversed once some of its meters have already moved on (e.g. assigned to
-// an engineer out of Store To). Quantity-tracked lines have no discrete
+// still sitting untouched at Store To — or, for a 'Sent' (not yet Received)
+// cross-city transfer, still sitting untouched 'In Transit' (inventoryLedger.js's
+// Store Transfers block withholds the storeId move until Received — see that
+// file — so a Sent line's unit is still found at Store From, not Store To).
+// Serial/MAC units are checked against their own live ledger status (same
+// idea as Assignments.jsx's own lineStatus() gating "Back to Store"); wire
+// lines are checked against the specific transfer-scoped destination drum
+// inventoryLedger.js's Store Transfers block creates for them once Received
+// (a Sent line's meters have already left the source drum but don't yet
+// exist as any destination drum, so there's nothing to check against —
+// still freely reversible). Quantity-tracked lines have no discrete
 // per-line identity to check — same laxness Assign to Engineer's own
 // quantity-line "Back to Store" already accepts — so those stay reversible
 // as long as the transfer itself hasn't already been reversed.
 function isLineReversible(t, it) {
   const values = [...it.serials, ...it.macs]
   if (values.length) {
+    if (t.status === 'Sent') {
+      return values.every(v => {
+        const unit = getUnits({ productId: it.productId, storeId: t.storeFromId }).find(u => u.value === v)
+        return !!unit && unit.status === 'In Transit' && unit.lastTransferNumber === t.transferNumber
+      })
+    }
     return values.every(v => {
       const unit = getUnits({ productId: it.productId, storeId: t.storeToId }).find(u => u.value === v)
       return !!unit && unit.status === 'Available'
     })
   }
   if (it.drumNumber) {
+    if (t.status === 'Sent') return true
     const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
     const destDrum = getDrums({ productId: it.productId, storeId: t.storeToId }).find(d => d.drumNumber === destDrumNumber)
     return !!destDrum && destDrum.remainingMeters >= it.qty
@@ -97,6 +109,7 @@ function flattenRows(transfers) {
         serialMacDrumLabel: serialMacDrumLabel(it, trackingType),
         qty: qtyValue(it, trackingType),
         assignedBy: t.assignedBy,
+        status: t.status,
         reversible: isLineReversible(t, it),
       })
     })
@@ -145,6 +158,24 @@ export default function StoreTransfer() {
       setReverseError('')
     } catch (err) {
       setReverseError(err.message || 'Could not reverse this transfer line.')
+    }
+  }
+
+  // "Receive Transfer" confirms a cross-city 'Sent' shipment has arrived —
+  // acts on the whole transfer (not a single line), same as Edit/View
+  // Delivery Challan already do off row.transferId, since receiving is a
+  // single physical shipment landing, not a per-line action.
+  const [receiveTarget, setReceiveTarget] = useState(null)
+  const [receiveError, setReceiveError] = useState('')
+
+  function confirmReceive() {
+    if (!receiveTarget) return
+    try {
+      receiveStoreTransfer(receiveTarget.transferId)
+      setReceiveTarget(null)
+      setReceiveError('')
+    } catch (err) {
+      setReceiveError(err.message || 'Could not receive this transfer.')
     }
   }
 
@@ -221,13 +252,14 @@ export default function StoreTransfer() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial/MAC/Drum</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Qty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned By</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
                 <th className="px-4 py-3 w-16 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-14 text-center text-sm text-gray-400">
+                  <td colSpan={9} className="px-4 py-14 text-center text-sm text-gray-400">
                     <StoreIcon size={32} className="mx-auto mb-2 text-gray-200" />
                     No store transfers found
                   </td>
@@ -241,6 +273,9 @@ export default function StoreTransfer() {
                   <td className="px-4 py-3 text-gray-600 text-xs font-mono">{r.serialMacDrumLabel}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.assignedBy}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <Badge variant={r.status === 'Sent' ? 'yellow' : 'green'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
+                  </td>
                   <td className="px-4 py-3 w-16 text-center">
                     <button
                       onClick={e => openMenu(e, r.key)}
@@ -271,6 +306,11 @@ export default function StoreTransfer() {
             <button onClick={() => { navigate(`/inventory/store-transfer/${row.transferId}/challan`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
               <FileText size={13} className="text-gray-400 shrink-0" /> View Delivery Challan
             </button>
+            {row.status === 'Sent' && (
+              <button onClick={() => { setReceiveTarget(row); setReceiveError(''); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                <PackageCheck size={13} className="text-brand-blue shrink-0" /> Receive Transfer
+              </button>
+            )}
             <button
               onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
               disabled={!row.reversible}
@@ -305,6 +345,33 @@ export default function StoreTransfer() {
             {reverseError && (
               <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {reverseError}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!receiveTarget}
+        onClose={() => { setReceiveTarget(null); setReceiveError('') }}
+        title="Receive Transfer"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setReceiveTarget(null); setReceiveError('') }}>Cancel</Button>
+            <Button onClick={confirmReceive}>Confirm Receipt</Button>
+          </>
+        }
+      >
+        {receiveTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Confirm transfer <span className="font-semibold text-gray-900">{receiveTarget.transferNumber}</span> has arrived at{' '}
+              <span className="font-semibold text-gray-900">{receiveTarget.storeToName}</span>? All items on this transfer become available there once received.
+            </p>
+            {receiveError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {receiveError}
               </div>
             )}
           </div>

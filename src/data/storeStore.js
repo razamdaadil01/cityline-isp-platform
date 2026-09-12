@@ -4,6 +4,12 @@
 // loose convention used by feasibilityStore.js/areaMappingStore.js — there's
 // no canonical Branch master to foreign-key against yet. productCount/
 // totalInventory are stubbed at 0 until real stock exists (Phase 4).
+//
+// address/gstin feed deliveryChallanStore.js's consignor/consignee block
+// (see that file's storeParty()); city additionally drives
+// storeTransferStore.js's same-city vs. cross-city Store Transfer routing
+// (see saveStoreTransfer()) — a transfer between two stores in the same
+// city stays instant, a cross-city one goes through a 'Sent' state first.
 
 import { logAudit } from './auditLogStore'
 
@@ -12,6 +18,9 @@ const SEED = [
     id: 'STR-001',
     storeName: 'Main Warehouse',
     branchCode: 'CNPL-001',
+    address: 'Plot 14, MIDC Industrial Area, Andheri East',
+    city: 'Mumbai',
+    gstin: '27AAAAA0000A1Z5',
     contacts: [
       { name: 'Vinod Sharma', phone: '98200 44556', email: 'vinod.sharma@citylinenetworks.in' },
     ],
@@ -23,6 +32,9 @@ const SEED = [
     id: 'STR-002',
     storeName: 'Andheri Store',
     branchCode: 'CNPL-002',
+    address: 'Shop 3, Link Road, Andheri West',
+    city: 'Mumbai',
+    gstin: '27BBBBB1111B1Z3',
     contacts: [
       { name: 'Kiran Desai', phone: '97650 11223', email: 'kiran.desai@citylinenetworks.in' },
     ],
@@ -34,6 +46,9 @@ const SEED = [
     id: 'STR-003',
     storeName: 'Bandra Store',
     branchCode: 'CNPL-003',
+    address: '12 Hill Road, Bandra West',
+    city: 'Mumbai',
+    gstin: '27CCCCC2222C1Z1',
     contacts: [
       { name: 'Anjali Rao', phone: '96550 22334', email: 'anjali.rao@citylinenetworks.in' },
     ],
