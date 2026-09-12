@@ -56,6 +56,24 @@ const SEED = [
     totalInventory: 0,
     status: 'active',
   },
+  {
+    // The one seeded store outside Mumbai — gives storeTransferStore.js's
+    // seed data a real cross-city pair (Andheri Store → here) to demo the
+    // 'Sent'/in-transit flow with, since STR-001..003 are all Mumbai and
+    // would only ever produce same-city, instant transfers.
+    id: 'STR-004',
+    storeName: 'Noida Store',
+    branchCode: 'CNPL-004',
+    address: 'B-12, Sector 62',
+    city: 'Noida',
+    gstin: '09DDDDD3333D1Z9',
+    contacts: [
+      { name: 'Rohit Verma', phone: '98110 55667', email: 'rohit.verma@citylinenetworks.in' },
+    ],
+    productCount: 0,
+    totalInventory: 0,
+    status: 'active',
+  },
 ]
 
 let _stores = [...SEED]

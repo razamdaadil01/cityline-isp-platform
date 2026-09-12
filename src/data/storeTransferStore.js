@@ -51,17 +51,22 @@ export const STORE_TRANSFER_STATUSES = ['Completed', 'Sent', 'Reversed']
 //     assigned (ASG-000002/000003) = 48 available; Patch Cord 80 − 10
 //     (ASG-000004) = 70 available (untouched here).
 //   Andheri Store (STR-002): ONT Device serials 0001-0003 are already
-//     'Assigned to User' (ASG-000001/5/6 + USRA-000001/2/3) — only
-//     0004-0008 are still 'Available'; Wall Mount Bracket 10 − 1
-//     (ASG-000001) = 9 available (untouched here); WiFi Router 10
-//     available (untouched by any assignment); Drop Wire drum DR-00871
-//     500m − 30m (ASG-000001) = 470m remaining.
-// None of the serials/drum used below (0004, 0005, DR-00871) are
+//     'Assigned to User' (ASG-000001/5/6 + USRA-000001/2/3), 0006 is
+//     'Assigned to Engineer' (ASG-000010) — only 0004, 0005, 0007 are used
+//     below (0008 stays free); Wall Mount Bracket 10 − 1 (ASG-000001) = 9
+//     available (untouched here); WiFi Router 10 available (untouched by
+//     any assignment); Drop Wire drum DR-00871 500m − 30m (ASG-000001) =
+//     470m remaining.
+// None of the serials/drum used below (0004, 0005, 0007, DR-00871) are
 // referenced by any other seeded record (replacementStore.js/repairStore.js
 // have none), and no serial is reused across two of these transfers — the
 // same dedup guard saveStoreTransfer() enforces at save time. Bandra Store
-// (STR-003) has no purchases of its own in the seed data, so it only ever
-// appears as a Store To below, never a Store From.
+// (STR-003) and Noida Store (STR-004) have no purchases of their own in the
+// seed data, so they only ever appear as a Store To below, never a Store
+// From. STF-000006 (Andheri → Noida, both real Mumbai/Noida cities per
+// storeStore.js) is the one cross-city, still-'Sent' line — everything else
+// here is same-city and 'Completed', matching how saveStoreTransfer()
+// itself would route each of these today.
 const SEED = [
   {
     id: 'STF-000001', transferNumber: 'TRF-2026-000001',
@@ -122,6 +127,33 @@ const SEED = [
     reason: '',
     assignedBy: 'Admin User',
     status: 'Completed',
+  },
+  {
+    // Cross-city, still in transit — Andheri Store (Mumbai) → Noida Store
+    // (Noida), a different city per storeStore.js, so saveStoreTransfer()
+    // would route this as 'Sent' rather than 'Completed' today. Seeded
+    // directly at 'Sent' (rather than via saveStoreTransfer()) so the Store
+    // Transfer list has a real example on first load to exercise the
+    // "Receive Transfer" action against: inventoryLedger.js's Store
+    // Transfers block (see that file) reads this same `status` generically,
+    // so ZTE-ONT-2026-0007 already shows as deducted from Andheri Store and
+    // sitting at unit.status 'In Transit' — not yet 'Available' at Noida —
+    // exactly as it would for a freshly-saved cross-city transfer.
+    // receivedAt/receivedBy stay null until someone calls
+    // receiveStoreTransfer() on this record.
+    id: 'STF-000006', transferNumber: 'TRF-2026-000006',
+    date: '2026-09-11T09:30:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-004', storeToName: 'Noida Store',
+    items: [
+      { id: 'STFI-6-0', productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0007'], macs: [], qty: 1, drumNumber: null, remark: 'Noida branch launch stock' },
+    ],
+    reason: 'Noida Store opening — initial stock allocation',
+    assignedBy: 'Admin User',
+    status: 'Sent',
+    sentAt: '2026-09-11T09:30:00.000Z',
+    receivedAt: null,
+    receivedBy: null,
   },
 ]
 
