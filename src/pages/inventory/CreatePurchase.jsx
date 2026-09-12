@@ -100,12 +100,17 @@ function assetDetailFieldsOnly(fields) {
 // own Category/Type defines — except 'serialNumber', which stays
 // exclusively validated via `serials`/`serialsOk` (AssetUnitDetailsSection
 // still separately renders Serial Number bound to that array, not to this
-// fields object — see its own note), and 'kit-components', which has no
+// fields object — see its own note); 'kit-components', which has no
 // meaningful "filled" state and is confirmed through its own separate
-// KitComponentsReceiptSection instead.
+// KitComponentsReceiptSection instead; and 'vendorId' — a per-unit Vendor
+// field no longer renders anywhere in this GRN step (the receipt's own
+// Basic Details step already asks for a single Vendor covering every line
+// on it), so nothing could ever fill it in here. purchaseStore.js's own
+// write-back now sources vendorId from the Purchase record's own top-level
+// vendorId instead — see its own note at that call site.
 function assetUnitFieldsComplete(fieldSet, categoryId, typeId) {
   const requiredDefs = getFieldsForType(categoryId, typeId)
-    .filter(f => f.required && f.key !== 'serialNumber' && f.type !== 'kit-components')
+    .filter(f => f.required && f.key !== 'serialNumber' && f.key !== 'vendorId' && f.type !== 'kit-components')
   return requiredDefs.every(f => {
     const v = fieldSet?.[f.key]
     return v !== undefined && v !== null && String(v).trim() !== ''
@@ -673,8 +678,11 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
                   // identityFieldKeys (see this component's own note above)
                   // additionally drops Asset Name/Brand/Model/spec fields
                   // for a kit-type item — empty for every other item, so
-                  // this is a no-op there.
-                  excludeKeys={['serialNumber', ...identityFieldKeys]}
+                  // this is a no-op there. 'vendorId' is dropped for every
+                  // item — the vendor is already set once, at the Purchase
+                  // record's own Basic Details step, not per asset unit —
+                  // see assetUnitFieldsComplete()'s own note.
+                  excludeKeys={['serialNumber', 'vendorId', ...identityFieldKeys]}
                 />
               </div>
             )}
@@ -711,8 +719,10 @@ function AssetSpecFieldsPanel({ item, onUpdate, showValidation }) {
         vendors={vendors} includeKitComponents={false} showErrors={showValidation}
         // 'serialNumber' excluded — it's now bound to the top-level row's
         // own Serial No. field (ReceiptItemCard), same reasoning as
-        // AssetUnitDetailsSection's own excludeKeys note above.
-        excludeKeys={['serialNumber']}
+        // AssetUnitDetailsSection's own excludeKeys note above. 'vendorId'
+        // is dropped too — the vendor is already set once, at the Purchase
+        // record's own Basic Details step, not per asset unit.
+        excludeKeys={['serialNumber', 'vendorId']}
       />
     </div>
   )
