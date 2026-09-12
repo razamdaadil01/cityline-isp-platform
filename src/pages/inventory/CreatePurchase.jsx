@@ -601,6 +601,10 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
   function updateUnitSerial(i, value) {
     onUpdate({ serials: item.serials.map((s, idx) => idx === i ? value : s) })
   }
+  function updateUnitMac(i, value) {
+    const next = [...item.macs]; next[i] = value
+    onUpdate({ macs: next })
+  }
 
   return (
     <div className="space-y-2">
@@ -627,7 +631,7 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
             </button>
             {expandedIndex === i && (
               <div className="p-3 space-y-4 bg-white border-t border-surface-border">
-                <FormField label="Serial Number" required error={showValidation && serialMissing ? 'Serial Number is required.' : undefined}>
+                <FormField label="Serial No." required error={showValidation && serialMissing ? 'Serial Number is required.' : undefined}>
                   <Input
                     value={item.serials[i] ?? ''}
                     onChange={e => updateUnitSerial(i, e.target.value)}
@@ -635,6 +639,14 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
                     error={showValidation && serialMissing}
                   />
                 </FormField>
+                {/* Not for a kit-type item — its own identity (and this
+                    unit's kit) is covered elsewhere; see this component's
+                    own file-level note. */}
+                {!isKitItem && (
+                  <FormField label="MAC ID" hint="Optional">
+                    <Input value={item.macs[i] ?? ''} onChange={e => updateUnitMac(i, e.target.value)} placeholder="MAC ID" />
+                  </FormField>
+                )}
                 <AssetDetailFields
                   categoryId={item.assetCategoryId} typeId={item.assetTypeId}
                   fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
@@ -673,6 +685,38 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
   )
 }
 
+// Shown instead of AssetUnitDetailsSection's per-unit accordion for a
+// non-kit asset line whose Received Qty is exactly 1 (ReceiptItemCard's own
+// showInlineSerialMac) — a single "Unit 1 of 1" toggle would add a click
+// for no benefit when there's only one unit. Serial No./MAC ID already
+// moved into ReceiptItemCard's own top-level row for this case, so this
+// holds only the remaining spec/correction fields (Asset Name, Brand Name,
+// Model Name, SSD/Storage Capacity, RAM, Processor) plus Purchase &
+// Warranty/Vendor, unchanged from what AssetUnitDetailsSection itself
+// would otherwise show — always visible, no toggle, since there's only one
+// field set to show.
+function AssetSpecFieldsPanel({ item, onUpdate, showValidation }) {
+  const vendors = getVendors().filter(v => v.status === 'active')
+  const fieldSet = item.assetFieldSets[0] ?? {}
+  function updateField(key, value) {
+    const next = [...item.assetFieldSets]; next[0] = { ...fieldSet, [key]: value }
+    onUpdate({ assetFieldSets: next })
+  }
+  return (
+    <div className="rounded-lg border border-surface-border p-3 bg-white space-y-4">
+      <AssetDetailFields
+        categoryId={item.assetCategoryId} typeId={item.assetTypeId}
+        fields={fieldSet} onChange={updateField}
+        vendors={vendors} includeKitComponents={false} showErrors={showValidation}
+        // 'serialNumber' excluded — it's now bound to the top-level row's
+        // own Serial No. field (ReceiptItemCard), same reasoning as
+        // AssetUnitDetailsSection's own excludeKeys note above.
+        excludeKeys={['serialNumber']}
+      />
+    </div>
+  )
+}
+
 function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParams, patchSearchParams }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
@@ -683,9 +727,14 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
   // tracked asset needs its own serial regardless of category (Authority/
   // Access included, even though that category's own Add Asset fields
   // don't carry a serialNumber field — this is a receipt-time capture, not
-  // an Add Asset one), so any asset line is trackedBySerial too; MAC stays
-  // product-only since Asset Management has no MAC concept.
+  // an Add Asset one), so any asset line is trackedBySerial too. MAC is
+  // captured for a non-kit asset line too (see isNonKitAssetItem below) —
+  // optional, no format validation, purely a capture field — but that's a
+  // parallel, asset-specific concern, not the same "trackedByMac" flag a
+  // real catalog product carries, so trackedByMac itself stays product-only.
   const isAssetItem = Array.isArray(item.assetIds) && item.assetIds.length > 0
+  const isKitAssetItem = isAssetItem && item.kitComponents.length > 0
+  const isNonKitAssetItem = isAssetItem && !isKitAssetItem
   const trackedBySerial = !!product?.trackedBySerial || isAssetItem
   const trackedByMac = !!product?.trackedByMac
   const isTracked = !isWire && (trackedBySerial || trackedByMac)
@@ -695,7 +744,10 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
     const qty = Math.max(0, Number(qtyStr) || 0)
     const patch = { receivedQty: qtyStr }
     if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
-    if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
+    // A non-kit asset line captures MAC ID too (isNonKitAssetItem below) —
+    // independent of trackedByMac, which only ever reflects a real catalog
+    // product's own setting.
+    if (trackedByMac || isAssetItem) patch.macs = resizeArray(item.macs, qty)
     if (isAssetItem) {
       patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, qty, item.assetOriginalFields)
       patch.assetIds = resizeIds(item.assetIds, qty)
@@ -707,6 +759,21 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
   const qty = Number(item.receivedQty) || 0
   const enteredCount = isTracked ? countEnteredUnits(item, trackedBySerial, trackedByMac, qty) : 0
   const showWarning = showValidation && isTracked && qty > 0 && enteredCount < qty
+  // A non-kit asset line with exactly one unit collapses Serial No./MAC ID
+  // straight into the top-level row (no "Unit 1 of 1" accordion needed for
+  // a single unit) — see the row/below-row rendering further down. Any
+  // other Received Qty (0, or >1) keeps the per-unit accordion, now with
+  // Serial No./MAC ID at the top of each unit's own block instead.
+  const showInlineSerialMac = isNonKitAssetItem && qty === 1
+  function updateInlineSerial(value) {
+    const next = [...item.serials]; next[0] = value
+    onUpdate({ serials: next })
+  }
+  function updateInlineMac(value) {
+    const next = [...item.macs]; next[0] = value
+    onUpdate({ macs: next })
+  }
+  const inlineSerialMissing = showInlineSerialMac && !(item.serials[0] ?? '').trim()
 
   return (
     <div className="rounded-xl border border-surface-border p-4 space-y-3">
@@ -726,27 +793,65 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">{isWire ? 'PO Qty (m)' : 'PO Qty'}</label>
-          <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
+      {isNonKitAssetItem ? (
+        // Short/Extra belong only to the Product PO receipt flow, where
+        // partial/over-shipment tracking against an ordered qty makes sense
+        // — an Asset line's qty is just "how many of this exact asset
+        // arrived," so those two columns are dropped here entirely. Serial
+        // No./MAC ID fold into this same row only when there's exactly one
+        // unit to capture (showInlineSerialMac) — otherwise they move into
+        // each unit's own block below (AssetUnitDetailsSection).
+        <div className={`grid grid-cols-2 ${showInlineSerialMac ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-3`}>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">PO Qty</label>
+            <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
+          </div>
+          <FormField label="Received Qty">
+            <Input type="number" min="0" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
+          </FormField>
+          {showInlineSerialMac && (
+            <>
+              <FormField label="Serial No." required error={showValidation && inlineSerialMissing ? 'Serial Number is required.' : undefined}>
+                <Input
+                  value={item.serials[0] ?? ''}
+                  onChange={e => updateInlineSerial(e.target.value)}
+                  placeholder="Serial Number"
+                  error={showValidation && inlineSerialMissing}
+                />
+              </FormField>
+              <FormField label="MAC ID" hint="Optional">
+                <Input value={item.macs[0] ?? ''} onChange={e => updateInlineMac(e.target.value)} placeholder="MAC ID" />
+              </FormField>
+            </>
+          )}
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Amount</label>
+            <p className="text-sm font-semibold text-gray-900 py-1.5">₹{derived.amount.toLocaleString('en-IN')}</p>
+          </div>
         </div>
-        <FormField label={isWire ? 'Received (m)' : 'Received Qty'}>
-          <Input type="number" min="0" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
-        </FormField>
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Short</label>
-          <p className={`text-sm font-medium py-1.5 ${derived.shortQty > 0 ? 'text-red-600' : 'text-gray-400'}`}>{derived.shortQty}</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">{isWire ? 'PO Qty (m)' : 'PO Qty'}</label>
+            <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
+          </div>
+          <FormField label={isWire ? 'Received (m)' : 'Received Qty'}>
+            <Input type="number" min="0" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
+          </FormField>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Short</label>
+            <p className={`text-sm font-medium py-1.5 ${derived.shortQty > 0 ? 'text-red-600' : 'text-gray-400'}`}>{derived.shortQty}</p>
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Extra</label>
+            <p className={`text-sm font-medium py-1.5 ${derived.extraQty > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{derived.extraQty}</p>
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Amount</label>
+            <p className="text-sm font-semibold text-gray-900 py-1.5">₹{derived.amount.toLocaleString('en-IN')}</p>
+          </div>
         </div>
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Extra</label>
-          <p className={`text-sm font-medium py-1.5 ${derived.extraQty > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{derived.extraQty}</p>
-        </div>
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Amount</label>
-          <p className="text-sm font-semibold text-gray-900 py-1.5">₹{derived.amount.toLocaleString('en-IN')}</p>
-        </div>
-      </div>
+      )}
 
       {!isAssetItem && (
         // Once per line, not per unit — an Asset-flow line already asks for
@@ -772,10 +877,14 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
         <FormField label="Drum Number" required hint="Required whenever a quantity is received">
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
+      ) : showInlineSerialMac ? (
+        // Exactly one unit — Serial No./MAC ID already live in the row
+        // above, so this holds only the remaining spec/correction fields.
+        <AssetSpecFieldsPanel item={item} onUpdate={onUpdate} showValidation={showValidation} />
       ) : isAssetItem && qty > 0 ? (
         <AssetUnitDetailsSection
           item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} showValidation={showValidation}
-          isKitItem={item.kitComponents.length > 0}
+          isKitItem={isKitAssetItem}
         />
       ) : isTracked && qty > 0 ? (
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
