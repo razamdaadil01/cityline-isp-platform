@@ -64,18 +64,16 @@ function nextChallanNumber() {
 }
 
 // Store record → the Consignor/Consignee block a Delivery Challan needs.
-// storeStore.js's own Store record (see that file) carries no `address`
-// field and no link to a companyEntities.js entity at all — unlike a
-// Purchase/PO, which stores its own companyEntityId directly (see
-// PurchaseInvoiceView.jsx's `getCompanyEntity(purchase.companyEntityId)`),
-// a Store here isn't tied to any one legal entity (Andheri Store alone
-// receives stock billed under BOTH seeded entities — see
-// purchaseStore.js's PUR-000001..006). So `gstin`/`address` are left null
-// rather than guessed or borrowed from an arbitrary entity — the
-// document view shows them as blank when so, exactly like InfoRow-style
-// blanks elsewhere in this app (PODetail.jsx's own InfoRow). `contactName`/
-// `contactPhone` come from the store's own first seeded contact, when one
-// exists — genuinely available data, unlike the two fields above.
+// storeStore.js's own Store record now carries `address`/`gstin` directly
+// (Store Management config — see that file), read straight through here.
+// A Store still isn't tied to any one companyEntities.js legal entity
+// (Andheri Store alone receives stock billed under BOTH seeded entities —
+// see purchaseStore.js's PUR-000001..006), so there's no entity-level GSTIN
+// to borrow instead — the store's own GSTIN is the right one to show on a
+// document moving stock into or out of it. Either field still renders as a
+// blank (DeliveryChallanView.jsx's own `??` fallback) for a store that
+// hasn't had them filled in yet. `contactName`/`contactPhone` come from the
+// store's own first seeded contact, when one exists.
 function storeParty(storeId, storeNameFallback) {
   const store = getStore(storeId)
   const contact = store?.contacts?.[0] ?? null
@@ -85,8 +83,8 @@ function storeParty(storeId, storeNameFallback) {
     branchCode: store?.branchCode ?? null,
     contactName: contact?.name ?? null,
     contactPhone: contact?.phone ?? null,
-    address: null,
-    gstin: null,
+    address: store?.address ?? null,
+    gstin: store?.gstin ?? null,
   }
 }
 
@@ -162,13 +160,11 @@ export function createDeliveryChallanForTransfer(transfer) {
     // needs to populate this one line; DeliveryChallanView.jsx already
     // degrades to "no logo shown" when it resolves to null.
     companyEntityId: null,
-    // Derived from the Consignee's own address when available — see
-    // storeParty()'s note on why that's null for every store today, so
-    // this is always blank in practice until a store carries a real
-    // address. Left as its own field (rather than just aliasing
-    // consignee.address) so a future address source only needs to fill
-    // this one line, not touch every caller that reads it.
-    placeOfSupply: null,
+    // The Consignee's own city (storeStore.js's `city` field) when
+    // available, else blank. Left as its own field (rather than just
+    // aliasing consignee.address) so a different place-of-supply source
+    // could replace this line later without touching every caller.
+    placeOfSupply: getStore(transfer.storeToId)?.city ?? null,
     items: buildChallanItems(transfer.items),
     reason: transfer.reason || '',
     issuedBy: transfer.assignedBy,

@@ -3,11 +3,15 @@
 // units, quantity-tracked stock, and wire drum meters moved directly
 // between two stores, with no engineer or Work Order involved — distinct
 // from Assign to Engineer (store → engineer) and Assign to User
-// (engineer → customer). Transfers are instantaneous in v1: no in-transit
-// state, status is 'Completed' the moment a transfer is saved, and moves to
-// 'Reversed' only once every one of its lines has been reversed (see
-// reverseStoreTransferLine below) — there is still no in-between/approval
-// state.
+// (engineer → customer). Transfers are instantaneous only when Store From
+// and Store To share the same city (storeStore.js's `city` field, compared
+// in saveStoreTransfer() below) — status goes straight to 'Completed', same
+// as v1's original always-instant behavior. A cross-city transfer instead
+// starts life as 'Sent' and needs a separate receiveStoreTransfer() call at
+// the destination before it becomes 'Completed' — see inventoryLedger.js's
+// Store Transfers block for how that withholds the destination-side stock
+// effect until then. Either way, status moves to 'Reversed' only once every
+// one of its lines has been reversed (see reverseStoreTransferLine below).
 //
 // Architecture note on validation depth — this is intentionally lighter
 // than assignmentStore.js's/userAssignmentStore.js's own save-time
@@ -33,8 +37,9 @@
 
 import { logAudit } from './auditLogStore'
 import { createDeliveryChallanForTransfer } from './deliveryChallanStore'
+import { getStore } from './storeStore'
 
-export const STORE_TRANSFER_STATUSES = ['Completed', 'Reversed']
+export const STORE_TRANSFER_STATUSES = ['Completed', 'Sent', 'Reversed']
 
 // ── Seed data — so the Store Transfer list isn't empty on first load, and
 // so the Serial/MAC/Drum + Qty columns have a real example of all three
@@ -210,39 +215,84 @@ function validateAndBuildItems(data, seq, excludeId = null) {
 // `reason` is an optional free-text "Reason for Transfer", captured once per
 // transfer (not per line) — same idea as the whole-assignment `remarks` on
 // assignmentStore.js/userAssignmentStore.js's own records.
+// Same-city vs. cross-city routing — a literal, case-insensitive compare of
+// each store's own `city` field (storeStore.js). Two stores that both have
+// no city set compare equal (both ''), so transfers stay instant by default
+// until stores are actually given real cities — never a surprise downgrade
+// to a 'Sent' state for existing data.
+function sameCity(storeFromId, storeToId) {
+  const from = (getStore(storeFromId)?.city || '').trim().toLowerCase()
+  const to = (getStore(storeToId)?.city || '').trim().toLowerCase()
+  return from === to
+}
+
 export function saveStoreTransfer(data, actor = 'Admin User') {
   const seq = _nextInternalSeq++
   const items = validateAndBuildItems(data, seq)
 
+  const isSameCity = sameCity(data.storeFromId, data.storeToId)
+  const date = new Date().toISOString()
+
   const transfer = {
     id: `STF-${String(seq).padStart(6, '0')}`,
     transferNumber: nextTransferNumber(),
-    date: new Date().toISOString(),
+    date,
     storeFromId: data.storeFromId, storeFromName: data.storeFromName,
     storeToId: data.storeToId, storeToName: data.storeToName,
     items,
     reason: (data.reason || '').trim(),
     assignedBy: actor,
-    status: 'Completed',
+    status: isSameCity ? 'Completed' : 'Sent',
+    sentAt: isSameCity ? null : date,
+    receivedAt: null,
+    receivedBy: null,
   }
   _storeTransfers = [transfer, ..._storeTransfers]
   notify()
 
   // GST Rule 55 (India) requires a Delivery Challan to accompany a
   // non-sale movement of goods like this — auto-generated here as a direct
-  // side effect of saving the transfer, so no separate user action creates
-  // the record itself (see deliveryChallanStore.js for the document's own
-  // shape and its own note on why editing/reversing this transfer later
-  // doesn't regenerate it).
+  // side effect of saving the transfer (whether it lands 'Completed' or
+  // 'Sent'; the challan is paper evidence the shipment left Store From,
+  // which is true the moment it's saved either way), so no separate user
+  // action creates the record itself (see deliveryChallanStore.js for the
+  // document's own shape and its own note on why editing/reversing this
+  // transfer later doesn't regenerate it).
   createDeliveryChallanForTransfer(transfer)
 
   const itemCount = items.reduce((s, it) => s + it.qty, 0)
   logAudit({
     action: 'Create', module: 'Inventory',
-    details: `Transferred ${itemCount} item(s) from ${data.storeFromName} to ${data.storeToName} (${transfer.transferNumber})`,
+    details: `${isSameCity ? 'Transferred' : 'Sent'} ${itemCount} item(s) from ${data.storeFromName} to ${data.storeToName} (${transfer.transferNumber})`,
   })
 
   return transfer
+}
+
+// ── Receive a Sent transfer at Store To ─────────────────────────────────
+// Confirms a cross-city shipment has physically arrived — flips status
+// 'Sent' → 'Completed'. inventoryLedger.js's Store Transfers block (see
+// that file) had been withholding the destination-side stock effect
+// (unit.storeId move / destination drum / balance credit) while status was
+// 'Sent'; once it's 'Completed' that effect applies exactly as it already
+// does for a same-city transfer. A same-city transfer never becomes 'Sent'
+// in the first place (see sameCity()/saveStoreTransfer() above), so this is
+// only ever meaningful for a cross-city one.
+export function receiveStoreTransfer(transferId, actor = 'Admin User') {
+  const transfer = _storeTransfers.find(t => t.id === transferId)
+  if (!transfer) throw new Error('Transfer not found.')
+  if (transfer.status !== 'Sent') throw new Error('Only a transfer that has been Sent can be received.')
+
+  const updated = { ...transfer, status: 'Completed', receivedAt: new Date().toISOString(), receivedBy: actor }
+  _storeTransfers = _storeTransfers.map(t => t.id === transferId ? updated : t)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Received transfer ${transfer.transferNumber} at ${transfer.storeToName}`,
+  })
+
+  return updated
 }
 
 // Edits an existing transfer in place — same `data` shape and validation as

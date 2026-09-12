@@ -743,6 +743,13 @@ export default function CreateStoreTransfer() {
   // 3-step wizard.
   const storesValid = !!storeFromId && !!storeToId && storeFromId !== storeToId
 
+  // Same city/cross-city — purely informational here (storeTransferStore.js's
+  // saveStoreTransfer() makes the actual same-city vs. 'Sent' status
+  // decision off the same two `city` fields, so this only decides the
+  // notice/button copy below, never the transfer's own outcome).
+  const citiesDiffer = storesValid && (storeFrom?.city || '').trim().toLowerCase() !== (storeTo?.city || '').trim().toLowerCase()
+  const submitLabel = isEditMode ? 'Save Changes' : (citiesDiffer ? 'Send Transfer' : 'Transfer Stock')
+
   const issuedHwLines = hwLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
   const issuedWireLines = wireLines.filter(l => l.drumNumber && Number(l.meters) > 0)
   const itemsValid = issuedHwLines.length > 0 || issuedWireLines.length > 0
@@ -835,6 +842,12 @@ export default function CreateStoreTransfer() {
             {attemptedAction === 'stores' && !storesValid && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a Store From and a different Store To to continue.
+              </div>
+            )}
+            {citiesDiffer && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                {storeFrom?.storeName} and {storeTo?.storeName} are in different cities — this transfer will require a Receive confirmation at {storeTo?.storeName} once it arrives.
               </div>
             )}
           </div>
@@ -932,7 +945,7 @@ export default function CreateStoreTransfer() {
                 </div>
               )}
               <div className="flex justify-end">
-                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>{isEditMode ? 'Save Changes' : 'Transfer Stock'}</Button>
+                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>{submitLabel}</Button>
               </div>
             </div>
           )}
@@ -949,7 +962,7 @@ export default function CreateStoreTransfer() {
           onClose={() => setShowConfirmModal(false)}
           size="lg"
           title={isEditMode ? 'Confirm Changes' : 'Confirm Transfer'}
-          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>{isEditMode ? 'Save Changes' : 'Transfer Stock'}</Button>}
+          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>{submitLabel}</Button>}
         >
           <div className="space-y-5">
             {saveError && (

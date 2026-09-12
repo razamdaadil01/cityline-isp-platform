@@ -322,18 +322,46 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
   // (a unit currently at Store B, or a drum this same block created for an
   // earlier transfer into Store B) only exists once that earlier transfer
   // has already been applied.
+  //
+  // 'Sent' vs. 'Completed' — a same-city transfer goes straight to
+  // 'Completed' (storeTransferStore.js's sameCity()) and this block behaves
+  // exactly as it always has: the unit/drum/balance moves to Store To in
+  // this same pass. A cross-city transfer instead sits at 'Sent' until
+  // receiveStoreTransfer() flips it to 'Completed', so each branch below
+  // splits its source-side effect (leaving Store From — applied
+  // unconditionally, the instant the transfer exists) from its
+  // destination-side effect (landing at Store To — withheld while
+  // 'Sent'). A serial/MAC unit gets an intermediate 'In Transit' status
+  // while 'Sent': its storeId deliberately does NOT move yet, since status
+  // alone (not 'Available') is what already excludes it from
+  // getUnits({storeId, status:'Available'}) at BOTH Store From (no longer
+  // 'Available' there) and Store To (storeId hasn't arrived there yet) — no
+  // separate "pending store" field needed. Wire meters leave the source
+  // drum immediately either way, but the transfer-scoped destination drum
+  // row is only created/credited once 'Completed' — while 'Sent', those
+  // meters simply exist nowhere pickable. Quantity-tracked balances follow
+  // the same split: fromKey decrements immediately, toKey only credits once
+  // 'Completed'.
   ;[...getStoreTransfers()]
     .filter(t => t.status !== 'Reversed' && t.id !== excludeStoreTransferId)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .forEach(t => {
+    const isReceived = t.status !== 'Sent'
     t.items.forEach(it => {
       const values = [...it.serials, ...it.macs]
       let movedQty = 0
       if (values.length) {
         values.forEach(v => {
           const unit = unitsByValue.get(v)
-          if (!unit || unit.status !== 'Available') return
-          unit.storeId = t.storeToId
+          if (!unit) return
+          if (isReceived) {
+            if (unit.status !== 'Available' && unit.status !== 'In Transit') return
+            unit.storeId = t.storeToId
+            unit.status = 'Available'
+          } else {
+            if (unit.status !== 'Available') return
+            unit.status = 'In Transit'
+          }
           unit.lastTransferNumber = t.transferNumber
           unit.lastTransferredAt = t.date
           unit.lastTransferFromStoreName = t.storeFromName
@@ -343,43 +371,50 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
       } else if (it.drumNumber) {
         // Wire — meters are cut from the specific source drum picked at
         // Store From (which stays put there, same as an assignment's own
-        // per-drum deduction just above), and the moved length becomes its
-        // own drum row at Store To. That destination row is keyed by a
-        // transfer-scoped drum number (never the bare source drumNumber) so
-        // it can never collide with — or get its deduction target confused
-        // with — the source drum's own row still sitting at Store From; see
-        // this same drumsByNumber Map already being read by the Assignments
-        // block above. Inherits the source drum's own purchase/vendor
-        // history via spread, same traceability reasoning as the unit
-        // relocation branch above.
+        // per-drum deduction just above) the instant the transfer exists,
+        // whether 'Sent' or 'Completed'. The moved length only becomes its
+        // own drum row at Store To once 'Completed' — while 'Sent', those
+        // meters have left the source drum but aren't pickable anywhere
+        // yet. That destination row is keyed by a transfer-scoped drum
+        // number (never the bare source drumNumber) so it can never
+        // collide with — or get its deduction target confused with — the
+        // source drum's own row still sitting at Store From; see this same
+        // drumsByNumber Map already being read by the Assignments block
+        // above. Inherits the source drum's own purchase/vendor history via
+        // spread, same traceability reasoning as the unit relocation branch
+        // above.
         const sourceDrum = drumsByNumber.get(it.drumNumber)
         const meters = Number(it.qty) || 0
         movedQty = sourceDrum ? Math.min(meters, sourceDrum.remainingMeters) : 0
         if (movedQty > 0) {
           sourceDrum.remainingMeters -= movedQty
-          const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
-          let destDrum = drumsByNumber.get(destDrumNumber)
-          if (!destDrum) {
-            destDrum = {
-              ...sourceDrum, storeId: t.storeToId, drumNumber: destDrumNumber,
-              sourceDrumNumber: it.drumNumber, receivedMeters: 0, remainingMeters: 0, status: 'Available',
+          if (isReceived) {
+            const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
+            let destDrum = drumsByNumber.get(destDrumNumber)
+            if (!destDrum) {
+              destDrum = {
+                ...sourceDrum, storeId: t.storeToId, drumNumber: destDrumNumber,
+                sourceDrumNumber: it.drumNumber, receivedMeters: 0, remainingMeters: 0, status: 'Available',
+              }
+              drums.push(destDrum)
+              drumsByNumber.set(destDrumNumber, destDrum)
             }
-            drums.push(destDrum)
-            drumsByNumber.set(destDrumNumber, destDrum)
+            destDrum.receivedMeters += movedQty
+            destDrum.remainingMeters += movedQty
+            destDrum.lastTransferNumber = t.transferNumber
+            destDrum.lastTransferredAt = t.date
+            destDrum.lastTransferFromStoreName = t.storeFromName
+            destDrum.lastTransferToStoreName = t.storeToName
           }
-          destDrum.receivedMeters += movedQty
-          destDrum.remainingMeters += movedQty
-          destDrum.lastTransferNumber = t.transferNumber
-          destDrum.lastTransferredAt = t.date
-          destDrum.lastTransferFromStoreName = t.storeFromName
-          destDrum.lastTransferToStoreName = t.storeToName
         }
       } else if (Number(it.qty) > 0) {
         const fromKey = `${it.productId}|${t.storeFromId}`
         const toKey = `${it.productId}|${t.storeToId}`
         movedQty = Math.min(Number(it.qty), balanceByKey[fromKey] ?? 0)
         balanceByKey[fromKey] = Math.max(0, (balanceByKey[fromKey] ?? 0) - movedQty)
-        balanceByKey[toKey] = (balanceByKey[toKey] ?? 0) + movedQty
+        if (isReceived) {
+          balanceByKey[toKey] = (balanceByKey[toKey] ?? 0) + movedQty
+        }
       }
       if (movedQty > 0) {
         movements.push({

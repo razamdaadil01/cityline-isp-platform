@@ -5,7 +5,7 @@ import {
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
-import { FormField, Input } from '../../components/ui/FormInputs'
+import { FormField, Input, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import ContactsEditor, { EMPTY_CONTACT, validateContacts } from '../../components/inventory/ContactsEditor'
 import { getStores, subscribeStores, saveStore, setStoreStatus, isStoreNameTaken } from '../../data/storeStore'
@@ -14,6 +14,7 @@ import { usePermission } from '../../data/rolesStore'
 const STORE_TABLE_COLUMNS = [
   { key: 'storeName',   label: 'Store Name',        visible: true, defaultVisible: true, locked: true },
   { key: 'branchCode',  label: 'Branch',            visible: true, defaultVisible: true },
+  { key: 'city',        label: 'City',              visible: true, defaultVisible: true },
   { key: 'contact',     label: 'Contact Person',    visible: true, defaultVisible: true },
   { key: 'email',       label: 'Email',             visible: true, defaultVisible: true },
   { key: 'productCount',label: 'No. of Products',   visible: true, defaultVisible: true },
@@ -23,12 +24,13 @@ const STORE_TABLE_COLUMNS = [
 ]
 
 function emptyForm() {
-  return { storeName: '', branchCode: '', contacts: [{ ...EMPTY_CONTACT }] }
+  return { storeName: '', branchCode: '', address: '', city: '', gstin: '', contacts: [{ ...EMPTY_CONTACT }] }
 }
 
 function storeToForm(store) {
   return {
     storeName: store.storeName, branchCode: store.branchCode,
+    address: store.address || '', city: store.city || '', gstin: store.gstin || '',
     contacts: store.contacts?.length ? store.contacts.map(c => ({ ...c })) : [{ ...EMPTY_CONTACT }],
   }
 }
@@ -66,6 +68,9 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
       id: editing?.id,
       storeName: form.storeName.trim(),
       branchCode: form.branchCode.trim(),
+      address: form.address.trim(),
+      city: form.city.trim(),
+      gstin: form.gstin.trim(),
       contacts: form.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() })),
     })
     onClose()
@@ -88,6 +93,19 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
             <Input placeholder="e.g. CNPL-002" value={form.branchCode} onChange={e => setField('branchCode', e.target.value)} />
           </FormField>
         </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="City">
+            <Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setField('city', e.target.value)} />
+          </FormField>
+          <FormField label="GSTIN">
+            <Input placeholder="e.g. 27AAAAA0000A1Z5" value={form.gstin} onChange={e => setField('gstin', e.target.value)} />
+          </FormField>
+        </div>
+
+        <FormField label="Address">
+          <Textarea rows={2} placeholder="Full address for Delivery Challan" value={form.address} onChange={e => setField('address', e.target.value)} />
+        </FormField>
 
         <ContactsEditor
           contacts={form.contacts}
@@ -185,6 +203,7 @@ export default function StoreList() {
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('storeName')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Store Name</th>}
                 {visibleCols.has('branchCode')      && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Branch</th>}
+                {visibleCols.has('city')            && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">City</th>}
                 {visibleCols.has('contact')         && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Contact Person</th>}
                 {visibleCols.has('email')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Email</th>}
                 {visibleCols.has('productCount')    && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">No. of Products</th>}
@@ -212,6 +231,7 @@ export default function StoreList() {
                       </td>
                     )}
                     {visibleCols.has('branchCode')     && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{s.branchCode}</td>}
+                    {visibleCols.has('city')            && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{s.city || '—'}</td>}
                     {visibleCols.has('contact')         && (
                       <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">
                         {primary?.name || '—'}
