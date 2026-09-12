@@ -248,7 +248,15 @@ export function AssetDetailFields({ categoryId, typeId, fields, onChange, showEr
 
   return (
     <div className="space-y-5">
-      <FormSection label="Basic Details" defs={basicDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
+      {/* Deliberately NOT labeled "Basic Details" — that text is also the
+          Asset PO wizard's own Step 1 label (this file's own STEPS array),
+          and this section renders nested inside a "Product Receipt"/"Asset
+          Details" context on CreatePurchase.jsx's GRN page. Sharing the
+          exact same wording between an outer wizard step and this inner
+          per-field-group heading reads, at a glance, as if the wizard's own
+          step indicator were showing the wrong label there — it never was,
+          but the identical text made that easy to mistake. */}
+      <FormSection label="Identification & Specifications" defs={basicDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
       <FormSection label="Purchase & Warranty" defs={dateDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
       <FormSection label="Vendor" defs={vendorDefs} fields={fields} onChange={onChange} showErrors={showErrors} vendors={vendors} />
       {kitDefs.length > 0 && (

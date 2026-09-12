@@ -524,20 +524,38 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
 // Serials & MACs" modal — one expandable card per received unit
 // (assetFieldSets/serials, both resized alongside Received Qty by
 // ReceiptItemCard's own setReceivedQty()), each holding that unit's Serial
-// Number plus the full Add Asset detail fields (Asset Name, Brand, Model,
-// RAM, etc.), pre-filled from what was captured at PO creation and
-// editable here so the receiver can correct anything the vendor actually
-// shipped differently. Reuses AddAsset.jsx's own AssetDetailFields
-// renderer (includeKitComponents={false} — Kit Components already has its
-// own separate section below, KitComponentsReceiptSection) rather than a
-// second copy of that rendering. Each unit slot maps 1:1 to its own real
-// Asset record (item.assetIds[i]) whenever one exists, so on Confirm every
-// unit's corrected fields are written back onto its own asset — see
-// purchaseStore.js's own note at the write-back call site; a slot beyond
-// however many assets actually exist (e.g. an over-receipt) has no record
-// to write into.
-function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchParams, showValidation }) {
+// Number plus its Add Asset detail fields (Asset Name, Brand, Model, RAM,
+// etc. — the full set for a non-kit type; Purchase & Warranty dates and
+// Vendor only for a kit-eligible type, since identityFieldKeys drops the
+// rest as redundant with the card header — see this component's own note),
+// pre-filled from what was captured at PO creation and editable here so the
+// receiver can correct anything the vendor actually shipped differently.
+// Reuses AddAsset.jsx's own AssetDetailFields renderer (includeKitComponents
+// ={false} — Kit Components already has its own separate section below,
+// KitComponentsReceiptSection) rather than a second copy of that rendering.
+// Each unit slot maps 1:1 to its own real Asset record (item.assetIds[i])
+// whenever one exists, so on Confirm every unit's corrected fields are
+// written back onto its own asset — see purchaseStore.js's own note at the
+// write-back call site; a slot beyond however many assets actually exist
+// (e.g. an over-receipt) has no record to write into.
+function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchParams, showValidation, isKitItem }) {
   const vendors = getVendors().filter(v => v.status === 'active')
+  // Kit-type assets (Splicing Machine) already show their own identity —
+  // Asset Name/Brand/Model — in ReceiptItemCard's own card header (e.g.
+  // "Field & Splicing Tools — Splicing Machine (Fusion Splicer Unit C)"),
+  // and the Kit Components Received list below is their real per-shipment
+  // correction mechanism, so those identity fields would just duplicate
+  // what's already visible. Still asks for Serial Number, Purchase &
+  // Warranty dates and Vendor below regardless of kit status — none of
+  // those are captured anywhere else, and isStep2Valid()'s assetFieldsOk
+  // check still requires them per unit whether or not the type is kit-
+  // eligible, so hiding them here would make a Splicing Machine PO
+  // permanently unconfirmable.
+  const identityFieldKeys = isKitItem
+    ? getFieldsForType(item.assetCategoryId, item.assetTypeId)
+        .filter(f => f.type !== 'date' && f.type !== 'vendor-select' && f.type !== 'kit-components')
+        .map(f => f.key)
+    : []
   // Derived straight from the URL (&item=<poLineId>&unit=<n>) rather than
   // its own local state — same convention as this wizard's own
   // showAddOutside above — so a reload/deep-link/Back-Forward always shows
@@ -621,11 +639,10 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
                   categoryId={item.assetCategoryId} typeId={item.assetTypeId}
                   fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
                   vendors={vendors} includeKitComponents={false} showErrors={showValidation}
-                  // 'serialNumber' is excluded here the same way Asset
-                  // Master's own modal excludes 'brandName'/'modelName'/
-                  // 'brand' — Basic Details would otherwise render it a
-                  // second time (getFieldsForType() includes it, and
-                  // nothing else here filters it out), bound to
+                  // 'serialNumber' is excluded here since
+                  // "Identification & Specifications" would otherwise
+                  // render it a second time (getFieldsForType() includes
+                  // it, and nothing else here filters it out), bound to
                   // fieldSet.serialNumber (the asset's own already-recorded
                   // value, if any) rather than the canonical item.serials[i]
                   // the explicit "Serial Number" field above is bound to.
@@ -640,7 +657,12 @@ function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchPara
                   // write-back at all (it's persisted separately, only onto
                   // this Purchase record's own `serials` array) — a real,
                   // separate gap this fix does not touch.
-                  excludeKeys={['serialNumber']}
+                  //
+                  // identityFieldKeys (see this component's own note above)
+                  // additionally drops Asset Name/Brand/Model/spec fields
+                  // for a kit-type item — empty for every other item, so
+                  // this is a no-op there.
+                  excludeKeys={['serialNumber', ...identityFieldKeys]}
                 />
               </div>
             )}
@@ -751,7 +773,10 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParam
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
       ) : isAssetItem && qty > 0 ? (
-        <AssetUnitDetailsSection item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} showValidation={showValidation} />
+        <AssetUnitDetailsSection
+          item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} showValidation={showValidation}
+          isKitItem={item.kitComponents.length > 0}
+        />
       ) : isTracked && qty > 0 ? (
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
           <p className={`text-xs font-medium flex items-center gap-1.5 ${showWarning ? 'text-amber-700' : 'text-gray-600'}`}>
