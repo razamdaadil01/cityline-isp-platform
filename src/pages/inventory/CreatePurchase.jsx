@@ -19,7 +19,6 @@ import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } 
 import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
-import { getAssetModel, resolveAssetModelTemplateFields } from '../../data/assetModelStore'
 import { ASSET_CONDITIONS, getFieldsForType } from '../../data/assetTaxonomy'
 import { AssetDetailFields } from '../assets/AddAsset'
 
@@ -113,32 +112,16 @@ function assetUnitFieldsComplete(fieldSet, categoryId, typeId) {
   })
 }
 
-// The Asset Master template (if any) this PO line was raised from — see
-// AddAsset.jsx's own note on assetModelId. Asset PO creation no longer
-// captures any dynamic field at all (Category/Type/Price only — see
-// AddAsset.jsx's AssetItemRow), so every spec field a unit needs at GRN
-// (RAM, Processor, Brand Name, Model Name, etc.) comes from here rather
-// than already being baked onto the asset's own record the way it briefly
-// was in an earlier phase. resolveAssetModelTemplateFields() only ever
-// returns template-scoped fields to begin with (Asset Master's Add/Edit
-// modal never collects Serial Number, Vendor, Asset Name, or any date field
-// into fieldDefaults — see assetTaxonomy.js's `scope` note), so spreading
-// it here can never leak an instance-specific value into a unit's starting
-// fields; there's nothing to filter out. Used as a fallback *underneath*
-// each real asset's own recorded fields (never overriding them) so a model
-// default added/edited after this PO was raised still reaches a
-// not-yet-received line, and so a receiver's own correction at GRN — once
-// this store's the only place recording it — always wins on a later edit.
-function modelTemplateDefaults(assetModelId) {
-  if (!assetModelId) return {}
-  return resolveAssetModelTemplateFields(getAssetModel(assetModelId))
-}
-
 function itemFromPOLine(it, i, linkedAssets = []) {
   const primaryAsset = linkedAssets[0] ?? null
-  const assetModelId = it.assetModelId ?? null
-  const modelDefaults = modelTemplateDefaults(assetModelId)
-  const assetOriginalFields = primaryAsset ? { ...modelDefaults, ...assetDetailFieldsOnly(primaryAsset.fields) } : null
+  // Every spec field a unit needs at GRN (Asset Name, Brand, Model, RAM,
+  // Processor, etc.) now comes straight from the real asset's own recorded
+  // fields — captured once per PO line at Products-step time
+  // (AddAsset.jsx's AssetLineCard) and copied onto every asset created from
+  // that line. No template layer underneath it anymore (Asset Master has
+  // been removed) — a receiver's own correction at GRN is the only thing
+  // that can change it from here on.
+  const assetOriginalFields = primaryAsset ? assetDetailFieldsOnly(primaryAsset.fields) : null
   return {
     id: `tmp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
     // The PO's own line id — distinct from this Purchase item's own `id`
@@ -171,9 +154,8 @@ function itemFromPOLine(it, i, linkedAssets = []) {
     assetIds: linkedAssets.map(a => a.id),
     assetCategoryId: primaryAsset?.categoryId ?? null,
     assetTypeId: primaryAsset?.typeId ?? null,
-    assetModelId,
     assetOriginalFields,
-    assetFieldSets: linkedAssets.map(a => ({ ...modelDefaults, ...assetDetailFieldsOnly(a.fields) })),
+    assetFieldSets: linkedAssets.map(a => assetDetailFieldsOnly(a.fields)),
     kitComponents: requestedKitComponents(primaryAsset),
   }
 }
@@ -1088,7 +1070,6 @@ export default function CreatePurchase() {
         purchaseDate: it.purchaseDate || '', warrantyStartDate: it.warrantyStartDate || '', warrantyEndDate: it.warrantyEndDate || '',
         assetIds: it.assetIds ?? [], kitComponents: it.kitComponents ?? [],
         assetCategoryId: it.assetCategoryId ?? null, assetTypeId: it.assetTypeId ?? null,
-        assetModelId: it.assetModelId ?? null,
         assetOriginalFields: it.assetOriginalFields ?? null, assetFieldSets: it.assetFieldSets ?? [],
       })),
       remarks,
