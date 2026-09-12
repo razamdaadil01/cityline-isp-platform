@@ -359,7 +359,7 @@ function AssetLineCard({ index, item, vendors, onUpdate, onRemove, showRemove, s
               {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </Select>
           </FormField>
-          <FormField label="Qty" hint="Always 1 — add another Assets row for more">
+          <FormField label="Qty">
             <Input type="number" value={item.qty} disabled />
           </FormField>
           <FormField label="Price">
