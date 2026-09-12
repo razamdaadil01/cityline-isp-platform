@@ -176,9 +176,10 @@ const SEED = [
         // Warranty expired a year ago — ZTE-ONT-2026-0006 (ASG-000010,
         // assignmentStore.js, assigned to Preethi Nair) demos Assignments.jsx's
         // "Send for Repair" manual-vendor/Estimated Cost path. 0004/0005 are
-        // already out at other stores via storeTransferStore.js and 0007/0008
-        // stay free — none of them are warranty-sensitive today, so sharing
-        // this line item's dates with 0006 is harmless.
+        // already out at other stores via storeTransferStore.js, 0007 is
+        // in transit to Noida Store (also storeTransferStore.js, STF-000006)
+        // and 0008 stays free — none of them are warranty-sensitive today,
+        // so sharing this line item's dates with 0006 is harmless.
         purchaseDate: '2024-09-10', warrantyStartDate: '2024-09-10', warrantyEndDate: '2025-09-10',
       }),
     ],
