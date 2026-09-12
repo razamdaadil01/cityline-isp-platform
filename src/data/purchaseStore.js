@@ -479,11 +479,18 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
         // (an over-receipt slot with no serial entered, or none at all) is
         // left out of the merge so it can never blank out an already-
         // recorded serialNumber.
+        //
+        // Vendor is merged in the same way — CreatePurchase.jsx no longer
+        // renders a per-unit Vendor field at all (assetFieldSets[i] never
+        // carries a vendorId), since the vendor is already fixed once, at
+        // this same Purchase record's own top-level vendorId (set once for
+        // every line on it, at the Basic Details step) — there's no
+        // per-unit value to merge conditionally, so this always applies.
         if (Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets)) {
           const serials = Array.isArray(it.serials) ? it.serials : []
           assetIds.forEach((assetId, i) => {
             if (!assetId || !it.assetFieldSets[i]) return
-            const correctedFields = { ...it.assetFieldSets[i] }
+            const correctedFields = { ...it.assetFieldSets[i], vendorId: purchase.vendorId }
             if (serials[i]?.trim()) correctedFields.serialNumber = serials[i].trim()
             confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber: purchase.poNumber })
           })
