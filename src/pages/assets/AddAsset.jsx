@@ -310,6 +310,13 @@ function isKitEligibleType(categoryId, typeId) {
 // Vendor are captured later, per physical unit, at GRN receipt
 // (CreatePurchase.jsx's AssetUnitDetailsSection) — pre-filled there from
 // this card's own captured Asset Details.
+//
+// Qty is fixed at 1 and non-editable (emptyLineItem() below, no updater
+// function) — each row describes exactly one physical asset, matching one
+// set of Asset Details/Kit Components; ordering more than one of the same
+// asset means adding another "Add Asset Row," not raising this row's Qty.
+// This is deliberately different from CreatePO.jsx's own Products step,
+// where a Product PO line's Qty stays freely editable.
 function AssetLineCard({ index, item, vendors, onUpdate, onRemove, showRemove, showErrors }) {
   const category = item.categoryId ? getAssetCategory(item.categoryId) : null
   const amount = computeLineAmount(item.qty, item.price, item.gstPercent)
@@ -324,7 +331,6 @@ function AssetLineCard({ index, item, vendors, onUpdate, onRemove, showRemove, s
   function selectType(e) {
     onUpdate({ typeId: e.target.value, fields: {}, kitComponents: [] })
   }
-  function updateQty(value) { onUpdate({ qty: Math.max(1, Number(value) || 1) }) }
   function updatePrice(value) { onUpdate({ price: value }) }
   function updateGst(value) { onUpdate({ gstPercent: value }) }
   function updateField(key, value) { onUpdate({ fields: { ...item.fields, [key]: value } }) }
@@ -353,8 +359,8 @@ function AssetLineCard({ index, item, vendors, onUpdate, onRemove, showRemove, s
               {category?.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
             </Select>
           </FormField>
-          <FormField label="Qty">
-            <Input type="number" min="1" value={item.qty} onChange={e => updateQty(e.target.value)} />
+          <FormField label="Qty" hint="Always 1 — add another Assets row for more">
+            <Input type="number" value={item.qty} disabled />
           </FormField>
           <FormField label="Price">
             <Input type="number" min="0" step="0.01" value={item.price} onChange={e => updatePrice(e.target.value)} placeholder="0.00" />
