@@ -31,39 +31,17 @@
 //     this" (Ladder's "Type", Authority/Access's "Card/Asset Type", Generic
 //     Tools' "Category") — Ladder is the only one the brief calls out by
 //     name, but the same reasoning clearly extends to the other two.
-//   - `scope`: 'template' (default, omitted on most fields) | 'instance'.
-//     A field defaults to 'template' — it describes the model itself (a
-//     spec/attribute true of every unit, e.g. RAM, Processor, Height) and
-//     is safe to carry a reusable default value in Asset Master. 'instance'
-//     marks a field whose value is inherently unique per physical unit or
-//     per purchase transaction: Serial Number; every date field (the
-//     "Purchase & Warranty" section AssetDetailFields groups them under:
-//     Purchase Date, Warranty Start/End Date, Ladder's Warranty Date,
-//     Authority/Access's Valid From/To); Asset Name (a per-unit nickname
-//     like "Sales Laptop 02", distinct from Asset Master's own template-
-//     identifying "Name" field, e.g. "Fujikura 90S+ Splicing Machine"); and
-//     Vendor (which vendor supplied a given unit is a per-purchase/per-PO
-//     decision, not a fixed attribute of the model). These can never have a
-//     sensible model-wide default, so Asset Master's Add/Edit Asset Model
-//     form filters them out of its "Default Field Values" step (via
-//     AssetDetailFields' onlyTemplateFields prop). AddAsset.jsx's own wizard
-//     and the GRN per-unit receipt step are unaffected — both still render
-//     every field regardless of scope, since scope only matters when asking
-//     "what's the default for every unit," not when entering one real unit.
-
-// Dynamic-field keys that duplicate Asset Master's own fixed top-level
-// Brand/Model inputs — 'brandName'/'modelName' (IT Asset, Field & Splicing
-// Tools) and 'brand' (Ladder, Generic Tools) are plain "what brand/model is
-// this" text fields with no meaning beyond what a Name/Brand/Model/Default
-// Price section already captures. Exported (rather than kept local to one
-// page) because two different screens need it: Asset Master's Add/Edit
-// modal hides these from its "Default Field Values" step (see
-// AssetMaster.jsx), and the Asset PO wizard's "Select from Asset Master"
-// step (AddAsset.jsx) maps a picked model's own top-level brand/model onto
-// these same keys when pre-filling a line item. No category defines a bare
-// 'model' key (only 'modelName'), so it isn't listed. Authority/Access has
-// neither.
-export const BRAND_MODEL_FIELD_KEYS = ['brandName', 'modelName', 'brand']
+//   - `scope`: 'template' (default, omitted on most fields) | 'instance' —
+//     historical/documentation metadata only, no live consumer. It used to
+//     drive which fields the now-removed Asset Master module could carry a
+//     reusable model-wide default for: 'template' fields describe the
+//     model itself (RAM, Processor, Height); 'instance' fields are
+//     inherently unique per physical unit or purchase (Serial Number, every
+//     date field, Vendor). AddAsset.jsx's own Products-step field list is a
+//     separate, explicit key list (GRN_ONLY_FIELD_KEYS) rather than a
+//     derivative of `scope` — it deliberately treats Asset Name as
+//     PO-time-capturable even though `scope` still marks it 'instance'
+//     here.
 
 export const KIT_COMPONENT_TYPES = [
   'Cleaver', 'Clamping Tool', 'Fiber Cutter', 'Cleaning Kit', 'Carrying Case', 'Battery', 'Charger', 'Other',

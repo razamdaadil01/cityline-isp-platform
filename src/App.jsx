@@ -54,7 +54,6 @@ import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import ProductList from './pages/inventory/ProductList'
 import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
-import AssetMaster from './pages/inventory/AssetMaster'
 import VendorList from './pages/inventory/VendorList'
 import VendorDetail from './pages/inventory/VendorDetail'
 import StoreList from './pages/inventory/StoreList'
@@ -172,7 +171,6 @@ export default function App() {
           <Route path="/inventory/overview" element={<InventoryOverview />} />
           <Route path="/inventory/products" element={<ProductList />} />
           <Route path="/inventory/product-taxonomy" element={<ProductTaxonomy />} />
-          <Route path="/inventory/asset-master" element={<AssetMaster />} />
           <Route path="/inventory/vendors" element={<VendorList />} />
           <Route path="/inventory/vendors/:id" element={<VendorDetail />} />
           <Route path="/inventory/vendors/:id/:tab" element={<VendorDetail />} />
