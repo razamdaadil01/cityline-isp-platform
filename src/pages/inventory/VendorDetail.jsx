@@ -789,7 +789,9 @@ export default function VendorDetail() {
                         <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{r.productName}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{r.expectedDeliveryDate}</td>
                         <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">
-                          {r.isWarrantyClaim ? 'No cost (Warranty Claim)' : (r.cost != null ? `₹${r.cost.toLocaleString('en-IN')}` : '—')}
+                          {r.isWarrantyClaim
+                            ? 'No cost (Warranty Claim)'
+                            : (r.isChargeable ? (r.cost != null ? `₹${r.cost.toLocaleString('en-IN')}` : '—') : 'Not Chargeable')}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">

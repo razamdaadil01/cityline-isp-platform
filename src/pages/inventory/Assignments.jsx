@@ -113,6 +113,7 @@ function SendForRepairModal({ target, onClose }) {
   const [selectedValue, setSelectedValue] = useState('')
   const [vendorId, setVendorId] = useState('')
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
+  const [isChargeable, setIsChargeable] = useState(false)
   const [cost, setCost] = useState('')
   const [remarks, setRemarks] = useState('')
   const [error, setError] = useState('')
@@ -122,6 +123,7 @@ function SendForRepairModal({ target, onClose }) {
       setSelectedValue(target.units[0]?.value ?? '')
       setVendorId('')
       setExpectedDeliveryDate('')
+      setIsChargeable(false)
       setCost('')
       setRemarks('')
       setError('')
@@ -154,10 +156,10 @@ function SendForRepairModal({ target, onClose }) {
       resolvedCost = null
     } else {
       if (!vendorId) { setError('Select a vendor.'); return }
-      if (cost === '' || Number(cost) < 0) { setError('Enter an estimated cost.'); return }
+      if (isChargeable && !(Number(cost) > 0)) { setError('Enter a valid cost for this chargeable repair.'); return }
       resolvedVendorId = vendorId
       resolvedVendorName = getVendor(vendorId)?.companyName ?? ''
-      resolvedCost = Number(cost)
+      resolvedCost = isChargeable ? Number(cost) : null
     }
 
     const unit = target.units.find(u => u.value === selectedValue)
@@ -170,7 +172,7 @@ function SendForRepairModal({ target, onClose }) {
         value: unit.value, kind: unit.kind,
         vendorId: resolvedVendorId, vendorName: resolvedVendorName,
         expectedDeliveryDate, remarks,
-        isWarrantyClaim, cost: resolvedCost,
+        isWarrantyClaim, isChargeable: !isWarrantyClaim && isChargeable, cost: resolvedCost,
       })
       removeUnitFromAssignmentLine(target.assignmentId, target.lineId, unit.value)
       onClose()
@@ -226,9 +228,25 @@ function SendForRepairModal({ target, onClose }) {
           )}
 
           {!isWarrantyClaim && (
-            <FormField label="Estimated Cost" required hint="No warranty coverage found for this unit — this will be a paid repair.">
-              <Input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="e.g. 1500" />
-            </FormField>
+            <>
+              <FormField label="Chargeable?" required hint="No warranty coverage found for this unit.">
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                    <input type="radio" name="repair-chargeable" checked={!isChargeable} onChange={() => setIsChargeable(false)} className="accent-brand-blue" />
+                    No
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                    <input type="radio" name="repair-chargeable" checked={isChargeable} onChange={() => setIsChargeable(true)} className="accent-brand-blue" />
+                    Yes
+                  </label>
+                </div>
+              </FormField>
+              {isChargeable && (
+                <FormField label="Amount" required hint="₹">
+                  <Input type="number" min="0" value={cost} onChange={e => setCost(e.target.value)} placeholder="e.g. 1500" />
+                </FormField>
+              )}
+            </>
           )}
 
           <FormField label="Expected Delivery Date" required>

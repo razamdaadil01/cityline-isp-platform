@@ -26,7 +26,7 @@ const SEED = [
     status: 'Sent for Repair', expectedDeliveryDate: '2026-09-05',
     sentAt: '2026-08-15T10:00:00.000Z', sentBy: 'Admin User',
     remarks: 'Reported dead-on-arrival by field engineer; sent back for warranty repair.',
-    isWarrantyClaim: true, cost: null,
+    isWarrantyClaim: true, isChargeable: false, cost: null,
   },
   {
     id: 'RPR-000002', productId: 'PRD-001', productName: 'ONT Device',
@@ -35,7 +35,7 @@ const SEED = [
     status: 'In Service', expectedDeliveryDate: '2026-08-30',
     sentAt: '2026-08-10T10:00:00.000Z', sentBy: 'Admin User',
     remarks: 'Intermittent optical signal loss — vendor has acknowledged and begun diagnostics.',
-    isWarrantyClaim: false, cost: 850,
+    isWarrantyClaim: false, isChargeable: true, cost: 850,
   },
 ]
 
@@ -67,10 +67,22 @@ export function subscribeRepairs(fn) {
 // and passes it straight through rather than this store re-deriving it, since
 // deriving it here would need the unit object this store deliberately never
 // reads (see file-level note above: this store never imports
-// inventoryLedger.js back). cost is the entered Estimated Cost when it's a
-// paid repair, or null when isWarrantyClaim is true — genuinely free, not
-// just an unset field.
-export function saveRepair({ productId, productName, value, kind, vendorId, vendorName, expectedDeliveryDate, remarks, isWarrantyClaim = false, cost = null }, actor = 'Admin User') {
+// inventoryLedger.js back).
+//
+// isChargeable is the out-of-warranty admin's own "will this cost us money"
+// call (mirrors assetRepairStore.js's raiseRepairRequest() isChargeable/
+// chargeableAmount split, added there for the same client requirement) —
+// a warranty claim is already free by definition, so isChargeable is
+// meaningless when isWarrantyClaim is true; cost normalizes to null for
+// either a warranty claim OR a "Not Chargeable" repair, same treatment.
+// Validated here rather than only in the modal, same discipline
+// raiseRepairRequest() already established, so no other caller can save an
+// inconsistent isChargeable: true record with no actual cost.
+export function saveRepair({ productId, productName, value, kind, vendorId, vendorName, expectedDeliveryDate, remarks, isWarrantyClaim = false, isChargeable = false, cost = null }, actor = 'Admin User') {
+  if (!isWarrantyClaim && isChargeable && !(Number(cost) > 0)) {
+    throw new Error('Enter a valid cost for this chargeable repair.')
+  }
+
   const repair = {
     id: `RPR-${String(_nextSeq++).padStart(6, '0')}`,
     productId, productName, value, kind,
@@ -78,13 +90,14 @@ export function saveRepair({ productId, productName, value, kind, vendorId, vend
     status: 'Sent for Repair', expectedDeliveryDate,
     sentAt: new Date().toISOString(), sentBy: actor,
     remarks: (remarks || '').trim(),
-    isWarrantyClaim, cost: isWarrantyClaim ? null : cost,
+    isWarrantyClaim, isChargeable: !isWarrantyClaim && !!isChargeable,
+    cost: isWarrantyClaim || !isChargeable ? null : Number(cost),
   }
   _repairs = [repair, ..._repairs]
   notify()
   logAudit({
     action: 'Create', module: 'Inventory',
-    details: `${value} (${productName}) sent for repair to ${vendorName}${isWarrantyClaim ? ' (warranty claim)' : ''}`,
+    details: `${value} (${productName}) sent for repair to ${vendorName}${isWarrantyClaim ? ' (warranty claim)' : repair.isChargeable ? ` (chargeable — ₹${repair.cost.toLocaleString('en-IN')})` : ' (not chargeable)'}`,
   })
   return repair
 }
