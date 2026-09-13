@@ -743,12 +743,14 @@ export default function CreateStoreTransfer() {
   // 3-step wizard.
   const storesValid = !!storeFromId && !!storeToId && storeFromId !== storeToId
 
-  // Same city-comparison saveStoreTransfer() itself makes (storeTransferStore.js)
-  // to decide 'Completed' vs 'Sent' — mirrored here purely for the UI notice/
-  // button label, never used to alter what gets submitted; an unset city on
-  // either store reads as cross-city, matching that function's own
-  // conservative default.
-  const isCrossCity = storesValid && (!storeFrom?.city || !storeTo?.city || storeFrom.city.trim().toLowerCase() !== storeTo.city.trim().toLowerCase())
+  // Same city/cross-city — purely informational here (storeTransferStore.js's
+  // saveStoreTransfer() makes the actual same-city vs. 'Sent' status
+  // decision off the same two `city` fields, via its own sameCity() helper,
+  // so this only decides the notice/button copy below, never the transfer's
+  // own outcome). Two stores that both have no city set compare equal here
+  // too, matching sameCity()'s own default.
+  const citiesDiffer = storesValid && (storeFrom?.city || '').trim().toLowerCase() !== (storeTo?.city || '').trim().toLowerCase()
+  const submitLabel = isEditMode ? 'Save Changes' : (citiesDiffer ? 'Send Transfer' : 'Transfer Stock')
 
   const issuedHwLines = hwLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
   const issuedWireLines = wireLines.filter(l => l.drumNumber && Number(l.meters) > 0)
@@ -844,12 +846,10 @@ export default function CreateStoreTransfer() {
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a Store From and a different Store To to continue.
               </div>
             )}
-            {!isEditMode && isCrossCity && (
+            {citiesDiffer && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                {storeFrom?.city && storeTo?.city
-                  ? <>{storeFrom.city} → {storeTo.city} is a cross-city transfer — it will be marked <span className="font-semibold">Sent</span> and held as In Transit until the destination store confirms receipt.</>
-                  : <>Store city is not set for one or both stores — this transfer will be treated as cross-city and marked <span className="font-semibold">Sent</span> until receipt is confirmed.</>}
+                {storeFrom?.storeName} and {storeTo?.storeName} are in different cities — this transfer will require a Receive confirmation at {storeTo?.storeName} once it arrives.
               </div>
             )}
           </div>
@@ -947,7 +947,7 @@ export default function CreateStoreTransfer() {
                 </div>
               )}
               <div className="flex justify-end">
-                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>{isEditMode ? 'Save Changes' : (isCrossCity ? 'Send Transfer' : 'Transfer Stock')}</Button>
+                <Button size="sm" icon={<CheckCircle2 size={14} />} onClick={openConfirmModal}>{submitLabel}</Button>
               </div>
             </div>
           )}
@@ -964,7 +964,7 @@ export default function CreateStoreTransfer() {
           onClose={() => setShowConfirmModal(false)}
           size="lg"
           title={isEditMode ? 'Confirm Changes' : 'Confirm Transfer'}
-          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>{isEditMode ? 'Save Changes' : (isCrossCity ? 'Send Transfer' : 'Transfer Stock')}</Button>}
+          footer={<Button size="sm" icon={<CheckCircle2 size={14} />} onClick={handleConfirm}>{submitLabel}</Button>}
         >
           <div className="space-y-5">
             {saveError && (

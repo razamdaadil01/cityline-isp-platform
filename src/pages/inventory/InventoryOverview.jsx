@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { FormField, Select, Input, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
+import ScrapUnitModal from '../../components/inventory/ScrapUnitModal'
 import { getProducts } from '../../data/productStore'
 import { getStores } from '../../data/storeStore'
 import {
@@ -16,6 +17,8 @@ import {
   getProductAvailability, subscribeInventoryLedger,
 } from '../../data/inventoryLedger'
 import { saveReplacement } from '../../data/replacementStore'
+import { getAssignments, removeUnitFromAssignmentLine } from '../../data/assignmentStore'
+import { getScraps } from '../../data/scrapStore'
 import { getTickets } from '../../data/ticketsStore'
 import { exportWorkbook } from '../../utils/excelExport'
 import { logAudit } from '../../data/auditLogStore'
@@ -51,10 +54,11 @@ function productMatchesSearch(product, units, drums, q) {
 
 // ── Product Detail slide-over ───────────────────────────────────────────────
 
-function UnitRow({ unit, storeName }) {
+function UnitRow({ unit, storeName, productName }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [replaceOpen, setReplaceOpen] = useState(false)
+  const [scrapTarget, setScrapTarget] = useState(null)
   const trail = expanded ? getUnitTrail(unit) : null
   const isAssigned = unit.status === 'Assigned to Engineer' || unit.status === 'Assigned to User'
   // No 'Installed' status exists in the current state model yet — treat
@@ -64,6 +68,38 @@ function UnitRow({ unit, storeName }) {
   // Only units still in stock at a store can be moved to another store —
   // the same window during which they could otherwise be assigned out.
   const canTransfer = unit.status === 'Available'
+  // Scrap is available from any live state — a unit can be found damaged
+  // sitting in the warehouse (Available), out with an engineer, or even
+  // mid-repair — except the two states that already mean it's permanently
+  // left circulation via a different resolution (Replaced) or is already
+  // this same terminal state (Scrapped).
+  const canScrap = unit.status !== 'Replaced' && unit.status !== 'Scrapped'
+
+  function openScrap() {
+    // A unit currently 'Assigned to Engineer' still sits on a real
+    // assignment line — same removal Assignments.jsx's own "Scrap" action
+    // uses, found here by searching that one assignment (via
+    // unit.assignmentId, set by inventoryLedger.js's own Assignments
+    // layering block) for the line actually carrying this unit's value.
+    // Any other status (Available, Sent for Repair, In Service, ...) has
+    // no assignment to remove from, so this simply stays null for those.
+    let assignmentId = null, lineId = null
+    if (unit.assignmentId) {
+      const assignment = getAssignments().find(a => a.id === unit.assignmentId)
+      const line = assignment?.hardwareLines.find(l => l.serials.includes(unit.value) || l.macs.includes(unit.value))
+      if (assignment && line) { assignmentId = assignment.id; lineId = line.id }
+    }
+    setScrapTarget({
+      assignmentId, lineId,
+      productId: unit.productId, productName,
+      storeId: unit.storeId, storeName,
+      // Dual-tracked (kind: 'serial-mac') units are identified by their
+      // serial when they have one, same preference SendForRepairModal/
+      // ScrapUnitModal's other caller (Assignments.jsx) already applies —
+      // scrapStore.js's own kind is only ever 'serial'|'mac'.
+      units: [{ value: unit.value, kind: unit.serial ? 'serial' : 'mac' }],
+    })
+  }
 
   return (
     <div className="rounded-lg border border-surface-border overflow-hidden">
@@ -82,7 +118,7 @@ function UnitRow({ unit, storeName }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-gray-500">{storeName}</span>
-          <Badge variant={unit.status === 'Available' ? 'green' : unit.status === 'Replaced' ? 'red' : 'purple'} size="sm" dot>{unit.status}</Badge>
+          <Badge variant={unit.status === 'Available' ? 'green' : (unit.status === 'Replaced' || unit.status === 'Scrapped') ? 'red' : 'purple'} size="sm" dot>{unit.status}</Badge>
         </div>
       </button>
       {expanded && (
@@ -119,10 +155,21 @@ function UnitRow({ unit, storeName }) {
                 <ArrowLeftRight size={12} /> Transfer
               </button>
             )}
+            {canScrap && (
+              <button type="button" onClick={openScrap}
+                className="flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-600">
+                <Trash2 size={12} /> Scrap
+              </button>
+            )}
           </div>
         </div>
       )}
       <MarkReplacedModal isOpen={replaceOpen} onClose={() => setReplaceOpen(false)} unit={unit} />
+      <ScrapUnitModal
+        target={scrapTarget}
+        onClose={() => setScrapTarget(null)}
+        onScrapped={u => { if (scrapTarget.assignmentId) removeUnitFromAssignmentLine(scrapTarget.assignmentId, scrapTarget.lineId, u.value) }}
+      />
     </div>
   )
 }
@@ -256,6 +303,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
   const available = balances.reduce((s, b) => s + b.availableQty, 0)
   const engineerAssigned = getEngineerAssignedQty(product.id)
   const movements = getMovements({ productId: product.id })
+  const scrapCount = getScraps().filter(s => s.productId === product.id).length
 
   const breakdown = [
     { label: 'Total',    value: available + engineerAssigned, color: 'text-gray-900' },
@@ -263,7 +311,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
     { label: 'Engineer', value: engineerAssigned,              color: engineerAssigned > 0 ? 'text-purple-600' : 'text-gray-400' },
     { label: 'User',     value: 0,          color: 'text-gray-400' },
     { label: 'Faulty',   value: 0,          color: 'text-gray-400' },
-    { label: 'Scrap',    value: 0,          color: 'text-gray-400' },
+    { label: 'Scrap',    value: scrapCount, color: scrapCount > 0 ? 'text-red-600' : 'text-gray-400' },
   ]
 
   return (
@@ -314,7 +362,7 @@ function ProductDetailPanel({ product, stores, onClose }) {
                 : drums.map(d => <DrumRow key={`${d.purchaseId}-${d.drumNumber}`} drum={d} storeName={storeName(d.storeId)} />)
             ) : isTracked ? (
               units.length === 0 ? <p className="text-sm text-gray-400 text-center py-8">No tracked units received yet.</p>
-                : units.map((u, i) => <UnitRow key={`${u.purchaseId}-${u.value}-${i}`} unit={u} storeName={storeName(u.storeId)} />)
+                : units.map((u, i) => <UnitRow key={`${u.purchaseId}-${u.value}-${i}`} unit={u} storeName={storeName(u.storeId)} productName={product.name} />)
             ) : (
               balances.length === 0 ? <p className="text-sm text-gray-400 text-center py-8">No stock received yet.</p>
                 : (
@@ -572,7 +620,9 @@ export default function InventoryOverview() {
 
     const lowStockCount = allProducts.filter(p => scopedAvailability(p.id) < (Number(p.reorderAlertQty) || 0)).length
 
-    return { totalInventoryItems, hardwareAvailable, wireAvailable, assignedToEngineers, lowStockCount }
+    const scrapCount = getScraps().length
+
+    return { totalInventoryItems, hardwareAvailable, wireAvailable, assignedToEngineers, lowStockCount, scrapCount }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allBalances, scopedStoreIds, allProducts])
 
@@ -587,7 +637,8 @@ export default function InventoryOverview() {
       .map(p => {
         const availableQty = scopedAvailability(p.id)
         const engineerQty = scopedEngineerAssigned(p.id)
-        return { product: p, availableQty, engineerQty, lowStock: availableQty < (Number(p.reorderAlertQty) || 0) }
+        const scrapQty = getScraps().filter(s => s.productId === p.id).length
+        return { product: p, availableQty, engineerQty, scrapQty, lowStock: availableQty < (Number(p.reorderAlertQty) || 0) }
       })
       .filter(row => !filterLowStock || row.lowStock)
       .sort((a, b) => a.product.name.localeCompare(b.product.name))
@@ -638,7 +689,7 @@ export default function InventoryOverview() {
           { label: 'Assigned to Engineers', value: stats.assignedToEngineers, icon: UserCog,      color: 'text-purple-600',   bg: 'bg-purple-50' },
           { label: 'Assigned to Users',     value: 0,                         icon: Users,        color: 'text-gray-400',     bg: 'bg-gray-100' },
           { label: 'Faulty',                value: 0,                         icon: ShieldAlert,  color: 'text-gray-400',     bg: 'bg-gray-100' },
-          { label: 'Scrap',                 value: 0,                         icon: Trash2,       color: 'text-gray-400',     bg: 'bg-gray-100' },
+          { label: 'Scrap',                 value: stats.scrapCount,          icon: Trash2,       color: 'text-red-600',      bg: 'bg-red-50' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
@@ -832,7 +883,7 @@ export default function InventoryOverview() {
                     No products found
                   </td>
                 </tr>
-              ) : rows.map(({ product, availableQty, engineerQty, lowStock }) => (
+              ) : rows.map(({ product, availableQty, engineerQty, scrapQty, lowStock }) => (
                 <tr key={product.id} onClick={() => setSelectedProductId(product.id)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
@@ -851,7 +902,7 @@ export default function InventoryOverview() {
                   {visibleCols.has('engineer') && <td className={`px-4 py-3 text-right text-xs ${engineerQty > 0 ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{engineerQty}</td>}
                   {visibleCols.has('user')     && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
                   {visibleCols.has('damage')   && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
-                  {visibleCols.has('scrap')    && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
+                  {visibleCols.has('scrap')    && <td className={`px-4 py-3 text-right text-xs ${scrapQty > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>{scrapQty}</td>}
                   {visibleCols.has('status') && (
                     <td className="px-4 py-3">
                       <Badge variant={product.status === 'active' ? 'green' : 'gray'} dot size="sm">{product.status === 'active' ? 'Active' : 'Inactive'}</Badge>

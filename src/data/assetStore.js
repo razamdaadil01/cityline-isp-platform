@@ -35,13 +35,19 @@ export const ASSET_RETURN_CONDITIONS = ['Working', 'Minor Issue', 'Damaged', 'No
 // ── Seed data — so Phase 4a's Assign to Engineer action has real 'In Stock'
 // assets to test against without repeating Add Asset → PO → Approval → GRN
 // each time the dev server resets. No poId (these weren't created through a
-// real Asset Purchase PO — nothing in purchaseOrderStore.js's own seed data
-// is poType 'Asset Purchase' to link against, and a fabricated poId would
-// dangle when Asset Detail's "View PO" tries to resolve it), no
-// companyEntityId (assetStore.js's own asset shape has never carried one —
-// see Phase 2's note — Company/Entity only ever exists transiently in
-// AddAsset.jsx's own form state, used solely to build a PO payload). Vendor
-// ids reference vendorStore.js's real seeded vendors (VEN-002/VEN-003).
+// real Asset Purchase PO — until purchaseOrderStore.js's own seed data
+// added its two Asset Purchase POs, nothing there was poType 'Asset
+// Purchase' to link against, and a fabricated poId would dangle when Asset
+// Detail's "View PO" tries to resolve it), no companyEntityId
+// (assetStore.js's own asset shape has never carried one — see Phase 2's
+// note — Company/Entity only ever exists transiently in AddAsset.jsx's own
+// form state, used solely to build a PO payload). Vendor ids reference
+// vendorStore.js's real seeded vendors (VEN-002/VEN-003). The exceptions
+// are AST-2026-000013 through AST-2026-000018 below, deliberately linked to
+// purchaseOrderStore.js's own seeded Asset Purchase POs (one per Asset
+// Category) so the Purchases (GRN) wizard's Select PO step and receipt UI
+// (CreatePurchase.jsx's linkedAssetForPOItem()/requestedKitComponents())
+// have a real un-received case for every category to render against.
 const SEED = [
   {
     id: 'AST-2026-000001',
@@ -280,6 +286,155 @@ const SEED = [
     status: 'Under Repair', assignedTo: null, poId: null,
     createdBy: 'Admin User', createdAt: '2025-12-02T10:00:00.000Z',
   },
+  // Linked to the seeded Asset Purchase PO PO-000010 (purchaseOrderStore.js)
+  // — status stays 'PO Raised' (not 'In Stock') since that PO is still
+  // 'Sent', not yet received; markAssetsInStockForPO() (called from
+  // purchaseStore.js once a real GRN against PO-000010 is confirmed) will
+  // flip this to 'In Stock' the same way it does for a live Add Asset → Save
+  // & Raise PO asset. kitComponents carries no receivedStatus yet — that's
+  // only set once GRN receipt actually confirms each one — so the Purchases
+  // wizard's Select PO step can pull this in as a genuine "not yet
+  // received" Splicing Machine case.
+  {
+    id: 'AST-2026-000013',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Fusion Splicer Unit C', brandName: 'Fujikura', modelName: '80S',
+      serialNumber: 'FJK-80S-2026-0013',
+      purchaseDate: '2026-08-29', warrantyStartDate: '2026-08-29', warrantyEndDate: '2028-08-28',
+      vendorId: 'VEN-001',
+      kitComponents: [
+        { id: 'kc-seed-13a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0013', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-13b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0013', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-13c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0013', quantity: 1, condition: 'New' },
+      ],
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000010', poItemId: 'POI-asset-AST-2026-000013',
+    createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z',
+  },
+  // ── One 'PO Raised' asset per remaining Asset Category, each linked to
+  // its own seeded Asset Purchase PO (PO-000012 through PO-000016 in
+  // purchaseOrderStore.js) the same way AST-2026-000013 links to PO-000010
+  // above — poId + poItemId (a PO can now carry several asset lines, so
+  // poItemId identifies which one) — so every category's GRN receipt path
+  // (not just Splicing Machine's kit confirmation) has a real case to walk
+  // through Purchases' "Select PO" step end to end. PO-000012 now carries
+  // two lines (this Desktop plus AST-2026-000018's Drill Machine below) and
+  // PO-000016 three (AST-2026-000019/020/021 below), demonstrating a
+  // multi-item Asset PO; PO-000010/013/014/015 each stay single-item.
+  {
+    id: 'AST-2026-000014',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'desktop', typeLabel: 'Desktop',
+    fields: {
+      assetName: 'Front Office Desktop 01', brandName: 'Dell', modelName: 'OptiPlex 7020',
+      storageCapacity: '1TB SSD', ram: '16GB', processor: 'Intel Core i5-13500',
+      serialNumber: 'DL-OPX7020-AST-0014',
+      purchaseDate: '2026-08-30', warrantyStartDate: '2026-08-30', warrantyEndDate: '2029-08-29',
+      vendorId: 'VEN-002',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000012', poItemId: 'POI-asset-AST-2026-000014',
+    createdBy: 'Neha Gupta', createdAt: '2026-08-30T09:45:00.000Z',
+  },
+  // Second Splicing Machine still awaiting GRN (distinct from
+  // AST-2026-000013 above) — its own kit component ids so neither seed's
+  // rows collide once both are received. Deliberately kept as PO-000013's
+  // only line — see purchaseOrderStore.js's own note on why the Splicing
+  // Machine kit-component test case stays isolated to a single-item PO.
+  {
+    id: 'AST-2026-000015',
+    categoryId: 'field-splicing-tools', categoryLabel: 'Field & Splicing Tools',
+    typeId: 'splicing-machine', typeLabel: 'Splicing Machine',
+    fields: {
+      assetName: 'Fusion Splicer Unit D', brandName: 'Fujikura', modelName: '90S+',
+      serialNumber: 'FJK-90S-2026-0015',
+      purchaseDate: '2026-08-31', warrantyStartDate: '2026-08-31', warrantyEndDate: '2028-08-30',
+      vendorId: 'VEN-002',
+      kitComponents: [
+        { id: 'kc-seed-15a', componentType: 'Cleaver', componentName: 'CT-50 Cleaver', serialNumber: 'CLV-2026-0015', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-15b', componentType: 'Clamping Tool', componentName: 'Fiber Clamp Set', serialNumber: 'CLT-2026-0015', quantity: 1, condition: 'New' },
+        { id: 'kc-seed-15c', componentType: 'Carrying Case', componentName: 'Hard Transport Case', serialNumber: 'CC-2026-0015', quantity: 1, condition: 'New' },
+      ],
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000013', poItemId: 'POI-asset-AST-2026-000015',
+    createdBy: 'Salim Khan', createdAt: '2026-08-31T14:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000016',
+    categoryId: 'ladder', categoryLabel: 'Ladder',
+    typeId: 'aluminium-ladder', typeLabel: 'Aluminium Ladder',
+    fields: {
+      ladderName: 'Field Ladder 01', type: 'Aluminium Ladder', height: '12 ft', maxLoadCapacity: '150 kg',
+      brand: 'Bathla', purchaseDate: '2026-09-01', warrantyDate: '2027-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000014', poItemId: 'POI-asset-AST-2026-000016',
+    createdBy: 'Anita Sharma', createdAt: '2026-09-01T10:15:00.000Z',
+  },
+  {
+    id: 'AST-2026-000017',
+    categoryId: 'authority-access', categoryLabel: 'Authority/Access',
+    typeId: 'safety-gear', typeLabel: 'Safety Gear',
+    fields: {
+      cardAssetType: 'Safety Gear', cardIdNumber: 'SG-2026-0017', issuedTo: 'eng-004',
+      validFrom: '2026-09-01', validTo: '2027-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000015', poItemId: 'POI-asset-AST-2026-000017',
+    createdBy: 'Ravi Patel', createdAt: '2026-08-28T15:30:00.000Z',
+  },
+  // Now PO-000012's second line (moved from its own now-retired single-item
+  // PO so that PO demonstrates 2 line items — see purchaseOrderStore.js's
+  // own note) rather than PO-000016's only line.
+  {
+    id: 'AST-2026-000018',
+    categoryId: 'generic-tools', categoryLabel: 'Generic Tools',
+    typeId: 'drill-machine', typeLabel: 'Drill Machine',
+    fields: {
+      toolName: 'Cordless Drill Machine 01', category: 'Drill Machine', brand: 'Bosch', quantity: 1,
+      serialNumber: 'BSH-DRL-2026-0018', purchaseDate: '2026-08-26',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000012', poItemId: 'POI-asset-AST-2026-000018',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
+  // ── PO-000016's 3 lines — 3 different Category/Type combos in one PO,
+  // demonstrating the multi-item Asset PO end to end at a higher line count
+  // than PO-000012's 2.
+  {
+    id: 'AST-2026-000019',
+    categoryId: 'it-asset', categoryLabel: 'IT Asset',
+    typeId: 'laptop', typeLabel: 'Laptop',
+    fields: {
+      assetName: 'Sales Laptop 02', brandName: 'Dell', modelName: 'Latitude 5440',
+      storageCapacity: '512GB SSD', ram: '16GB', processor: 'Intel Core i5-1335U',
+      serialNumber: 'DL-LAT5440-AST-0019',
+      purchaseDate: '2026-09-01', warrantyStartDate: '2026-09-01', warrantyEndDate: '2029-08-31',
+      vendorId: 'VEN-003',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016', poItemId: 'POI-asset-AST-2026-000019',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000020',
+    categoryId: 'generic-tools', categoryLabel: 'Generic Tools',
+    typeId: 'crimping-tool', typeLabel: 'Crimping Tool',
+    fields: {
+      toolName: 'RJ45 Crimping Tool 01', category: 'Crimping Tool', brand: 'Klein Tools', quantity: 1,
+      serialNumber: '', purchaseDate: '2026-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016', poItemId: 'POI-asset-AST-2026-000020',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
+  {
+    id: 'AST-2026-000021',
+    categoryId: 'ladder', categoryLabel: 'Ladder',
+    typeId: 'extension-ladder', typeLabel: 'Extension Ladder',
+    fields: {
+      ladderName: 'Field Ladder 02', type: 'Extension Ladder', height: '20 ft', maxLoadCapacity: '180 kg',
+      brand: 'Bathla', purchaseDate: '2026-09-01', warrantyDate: '2027-09-01',
+    },
+    status: 'PO Raised', assignedTo: null, poId: 'PO-000016', poItemId: 'POI-asset-AST-2026-000021',
+    createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z',
+  },
 ]
 
 // hasMissingComponents/returnHistory/warrantyAlertsSent/retirementInfo/
@@ -339,10 +494,15 @@ function buildAsset(data, status, actor) {
     fields: data.fields || {},
     status,
     assignedTo: null,
-    // Set after the fact, once "Save & Raise PO" has actually created the
-    // linked Purchase Order (see AddAsset.jsx) — a brand-new asset never
-    // carries this on creation itself, since the PO doesn't exist yet.
-    poId: null,
+    // Both set after the fact, once "Save & Raise PO" has actually created
+    // the linked Purchase Order (see AddAsset.jsx) — a brand-new asset never
+    // carries these on creation itself, since the PO doesn't exist yet.
+    // poItemId identifies which of that PO's (possibly several) asset lines
+    // this asset belongs to — CreatePurchase.jsx's linkedAssetsForPOItem()
+    // matches on poId + poItemId together, since one PO can now carry
+    // multiple Category/Type/Qty line items, each with its own poItemId
+    // shared by every unit createAssetsBulk() stamped out for that line.
+    poId: null, poItemId: null,
     // Phase 4b — populated by initiateAssetReturn() below; a brand-new
     // asset has never been returned.
     hasMissingComponents: false,
@@ -430,6 +590,40 @@ export function confirmKitComponentsForAsset(assetId, kitComponents) {
   _assets = _assets.map(a => a.id === assetId ? updated : a)
   notify()
   logAudit({ action: 'Edit', module: 'Assets', details: `Kit components confirmed at GRN for asset ${assetId}` })
+}
+
+// Called from purchaseStore.js's savePurchase() when a GRN (Purchase
+// confirm) completes for an Asset Purchase PO's receipt line — the
+// receiving person can review/correct the same Add Asset detail fields
+// (Asset Name, Brand, Model, RAM, etc. — CreatePurchase.jsx's own
+// AssetUnitDetailsSection, reusing AddAsset.jsx's AssetDetailFields
+// renderer) if the vendor actually shipped something different from what
+// was ordered. `correctedFields` never includes kitComponents — that's
+// confirmed separately via confirmKitComponentsForAsset() above — so this
+// merge can never clobber it regardless of call order. Only logs an audit
+// entry (and only for the fields that actually changed) rather than one
+// unconditionally on every confirm, so a receipt that needed no
+// corrections doesn't add audit noise; the original PO-time value is
+// preserved in that audit trail (old → new) since the asset record itself
+// only ever holds the current value, same as any other Edit here.
+export function confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber } = {}) {
+  const asset = getAsset(assetId)
+  if (!asset) return
+  const changed = Object.keys(correctedFields).filter(key => {
+    const before = asset.fields?.[key] ?? ''
+    const after = correctedFields[key] ?? ''
+    return String(before) !== String(after)
+  })
+  const updated = { ...asset, fields: { ...asset.fields, ...correctedFields } }
+  _assets = _assets.map(a => a.id === assetId ? updated : a)
+  notify()
+  if (changed.length > 0) {
+    const changes = changed.map(key => `${key}: "${asset.fields?.[key] ?? ''}" → "${correctedFields[key] ?? ''}"`).join('; ')
+    logAudit({
+      action: 'Edit', module: 'Assets',
+      details: `Corrected at GRN receipt${poNumber ? ` of ${poNumber}` : ''} for asset ${assetId} — ${changes}`,
+    })
+  }
 }
 
 // Phase 4a — Assign Asset to Engineer. Only allowed from 'In Stock' (an

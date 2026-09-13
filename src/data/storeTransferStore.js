@@ -7,14 +7,16 @@
 //
 // A transfer is instantaneous ('Completed' the moment it's saved) only
 // when Store From and Store To share the same city — see storeStore.js's
-// own city field. A cross-city transfer instead lands on 'Sent': the
-// source side has already left (see inventoryLedger.js's own Store
-// Transfers block for exactly what that does/doesn't move immediately),
-// but the destination side doesn't apply until receiveStoreTransfer()
-// below is called — modeling the real gap between a courier picking up
-// goods and someone physically signing for them on arrival. Either way, a
-// transfer moves to 'Reversed' only once every one of its lines has been
-// reversed (see reverseStoreTransferLine below) — there is still no
+// own city field, compared via sameCity() below. A cross-city transfer
+// instead lands on 'Sent': the source side has already left (see
+// inventoryLedger.js's own Store Transfers block for exactly what that
+// does/doesn't move immediately), but the destination side doesn't apply
+// until receiveStoreTransfer() below is called — modeling the real gap
+// between a courier picking up goods and someone physically signing for
+// them on arrival, including uploading a photo/scan of that signed challan
+// as proof (see receiveStoreTransfer()'s own note). Either way, a transfer
+// moves to 'Reversed' only once every one of its lines has been reversed
+// (see reverseStoreTransferLine below) — there is still no
 // approval/rejection state, and a 'Sent' transfer reverses exactly the
 // same way a 'Completed' one does (see that function's own note).
 //
@@ -56,17 +58,22 @@ export const STORE_TRANSFER_STATUSES = ['Completed', 'Sent', 'Reversed']
 //     assigned (ASG-000002/000003) = 48 available; Patch Cord 80 − 10
 //     (ASG-000004) = 70 available (untouched here).
 //   Andheri Store (STR-002): ONT Device serials 0001-0003 are already
-//     'Assigned to User' (ASG-000001/5/6 + USRA-000001/2/3) — only
-//     0004-0008 are still 'Available'; Wall Mount Bracket 10 − 1
-//     (ASG-000001) = 9 available (untouched here); WiFi Router 10
-//     available (untouched by any assignment); Drop Wire drum DR-00871
-//     500m − 30m (ASG-000001) = 470m remaining.
-// None of the serials/drum used below (0004, 0005, DR-00871) are
+//     'Assigned to User' (ASG-000001/5/6 + USRA-000001/2/3), 0006 is
+//     'Assigned to Engineer' (ASG-000010) — only 0004, 0005, 0007 are used
+//     below (0008 stays free); Wall Mount Bracket 10 − 1 (ASG-000001) = 9
+//     available (untouched here); WiFi Router 10 available (untouched by
+//     any assignment); Drop Wire drum DR-00871 500m − 30m (ASG-000001) =
+//     470m remaining.
+// None of the serials/drum used below (0004, 0005, 0007, DR-00871) are
 // referenced by any other seeded record (replacementStore.js/repairStore.js
 // have none), and no serial is reused across two of these transfers — the
 // same dedup guard saveStoreTransfer() enforces at save time. Bandra Store
-// (STR-003) has no purchases of its own in the seed data, so it only ever
-// appears as a Store To below, never a Store From.
+// (STR-003) and Noida Store (STR-004) have no purchases of their own in the
+// seed data, so they only ever appear as a Store To below, never a Store
+// From. STF-000006 (Andheri → Noida, both real Mumbai/Noida cities per
+// storeStore.js) is the one cross-city, still-'Sent' line — everything else
+// here is same-city and 'Completed', matching how saveStoreTransfer()
+// itself would route each of these today.
 const SEED = [
   {
     id: 'STF-000001', transferNumber: 'TRF-2026-000001',
@@ -127,6 +134,33 @@ const SEED = [
     reason: '',
     assignedBy: 'Admin User',
     status: 'Completed',
+  },
+  {
+    // Cross-city, still in transit — Andheri Store (Mumbai) → Noida Store
+    // (Noida), a different city per storeStore.js, so saveStoreTransfer()
+    // would route this as 'Sent' rather than 'Completed' today. Seeded
+    // directly at 'Sent' (rather than via saveStoreTransfer()) so the Store
+    // Transfer list has a real example on first load to exercise the
+    // "Receive Transfer" action against: inventoryLedger.js's Store
+    // Transfers block (see that file) reads this same `status` generically,
+    // so ZTE-ONT-2026-0007 already shows as deducted from Andheri Store and
+    // sitting at unit.status 'In Transit' — not yet 'Available' at Noida —
+    // exactly as it would for a freshly-saved cross-city transfer.
+    // receivedAt/receivedBy stay null until someone calls
+    // receiveStoreTransfer() on this record.
+    id: 'STF-000006', transferNumber: 'TRF-2026-000006',
+    date: '2026-09-11T09:30:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-004', storeToName: 'Noida Store',
+    items: [
+      { id: 'STFI-6-0', productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0007'], macs: [], qty: 1, drumNumber: null, remark: 'Noida branch launch stock' },
+    ],
+    reason: 'Noida Store opening — initial stock allocation',
+    assignedBy: 'Admin User',
+    status: 'Sent',
+    sentAt: '2026-09-11T09:30:00.000Z',
+    receivedAt: null,
+    receivedBy: null,
   },
 ]
 
@@ -230,32 +264,35 @@ function validateAndBuildItems(data, seq, excludeId = null) {
 // transfer (not per line) — same idea as the whole-assignment `remarks` on
 // assignmentStore.js/userAssignmentStore.js's own records.
 //
-// Same-city vs cross-city is decided here, once, from each store's own
-// `city` (storeStore.js) — a same-city move keeps today's instant
-// behavior; anything else (including either store having no city set at
-// all, a deliberately conservative default — see the file-level note
-// above) lands on 'Sent' and waits for receiveStoreTransfer() below.
+// Same-city vs. cross-city routing — a literal, case-insensitive compare of
+// each store's own `city` field (storeStore.js). Two stores that both have
+// no city set compare equal (both ''), so transfers stay instant by default
+// until stores are actually given real cities — never a surprise downgrade
+// to a 'Sent' state for existing data.
+function sameCity(storeFromId, storeToId) {
+  const from = (getStore(storeFromId)?.city || '').trim().toLowerCase()
+  const to = (getStore(storeToId)?.city || '').trim().toLowerCase()
+  return from === to
+}
+
 export function saveStoreTransfer(data, actor = 'Admin User') {
   const seq = _nextInternalSeq++
   const items = validateAndBuildItems(data, seq)
 
-  const storeFromCity = (getStore(data.storeFromId)?.city || '').trim().toLowerCase()
-  const storeToCity = (getStore(data.storeToId)?.city || '').trim().toLowerCase()
-  const isSameCity = !!storeFromCity && storeFromCity === storeToCity
-  const status = isSameCity ? 'Completed' : 'Sent'
-  const now = new Date().toISOString()
+  const isSameCity = sameCity(data.storeFromId, data.storeToId)
+  const date = new Date().toISOString()
 
   const transfer = {
     id: `STF-${String(seq).padStart(6, '0')}`,
     transferNumber: nextTransferNumber(),
-    date: now,
+    date,
     storeFromId: data.storeFromId, storeFromName: data.storeFromName,
     storeToId: data.storeToId, storeToName: data.storeToName,
     items,
     reason: (data.reason || '').trim(),
     assignedBy: actor,
-    status,
-    sentAt: status === 'Sent' ? now : null,
+    status: isSameCity ? 'Completed' : 'Sent',
+    sentAt: isSameCity ? null : date,
     receivedAt: null,
     receivedBy: null,
     signedChallanUpload: null,
@@ -265,32 +302,35 @@ export function saveStoreTransfer(data, actor = 'Admin User') {
 
   // GST Rule 55 (India) requires a Delivery Challan to accompany a
   // non-sale movement of goods like this — auto-generated here as a direct
-  // side effect of saving the transfer, so no separate user action creates
-  // the record itself (see deliveryChallanStore.js for the document's own
-  // shape and its own note on why editing/reversing this transfer later
-  // doesn't regenerate it). Generated at Send time regardless of status —
-  // it's proof of what was dispatched, not proof of receipt; the signed
-  // copy of THIS same document, uploaded once the receiver actually signs
-  // for it, is a separate thing entirely (see receiveStoreTransfer()'s own
+  // side effect of saving the transfer (whether it lands 'Completed' or
+  // 'Sent'; the challan is paper evidence the shipment left Store From,
+  // which is true the moment it's saved either way), so no separate user
+  // action creates the record itself (see deliveryChallanStore.js for the
+  // document's own shape and its own note on why editing/reversing this
+  // transfer later doesn't regenerate it). The signed copy of THIS same
+  // document, uploaded once the receiver actually signs for it, is a
+  // separate artifact entirely (see receiveStoreTransfer()'s own
   // signedChallanUpload note below).
   createDeliveryChallanForTransfer(transfer)
 
   const itemCount = items.reduce((s, it) => s + it.qty, 0)
   logAudit({
     action: 'Create', module: 'Inventory',
-    details: `Transferred ${itemCount} item(s) from ${data.storeFromName} to ${data.storeToName} (${transfer.transferNumber})${status === 'Sent' ? ' — in transit, awaiting receipt' : ''}`,
+    details: `${isSameCity ? 'Transferred' : 'Sent'} ${itemCount} item(s) from ${data.storeFromName} to ${data.storeToName} (${transfer.transferNumber})`,
   })
 
   return transfer
 }
 
-// ── Receive a 'Sent' (in-transit) transfer at Store To ──────────────────
-// Flips a cross-city transfer's status to 'Completed' once the receiver
-// actually has the goods in hand — inventoryLedger.js's own Store
-// Transfers block only applies the destination-side effect (unit
-// storeId/status, destination drum row, destination balance) once it sees
-// 'Completed' (see that file), so this is the one call that actually
-// finishes moving stock into Store To; nothing else does.
+// ── Receive a Sent transfer at Store To ─────────────────────────────────
+// Confirms a cross-city shipment has physically arrived — flips status
+// 'Sent' → 'Completed'. inventoryLedger.js's Store Transfers block (see
+// that file) had been withholding the destination-side stock effect
+// (unit.storeId move / destination drum / balance credit) while status was
+// 'Sent'; once it's 'Completed' that effect applies exactly as it already
+// does for a same-city transfer. A same-city transfer never becomes 'Sent'
+// in the first place (see sameCity()/saveStoreTransfer() above), so this is
+// only ever meaningful for a cross-city one.
 //
 // `signedChallanFile`, when provided, is already the converted
 // { name, size, type, preview } object — the FileReader.readAsDataURL()
@@ -309,7 +349,7 @@ export function saveStoreTransfer(data, actor = 'Admin User') {
 export function receiveStoreTransfer(transferId, { receivedBy = 'Admin User', signedChallanFile = null } = {}) {
   const transfer = _storeTransfers.find(t => t.id === transferId)
   if (!transfer) throw new Error('Transfer not found.')
-  if (transfer.status !== 'Sent') throw new Error('Only a Sent transfer awaiting receipt can be received.')
+  if (transfer.status !== 'Sent') throw new Error('Only a transfer that has been Sent can be received.')
 
   const updated = {
     ...transfer,

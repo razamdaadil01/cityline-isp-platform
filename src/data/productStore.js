@@ -5,6 +5,7 @@
 
 import { HARDWARE_CATALOG } from './hardwareCatalog'
 import { logAudit } from './auditLogStore'
+import { getCategory, getSubcategory, getSpecification } from './productTaxonomyStore'
 
 export const UNIT_TYPES = ['Piece', 'Box', 'Packet']
 export const TRACKING_TYPES = [
@@ -99,6 +100,10 @@ const HARDWARE_SEED = HARDWARE_CATALOG
     imageUrl: '',
     unitType: 'Piece',
     sellingPrice: item.unitPrice,
+    // Material Cost calc (Project Management, later phase) needs each item's
+    // purchase cost, not just its selling price — seeded here at a plausible
+    // margin below sellingPrice since no real purchase-price data exists yet.
+    purchasePrice: Math.round(item.unitPrice * 0.8),
     reorderAlertQty: 10,
     trackedBySerial: SERIAL_TRACKED_HARDWARE.has(item.name),
     trackedByMac: MAC_TRACKED_HARDWARE.has(item.name),
@@ -118,9 +123,9 @@ const HARDWARE_SEED = HARDWARE_CATALOG
 // seed data for now; it's still picked up correctly everywhere that reads
 // purchasedCompanyId (the Product Management column, Create PO's grouping).
 const WIRE_SEED = [
-  { name: '4 Core Fiber Cable', sku: 'WR-4CFC-001', sellingPrice: 12 },
-  { name: 'Drop Wire',          sku: 'WR-DW-001',   sellingPrice: 8 },
-  { name: '6 Core Fiber Cable', sku: 'WR-6CFC-001', sellingPrice: 18 },
+  { name: '4 Core Fiber Cable', sku: 'WR-4CFC-001', sellingPrice: 12, purchasePrice: 9 },
+  { name: 'Drop Wire',          sku: 'WR-DW-001',   sellingPrice: 8,  purchasePrice: 6 },
+  { name: '6 Core Fiber Cable', sku: 'WR-6CFC-001', sellingPrice: 18, purchasePrice: 14 },
 ].map((w, i) => ({
   id: `PRD-${String(HARDWARE_CATALOG.length + i + 1).padStart(3, '0')}`,
   productType: 'wire',
@@ -131,6 +136,7 @@ const WIRE_SEED = [
   imageUrl: '',
   unitType: 'Meter',
   sellingPrice: w.sellingPrice,
+  purchasePrice: w.purchasePrice,
   reorderAlertQty: 100,
   trackedBySerial: false,
   trackedByMac: false,
@@ -139,7 +145,136 @@ const WIRE_SEED = [
   status: 'active',
 }))
 
-const SEED = [...HARDWARE_SEED, ...WIRE_SEED]
+// HDD/Backbone Route Project and Site Project execution materials (Project
+// Management) — none of these existed in the original hardware/wire
+// catalogs. Seeded here so their respective CAPEX Material Cost calcs
+// (getHDDProjectCapex()/getSiteProjectCapex()) have a real Purchase Price
+// to match against instead of falling back to ₹0. "40mm PLB HDPE Duct" is
+// named to match the seeded HDD project's technicalSpecs.ductType exactly
+// (that's what HDD's matching logic searches for); "Coupler" just needs to
+// contain the keyword "coupler". "16-Port FAT Box" and "1:16 PLC Splitter"
+// match the exact item names the seeded Site work order's requiredMaterials/
+// DPR materialConsumed rows reference (Site's matching is by exact
+// case-insensitive name, not a keyword substring — see priceForConsumedItem
+// in projectStore.js).
+const PROJECT_MATERIAL_SEED = [
+  { name: '40mm PLB HDPE Duct', productType: 'wire',     sku: 'WR-DUCT40-001', unitType: 'Meter', sellingPrice: 45,  purchasePrice: 35,  purchasedCompanyId: 2 },
+  { name: 'Coupler',            productType: 'hardware', sku: 'HW-CPLR-001',   unitType: 'Piece',  sellingPrice: 60,  purchasePrice: 50,  purchasedCompanyId: 1 },
+  { name: '16-Port FAT Box',    productType: 'hardware', sku: 'HW-FAT16-001',  unitType: 'Piece',  sellingPrice: 950, purchasePrice: 780, purchasedCompanyId: 2 },
+  { name: '1:16 PLC Splitter',  productType: 'hardware', sku: 'HW-SPLT16-001', unitType: 'Piece',  sellingPrice: 480, purchasePrice: 380, purchasedCompanyId: 2 },
+].map((m, i) => ({
+  id: `PRD-${String(HARDWARE_CATALOG.length + WIRE_SEED.length + i + 1).padStart(3, '0')}`,
+  productType: m.productType,
+  name: m.name,
+  sku: m.sku,
+  brand: '',
+  model: '',
+  imageUrl: '',
+  unitType: m.unitType,
+  sellingPrice: m.sellingPrice,
+  purchasePrice: m.purchasePrice,
+  reorderAlertQty: m.unitType === 'Meter' ? 100 : 20,
+  trackedBySerial: false,
+  trackedByMac: false,
+  drumNumberRequired: m.unitType === 'Meter',
+  purchasedCompanyId: m.purchasedCompanyId,
+  goodType: 'consumable',
+  status: 'active',
+}))
+
+// Same join productStore.js's own AddEditProductModal (ProductList.jsx)
+// uses at save time — computeGeneratedName() there isn't exported, so this
+// is a deliberate one-off duplicate for seed-time use, not a shared utility.
+// Kept in exact sync with those three seeded Product Taxonomy ids (see
+// productTaxonomyStore.js's own CATEGORY_SEED/SUBCATEGORY_SEED/
+// SPECIFICATION_SEED) rather than hardcoding the generated string, so a
+// typo in either file surfaces immediately as a broken/blank seeded name
+// instead of silently drifting from what those ids actually resolve to.
+function classifiedName(categoryId, subcategoryId, specificationId) {
+  const category = getCategory(categoryId)
+  const subcategory = getSubcategory(subcategoryId)
+  const specification = getSpecification(specificationId)
+  return `${category.label} — ${subcategory.label} — ${specification.label}`
+}
+
+// A handful of Hardware products seeded WITH their Product Taxonomy
+// classification already set (categoryId/subcategoryId/specificationId +
+// the resulting generated name) — every other seeded product above predates
+// that taxonomy and is deliberately left unclassified (see
+// AddEditProductModal's "Legacy product — reclassify to update" handling),
+// so Product Management otherwise had no classified rows to test the new
+// Category/Subcategory columns and filters against.
+const CLASSIFIED_HARDWARE_SEED = [
+  {
+    categoryId: 'PTAX-CAT-001', subcategoryId: 'PTAX-SUB-001', specificationId: 'PTAX-SPEC-001', // ONT -> Dual Band -> GPON
+    sku: 'HW-ONT-DB-GPON-001', brand: 'ZTE', model: 'F670L', sellingPrice: 2200, purchasePrice: 1760,
+    purchasedCompanyId: 1, trackedBySerial: true, trackedByMac: true,
+  },
+  {
+    categoryId: 'PTAX-CAT-002', subcategoryId: 'PTAX-SUB-003', specificationId: 'PTAX-SPEC-005', // Router -> WiFi 6 -> Dual Band
+    sku: 'HW-RTR-WIFI6-DB-001', brand: 'TP-Link', model: 'Archer AX55', sellingPrice: 3200, purchasePrice: 2560,
+    purchasedCompanyId: 1, trackedBySerial: false, trackedByMac: false,
+  },
+  {
+    categoryId: 'PTAX-CAT-001', subcategoryId: 'PTAX-SUB-002', specificationId: 'PTAX-SPEC-004', // ONT -> Single Band -> EPON
+    sku: 'HW-ONT-SB-EPON-001', brand: 'Huawei', model: 'HG8010H', sellingPrice: 1600, purchasePrice: 1280,
+    purchasedCompanyId: 1, trackedBySerial: true, trackedByMac: true,
+  },
+].map((c, i) => ({
+  id: `PRD-${String(HARDWARE_CATALOG.length + WIRE_SEED.length + PROJECT_MATERIAL_SEED.length + i + 1).padStart(3, '0')}`,
+  productType: 'hardware',
+  name: classifiedName(c.categoryId, c.subcategoryId, c.specificationId),
+  categoryId: c.categoryId, subcategoryId: c.subcategoryId, specificationId: c.specificationId,
+  sku: c.sku, brand: c.brand, model: c.model,
+  imageUrl: '',
+  unitType: 'Piece',
+  sellingPrice: c.sellingPrice,
+  purchasePrice: c.purchasePrice,
+  reorderAlertQty: 10,
+  trackedBySerial: c.trackedBySerial,
+  trackedByMac: c.trackedByMac,
+  drumNumberRequired: false,
+  purchasedCompanyId: c.purchasedCompanyId,
+  goodType: 'consumable',
+  status: 'active',
+}))
+
+// Retroactive classification for every product seeded before Product
+// Taxonomy existed (PRD-001 through PRD-015, minus the PRD-005 gap left by
+// "Drop Wire (per m)" being filtered out of HARDWARE_SEED above) — assigns
+// each a real Category/Subcategory/Specification from productTaxonomyStore.js
+// (extended with the new 'Network Accessories'/'Splicing & Termination'
+// categories — see that file's own CATEGORY_SEED note — for the items that
+// had no reasonable fit in the original ONT/Router/Cable-only tree) and
+// regenerates `name` from that triple via classifiedName(), same mechanism
+// CLASSIFIED_HARDWARE_SEED above already uses. CLASSIFIED_HARDWARE_SEED's
+// own products (PRD-016+) are deliberately absent from this map — they
+// already carry their own classification, so leaving them out here means
+// the .map() below just returns them unchanged.
+const LEGACY_PRODUCT_CLASSIFICATION = {
+  'PRD-001': ['PTAX-CAT-001', 'PTAX-SUB-006', 'PTAX-SPEC-011'], // ONT Device -> ONT / Standard / GPON
+  'PRD-002': ['PTAX-CAT-002', 'PTAX-SUB-007', 'PTAX-SPEC-012'], // WiFi Router -> Router / Standard / Dual Band
+  'PRD-003': ['PTAX-CAT-004', 'PTAX-SUB-009', 'PTAX-SPEC-016'], // Wall Mount Bracket -> Network Accessories / Mounting Hardware / Wall Mount Bracket
+  'PRD-004': ['PTAX-CAT-004', 'PTAX-SUB-010', 'PTAX-SPEC-017'], // POE Switch -> Network Accessories / Networking Equipment / PoE Switch
+  'PRD-006': ['PTAX-CAT-005', 'PTAX-SUB-012', 'PTAX-SPEC-019'], // Patch Cord (LC-LC, 5m) -> Splicing & Termination / Patch Cords / LC-LC 5m
+  'PRD-007': ['PTAX-CAT-005', 'PTAX-SUB-013', 'PTAX-SPEC-020'], // Optical Splitter 1x8 -> Splicing & Termination / Optical Splitters / 1x8 PLC
+  'PRD-008': ['PTAX-CAT-004', 'PTAX-SUB-011', 'PTAX-SPEC-018'], // SFP Module 1G -> Network Accessories / Transceivers / SFP 1G
+  'PRD-009': ['PTAX-CAT-003', 'PTAX-SUB-004', 'PTAX-SPEC-013'], // 4 Core Fiber Cable -> Cable / Fiber / 4 Core
+  'PRD-010': ['PTAX-CAT-003', 'PTAX-SUB-005', 'PTAX-SPEC-009'], // Drop Wire -> Cable / Drop Wire / Single Core
+  'PRD-011': ['PTAX-CAT-003', 'PTAX-SUB-004', 'PTAX-SPEC-014'], // 6 Core Fiber Cable -> Cable / Fiber / 6 Core
+  'PRD-012': ['PTAX-CAT-003', 'PTAX-SUB-008', 'PTAX-SPEC-015'], // 40mm PLB HDPE Duct -> Cable / Conduit / 40mm PLB HDPE
+  'PRD-013': ['PTAX-CAT-005', 'PTAX-SUB-015', 'PTAX-SPEC-023'], // Coupler -> Splicing & Termination / Couplers & Connectors / Fiber Coupler
+  'PRD-014': ['PTAX-CAT-005', 'PTAX-SUB-014', 'PTAX-SPEC-022'], // 16-Port FAT Box -> Splicing & Termination / Splice Enclosures / 16-Port FAT Box
+  'PRD-015': ['PTAX-CAT-005', 'PTAX-SUB-013', 'PTAX-SPEC-021'], // 1:16 PLC Splitter -> Splicing & Termination / Optical Splitters / 1:16 PLC
+}
+
+const SEED = [...HARDWARE_SEED, ...WIRE_SEED, ...PROJECT_MATERIAL_SEED, ...CLASSIFIED_HARDWARE_SEED]
+  .map(p => {
+    const triple = LEGACY_PRODUCT_CLASSIFICATION[p.id]
+    if (!triple) return p
+    const [categoryId, subcategoryId, specificationId] = triple
+    return { ...p, categoryId, subcategoryId, specificationId, name: classifiedName(categoryId, subcategoryId, specificationId) }
+  })
 
 let _products = [...SEED]
 // Next id continues after the highest numeric suffix actually in use —
@@ -166,9 +301,29 @@ export function subscribeProducts(fn) {
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
 }
 
+// No longer called by ProductList.jsx's Add/Edit Product modal — both the
+// Hardware and Wire tabs now classify via productTaxonomyStore and validate
+// through isProductClassificationTaken below instead of a free-text name.
+// Kept exported in case something else still wants a plain name-uniqueness
+// check (e.g. a future product type that stays free-text).
 export function isProductNameTaken(name, excludeId = null) {
   const q = name.trim().toLowerCase()
   return _products.some(p => p.id !== excludeId && p.name.trim().toLowerCase() === q)
+}
+
+// Both Hardware and Wire products are classified via productTaxonomyStore's
+// Category -> Subcategory -> Specification (their own `name` is auto-
+// generated from that triple, not free-text — see ProductList.jsx's
+// computeGeneratedName()), so the meaningful duplicate check is the id
+// triple itself rather than the generated string: two products with an
+// identical classification and no other differentiator would be
+// indistinguishable. Checked across both product types together — not
+// scoped by productType — since they share one taxonomy tree.
+export function isProductClassificationTaken(categoryId, subcategoryId, specificationId, excludeId = null) {
+  return _products.some(p =>
+    p.id !== excludeId &&
+    p.categoryId === categoryId && p.subcategoryId === subcategoryId && p.specificationId === specificationId
+  )
 }
 
 export function isSkuTaken(sku, excludeId = null) {

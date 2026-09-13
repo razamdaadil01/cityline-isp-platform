@@ -53,6 +53,7 @@ import OTTManagement from './pages/OTTManagement'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import ProductList from './pages/inventory/ProductList'
+import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
 import VendorList from './pages/inventory/VendorList'
 import VendorDetail from './pages/inventory/VendorDetail'
 import StoreList from './pages/inventory/StoreList'
@@ -72,6 +73,13 @@ import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
 import StoreTransfer from './pages/inventory/StoreTransfer'
 import CreateStoreTransfer from './pages/inventory/CreateStoreTransfer'
 import DeliveryChallanView from './pages/inventory/DeliveryChallanView'
+import ProjectList from './pages/projects/ProjectList'
+import CreateHDDProject from './pages/projects/CreateHDDProject'
+import CreateSiteProject from './pages/projects/CreateSiteProject'
+import HDDProjectDetail from './pages/projects/HDDProjectDetail'
+import CreateHDDWorkOrder from './pages/projects/CreateHDDWorkOrder'
+import SiteProjectDetail from './pages/projects/SiteProjectDetail'
+import CreateSiteWorkOrder from './pages/projects/CreateSiteWorkOrder'
 import AssetList from './pages/assets/AssetList'
 import AddAsset from './pages/assets/AddAsset'
 import AssetDetail from './pages/assets/AssetDetail'
@@ -162,6 +170,7 @@ export default function App() {
           <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
           <Route path="/inventory/overview" element={<InventoryOverview />} />
           <Route path="/inventory/products" element={<ProductList />} />
+          <Route path="/inventory/product-taxonomy" element={<ProductTaxonomy />} />
           <Route path="/inventory/vendors" element={<VendorList />} />
           <Route path="/inventory/vendors/:id" element={<VendorDetail />} />
           <Route path="/inventory/vendors/:id/:tab" element={<VendorDetail />} />
@@ -169,6 +178,10 @@ export default function App() {
           <Route path="/inventory/settings" element={<InventorySettings />} />
           <Route path="/inventory/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/inventory/purchase-orders/new" element={<CreatePO />} />
+          <Route
+            path="/inventory/purchase-orders/new/asset"
+            element={<AddAsset returnTo="/inventory/purchase-orders" />}
+          />
           <Route path="/inventory/purchase-orders/:id/edit" element={<CreatePO />} />
           <Route path="/inventory/purchase-orders/:id" element={<PODetail />} />
           <Route path="/inventory/purchases" element={<Purchases />} />
@@ -186,8 +199,16 @@ export default function App() {
           <Route path="/inventory/store-transfer/new" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/edit" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/challan" element={<DeliveryChallanView />} />
+          <Route path="/projects" element={<ProjectList />} />
+          <Route path="/projects/new/hdd" element={<CreateHDDProject />} />
+          <Route path="/projects/new/site" element={<CreateSiteProject />} />
+          <Route path="/projects/hdd/:id" element={<HDDProjectDetail />} />
+          <Route path="/projects/hdd/:id/:tab" element={<HDDProjectDetail />} />
+          <Route path="/projects/hdd/:id/work-orders/new" element={<CreateHDDWorkOrder />} />
+          <Route path="/projects/site/:id" element={<SiteProjectDetail />} />
+          <Route path="/projects/site/:id/:tab" element={<SiteProjectDetail />} />
+          <Route path="/projects/site/:id/work-orders/new" element={<CreateSiteWorkOrder />} />
           <Route path="/assets" element={<AssetList />} />
-          <Route path="/assets/new" element={<AddAsset />} />
           <Route path="/assets/reports" element={<AssetReports />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
           <Route path="/reports" element={<Reports />} />

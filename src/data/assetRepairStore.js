@@ -45,21 +45,21 @@ const SEED = [
   {
     id: 'AREP-000001', repairId: 'REP-2026-000001', assetId: 'AST-2026-000011',
     faultDescription: 'Overheating', reportedBy: 'Admin User', reportedDate: '2026-02-10',
-    includeKitComponents: false, repairPath: 'In-house', isWarrantyClaim: false,
-    status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: null,
+    photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
+    status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: 450,
     createdAt: '2026-02-10T09:00:00.000Z',
   },
   {
     id: 'AREP-000002', repairId: 'REP-2026-000002', assetId: 'AST-2026-000011',
     faultDescription: 'Display flicker', reportedBy: 'Admin User', reportedDate: '2026-05-18',
-    includeKitComponents: false, repairPath: 'Vendor', isWarrantyClaim: true,
+    photos: [], includeKitComponents: false, repairPath: 'Vendor', technicianId: null, isWarrantyClaim: true,
     status: 'Resolved', resolution: 'Fixed', remarks: 'Vendor replaced the display cable under warranty.', cost: null,
     createdAt: '2026-05-18T10:00:00.000Z',
   },
   {
     id: 'AREP-000003', repairId: 'REP-2026-000003', assetId: 'AST-2026-000011',
     faultDescription: "Won't power on", reportedBy: 'Admin User', reportedDate: '2026-08-24',
-    includeKitComponents: false, repairPath: 'In-house', isWarrantyClaim: false,
+    photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
     status: 'In Progress', resolution: null, remarks: null, cost: null,
     createdAt: '2026-08-24T09:15:00.000Z',
   },
@@ -69,7 +69,7 @@ const SEED = [
   {
     id: 'AREP-000004', repairId: 'REP-2026-000004', assetId: 'AST-2026-000012',
     faultDescription: 'Fuser unit failure — smoke smell during printing', reportedBy: 'Admin User', reportedDate: '2026-06-05',
-    includeKitComponents: false, repairPath: 'Vendor', isWarrantyClaim: true,
+    photos: [], includeKitComponents: false, repairPath: 'Vendor', technicianId: null, isWarrantyClaim: true,
     status: 'Resolved', resolution: 'Beyond Repair', remarks: 'Vendor assessed board damage beyond economical repair.', cost: null,
     createdAt: '2026-06-05T11:00:00.000Z',
   },
@@ -140,11 +140,15 @@ export function isSplicingMachineAsset(asset) {
 // idempotent regardless of caller). isWarrantyClaim is auto-computed, never
 // asked of the user — true only when the chosen path is 'Vendor' AND
 // today falls inside the asset's own warranty window.
-export function raiseRepairRequest(assetId, { faultDescription, reportedBy = 'Admin User', includeKitComponents = false, repairPath }) {
+export function raiseRepairRequest(assetId, {
+  faultDescription, reportedBy = 'Admin User', includeKitComponents = false, repairPath,
+  technicianId = null, photos = [],
+}) {
   const asset = getAsset(assetId)
   if (!asset) throw new Error('Asset not found.')
   if (!faultDescription?.trim()) throw new Error('Fault description is required.')
   if (!REPAIR_PATHS.includes(repairPath)) throw new Error('Select a repair path.')
+  if (repairPath === 'In-house' && !technicianId) throw new Error('Select an assigned technician for an in-house repair.')
   if (getActiveRepairForAsset(assetId)) throw new Error('This asset already has an active repair in progress.')
 
   const isWarrantyClaim = repairPath === 'Vendor' && isAssetWithinWarranty(asset)
@@ -155,8 +159,13 @@ export function raiseRepairRequest(assetId, { faultDescription, reportedBy = 'Ad
     assetId,
     faultDescription: faultDescription.trim(),
     reportedBy, reportedDate: new Date().toISOString().slice(0, 10),
+    photos: Array.isArray(photos) ? photos : [],
     includeKitComponents: isSplicingMachineAsset(asset) ? !!includeKitComponents : false,
     repairPath,
+    // Only meaningful for an In-house repair (the field/modal both gate it
+    // on repairPath === 'In-house' too) — always null for a Vendor repair,
+    // same as includeKitComponents staying false outside Splicing Machine.
+    technicianId: repairPath === 'In-house' ? technicianId : null,
     isWarrantyClaim,
     status: 'Under Repair',
     resolution: null,
@@ -205,17 +214,25 @@ export function updateRepairStatus(repairId, newStatus) {
 }
 
 // 'Fixed' -> the asset returns to 'In Stock'. 'Beyond Repair' -> the asset
-// deliberately STAYS 'Under Repair' — Retirement is a separate, not-yet-
-// built action (future scope per the brief); leaving it Under Repair keeps
-// it visibly flagged for manual retirement later rather than silently
-// reverting it to a usable-looking status.
-export function resolveRepair(repairId, { resolution, remarks = '' }) {
+// deliberately STAYS 'Under Repair' — AssetDetail.jsx now surfaces an
+// explicit "Retire it now?" prompt for exactly this state (asset.status
+// 'Under Repair' with its most recent repair resolved 'Beyond Repair'),
+// but retirement itself stays a separate, deliberately-confirmed action
+// (RetireAssetModal) rather than an automatic status change here.
+//
+// `cost` is never enforced as zero for a warranty claim — "no cost" for a
+// warranty claim is a UI convenience (AssetDetail.jsx hides the Cost input
+// and shows a static "No cost (Warranty Claim)" note instead of asking),
+// not a business rule this store checks or overrides; whatever cost value
+// is passed is stored as-is. Blank/undefined/null all normalize to null.
+export function resolveRepair(repairId, { resolution, remarks = '', cost = null }) {
   const repair = getAssetRepair(repairId)
   if (!repair) throw new Error('Repair record not found.')
   if (repair.status === 'Resolved') throw new Error('This repair has already been resolved.')
   if (!REPAIR_RESOLUTIONS.includes(resolution)) throw new Error('Select a valid resolution.')
 
-  const updated = { ...repair, status: 'Resolved', resolution, remarks: remarks.trim() }
+  const normalizedCost = cost === '' || cost === null || cost === undefined ? null : Number(cost)
+  const updated = { ...repair, status: 'Resolved', resolution, remarks: remarks.trim(), cost: normalizedCost }
   _repairs = _repairs.map(r => r.id === repairId ? updated : r)
   notify()
 
@@ -225,7 +242,7 @@ export function resolveRepair(repairId, { resolution, remarks = '' }) {
 
   logAudit({
     action: 'Edit', module: 'Assets',
-    details: `Resolved repair ${repair.repairId} — ${resolution}${resolution === 'Fixed' ? ' — asset back In Stock' : ' — asset remains Under Repair pending retirement'}`,
+    details: `Resolved repair ${repair.repairId} — ${resolution}${normalizedCost != null ? ` — cost ₹${normalizedCost.toLocaleString('en-IN')}` : ''}${resolution === 'Fixed' ? ' — asset back In Stock' : ' — asset remains Under Repair pending retirement'}`,
   })
   addNotification({
     type: 'asset_repair_resolved',

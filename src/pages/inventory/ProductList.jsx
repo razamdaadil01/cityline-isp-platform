@@ -11,15 +11,96 @@ import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import {
   getProducts, subscribeProducts, saveProduct, setProductStatus,
-  isProductNameTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
+  isProductClassificationTaken, isSkuTaken, UNIT_TYPES, TRACKING_TYPES, GOOD_TYPES, previewNextProductId,
   getTrackingLabel,
 } from '../../data/productStore'
+import {
+  getCategories, getSubcategories, getSpecifications,
+  getCategory, getSubcategory, getSpecification,
+  subscribeProductTaxonomy,
+} from '../../data/productTaxonomyStore'
 import { usePermission } from '../../data/rolesStore'
 import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
+
+// Hardware products' own `name` is auto-generated from their Category ->
+// Subcategory -> Specification selection rather than typed — stored on the
+// same `name` field every other reader (search, ProductPicker, Create PO)
+// already expects, so nothing downstream needs to change. Returns '' until
+// all three are actually selected (and resolvable — a stale id pointing at
+// a since-removed taxonomy entry also falls back to '').
+function computeGeneratedName(categoryId, subcategoryId, specificationId) {
+  const category = categoryId ? getCategory(categoryId) : null
+  const subcategory = subcategoryId ? getSubcategory(subcategoryId) : null
+  const specification = specificationId ? getSpecification(specificationId) : null
+  if (!category || !subcategory || !specification) return ''
+  return `${category.label} — ${subcategory.label} — ${specification.label}`
+}
+
+// Category / Subcategory / Specification dropdowns — one shared block used
+// identically by both the Hardware and Wire tabs below (rather than two
+// near-duplicate copies), since both now classify products against the
+// exact same productTaxonomyStore tree and generate `name` the same way.
+// Category+Subcategory in one row, Specification alone in the row below —
+// three columns in a single row left the Specification placeholder text
+// clipped.
+function ClassificationDropdowns({ categoryId, subcategoryId, specificationId, onSelectCategory, onSelectSubcategory, onSelectSpecification, errors, isLegacyUnclassified, legacyName }) {
+  const activeCategories = getCategories().filter(c => c.status === 'active')
+  const activeSubcategories = categoryId ? getSubcategories(categoryId).filter(s => s.status === 'active') : []
+  const activeSpecifications = subcategoryId ? getSpecifications(subcategoryId).filter(s => s.status === 'active') : []
+  const generatedName = computeGeneratedName(categoryId, subcategoryId, specificationId)
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Category" required error={errors.categoryId}>
+          <Select value={categoryId} onChange={onSelectCategory}>
+            <option value="">Select category…</option>
+            {activeCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Subcategory" required error={errors.subcategoryId}>
+          <Select value={subcategoryId} onChange={onSelectSubcategory} disabled={!categoryId}>
+            <option value="">{categoryId ? 'Select subcategory…' : 'Select category first'}</option>
+            {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </Select>
+        </FormField>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Specification" required error={errors.specificationId}>
+          <Select value={specificationId} onChange={onSelectSpecification} disabled={!subcategoryId}>
+            <option value="">{subcategoryId ? 'Select specification…' : 'Select subcategory first'}</option>
+            {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </Select>
+        </FormField>
+      </div>
+
+      {errors.classification && <p className="text-xs text-red-500">{errors.classification}</p>}
+
+      {isLegacyUnclassified && !categoryId && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+          <Info size={14} className="shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Legacy product — reclassify to update.</p>
+            <p className="mt-0.5">Current name: <span className="font-semibold">{legacyName}</span></p>
+          </div>
+        </div>
+      )}
+
+      {generatedName && (
+        <div className="rounded-lg border border-surface-border bg-gray-50/60 px-3 py-2.5">
+          <p className="text-xs text-gray-500">Product Name (auto-generated)</p>
+          <p className="text-sm font-semibold text-gray-800">{generatedName}</p>
+        </div>
+      )}
+    </>
+  )
+}
 
 const PRODUCT_TABLE_COLUMNS = [
   { key: 'productId',     label: 'Product ID',     visible: true, defaultVisible: true },
   { key: 'name',          label: 'Product Name',   visible: true, defaultVisible: true, locked: true },
+  { key: 'category',      label: 'Category',       visible: true, defaultVisible: true },
+  { key: 'subcategory',   label: 'Subcategory',    visible: true, defaultVisible: true },
   { key: 'sku',           label: 'SKU',            visible: true, defaultVisible: true },
   { key: 'productType',   label: 'Type',           visible: true, defaultVisible: true },
   { key: 'brand',         label: 'Brand',          visible: true, defaultVisible: true },
@@ -46,21 +127,27 @@ const GOOD_TYPE_LABEL = Object.fromEntries(GOOD_TYPES.map(g => [g.value, g.label
 // block below for how the three checkboxes' disabled states interact.
 function emptyHardwareForm() {
   return {
-    name: '', sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
-    sellingPrice: '', unitType: 'Piece', reorderAlertQty: '',
+    categoryId: '', subcategoryId: '', specificationId: '',
+    sku: '', brand: '', purchasedCompanyId: '', goodType: 'consumable', model: '', imageUrl: '',
+    sellingPrice: '', purchasePrice: '', unitType: 'Piece', reorderAlertQty: '',
     trackingQuantity: true, trackedBySerial: false, trackedByMac: false,
   }
 }
 
 function emptyWireForm() {
-  return { name: '', sku: '', brand: '', sellingPrice: '', reorderAlertQty: '' }
+  return { categoryId: '', subcategoryId: '', specificationId: '', sku: '', brand: '', sellingPrice: '', purchasePrice: '', reorderAlertQty: '' }
 }
 
 function productToForm(product) {
   if (product.productType === 'wire') {
     return {
-      name: product.name, sku: product.sku, brand: product.brand,
-      sellingPrice: String(product.sellingPrice ?? ''), reorderAlertQty: String(product.reorderAlertQty ?? ''),
+      // Same legacy handling as hardware below — a Wire product saved
+      // before Product Taxonomy existed has no categoryId, coming back ''
+      // here so AddEditProductModal's "Legacy product" note kicks in.
+      categoryId: product.categoryId || '', subcategoryId: product.subcategoryId || '', specificationId: product.specificationId || '',
+      sku: product.sku, brand: product.brand,
+      sellingPrice: String(product.sellingPrice ?? ''), purchasePrice: String(product.purchasePrice ?? ''),
+      reorderAlertQty: String(product.reorderAlertQty ?? ''),
     }
   }
   // Backward-compatible with any product record that only ever carried the
@@ -70,11 +157,17 @@ function productToForm(product) {
   const trackedBySerial = product.trackedBySerial ?? (product.trackingType === 'serial')
   const trackedByMac = product.trackedByMac ?? (product.trackingType === 'mac')
   return {
-    name: product.name, sku: product.sku, brand: product.brand,
+    // Legacy hardware products (created before Product Taxonomy existed)
+    // carry no categoryId/subcategoryId/specificationId — these simply come
+    // back '' for them, which is what drives AddEditProductModal's "Legacy
+    // product" note and forces a fresh reclassification before save.
+    categoryId: product.categoryId || '', subcategoryId: product.subcategoryId || '', specificationId: product.specificationId || '',
+    sku: product.sku, brand: product.brand,
     purchasedCompanyId: product.purchasedCompanyId != null ? String(product.purchasedCompanyId) : '',
     goodType: product.goodType || 'consumable',
     model: product.model,
     imageUrl: product.imageUrl, sellingPrice: String(product.sellingPrice ?? ''),
+    purchasePrice: String(product.purchasePrice ?? ''),
     unitType: product.unitType || 'Piece', reorderAlertQty: String(product.reorderAlertQty ?? ''),
     trackingQuantity: !trackedBySerial && !trackedByMac, trackedBySerial, trackedByMac,
   }
@@ -114,9 +207,46 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   const form = tab === 'wire' ? wireForm : hwForm
   const setForm = tab === 'wire' ? setWireForm : setHwForm
 
+  // Re-render if the taxonomy itself changes while this modal is open (e.g.
+  // a category gets deactivated in another tab) — same tick-only pattern
+  // ProductTaxonomy.jsx's own page uses, since the dropdown options below
+  // are read fresh from the store's getters on every render rather than
+  // kept in local state.
+  const [, setTaxonomyTick] = useState(0)
+  useEffect(() => subscribeProductTaxonomy(() => setTaxonomyTick(t => t + 1)), [])
+
+  // A product (Hardware or Wire) saved before Product Taxonomy existed has
+  // no categoryId at all — shown as a read-only "Legacy product" note (its
+  // own free-text name, for reference) until the admin picks a category, at
+  // which point it's mid-reclassification and the note gives way to the
+  // live generated-name preview. Saving still requires all three dropdowns
+  // regardless — this note is just a display affordance, not a separate
+  // validation path.
+  const isLegacyUnclassified = !!editing && !editing.categoryId
+
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  // Generic over whichever tab is active — `setForm`/`form` already alias
+  // to hwForm/wireForm based on `tab`, so these three handlers (and the
+  // ClassificationDropdowns block below) are shared as-is by both tabs
+  // rather than duplicated per tab.
+  function selectCategory(e) {
+    const categoryId = e.target.value
+    setForm(f => ({ ...f, categoryId, subcategoryId: '', specificationId: '' }))
+    setErrors(er => ({ ...er, categoryId: undefined, subcategoryId: undefined, specificationId: undefined, classification: undefined }))
+  }
+  function selectSubcategory(e) {
+    const subcategoryId = e.target.value
+    setForm(f => ({ ...f, subcategoryId, specificationId: '' }))
+    setErrors(er => ({ ...er, subcategoryId: undefined, specificationId: undefined, classification: undefined }))
+  }
+  function selectSpecification(e) {
+    const specificationId = e.target.value
+    setForm(f => ({ ...f, specificationId }))
+    setErrors(er => ({ ...er, specificationId: undefined, classification: undefined }))
   }
 
   function switchTab(next) {
@@ -150,16 +280,29 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
   function validate() {
     const errs = {}
     const excludeId = editing?.id ?? null
-    if (!form.name.trim()) {
-      errs.name = tab === 'wire' ? 'Wire name is required.' : 'Product name is required.'
-    } else if (isProductNameTaken(form.name.trim(), excludeId)) {
-      errs.name = `"${form.name.trim()}" already exists. Please use a different product name.`
+    // Both tabs' own name is auto-generated from these three selections
+    // (see computeGeneratedName()) rather than typed, so there's no free
+    // -text field to validate — each dropdown is required in its own
+    // right, and the only meaningful duplicate check is the id triple
+    // itself (isProductClassificationTaken), not the generated string.
+    // Checked across both product types together (not scoped to `tab`) —
+    // Hardware and Wire share one taxonomy tree, so an identical
+    // classification would be just as indistinguishable across tabs as
+    // within one.
+    if (!form.categoryId) errs.categoryId = 'Select a category.'
+    if (!form.subcategoryId) errs.subcategoryId = 'Select a subcategory.'
+    if (!form.specificationId) errs.specificationId = 'Select a specification.'
+    if (form.categoryId && form.subcategoryId && form.specificationId &&
+        isProductClassificationTaken(form.categoryId, form.subcategoryId, form.specificationId, excludeId)) {
+      errs.classification = 'A product with this classification already exists.'
     }
     if (form.sku.trim() && isSkuTaken(form.sku.trim(), excludeId)) {
       errs.sku = `"${form.sku.trim()}" already exists. Please use a different SKU.`
     }
     if (form.sellingPrice === '' || Number.isNaN(Number(form.sellingPrice)) || Number(form.sellingPrice) < 0)
       errs.sellingPrice = 'Enter a valid selling price.'
+    if (form.purchasePrice === '' || Number.isNaN(Number(form.purchasePrice)) || Number(form.purchasePrice) < 0)
+      errs.purchasePrice = 'Enter a valid purchase price.'
     if (form.reorderAlertQty === '' || Number.isNaN(Number(form.reorderAlertQty)) || Number(form.reorderAlertQty) < 0)
       errs.reorderAlertQty = 'Enter a valid reorder alert quantity.'
     if (tab === 'hardware' && !form.trackingQuantity && !form.trackedBySerial && !form.trackedByMac)
@@ -175,13 +318,17 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
       saveProduct({
         id: editing?.id,
         productType: 'wire',
-        name: form.name.trim(),
+        name: computeGeneratedName(wireForm.categoryId, wireForm.subcategoryId, wireForm.specificationId),
+        categoryId: wireForm.categoryId,
+        subcategoryId: wireForm.subcategoryId,
+        specificationId: wireForm.specificationId,
         sku: form.sku.trim(),
         brand: form.brand.trim(),
         model: '',
         imageUrl: '',
         unitType: 'Meter',
         sellingPrice: Number(form.sellingPrice),
+        purchasePrice: Number(form.purchasePrice),
         reorderAlertQty: Number(form.reorderAlertQty),
         trackedBySerial: false,
         trackedByMac: false,
@@ -192,7 +339,10 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
       saveProduct({
         id: editing?.id,
         productType: 'hardware',
-        name: form.name.trim(),
+        name: computeGeneratedName(hwForm.categoryId, hwForm.subcategoryId, hwForm.specificationId),
+        categoryId: hwForm.categoryId,
+        subcategoryId: hwForm.subcategoryId,
+        specificationId: hwForm.specificationId,
         sku: form.sku.trim(),
         brand: form.brand.trim(),
         purchasedCompanyId: form.purchasedCompanyId ? Number(form.purchasedCompanyId) : null,
@@ -201,6 +351,7 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
         imageUrl: form.imageUrl.trim(),
         unitType: form.unitType,
         sellingPrice: Number(form.sellingPrice),
+        purchasePrice: Number(form.purchasePrice),
         reorderAlertQty: Number(form.reorderAlertQty),
         trackedBySerial: form.trackingQuantity ? false : form.trackedBySerial,
         trackedByMac: form.trackingQuantity ? false : form.trackedByMac,
@@ -248,10 +399,13 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
         {tab === 'hardware' ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Product Name" required error={errors.name}>
-                <Input placeholder="e.g. ONT Device" value={hwForm.name} onChange={e => setField('name', e.target.value)} />
-              </FormField>
+            <ClassificationDropdowns
+              categoryId={hwForm.categoryId} subcategoryId={hwForm.subcategoryId} specificationId={hwForm.specificationId}
+              onSelectCategory={selectCategory} onSelectSubcategory={selectSubcategory} onSelectSpecification={selectSpecification}
+              errors={errors} isLegacyUnclassified={isLegacyUnclassified} legacyName={editing?.name}
+            />
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-surface-border">
               <FormField label="SKU ID" error={errors.sku}>
                 <Input placeholder="e.g. HW-ONT-001" value={hwForm.sku} onChange={e => setField('sku', e.target.value)} />
               </FormField>
@@ -277,6 +431,9 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               </FormField>
               <FormField label="Selling Price" required error={errors.sellingPrice}>
                 <Input type="number" min="0" placeholder="0.00" value={hwForm.sellingPrice} onChange={e => setField('sellingPrice', e.target.value)} />
+              </FormField>
+              <FormField label="Purchase Price" required error={errors.purchasePrice}>
+                <Input type="number" min="0" placeholder="0.00" value={hwForm.purchasePrice} onChange={e => setField('purchasePrice', e.target.value)} />
               </FormField>
               <FormField label="Unit Type" required>
                 <Select value={hwForm.unitType} onChange={e => setField('unitType', e.target.value)}>
@@ -349,10 +506,13 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Wire Name" required error={errors.name}>
-                <Input placeholder="e.g. CAT6 Cable" value={wireForm.name} onChange={e => setField('name', e.target.value)} />
-              </FormField>
+            <ClassificationDropdowns
+              categoryId={wireForm.categoryId} subcategoryId={wireForm.subcategoryId} specificationId={wireForm.specificationId}
+              onSelectCategory={selectCategory} onSelectSubcategory={selectSubcategory} onSelectSpecification={selectSpecification}
+              errors={errors} isLegacyUnclassified={isLegacyUnclassified} legacyName={editing?.name}
+            />
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-surface-border">
               <FormField label="SKU ID" error={errors.sku}>
                 <Input placeholder="e.g. WR-CAT6-001" value={wireForm.sku} onChange={e => setField('sku', e.target.value)} />
               </FormField>
@@ -364,6 +524,9 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
               </FormField>
               <FormField label="Selling Price / Meter" required error={errors.sellingPrice}>
                 <Input type="number" min="0" placeholder="0.00" value={wireForm.sellingPrice} onChange={e => setField('sellingPrice', e.target.value)} />
+              </FormField>
+              <FormField label="Purchase Price / Meter" required error={errors.purchasePrice}>
+                <Input type="number" min="0" placeholder="0.00" value={wireForm.purchasePrice} onChange={e => setField('purchasePrice', e.target.value)} />
               </FormField>
               <FormField label="Reorder Alert Qty / Meter" required error={errors.reorderAlertQty}>
                 <Input type="number" min="0" placeholder="e.g. 100" value={wireForm.reorderAlertQty} onChange={e => setField('reorderAlertQty', e.target.value)} />
@@ -386,7 +549,22 @@ function AddEditProductModal({ isOpen, onClose, editing }) {
 
 // ── Filter drawer ────────────────────────────────────────────────────────────
 
+// Category/Subcategory/Specification filter options come straight from
+// productTaxonomyStore (active only) — same source ClassificationDropdowns
+// uses in the Add/Edit modal — rather than derived from products-in-use the
+// way Brand's own filter list is, since browsing "which categories exist"
+// should stay consistent with how the classification dropdowns work.
 function FilterDrawer({ open, onClose, draft, setDraftField, onApply, onReset, brands, activeCount }) {
+  const activeCategories = getCategories().filter(c => c.status === 'active')
+  // 'unclassified' is a sentinel value (not a real productTaxonomyStore id —
+  // those all look like PTAX-CAT-###) matching legacy products with no
+  // categoryId at all. Selected, it has nothing to cascade into, so
+  // Subcategory/Specification are disabled rather than shown empty.
+  const activeSubcategories = (draft.categoryId && draft.categoryId !== 'unclassified')
+    ? getSubcategories(draft.categoryId).filter(s => s.status === 'active') : []
+  const activeSpecifications = draft.subcategoryId
+    ? getSpecifications(draft.subcategoryId).filter(s => s.status === 'active') : []
+
   return (
     <div className={`fixed inset-0 z-50 transition-opacity duration-300 ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
@@ -413,6 +591,49 @@ function FilterDrawer({ open, onClose, draft, setDraftField, onApply, onReset, b
                   <span className="text-sm text-gray-700 capitalize">{v || 'All'}</span>
                 </label>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Category</label>
+            <div className="relative">
+              <select value={draft.categoryId} onChange={e => setDraftField('categoryId', e.target.value)}
+                className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
+                <option value="">All</option>
+                <option value="unclassified">Unclassified</option>
+                {activeCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Subcategory</label>
+            <div className="relative">
+              <select
+                value={draft.subcategoryId} onChange={e => setDraftField('subcategoryId', e.target.value)}
+                disabled={!draft.categoryId || draft.categoryId === 'unclassified'}
+                className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                <option value="">{draft.categoryId && draft.categoryId !== 'unclassified' ? 'All' : 'Select a category first'}</option>
+                {activeSubcategories.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Specification</label>
+            <div className="relative">
+              <select
+                value={draft.specificationId} onChange={e => setDraftField('specificationId', e.target.value)}
+                disabled={!draft.subcategoryId}
+                className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                <option value="">{draft.subcategoryId ? 'All' : 'Select a subcategory first'}</option>
+                {activeSpecifications.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
 
@@ -498,31 +719,53 @@ export default function ProductList() {
   }
 
   const [filterProductType, setFilterProductType] = useState('')
+  const [filterCategoryId, setFilterCategoryId] = useState('')
+  const [filterSubcategoryId, setFilterSubcategoryId] = useState('')
+  const [filterSpecificationId, setFilterSpecificationId] = useState('')
   const [filterBrand, setFilterBrand] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
-  const EMPTY_DRAFT = { productType: '', brand: '', status: '' }
+  const EMPTY_DRAFT = { productType: '', categoryId: '', subcategoryId: '', specificationId: '', brand: '', status: '' }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draft, setDraft] = useState(EMPTY_DRAFT)
 
   function openDrawer() {
-    setDraft({ productType: filterProductType, brand: filterBrand, status: filterStatus })
+    setDraft({
+      productType: filterProductType, categoryId: filterCategoryId, subcategoryId: filterSubcategoryId,
+      specificationId: filterSpecificationId, brand: filterBrand, status: filterStatus,
+    })
     setDrawerOpen(true)
   }
   function applyDrawer() {
     setFilterProductType(draft.productType)
+    setFilterCategoryId(draft.categoryId)
+    setFilterSubcategoryId(draft.subcategoryId)
+    setFilterSpecificationId(draft.specificationId)
     setFilterBrand(draft.brand)
     setFilterStatus(draft.status)
     setDrawerOpen(false)
   }
   function resetDrawer() { setDraft(EMPTY_DRAFT) }
-  function setDraftField(k, v) { setDraft(prev => ({ ...prev, [k]: v })) }
-
-  function clearAllFilters() {
-    setFilterProductType(''); setFilterBrand(''); setFilterStatus('')
+  // Picking a new Category clears any Subcategory/Specification already
+  // drafted from the previous category, and picking a new Subcategory
+  // clears Specification — same cascading-reset rule
+  // ClassificationDropdowns' selectCategory/selectSubcategory use in the
+  // Add/Edit modal, and the same pattern AssetMaster.jsx's own filter
+  // drawer uses for its Category/Type filters.
+  function setDraftField(k, v) {
+    setDraft(prev => {
+      if (k === 'categoryId') return { ...prev, categoryId: v, subcategoryId: '', specificationId: '' }
+      if (k === 'subcategoryId') return { ...prev, subcategoryId: v, specificationId: '' }
+      return { ...prev, [k]: v }
+    })
   }
 
-  const activeFiltersCount = [filterProductType, filterBrand, filterStatus].filter(Boolean).length
+  function clearAllFilters() {
+    setFilterProductType(''); setFilterCategoryId(''); setFilterSubcategoryId(''); setFilterSpecificationId('')
+    setFilterBrand(''); setFilterStatus('')
+  }
+
+  const activeFiltersCount = [filterProductType, filterCategoryId, filterSubcategoryId, filterSpecificationId, filterBrand, filterStatus].filter(Boolean).length
 
   const brands = useMemo(() => [...new Set(products.map(p => p.brand).filter(Boolean))].sort(), [products])
 
@@ -531,11 +774,16 @@ export default function ProductList() {
     return products.filter(p => {
       if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false
       if (filterProductType && p.productType !== filterProductType) return false
+      if (filterCategoryId === 'unclassified') {
+        if (p.categoryId) return false
+      } else if (filterCategoryId && p.categoryId !== filterCategoryId) return false
+      if (filterSubcategoryId && p.subcategoryId !== filterSubcategoryId) return false
+      if (filterSpecificationId && p.specificationId !== filterSpecificationId) return false
       if (filterBrand && p.brand !== filterBrand) return false
       if (filterStatus && p.status !== filterStatus) return false
       return true
     })
-  }, [products, search, filterProductType, filterBrand, filterStatus])
+  }, [products, search, filterProductType, filterCategoryId, filterSubcategoryId, filterSpecificationId, filterBrand, filterStatus])
 
   function openAdd() {
     setSearchParams(prev => {
@@ -630,6 +878,8 @@ export default function ProductList() {
               <tr className="border-b border-surface-border bg-gray-50/60">
                 {visibleCols.has('productId')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product ID</th>}
                 {visibleCols.has('name')            && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[180px]">Product Name</th>}
+                {visibleCols.has('category')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Category</th>}
+                {visibleCols.has('subcategory')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Subcategory</th>}
                 {visibleCols.has('sku')             && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">SKU</th>}
                 {visibleCols.has('productType')     && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
                 {visibleCols.has('brand')           && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Brand</th>}
@@ -653,12 +903,30 @@ export default function ProductList() {
                     No products found
                   </td>
                 </tr>
-              ) : filtered.map(p => (
+              ) : filtered.map(p => {
+                const category = getCategory(p.categoryId)
+                const subcategory = getSubcategory(p.subcategoryId)
+                return (
                 <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
                   {visibleCols.has('productId') && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.id}</td>}
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-800">{p.name}</span>
+                    </td>
+                  )}
+                  {/* Legacy products (saved before Product Taxonomy existed) carry no
+                      categoryId/subcategoryId — shown as "Unclassified" here rather
+                      than this table's usual "—" empty-value convention (Brand/Model
+                      etc.), since it's an actionable state (see AddEditProductModal's
+                      own "reclassify to update" note) rather than a genuinely empty field. */}
+                  {visibleCols.has('category') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {category ? <span className="text-gray-600 text-xs">{category.label}</span> : <Badge variant="gray" size="sm">Unclassified</Badge>}
+                    </td>
+                  )}
+                  {visibleCols.has('subcategory') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {subcategory ? <span className="text-gray-600 text-xs">{subcategory.label}</span> : <Badge variant="gray" size="sm">Unclassified</Badge>}
                     </td>
                   )}
                   {visibleCols.has('sku')  && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.sku || '—'}</td>}
@@ -700,7 +968,7 @@ export default function ProductList() {
                     </td>
                   )}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

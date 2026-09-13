@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ChevronLeft, ChevronRight, ClipboardList, PackageOpen, Calculator,
+  ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, PackageOpen, Calculator,
   AlertTriangle, Save, CheckCircle2, Trash2, Plus, X, Download, Upload,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -19,7 +19,8 @@ import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } 
 import { usePermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
-import { ASSET_CONDITIONS } from '../../data/assetTaxonomy'
+import { ASSET_CONDITIONS, getFieldsForType } from '../../data/assetTaxonomy'
+import { AssetDetailFields } from '../assets/AddAsset'
 
 const STEPS = [
   { id: 1, label: 'Select PO',        icon: ClipboardList },
@@ -33,17 +34,22 @@ const STEPS = [
 const RECEIVABLE_PO_STATUSES = ['Sent', 'Partially Received']
 const MAC_RE = /^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$/
 
-// Asset Management's own linkage — a PO with poType 'Asset Purchase' has a
-// linked asset per line item (see AddAsset.jsx's "Save & Raise PO"), which
-// stamped that line's id as `POI-asset-${asset.id}` when it built the PO.
-// Matched here by exact id equality (not by parsing the asset id back out
-// of the string) so this stays correct even if that id format ever
-// changes shape, as long as it stays unique per PO. Standard POs never
-// match anything here (getAssets() has no asset with poId === a Standard
-// PO's id), so this is a no-op for the vast majority of POs.
-function linkedAssetForPOItem(po, poItem) {
-  if (!po || po.poType !== 'Asset Purchase') return null
-  return getAssets().find(a => a.poId === po.id && `POI-asset-${a.id}` === poItem.id) ?? null
+// Asset Management's own linkage — a PO with poType 'Asset Purchase' can
+// carry several lines (one per Category/Type/Qty combo — see AddAsset.jsx's
+// "Save & Raise PO", which now supports multiple items per PO), each with
+// one or more linked assets — `qty` of them, all created together via
+// createAssetsBulk() and stamped with this same line's id as their own
+// poItemId. Matched here by poId + poItemId (not by parsing anything out of
+// the line's own id) so this holds regardless of how many units a line
+// ordered. Standard POs never match anything here (getAssets() has no asset
+// with poId === a Standard PO's id), so this is a no-op for the vast
+// majority of POs. Order matches creation order (assetStore.js's
+// createAssetsBulk() prepends new assets, getAssets() returns them in that
+// same relative order), so array index lines up with "Unit 1, Unit 2, …"
+// below.
+function linkedAssetsForPOItem(po, poItem) {
+  if (!po || po.poType !== 'Asset Purchase') return []
+  return getAssets().filter(a => a.poId === po.id && a.poItemId === poItem.id)
 }
 
 // A Splicing Machine asset (assetTaxonomy.js: category 'field-splicing-
@@ -51,10 +57,14 @@ function linkedAssetForPOItem(po, poItem) {
 // Components sub-table — every other linked asset (or no linked asset at
 // all, i.e. every Standard PO line) carries an empty kitComponents array,
 // so CreatePurchase.jsx's "Kit Components Received" section never renders
-// for them.
-function requestedKitComponents(linkedAsset) {
-  if (linkedAsset?.categoryId !== 'field-splicing-tools' || linkedAsset?.typeId !== 'splicing-machine') return []
-  const rows = linkedAsset.fields?.kitComponents || []
+// for them. Only the line's first/primary linked asset is ever checked — a
+// Splicing Machine line is expected to stay qty 1 in practice (see
+// AddAsset.jsx's own note), so a qty>1 Splicing Machine line would only
+// surface/confirm its first unit's kit components, a known simplification
+// rather than a fully per-unit kit UI.
+function requestedKitComponents(primaryAsset) {
+  if (primaryAsset?.categoryId !== 'field-splicing-tools' || primaryAsset?.typeId !== 'splicing-machine') return []
+  const rows = primaryAsset.fields?.kitComponents || []
   // `received` defaults true (checked) — most components arrive as
   // planned, so GRN only needs the exceptions unchecked. serialNumber/
   // condition pre-fill from what was recorded at Add Asset time (often
@@ -66,21 +76,119 @@ function requestedKitComponents(linkedAsset) {
   }))
 }
 
-function itemFromPOLine(it, i, linkedAsset = null) {
+// Everything below Kit Components a linked asset carries — the same
+// dynamic fields captured on the Add Asset form (Asset Name, Brand, Model,
+// RAM, etc. — assetTaxonomy.js's getFieldsForType(categoryId, typeId)
+// template) — copied here as reference. One entry per received unit
+// (assetFieldSets, resized alongside serials below) so the receiving person
+// can review/correct each unit's details without touching what was
+// originally entered at PO creation time.
+function assetDetailFieldsOnly(fields) {
+  if (!fields) return {}
+  const { kitComponents, ...rest } = fields
+  return rest
+}
+
+// isStep2Valid() below only ever enforced Serial Number for an asset line
+// (via `serials`/`serialsOk`) — every other assetTaxonomy.js `required:
+// true` field (Asset Name, Brand Name, Purchase Date, Warranty Start/End
+// Date, Vendor, etc.) could be left blank at GRN and the receiver could
+// still confirm the purchase. That's what let a unit's warranty dates go
+// permanently unset, which is how isAssetWithinWarranty() in
+// assetRepairStore.js ends up always returning false for it later. This
+// checks one unit's assetFieldSets entry against every required field its
+// own Category/Type defines — except 'serialNumber', which stays
+// exclusively validated via `serials`/`serialsOk` (AssetUnitDetailsSection
+// still separately renders Serial Number bound to that array, not to this
+// fields object — see its own note); 'kit-components', which has no
+// meaningful "filled" state and is confirmed through its own separate
+// KitComponentsReceiptSection instead; and 'vendorId' — a per-unit Vendor
+// field no longer renders anywhere in this GRN step (the receipt's own
+// Basic Details step already asks for a single Vendor covering every line
+// on it), so nothing could ever fill it in here. purchaseStore.js's own
+// write-back now sources vendorId from the Purchase record's own top-level
+// vendorId instead — see its own note at that call site.
+function assetUnitFieldsComplete(fieldSet, categoryId, typeId) {
+  const requiredDefs = getFieldsForType(categoryId, typeId)
+    .filter(f => f.required && f.key !== 'serialNumber' && f.key !== 'vendorId' && f.type !== 'kit-components')
+  return requiredDefs.every(f => {
+    const v = fieldSet?.[f.key]
+    return v !== undefined && v !== null && String(v).trim() !== ''
+  })
+}
+
+function itemFromPOLine(it, i, linkedAssets = []) {
+  const primaryAsset = linkedAssets[0] ?? null
+  // Every spec field a unit needs at GRN (Asset Name, Brand, Model, RAM,
+  // Processor, etc.) now comes straight from the real asset's own recorded
+  // fields — captured once per PO line at Products-step time
+  // (AddAsset.jsx's AssetLineCard) and copied onto every asset created from
+  // that line. No template layer underneath it anymore (Asset Master has
+  // been removed) — a receiver's own correction at GRN is the only thing
+  // that can change it from here on.
+  const assetOriginalFields = primaryAsset ? assetDetailFieldsOnly(primaryAsset.fields) : null
   return {
     id: `tmp-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 5)}`,
+    // The PO's own line id — distinct from this Purchase item's own `id`
+    // above (a fresh tmp id local to this wizard session). An Asset line's
+    // productId is always '' (see AddAsset.jsx — no catalog product to
+    // reference), so a PO with several asset lines would otherwise have
+    // every one of them collapse onto the same '' key when
+    // receivedByProductIdForPO()/recalculatePOReceiptStatus()
+    // (purchaseStore.js/purchaseOrderStore.js) aggregate received qty per
+    // line across Purchases — poLineId is what lets those fall back to a
+    // per-line-unique key instead, without changing anything for a real
+    // catalog product (whose already-unique productId is still preferred).
+    poLineId: it.id,
     source: 'po', type: it.type, productId: it.productId, productName: it.productName,
     sku: it.sku, unit: it.unit, poQty: it.qty, receivedQty: '',
     price: it.price, gstPercent: it.gstPercent,
     serials: [], macs: [], drumNumber: '', reason: '',
-    assetId: linkedAsset?.id ?? null,
-    kitComponents: requestedKitComponents(linkedAsset),
+    // Batch-level (once per line, regardless of Received Qty) — unlike an
+    // Asset line's own per-unit purchaseDate/warrantyStartDate/
+    // warrantyEndDate (assetTaxonomy.js), a whole receipt of e.g. 5 ONT
+    // Devices shares one Purchase Date and one Warranty Start/End Date, not
+    // one each. Only meaningful for a real catalog product line (never
+    // read/validated for an Asset-flow line, which has its own equivalent —
+    // see isStep2Valid()'s own note) but harmless to seed blank here either way.
+    purchaseDate: '', warrantyStartDate: '', warrantyEndDate: '',
+    // One entry per linked asset (usually poQty of them) — assetIds[i] is
+    // the real Asset record backing that unit slot, or null for a slot
+    // beyond however many assets actually exist (e.g. an over-receipt past
+    // what was ordered) — see resizeIds()/AssetUnitDetailsSection below.
+    assetIds: linkedAssets.map(a => a.id),
+    assetCategoryId: primaryAsset?.categoryId ?? null,
+    assetTypeId: primaryAsset?.typeId ?? null,
+    assetOriginalFields,
+    assetFieldSets: linkedAssets.map(a => assetDetailFieldsOnly(a.fields)),
+    kitComponents: requestedKitComponents(primaryAsset),
   }
 }
 
 function resizeArray(arr, len) {
   const next = arr.slice(0, len)
   while (next.length < len) next.push('')
+  return next
+}
+
+// Same idea as resizeArray() above, one asset-detail-fields object per
+// received unit instead of one string — a newly-added unit slot (Received
+// Qty raised past what's already there) starts as a fresh copy of the
+// as-ordered reference (`template`) rather than blank, since it's the same
+// item that was ordered; a shrunk slot is simply dropped. Existing slots
+// (which may carry a real linked asset's own fields, not just the template)
+// are left untouched.
+function resizeFieldSets(sets, len, template) {
+  const next = sets.slice(0, len)
+  while (next.length < len) next.push({ ...template })
+  return next
+}
+
+// Same idea again, for assetIds — a newly-added unit slot has no real Asset
+// record behind it (null), same reasoning as resizeFieldSets() above.
+function resizeIds(ids, len) {
+  const next = ids.slice(0, len)
+  while (next.length < len) next.push(null)
   return next
 }
 
@@ -416,19 +524,263 @@ function KitComponentsReceiptSection({ item, onUpdate }) {
   )
 }
 
-function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
+// Shown only for an Asset-flow receipt line (item.assetIds non-empty — see
+// linkedAssetsForPOItem() above) in place of the Product flow's "Enter
+// Serials & MACs" modal — one expandable card per received unit
+// (assetFieldSets/serials, both resized alongside Received Qty by
+// ReceiptItemCard's own setReceivedQty()), each holding that unit's Serial
+// Number plus its Add Asset detail fields (Asset Name, Brand, Model, RAM,
+// etc. — the full set for a non-kit type; Purchase & Warranty dates and
+// Vendor only for a kit-eligible type, since identityFieldKeys drops the
+// rest as redundant with the card header — see this component's own note),
+// pre-filled from what was captured at PO creation and editable here so the
+// receiver can correct anything the vendor actually shipped differently.
+// Reuses AddAsset.jsx's own AssetDetailFields renderer (includeKitComponents
+// ={false} — Kit Components already has its own separate section below,
+// KitComponentsReceiptSection) rather than a second copy of that rendering.
+// Each unit slot maps 1:1 to its own real Asset record (item.assetIds[i])
+// whenever one exists, so on Confirm every unit's corrected fields are
+// written back onto its own asset — see purchaseStore.js's own note at the
+// write-back call site; a slot beyond however many assets actually exist
+// (e.g. an over-receipt) has no record to write into.
+function AssetUnitDetailsSection({ item, onUpdate, searchParams, patchSearchParams, showValidation, isKitItem }) {
+  const vendors = getVendors().filter(v => v.status === 'active')
+  // Kit-type assets (Splicing Machine) already show their own identity —
+  // Asset Name/Brand/Model — in ReceiptItemCard's own card header (e.g.
+  // "Field & Splicing Tools — Splicing Machine (Fusion Splicer Unit C)"),
+  // and the Kit Components Received list below is their real per-shipment
+  // correction mechanism, so those identity fields would just duplicate
+  // what's already visible. Still asks for Serial Number, Purchase &
+  // Warranty dates and Vendor below regardless of kit status — none of
+  // those are captured anywhere else, and isStep2Valid()'s assetFieldsOk
+  // check still requires them per unit whether or not the type is kit-
+  // eligible, so hiding them here would make a Splicing Machine PO
+  // permanently unconfirmable.
+  const identityFieldKeys = isKitItem
+    ? getFieldsForType(item.assetCategoryId, item.assetTypeId)
+        .filter(f => f.type !== 'date' && f.type !== 'vendor-select' && f.type !== 'kit-components')
+        .map(f => f.key)
+    : []
+  // Derived straight from the URL (&item=<poLineId>&unit=<n>) rather than
+  // its own local state — same convention as this wizard's own
+  // showAddOutside above — so a reload/deep-link/Back-Forward always shows
+  // whichever unit the URL names, and expand/collapse never needs its own
+  // effect to stay in sync. `item` disambiguates when a PO has more than
+  // one line item; poLineId is the original PO line's own stable id (see
+  // itemFromPOLine()'s own note), unlike this receipt item's own `id`
+  // which is freshly regenerated on every load. Unit 1 is the default when
+  // nothing valid is in the URL, so the common case (qty 1) needs no extra
+  // click; a stale/invalid pair (wrong item, out-of-range unit — e.g. an
+  // old link to a PO that has since been re-received with fewer units)
+  // falls back to that same default instead of erroring.
+  const urlUnit = Number(searchParams.get('unit'))
+  const hasValidUrlUnit = searchParams.get('item') === item.poLineId
+    && Number.isInteger(urlUnit) && urlUnit >= 1 && urlUnit <= item.assetFieldSets.length
+  const expandedIndex = hasValidUrlUnit ? urlUnit - 1 : 0
+
+  // Expanding a unit replaces the URL's &item=/&unit= pair (so only one
+  // "current" unit is ever tracked, replacing history rather than pushing
+  // so expand/collapse clicks don't clutter Back); collapsing the
+  // currently-expanded one just clears both params, returning to the
+  // ?po=...&step=2 base state and the Unit-1 default above.
+  //
+  // Collapse only fires when the URL is *explicitly* tracking this unit
+  // (hasValidUrlUnit && expandedIndex === i) — not just whenever the
+  // clicked index happens to match expandedIndex's fallback value. With no
+  // valid unit/item pair in the URL yet, expandedIndex defaults to 0 (Unit
+  // 1 open) purely as a rendering fallback; without the hasValidUrlUnit
+  // guard, the very first click on that already-open default unit would
+  // satisfy `expandedIndex === i` and take the collapse branch — clearing
+  // params that were never set, so the URL never actually gets the pair
+  // written and toggling again looks like a no-op.
+  function toggle(i) {
+    if (hasValidUrlUnit && expandedIndex === i) {
+      patchSearchParams({ item: null, unit: null }, { replace: true })
+    } else {
+      patchSearchParams({ item: item.poLineId, unit: i + 1 }, { replace: true })
+    }
+  }
+  function updateUnitField(i, key, value) {
+    onUpdate({ assetFieldSets: item.assetFieldSets.map((set, idx) => idx === i ? { ...set, [key]: value } : set) })
+  }
+  function updateUnitSerial(i, value) {
+    onUpdate({ serials: item.serials.map((s, idx) => idx === i ? value : s) })
+  }
+  function updateUnitMac(i, value) {
+    const next = [...item.macs]; next[i] = value
+    onUpdate({ macs: next })
+  }
+
+  return (
+    <div className="space-y-2">
+      {item.assetFieldSets.map((fieldSet, i) => {
+        const serialMissing = !(item.serials[i] ?? '').trim()
+        // Same required-field set isStep2Valid()'s own assetFieldsOk check
+        // enforces, surfaced here per-unit so a receiver blocked from
+        // proceeding can actually see which collapsed unit(s) need
+        // attention without expanding every one — see
+        // assetUnitFieldsComplete()'s own note.
+        const fieldsIncomplete = !assetUnitFieldsComplete(fieldSet, item.assetCategoryId, item.assetTypeId)
+        const showUnitWarning = showValidation && (serialMissing || fieldsIncomplete)
+        return (
+          <div key={i} className="rounded-lg border border-surface-border overflow-hidden">
+            <button
+              type="button" onClick={() => toggle(i)}
+              className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50/60 hover:bg-gray-100 transition-colors text-left"
+            >
+              <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                Unit {i + 1}{item.assetFieldSets.length > 1 ? ` of ${item.assetFieldSets.length}` : ''}
+                {showUnitWarning && <AlertTriangle size={12} className="text-amber-500" />}
+              </span>
+              <ChevronDown size={14} className={`text-gray-400 transition-transform ${expandedIndex === i ? 'rotate-180' : ''}`} />
+            </button>
+            {expandedIndex === i && (
+              <div className="p-3 space-y-4 bg-white border-t border-surface-border">
+                <FormField label="Serial No." required error={showValidation && serialMissing ? 'Serial Number is required.' : undefined}>
+                  <Input
+                    value={item.serials[i] ?? ''}
+                    onChange={e => updateUnitSerial(i, e.target.value)}
+                    placeholder="Serial Number"
+                    error={showValidation && serialMissing}
+                  />
+                </FormField>
+                {/* Not for a kit-type item — its own identity (and this
+                    unit's kit) is covered elsewhere; see this component's
+                    own file-level note. */}
+                {!isKitItem && (
+                  <FormField label="MAC ID" hint="Optional">
+                    <Input value={item.macs[i] ?? ''} onChange={e => updateUnitMac(i, e.target.value)} placeholder="MAC ID" />
+                  </FormField>
+                )}
+                <AssetDetailFields
+                  categoryId={item.assetCategoryId} typeId={item.assetTypeId}
+                  fields={fieldSet} onChange={(key, value) => updateUnitField(i, key, value)}
+                  vendors={vendors} includeKitComponents={false} showErrors={showValidation}
+                  // 'serialNumber' is excluded here since
+                  // "Identification & Specifications" would otherwise
+                  // render it a second time (getFieldsForType() includes
+                  // it, and nothing else here filters it out), bound to
+                  // fieldSet.serialNumber (the asset's own already-recorded
+                  // value, if any) rather than the canonical item.serials[i]
+                  // the explicit "Serial Number" field above is bound to.
+                  // That orphaned copy could show a stale/legacy value
+                  // (e.g. a seeded asset's original serial) right next to a
+                  // blank required field asking for the same thing — see
+                  // the recent investigation. Note: excluding it here is a
+                  // display-only fix — fieldSet.serialNumber still rides
+                  // along inside assetFieldSets[i] and still reaches
+                  // confirmAssetDetailFieldsAtGRN's write-back unedited;
+                  // item.serials[i] itself is never merged into that
+                  // write-back at all (it's persisted separately, only onto
+                  // this Purchase record's own `serials` array) — a real,
+                  // separate gap this fix does not touch.
+                  //
+                  // identityFieldKeys (see this component's own note above)
+                  // additionally drops Asset Name/Brand/Model/spec fields
+                  // for a kit-type item — empty for every other item, so
+                  // this is a no-op there. 'vendorId' is dropped for every
+                  // item — the vendor is already set once, at the Purchase
+                  // record's own Basic Details step, not per asset unit —
+                  // see assetUnitFieldsComplete()'s own note.
+                  excludeKeys={['serialNumber', 'vendorId', ...identityFieldKeys]}
+                />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Shown instead of AssetUnitDetailsSection's per-unit accordion for a
+// non-kit asset line with a single unit — Received Qty 0 (not yet
+// arrived) or 1 (received), ReceiptItemCard's own showInlineSerialMac — a
+// "Unit 1 of 1" toggle would add a click for no benefit when there's only
+// one unit, and these fields are meant to be fillable before Received Qty
+// is even set to 1. Serial No./MAC ID already moved into ReceiptItemCard's
+// own top-level row for this case, so this holds only the remaining spec/
+// correction fields (Asset Name, Brand Name, Model Name, SSD/Storage
+// Capacity, RAM, Processor) plus Purchase & Warranty/Vendor, unchanged
+// from what AssetUnitDetailsSection itself would otherwise show — always
+// visible, no toggle, since there's only one field set to show.
+function AssetSpecFieldsPanel({ item, onUpdate, showValidation }) {
+  const vendors = getVendors().filter(v => v.status === 'active')
+  const fieldSet = item.assetFieldSets[0] ?? {}
+  function updateField(key, value) {
+    const next = [...item.assetFieldSets]; next[0] = { ...fieldSet, [key]: value }
+    onUpdate({ assetFieldSets: next })
+  }
+  return (
+    <div className="rounded-lg border border-surface-border p-3 bg-white space-y-4">
+      <AssetDetailFields
+        categoryId={item.assetCategoryId} typeId={item.assetTypeId}
+        fields={fieldSet} onChange={updateField}
+        vendors={vendors} includeKitComponents={false} showErrors={showValidation}
+        // 'serialNumber' excluded — it's now bound to the top-level row's
+        // own Serial No. field (ReceiptItemCard), same reasoning as
+        // AssetUnitDetailsSection's own excludeKeys note above. 'vendorId'
+        // is dropped too — the vendor is already set once, at the Purchase
+        // record's own Basic Details step, not per asset unit.
+        excludeKeys={['serialNumber', 'vendorId']}
+      />
+    </div>
+  )
+}
+
+function ReceiptItemCard({ item, onUpdate, onRemove, showValidation, searchParams, patchSearchParams }) {
   const product = getProduct(item.productId)
   const isWire = item.type === 'wire'
-  const trackedBySerial = !!product?.trackedBySerial
+  // An Asset-flow line (item.assetIds non-empty — see
+  // linkedAssetsForPOItem() above) has no catalog productId to read
+  // trackedBySerial/trackedByMac off of, so it fell through this gate
+  // entirely and never got serial capture at GRN. Every individually-
+  // tracked asset needs its own serial regardless of category (Authority/
+  // Access included, even though that category's own Add Asset fields
+  // don't carry a serialNumber field — this is a receipt-time capture, not
+  // an Add Asset one), so any asset line is trackedBySerial too. MAC is
+  // captured for a non-kit asset line too (see isNonKitAssetItem below) —
+  // optional, no format validation, purely a capture field — but that's a
+  // parallel, asset-specific concern, not the same "trackedByMac" flag a
+  // real catalog product carries, so trackedByMac itself stays product-only.
+  const isAssetItem = Array.isArray(item.assetIds) && item.assetIds.length > 0
+  const isKitAssetItem = isAssetItem && item.kitComponents.length > 0
+  const isNonKitAssetItem = isAssetItem && !isKitAssetItem
+  const trackedBySerial = !!product?.trackedBySerial || isAssetItem
   const trackedByMac = !!product?.trackedByMac
   const isTracked = !isWire && (trackedBySerial || trackedByMac)
   const [modalOpen, setModalOpen] = useState(false)
 
   function setReceivedQty(qtyStr) {
-    const qty = Math.max(0, Number(qtyStr) || 0)
-    const patch = { receivedQty: qtyStr }
-    if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
-    if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
+    const rawQty = Math.max(0, Number(qtyStr) || 0)
+    // An asset line's own PO Qty is always 1 now (AddAsset.jsx locks it at
+    // creation), so Received Qty can only ever be 0 (not yet arrived) or 1
+    // (received) — clamped here rather than just relying on the input's own
+    // max="1" (a native stepper affordance only, not a hard block on typed
+    // input), and the stored value itself is clamped too, not just the qty
+    // used to resize the arrays below, so the field can't keep showing a
+    // higher typed number while everything behind it silently caps at 1.
+    const qty = isAssetItem ? Math.min(rawQty, 1) : rawQty
+    const patch = { receivedQty: isAssetItem ? String(qty) : qtyStr }
+    if (isAssetItem) {
+      // Never resize an asset line's own serials/macs/assetFieldSets/
+      // assetIds down to 0 — there's always at least one real linked asset
+      // per line (exactly one now that PO Qty is locked to 1; a legacy
+      // multi-asset line predating that lock keeps whatever it already has
+      // instead of losing everything). Received Qty 0 is this line's
+      // normal starting state ("not yet arrived"), and Serial No./MAC ID/
+      // Identification & Specifications are all meant to be fillable then
+      // too (see showInlineSerialMac below) — resizing to `qty` directly
+      // would wipe all of that out the moment Received Qty reads 0.
+      const resizeLen = Math.max(qty, 1)
+      patch.serials = resizeArray(item.serials, resizeLen)
+      patch.macs = resizeArray(item.macs, resizeLen)
+      patch.assetFieldSets = resizeFieldSets(item.assetFieldSets, resizeLen, item.assetOriginalFields)
+      patch.assetIds = resizeIds(item.assetIds, resizeLen)
+    } else {
+      if (trackedBySerial) patch.serials = resizeArray(item.serials, qty)
+      if (trackedByMac) patch.macs = resizeArray(item.macs, qty)
+    }
     onUpdate(patch)
   }
 
@@ -436,6 +788,27 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
   const qty = Number(item.receivedQty) || 0
   const enteredCount = isTracked ? countEnteredUnits(item, trackedBySerial, trackedByMac, qty) : 0
   const showWarning = showValidation && isTracked && qty > 0 && enteredCount < qty
+  // A non-kit asset line collapses Serial No./MAC ID straight into the
+  // top-level row (no "Unit 1 of 1" accordion needed for a single unit) —
+  // see the row/below-row rendering further down. True at both Received
+  // Qty 0 (not yet arrived — this line's normal starting state) and 1
+  // (received), so Serial No./MAC ID/Identification & Specifications are
+  // all visible and editable from the start, not gated behind marking the
+  // unit received first. qty <= 1 covers both of those; a >1 case can
+  // still exist on an already-saved legacy Purchase from before Received
+  // Qty was clamped to 0/1, in which case this stays false and the
+  // per-unit accordion (AssetUnitDetailsSection, with Serial No./MAC ID at
+  // the top of each unit's own block) renders instead, same as before.
+  const showInlineSerialMac = isNonKitAssetItem && qty <= 1
+  function updateInlineSerial(value) {
+    const next = [...item.serials]; next[0] = value
+    onUpdate({ serials: next })
+  }
+  function updateInlineMac(value) {
+    const next = [...item.macs]; next[0] = value
+    onUpdate({ macs: next })
+  }
+  const inlineSerialMissing = showInlineSerialMac && !(item.serials[0] ?? '').trim()
 
   return (
     <div className="rounded-xl border border-surface-border p-4 space-y-3">
@@ -455,32 +828,107 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">{isWire ? 'PO Qty (m)' : 'PO Qty'}</label>
-          <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
+      {isNonKitAssetItem ? (
+        // Short/Extra belong only to the Product PO receipt flow, where
+        // partial/over-shipment tracking against an ordered qty makes sense
+        // — an Asset line's qty is just "how many of this exact asset
+        // arrived," so those two columns are dropped here entirely. Serial
+        // No./MAC ID fold into this same row whenever there's a single unit
+        // to capture (showInlineSerialMac, true at Received Qty 0 or 1) so
+        // they're fillable before the unit is even marked received —
+        // otherwise (a legacy multi-unit line) they move into each unit's
+        // own block below (AssetUnitDetailsSection).
+        // gap-x-5/gap-y-4 matches FormSection's own grid (Identification &
+        // Specifications below) rather than this card's tighter gap-3 —
+        // needed here specifically so MAC ID's "Optional" hint text has
+        // room to breathe before the Amount column starts.
+        <div className={`grid grid-cols-2 ${showInlineSerialMac ? 'sm:grid-cols-5' : 'sm:grid-cols-3'} gap-x-5 gap-y-4`}>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">PO Qty</label>
+            <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
+          </div>
+          <FormField label="Received Qty">
+            <Input type="number" min="0" max="1" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
+          </FormField>
+          {showInlineSerialMac && (
+            <>
+              <FormField label="Serial No." required error={showValidation && inlineSerialMissing ? 'Serial Number is required.' : undefined}>
+                <Input
+                  value={item.serials[0] ?? ''}
+                  onChange={e => updateInlineSerial(e.target.value)}
+                  placeholder="Serial Number"
+                  error={showValidation && inlineSerialMissing}
+                />
+              </FormField>
+              <FormField label="MAC ID" hint="Optional">
+                <Input value={item.macs[0] ?? ''} onChange={e => updateInlineMac(e.target.value)} placeholder="MAC ID" />
+              </FormField>
+            </>
+          )}
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Amount</label>
+            <p className="text-sm font-semibold text-gray-900 py-1.5">₹{derived.amount.toLocaleString('en-IN')}</p>
+          </div>
         </div>
-        <FormField label={isWire ? 'Received (m)' : 'Received Qty'}>
-          <Input type="number" min="0" value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
-        </FormField>
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Short</label>
-          <p className={`text-sm font-medium py-1.5 ${derived.shortQty > 0 ? 'text-red-600' : 'text-gray-400'}`}>{derived.shortQty}</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">{isWire ? 'PO Qty (m)' : 'PO Qty'}</label>
+            <p className="text-sm font-medium text-gray-700 py-1.5">{item.poQty || 0}</p>
+          </div>
+          <FormField label={isWire ? 'Received (m)' : 'Received Qty'}>
+            <Input type="number" min="0" max={isKitAssetItem ? 1 : undefined} value={item.receivedQty} onChange={e => setReceivedQty(e.target.value)} placeholder="0" />
+          </FormField>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Short</label>
+            <p className={`text-sm font-medium py-1.5 ${derived.shortQty > 0 ? 'text-red-600' : 'text-gray-400'}`}>{derived.shortQty}</p>
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Extra</label>
+            <p className={`text-sm font-medium py-1.5 ${derived.extraQty > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{derived.extraQty}</p>
+          </div>
+          <div>
+            <label className="block text-[11px] text-gray-500 mb-1">Amount</label>
+            <p className="text-sm font-semibold text-gray-900 py-1.5">₹{derived.amount.toLocaleString('en-IN')}</p>
+          </div>
         </div>
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Extra</label>
-          <p className={`text-sm font-medium py-1.5 ${derived.extraQty > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{derived.extraQty}</p>
+      )}
+
+      {!isAssetItem && (
+        // Once per line, not per unit — an Asset-flow line already asks for
+        // its own equivalent per unit (AssetUnitDetailsSection below), so
+        // this only ever renders for a real catalog product line (hardware
+        // or wire). Same required-field rigor isStep2Valid() enforces for
+        // an Asset line's own purchaseDate/warrantyStartDate/
+        // warrantyEndDate — see that function's own note.
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <FormField label="Purchase Date" required hint="Required whenever a quantity is received" error={showValidation && !item.purchaseDate ? 'Required.' : undefined}>
+            <Input type="date" value={item.purchaseDate} onChange={e => onUpdate({ purchaseDate: e.target.value })} error={showValidation && !item.purchaseDate} />
+          </FormField>
+          <FormField label="Warranty Start Date" required error={showValidation && !item.warrantyStartDate ? 'Required.' : undefined}>
+            <Input type="date" value={item.warrantyStartDate} onChange={e => onUpdate({ warrantyStartDate: e.target.value })} error={showValidation && !item.warrantyStartDate} />
+          </FormField>
+          <FormField label="Warranty End Date" required error={showValidation && !item.warrantyEndDate ? 'Required.' : undefined}>
+            <Input type="date" value={item.warrantyEndDate} onChange={e => onUpdate({ warrantyEndDate: e.target.value })} error={showValidation && !item.warrantyEndDate} />
+          </FormField>
         </div>
-        <div>
-          <label className="block text-[11px] text-gray-500 mb-1">Amount</label>
-          <p className="text-sm font-semibold text-gray-900 py-1.5">₹{derived.amount.toLocaleString('en-IN')}</p>
-        </div>
-      </div>
+      )}
 
       {isWire ? (
         <FormField label="Drum Number" required hint="Required whenever a quantity is received">
           <Input value={item.drumNumber} onChange={e => onUpdate({ drumNumber: e.target.value })} placeholder="e.g. DRUM-0142" />
         </FormField>
+      ) : showInlineSerialMac ? (
+        // A single unit (Received Qty 0 or 1) — Serial No./MAC ID already
+        // live in the row above, so this holds only the remaining spec/
+        // correction fields, visible and editable from the start rather
+        // than waiting for Received Qty to be set to 1.
+        <AssetSpecFieldsPanel item={item} onUpdate={onUpdate} showValidation={showValidation} />
+      ) : isAssetItem && qty > 0 ? (
+        <AssetUnitDetailsSection
+          item={item} onUpdate={onUpdate} searchParams={searchParams} patchSearchParams={patchSearchParams} showValidation={showValidation}
+          isKitItem={isKitAssetItem}
+        />
       ) : isTracked && qty > 0 ? (
         <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${showWarning ? 'border-amber-300 bg-amber-50' : 'border-surface-border bg-gray-50'}`}>
           <p className={`text-xs font-medium flex items-center gap-1.5 ${showWarning ? 'text-amber-700' : 'text-gray-600'}`}>
@@ -501,7 +949,7 @@ function ReceiptItemCard({ item, onUpdate, onRemove, showValidation }) {
         </FormField>
       )}
 
-      {isTracked && qty > 0 && (
+      {isTracked && qty > 0 && !isAssetItem && (
         <SerialMacEntryModal
           isOpen={modalOpen}
           onClose={() => setModalOpen(false)}
@@ -545,6 +993,7 @@ function AddOutsideItemForm({ products, onAdd, onCancel }) {
       serials: product.trackedBySerial ? resizeArray([], receivedQty) : [],
       macs: product.trackedByMac ? resizeArray([], receivedQty) : [],
       drumNumber: '', reason: reason.trim(),
+      purchaseDate: '', warrantyStartDate: '', warrantyEndDate: '',
     }, itemRemarks.trim())
   }
 
@@ -628,8 +1077,17 @@ export default function CreatePurchase() {
   const [storeId, setStoreId] = useState(() => existing?.storeId ?? poFromUrl?.storeId ?? '')
   const [purchaseDate, setPurchaseDate] = useState(existing?.purchaseDate ?? new Date().toISOString().slice(0, 10))
   const [items, setItems] = useState(() =>
-    existing?.items.map(it => ({ ...it, receivedQty: String(it.receivedQty) }))
-    ?? poFromUrl?.items.map((it, i) => itemFromPOLine(it, i, linkedAssetForPOItem(poFromUrl, it)))
+    existing?.items.map(it => ({
+      ...it, receivedQty: String(it.receivedQty),
+      // A Draft saved before this batch-date capture existed (e.g. this
+      // store's own seeded PUR-000002) has no purchaseDate/warrantyStartDate/
+      // warrantyEndDate keys at all — default them here rather than leaving
+      // undefined, same as receivedQty's own normalization above, so the
+      // date <Input>s stay controlled instead of switching from
+      // uncontrolled once a value is typed.
+      purchaseDate: it.purchaseDate ?? '', warrantyStartDate: it.warrantyStartDate ?? '', warrantyEndDate: it.warrantyEndDate ?? '',
+    }))
+    ?? poFromUrl?.items.map((it, i) => itemFromPOLine(it, i, linkedAssetsForPOItem(poFromUrl, it)))
     ?? []
   )
   const [remarks, setRemarks] = useState(existing?.remarks ?? '')
@@ -674,7 +1132,7 @@ export default function CreatePurchase() {
     // Re-selecting a PO replaces only the PO-sourced lines — any items
     // already added via "Add Hardware Outside PO" carry over.
     setItems(prev => [
-      ...po.items.map((it, i) => itemFromPOLine(it, i, linkedAssetForPOItem(po, it))),
+      ...po.items.map((it, i) => itemFromPOLine(it, i, linkedAssetsForPOItem(po, it))),
       ...prev.filter(it => it.source === 'outside'),
     ])
     patchSearchParams({ po: po.id }, { replace: true })
@@ -721,11 +1179,31 @@ export default function CreatePurchase() {
     const receivedItems = numericItems.filter(it => it.receivedQty > 0)
     if (receivedItems.length === 0) return false
     return receivedItems.every(it => {
-      if (it.type === 'wire') return !!it.drumNumber?.trim()
+      const isAssetLine = Array.isArray(it.assetIds) && it.assetIds.length > 0
+      // Purchase Date / Warranty Start/End Date — once per line, not per
+      // unit (see ReceiptItemCard's own note and itemFromPOLine()'s), so
+      // this checks the line's own three fields directly rather than
+      // per-unit arrays. An Asset-flow line already enforces its own
+      // per-unit equivalent below (assetFieldsOk, via assetUnitFieldsComplete()),
+      // so it's excluded here rather than asked twice.
+      const batchDatesOk = isAssetLine || (!!it.purchaseDate && !!it.warrantyStartDate && !!it.warrantyEndDate)
+      if (it.type === 'wire') return !!it.drumNumber?.trim() && batchDatesOk
       const product = getProduct(it.productId)
-      const serialsOk = !product?.trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
+      // Same trackedBySerial-or-asset-line rule ReceiptItemCard uses above —
+      // an Asset-flow item (it.assetIds non-empty) requires Serial Number
+      // here too, even though it has no catalog product to read
+      // trackedBySerial off.
+      const trackedBySerial = !!product?.trackedBySerial || isAssetLine
+      const serialsOk = !trackedBySerial || (it.serials.length === it.receivedQty && it.serials.every(s => s.trim()))
       const macsOk = !product?.trackedByMac || (it.macs.length === it.receivedQty && it.macs.every(m => MAC_RE.test(m.trim())))
-      return serialsOk && macsOk
+      // Every other required asset detail field (Asset Name, Brand Name,
+      // Purchase Date, Warranty Start/End Date, Vendor, etc.) per unit —
+      // see assetUnitFieldsComplete()'s own note on why this was missing.
+      const assetFieldsOk = !isAssetLine || (
+        it.assetFieldSets.length === it.receivedQty
+        && it.assetFieldSets.every(fs => assetUnitFieldsComplete(fs, it.assetCategoryId, it.assetTypeId))
+      )
+      return serialsOk && macsOk && assetFieldsOk && batchDatesOk
     })
   }
 
@@ -762,11 +1240,14 @@ export default function CreatePurchase() {
       storeId, storeName: store?.storeName ?? '',
       companyEntityId, purchaseDate,
       items: numericItems.map(it => ({
-        id: it.id, source: it.source, type: it.type, productId: it.productId, productName: it.productName,
+        id: it.id, poLineId: it.poLineId ?? null, source: it.source, type: it.type, productId: it.productId, productName: it.productName,
         sku: it.sku, unit: it.unit, poQty: it.poQty, receivedQty: it.receivedQty,
         price: it.price, gstPercent: it.gstPercent,
         serials: it.serials, macs: it.macs, drumNumber: it.drumNumber, reason: it.reason,
-        assetId: it.assetId ?? null, kitComponents: it.kitComponents ?? [],
+        purchaseDate: it.purchaseDate || '', warrantyStartDate: it.warrantyStartDate || '', warrantyEndDate: it.warrantyEndDate || '',
+        assetIds: it.assetIds ?? [], kitComponents: it.kitComponents ?? [],
+        assetCategoryId: it.assetCategoryId ?? null, assetTypeId: it.assetTypeId ?? null,
+        assetOriginalFields: it.assetOriginalFields ?? null, assetFieldSets: it.assetFieldSets ?? [],
       })),
       remarks,
     }
@@ -849,7 +1330,7 @@ export default function CreatePurchase() {
             {attemptedAction === 'step2' && !isStep2Valid() && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                Enter at least one Received Qty above 0, and fill in Drum Number / Serial / MAC fields for every line with a quantity received.
+                Enter at least one Received Qty above 0, and fill in Drum Number / Serial / MAC fields — plus every required asset detail (Asset Name, Brand, Warranty dates, etc.) for each unit — for every line with a quantity received.
               </div>
             )}
             {attemptedAction === 'draft' && !canSaveDraft && (
@@ -932,6 +1413,7 @@ export default function CreatePurchase() {
                         onUpdate={patch => updateItem(item.id, patch)}
                         onRemove={() => removeItem(item.id)}
                         showValidation={attemptedAction === 'step2'}
+                        searchParams={searchParams} patchSearchParams={patchSearchParams}
                       />
                     ))}
                   </div>

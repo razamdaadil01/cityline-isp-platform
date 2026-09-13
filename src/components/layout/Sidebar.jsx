@@ -40,6 +40,8 @@ import {
   UserPlus,
   ArrowLeftRight,
   HardDrive,
+  FolderKanban,
+  ListTree,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -88,14 +90,16 @@ const NAV_ITEMS = [
       { label: 'Assign to Engineer', icon: UserCheck,         to: '/inventory/assign' },
       { label: 'Assign to User',     icon: UserPlus,          to: '/inventory/assign-to-user' },
       { label: 'Store Transfer',     icon: ArrowLeftRight,    to: '/inventory/store-transfer' },
+      { label: 'Asset Management',   icon: HardDrive,         to: '/assets' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
+      { label: 'Product Taxonomy',   icon: ListTree,           to: '/inventory/product-taxonomy' },
       { label: 'Vendor Management',  icon: Handshake,          to: '/inventory/vendors'  },
       { label: 'Store Management',   icon: Store,              to: '/inventory/stores'   },
       { label: 'General Settings',   icon: SlidersHorizontal,  to: '/inventory/settings' },
     ],
   },
-  { label: 'Asset Management', icon: HardDrive,       to: '/assets'                    },
+  { label: 'Projects',         icon: FolderKanban,    to: '/projects'                  },
   { label: 'Resellers',        icon: UserCog,         to: '/resellers'                 },
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },

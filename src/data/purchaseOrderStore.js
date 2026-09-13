@@ -24,6 +24,20 @@ export const PO_STATUSES = [
 // Approval" tab), never a branch in this store's own logic.
 export const PO_TYPES = ['Standard', 'Asset Purchase']
 
+// Display-only relabeling for the Purchase Orders list's "Purchase Type"
+// column — same pattern as PO_STATUS_LABELS/getPoStatusLabel below, so the
+// stored/compared value stays 'Standard'/'Asset Purchase' everywhere (the
+// note above already documents why) while the UI reads "Product"/"Asset",
+// matching the wording of the Add Purchase Order choice screen that
+// actually sets this field (PurchaseOrderTypeModal.jsx).
+export const PO_TYPE_LABELS = {
+  'Standard': 'Product',
+  'Asset Purchase': 'Asset',
+}
+export function getPoTypeLabel(poType) {
+  return PO_TYPE_LABELS[poType] ?? poType
+}
+
 // Display-only relabeling — the stored/compared value stays 'Approval
 // Request' everywhere (so nothing that reads po.status directly needs to
 // change), but the UI shows the more descriptive "Sent for Approval" per
@@ -202,13 +216,126 @@ const SEED = [
     notes: '', terms: 'Payment due within agreed terms. Goods must match PO specification.',
     status: 'Sent', createdBy: 'Ravi Patel', createdAt: '2026-08-27T11:15:00.000Z', approvalId: null,
   },
-].map(po => ({ ...po, poType: 'Standard', ...summarize(po.items) }))
+  // ── Asset Purchase seeds — poType: 'Asset Purchase' (see PO_TYPES above)
+  // so the Purchase Orders list's "Purchase Type" column shows both badge
+  // variants on load rather than only ever seeing "Product" until a live
+  // Add Asset "Save & Raise PO" is run. Line items mirror the shape
+  // AddAsset.jsx's raisePurchaseOrderForAsset() builds for a real
+  // asset-originated PO (productId: '', qty 1, a descriptive productName)
+  // rather than a catalog product — no linked asset record exists for
+  // these since they're seeded directly, not raised through the wizard.
+  {
+    id: 'PO-000010', poNumber: 'CITY/PO/2026/00009', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-001', storeId: 'STR-002',
+    orderDate: '2026-08-29', estimatedDeliveryDate: '2026-09-12', gstPercent: 18,
+    // Item id follows AddAsset.jsx's raisePurchaseOrderForAsset() convention
+    // exactly (`POI-asset-${asset.id}`) so CreatePurchase.jsx's
+    // linkedAssetForPOItem() finds the seeded AST-2026-000013 (assetStore.js)
+    // as this line's linked asset, same as it would for a live-raised one.
+    items: [
+      makeItem('asset-AST-2026-000013', { productId: '', productName: 'Field & Splicing Tools — Splicing Machine (Fusion Splicer Unit C)', sku: '', unit: 'Piece', qty: 1, price: 38136, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Rajesh Patel', createdAt: '2026-08-29T10:30:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000011', poNumber: 'CITY/PO/2026/00010', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-003', storeId: 'STR-003',
+    orderDate: '2026-08-05', estimatedDeliveryDate: '2026-08-20', gstPercent: 18,
+    items: [
+      makeItem(17, { productId: '', productName: 'IT Asset — Laptop', sku: '', unit: 'Piece', qty: 1, price: 15678, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Fully Received', createdBy: 'Pooja Mehta', createdAt: '2026-08-05T09:00:00.000Z', approvalId: null,
+  },
+  // ── Asset Purchase POs covering every Asset Category (assetTaxonomy.js)
+  // — all 'Sent' ("Sent to Vendor") and unreceived, so every category's GRN
+  // receipt path can be walked end to end via Purchases' "Select PO" step,
+  // same linkage convention as PO-000010 above: each item id is
+  // `POI-asset-${asset.id}`, matching that same id as a real 'PO Raised'
+  // asset's own poItemId in assetStore.js so CreatePurchase.jsx's
+  // linkedAssetsForPOItem() resolves it (one PO can carry several such
+  // lines — poId alone is no longer enough to tell them apart). Only the
+  // Splicing Machine one (PO-000013 / AST-2026-000015) carries
+  // kitComponents — every other category is deliberately not kit-eligible,
+  // exercising the plain Asset receipt path instead; it's also kept as its
+  // own single-item PO on purpose, isolated from the multi-item PO-000012/
+  // PO-000016 below, so that test case stays easy to verify on its own.
+  // Line-item counts are deliberately varied across these 5 POs — 1
+  // (PO-000014, Ladder), 2 (PO-000012, IT Asset + Generic Tools), 3
+  // (PO-000016, IT Asset + Generic Tools + Ladder again with different
+  // types), and single-item (PO-000013 Splicing Machine, PO-000015
+  // Authority/Access) — to exercise CreatePurchase.jsx's receipt step
+  // rendering one card per line item, not just per PO.
+  {
+    id: 'PO-000012', poNumber: 'CITY/PO/2026/00011', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-002', storeId: 'STR-001',
+    orderDate: '2026-08-30', estimatedDeliveryDate: '2026-09-13', gstPercent: 18,
+    // 2 line items — Desktop (its original single line) plus the Drill
+    // Machine moved over from PO-000016 (which now carries 3 different
+    // lines of its own below), demonstrating a multi-item Asset PO.
+    items: [
+      makeItem('asset-AST-2026-000014', { productId: '', productName: 'IT Asset — Desktop (Front Office Desktop 01)', sku: '', unit: 'Piece', qty: 1, price: 46610, gstPercent: 18 }),
+      makeItem('asset-AST-2026-000018', { productId: '', productName: 'Generic Tools — Drill Machine (Cordless Drill Machine 01)', sku: '', unit: 'Piece', qty: 1, price: 7542, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Neha Gupta', createdAt: '2026-08-30T09:45:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000013', poNumber: 'CITY/PO/2026/00012', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-002', storeId: 'STR-002',
+    orderDate: '2026-08-31', estimatedDeliveryDate: '2026-09-14', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000015', { productId: '', productName: 'Field & Splicing Tools — Splicing Machine (Fusion Splicer Unit D)', sku: '', unit: 'Piece', qty: 1, price: 35593, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Salim Khan', createdAt: '2026-08-31T14:00:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000014', poNumber: 'CITY/PO/2026/00013', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-001', storeId: 'STR-003',
+    orderDate: '2026-09-01', estimatedDeliveryDate: '2026-09-10', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000016', { productId: '', productName: 'Ladder — Aluminium Ladder (Field Ladder 01)', sku: '', unit: 'Piece', qty: 1, price: 5500, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Anita Sharma', createdAt: '2026-09-01T10:15:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000015', poNumber: 'CITY/PO/2026/00014', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-003', storeId: 'STR-001',
+    orderDate: '2026-08-28', estimatedDeliveryDate: '2026-09-08', gstPercent: 18,
+    items: [
+      makeItem('asset-AST-2026-000017', { productId: '', productName: 'Authority/Access — Safety Gear (SG-2026-0017)', sku: '', unit: 'Piece', qty: 1, price: 2712, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Ravi Patel', createdAt: '2026-08-28T15:30:00.000Z', approvalId: null,
+  },
+  {
+    id: 'PO-000016', poNumber: 'CITY/PO/2026/00015', companyEntityId: 1, poType: 'Asset Purchase',
+    vendorId: 'VEN-001', storeId: 'STR-002',
+    orderDate: '2026-08-26', estimatedDeliveryDate: '2026-09-05', gstPercent: 18,
+    // 3 line items — its own Drill Machine line moved to PO-000012 above,
+    // replaced by 3 different Category/Type combos (two of them reusing
+    // categories PO-000012 already touches, with different types, to show
+    // the same category can appear on more than one PO).
+    items: [
+      makeItem('asset-AST-2026-000019', { productId: '', productName: 'IT Asset — Laptop (Sales Laptop 02)', sku: '', unit: 'Piece', qty: 1, price: 49153, gstPercent: 18 }),
+      makeItem('asset-AST-2026-000020', { productId: '', productName: 'Generic Tools — Crimping Tool (RJ45 Crimping Tool 01)', sku: '', unit: 'Piece', qty: 1, price: 1525, gstPercent: 18 }),
+      makeItem('asset-AST-2026-000021', { productId: '', productName: 'Ladder — Extension Ladder (Field Ladder 02)', sku: '', unit: 'Piece', qty: 1, price: 8051, gstPercent: 18 }),
+    ],
+    notes: 'Auto-generated from Asset Management for a seeded asset.', terms: 'Payment due within agreed terms. Goods must match PO specification.',
+    status: 'Sent', createdBy: 'Pooja Mehta', createdAt: '2026-08-26T11:00:00.000Z', approvalId: null,
+  },
+].map(po => ({ ...po, poType: po.poType ?? 'Standard', ...summarize(po.items) }))
 
 // Seed sequence counters so the *next* live-created PO continues after the
 // seeded numbers instead of colliding with them — entity 1 has seeded POs
-// through 00008 (six POs plus the 00005 approval-demo and 00006 Approval
-// Request POs), entity 2 through 00002.
-_sequenceByEntity = { 1: 8, 2: 2 }
+// through 00015 (the original eight Product POs through 00008, the two
+// earlier seeded Asset Purchase POs at 00009/00010, and the five
+// one-per-category Asset Purchase POs at 00011-00015 above), entity 2
+// through 00002.
+_sequenceByEntity = { 1: 15, 2: 2 }
 
 let _pos = [...SEED]
 let _nextInternalSeq = _pos.length + 1
@@ -362,8 +489,12 @@ export function recalculatePOReceiptStatus(poId, receivedByProductId) {
   // it (an approved PO converges straight to 'Sent'), so it's not a
   // reachable po.status value here any more.
   if (!['Sent', 'Partially Received'].includes(po.status)) return
-  const fullyReceived = po.items.every(it => (receivedByProductId[it.productId] ?? 0) >= it.qty)
-  const anyReceived = po.items.some(it => (receivedByProductId[it.productId] ?? 0) > 0)
+  // Same productId-or-own-id fallback purchaseStore.js's
+  // receivedByProductIdForPO() keys its map with — an Asset PO line's
+  // productId is always '', so its own id is what actually distinguishes
+  // it from any other asset line on the same PO.
+  const fullyReceived = po.items.every(it => (receivedByProductId[it.productId || it.id] ?? 0) >= it.qty)
+  const anyReceived = po.items.some(it => (receivedByProductId[it.productId || it.id] ?? 0) > 0)
   const newStatus = fullyReceived ? 'Fully Received' : anyReceived ? 'Partially Received' : po.status
   if (newStatus === po.status) return
   _pos = _pos.map(p => p.id === poId ? { ...p, status: newStatus } : p)

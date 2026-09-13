@@ -219,6 +219,29 @@ const SEED = [
     remarks: 'Originally issued 15m off Drop Wire drum DR-00871 for this install — job cancelled before the run was made, meters returned unspooled to the drum.',
     status: 'Returned', assignedBy: 'Admin User', assignedAt: '2026-08-14T09:45:00.000Z',
   },
+  // A clean, unentangled "Assigned to Engineer" ONT serial for demoing
+  // Assignments.jsx's warranty-based "Send for Repair" routing — unlike
+  // ZTE-ONT-2026-0001/0002/0003 above (each already carries either a live
+  // repairStore.js record or a userAssignmentStore.js customer handoff),
+  // ZTE-ONT-2026-0006 has neither, so it's freely actionable. Its PUR-000005
+  // batch is seeded with an expired warranty window (see purchaseStore.js),
+  // so this demos the manual-vendor/Estimated Cost path — ASG-000005/serial
+  // 0002 above is still the within-warranty/locked-vendor counterpart.
+  // Reuses INS-012 (Preethi Nair, Andheri Store), free again since
+  // ASG-000007's own assignment against it was returned.
+  {
+    id: 'ASG-000010', assignmentNumber: 'ASG-2026-000010',
+    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    branchCode: 'CNPL-002',
+    workOrderId: 'INS-012', workOrderLabel: 'INS-012',
+    storeId: 'STR-002', storeName: 'Andheri Store',
+    hardwareLines: [
+      { id: 'ASGI-10-0', productId: 'PRD-001', productName: 'ONT Device', requiredQty: 1, assignedQty: 1, serials: ['ZTE-ONT-2026-0006'], macs: [], remark: '' },
+    ],
+    wireLines: [],
+    remarks: '',
+    status: 'Assigned', assignedBy: 'Admin User', assignedAt: '2026-08-24T09:00:00.000Z',
+  },
 ]
 
 _nextSeq = SEED.length + 1
@@ -589,6 +612,60 @@ export function returnAssignmentLine(assignmentId, lineKind, lineId) {
   logAudit({
     action: 'Update', module: 'Inventory',
     details: `Returned ${qtyLabel} from ${assignment.engineerName} back to ${assignment.storeName}${nowEmpty ? ' — assignment fully returned' : ''}`,
+  })
+
+  return updated
+}
+
+// ── Remove a single serial/MAC unit from a hardware line ────────────────
+// Same effect as returnAssignmentLine() above, but scoped to one physical
+// unit within a multi-unit line rather than the whole line — needed by
+// "Send for Repair" (Assignments.jsx), which sends back exactly one
+// serial/MAC at a time; the line's other units (still genuinely with the
+// engineer) must stay untouched. `value` is a serial or MAC string already
+// present on the line (resolved by the caller from that line's own
+// serials/macs array, same convention as saveRepair()'s own value/kind).
+//
+// Dual-tracked units are paired 1:1 by index (validateLines()'s own note
+// on hardwareLines) — removing the entry at whichever index `value` is
+// found at removes both its serial and its MAC together, so a dual-tracked
+// unit can never end up with an orphaned MAC (or serial) left behind on
+// the line after its pair is sent for repair.
+//
+// If this was the line's only remaining unit, falls through to
+// returnAssignmentLine()'s own whole-line removal (and its
+// assignment-status-flip to 'Returned' once the assignment is fully
+// empty) rather than leaving a hardwareLine with empty serials/macs and
+// assignedQty 0 sitting on the assignment.
+export function removeUnitFromAssignmentLine(assignmentId, lineId, value) {
+  const assignment = _assignments.find(a => a.id === assignmentId)
+  if (!assignment) throw new Error('Assignment not found.')
+  if (assignment.status === 'Returned') throw new Error('This assignment has already been returned.')
+
+  const line = assignment.hardwareLines.find(l => l.id === lineId)
+  if (!line) throw new Error('Line not found on this assignment.')
+
+  const serialIdx = line.serials.indexOf(value)
+  const macIdx = line.macs.indexOf(value)
+  if (serialIdx === -1 && macIdx === -1) throw new Error(`${value} was not found on this line.`)
+  const idx = serialIdx !== -1 ? serialIdx : macIdx
+
+  const serials = line.serials.filter((_, i) => i !== idx)
+  const macs = line.macs.filter((_, i) => i !== idx)
+
+  if (serials.length === 0 && macs.length === 0) {
+    return returnAssignmentLine(assignmentId, 'hardware', lineId)
+  }
+
+  const updatedLine = { ...line, serials, macs, assignedQty: Math.max(serials.length, macs.length) }
+  const hardwareLines = assignment.hardwareLines.map(l => l.id === lineId ? updatedLine : l)
+  const updated = { ...assignment, hardwareLines }
+  _assignments = _assignments.map(a => a.id === assignmentId ? updated : a)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Removed ${value} (${line.productName}) from ${assignment.engineerName}'s assignment ${assignment.assignmentNumber}`,
   })
 
   return updated

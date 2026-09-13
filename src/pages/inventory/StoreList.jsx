@@ -103,7 +103,7 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
             <Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setField('city', e.target.value)} />
           </FormField>
           <FormField label="GSTIN" hint="Optional — shown on the Delivery Challan">
-            <Input placeholder="e.g. 27AABCU9603R1ZM" value={form.gstin} onChange={e => setField('gstin', e.target.value.toUpperCase())} />
+            <Input placeholder="e.g. 27AAAAA0000A1Z5" value={form.gstin} onChange={e => setField('gstin', e.target.value.toUpperCase())} />
           </FormField>
         </div>
 

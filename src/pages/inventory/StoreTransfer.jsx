@@ -46,16 +46,23 @@ function liveTrackingType(productId) {
 // some other one it happens to still be mid-flight on. Wire lines are
 // checked against the specific transfer-scoped destination drum
 // inventoryLedger.js's Store Transfers block creates for them once
-// Completed — that row doesn't exist at all yet for a still-'Sent'
-// transfer, so a wire line stays non-reversible until receipt (no
-// explicit "in transit" case for drums the way there is for units).
-// Quantity-tracked lines have no discrete per-line identity to check —
+// Completed (a Sent line's meters have already left the source drum but
+// don't yet exist as any destination drum, so there's nothing to check
+// against — still freely reversible while 'Sent', no explicit "in transit"
+// case for drums the way there is for units). Quantity-tracked lines have
+// no discrete per-line identity to check —
 // same laxness Assign to Engineer's own quantity-line "Back to Store"
 // already accepts — so those stay reversible as long as the transfer
 // itself hasn't already been reversed.
 function isLineReversible(t, it) {
   const values = [...it.serials, ...it.macs]
   if (values.length) {
+    if (t.status === 'Sent') {
+      return values.every(v => {
+        const unit = getUnits({ productId: it.productId, storeId: t.storeFromId }).find(u => u.value === v)
+        return !!unit && unit.status === 'In Transit' && unit.lastTransferNumber === t.transferNumber
+      })
+    }
     return values.every(v => {
       const unit = getUnits({ productId: it.productId }).find(u => u.value === v)
       if (!unit) return false
@@ -65,6 +72,7 @@ function isLineReversible(t, it) {
     })
   }
   if (it.drumNumber) {
+    if (t.status === 'Sent') return true
     const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
     const destDrum = getDrums({ productId: it.productId, storeId: t.storeToId }).find(d => d.drumNumber === destDrumNumber)
     return !!destDrum && destDrum.remainingMeters >= it.qty
@@ -172,9 +180,12 @@ export default function StoreTransfer() {
     }
   }
 
-  // "Receive Transfer" — only shown for a 'Sent' (in-transit) row; flips
-  // the whole transfer to 'Completed' via receiveStoreTransfer(), which is
-  // what actually applies the destination-side ledger effect (see
+  // "Receive Transfer" confirms a cross-city 'Sent' shipment has arrived —
+  // acts on the whole transfer (not a single line), same as Edit/View
+  // Delivery Challan already do off row.transferId, since receiving is a
+  // single physical shipment landing, not a per-line action. Flips the
+  // whole transfer to 'Completed' via receiveStoreTransfer(), which is what
+  // actually applies the destination-side ledger effect (see
   // inventoryLedger.js's own Store Transfers block). The signed challan
   // upload uses the same FileReader.readAsDataURL() pattern as
   // SalesNewLead.jsx's ProfilePictureUpload — converted here in the UI
@@ -308,7 +319,7 @@ export default function StoreTransfer() {
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.assignedBy}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status}</Badge>
+                    <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
                   </td>
                   <td className="px-4 py-3 w-16 text-center">
                     <button
@@ -393,15 +404,15 @@ export default function StoreTransfer() {
         footer={
           <>
             <Button variant="secondary" onClick={() => { setReceiveTarget(null); setReceiveError('') }}>Cancel</Button>
-            <Button onClick={confirmReceive}>Confirm</Button>
+            <Button onClick={confirmReceive}>Confirm Receipt</Button>
           </>
         }
       >
         {receiveTarget && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Confirm arrival of <span className="font-semibold text-gray-900">{receiveTarget.qty} × {receiveTarget.productName}</span> at{' '}
-              <span className="font-semibold text-gray-900">{receiveTarget.storeToName}</span>?
+              Confirm transfer <span className="font-semibold text-gray-900">{receiveTarget.transferNumber}</span> has arrived at{' '}
+              <span className="font-semibold text-gray-900">{receiveTarget.storeToName}</span>? All items on this transfer become available there once received.
             </p>
             <FormField label="Received By">
               <Input value={receivedByInput} onChange={e => setReceivedByInput(e.target.value)} placeholder="Name of person receiving" />

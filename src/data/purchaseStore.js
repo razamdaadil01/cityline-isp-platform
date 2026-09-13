@@ -6,7 +6,7 @@
 // stock ledger will read from later.
 
 import { recalculatePOReceiptStatus, getPurchaseOrder } from './purchaseOrderStore'
-import { markAssetsInStockForPO, confirmKitComponentsForAsset } from './assetStore'
+import { markAssetsInStockForPO, confirmKitComponentsForAsset, confirmAssetDetailFieldsAtGRN } from './assetStore'
 import { logAudit } from './auditLogStore'
 import { addNotification } from './notificationStore'
 
@@ -127,6 +127,11 @@ const SEED = [
         poQty: 0, receivedQty: 3, price: 1800, gstPercent: 18,
         reason: 'Urgent field requirement for a VIP customer install',
         serials: ['ZTE-ONT-2026-0001', 'ZTE-ONT-2026-0002', 'ZTE-ONT-2026-0003'],
+        // Still within warranty — started a year ago, runs two more years —
+        // so ZTE-ONT-2026-0002 (ASG-000005, assigned to Preethi Nair) demos
+        // Assignments.jsx's "Send for Repair" locked-vendor/no-cost path.
+        // See PUR-000005 below for this batch's out-of-warranty counterpart.
+        purchaseDate: '2025-09-10', warrantyStartDate: '2025-09-10', warrantyEndDate: '2028-09-10',
       }),
     ],
     remarks: 'Emergency stock-out purchase — approved verbally by Ops Manager.',
@@ -168,6 +173,14 @@ const SEED = [
         poQty: 0, receivedQty: 5, price: 1800, gstPercent: 18,
         reason: 'Replenishment for upcoming Andheri branch installations',
         serials: ['ZTE-ONT-2026-0004', 'ZTE-ONT-2026-0005', 'ZTE-ONT-2026-0006', 'ZTE-ONT-2026-0007', 'ZTE-ONT-2026-0008'],
+        // Warranty expired a year ago — ZTE-ONT-2026-0006 (ASG-000010,
+        // assignmentStore.js, assigned to Preethi Nair) demos Assignments.jsx's
+        // "Send for Repair" manual-vendor/Estimated Cost path. 0004/0005 are
+        // already out at other stores via storeTransferStore.js, 0007 is
+        // in transit to Noida Store (also storeTransferStore.js, STF-000006)
+        // and 0008 stays free — none of them are warranty-sensitive today,
+        // so sharing this line item's dates with 0006 is harmless.
+        purchaseDate: '2024-09-10', warrantyStartDate: '2024-09-10', warrantyEndDate: '2025-09-10',
       }),
     ],
     remarks: 'ONT Device stock replenishment ahead of Andheri branch installs.',
@@ -367,13 +380,23 @@ export function getLastPurchasePrice(productId) {
 // linked to `poId` — a PO can be received across multiple partial
 // Purchases, so this always re-derives from the full history rather than
 // tracking a running total separately (single source of truth).
+// Keyed by productId when the item has one (every Standard PO line, since
+// it references a real catalog product) — an Asset PO line's productId is
+// always '' (AddAsset.jsx has no catalog product to reference), which
+// would otherwise collapse every asset line on the same PO onto one shared
+// '' key, so those fall back to poLineId instead (the originating PO
+// line's own stable id, copied onto this Purchase item by
+// CreatePurchase.jsx's itemFromPOLine() — see its own note). Matched
+// against the same fallback on the PO's own item id in
+// recalculatePOReceiptStatus() below.
 function receivedByProductIdForPO(poId) {
   const map = {}
   _purchases.forEach(pur => {
     if (pur.poId !== poId || pur.status !== 'Confirmed') return
     pur.items.forEach(it => {
       if (it.source !== 'po') return
-      map[it.productId] = (map[it.productId] ?? 0) + (Number(it.receivedQty) || 0)
+      const key = it.productId || it.poLineId
+      map[key] = (map[key] ?? 0) + (Number(it.receivedQty) || 0)
     })
   })
   return map
@@ -420,16 +443,58 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
       markAssetsInStockForPO(purchase.poId)
       // Kit Components Received (CreatePurchase.jsx) — only for a line that
       // was actually received this round and carries confirmed kit rows
-      // (set only for a Splicing Machine asset's receipt line; every other
-      // item's assetId/kitComponents are absent, so this is a no-op for
-      // them and for every Standard PO above).
+      // (set only for a Splicing Machine asset's receipt line, and only
+      // ever from its first/primary unit — see CreatePurchase.jsx's own
+      // requestedKitComponents() note; every other item's
+      // assetIds/kitComponents are absent, so this is a no-op for them and
+      // for every Standard PO above).
       purchase.items.forEach(it => {
-        if (it.assetId && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
-          confirmKitComponentsForAsset(it.assetId, it.kitComponents.map(c => ({
+        const assetIds = Array.isArray(it.assetIds) ? it.assetIds : []
+        if (assetIds[0] && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
+          confirmKitComponentsForAsset(assetIds[0], it.kitComponents.map(c => ({
             id: c.id, componentType: c.componentType, componentName: c.componentName, quantity: c.quantity,
             serialNumber: c.serialNumber, condition: c.condition,
             receivedStatus: c.received ? 'Received' : 'Missing',
           })))
+        }
+        // Asset detail fields reviewed/corrected at GRN (CreatePurchase.jsx's
+        // AssetUnitDetailsSection) — a PO line can now order several units
+        // (createAssetsBulk() at Add Asset time creates one real Asset
+        // record per unit, see AddAsset.jsx), so every unit slot that maps
+        // to a real asset (assetIds[i] set) gets its own corrected field
+        // set written back onto it; a slot beyond however many assets
+        // actually exist (e.g. an over-receipt past what was ordered) has
+        // no record to write into and is skipped.
+        //
+        // The canonical Serial Number the receiver types (item.serials[i]
+        // on CreatePurchase.jsx's own accordion, bound there rather than to
+        // assetFieldSets[i] — see AssetUnitDetailsSection's own note) lives
+        // on a completely separate array from assetFieldSets, so it's
+        // merged in here rather than arriving already part of it. Both
+        // arrays are resized together, to the same receivedQty, by
+        // ReceiptItemCard's own setReceivedQty() (trackedBySerial is always
+        // true for an asset line), so index i lines up the same physical
+        // unit across assetIds/assetFieldSets/serials for both a single-
+        // unit line and a multi-unit one — each serials[i] merges onto
+        // exactly the asset assetIds[i] resolves to. A blank serials[i]
+        // (an over-receipt slot with no serial entered, or none at all) is
+        // left out of the merge so it can never blank out an already-
+        // recorded serialNumber.
+        //
+        // Vendor is merged in the same way — CreatePurchase.jsx no longer
+        // renders a per-unit Vendor field at all (assetFieldSets[i] never
+        // carries a vendorId), since the vendor is already fixed once, at
+        // this same Purchase record's own top-level vendorId (set once for
+        // every line on it, at the Basic Details step) — there's no
+        // per-unit value to merge conditionally, so this always applies.
+        if (Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets)) {
+          const serials = Array.isArray(it.serials) ? it.serials : []
+          assetIds.forEach((assetId, i) => {
+            if (!assetId || !it.assetFieldSets[i]) return
+            const correctedFields = { ...it.assetFieldSets[i], vendorId: purchase.vendorId }
+            if (serials[i]?.trim()) correctedFields.serialNumber = serials[i].trim()
+            confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber: purchase.poNumber })
+          })
         }
       })
     }

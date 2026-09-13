@@ -64,18 +64,16 @@ function nextChallanNumber() {
 }
 
 // Store record → the Consignor/Consignee block a Delivery Challan needs.
-// storeStore.js now carries its own address/city/gstin fields directly
-// (added alongside this Store Transfer rebuild — see that file's own
-// note), so this reads them straight off the store rather than leaving
-// them permanently null. A Store still isn't tied to any one
-// companyEntities.js legal entity (Andheri Store alone receives stock
-// billed under BOTH seeded entities — see purchaseStore.js's
-// PUR-000001..006), so `gstin`/`address` are the STORE's own registration
-// details, not a borrowed entity's — genuinely correct for a Delivery
-// Challan's Consignor/Consignee block either way, which documents where
-// goods physically move between, not who legally bills for them.
-// `contactName`/`contactPhone` come from the store's own first seeded
-// contact, when one exists.
+// storeStore.js's own Store record now carries `address`/`gstin` directly
+// (Store Management config — see that file), read straight through here.
+// A Store still isn't tied to any one companyEntities.js legal entity
+// (Andheri Store alone receives stock billed under BOTH seeded entities —
+// see purchaseStore.js's PUR-000001..006), so there's no entity-level GSTIN
+// to borrow instead — the store's own GSTIN is the right one to show on a
+// document moving stock into or out of it. Either field still renders as a
+// blank (DeliveryChallanView.jsx's own `??` fallback) for a store that
+// hasn't had them filled in yet. `contactName`/`contactPhone` come from the
+// store's own first seeded contact, when one exists.
 function storeParty(storeId, storeNameFallback) {
   const store = getStore(storeId)
   const contact = store?.contacts?.[0] ?? null
@@ -85,8 +83,8 @@ function storeParty(storeId, storeNameFallback) {
     branchCode: store?.branchCode ?? null,
     contactName: contact?.name ?? null,
     contactPhone: contact?.phone ?? null,
-    address: store?.address || null,
-    gstin: store?.gstin || null,
+    address: store?.address ?? null,
+    gstin: store?.gstin ?? null,
   }
 }
 
@@ -169,7 +167,7 @@ export function createDeliveryChallanForTransfer(transfer) {
     // (rather than just aliasing consignee.city) so a future, more
     // precise source (e.g. a real state code) only needs to fill this one
     // line, not touch every caller that reads it.
-    placeOfSupply: getStore(transfer.storeToId)?.city || null,
+    placeOfSupply: getStore(transfer.storeToId)?.city ?? null,
     items: buildChallanItems(transfer.items),
     reason: transfer.reason || '',
     issuedBy: transfer.assignedBy,

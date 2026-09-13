@@ -8,7 +8,7 @@
 // (per the brief); this file IS the config it would eventually write to.
 //
 // Field shape: { key, label, type, required, recommended, options,
-//                appliesToTypes, readOnly, autofillFromAssetType, hint }
+//                appliesToTypes, readOnly, autofillFromAssetType, hint, scope }
 //   - `type` drives which input AddAsset.jsx's field renderer shows:
 //     'text' | 'number' | 'date' | 'select' | 'vendor-select' |
 //     'engineer-select' | 'kit-components' (the one repeatable sub-table).
@@ -31,6 +31,17 @@
 //     this" (Ladder's "Type", Authority/Access's "Card/Asset Type", Generic
 //     Tools' "Category") — Ladder is the only one the brief calls out by
 //     name, but the same reasoning clearly extends to the other two.
+//   - `scope`: 'template' (default, omitted on most fields) | 'instance' —
+//     historical/documentation metadata only, no live consumer. It used to
+//     drive which fields the now-removed Asset Master module could carry a
+//     reusable model-wide default for: 'template' fields describe the
+//     model itself (RAM, Processor, Height); 'instance' fields are
+//     inherently unique per physical unit or purchase (Serial Number, every
+//     date field, Vendor). AddAsset.jsx's own Products-step field list is a
+//     separate, explicit key list (GRN_ONLY_FIELD_KEYS) rather than a
+//     derivative of `scope` — it deliberately treats Asset Name as
+//     PO-time-capturable even though `scope` still marks it 'instance'
+//     here.
 
 export const KIT_COMPONENT_TYPES = [
   'Cleaver', 'Clamping Tool', 'Fiber Cutter', 'Cleaning Kit', 'Carrying Case', 'Battery', 'Charger', 'Other',
@@ -50,17 +61,17 @@ export const ASSET_CATEGORIES = [
       { id: 'printer', label: 'Printer' },
     ],
     fields: [
-      { key: 'assetName', label: 'Asset Name', type: 'text', required: true },
+      { key: 'assetName', label: 'Asset Name', type: 'text', required: true, scope: 'instance' },
       { key: 'brandName', label: 'Brand Name', type: 'text', required: true },
       { key: 'modelName', label: 'Model Name', type: 'text', required: true },
       { key: 'storageCapacity', label: 'SSD/Storage Capacity', type: 'text', required: true },
       { key: 'ram', label: 'RAM', type: 'text', required: false, recommended: true },
       { key: 'processor', label: 'Processor', type: 'text', required: false },
-      { key: 'serialNumber', label: 'Serial Number', type: 'text', required: true },
-      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true },
-      { key: 'warrantyStartDate', label: 'Warranty Start Date', type: 'date', required: true },
-      { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', required: true },
-      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true },
+      { key: 'serialNumber', label: 'Serial Number', type: 'text', required: true, scope: 'instance' },
+      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'warrantyStartDate', label: 'Warranty Start Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true, scope: 'instance' },
     ],
   },
   {
@@ -77,14 +88,14 @@ export const ASSET_CATEGORIES = [
     // splicing machine/OTDR/power meter) — Asset Name/Brand/Model/Serial
     // are kept since a tool still needs to be identifiable the same way.
     fields: [
-      { key: 'assetName', label: 'Asset Name', type: 'text', required: true },
+      { key: 'assetName', label: 'Asset Name', type: 'text', required: true, scope: 'instance' },
       { key: 'brandName', label: 'Brand Name', type: 'text', required: true },
       { key: 'modelName', label: 'Model Name', type: 'text', required: true },
-      { key: 'serialNumber', label: 'Serial Number', type: 'text', required: true },
-      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true },
-      { key: 'warrantyStartDate', label: 'Warranty Start Date', type: 'date', required: true },
-      { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', required: true },
-      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true },
+      { key: 'serialNumber', label: 'Serial Number', type: 'text', required: true, scope: 'instance' },
+      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'warrantyStartDate', label: 'Warranty Start Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'vendorId', label: 'Vendor', type: 'vendor-select', required: true, scope: 'instance' },
       // Splicing-Machine-only repeatable sub-table.
       { key: 'kitComponents', label: 'Kit Components', type: 'kit-components', required: false, appliesToTypes: ['splicing-machine'] },
     ],
@@ -104,8 +115,8 @@ export const ASSET_CATEGORIES = [
       { key: 'height', label: 'Height', type: 'text', required: true },
       { key: 'maxLoadCapacity', label: 'Max Load Capacity', type: 'text', required: false },
       { key: 'brand', label: 'Brand', type: 'text', required: true },
-      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true },
-      { key: 'warrantyDate', label: 'Warranty Date', type: 'date', required: false },
+      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true, scope: 'instance' },
+      { key: 'warrantyDate', label: 'Warranty Date', type: 'date', required: false, scope: 'instance' },
     ],
   },
   {
@@ -121,8 +132,8 @@ export const ASSET_CATEGORIES = [
       { key: 'cardAssetType', label: 'Card/Asset Type', type: 'text', required: true, readOnly: true, autofillFromAssetType: true },
       { key: 'cardIdNumber', label: 'Card/ID Number', type: 'text', required: true },
       { key: 'issuedTo', label: 'Issued To', type: 'engineer-select', required: true },
-      { key: 'validFrom', label: 'Valid From', type: 'date', required: true },
-      { key: 'validTo', label: 'Valid To', type: 'date', required: true },
+      { key: 'validFrom', label: 'Valid From', type: 'date', required: true, scope: 'instance' },
+      { key: 'validTo', label: 'Valid To', type: 'date', required: true, scope: 'instance' },
     ],
   },
   {
@@ -140,8 +151,8 @@ export const ASSET_CATEGORIES = [
       { key: 'category', label: 'Category', type: 'text', required: true, readOnly: true, autofillFromAssetType: true },
       { key: 'brand', label: 'Brand', type: 'text', required: false },
       { key: 'quantity', label: 'Quantity', type: 'number', required: true },
-      { key: 'serialNumber', label: 'Serial Number', type: 'text', required: false },
-      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true },
+      { key: 'serialNumber', label: 'Serial Number', type: 'text', required: false, scope: 'instance' },
+      { key: 'purchaseDate', label: 'Purchase Date', type: 'date', required: true, scope: 'instance' },
     ],
   },
 ]

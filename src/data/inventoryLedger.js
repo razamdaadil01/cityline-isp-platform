@@ -6,8 +6,8 @@
 //
 // Phase 5 (Engineer Assignment) layers assignmentStore.js's confirmed
 // deductions on top of the purchase-derived state below — a unit/drum's
-// `status`/remaining figures reflect assignments automatically. Damaged/
-// Scrap movements are still a later phase.
+// `status`/remaining figures reflect assignments automatically. Repairs
+// and Scrap are layered the same way, further down.
 
 import { getProducts } from './productStore'
 import { getPurchases, subscribePurchases } from './purchaseStore'
@@ -15,7 +15,8 @@ import { getAssignments, subscribeAssignments } from './assignmentStore'
 import { getReplacements, subscribeReplacements } from './replacementStore'
 import { getUserAssignments, subscribeUserAssignments } from './userAssignmentStore'
 import { getStoreTransfers, subscribeStoreTransfers } from './storeTransferStore'
-import { getRepairs } from './repairStore'
+import { getRepairs, subscribeRepairs } from './repairStore'
+import { getScraps, subscribeScraps } from './scrapStore'
 
 function normalizeMatchKey(s) {
   return (s || '').trim().toLowerCase()
@@ -100,7 +101,15 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
           productId, storeId: pur.storeId,
           purchaseId: pur.id, purchaseNumber: pur.purchaseNumber,
           poId: pur.poId, poNumber: pur.poNumber,
-          vendorName: pur.vendorName, receivedDate: pur.purchaseDate,
+          vendorId: pur.vendorId, vendorName: pur.vendorName, receivedDate: pur.purchaseDate,
+          // Line-item-level fields (batch Purchase Date/Warranty dates entered
+          // on the GRN Product Receipt step) — distinct from receivedDate
+          // above, which is the whole-receipt date. Kept under their own key
+          // (itemPurchaseDate) rather than reusing `purchaseDate` so callers
+          // can't confuse the two scopes.
+          itemPurchaseDate: it.purchaseDate,
+          warrantyStartDate: it.warrantyStartDate,
+          warrantyEndDate: it.warrantyEndDate,
         }
 
         if (it.type === 'wire' && it.drumNumber?.trim()) {
@@ -314,21 +323,26 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
   // earlier transfer into Store B) only exists once that earlier transfer
   // has already been applied.
   //
-  // Send vs Receive: the SOURCE-side effect below (leaving Store From)
-  // always applies immediately, whether `t.status` is 'Sent' or
-  // 'Completed' — matches storeTransferStore.js's own saveStoreTransfer()
-  // note that a transfer's source side is gone the moment it's dispatched,
-  // cross-city or not. The DESTINATION-side effect only applies once
-  // `isCompleted` — for a still-'Sent' transfer, a unit instead moves to
-  // its own 'In Transit' status (still at Store From's storeId — it hasn't
-  // arrived anywhere yet), a wire drum's meters leave the source drum
-  // without yet becoming a destination drum row, and a quantity-tracked
-  // product's balance leaves fromKey without yet crediting toKey. Calling
-  // storeTransferStore.js's receiveStoreTransfer() flips `t.status` to
-  // 'Completed', and this block (recomputed fresh on the next read, same
-  // as everywhere else in this file) then applies the exact same
-  // destination-side code path a same-city transfer already gets
-  // instantly.
+  // 'Sent' vs. 'Completed' — a same-city transfer goes straight to
+  // 'Completed' (storeTransferStore.js's sameCity()) and this block behaves
+  // exactly as it always has: the unit/drum/balance moves to Store To in
+  // this same pass. A cross-city transfer instead sits at 'Sent' until
+  // storeTransferStore.js's receiveStoreTransfer() flips it to 'Completed'
+  // (recomputed fresh on the next read, same as everywhere else in this
+  // file), so each branch below splits its source-side effect (leaving
+  // Store From — applied unconditionally, the instant the transfer exists)
+  // from its destination-side effect (landing at Store To — withheld while
+  // 'Sent'). A serial/MAC unit gets an intermediate 'In Transit' status
+  // while 'Sent': its storeId deliberately does NOT move yet, since status
+  // alone (not 'Available') is what already excludes it from
+  // getUnits({storeId, status:'Available'}) at BOTH Store From (no longer
+  // 'Available' there) and Store To (storeId hasn't arrived there yet) — no
+  // separate "pending store" field needed. Wire meters leave the source
+  // drum immediately either way, but the transfer-scoped destination drum
+  // row is only created/credited once 'Completed' — while 'Sent', those
+  // meters simply exist nowhere pickable. Quantity-tracked balances follow
+  // the same split: fromKey decrements immediately, toKey only credits once
+  // 'Completed'.
   ;[...getStoreTransfers()]
     .filter(t => t.status !== 'Reversed' && t.id !== excludeStoreTransferId)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -340,13 +354,16 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
       if (values.length) {
         values.forEach(v => {
           const unit = unitsByValue.get(v)
-          if (!unit || unit.status !== 'Available') return
+          if (!unit) return
           if (isCompleted) {
+            if (unit.status !== 'Available' && unit.status !== 'In Transit') return
             unit.storeId = t.storeToId
+            unit.status = 'Available'
           } else {
             // In transit — left Store From (no longer 'Available' there),
             // hasn't arrived at Store To yet, so storeId stays put; see
             // this block's own file-level note above.
+            if (unit.status !== 'Available') return
             unit.status = 'In Transit'
           }
           unit.lastTransferNumber = t.transferNumber
@@ -358,18 +375,18 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
       } else if (it.drumNumber) {
         // Wire — meters are cut from the specific source drum picked at
         // Store From (which stays put there, same as an assignment's own
-        // per-drum deduction just above) immediately regardless of status,
-        // and the moved length becomes its own drum row at Store To only
-        // once Completed — while still 'Sent', those meters have simply
-        // left the source drum and aren't anywhere yet (see this block's
-        // own file-level note above). That destination row is keyed by a
-        // transfer-scoped drum number (never the bare source drumNumber) so
-        // it can never collide with — or get its deduction target confused
-        // with — the source drum's own row still sitting at Store From; see
-        // this same drumsByNumber Map already being read by the Assignments
-        // block above. Inherits the source drum's own purchase/vendor
-        // history via spread, same traceability reasoning as the unit
-        // relocation branch above.
+        // per-drum deduction just above) the instant the transfer exists,
+        // whether 'Sent' or 'Completed'. The moved length only becomes its
+        // own drum row at Store To once 'Completed' — while 'Sent', those
+        // meters have left the source drum but aren't pickable anywhere
+        // yet. That destination row is keyed by a transfer-scoped drum
+        // number (never the bare source drumNumber) so it can never
+        // collide with — or get its deduction target confused with — the
+        // source drum's own row still sitting at Store From; see this same
+        // drumsByNumber Map already being read by the Assignments block
+        // above. Inherits the source drum's own purchase/vendor history via
+        // spread, same traceability reasoning as the unit relocation branch
+        // above.
         const sourceDrum = drumsByNumber.get(it.drumNumber)
         const meters = Number(it.qty) || 0
         movedQty = sourceDrum ? Math.min(meters, sourceDrum.remainingMeters) : 0
@@ -439,6 +456,27 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
     unit.repairRemarks = r.remarks
   })
 
+  // ── Scrap: unit permanently written off ──────────────────────────────────
+  // Same layering mechanism as Repairs just above — Inventory Overview's
+  // Units tab and the product table's own Scrap column/stat both read this
+  // same live unit.status, so scrapping a unit is visible everywhere a
+  // unit's status already surfaces. Applied last, after Repairs — a scrapped
+  // unit's state is permanent and final, so if a unit somehow carries both a
+  // stale repair record and a later scrap record (vendor couldn't fix it
+  // after all), Scrap always wins. Doesn't touch balanceByKey, same reasoning
+  // as Repairs/Assignments/Replacements above — a scrapped serial/MAC unit's
+  // "no longer available" state lives entirely in this per-unit status
+  // (getUnits({status: 'Available'}) simply stops matching it), not in the
+  // quantity-tracked balance table.
+  getScraps().forEach(s => {
+    const unit = unitsByValue.get(s.value)
+    if (!unit || unit.productId !== s.productId) return
+    unit.status = 'Scrapped'
+    unit.scrapRecordId = s.id
+    unit.scrapReason = s.reason
+    unit.scrappedAt = s.scrappedAt
+  })
+
   return {
     balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey,
     assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey,
@@ -481,6 +519,18 @@ export function getUnits({ productId, storeId, status, engineerId, excludeUserAs
     (!status || u.status === status) &&
     (!engineerId || u.engineerId === engineerId)
   )
+}
+
+// Product/serial-MAC equivalent of assetRepairStore.js's
+// isAssetWithinWarranty() — same lexicographic date-string compare, just
+// reading the unit's own warrantyStartDate/warrantyEndDate (see origin in
+// computeLedger()) instead of asset.fields.*.
+export function isUnitWithinWarranty(unit) {
+  const start = unit?.warrantyStartDate
+  const end = unit?.warrantyEndDate
+  if (!start || !end) return false
+  const today = new Date().toISOString().slice(0, 10)
+  return today >= start && today <= end
 }
 
 // Per-drum wire rows, optionally narrowed by productId/storeId.
@@ -615,22 +665,32 @@ export function getUnitTrail(unit) {
       detail: `Ticket ${unit.replacementTicketNumber}${unit.replacementRemarks ? ` — ${unit.replacementRemarks}` : ''}`,
     })
   }
+  if (unit.scrapRecordId) {
+    trail.push({
+      date: (unit.scrappedAt || '').slice(0, 10), action: 'Scrapped',
+      detail: unit.scrapReason || 'No reason recorded',
+    })
+  }
   return trail
 }
 
 // No independent notify loop — the ledger has no state of its own to
 // notify about, so this just re-exposes purchaseStore's, assignmentStore's,
-// replacementStore's, userAssignmentStore's and storeTransferStore's own
-// pub/subs. Consumers re-run their selectors (getStockBalances() etc.) on
-// fire, from a new receipt, a new assignment, a new replacement, a new user
-// handoff, or a new store transfer. repairStore.js has no pub/sub of its
-// own yet (it's seed-only — see its file-level note), so there's nothing to
-// re-export for it here; add it once a real write path exists.
+// replacementStore's, userAssignmentStore's, storeTransferStore's,
+// repairStore's and scrapStore's own pub/subs. Consumers re-run their
+// selectors (getStockBalances() etc.) on fire, from a new receipt, a new
+// assignment, a new replacement, a new user handoff, a new store transfer,
+// a new repair, or a new scrap.
 export function subscribeInventoryLedger(fn) {
   const unsubPurchases = subscribePurchases(() => fn())
   const unsubAssignments = subscribeAssignments(() => fn())
   const unsubReplacements = subscribeReplacements(() => fn())
   const unsubUserAssignments = subscribeUserAssignments(() => fn())
   const unsubStoreTransfers = subscribeStoreTransfers(() => fn())
-  return () => { unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments(); unsubStoreTransfers() }
+  const unsubRepairs = subscribeRepairs(() => fn())
+  const unsubScraps = subscribeScraps(() => fn())
+  return () => {
+    unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments(); unsubStoreTransfers()
+    unsubRepairs(); unsubScraps()
+  }
 }
