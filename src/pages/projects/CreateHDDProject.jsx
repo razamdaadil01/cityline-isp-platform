@@ -111,7 +111,7 @@ export default function CreateHDDProject() {
         </div>
       </div>
 
-      <div className="max-w-4xl bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
+      <div className="w-full bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
         {/* Basic Project Information */}
         <div className="space-y-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Basic Project Information</h3>
