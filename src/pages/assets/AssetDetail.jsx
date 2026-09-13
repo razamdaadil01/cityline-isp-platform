@@ -303,7 +303,13 @@ export default function AssetDetail() {
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Repair Status</p>
               <div className="flex items-center gap-2">
-                {activeRepair.isWarrantyClaim && <Badge variant="cyan" size="sm">Warranty Claim</Badge>}
+                {activeRepair.isWarrantyClaim ? (
+                  <Badge variant="cyan" size="sm">Warranty Claim</Badge>
+                ) : activeRepair.isChargeable ? (
+                  <Badge variant="orange" size="sm">Chargeable — ₹{activeRepair.chargeableAmount.toLocaleString('en-IN')}</Badge>
+                ) : (
+                  <Badge variant="gray" size="sm">Not Chargeable</Badge>
+                )}
                 <Badge variant={REPAIR_STATUS_BADGE[activeRepair.status] ?? 'gray'} size="sm" dot>{activeRepair.status}</Badge>
               </div>
             </div>
@@ -480,7 +486,13 @@ export default function AssetDetail() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono font-semibold text-brand-blue">{r.repairId}</span>
                       <Badge variant={REPAIR_STATUS_BADGE[r.status] ?? 'gray'} size="sm" dot>{r.status}</Badge>
-                      {r.isWarrantyClaim && <Badge variant="cyan" size="sm">Warranty Claim</Badge>}
+                      {r.isWarrantyClaim ? (
+                        <Badge variant="cyan" size="sm">Warranty Claim</Badge>
+                      ) : r.isChargeable ? (
+                        <Badge variant="orange" size="sm">Chargeable — ₹{r.chargeableAmount.toLocaleString('en-IN')}</Badge>
+                      ) : (
+                        <Badge variant="gray" size="sm">Not Chargeable</Badge>
+                      )}
                       {r.resolution && <Badge variant={r.resolution === 'Fixed' ? 'green' : 'red'} size="sm">{r.resolution}</Badge>}
                       {r.cost != null && <span className="text-xs font-medium text-gray-600">₹{r.cost.toLocaleString('en-IN')}</span>}
                     </div>
