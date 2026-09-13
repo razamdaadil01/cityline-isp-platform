@@ -259,10 +259,10 @@ export default function AssetList() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Asset ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Asset ID</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[110px]">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[110px]">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Warranty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned To</th>
@@ -279,7 +279,7 @@ export default function AssetList() {
                 </tr>
               ) : rows.map(a => (
                 <tr key={a.id} onClick={() => navigate(`/assets/${a.id}`)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
-                  <td className="px-4 py-3"><span className="font-mono text-xs font-semibold text-brand-blue">{a.id}</span></td>
+                  <td className="px-4 py-3 whitespace-nowrap"><span className="font-mono text-xs font-semibold text-brand-blue">{a.id}</span></td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.categoryLabel}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.typeLabel}</td>
                   <td className="px-4 py-3 text-gray-800 text-xs font-medium">{a.name}</td>
