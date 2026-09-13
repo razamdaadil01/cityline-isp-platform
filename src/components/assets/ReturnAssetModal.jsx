@@ -25,9 +25,9 @@ const NON_KIT_CONDITION_OPTIONS = [...ASSET_RETURN_CONDITIONS, 'Not Returned']
 // initiateAssetReturn()'s own note) instead of an unrelated single
 // top-level dropdown.
 const KIT_COMPONENT_CONDITIONS = [
-  { value: 'good', label: 'Returned — Good' },
-  { value: 'damaged', label: 'Returned — Damaged' },
-  { value: 'missing', label: 'Not Returned' },
+  { value: 'good', label: 'Good' },
+  { value: 'damaged', label: 'Damaged' },
+  { value: 'missing', label: 'Missing' },
 ]
 
 // Phase 4b — the only Return flow in this app. Reworked per the Return
