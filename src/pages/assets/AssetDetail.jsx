@@ -178,14 +178,16 @@ export default function AssetDetail() {
               Return
             </Button>
           )}
-          {/* Two entry points into the same modal: an asset already 'Under
+          {/* Three entry points into the same modal: an asset already 'Under
               Repair' (reached via the Return flow's Damaged/Not Working
-              path) and, now, an asset still 'Assigned' — an engineer
-              reporting a fault directly without first returning it.
-              raiseRepairRequest() itself handles the status transition
-              correctly either way (see its own note), so no separate
-              modal/flow is needed for the second case. */}
-          {(asset.status === 'Assigned' || asset.status === 'Under Repair') && !activeRepair && (
+              path), one still 'Assigned' (an engineer reporting a fault
+              directly without first returning it), and now one still
+              'In Stock' (found defective right after GRN, before ever being
+              assigned). raiseRepairRequest() itself handles the status
+              transition correctly in every case (see its own note — it has
+              no status gate and unconditionally moves the asset to 'Under
+              Repair'), so no separate modal/flow is needed for any of them. */}
+          {(asset.status === 'In Stock' || asset.status === 'Assigned' || asset.status === 'Under Repair') && !activeRepair && (
             <Button size="sm" icon={<Wrench size={14} />} onClick={() => setSendingForRepair(true)}>
               Send for Repair
             </Button>
