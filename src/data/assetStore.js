@@ -659,44 +659,83 @@ function nextReturnId() {
   return `RTN-${year}-${String(_nextReturnSeq++).padStart(6, '0')}`
 }
 
-// Phase 4b — Return an Assigned asset. Per PRD Section 12.2: condition
-// determines where the asset lands next — 'Working'/'Minor Issue' → back
-// to 'In Stock'; 'Damaged'/'Not Working' → 'Under Repair' (a data state
-// only in this phase — no repair record/vendor routing yet, that's
-// Phase 5). `kitComponentsReturned` (Splicing Machine assets only, from
-// ReturnAssetModal.jsx's checklist) is [{ componentId, returned }] — any
-// component NOT ticked is reconciled onto the asset's own
-// fields.kitComponents as receivedStatus: 'Missing' (reusing Phase 3's
-// same Received/Missing vocabulary the Kit Components table already
-// renders), and hasMissingComponents is set so it's visible without
-// digging into history. Per the brief, a missing component never blocks
-// the return — the parent asset still lands on 'In Stock'/'Under Repair'
-// as its condition dictates either way; the missing flag is purely for
-// visibility/reporting. assignedTo is always cleared, regardless of
-// outcome — the asset is no longer with that engineer once returned.
+// Phase 4b — Return an Assigned asset. Per PRD Section 12.2, reworked per
+// the Return Flow Audit to close its gaps. Two shapes now exist:
+//   - Non-kit: `condition` (one of ASSET_RETURN_CONDITIONS) decides the
+//     outcome — 'Working'/'Minor Issue' → 'In Stock', 'Damaged'/
+//     'Not Working' → 'Under Repair'. A non-kit asset that never comes
+//     back at all is NOT a case this function handles — ReturnAssetModal.jsx
+//     routes that ("Not Returned") straight to reportAssetLost() below
+//     instead of calling this function, since it's a loss, not a return
+//     outcome.
+//   - Kit (a Splicing Machine with recorded kitComponents): `condition` is
+//     ignored entirely — status is derived from each component's own
+//     `returnCondition` ('good'/'damaged'/'missing') in
+//     `kitComponentsReturned`: any 'damaged' → 'Under Repair' (the kit
+//     moves as one unit, same as Assign to Engineer's own kit-as-one-unit
+//     behavior — see assignAssetToEngineer()'s note); otherwise → 'In
+//     Stock' — a 'missing' component alone never forces Under Repair.
+//     Each 'missing' component is promoted straight into a real Lost
+//     record via this same file's own reportAssetLost() (componentId set,
+//     see below) rather than left at a dead-end 'Missing' flag.
+//     `receivedStatus: 'Missing'` is never written by this path anymore
+//     (reportAssetLost() immediately overwrites it to 'Lost'), but the
+//     value itself stays valid and still renders correctly in
+//     AssetDetail.jsx's Kit Components table for any pre-existing record.
+// assignedTo is always cleared, regardless of outcome — the asset is no
+// longer with that engineer once returned.
+//
+// Auto-creating the repair record itself (when the outcome is 'Under
+// Repair') is deliberately NOT done here — assetRepairStore.js already
+// imports getAsset/updateAsset from this file (see its own file-level
+// note: "assetStore.js never imports this file back"), so calling its
+// raiseRepairRequest() from here would import it right back and create a
+// circular dependency. ReturnAssetModal.jsx instead calls
+// raiseRepairRequest() itself immediately after this function returns
+// 'Under Repair' — the same one-directional layering this app already
+// enforces elsewhere (e.g. storeTransferStore.js never importing
+// inventoryLedger.js back).
 export function initiateAssetReturn(assetId, { condition, remarks = '', kitComponentsReturned = [], initiatedBy = 'Admin User' }) {
   const asset = getAsset(assetId)
   if (!asset) throw new Error('Asset not found.')
   if (asset.status !== 'Assigned') throw new Error('Only an asset that is Assigned can be returned.')
-  if (!ASSET_RETURN_CONDITIONS.includes(condition)) throw new Error('Select a valid condition.')
 
-  const missingComponentIds = kitComponentsReturned.filter(kc => !kc.returned).map(kc => kc.componentId)
+  const isKit = asset.categoryId === 'field-splicing-tools' && asset.typeId === 'splicing-machine'
+  const hasKitComponents = isKit && Array.isArray(asset.fields?.kitComponents) && asset.fields.kitComponents.length > 0
+
+  if (!hasKitComponents && !ASSET_RETURN_CONDITIONS.includes(condition)) {
+    throw new Error('Select a valid condition.')
+  }
+  const KIT_RETURN_CONDITIONS = ['good', 'damaged', 'missing']
+  if (hasKitComponents && (kitComponentsReturned.length === 0 || kitComponentsReturned.some(kc => !KIT_RETURN_CONDITIONS.includes(kc.returnCondition)))) {
+    throw new Error('Set a condition for every kit component.')
+  }
+
+  let newStatus
+  let effectiveCondition = condition
+  let missingComponentIds = []
+  let updatedKitComponents = asset.fields?.kitComponents
+
+  if (hasKitComponents) {
+    const anyDamaged = kitComponentsReturned.some(kc => kc.returnCondition === 'damaged')
+    missingComponentIds = kitComponentsReturned.filter(kc => kc.returnCondition === 'missing').map(kc => kc.componentId)
+    newStatus = anyDamaged ? 'Under Repair' : 'In Stock'
+    effectiveCondition = anyDamaged ? 'Damaged' : 'Working'
+    updatedKitComponents = asset.fields.kitComponents.map(c => {
+      const picked = kitComponentsReturned.find(kc => kc.componentId === c.id)
+      if (!picked || picked.returnCondition === 'missing') return { ...c, returnCondition: picked?.returnCondition ?? c.returnCondition }
+      return { ...c, returnCondition: picked.returnCondition, receivedStatus: 'Received' }
+    })
+  } else {
+    newStatus = (condition === 'Working' || condition === 'Minor Issue') ? 'In Stock' : 'Under Repair'
+  }
+
   const hasMissingComponents = missingComponentIds.length > 0
-
-  const existingKitComponents = asset.fields?.kitComponents
-  const updatedKitComponents = Array.isArray(existingKitComponents)
-    ? existingKitComponents.map(c => {
-        const checked = kitComponentsReturned.find(kc => kc.componentId === c.id)
-        return checked ? { ...c, receivedStatus: checked.returned ? 'Received' : 'Missing' } : c
-      })
-    : existingKitComponents
-
-  const newStatus = (condition === 'Working' || condition === 'Minor Issue') ? 'In Stock' : 'Under Repair'
 
   const entry = {
     id: nextReturnId(),
     date: new Date().toISOString(),
-    condition, remarks: remarks.trim(),
+    condition: effectiveCondition, remarks: remarks.trim(),
     initiatedBy,
     previousEngineer: asset.assignedTo?.engineerName ?? null,
     branchCode: asset.assignedTo?.branchCode ?? null,
@@ -718,23 +757,31 @@ export function initiateAssetReturn(assetId, { condition, remarks = '', kitCompo
   const missingNote = hasMissingComponents ? ` — ${missingComponentIds.length} kit component(s) missing` : ''
   logAudit({
     action: 'Edit', module: 'Assets',
-    details: `Returned asset ${assetId} — ${assetDisplayName(asset)} — condition: ${condition}, now ${newStatus}${missingNote}`,
+    details: `Returned asset ${assetId} — ${assetDisplayName(asset)} — condition: ${effectiveCondition}, now ${newStatus}${missingNote}`,
   })
 
   addNotification({
     type: 'asset_returned',
     title: 'Asset Returned',
-    description: `Asset ${assetId} returned from ${entry.previousEngineer ?? 'engineer'} — condition: ${condition}.`,
+    description: `Asset ${assetId} returned from ${entry.previousEngineer ?? 'engineer'} — condition: ${effectiveCondition}.`,
     meta: 'For Store Manager',
     reference: assetId,
     color: 'blue',
   })
 
-  // Return flagged with discrepancy — a distinct notification from the
-  // plain return one above, mirroring purchaseStore.js's own
-  // 'purchase_discrepancy' GRN notification (same yellow "needs a look"
-  // color) rather than folding it into the return notification's text.
+  // Missing kit component(s) — promoted straight into a real Lost record
+  // per component (reportAssetLost() below, componentId set) rather than
+  // left sitting at a dead-end 'Missing' flag. The discrepancy
+  // notification still fires alongside it, unchanged from before — this
+  // is additive, not a replacement for it.
   if (hasMissingComponents) {
+    missingComponentIds.forEach(componentId => {
+      reportAssetLost(assetId, {
+        reason: remarks.trim() || 'Reported missing at asset return.',
+        reportedBy: initiatedBy,
+        componentId,
+      })
+    })
     addNotification({
       type: 'asset_return_missing_components',
       title: 'Return Discrepancy — Missing Components',
@@ -745,7 +792,7 @@ export function initiateAssetReturn(assetId, { condition, remarks = '', kitCompo
     })
   }
 
-  return updated
+  return getAsset(assetId)
 }
 
 // Phase 6 — Warranty Management (PRD Section 9). This app has no
