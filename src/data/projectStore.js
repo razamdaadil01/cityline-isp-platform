@@ -18,6 +18,16 @@ export const DUCT_TYPES = ['40mm PLB HDPE Duct', '2-Way Coupled Duct']
 export const FIBER_CORE_SIZES = ['48-Core Armored Fiber', '96-Core Armored Fiber']
 export const DISTANCE_UNITS = ['Meters', 'Kilometers']
 
+// Project Execution Type — OH (Overhead/Aerial) vs UG (Underground) — a
+// broader classification that sits alongside the HDD-vs-Site project type
+// split (ProjectTypeModal.jsx). Applies to both HDD and Site projects: a
+// Site project's aerial pole-mounted work can be OH, while underground
+// trenching/drilling work (including HDD, which is inherently underground)
+// is UG. 'UG' listed first so the standard useState(CONST[0]) idiom used
+// throughout these forms defaults to UG.
+export const PROJECT_EXECUTION_TYPES = ['UG', 'OH']
+export const PROJECT_EXECUTION_TYPE_LABELS = { UG: 'Underground (Trenched/Drilled)', OH: 'Overhead (Aerial)' }
+
 // HDD Work Order Creation Form (Phase 3) master lists.
 export const WORK_ORDER_STATUSES = ['Assigned', 'In-Progress', 'Completed']
 export const LABOUR_RATE_TYPES = ['Daily Wage — Per Person', 'Fixed Daily Contractor Labour Charge']
@@ -77,6 +87,7 @@ export function generateSiteWorkOrderId() {
 //   id               string   generateHDDProjectId(), e.g. "HDD-2026-0012"
 //   title            string
 //   siteIncharge     string   userStore.js user id (Site Incharge / Project Owner)
+//   projectExecutionType  string   one of PROJECT_EXECUTION_TYPES ('OH'/'UG'), defaults to 'UG'
 //   status           string   one of PROJECT_STATUSES
 //   routeGeometry    object   { start: {name, lat, lng}, end: {name, lat, lng} }
 //   distance         number   total estimated route distance, in distanceUnit
@@ -128,6 +139,7 @@ export function generateSiteWorkOrderId() {
 //   address               string
 //   pincode               string
 //   geo                   object   { lat, lng }
+//   projectExecutionType  string   one of PROJECT_EXECUTION_TYPES ('OH'/'UG'), defaults to 'UG'
 //   siteType              string   one of SITE_TYPES
 //   capacity              object   shape depends on siteType —
 //                                  Residential: { homePasses, flatsCount, towersCount }
@@ -352,6 +364,7 @@ export function saveHDDProject(project) {
   const saved = {
     status: PROJECT_STATUSES[0], routeGeometry: null, distance: null, distanceUnit: DISTANCE_UNITS[0],
     technicalSpecs: null, vendor: null, drillingRate: null, capex: null,
+    projectExecutionType: PROJECT_EXECUTION_TYPES[0],
     workOrders: [], drilledDistance: 0,
     createdAt: new Date().toISOString().split('T')[0],
     ...project, id,
@@ -557,6 +570,7 @@ export function saveSiteProject(project) {
   const saved = {
     status: SITE_PROJECT_STATUSES[0], builderName: '', contactPerson: '', contactNumber: '',
     address: '', pincode: '', geo: null, siteType: SITE_TYPES[0],
+    projectExecutionType: PROJECT_EXECUTION_TYPES[0],
     capacity: null, competitors: [], expectedClosureDate: null, capex: null,
     workOrders: [], documents: [], revenueShare: null,
     createdAt: new Date().toISOString().split('T')[0],

@@ -28,8 +28,8 @@ export default function ProjectList() {
 
   const [typeModalOpen, setTypeModalOpen] = useState(false)
   const projects = [
-    ...hddProjects.map(p => ({ id: p.id, name: p.title, type: 'HDD / Backbone Route', status: p.status, kind: 'hdd' })),
-    ...siteProjects.map(p => ({ id: p.id, name: p.name, type: 'Site Project (FTTH/Commercial)', status: p.status, kind: 'site' })),
+    ...hddProjects.map(p => ({ id: p.id, name: p.title, type: 'HDD / Backbone Route', status: p.status, kind: 'hdd', projectExecutionType: p.projectExecutionType })),
+    ...siteProjects.map(p => ({ id: p.id, name: p.name, type: 'Site Project (FTTH/Commercial)', status: p.status, kind: 'site', projectExecutionType: p.projectExecutionType })),
   ]
 
   function openProject(p) {
@@ -75,7 +75,14 @@ export default function ProjectList() {
                 >
                   <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{p.id}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{p.type}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      {p.type}
+                      {p.projectExecutionType && (
+                        <Badge variant={p.projectExecutionType === 'OH' ? 'orange' : 'slate'} size="sm">{p.projectExecutionType}</Badge>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_BADGE[p.status] || 'gray'} dot size="sm">{p.status}</Badge>
                   </td>
