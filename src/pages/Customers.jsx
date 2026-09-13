@@ -7,14 +7,15 @@ import {
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
+import { getAllCustomers, subscribeCustomers } from '../data/customersData'
 
 // Customer List table's Show/Hide Columns default set. Customer Name is
 // locked so the table can never end up with zero identifying columns visible.
-// Email, Branch and Created are not part of the mock customer record shape
-// (no such fields exist anywhere on CUSTOMERS) and are intentionally omitted
-// rather than invented. Customer Type and Connection are derived from
-// existing fields (id prefix, network) the same way Sales.jsx derives its
-// Customer Type column from the lead's pipeline.
+// Email, Branch and Created are not part of the shared customer record shape
+// (customersData.js) and are intentionally omitted rather than invented.
+// Customer Type and Connection are derived from existing fields (id prefix,
+// network) the same way Sales.jsx derives its Customer Type column from the
+// lead's pipeline.
 const CUSTOMER_TABLE_COLUMNS = [
   { key: 'customerId',   label: 'Customer ID',   visible: true, defaultVisible: true },
   { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
@@ -54,44 +55,13 @@ const STATUS_CFG = {
   'Disconnected':          { variant: 'black',  label: 'Disconnected' },
 }
 
-const CUSTOMERS = [
-  { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '98765 43210', services: ['Broadband','Landline','OTT'],       plan: 'FTTH 100Mbps',     zone: 'Andheri West', area: 'Andheri',   network: 'OLT-AW-01', expiry: '2026-05-31', status: 'active' },
-  { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '98123 45678', services: ['Broadband'],                        plan: 'FTTB 50Mbps',      zone: 'Bandra East',  area: 'Bandra',    network: 'OLT-BE-02', expiry: '2026-05-20', status: 'active' },
-  { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '99887 76655', services: ['Broadband','Intercom'],             plan: 'Wireless 25Mbps',  zone: 'Goregaon',     area: 'Goregaon',  network: 'OLT-GG-01', expiry: '2026-04-15', status: 'suspended' },
-  { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '91234 56789', services: ['Broadband','OTT'],                  plan: 'FTTH 200Mbps',     zone: 'Versova',      area: 'Andheri',   network: 'OLT-AW-01', expiry: '2026-06-30', status: 'active' },
-  { id: 'ENT-2026-0001', name: 'Vikram Singh',       phone: '90112 23344', services: ['ILL','Business BB'],                plan: 'P2P 1Gbps',        zone: 'MIDC Andheri', area: 'Andheri',   network: 'OLT-MC-03', expiry: '2026-07-15', status: 'active' },
-  { id: 'RES-2026-0005', name: 'Mohan Lal',          phone: '97654 32198', services: ['Broadband'],                        plan: 'FTTH 100Mbps',     zone: 'Andheri East', area: 'Andheri',   network: 'OLT-AE-02', expiry: '2026-03-01', status: 'inactive' },
-  { id: 'RES-2026-0006', name: 'Deepa Nair',         phone: '93321 44556', services: ['Broadband','Landline'],             plan: 'FTTH 200Mbps',     zone: 'Juhu',         area: 'Juhu',      network: 'OLT-JU-01', expiry: '2026-06-15', status: 'active' },
-  { id: 'RES-2026-0007', name: 'Rahul Patil',        phone: '97001 12233', services: ['Broadband','OTT','Intercom'],       plan: 'FTTB 100Mbps',     zone: 'Malad West',   area: 'Malad',     network: 'OLT-ML-01', expiry: '2026-05-10', status: 'active' },
-  { id: 'RES-2026-0008', name: 'Sunita Joshi',       phone: '91800 09988', services: ['Broadband'],                        plan: 'FTTH 40Mbps',      zone: 'Santacruz',    area: 'Santacruz', network: 'OLT-SC-02', expiry: '2026-04-30', status: 'expired' },
-  { id: 'RES-2026-0009', name: 'Arun Kapoor',        phone: '98555 77889', services: ['ILL'],                              plan: 'ILL 10Mbps',       zone: 'SEEPZ',        area: 'Andheri',   network: 'OLT-MC-03', expiry: '2026-08-01', status: 'active' },
-  { id: 'RES-2026-0010', name: 'Kavitha Rao',        phone: '96001 23456', services: ['Broadband','Landline','OTT'],       plan: 'FTTH 100Mbps',     zone: 'Powai',        area: 'Powai',     network: 'OLT-PW-01', expiry: '2026-05-28', status: 'active' },
-  { id: 'RES-2026-0011', name: 'Nitin Bhatt',        phone: '99001 56789', services: ['Broadband'],                        plan: 'Wireless 10Mbps',  zone: 'Borivali',     area: 'Borivali',  network: 'OLT-BV-01', expiry: '2026-03-15', status: 'suspended' },
-  { id: 'RES-2026-0012', name: 'Meera Gupta',        phone: '97765 43210', services: ['Broadband','OTT'],                  plan: 'FTTH 200Mbps',     zone: 'Kandivali',    area: 'Kandivali', network: 'OLT-KD-01', expiry: '2026-07-10', status: 'active' },
-  { id: 'RES-2026-0013', name: 'Sanjay Verma',       phone: '95432 10987', services: ['Business BB','ILL'],                plan: 'FTTH 500Mbps',     zone: 'BKC',          area: 'Bandra',    network: 'OLT-BE-02', expiry: '2026-09-30', status: 'active' },
-  { id: 'RES-2026-0014', name: 'Pooja Menon',        phone: '91234 00987', services: ['Broadband','Intercom'],             plan: 'FTTB 50Mbps',      zone: 'Chembur',      area: 'Chembur',   network: 'OLT-CH-01', expiry: '2026-04-20', status: 'active' },
-  { id: 'RES-2026-0015', name: 'Amol Tiwari',        phone: '98908 76543', services: ['Broadband'],                        plan: 'FTTH 100Mbps',     zone: 'Ghatkopar',    area: 'Ghatkopar', network: 'OLT-GK-01', expiry: '2026-02-28', status: 'inactive' },
-  { id: 'RES-2026-0016', name: 'Rekha Shetty',       phone: '97654 00123', services: ['Broadband','Landline'],             plan: 'FTTH 200Mbps',     zone: 'Mulund',       area: 'Mulund',    network: 'OLT-MU-01', expiry: '2026-06-05', status: 'active' },
-  { id: 'RES-2026-0017', name: 'Dinesh Naik',        phone: '93301 22334', services: ['ILL','Landline'],                   plan: 'P2P 100Mbps',      zone: 'Vikhroli',     area: 'Vikhroli',  network: 'OLT-VK-01', expiry: '2026-08-15', status: 'active' },
-  { id: 'RES-2026-0018', name: 'Lalitha Kumar',      phone: '98701 12398', services: ['Broadband','OTT'],                  plan: 'FTTH 100Mbps',     zone: 'Bhandup',      area: 'Bhandup',   network: 'OLT-BH-01', expiry: '2026-05-25', status: 'active' },
-  { id: 'RES-2026-0019', name: 'Prakash Yadav',      phone: '94560 78901', services: ['Broadband'],                        plan: 'Wireless 25Mbps',  zone: 'Kurla',        area: 'Kurla',     network: 'OLT-KU-01', expiry: '2026-04-01', status: 'expired' },
-  { id: 'RES-2026-0020', name: 'Swati Jain',         phone: '96789 01234', services: ['Broadband','Landline','Intercom'],  plan: 'FTTH 200Mbps',     zone: 'Andheri West', area: 'Andheri',   network: 'OLT-AW-01', expiry: '2026-07-20', status: 'active' },
-  { id: 'RES-2026-0021', name: 'Harish Pillai',      phone: '91100 23456', services: ['Business BB'],                      plan: 'FTTH 1Gbps',       zone: 'Nariman Point','area': 'South Mumbai', network: 'OLT-SM-01', expiry: '2026-10-31', status: 'active' },
-  { id: 'RES-2026-0022', name: 'Nandita Shah',       phone: '98600 34567', services: ['Broadband'],                        plan: 'FTTB 50Mbps',      zone: 'Dadar',        area: 'Dadar',     network: 'OLT-DD-01', expiry: '2026-05-15', status: 'suspended' },
-  { id: 'RES-2026-0023', name: 'Rohit Bose',         phone: '97700 45678', services: ['Broadband','OTT'],                  plan: 'FTTH 100Mbps',     zone: 'Matunga',      area: 'Matunga',   network: 'OLT-MT-01', expiry: '2026-06-01', status: 'active' },
-  { id: 'RES-2026-0024', name: 'Chandra Sekhar',     phone: '95500 56789', services: ['ILL','Business BB','Landline'],     plan: 'P2P 10Gbps',       zone: 'Lower Parel',  area: 'Lower Parel',network: 'OLT-LP-01', expiry: '2026-11-30', status: 'active' },
-  { id: 'RES-2026-0025', name: 'Vandana Mishra',     phone: '92200 67890', services: ['Broadband'],                        plan: 'FTTH 40Mbps',      zone: 'Worli',        area: 'Worli',     network: 'OLT-WR-01', expiry: '2026-03-31', status: 'inactive' },
-  { id: 'RES-2026-0026', name: 'Sunil Kadam',        phone: '90000 78901', services: ['Broadband','Intercom'],             plan: 'FTTB 100Mbps',     zone: 'Thane West',   area: 'Thane',     network: 'OLT-TN-01', expiry: '2026-05-01', status: 'active' },
-  { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '98300 89012', services: ['Broadband','Landline','OTT'],       plan: 'FTTH 200Mbps',     zone: 'Navi Mumbai',  area: 'Navi Mumbai',network: 'OLT-NM-01', expiry: '2026-06-30', status: 'active' },
-  { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '97100 90123', services: ['Broadband'],                        plan: 'FTTH 100Mbps',     zone: 'Mira Road',    area: 'Mira Road', network: 'OLT-MR-01', expiry: '2026-04-25', status: 'active' },
-  { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '96100 01234', services: ['Broadband','OTT','Business BB'],    plan: 'FTTH 500Mbps',     zone: 'Powai',        area: 'Powai',     network: 'OLT-PW-01', expiry: '2026-08-20', status: 'active' },
-]
+// This module (and its filters/status tabs below) is scoped to core ISP
+// customers only — Intercom is its own product line with its own IDs
+// (IC-CUST-…) and its own list page (IntercomCustomers.jsx).
+const CORE_ID_PREFIXES = ['RES-', 'ENT-']
+function isCoreCustomer(c) { return CORE_ID_PREFIXES.some(p => c.id.startsWith(p)) }
 
-const ZONES      = [...new Set(CUSTOMERS.map(c => c.zone))].sort()
-const AREAS      = [...new Set(CUSTOMERS.map(c => c.area))].sort()
-const NETWORKS   = [...new Set(CUSTOMERS.map(c => c.network))].sort()
 const ALL_SERVICES = ['Broadband','Landline','OTT','ILL','Intercom','Business BB']
-const PLANS      = [...new Set(CUSTOMERS.map(c => c.plan))].sort()
 const LOCALITIES = ['Lokhandwala','Versova','MIDC','Juhu Scheme','Malad Link Road','Powai Lake Road','BKC Road','Nariman Point','Lower Parel West']
 const BRANCHES   = ['Andheri Branch','Bandra Branch','Borivali Branch','Thane Branch','Powai Branch','South Mumbai Branch']
 const SALES_PERSONS = ['Pradeep Kumar','Salim Khan','Neha Gupta','Rajesh Patel','Ananya Mehta']
@@ -119,6 +89,13 @@ function CustomerTypePill({ type }) {
   )
 }
 
+// customersData.js stores phone as plain digits (no separator); this page
+// previously displayed its own local copy pre-formatted as "XXXXX XXXXX".
+// Reformat here so the switch to the shared store doesn't visibly regress it.
+function formatPhone(phone) {
+  return /^\d{10}$/.test(phone) ? phone.replace(/(\d{5})(\d{5})/, '$1 $2') : phone
+}
+
 function FilterSelect({ label, value, onChange, options }) {
   return (
     <div className="relative">
@@ -139,6 +116,19 @@ function FilterSelect({ label, value, onChange, options }) {
 
 export default function Customers() {
   const navigate = useNavigate()
+
+  // Shared with CustomerDetail.jsx (whose Suspend/Terminate flow calls
+  // updateCustomer()) via customersData.js's getAllCustomers()/
+  // subscribeCustomers() pub/sub store, rather than this page's own
+  // previously-separate hardcoded copy — so a status change made there
+  // (e.g. Terminate → 'Pending Disconnection') shows up here live.
+  const [customers, setCustomers] = useState(() => getAllCustomers().filter(isCoreCustomer))
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers().filter(isCoreCustomer))), [])
+
+  const ZONES    = useMemo(() => [...new Set(customers.map(c => c.zone))].sort(), [customers])
+  const AREAS    = useMemo(() => [...new Set(customers.map(c => c.area).filter(Boolean))].sort(), [customers])
+  const NETWORKS = useMemo(() => [...new Set(customers.map(c => c.network).filter(Boolean))].sort(), [customers])
+  const PLANS    = useMemo(() => [...new Set(customers.map(c => c.plan))].sort(), [customers])
 
   const [search,          setSearch]          = useState('')
   const [statusTab,       setStatusTab]       = useState('All')
@@ -229,10 +219,10 @@ export default function Customers() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    return CUSTOMERS.filter(c => {
+    return customers.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !c.id.toLowerCase().includes(q)) return false
       if (statusTab !== 'All' && c.status.toLowerCase() !== statusTab.toLowerCase()) return false
-      if (filterService  && !c.services.includes(filterService)) return false
+      if (filterService  && !(c.services ?? []).includes(filterService)) return false
       if (filterZone     && c.zone    !== filterZone)             return false
       if (filterArea     && c.area    !== filterArea)             return false
       if (filterNetwork  && c.network !== filterNetwork)          return false
@@ -243,7 +233,7 @@ export default function Customers() {
       if (filterPipeline && filterPipeline === 'Enterprise'  && !c.id.startsWith('ENT')) return false
       return true
     })
-  }, [search, statusTab, filterService, filterZone, filterArea, filterNetwork,
+  }, [customers, search, statusTab, filterService, filterZone, filterArea, filterNetwork,
       filterPlan, filterExpFrom, filterExpTo, filterPipeline])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -286,12 +276,12 @@ export default function Customers() {
 
   const statusCounts = useMemo(() => {
     const base = {
-      All: CUSTOMERS.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0,
+      All: customers.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0,
       'Pending Disconnection': 0, Disconnected: 0,
     }
-    CUSTOMERS.forEach(c => { const k = c.status.charAt(0).toUpperCase() + c.status.slice(1); if (k in base) base[k]++ })
+    customers.forEach(c => { const k = c.status.charAt(0).toUpperCase() + c.status.slice(1); if (k in base) base[k]++ })
     return base
-  }, [])
+  }, [customers])
 
   return (
     <div className="p-6 space-y-5">
@@ -301,7 +291,7 @@ export default function Customers() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {filtered.length} of {CUSTOMERS.length} customers
+            {filtered.length} of {customers.length} customers
             {selected.size > 0 && <span className="ml-2 font-medium text-brand-blue">· {selected.size} selected</span>}
           </p>
         </div>
@@ -632,28 +622,28 @@ export default function Customers() {
                       </td>
                     )}
                     {visibleCols.has('area') && (
-                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.area}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.area ?? '—'}</td>
                     )}
                     {visibleCols.has('phone') && (
-                      <td className="px-4 py-3 text-gray-600 text-xs font-mono">{c.phone}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs font-mono">{formatPhone(c.phone)}</td>
                     )}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {c.services.map(s => <ServicePill key={s} service={s} />)}
+                        {(c.services ?? []).map(s => <ServicePill key={s} service={s} />)}
                       </div>
                     </td>
                     {visibleCols.has('plan') && (
                       <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.plan}</td>
                     )}
                     <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.zone}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{c.expiry}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{c.expiry ?? '—'}</td>
                     {visibleCols.has('status') && (
                       <td className="px-4 py-3">
                         <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
                       </td>
                     )}
                     {visibleCols.has('connection') && (
-                      <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{c.network}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{c.network ?? '—'}</td>
                     )}
                     {visibleCols.has('actions') && (
                       <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
