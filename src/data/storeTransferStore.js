@@ -70,17 +70,23 @@ export const STORE_TRANSFER_STATUSES = ['Completed', 'Sent', 'Reversed']
 // are referenced by any other seeded record (replacementStore.js/
 // repairStore.js have none), and no serial is reused across two of these
 // transfers — the same dedup guard saveStoreTransfer() enforces at save
-// time. Bandra Store (STR-003) and Noida Store (STR-004) have no purchases
-// of their own in the seed data, so they only ever appear as a Store To
-// below, never a Store From. STF-000001..005 are historical records
-// seeded directly as already 'Completed' — they pre-date this feature's
-// Send → Receive split entirely (see this file's own file-level note).
-// STF-000006..000008 instead demonstrate the current, universal lifecycle
-// every transfer now goes through regardless of city: one cross-city
-// 'Sent' still awaiting receipt (STF-000006), one same-city 'Sent' still
-// awaiting receipt (STF-000007), and one cross-city already-'Completed'
-// transfer (STF-000008) — so every same-city/cross-city × Sent/Completed
-// combination has a real example on first load.
+// time (a reversed line's own serial/drum is fair game for reuse, since
+// alreadyTransferredValues() only ever scans `items`, never
+// `reversedItems` — see reverseStoreTransferLine()'s own note). Bandra
+// Store (STR-003) and Noida Store (STR-004) have no purchases of their own
+// in the seed data, so they only ever appear as a Store To below, never a
+// Store From. STF-000001..005 are historical records seeded directly as
+// already 'Completed' — they pre-date this feature's Send → Receive split
+// entirely (see this file's own file-level note). STF-000006..000008
+// instead demonstrate the current, universal lifecycle every transfer now
+// goes through regardless of city: one cross-city 'Sent' still awaiting
+// receipt (STF-000006), one same-city 'Sent' still awaiting receipt
+// (STF-000007), and one cross-city already-'Completed' transfer
+// (STF-000008) — so every same-city/cross-city × Sent/Completed
+// combination has a real example on first load. STF-000009 rounds this
+// out with a fully-'Reversed' transfer, its one line already sitting in
+// reversedItems rather than items, so StoreTransfer.jsx's "Reversed" row
+// styling has a stable seed example too (see that record's own note).
 const SEED = [
   {
     id: 'STF-000001', transferNumber: 'TRF-2026-000001',
@@ -212,6 +218,51 @@ const SEED = [
     sentAt: '2026-09-13T08:00:00.000Z',
     receivedAt: '2026-09-13T15:30:00.000Z',
     receivedBy: 'Rohit Verma',
+  },
+  {
+    // Fully reversed — Andheri Store → Main Warehouse, recalled while
+    // still 'Sent' (never received). Seeded directly in this state (items
+    // empty, its one line already sitting in reversedItems) so
+    // StoreTransfer.jsx's flattenRows() has a stable, no-live-action
+    // example of a fully-reversed transfer's "Reversed" row on first load,
+    // instead of that row only ever existing after a user actually
+    // reverses something mid-session. Drop Wire drum DR-00871 has 370m
+    // left at Andheri Store after STF-000003 already cut 100m from its
+    // original 470m (see the hand-checked math above) — this 15m line was
+    // picked from the same drum, then recalled before ever leaving Andheri
+    // for good, comfortably within what's left.
+    //
+    // items: [] + reversedItems holding the one line is exactly
+    // reverseStoreTransferLine()'s own shape once a transfer's last (or
+    // only) line is reversed (see that function) — status 'Reversed' at
+    // the transfer level, the line itself carrying its own reversedAt.
+    // Being structurally absent from items, inventoryLedger.js's Store
+    // Transfers block never processes this line at all — no forEach ever
+    // sees it, so DR-00871's 370m stays exactly where STF-000003 left it,
+    // completely untouched by this record either way; no ledger change is
+    // needed for this to hold, only this shape. (The Delivery Challan
+    // reconciled below for this record — see createDeliveryChallanForTransfer()
+    // — reads transfer.items at seed time same as any other record, so it
+    // shows no line items for this one; a real reversed-in-app challan
+    // would already have been generated with its line intact back when
+    // the transfer was first saved, since createDeliveryChallanForTransfer()
+    // only ever runs once, before any reversal — this is a seed-only
+    // quirk of constructing the record already-reversed rather than
+    // walking it through saveStoreTransfer() then reverseStoreTransferLine().)
+    id: 'STF-000009', transferNumber: 'TRF-2026-000009',
+    date: '2026-09-13T12:00:00.000Z',
+    storeFromId: 'STR-002', storeFromName: 'Andheri Store',
+    storeToId: 'STR-001', storeToName: 'Main Warehouse',
+    items: [],
+    reversedItems: [
+      { id: 'STFI-9-0', productId: 'PRD-010', productName: 'Drop Wire', serials: [], macs: [], qty: 15, drumNumber: 'DR-00871', remark: '', reversedAt: '2026-09-13T12:30:00.000Z' },
+    ],
+    reason: 'Main Warehouse stock request',
+    assignedBy: 'Admin User',
+    status: 'Reversed',
+    sentAt: '2026-09-13T12:00:00.000Z',
+    receivedAt: null,
+    receivedBy: null,
   },
 ]
 
