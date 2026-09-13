@@ -48,6 +48,10 @@ const STATUS_CFG = {
   suspended: { variant: 'yellow', label: 'Suspended' },
   inactive:  { variant: 'gray',   label: 'Inactive' },
   expired:   { variant: 'red',    label: 'Expired' },
+  // Phase 1 Customer Disconnection flow (see customersData.js's
+  // CUSTOMER_STATUSES) — kept visually distinct from 'suspended'.
+  'Pending Disconnection': { variant: 'orange', label: 'Pending Disconnection' },
+  'Disconnected':          { variant: 'black',  label: 'Disconnected' },
 }
 
 const CUSTOMERS = [
@@ -95,7 +99,7 @@ const ENGINEERS  = ['Arjun Kumar','Preethi Nair','Suresh Babu','Kiran Desai','Vi
 const PARTNERS   = ['CityLink Franchise - Andheri','NetPoint Partners - Bandra','Speedy Net - Thane','ConnectPro - Powai']
 
 const PAGE_SIZE = 25
-const STATUS_TABS = ['All','Active','Suspended','Inactive','Expired']
+const STATUS_TABS = ['All','Active','Suspended','Inactive','Expired','Pending Disconnection','Disconnected']
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -227,7 +231,7 @@ export default function Customers() {
     const q = search.toLowerCase().trim()
     return CUSTOMERS.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !c.id.toLowerCase().includes(q)) return false
-      if (statusTab !== 'All' && c.status !== statusTab.toLowerCase()) return false
+      if (statusTab !== 'All' && c.status.toLowerCase() !== statusTab.toLowerCase()) return false
       if (filterService  && !c.services.includes(filterService)) return false
       if (filterZone     && c.zone    !== filterZone)             return false
       if (filterArea     && c.area    !== filterArea)             return false
@@ -281,7 +285,10 @@ export default function Customers() {
   ].filter(Boolean).length
 
   const statusCounts = useMemo(() => {
-    const base = { All: CUSTOMERS.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0 }
+    const base = {
+      All: CUSTOMERS.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0,
+      'Pending Disconnection': 0, Disconnected: 0,
+    }
     CUSTOMERS.forEach(c => { const k = c.status.charAt(0).toUpperCase() + c.status.slice(1); if (k in base) base[k]++ })
     return base
   }, [])

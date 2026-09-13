@@ -46,6 +46,18 @@ export const CUSTOMERS = [
   { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false },
 ]
 
+// ── Status values ─────────────────────────────────────────────────────────────
+// Core ISP customer status lifecycle (RES-/ENT- customers only — Intercom
+// customers are a separate product line and out of scope here). 'active',
+// 'suspended', 'inactive' and 'expired' are the pre-existing values.
+// 'Pending Disconnection' is Phase 1 of the Customer Disconnection flow's
+// interim state: a disconnection request has been raised (the Terminate
+// action on CustomerDetail.jsx) but hardware recovery/billing settlement
+// (later phases) haven't completed yet. 'Disconnected' is the final closed
+// state — later phases will insert hardware-recovery/settlement gates in
+// front of it, but for now it's reachable directly too.
+export const CUSTOMER_STATUSES = ['active', 'suspended', 'inactive', 'expired', 'Pending Disconnection', 'Disconnected']
+
 // ── Dynamically added customers (e.g. from Intercom Customer creation) ───────
 
 let _addedCustomers = []

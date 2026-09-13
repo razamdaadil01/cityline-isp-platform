@@ -11,8 +11,9 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
-import { getAllCustomers } from '../data/customersData'
+import { getAllCustomers, updateCustomer } from '../data/customersData'
 import { getPPPoEId, getAppPassword } from '../data/customerTypes'
+import { logAudit } from '../data/auditLogStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -307,6 +308,22 @@ const STATUS_CFG = {
   suspended: { variant: 'yellow', label: 'Suspended' },
   inactive:  { variant: 'gray',   label: 'Inactive' },
   expired:   { variant: 'red',    label: 'Expired' },
+  // Phase 1 Customer Disconnection flow — kept visually distinct from
+  // 'suspended' (yellow/amber) and from each other: amber/orange while the
+  // request is still in flight, black for the final closed state.
+  'Pending Disconnection': { variant: 'orange', label: 'Pending Disconnection' },
+  'Disconnected':          { variant: 'black',  label: 'Disconnected' },
+}
+
+const SUSPEND_REASONS = ['Non-payment', 'Customer request', 'Other']
+const TERMINATE_REASONS = ['Customer request', 'Relocation', 'Service dissatisfaction', 'Non-payment', 'Other']
+
+function formatActivityTime(d) {
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = d.toLocaleString('en-US', { month: 'short' })
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${day} ${month} ${d.getFullYear()} ${hh}:${mm}`
 }
 
 const SERVICE_STYLE = {
@@ -2115,16 +2132,88 @@ function RecordingsTab() {
   )
 }
 
+// ── Suspend / Terminate modal ────────────────────────────────────────────────
+
+function StatusActionModal({ mode, onClose, onConfirm }) {
+  const isTerminate = mode === 'terminate'
+  const reasons = isTerminate ? TERMINATE_REASONS : SUSPEND_REASONS
+  const [reason, setReason] = useState(reasons[0])
+  const [customReason, setCustomReason] = useState('')
+  const [requestedDate, setRequestedDate] = useState('')
+
+  function handleConfirm() {
+    const finalReason = reason === 'Other' ? (customReason.trim() || 'Other') : reason
+    onConfirm({ reason: finalReason, requestedDate })
+  }
+
+  return (
+    <Modal
+      isOpen={!!mode}
+      onClose={onClose}
+      title={isTerminate ? 'Terminate Connection' : 'Suspend Customer'}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant={isTerminate ? 'danger' : 'orange'} size="sm" onClick={handleConfirm}>
+            {isTerminate ? 'Raise Disconnection Request' : 'Suspend Customer'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          {isTerminate
+            ? 'This raises a disconnection request. The customer moves to "Pending Disconnection" — the connection is only marked "Disconnected" once hardware recovery and settlement are complete.'
+            : 'This suspends the customer\'s active services immediately.'}
+        </p>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reason</label>
+          <select
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white"
+          >
+            {reasons.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        {reason === 'Other' && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Specify reason</label>
+            <input
+              value={customReason}
+              onChange={e => setCustomReason(e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              placeholder="Enter reason"
+            />
+          </div>
+        )}
+        {isTerminate && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Requested Disconnection Date</label>
+            <input
+              type="date"
+              value={requestedDate}
+              onChange={e => setRequestedDate(e.target.value)}
+              className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+            />
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ── Tab: Activity Logs ───────────────────────────────────────────────────────
 
-function ActivityTab() {
+function ActivityTab({ activity }) {
   return (
     <Card padding={false}>
       <div className="px-5 py-4 border-b border-surface-border">
         <h3 className="text-sm font-semibold text-gray-800">Audit Trail</h3>
       </div>
       <div className="divide-y divide-surface-border">
-        {ACTIVITY.map((entry, i) => (
+        {activity.map((entry, i) => (
           <div key={i} className="px-5 py-3.5 flex items-start gap-4 hover:bg-gray-50/50">
             <div className="shrink-0 w-5 h-5 rounded-full bg-brand-blue/10 flex items-center justify-center mt-0.5">
               <Activity size={10} className="text-brand-blue" />
@@ -2160,6 +2249,22 @@ export default function CustomerDetail() {
   const activeTab = SLUG_TO_TAB[tab] ?? 'Profile'
   const [notes, setNotes] = useState(customer.notes)
 
+  // Suspend/Terminate write into customersData.js's override store (so the
+  // change persists for makeCustomerFromBase-backed customers), but `customer`
+  // above is recomputed fresh every render rather than held in state — so we
+  // also track the live status locally to reflect it immediately, including
+  // for the hardcoded MOCK_CUSTOMERS['RES-2026-0001'] entry that bypasses the
+  // override store entirely.
+  const [statusOverride, setStatusOverride] = useState(null)
+  const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | null
+  const [activityLog, setActivityLog] = useState(ACTIVITY)
+  const displayStatus = statusOverride ?? customer.status
+
+  useEffect(() => {
+    setStatusOverride(null)
+    setActivityLog(ACTIVITY)
+  }, [id])
+
   useEffect(() => {
     if (!tab) navigate(`/customers/${id}/profile`, { replace: true })
   }, [id, tab, navigate])
@@ -2173,7 +2278,24 @@ export default function CustomerDetail() {
     }
   }
 
-  const statusCfg = STATUS_CFG[customer.status] ?? STATUS_CFG.inactive
+  function handleStatusConfirm({ reason, requestedDate }) {
+    const now = formatActivityTime(new Date())
+    if (statusModal === 'suspend') {
+      updateCustomer(id, { status: 'suspended' })
+      setStatusOverride('suspended')
+      logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} suspended — reason: ${reason}` })
+      setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer suspended', meta: `Reason: ${reason}` }, ...a])
+    } else if (statusModal === 'terminate') {
+      updateCustomer(id, { status: 'Pending Disconnection' })
+      setStatusOverride('Pending Disconnection')
+      const dateMeta = requestedDate ? ` · Requested date: ${requestedDate}` : ''
+      logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} disconnection requested — reason: ${reason}${dateMeta}` })
+      setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Disconnection requested (Pending Disconnection)', meta: `Reason: ${reason}${dateMeta}` }, ...a])
+    }
+    setStatusModal(null)
+  }
+
+  const statusCfg = STATUS_CFG[displayStatus] ?? STATUS_CFG.inactive
 
   return (
     <div className="p-6 space-y-5">
@@ -2252,8 +2374,20 @@ export default function CustomerDetail() {
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
             <Button variant="secondary" size="sm" icon={<Ticket size={13} />}>Raise Ticket</Button>
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
-            <Button variant="orange"    size="sm" icon={<Ban size={13} />}>Suspend</Button>
-            <Button variant="danger"    size="sm" icon={<AlertTriangle size={13} />}>Terminate</Button>
+            <Button
+              variant="orange" size="sm" icon={<Ban size={13} />}
+              disabled={displayStatus === 'suspended' || displayStatus === 'Disconnected'}
+              onClick={() => setStatusModal('suspend')}
+            >
+              Suspend
+            </Button>
+            <Button
+              variant="danger" size="sm" icon={<AlertTriangle size={13} />}
+              disabled={displayStatus === 'Pending Disconnection' || displayStatus === 'Disconnected'}
+              onClick={() => setStatusModal('terminate')}
+            >
+              Terminate
+            </Button>
           </div>
         </div>
       </div>
@@ -2288,9 +2422,17 @@ export default function CustomerDetail() {
           {activeTab === 'TR-069'          && !isIntercom && <TR069Tab />}
           {activeTab === 'Circuit Details' && isIntercom  && <CircuitDetailsTab customer={customer} />}
           {activeTab === 'Recordings'      && <RecordingsTab />}
-          {activeTab === 'Activity Logs'   && <ActivityTab />}
+          {activeTab === 'Activity Logs'   && <ActivityTab activity={activityLog} />}
         </div>
       </div>
+
+      {statusModal && (
+        <StatusActionModal
+          mode={statusModal}
+          onClose={() => setStatusModal(null)}
+          onConfirm={handleStatusConfirm}
+        />
+      )}
     </div>
   )
 }
