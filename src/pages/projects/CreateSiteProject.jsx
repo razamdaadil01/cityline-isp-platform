@@ -5,6 +5,7 @@ import Button from '../../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../../components/ui/FormInputs'
 import {
   generateSiteProjectId, saveSiteProject, SITE_TYPES, COMPETITOR_OPTIONS, SITE_PROJECT_STATUSES,
+  PROJECT_EXECUTION_TYPES, PROJECT_EXECUTION_TYPE_LABELS,
 } from '../../data/projectStore'
 
 function emptyCapacityForm() {
@@ -28,6 +29,7 @@ export default function CreateSiteProject() {
   const [geo, setGeo] = useState({ lat: '', lng: '' })
 
   const [siteType, setSiteType] = useState(SITE_TYPES[0])
+  const [projectExecutionType, setProjectExecutionType] = useState(PROJECT_EXECUTION_TYPES[0])
   const [capacityForm, setCapacityForm] = useState(emptyCapacityForm)
 
   const [competitors, setCompetitors] = useState([])
@@ -102,6 +104,7 @@ export default function CreateSiteProject() {
       competitors,
       expectedClosureDate,
       status: SITE_PROJECT_STATUSES[0],
+      projectExecutionType,
     })
     navigate(`/projects/site/${saved.id}`)
   }
@@ -147,6 +150,22 @@ export default function CreateSiteProject() {
           </div>
           <FormField label="Site Full Address" required error={errors.address}>
             <Textarea rows={2} placeholder="Full site address" value={address} onChange={e => { setAddress(e.target.value); setErrors(er => ({ ...er, address: undefined })) }} />
+          </FormField>
+          <FormField label="Project Execution Type" required>
+            <div className="flex gap-3">
+              {PROJECT_EXECUTION_TYPES.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setProjectExecutionType(t)}
+                  className={`flex-1 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                    projectExecutionType === t ? 'border-brand-blue bg-brand-blue/5 text-brand-blue' : 'border-surface-border text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {t} — {PROJECT_EXECUTION_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
           </FormField>
           <div>
             <p className="text-xs font-medium text-gray-600 mb-2">Geolocation Pin</p>

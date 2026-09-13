@@ -536,6 +536,9 @@ export default function SiteProjectDetail() {
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <h1 className="text-xl font-bold text-gray-900">{project.name}</h1>
               <Badge variant={STATUS_BADGE[project.status] ?? 'gray'} dot size="sm">{project.status}</Badge>
+              {project.projectExecutionType && (
+                <Badge variant={project.projectExecutionType === 'OH' ? 'orange' : 'slate'} size="sm">{project.projectExecutionType}</Badge>
+              )}
               {canEdit && upcomingStatus && (
                 <button
                   onClick={handleAdvanceStatus}

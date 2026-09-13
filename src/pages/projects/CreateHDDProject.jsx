@@ -6,6 +6,7 @@ import EmployeeSelect from '../../components/ui/EmployeeSelect'
 import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import {
   generateHDDProjectId, saveHDDProject, DUCT_TYPES, FIBER_CORE_SIZES, DISTANCE_UNITS,
+  PROJECT_EXECUTION_TYPES, PROJECT_EXECUTION_TYPE_LABELS,
 } from '../../data/projectStore'
 import { getVendors, getVendorDrillingRate } from '../../data/vendorStore'
 
@@ -25,6 +26,7 @@ export default function CreateHDDProject() {
 
   const [title, setTitle] = useState('')
   const [siteIncharge, setSiteIncharge] = useState('')
+  const [projectExecutionType, setProjectExecutionType] = useState(PROJECT_EXECUTION_TYPES[0])
   const [start, setStart] = useState(emptyPoint)
   const [end, setEnd] = useState(emptyPoint)
   const [distance, setDistance] = useState('')
@@ -89,6 +91,7 @@ export default function CreateHDDProject() {
       },
       vendor: vendorId,
       drillingRate: Number(drillingRate),
+      projectExecutionType,
     })
     navigate(`/projects/hdd/${saved.id}`)
   }
@@ -127,6 +130,22 @@ export default function CreateHDDProject() {
           </FormField>
           <FormField label="Site Incharge / Project Owner" required error={errors.siteIncharge}>
             <EmployeeSelect error={errors.siteIncharge} value={siteIncharge} onChange={v => { setSiteIncharge(v); setErrors(er => ({ ...er, siteIncharge: undefined })) }} />
+          </FormField>
+          <FormField label="Project Execution Type" required>
+            <div className="flex gap-3">
+              {PROJECT_EXECUTION_TYPES.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setProjectExecutionType(t)}
+                  className={`flex-1 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-colors ${
+                    projectExecutionType === t ? 'border-brand-blue bg-brand-blue/5 text-brand-blue' : 'border-surface-border text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {t} — {PROJECT_EXECUTION_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
           </FormField>
         </div>
 
