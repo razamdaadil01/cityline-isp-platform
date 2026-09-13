@@ -6,7 +6,7 @@ import {
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
-  PackageSearch,
+  PackageSearch, Receipt, Lock,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -22,11 +22,16 @@ import {
 } from '../data/ticketsStore'
 import {
   getRecoveries, subscribeRecoveries, addRecovery, nextRecoveryId,
-  RECOVERY_REASONS, RECOVERY_STATUS_CFG,
+  RECOVERY_REASONS, RECOVERY_STATUS_CFG, RECOVERY_TERMINAL_STATUSES,
 } from '../data/customerRecoveryStore'
 import {
   getActiveUserAssignmentsForCustomer, subscribeUserAssignments, linkToRecovery,
+  getUserAssignments,
 } from '../data/userAssignmentStore'
+import { getProduct } from '../data/productStore'
+import {
+  getSettlementByCustomerId, subscribeSettlements, addSettlement, nextSettlementId,
+} from '../data/settlementStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -273,6 +278,47 @@ const PACKAGES = [
     status: 'active',
   },
 ]
+
+// ── Phase 4 — Final Settlement calculation helpers ──────────────────────────
+// PACKAGES above has no real per-customer plan-amount concept (it's the
+// same static mock for every customer, like the rest of Package Details) —
+// its Broadband entry's `amount` is the closest thing to "the plan's
+// monthly amount" this app has, so it's used as the pro-rata base per the
+// task's own fallback ("simple day-based proration... as a reasonable
+// default") rather than inventing a new one.
+function computeProRataCharge(today = new Date()) {
+  const monthlyAmount = PACKAGES.find(p => p.type === 'Broadband')?.amount ?? 0
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  const dayOfMonth = today.getDate()
+  return Math.round((monthlyAmount / daysInMonth) * dayOfMonth * 100) / 100
+}
+
+// Real per-item cost basis: productStore.js's HARDWARE_CATALOG-backed
+// sellingPrice (ONT Device ₹1800, WiFi Router ₹1500, etc.) and its
+// `chargeable` flag — the same fields Ticket Detail's Add Hardware modal
+// already uses for its Chargeable/Non-Chargeable split. Phase 3's recovery
+// work order only records ONE outcome for the whole order, not a
+// per-item flag, so for 'partial_recovery' this can't know exactly which
+// item(s) were the problem — it estimates half the linked hardware's total
+// value rather than guessing which specific item. Either way this is only
+// ever a *default*: GenerateSettlementModal renders it in an editable
+// field so the admin can correct it before generating the settlement.
+function computeHardwarePenaltyDefault(recovery) {
+  if (!recovery) return 0
+  const linkedItems = getUserAssignments()
+    .filter(a => a.recoveryWorkOrderId === recovery.id)
+    .flatMap(a => a.items)
+  const totalValue = linkedItems.reduce((sum, it) => {
+    const product = getProduct(it.productId)
+    if (!product?.chargeable) return sum
+    const qty = it.serials.length || it.macs.length || it.qty || 1
+    return sum + (product.sellingPrice ?? 0) * qty
+  }, 0)
+
+  if (recovery.status === 'missing_hardware' || recovery.status === 'damaged_hardware') return totalValue
+  if (recovery.status === 'partial_recovery') return Math.round(totalValue / 2)
+  return 0 // 'completed' — nothing missing or damaged
+}
 
 const INVOICES = [
   { no: 'INV-2026-0451', pkg: 'Broadband + Landline + OTT', date: '01 May 2026', amount: 1499, status: 'paid' },
@@ -1393,6 +1439,15 @@ function FinanceTab({ customer }) {
   const [showFailed, setShowFailed] = useState(false)
   const PER_PAGE = 5
 
+  // Phase 4 — Final Settlement summary (settlementStore.js), shown at the
+  // top of this tab once generated (see CustomerDetail.jsx's "Generate
+  // Final Settlement" action).
+  const [settlement, setSettlement] = useState(() => getSettlementByCustomerId(customer.id))
+  useEffect(() => {
+    setSettlement(getSettlementByCustomerId(customer.id))
+    return subscribeSettlements(() => setSettlement(getSettlementByCustomerId(customer.id)))
+  }, [customer.id])
+
   // Resolve active sub-tab from URL param; default to 'invoices'
   const activeSlug = FINANCE_SUB_TABS.find(t => t.slug === subTabParam)?.slug ?? 'invoices'
 
@@ -1447,6 +1502,32 @@ function FinanceTab({ customer }) {
 
   return (
     <div className="space-y-5">
+      {/* Final Settlement summary (Phase 4 — Customer Disconnection flow) */}
+      {settlement && (
+        <Card>
+          <CardHeader
+            title="Final Settlement"
+            subtitle={`${settlement.id} · Generated ${formatTicketDate(settlement.generatedAt)} by ${settlement.generatedBy}`}
+          />
+          <div className="border border-surface-border rounded-lg divide-y divide-surface-border">
+            {settlement.lines.map((line, i) => (
+              <div key={i} className="flex items-center justify-between px-3 py-2.5 text-sm">
+                <span className="text-gray-700">{line.label}</span>
+                <span className={`font-mono font-medium ${line.amount < 0 ? 'text-emerald-600' : 'text-gray-800'}`}>
+                  {line.amount < 0 ? '−' : ''}₹{Math.abs(line.amount).toLocaleString('en-IN')}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between px-3 py-3 mt-3 rounded-lg bg-gray-50 border border-surface-border">
+            <span className="text-sm font-semibold text-gray-800">{settlement.total >= 0 ? 'Amount Due' : 'Refund Due'}</span>
+            <span className={`font-mono font-bold text-lg ${settlement.total >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              ₹{Math.abs(settlement.total).toLocaleString('en-IN')}
+            </span>
+          </div>
+        </Card>
+      )}
+
       {/* Sub-tab bar */}
       <div className="flex border-b border-surface-border gap-6">
         {FINANCE_SUB_TABS.map(t => (
@@ -2331,6 +2412,119 @@ function ScheduleHardwareRecoveryModal({ isOpen, customer, hardwareItems, onClos
   )
 }
 
+// ── Generate Final Settlement modal ──────────────────────────────────────────
+// Phase 4 of the Customer Disconnection flow — only reachable once the
+// hardware recovery work order (Phase 3) has resolved.
+
+function GenerateSettlementModal({ isOpen, customer, recovery, onClose, onSubmit }) {
+  const [hardwarePenalty, setHardwarePenalty] = useState(0)
+
+  useEffect(() => {
+    if (isOpen) setHardwarePenalty(computeHardwarePenaltyDefault(recovery))
+  }, [isOpen, recovery])
+
+  if (!isOpen) return null
+
+  const outstanding = customer.outstandingDues ?? 0
+  const proRata = computeProRataCharge()
+  const securityDeposit = customer.payment?.securityDeposit ?? 0
+  const total = Math.round((outstanding + proRata + hardwarePenalty - securityDeposit) * 100) / 100
+  const recoveryCfg = recovery ? (RECOVERY_STATUS_CFG[recovery.status] ?? RECOVERY_STATUS_CFG.pending) : null
+
+  function handleGenerate() {
+    onSubmit({
+      lines: [
+        { label: 'Outstanding Balance', amount: outstanding },
+        { label: 'Pro-rata Charge (this billing cycle)', amount: proRata },
+        { label: `Hardware Penalty${recoveryCfg ? ` (${recoveryCfg.label})` : ''}`, amount: hardwarePenalty },
+        { label: 'Security Deposit (credit)', amount: -securityDeposit },
+      ],
+      total,
+    })
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Generate Final Settlement" size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleGenerate}>Generate Settlement</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          Final settlement for <span className="font-semibold">{customer.name}</span> ({customer.id}).
+        </p>
+        <div className="border border-surface-border rounded-lg divide-y divide-surface-border">
+          <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+            <span className="text-gray-700">Outstanding Balance</span>
+            <span className="font-mono font-medium text-gray-800">₹{outstanding.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+            <span className="text-gray-700">Pro-rata Charge (this billing cycle)</span>
+            <span className="font-mono font-medium text-gray-800">₹{proRata.toLocaleString('en-IN')}</span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2.5 text-sm gap-3">
+            <span className="text-gray-700">
+              Hardware Penalty
+              {recoveryCfg && <span className="block text-xs text-gray-400">{recoveryCfg.label} — editable estimate</span>}
+            </span>
+            <input
+              type="number"
+              value={hardwarePenalty}
+              onChange={e => setHardwarePenalty(Number(e.target.value) || 0)}
+              className="w-28 text-right font-mono text-sm border border-surface-border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+            />
+          </div>
+          <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+            <span className="text-gray-700">Security Deposit (credit)</span>
+            <span className="font-mono font-medium text-emerald-600">−₹{securityDeposit.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-3 py-3 rounded-lg bg-gray-50 border border-surface-border">
+          <span className="text-sm font-semibold text-gray-800">{total >= 0 ? 'Amount Due' : 'Refund Due'}</span>
+          <span className={`font-mono font-bold text-lg ${total >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+            ₹{Math.abs(total).toLocaleString('en-IN')}
+          </span>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── Mark as Disconnected modal ───────────────────────────────────────────────
+// Final step — only reachable once both hardware recovery (Phase 3) and the
+// final settlement (Phase 4, above) exist. No further gate beyond this one.
+
+function MarkDisconnectedModal({ isOpen, customer, settlement, onClose, onConfirm }) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Disconnected" size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="danger" onClick={onConfirm}>Confirm Disconnection</Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600">
+          This permanently closes <span className="font-semibold">{customer.name}</span>'s ({customer.id}) account.
+          Hardware recovery and final settlement are both complete — this is the last step of the disconnection flow.
+        </p>
+        {settlement && (
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-gray-50 border border-surface-border text-sm">
+            <span className="text-gray-700">Final Settlement ({settlement.id})</span>
+            <span className={`font-mono font-semibold ${settlement.total >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              ₹{Math.abs(settlement.total).toLocaleString('en-IN')} {settlement.total >= 0 ? 'due' : 'refund'}
+            </span>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ── Tab: Activity Logs ───────────────────────────────────────────────────────
 
 function ActivityTab({ activity }) {
@@ -2377,9 +2571,11 @@ export default function CustomerDetail() {
   // source here too, rather than trusting whichever object this ID
   // happened to come from — otherwise a fresh mount (e.g. navigating to
   // /customers/hardware-recovery and back) shows the stale hardcoded
-  // 'active' instead of the real persisted status.
+  // 'active' instead of the real persisted status. `disconnectedAt` (Phase
+  // 4) is surfaced the same way, for the closure summary once Disconnected.
   const baseCustomer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
-  const customer = { ...baseCustomer, status: getAllCustomers().find(c => c.id === id)?.status ?? baseCustomer.status }
+  const liveCustomer = getAllCustomers().find(c => c.id === id)
+  const customer = { ...baseCustomer, status: liveCustomer?.status ?? baseCustomer.status, disconnectedAt: liveCustomer?.disconnectedAt ?? null }
   const isIntercom = id.startsWith('INC')
   const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
 
@@ -2420,6 +2616,21 @@ export default function CustomerDetail() {
 
   const [recoveryModalOpen, setRecoveryModalOpen] = useState(false)
   const canScheduleRecovery = displayStatus === 'Pending Disconnection' && !existingRecovery
+
+  // Phase 4 — final settlement (settlementStore.js), gated on the recovery
+  // work order having resolved (Phase 3).
+  const [settlement, setSettlement] = useState(() => getSettlementByCustomerId(id))
+  useEffect(() => {
+    setSettlement(getSettlementByCustomerId(id))
+    return subscribeSettlements(() => setSettlement(getSettlementByCustomerId(id)))
+  }, [id])
+
+  const recoveryResolved = !!existingRecovery && RECOVERY_TERMINAL_STATUSES.includes(existingRecovery.status)
+  const canGenerateSettlement = displayStatus === 'Pending Disconnection' && recoveryResolved && !settlement
+  const canMarkDisconnected = displayStatus === 'Pending Disconnection' && recoveryResolved && !!settlement
+
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false)
+  const [disconnectModalOpen, setDisconnectModalOpen] = useState(false)
 
   useEffect(() => {
     setStatusOverride(null)
@@ -2546,6 +2757,35 @@ export default function CustomerDetail() {
     setRecoveryModalOpen(false)
   }
 
+  function handleGenerateSettlement({ lines, total }) {
+    if (settlement) { setSettlementModalOpen(false); return }
+    const now = new Date()
+    const settlementId = nextSettlementId()
+    addSettlement({
+      id: settlementId,
+      customerId: id,
+      customerName: customer.name,
+      recoveryWorkOrderId: existingRecovery?.id ?? null,
+      lines,
+      total,
+      generatedAt: now.toISOString(),
+      generatedBy: 'Admin User',
+    })
+    logAudit({ module: 'Customers', action: 'Edit', details: `Final settlement ${settlementId} generated for customer ${id} — ${total >= 0 ? 'due' : 'refund'} ₹${Math.abs(total).toLocaleString('en-IN')}` })
+    setActivityLog(a => [{ time: formatActivityTime(now), actor: 'Admin', event: 'Final settlement generated', meta: `${settlementId} · ${total >= 0 ? 'Due' : 'Refund'}: ₹${Math.abs(total).toLocaleString('en-IN')}` }, ...a])
+    setSettlementModalOpen(false)
+  }
+
+  function handleMarkDisconnected() {
+    if (!canMarkDisconnected) { setDisconnectModalOpen(false); return }
+    const nowIso = new Date().toISOString()
+    updateCustomer(id, { status: 'Disconnected', disconnectedAt: nowIso })
+    setStatusOverride('Disconnected')
+    logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} marked Disconnected` })
+    setActivityLog(a => [{ time: formatActivityTime(new Date()), actor: 'Admin', event: 'Customer marked Disconnected', meta: settlement ? `Final settlement: ${settlement.id}` : undefined }, ...a])
+    setDisconnectModalOpen(false)
+  }
+
   const statusCfg = STATUS_CFG[displayStatus] ?? STATUS_CFG.inactive
 
   return (
@@ -2661,6 +2901,43 @@ export default function CustomerDetail() {
                 </Badge>
               </div>
             )}
+            {canGenerateSettlement && (
+              <Button size="sm" icon={<Receipt size={13} />} onClick={() => setSettlementModalOpen(true)}>
+                Generate Final Settlement
+              </Button>
+            )}
+            {settlement && displayStatus !== 'Disconnected' && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200">
+                <Receipt size={13} className="text-brand-blue shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Final Settlement: <span className="font-mono font-semibold text-brand-blue">{settlement.id}</span>
+                </span>
+                <span className={`text-xs font-semibold ${settlement.total >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  ₹{Math.abs(settlement.total).toLocaleString('en-IN')} {settlement.total >= 0 ? 'due' : 'refund'}
+                </span>
+              </div>
+            )}
+            {canMarkDisconnected && (
+              <Button variant="danger" size="sm" icon={<Lock size={13} />} onClick={() => setDisconnectModalOpen(true)}>
+                Mark as Disconnected
+              </Button>
+            )}
+            {displayStatus === 'Disconnected' && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-300">
+                <Lock size={13} className="text-gray-500 shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Account Disconnected{customer.disconnectedAt && <> on {formatTicketDate(customer.disconnectedAt)}</>}
+                  {settlement && (
+                    <>
+                      {' '}· Final Settlement:{' '}
+                      <span className={`font-semibold ${settlement.total >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        ₹{Math.abs(settlement.total).toLocaleString('en-IN')} {settlement.total >= 0 ? 'due' : 'refund'}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2712,6 +2989,20 @@ export default function CustomerDetail() {
         hardwareItems={hardwareItems}
         onClose={() => setRecoveryModalOpen(false)}
         onSubmit={handleScheduleRecovery}
+      />
+      <GenerateSettlementModal
+        isOpen={settlementModalOpen}
+        customer={customer}
+        recovery={existingRecovery}
+        onClose={() => setSettlementModalOpen(false)}
+        onSubmit={handleGenerateSettlement}
+      />
+      <MarkDisconnectedModal
+        isOpen={disconnectModalOpen}
+        customer={customer}
+        settlement={settlement}
+        onClose={() => setDisconnectModalOpen(false)}
+        onConfirm={handleMarkDisconnected}
       />
     </div>
   )
