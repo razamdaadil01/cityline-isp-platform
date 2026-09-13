@@ -2369,7 +2369,17 @@ export default function CustomerDetail() {
   const { id, tab, subTab } = useParams()
   const navigate = useNavigate()
 
-  const customer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
+  // MOCK_CUSTOMERS['RES-2026-0001'] is a fully hardcoded literal — its
+  // `status: 'active'` never reflects customersData.js's real override
+  // store (unlike makeCustomerFromBase(id), which already reads through
+  // getAllCustomers()). Suspend/Terminate/hardware-recovery-outcome all
+  // persist via updateCustomer(), so re-read status from that same live
+  // source here too, rather than trusting whichever object this ID
+  // happened to come from — otherwise a fresh mount (e.g. navigating to
+  // /customers/hardware-recovery and back) shows the stale hardcoded
+  // 'active' instead of the real persisted status.
+  const baseCustomer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
+  const customer = { ...baseCustomer, status: getAllCustomers().find(c => c.id === id)?.status ?? baseCustomer.status }
   const isIntercom = id.startsWith('INC')
   const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
 
