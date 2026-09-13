@@ -148,7 +148,7 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
 
   return (
     <Modal
-      isOpen={isOpen} onClose={onClose} size="sm"
+      isOpen={isOpen} onClose={onClose} size="lg"
       title="Return Asset"
       footer={result ? (
         <Button size="sm" onClick={onClose}>Done</Button>
