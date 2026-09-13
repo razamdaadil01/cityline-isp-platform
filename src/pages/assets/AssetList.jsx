@@ -1,13 +1,15 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, BarChart3, Archive, ShieldAlert, MoreVertical } from 'lucide-react'
+import { Search, Filter, X, ChevronDown, Eye, Boxes, UserPlus, RotateCcw, Wrench, BarChart3, Archive, ShieldAlert, MoreVertical } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getAssets, subscribeAssets, assetDisplayName, ASSET_STATUSES, checkWarrantyAlerts } from '../../data/assetStore'
+import { getActiveRepairForAsset, subscribeAssetRepairs } from '../../data/assetRepairStore'
 import { ASSET_CATEGORIES, getAssetCategory } from '../../data/assetTaxonomy'
 import { getWarrantyStatus, WARRANTY_STATUSES } from '../../utils/warrantyStatus'
 import AssignAssetModal from '../../components/assets/AssignAssetModal'
 import ReturnAssetModal from '../../components/assets/ReturnAssetModal'
+import RepairRequestModal from '../../components/assets/RepairRequestModal'
 import RetireAssetModal from '../../components/assets/RetireAssetModal'
 import ReportLostModal from '../../components/assets/ReportLostModal'
 
@@ -21,6 +23,13 @@ const WARRANTY_BADGE = { Active: 'green', 'Expiring Soon': 'yellow', Expired: 'r
 // no "Assign"/"Return" action is ever offered once an asset reaches either.
 const TERMINAL_STATUSES = new Set(['Retired', 'Lost'])
 const LOST_ELIGIBLE_STATUSES = new Set(['Assigned', 'In Stock', 'Under Repair'])
+// Same statuses AssetDetail.jsx's own Repair button gates on — an asset
+// found defective right after GRN ('In Stock'), one an engineer reports a
+// fault on directly ('Assigned'), or one already 'Under Repair' from the
+// Return flow can all raise a repair request; RepairRequestModal.jsx's own
+// raiseRepairRequest() call handles the status transition correctly in
+// every case, so the gate here only needs to keep the two menus consistent.
+const REPAIR_ELIGIBLE_STATUSES = new Set(['In Stock', 'Assigned', 'Under Repair'])
 
 export default function AssetList() {
   const navigate = useNavigate()
@@ -30,10 +39,19 @@ export default function AssetList() {
   // scan runs on page load instead (see assetStore.js's own note on
   // checkWarrantyAlerts()).
   useEffect(() => { checkWarrantyAlerts() }, [])
+  // The Repair menu item's own !getActiveRepairForAsset(a.id) gate (below)
+  // reads assetRepairStore.js live on every render — needed because a
+  // repair resolving 'Beyond Repair' clears the active repair without
+  // necessarily changing asset.status (see resolveRepair()'s own note), so
+  // subscribeAssets() alone wouldn't always catch it. Same forced-rerender
+  // pattern AssetDetail.jsx already uses for its own Repair button.
+  const [, forceRerender] = useState(0)
+  useEffect(() => subscribeAssetRepairs(() => forceRerender(n => n + 1)), [])
 
   const [search, setSearch] = useState('')
   const [assigningAsset, setAssigningAsset] = useState(null)
   const [returningAsset, setReturningAsset] = useState(null)
+  const [repairingAsset, setRepairingAsset] = useState(null)
   const [retiringAsset, setRetiringAsset] = useState(null)
   const [reportingLostAsset, setReportingLostAsset] = useState(null)
 
@@ -322,6 +340,14 @@ export default function AssetList() {
                 <RotateCcw size={13} className="text-gray-400 shrink-0" /> Return
               </button>
             )}
+            {REPAIR_ELIGIBLE_STATUSES.has(a.status) && !getActiveRepairForAsset(a.id) && (
+              <button
+                onClick={() => { setRepairingAsset(a); setMenuId(null) }}
+                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Wrench size={13} className="text-gray-400 shrink-0" /> Send for Repair
+              </button>
+            )}
             {LOST_ELIGIBLE_STATUSES.has(a.status) && (
               <button
                 onClick={() => { setReportingLostAsset(a); setMenuId(null) }}
@@ -344,6 +370,7 @@ export default function AssetList() {
 
       <AssignAssetModal isOpen={!!assigningAsset} onClose={() => setAssigningAsset(null)} asset={assigningAsset} />
       <ReturnAssetModal isOpen={!!returningAsset} onClose={() => setReturningAsset(null)} asset={returningAsset} />
+      <RepairRequestModal isOpen={!!repairingAsset} onClose={() => setRepairingAsset(null)} asset={repairingAsset} />
       <RetireAssetModal isOpen={!!retiringAsset} onClose={() => setRetiringAsset(null)} asset={retiringAsset} />
       <ReportLostModal isOpen={!!reportingLostAsset} onClose={() => setReportingLostAsset(null)} asset={reportingLostAsset} />
     </div>
