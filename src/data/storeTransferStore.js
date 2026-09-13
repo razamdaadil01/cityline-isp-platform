@@ -460,6 +460,21 @@ export function updateStoreTransfer(id, data) {
 // entirely, the transfer's own `status` flips to 'Reversed' — never left
 // dangling as 'Completed' with an empty item list. `itemId` is the item's
 // own `id` (e.g. 'STFI-1-0').
+//
+// The exact same item-removal mechanism covers two conceptually different
+// cases uniformly, without needing separate code paths for the ledger
+// itself (see the file-level note above) — only the audit trail's wording
+// needs to tell them apart, since "moved back" is only true for one of
+// them:
+//   - Still 'Sent' (not yet received): the item never actually reached
+//     Store To — inventoryLedger.js's Store Transfers block was only
+//     holding it at an intermediate 'In Transit' status, storeId still
+//     Store From's. Removing it is a RECALL, not a return — logged as
+//     such below rather than implying an arrival that never happened.
+//   - Already 'Completed' (received): the item genuinely was 'Available'
+//     at Store To before this call — removing it really does send it back
+//     from there, which is what the original "moved back from X to Y"
+//     wording (still used below for this case) describes correctly.
 export function reverseStoreTransferLine(transferId, itemId, actor = 'Admin User') {
   const transfer = _storeTransfers.find(t => t.id === transferId)
   if (!transfer) throw new Error('Transfer not found.')
@@ -468,6 +483,7 @@ export function reverseStoreTransferLine(transferId, itemId, actor = 'Admin User
   const item = transfer.items.find(it => it.id === itemId)
   if (!item) throw new Error('Line not found on this transfer.')
 
+  const wasSent = transfer.status === 'Sent'
   const items = transfer.items.filter(it => it.id !== itemId)
   const nowEmpty = items.length === 0
 
@@ -478,9 +494,12 @@ export function reverseStoreTransferLine(transferId, itemId, actor = 'Admin User
   const qtyLabel = item.drumNumber
     ? `${item.qty}m of ${item.productName} (Drum ${item.drumNumber})`
     : `${item.qty} of ${item.productName}`
+  const actionLabel = wasSent
+    ? `Recalled ${qtyLabel} — never reached ${transfer.storeToName} (${transfer.transferNumber})`
+    : `Reversed ${qtyLabel} — moved back from ${transfer.storeToName} to ${transfer.storeFromName} (${transfer.transferNumber})`
   logAudit({
     action: 'Update', module: 'Inventory',
-    details: `Reversed ${qtyLabel} — moved back from ${transfer.storeToName} to ${transfer.storeFromName} (${transfer.transferNumber})${nowEmpty ? ' — transfer fully reversed' : ''}`,
+    details: `${actionLabel}${nowEmpty ? ' — transfer fully reversed' : ''}`,
   })
 
   return updated
