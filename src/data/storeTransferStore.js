@@ -215,15 +215,17 @@ const SEED = [
   },
 ]
 
-// sentAt/receivedAt/receivedBy/signedChallanUpload default onto every seed
-// transfer here (same "defaults spread first" pattern used throughout this
-// app's other seed reconciliations, e.g. assetStore.js) rather than
-// repeating all four on every SEED literal above — STF-000001..005 read as
-// historically 'Completed' with no sentAt/receivedAt of their own (they
-// pre-date this feature's Send → Receive split entirely, so there's
-// nothing meaningful to backfill), while STF-000006..000008 set their own
-// literal sentAt/receivedAt/receivedBy to actually exercise the lifecycle.
-let _storeTransfers = SEED.map(t => ({ sentAt: null, receivedAt: null, receivedBy: null, signedChallanUpload: null, ...t }))
+// sentAt/receivedAt/receivedBy/signedChallanUpload/reversedItems default
+// onto every seed transfer here (same "defaults spread first" pattern used
+// throughout this app's other seed reconciliations, e.g. assetStore.js)
+// rather than repeating all five on every SEED literal above —
+// STF-000001..005 read as historically 'Completed' with no sentAt/
+// receivedAt of their own (they pre-date this feature's Send → Receive
+// split entirely, so there's nothing meaningful to backfill), while
+// STF-000006..000008 set their own literal sentAt/receivedAt/receivedBy to
+// actually exercise the lifecycle. None of the seeded transfers have ever
+// had a line reversed, so reversedItems: [] is correct for all of them.
+let _storeTransfers = SEED.map(t => ({ sentAt: null, receivedAt: null, receivedBy: null, signedChallanUpload: null, reversedItems: [], ...t }))
 let _nextSeq = SEED.length + 1
 let _nextInternalSeq = SEED.length + 1
 const _listeners = []
@@ -461,6 +463,18 @@ export function updateStoreTransfer(id, data) {
 // dangling as 'Completed' with an empty item list. `itemId` is the item's
 // own `id` (e.g. 'STFI-1-0').
 //
+// The removed item isn't discarded — it's appended (with a `reversedAt`
+// timestamp) onto a separate `reversedItems` array on the transfer record,
+// so StoreTransfer.jsx's list can still show it as a read-only "Reversed"
+// row instead of the line silently vanishing (a transfer with only one
+// line would otherwise disappear from the list entirely once reversed,
+// with no visible trace it ever existed). `items` keeps meaning exactly
+// what it means everywhere else in this file — currently-active lines
+// only — so alreadyTransferredValues()/updateStoreTransfer()/
+// inventoryLedger.js's Store Transfers block all keep working completely
+// unchanged: a reversed line is structurally absent from `items`, exactly
+// as before this `reversedItems` array was added.
+//
 // The exact same item-removal mechanism covers two conceptually different
 // cases uniformly, without needing separate code paths for the ledger
 // itself (see the file-level note above) — only the audit trail's wording
@@ -486,8 +500,12 @@ export function reverseStoreTransferLine(transferId, itemId, actor = 'Admin User
   const wasSent = transfer.status === 'Sent'
   const items = transfer.items.filter(it => it.id !== itemId)
   const nowEmpty = items.length === 0
+  // Older records seeded before this array existed default to [] here,
+  // same "defaults spread first" reconciliation this file already applies
+  // to sentAt/receivedAt/receivedBy/signedChallanUpload on load.
+  const reversedItems = [...(transfer.reversedItems ?? []), { ...item, reversedAt: new Date().toISOString() }]
 
-  const updated = { ...transfer, items, status: nowEmpty ? 'Reversed' : transfer.status }
+  const updated = { ...transfer, items, reversedItems, status: nowEmpty ? 'Reversed' : transfer.status }
   _storeTransfers = _storeTransfers.map(t => t.id === transferId ? updated : t)
   notify()
 
