@@ -46,6 +46,7 @@ const SEED = [
     id: 'AREP-000001', repairId: 'REP-2026-000001', assetId: 'AST-2026-000011',
     faultDescription: 'Overheating', reportedBy: 'Admin User', reportedDate: '2026-02-10',
     photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
+    isChargeable: false, chargeableAmount: null,
     status: 'Resolved', resolution: 'Fixed', remarks: 'Replaced thermal paste and cleaned fan.', cost: 450,
     createdAt: '2026-02-10T09:00:00.000Z',
   },
@@ -53,6 +54,7 @@ const SEED = [
     id: 'AREP-000002', repairId: 'REP-2026-000002', assetId: 'AST-2026-000011',
     faultDescription: 'Display flicker', reportedBy: 'Admin User', reportedDate: '2026-05-18',
     photos: [], includeKitComponents: false, repairPath: 'Vendor', technicianId: null, isWarrantyClaim: true,
+    isChargeable: false, chargeableAmount: null,
     status: 'Resolved', resolution: 'Fixed', remarks: 'Vendor replaced the display cable under warranty.', cost: null,
     createdAt: '2026-05-18T10:00:00.000Z',
   },
@@ -60,6 +62,7 @@ const SEED = [
     id: 'AREP-000003', repairId: 'REP-2026-000003', assetId: 'AST-2026-000011',
     faultDescription: "Won't power on", reportedBy: 'Admin User', reportedDate: '2026-08-24',
     photos: [], includeKitComponents: false, repairPath: 'In-house', technicianId: 'u3', isWarrantyClaim: false,
+    isChargeable: false, chargeableAmount: null,
     status: 'In Progress', resolution: null, remarks: null, cost: null,
     createdAt: '2026-08-24T09:15:00.000Z',
   },
@@ -70,6 +73,7 @@ const SEED = [
     id: 'AREP-000004', repairId: 'REP-2026-000004', assetId: 'AST-2026-000012',
     faultDescription: 'Fuser unit failure — smoke smell during printing', reportedBy: 'Admin User', reportedDate: '2026-06-05',
     photos: [], includeKitComponents: false, repairPath: 'Vendor', technicianId: null, isWarrantyClaim: true,
+    isChargeable: false, chargeableAmount: null,
     status: 'Resolved', resolution: 'Beyond Repair', remarks: 'Vendor assessed board damage beyond economical repair.', cost: null,
     createdAt: '2026-06-05T11:00:00.000Z',
   },
@@ -140,9 +144,21 @@ export function isSplicingMachineAsset(asset) {
 // idempotent regardless of caller). isWarrantyClaim is auto-computed, never
 // asked of the user — true only when the chosen path is 'Vendor' AND
 // today falls inside the asset's own warranty window.
+//
+// isChargeable/chargeableAmount are a separate concept from isWarrantyClaim
+// and from the later resolveRepair() `cost` field: this is the client's
+// own "will this repair cost us money" call made up front when raising the
+// request (e.g. an agreed/quoted amount), whereas `cost` is whatever the
+// repair actually ends up costing once resolved — the two can differ and
+// neither one derives the other. A warranty claim is already "no cost" by
+// definition, so isChargeable/chargeableAmount are always forced to
+// false/null when isWarrantyClaim is true, regardless of what's passed in
+// — the same silent-normalization treatment technicianId/includeKitComponents
+// already get above for their own not-applicable cases, rather than
+// throwing on a caller that simply left stale form state in place.
 export function raiseRepairRequest(assetId, {
   faultDescription, reportedBy = 'Admin User', includeKitComponents = false, repairPath,
-  technicianId = null, photos = [],
+  technicianId = null, photos = [], isChargeable = false, chargeableAmount = null,
 }) {
   const asset = getAsset(assetId)
   if (!asset) throw new Error('Asset not found.')
@@ -152,6 +168,10 @@ export function raiseRepairRequest(assetId, {
   if (getActiveRepairForAsset(assetId)) throw new Error('This asset already has an active repair in progress.')
 
   const isWarrantyClaim = repairPath === 'Vendor' && isAssetWithinWarranty(asset)
+
+  if (!isWarrantyClaim && isChargeable && !(Number(chargeableAmount) > 0)) {
+    throw new Error('Enter a valid chargeable amount.')
+  }
 
   const repair = {
     id: `AREP-${String(_nextInternalSeq++).padStart(6, '0')}`,
@@ -167,6 +187,8 @@ export function raiseRepairRequest(assetId, {
     // same as includeKitComponents staying false outside Splicing Machine.
     technicianId: repairPath === 'In-house' ? technicianId : null,
     isWarrantyClaim,
+    isChargeable: !isWarrantyClaim && !!isChargeable,
+    chargeableAmount: !isWarrantyClaim && isChargeable ? Number(chargeableAmount) : null,
     status: 'Under Repair',
     resolution: null,
     remarks: null,
@@ -182,7 +204,7 @@ export function raiseRepairRequest(assetId, {
 
   logAudit({
     action: 'Create', module: 'Assets',
-    details: `Raised repair ${repair.repairId} for asset ${assetId}${isWarrantyClaim ? ' (warranty claim)' : ''}`,
+    details: `Raised repair ${repair.repairId} for asset ${assetId}${isWarrantyClaim ? ' (warranty claim)' : repair.isChargeable ? ` (chargeable — ₹${repair.chargeableAmount.toLocaleString('en-IN')})` : ''}`,
   })
   addNotification({
     type: 'asset_repair_raised',

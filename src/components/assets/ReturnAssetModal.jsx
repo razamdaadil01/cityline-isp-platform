@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { RotateCcw, AlertTriangle, CheckCircle2, PackageOpen, ShieldAlert } from 'lucide-react'
+import { RotateCcw, AlertTriangle, CheckCircle2, PackageOpen, ShieldAlert, Info } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
-import { FormField, Select, Textarea } from '../ui/FormInputs'
+import { FormField, Input, Select, Textarea } from '../ui/FormInputs'
 import EmployeeSelect from '../ui/EmployeeSelect'
 import { initiateAssetReturn, reportAssetLost, assetDisplayName, ASSET_RETURN_CONDITIONS } from '../../data/assetStore'
-import { raiseRepairRequest, REPAIR_PATHS } from '../../data/assetRepairStore'
+import { raiseRepairRequest, isAssetWithinWarranty, REPAIR_PATHS } from '../../data/assetRepairStore'
 
 // Non-kit condition options shown in the dropdown — the 2 real
 // ASSET_RETURN_CONDITIONS ('Working'/'Damage') plus a 3rd, modal-only
@@ -47,6 +47,8 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
   const [kitChecklist, setKitChecklist] = useState([])
   const [repairPath, setRepairPath] = useState('')
   const [technicianId, setTechnicianId] = useState('')
+  const [isChargeable, setIsChargeable] = useState(false)
+  const [chargeableAmount, setChargeableAmount] = useState('')
   const [error, setError] = useState('')
   const [result, setResult] = useState(null) // null while on the form; set once confirmed
 
@@ -62,6 +64,8 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
       setResult(null)
       setRepairPath('')
       setTechnicianId('')
+      setIsChargeable(false)
+      setChargeableAmount('')
       // Every component defaults to "Returned — Good" — switch it to flag
       // damage or a no-show, per the PRD's "anything not ticked is
       // auto-flagged" idea, now expressed as a 3-way condition per row
@@ -81,7 +85,12 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
   const anyComponentDamaged = hasKitComponents && kitChecklist.some(k => k.returnCondition === 'damaged')
   const willNeedRepair = hasKitComponents ? anyComponentDamaged : condition === 'Damage'
   const isInHouse = repairPath === 'In-house'
-  const repairFieldsValid = !willNeedRepair || (!!repairPath && (!isInHouse || !!technicianId))
+  // Same auto-warranty-claim check raiseRepairRequest() itself uses (see
+  // RepairRequestModal.jsx's identical note) — used here only to hide the
+  // Chargeable toggle, since a warranty claim is already no-cost.
+  const willBeWarrantyClaim = repairPath === 'Vendor' && isAssetWithinWarranty(asset)
+  const chargeableFieldValid = willBeWarrantyClaim || !isChargeable || Number(chargeableAmount) > 0
+  const repairFieldsValid = !willNeedRepair || (!!repairPath && (!isInHouse || !!technicianId) && chargeableFieldValid)
 
   const canConfirm = hasKitComponents
     ? repairFieldsValid
@@ -110,6 +119,9 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
     if (willNeedRepair) {
       if (!repairPath) { setError('Select a repair path for the resulting repair request.'); return }
       if (isInHouse && !technicianId) { setError('Select an assigned technician for an in-house repair.'); return }
+      if (!willBeWarrantyClaim && isChargeable && !(Number(chargeableAmount) > 0)) {
+        setError('Enter a valid chargeable amount.'); return
+      }
     }
 
     try {
@@ -134,6 +146,8 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
           includeKitComponents: hasKitComponents,
           repairPath,
           technicianId: isInHouse ? technicianId : null,
+          isChargeable: !willBeWarrantyClaim && isChargeable,
+          chargeableAmount: !willBeWarrantyClaim && isChargeable ? Number(chargeableAmount) : null,
         })
         repairCreated = true
       }
@@ -246,6 +260,32 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
                 <FormField label="Assigned Technician" required>
                   <EmployeeSelect value={technicianId} onChange={setTechnicianId} placeholder="Select technician…" />
                 </FormField>
+              )}
+              {willBeWarrantyClaim ? (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-cyan-50 border border-cyan-200 text-xs text-cyan-800">
+                  <Info size={14} className="shrink-0 mt-0.5" />
+                  This will be routed as a warranty claim (no cost).
+                </div>
+              ) : (
+                <>
+                  <FormField label="Chargeable?" required>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                        <input type="radio" name="chargeable" checked={!isChargeable} onChange={() => setIsChargeable(false)} className="accent-brand-blue" />
+                        No
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 cursor-pointer">
+                        <input type="radio" name="chargeable" checked={isChargeable} onChange={() => setIsChargeable(true)} className="accent-brand-blue" />
+                        Yes
+                      </label>
+                    </div>
+                  </FormField>
+                  {isChargeable && (
+                    <FormField label="Amount" required hint="₹">
+                      <Input type="number" min="0" value={chargeableAmount} onChange={e => setChargeableAmount(e.target.value)} placeholder="0" />
+                    </FormField>
+                  )}
+                </>
               )}
             </div>
           )}
