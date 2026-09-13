@@ -180,8 +180,10 @@ export default function StoreTransfer() {
     }
   }
 
-  // "Receive Transfer" confirms a cross-city 'Sent' shipment has arrived —
-  // acts on the whole transfer (not a single line), same as Edit/View
+  // "Receive Transfer" confirms a 'Sent' shipment has arrived — every
+  // transfer goes through this Send → Receive step now, same-city or
+  // cross-city alike. Acts on the whole transfer (not a single line), same
+  // as Edit/View
   // Delivery Challan already do off row.transferId, since receiving is a
   // single physical shipment landing, not a per-line action. Flips the
   // whole transfer to 'Completed' via receiveStoreTransfer(), which is what

@@ -743,14 +743,12 @@ export default function CreateStoreTransfer() {
   // 3-step wizard.
   const storesValid = !!storeFromId && !!storeToId && storeFromId !== storeToId
 
-  // Same city/cross-city — purely informational here (storeTransferStore.js's
-  // saveStoreTransfer() makes the actual same-city vs. 'Sent' status
-  // decision off the same two `city` fields, via its own sameCity() helper,
-  // so this only decides the notice/button copy below, never the transfer's
-  // own outcome). Two stores that both have no city set compare equal here
-  // too, matching sameCity()'s own default.
-  const citiesDiffer = storesValid && (storeFrom?.city || '').trim().toLowerCase() !== (storeTo?.city || '').trim().toLowerCase()
-  const submitLabel = isEditMode ? 'Save Changes' : (citiesDiffer ? 'Send Transfer' : 'Transfer Stock')
+  // Every transfer now always goes through the Send → Receive lifecycle
+  // (storeTransferStore.js's saveStoreTransfer() always lands on 'Sent' —
+  // there is no more same-city instant/"Completed on save" path), so the
+  // submit button always reads "Send Transfer", regardless of Store
+  // From/Store To cities.
+  const submitLabel = isEditMode ? 'Save Changes' : 'Send Transfer'
 
   const issuedHwLines = hwLines.filter(l => liveTrackingType(l.productId) === 'quantity' ? Number(l.qty) > 0 : (l.serials.length + l.macs.length) > 0)
   const issuedWireLines = wireLines.filter(l => l.drumNumber && Number(l.meters) > 0)
@@ -846,10 +844,10 @@ export default function CreateStoreTransfer() {
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" /> Select a Store From and a different Store To to continue.
               </div>
             )}
-            {citiesDiffer && (
+            {storesValid && !isEditMode && (
               <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                {storeFrom?.storeName} and {storeTo?.storeName} are in different cities — this transfer will require a Receive confirmation at {storeTo?.storeName} once it arrives.
+                This transfer will require a Receive confirmation at {storeTo?.storeName} once it arrives.
               </div>
             )}
           </div>
