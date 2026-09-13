@@ -38,7 +38,11 @@ export const USER_ASSIGNMENT_STATUSES = ['Handed Off', 'Reversed']
 // new unit AND captures the faulty/old unit coming back from the customer
 // (see `returnedItem` below). 'disconnection' hands off nothing — it only
 // captures the unit being taken back. CreateUserAssignment.jsx's UI is the
-// only writer of this field today.
+// only writer of this field for brand-new assignments; linkToRecovery()/
+// resolveRecovery() below are the second writer, flipping an *existing*
+// 'new' handoff to 'disconnection' in place once the Customer Disconnection
+// flow's hardware recovery (customerRecoveryStore.js, Phase 3) picks it up
+// and later resolves it — see the note above linkToRecovery().
 export const ASSIGNMENT_TYPES = ['new', 'replace', 'disconnection']
 
 // Seeded so the Assignment List demonstrates its 'Assigned to User' line
@@ -423,4 +427,71 @@ export function reverseUserAssignmentItem(assignmentId, itemId) {
   })
 
   return updated
+}
+
+// ── Customer Disconnection flow (Phase 3) — hardware recovery linkage ───
+// customerRecoveryStore.js's "Schedule Hardware Recovery" action (core
+// RES-/ENT- customers only — the Intercom module's own recovery flow does
+// not touch this store) needs to know what hardware is actually out with a
+// customer, and needs to mark it once recovery is resolved. Both live here
+// rather than in customerRecoveryStore.js so the two stores stay decoupled
+// the same way this file already keeps its own validation independent of
+// inventoryLedger.js (see the file-level note at the top): the recovery
+// store only ever calls these two functions and never reaches into
+// _userAssignments directly.
+
+// A customer's hardware currently "out" and not already claimed by another
+// in-flight recovery — the source customerRecoveryStore.js's scheduling
+// modal reads to populate its hardware-to-recover list (never a free-text
+// field the way the Intercom flow's equivalent field is).
+export function getActiveUserAssignmentsForCustomer(customerId) {
+  return _userAssignments.filter(a => (
+    a.customerId === customerId && a.status === 'Handed Off' && !a.recoveryWorkOrderId
+  ))
+}
+
+// Called once a recovery work order is created for a customer (never on
+// scheduling attempts that don't result in one). Flips each matching
+// handoff's assignmentType to 'disconnection' — this is the "dead stub"
+// getting real behavior: until now nothing ever set this value on an
+// existing assignment — and stamps recoveryWorkOrderId so
+// resolveRecovery() below can find them again. recoveryOutcome starts
+// unset; it's only filled in once the work order actually resolves.
+export function linkToRecovery(customerId, recoveryWorkOrderId) {
+  const matches = getActiveUserAssignmentsForCustomer(customerId)
+  if (matches.length === 0) return []
+  const ids = new Set(matches.map(a => a.id))
+  _userAssignments = _userAssignments.map(a => ids.has(a.id)
+    ? { ...a, assignmentType: 'disconnection', recoveryWorkOrderId, recoveryOutcome: null }
+    : a)
+  notify()
+  return matches.map(a => a.id)
+}
+
+// Called when a recovery work order reaches one of
+// customerRecoveryStore.js's RECOVERY_TERMINAL_STATUSES. Every handoff
+// linked to that work order is marked 'Reversed' — once a customer's
+// account is being disconnected, the hardware is no longer something we
+// track as "out with the customer" regardless of the physical outcome —
+// and recoveryOutcome records what actually happened ('returned'/
+// 'missing'/'damaged'/'partial') for Phase 4 billing/settlement to read
+// later (e.g. charge for missing/damaged hardware). Deliberately NOT
+// routed through reverseUserAssignmentItem(): that function puts items
+// back into the engineer's held stock, which is wrong here — hardware
+// recovered from a disconnected customer didn't come from an engineer's
+// pocket, so it must not silently reappear as one's holding.
+export function resolveRecovery(recoveryWorkOrderId, recoveryOutcome) {
+  const matches = _userAssignments.filter(a => a.recoveryWorkOrderId === recoveryWorkOrderId)
+  if (matches.length === 0) return []
+  _userAssignments = _userAssignments.map(a => a.recoveryWorkOrderId === recoveryWorkOrderId
+    ? { ...a, status: 'Reversed', recoveryOutcome }
+    : a)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Hardware recovery ${recoveryWorkOrderId} resolved as '${recoveryOutcome}' — ${matches.length} handoff(s) closed out`,
+  })
+
+  return matches.map(a => a.id)
 }

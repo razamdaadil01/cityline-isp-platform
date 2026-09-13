@@ -3,6 +3,7 @@ import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
+import CustomerHardwareRecovery from './pages/CustomerHardwareRecovery'
 import AddPayment from './pages/AddPayment'
 import AddCustomer from './pages/AddCustomer'
 import Sales from './pages/Sales'
@@ -103,6 +104,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/new" element={<AddCustomer />} />
+          <Route path="/customers/hardware-recovery" element={<CustomerHardwareRecovery />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/customers/:id/:tab" element={<CustomerDetail />} />
           <Route path="/customers/:customerId/finance/payments/add" element={<AddPayment />} />
