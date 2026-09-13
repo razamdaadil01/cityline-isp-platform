@@ -81,6 +81,7 @@ import HDDProjectDetail from './pages/projects/HDDProjectDetail'
 import CreateHDDWorkOrder from './pages/projects/CreateHDDWorkOrder'
 import SiteProjectDetail from './pages/projects/SiteProjectDetail'
 import CreateSiteWorkOrder from './pages/projects/CreateSiteWorkOrder'
+import ProjectPDFView from './pages/projects/ProjectPDFView'
 import AssetList from './pages/assets/AssetList'
 import AddAsset from './pages/assets/AddAsset'
 import AssetDetail from './pages/assets/AssetDetail'
@@ -210,6 +211,7 @@ export default function App() {
           <Route path="/projects/site/:id" element={<SiteProjectDetail />} />
           <Route path="/projects/site/:id/:tab" element={<SiteProjectDetail />} />
           <Route path="/projects/site/:id/work-orders/new" element={<CreateSiteWorkOrder />} />
+          <Route path="/projects/:type/:id/pdf" element={<ProjectPDFView />} />
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/reports" element={<AssetReports />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
