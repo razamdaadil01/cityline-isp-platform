@@ -58,7 +58,12 @@ export default function ProjectList() {
   }
 
   function downloadPDF(p) {
-    navigate(`/projects/${p.kind}/${p.id}/pdf`)
+    // Static "pdf" prefix (/projects/pdf/:type/:id), not
+    // /projects/:kind/:id/pdf — that shape ties in route specificity with
+    // /projects/hdd/:id/:tab and /projects/site/:id/:tab in App.jsx, which
+    // are declared first and so won the tie, sending this to the regular
+    // detail page (tab="pdf") instead of ProjectPDFView.
+    navigate(`/projects/pdf/${p.kind}/${p.id}`)
     setMenuId(null)
   }
 
