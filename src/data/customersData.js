@@ -10,40 +10,50 @@ import { getCustomerType, formatCustomerId, getNextCustomerIdSequence } from './
 // appPassword/pppoePassword data this app renders lives on CustomerDetail.jsx's
 // per-customer `radius` object (MOCK_CUSTOMERS / makeCustomerFromBase), not
 // here, so that's where those two generators are wired in.
+// area/network/expiry/services below were previously only carried on
+// Customers.jsx's own separate hardcoded copy of this list (the two never
+// shared a data source, so a status change made on CustomerDetail.jsx —
+// which does write through this module — never showed up on the Customers
+// list page). Values here are copied from that array 1:1, keyed by
+// Customer ID (the reliable join key — ids and phone numbers already
+// matched exactly between the two lists). ENT-2026-0002/0003 and
+// IC-CUST-2026-000001 didn't exist in that array, so their area/network/
+// expiry/services are new, chosen consistent with other customers already
+// in the same zone.
 export const CUSTOMERS = [
-  { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West'  },
-  { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East'   },
-  { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon'      },
-  { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '9123456789', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Versova'       },
-  { id: 'ENT-2026-0001', name: 'Vikram Singh',       companyName: 'Vikram Industries Pvt Ltd', phone: '9011223344', plan: 'P2P 1Gbps',       status: 'active',    zone: 'MIDC Andheri', gstNo: '27AAACV5055K1ZP', gstVerified: true  },
-  { id: 'RES-2026-0005', name: 'Mohan Lal',          phone: '9765432198', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Andheri East'  },
-  { id: 'RES-2026-0006', name: 'Deepa Nair',         phone: '9332144556', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Juhu'          },
-  { id: 'RES-2026-0007', name: 'Rahul Patil',        phone: '9700112233', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Malad West'    },
-  { id: 'RES-2026-0008', name: 'Sunita Joshi',       phone: '9180009988', plan: 'FTTH 40Mbps',     status: 'expired',   zone: 'Santacruz'     },
-  { id: 'RES-2026-0009', name: 'Arun Kapoor',        phone: '9855577889', plan: 'ILL 10Mbps',      status: 'active',    zone: 'SEEPZ'         },
-  { id: 'RES-2026-0010', name: 'Kavitha Rao',        phone: '9600123456', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Powai'         },
-  { id: 'RES-2026-0011', name: 'Nitin Bhatt',        phone: '9900156789', plan: 'Wireless 10Mbps', status: 'suspended', zone: 'Borivali'      },
-  { id: 'RES-2026-0012', name: 'Meera Gupta',        phone: '9776543210', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Kandivali'     },
-  { id: 'RES-2026-0013', name: 'Sanjay Verma',       phone: '9543210987', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'BKC'           },
-  { id: 'RES-2026-0014', name: 'Pooja Menon',        phone: '9123400987', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Chembur'       },
-  { id: 'RES-2026-0015', name: 'Amol Tiwari',        phone: '9890876543', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Ghatkopar'     },
-  { id: 'RES-2026-0016', name: 'Rekha Shetty',       phone: '9765400123', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Mulund'        },
-  { id: 'RES-2026-0017', name: 'Dinesh Naik',        phone: '9330122334', plan: 'P2P 100Mbps',     status: 'active',    zone: 'Vikhroli'      },
-  { id: 'RES-2026-0018', name: 'Lalitha Kumar',      phone: '9870112398', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Bhandup'       },
-  { id: 'RES-2026-0019', name: 'Prakash Yadav',      phone: '9456078901', plan: 'Wireless 25Mbps', status: 'expired',   zone: 'Kurla'         },
-  { id: 'RES-2026-0020', name: 'Swati Jain',         phone: '9678901234', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Andheri West'  },
-  { id: 'RES-2026-0021', name: 'Harish Pillai',      phone: '9110023456', plan: 'FTTH 1Gbps',      status: 'active',    zone: 'Nariman Point' },
-  { id: 'RES-2026-0022', name: 'Nandita Shah',       phone: '9860034567', plan: 'FTTB 50Mbps',     status: 'suspended', zone: 'Dadar'         },
-  { id: 'RES-2026-0023', name: 'Rohit Bose',         phone: '9770045678', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Matunga'       },
-  { id: 'RES-2026-0024', name: 'Chandra Sekhar',     phone: '9550056789', plan: 'P2P 10Gbps',      status: 'active',    zone: 'Lower Parel'   },
-  { id: 'RES-2026-0025', name: 'Vandana Mishra',     phone: '9220067890', plan: 'FTTH 40Mbps',     status: 'inactive',  zone: 'Worli'         },
-  { id: 'RES-2026-0026', name: 'Sunil Kadam',        phone: '9000078901', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Thane West'    },
-  { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '9830089012', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Navi Mumbai'   },
-  { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Mira Road'     },
-  { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'Powai'         },
+  { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-05-31', services: ['Broadband', 'Landline', 'OTT'] },
+  { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East',   area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-05-20', services: ['Broadband'] },
+  { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon',      area: 'Goregaon',     network: 'OLT-GG-01', expiry: '2026-04-15', services: ['Broadband', 'Intercom'] },
+  { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '9123456789', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Versova',       area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-06-30', services: ['Broadband', 'OTT'] },
+  { id: 'ENT-2026-0001', name: 'Vikram Singh',       companyName: 'Vikram Industries Pvt Ltd', phone: '9011223344', plan: 'P2P 1Gbps',       status: 'active',    zone: 'MIDC Andheri', gstNo: '27AAACV5055K1ZP', gstVerified: true, area: 'Andheri', network: 'OLT-MC-03', expiry: '2026-07-15', services: ['ILL', 'Business BB'] },
+  { id: 'RES-2026-0005', name: 'Mohan Lal',          phone: '9765432198', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-03-01', services: ['Broadband'] },
+  { id: 'RES-2026-0006', name: 'Deepa Nair',         phone: '9332144556', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Juhu',          area: 'Juhu',         network: 'OLT-JU-01', expiry: '2026-06-15', services: ['Broadband', 'Landline'] },
+  { id: 'RES-2026-0007', name: 'Rahul Patil',        phone: '9700112233', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Malad West',    area: 'Malad',        network: 'OLT-ML-01', expiry: '2026-05-10', services: ['Broadband', 'OTT', 'Intercom'] },
+  { id: 'RES-2026-0008', name: 'Sunita Joshi',       phone: '9180009988', plan: 'FTTH 40Mbps',     status: 'expired',   zone: 'Santacruz',     area: 'Santacruz',    network: 'OLT-SC-02', expiry: '2026-04-30', services: ['Broadband'] },
+  { id: 'RES-2026-0009', name: 'Arun Kapoor',        phone: '9855577889', plan: 'ILL 10Mbps',      status: 'active',    zone: 'SEEPZ',         area: 'Andheri',      network: 'OLT-MC-03', expiry: '2026-08-01', services: ['ILL'] },
+  { id: 'RES-2026-0010', name: 'Kavitha Rao',        phone: '9600123456', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Powai',         area: 'Powai',        network: 'OLT-PW-01', expiry: '2026-05-28', services: ['Broadband', 'Landline', 'OTT'] },
+  { id: 'RES-2026-0011', name: 'Nitin Bhatt',        phone: '9900156789', plan: 'Wireless 10Mbps', status: 'suspended', zone: 'Borivali',      area: 'Borivali',     network: 'OLT-BV-01', expiry: '2026-03-15', services: ['Broadband'] },
+  { id: 'RES-2026-0012', name: 'Meera Gupta',        phone: '9776543210', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Kandivali',     area: 'Kandivali',    network: 'OLT-KD-01', expiry: '2026-07-10', services: ['Broadband', 'OTT'] },
+  { id: 'RES-2026-0013', name: 'Sanjay Verma',       phone: '9543210987', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'BKC',           area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-09-30', services: ['Business BB', 'ILL'] },
+  { id: 'RES-2026-0014', name: 'Pooja Menon',        phone: '9123400987', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Chembur',       area: 'Chembur',      network: 'OLT-CH-01', expiry: '2026-04-20', services: ['Broadband', 'Intercom'] },
+  { id: 'RES-2026-0015', name: 'Amol Tiwari',        phone: '9890876543', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Ghatkopar',     area: 'Ghatkopar',    network: 'OLT-GK-01', expiry: '2026-02-28', services: ['Broadband'] },
+  { id: 'RES-2026-0016', name: 'Rekha Shetty',       phone: '9765400123', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Mulund',        area: 'Mulund',       network: 'OLT-MU-01', expiry: '2026-06-05', services: ['Broadband', 'Landline'] },
+  { id: 'RES-2026-0017', name: 'Dinesh Naik',        phone: '9330122334', plan: 'P2P 100Mbps',     status: 'active',    zone: 'Vikhroli',      area: 'Vikhroli',     network: 'OLT-VK-01', expiry: '2026-08-15', services: ['ILL', 'Landline'] },
+  { id: 'RES-2026-0018', name: 'Lalitha Kumar',      phone: '9870112398', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Bhandup',       area: 'Bhandup',      network: 'OLT-BH-01', expiry: '2026-05-25', services: ['Broadband', 'OTT'] },
+  { id: 'RES-2026-0019', name: 'Prakash Yadav',      phone: '9456078901', plan: 'Wireless 25Mbps', status: 'expired',   zone: 'Kurla',         area: 'Kurla',        network: 'OLT-KU-01', expiry: '2026-04-01', services: ['Broadband'] },
+  { id: 'RES-2026-0020', name: 'Swati Jain',         phone: '9678901234', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-07-20', services: ['Broadband', 'Landline', 'Intercom'] },
+  { id: 'RES-2026-0021', name: 'Harish Pillai',      phone: '9110023456', plan: 'FTTH 1Gbps',      status: 'active',    zone: 'Nariman Point', area: 'South Mumbai', network: 'OLT-SM-01', expiry: '2026-10-31', services: ['Business BB'] },
+  { id: 'RES-2026-0022', name: 'Nandita Shah',       phone: '9860034567', plan: 'FTTB 50Mbps',     status: 'suspended', zone: 'Dadar',         area: 'Dadar',        network: 'OLT-DD-01', expiry: '2026-05-15', services: ['Broadband'] },
+  { id: 'RES-2026-0023', name: 'Rohit Bose',         phone: '9770045678', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Matunga',       area: 'Matunga',      network: 'OLT-MT-01', expiry: '2026-06-01', services: ['Broadband', 'OTT'] },
+  { id: 'RES-2026-0024', name: 'Chandra Sekhar',     phone: '9550056789', plan: 'P2P 10Gbps',      status: 'active',    zone: 'Lower Parel',   area: 'Lower Parel',  network: 'OLT-LP-01', expiry: '2026-11-30', services: ['ILL', 'Business BB', 'Landline'] },
+  { id: 'RES-2026-0025', name: 'Vandana Mishra',     phone: '9220067890', plan: 'FTTH 40Mbps',     status: 'inactive',  zone: 'Worli',         area: 'Worli',        network: 'OLT-WR-01', expiry: '2026-03-31', services: ['Broadband'] },
+  { id: 'RES-2026-0026', name: 'Sunil Kadam',        phone: '9000078901', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Thane West',    area: 'Thane',        network: 'OLT-TN-01', expiry: '2026-05-01', services: ['Broadband', 'Intercom'] },
+  { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '9830089012', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Navi Mumbai',   area: 'Navi Mumbai',  network: 'OLT-NM-01', expiry: '2026-06-30', services: ['Broadband', 'Landline', 'OTT'] },
+  { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Mira Road',     area: 'Mira Road',    network: 'OLT-MR-01', expiry: '2026-04-25', services: ['Broadband'] },
+  { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'Powai',         area: 'Powai',        network: 'OLT-PW-01', expiry: '2026-08-20', services: ['Broadband', 'OTT', 'Business BB'] },
   { id: 'IC-CUST-2026-000001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom' },
-  { id: 'ENT-2026-0002', name: 'Ashok Mehta',       companyName: 'Mehta Infotech Pvt Ltd',    phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true  },
-  { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false },
+  { id: 'ENT-2026-0002', name: 'Ashok Mehta',       companyName: 'Mehta Infotech Pvt Ltd',    phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true,  area: 'Andheri',     network: 'OLT-MC-03', expiry: '2026-07-01', services: ['ILL'] },
+  { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false, area: 'Lower Parel', network: 'OLT-LP-01', expiry: '2026-09-30', services: ['ILL', 'Business BB'] },
 ]
 
 // ── Status values ─────────────────────────────────────────────────────────────
