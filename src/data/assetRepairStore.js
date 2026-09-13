@@ -136,7 +136,7 @@ export function isSplicingMachineAsset(asset) {
 // Creates a repair record and ensures the linked asset's status is
 // 'Under Repair' (a no-op write if it already is — AssetDetail.jsx's own
 // "Send for Repair" action is only ever shown once the asset is already
-// there, via the Return flow's Damaged/Not Working path, but this stays
+// there, via the Return flow's 'Damage' condition, but this stays
 // idempotent regardless of caller). isWarrantyClaim is auto-computed, never
 // asked of the user — true only when the chosen path is 'Vendor' AND
 // today falls inside the asset's own warranty window.

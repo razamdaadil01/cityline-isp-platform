@@ -179,9 +179,9 @@ export default function AssetDetail() {
             </Button>
           )}
           {/* Three entry points into the same modal: an asset already 'Under
-              Repair' (reached via the Return flow's Damaged/Not Working
-              path), one still 'Assigned' (an engineer reporting a fault
-              directly without first returning it), and now one still
+              Repair' (reached via the Return flow's 'Damage' condition —
+              see ReturnAssetModal.jsx), one still 'Assigned' (an engineer
+              reporting a fault directly without first returning it), and now one still
               'In Stock' (found defective right after GRN, before ever being
               assigned). raiseRepairRequest() itself handles the status
               transition correctly in every case (see its own note — it has
