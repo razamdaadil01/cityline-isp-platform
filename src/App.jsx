@@ -211,7 +211,15 @@ export default function App() {
           <Route path="/projects/site/:id" element={<SiteProjectDetail />} />
           <Route path="/projects/site/:id/:tab" element={<SiteProjectDetail />} />
           <Route path="/projects/site/:id/work-orders/new" element={<CreateSiteWorkOrder />} />
-          <Route path="/projects/:type/:id/pdf" element={<ProjectPDFView />} />
+          {/* Static "pdf" prefix, not /projects/:type/:id/pdf — that shape
+              tied in route specificity with /projects/hdd/:id/:tab and
+              /projects/site/:id/:tab (same 2-static+2-dynamic segment
+              count), and those detail routes being declared first won the
+              tie, so a Download PDF click actually rendered the detail
+              page with tab="pdf". Prefixing with "pdf" makes the first
+              segment diverge from "hdd"/"site" entirely, so there's no
+              longer any ambiguity to break a tie on. */}
+          <Route path="/projects/pdf/:type/:id" element={<ProjectPDFView />} />
           <Route path="/assets" element={<AssetList />} />
           <Route path="/assets/reports" element={<AssetReports />} />
           <Route path="/assets/:id" element={<AssetDetail />} />

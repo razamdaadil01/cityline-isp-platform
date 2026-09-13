@@ -13,8 +13,12 @@ import { getCompanyEntity } from '../../data/companyEntities'
 // pattern). Pure read-only readout of whatever was captured on the
 // project's own creation form (CreateHDDProject.jsx / CreateSiteProject.jsx)
 // — no CAPEX calculation, no new fields, no work-order data. Route is
-// /projects/:type/:id/pdf ('hdd'/'site'), reached from ProjectList.jsx's
-// 3-dot "Download PDF" action, which already knows both a row's kind and id.
+// /projects/pdf/:type/:id ('hdd'/'site') — the static "pdf" prefix (rather
+// than /projects/:type/:id/pdf) is deliberate: that shape tied in route
+// specificity with /projects/hdd/:id/:tab and /projects/site/:id/:tab in
+// App.jsx and lost the tie-break, so it rendered the detail page instead of
+// this one. Reached from ProjectList.jsx's 3-dot "Download PDF" action,
+// which already knows both a row's kind and id.
 //
 // No PDF-generation library exists anywhere in this codebase (confirmed —
 // every print-style page here only ever offers Print/Download via
