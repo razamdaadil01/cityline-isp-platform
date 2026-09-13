@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { AlertTriangle, Printer, Download } from 'lucide-react'
+import { AlertTriangle, Printer, Download, Route, Building2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
+import Badge from '../../components/ui/Badge'
 import EntityBadge from '../../components/ui/EntityBadge'
 import { getHDDProject, getSiteProject, PROJECT_EXECUTION_TYPE_LABELS } from '../../data/projectStore'
 import { getVendor } from '../../data/vendorStore'
@@ -8,13 +9,15 @@ import { getUsers } from '../../data/userStore'
 import { getCompanyEntity } from '../../data/companyEntities'
 
 // Print-friendly project snapshot — same A4-card + print/download button +
-// print-only CSS pattern as DeliveryChallanView.jsx/PurchaseInvoiceView.jsx
-// (this app's established "generate a printable document from a record"
-// pattern). Pure read-only readout of whatever was captured on the
-// project's own creation form (CreateHDDProject.jsx / CreateSiteProject.jsx)
-// — no CAPEX calculation, no new fields, no work-order data. Route is
-// /projects/pdf/:type/:id ('hdd'/'site') — the static "pdf" prefix (rather
-// than /projects/:type/:id/pdf) is deliberate: that shape tied in route
+// print-only CSS pattern as InvoicePDF.jsx/DeliveryChallanView.jsx (this
+// app's established "generate a printable document from a record"
+// pattern), and modeled closely on their actual header/section/field
+// structure rather than a plain label/value list. Pure read-only readout
+// of whatever was captured on the project's own creation form
+// (CreateHDDProject.jsx / CreateSiteProject.jsx) — no CAPEX calculation,
+// no new fields, no work-order data. Route is /projects/pdf/:type/:id
+// ('hdd'/'site') — the static "pdf" prefix (rather than
+// /projects/:type/:id/pdf) is deliberate: that shape tied in route
 // specificity with /projects/hdd/:id/:tab and /projects/site/:id/:tab in
 // App.jsx and lost the tie-break, so it rendered the detail page instead of
 // this one. Reached from ProjectList.jsx's 3-dot "Download PDF" action,
@@ -25,21 +28,44 @@ import { getCompanyEntity } from '../../data/companyEntities'
 // window.print(), never a real PDF blob) — "Download" reuses that same
 // call, same as DeliveryChallanView.jsx.
 
+// Same two distinct status sets as ProjectList.jsx/HDDProjectDetail.jsx/
+// SiteProjectDetail.jsx (see projectStore.js's PROJECT_STATUSES vs
+// SITE_PROJECT_STATUSES) — each of those pages rolls its own copy of this
+// map rather than sharing one, so this follows the same established
+// per-file convention instead of introducing a new shared constant.
+const STATUS_BADGE = {
+  'Planning': 'gray', 'In Progress': 'blue', 'On Hold': 'yellow', 'Completed': 'green', 'Cancelled': 'red',
+  'NEW': 'gray', 'SURVEY': 'indigo', 'ACQUIRED': 'orange', 'IN_EXECUTION': 'orange', 'COMMISSIONED': 'green',
+}
+
+// Label/value pair, invoice-style: small muted uppercase label, larger dark
+// value below it — and a clearly-worded placeholder (rather than a bare,
+// oddly-placed dash) for any field that wasn't actually captured.
 function Field({ label, value }) {
   const empty = value === undefined || value === null || value === ''
   return (
     <div>
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-sm text-gray-800 font-medium mt-0.5">{empty ? <span className="text-gray-300 font-normal">—</span> : value}</p>
+      <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
+      <p className={`text-sm mt-1.5 ${empty ? 'text-gray-300 italic font-normal' : 'text-gray-900 font-semibold'}`}>
+        {empty ? 'Not specified' : value}
+      </p>
     </div>
   )
 }
 
+// A framed section: a shaded header band (accent bar + heading) sitting on
+// top of its own field grid, then a rule below — the same "boxed block"
+// treatment InvoicePDF.jsx's Company/Customer Details columns and
+// DeliveryChallanView.jsx's Consignor/Consignee columns use, rather than a
+// label simply floating above plain text.
 function Section({ title, children }) {
   return (
-    <div className="px-8 py-5 border-b border-gray-200">
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">{title}</p>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+    <div className="border-b border-gray-200">
+      <div className="px-8 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+        <span className="w-1 h-3.5 rounded-full bg-brand-blue" />
+        <p className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">{title}</p>
+      </div>
+      <div className="px-8 py-6 grid grid-cols-2 gap-x-10 gap-y-5">
         {children}
       </div>
     </div>
@@ -160,8 +186,11 @@ export default function ProjectPDFView() {
   // field today (see projectStore.js's data model) — getCompanyEntity(undefined)
   // resolves to null and EntityBadge already renders nothing for a null
   // entity, so the logo is just omitted gracefully, same as
-  // DeliveryChallanView.jsx's own "no resolvable entity yet" case.
+  // DeliveryChallanView.jsx's own "no resolvable entity yet" case. The type
+  // icon block below fills that same header slot instead, so the header
+  // never reads as visually empty on the left.
   const entity = getCompanyEntity(project.companyEntityId)
+  const TypeIcon = isHDD ? Route : Building2
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 print:bg-white print:py-0 print:px-0">
@@ -194,31 +223,47 @@ export default function ProjectPDFView() {
         style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
       >
 
-        {/* ── HEADER ── */}
+        {/* ── HEADER — title centered, logo/type block left, status +
+            id/date meta right, same shape as InvoicePDF.jsx's header ── */}
         <div className="px-8 pt-7 pb-5 border-b border-gray-200">
-          {entity && (
-            <div className="flex items-center justify-center gap-2.5 mb-3">
-              <EntityBadge entity={entity} size={36} />
-              <div className="text-center">
-                <p className="font-black text-gray-900 text-sm leading-tight">{entity.name}</p>
-                {entity.gstin && <p className="text-brand-blue text-[10px] font-semibold tracking-widest uppercase">GST: {entity.gstin}</p>}
-              </div>
-            </div>
-          )}
           <h1 className="text-center text-lg font-black tracking-widest text-gray-800 mb-5 uppercase">
             {isHDD ? 'HDD / Backbone Route Project' : 'Site Project'} Snapshot
           </h1>
 
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm text-gray-700"><span className="text-gray-400 font-medium">Project ID: </span><span className="font-bold font-mono">{project.id}</span></p>
-              <p className="text-sm text-gray-700 mt-1"><span className="text-gray-400 font-medium">Status: </span><span className="font-semibold">{project.status}</span></p>
+            {/* Logo (when a company entity resolves) or a type-icon
+                placeholder — left side is never empty */}
+            <div className="flex items-center gap-2.5">
+              {entity ? (
+                <>
+                  <EntityBadge entity={entity} size={40} />
+                  <div>
+                    <p className="font-black text-gray-900 text-base leading-tight">{entity.name}</p>
+                    {entity.gstin && <p className="text-brand-blue text-[10px] font-semibold tracking-widest uppercase">GST: {entity.gstin}</p>}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 bg-brand-blue/10 text-brand-blue rounded-lg flex items-center justify-center shrink-0">
+                    <TypeIcon size={18} />
+                  </div>
+                  <div>
+                    <p className="font-black text-gray-900 text-base leading-tight">{isHDD ? 'HDD / Backbone Route' : 'Site Project'}</p>
+                    <p className="text-gray-400 text-[10px] font-semibold tracking-widest uppercase">Project Snapshot</p>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-700">
-                <span className="text-gray-400 font-medium">Created: </span>
-                <span className="font-semibold">{(project.createdAt || '').slice(0, 10) || '—'}</span>
-              </p>
+
+            {/* Status pill + Project ID / Created meta, right-aligned —
+                same "badge above labeled rows" arrangement as InvoicePDF.jsx's
+                invoice meta block */}
+            <div className="text-right space-y-1">
+              <div>
+                <Badge variant={STATUS_BADGE[project.status] ?? 'gray'} size="sm">{project.status}</Badge>
+              </div>
+              <p className="text-sm text-gray-700"><span className="text-gray-400 font-medium">Project ID: </span><span className="font-bold font-mono">{project.id}</span></p>
+              <p className="text-sm text-gray-700"><span className="text-gray-400 font-medium">Created: </span><span className="font-semibold">{(project.createdAt || '').slice(0, 10) || 'Not specified'}</span></p>
             </div>
           </div>
         </div>
