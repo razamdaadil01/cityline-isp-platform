@@ -84,6 +84,31 @@ const SEED = [
     remarks: 'Installation completed — ONT handed off to customer.',
     status: 'Handed Off', assignedBy: 'Arjun Kumar', assignedAt: '2026-08-07T12:00:00.000Z',
   },
+  // Seeded with a real customerId (unlike USRA-000001/2/3 above, which
+  // predate the Customer Type-restructure and only have a customerName) so
+  // the Customer Disconnection flow's "Schedule Hardware Recovery" modal
+  // (CustomerDetail.jsx, Phase 3 — getActiveUserAssignmentsForCustomer())
+  // has a real record to surface end-to-end for RES-2026-0001. Serials/MAC
+  // match the ONU/Router already shown on that customer's own Inventory tab
+  // (CustomerDetail.jsx's INVENTORY mock) and installer/date match its
+  // Sales & Account Info card, rather than inventing new ones. RES-2026-0001
+  // is a static pre-existing seed customer with no backing Installation
+  // record in installationsStore.js (unlike USRA-000001/2/3's real INS-XXX
+  // work orders) — workOrderId below is a plausible placeholder, not a
+  // real cross-reference.
+  {
+    id: 'USRA-000004', assignmentNumber: 'USR-2026-000004',
+    engineerId: 'eng-004', engineerName: 'Suresh Babu',
+    workOrderType: 'Installation', workOrderId: 'INS-001', workOrderLabel: 'INS-001',
+    customerName: 'Rajan Mehta', customerId: 'RES-2026-0001',
+    assignmentType: 'new', returnedItem: null,
+    items: [
+      { productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTEGCB3A12F4'], macs: [], qty: 1 },
+      { productId: 'PRD-002', productName: 'WiFi Router', serials: ['TPL2024WR0091'], macs: [], qty: 1 },
+    ],
+    remarks: 'Installation completed — ONT and WiFi Router handed off to customer.',
+    status: 'Handed Off', assignedBy: 'Suresh Babu', assignedAt: '2023-01-10T10:35:00.000Z',
+  },
 ]
 
 let _userAssignments = [...SEED]
