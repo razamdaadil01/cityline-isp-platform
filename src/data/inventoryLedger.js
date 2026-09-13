@@ -313,10 +313,27 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
   // (a unit currently at Store B, or a drum this same block created for an
   // earlier transfer into Store B) only exists once that earlier transfer
   // has already been applied.
+  //
+  // Send vs Receive: the SOURCE-side effect below (leaving Store From)
+  // always applies immediately, whether `t.status` is 'Sent' or
+  // 'Completed' — matches storeTransferStore.js's own saveStoreTransfer()
+  // note that a transfer's source side is gone the moment it's dispatched,
+  // cross-city or not. The DESTINATION-side effect only applies once
+  // `isCompleted` — for a still-'Sent' transfer, a unit instead moves to
+  // its own 'In Transit' status (still at Store From's storeId — it hasn't
+  // arrived anywhere yet), a wire drum's meters leave the source drum
+  // without yet becoming a destination drum row, and a quantity-tracked
+  // product's balance leaves fromKey without yet crediting toKey. Calling
+  // storeTransferStore.js's receiveStoreTransfer() flips `t.status` to
+  // 'Completed', and this block (recomputed fresh on the next read, same
+  // as everywhere else in this file) then applies the exact same
+  // destination-side code path a same-city transfer already gets
+  // instantly.
   ;[...getStoreTransfers()]
     .filter(t => t.status !== 'Reversed' && t.id !== excludeStoreTransferId)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .forEach(t => {
+    const isCompleted = t.status === 'Completed'
     t.items.forEach(it => {
       const values = [...it.serials, ...it.macs]
       let movedQty = 0
@@ -324,7 +341,14 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
         values.forEach(v => {
           const unit = unitsByValue.get(v)
           if (!unit || unit.status !== 'Available') return
-          unit.storeId = t.storeToId
+          if (isCompleted) {
+            unit.storeId = t.storeToId
+          } else {
+            // In transit — left Store From (no longer 'Available' there),
+            // hasn't arrived at Store To yet, so storeId stays put; see
+            // this block's own file-level note above.
+            unit.status = 'In Transit'
+          }
           unit.lastTransferNumber = t.transferNumber
           unit.lastTransferredAt = t.date
           unit.lastTransferFromStoreName = t.storeFromName
@@ -334,8 +358,11 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
       } else if (it.drumNumber) {
         // Wire — meters are cut from the specific source drum picked at
         // Store From (which stays put there, same as an assignment's own
-        // per-drum deduction just above), and the moved length becomes its
-        // own drum row at Store To. That destination row is keyed by a
+        // per-drum deduction just above) immediately regardless of status,
+        // and the moved length becomes its own drum row at Store To only
+        // once Completed — while still 'Sent', those meters have simply
+        // left the source drum and aren't anywhere yet (see this block's
+        // own file-level note above). That destination row is keyed by a
         // transfer-scoped drum number (never the bare source drumNumber) so
         // it can never collide with — or get its deduction target confused
         // with — the source drum's own row still sitting at Store From; see
@@ -348,29 +375,33 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
         movedQty = sourceDrum ? Math.min(meters, sourceDrum.remainingMeters) : 0
         if (movedQty > 0) {
           sourceDrum.remainingMeters -= movedQty
-          const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
-          let destDrum = drumsByNumber.get(destDrumNumber)
-          if (!destDrum) {
-            destDrum = {
-              ...sourceDrum, storeId: t.storeToId, drumNumber: destDrumNumber,
-              sourceDrumNumber: it.drumNumber, receivedMeters: 0, remainingMeters: 0, status: 'Available',
+          if (isCompleted) {
+            const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
+            let destDrum = drumsByNumber.get(destDrumNumber)
+            if (!destDrum) {
+              destDrum = {
+                ...sourceDrum, storeId: t.storeToId, drumNumber: destDrumNumber,
+                sourceDrumNumber: it.drumNumber, receivedMeters: 0, remainingMeters: 0, status: 'Available',
+              }
+              drums.push(destDrum)
+              drumsByNumber.set(destDrumNumber, destDrum)
             }
-            drums.push(destDrum)
-            drumsByNumber.set(destDrumNumber, destDrum)
+            destDrum.receivedMeters += movedQty
+            destDrum.remainingMeters += movedQty
+            destDrum.lastTransferNumber = t.transferNumber
+            destDrum.lastTransferredAt = t.date
+            destDrum.lastTransferFromStoreName = t.storeFromName
+            destDrum.lastTransferToStoreName = t.storeToName
           }
-          destDrum.receivedMeters += movedQty
-          destDrum.remainingMeters += movedQty
-          destDrum.lastTransferNumber = t.transferNumber
-          destDrum.lastTransferredAt = t.date
-          destDrum.lastTransferFromStoreName = t.storeFromName
-          destDrum.lastTransferToStoreName = t.storeToName
         }
       } else if (Number(it.qty) > 0) {
         const fromKey = `${it.productId}|${t.storeFromId}`
         const toKey = `${it.productId}|${t.storeToId}`
         movedQty = Math.min(Number(it.qty), balanceByKey[fromKey] ?? 0)
         balanceByKey[fromKey] = Math.max(0, (balanceByKey[fromKey] ?? 0) - movedQty)
-        balanceByKey[toKey] = (balanceByKey[toKey] ?? 0) + movedQty
+        if (isCompleted) {
+          balanceByKey[toKey] = (balanceByKey[toKey] ?? 0) + movedQty
+        }
       }
       if (movedQty > 0) {
         movements.push({

@@ -3,11 +3,20 @@
 // units, quantity-tracked stock, and wire drum meters moved directly
 // between two stores, with no engineer or Work Order involved — distinct
 // from Assign to Engineer (store → engineer) and Assign to User
-// (engineer → customer). Transfers are instantaneous in v1: no in-transit
-// state, status is 'Completed' the moment a transfer is saved, and moves to
-// 'Reversed' only once every one of its lines has been reversed (see
-// reverseStoreTransferLine below) — there is still no in-between/approval
-// state.
+// (engineer → customer).
+//
+// A transfer is instantaneous ('Completed' the moment it's saved) only
+// when Store From and Store To share the same city — see storeStore.js's
+// own city field. A cross-city transfer instead lands on 'Sent': the
+// source side has already left (see inventoryLedger.js's own Store
+// Transfers block for exactly what that does/doesn't move immediately),
+// but the destination side doesn't apply until receiveStoreTransfer()
+// below is called — modeling the real gap between a courier picking up
+// goods and someone physically signing for them on arrival. Either way, a
+// transfer moves to 'Reversed' only once every one of its lines has been
+// reversed (see reverseStoreTransferLine below) — there is still no
+// approval/rejection state, and a 'Sent' transfer reverses exactly the
+// same way a 'Completed' one does (see that function's own note).
 //
 // Architecture note on validation depth — this is intentionally lighter
 // than assignmentStore.js's/userAssignmentStore.js's own save-time
@@ -33,8 +42,9 @@
 
 import { logAudit } from './auditLogStore'
 import { createDeliveryChallanForTransfer } from './deliveryChallanStore'
+import { getStore } from './storeStore'
 
-export const STORE_TRANSFER_STATUSES = ['Completed', 'Reversed']
+export const STORE_TRANSFER_STATUSES = ['Completed', 'Sent', 'Reversed']
 
 // ── Seed data — so the Store Transfer list isn't empty on first load, and
 // so the Serial/MAC/Drum + Qty columns have a real example of all three
@@ -120,7 +130,16 @@ const SEED = [
   },
 ]
 
-let _storeTransfers = [...SEED]
+// sentAt/receivedAt/receivedBy/signedChallanUpload default onto every seed
+// transfer here (same "defaults spread first" pattern used throughout this
+// app's other seed reconciliations, e.g. assetStore.js) rather than
+// repeating all four on every SEED literal above — every one of the 5
+// seeded transfers already reads as historically 'Completed' regardless of
+// what the new same-city/cross-city split would decide for it today (some
+// span what are now different cities — see storeStore.js's own city
+// field), which is fine: they represent transfers that already fully
+// happened, receive step included, before this feature existed.
+let _storeTransfers = SEED.map(t => ({ sentAt: null, receivedAt: null, receivedBy: null, signedChallanUpload: null, ...t }))
 let _nextSeq = SEED.length + 1
 let _nextInternalSeq = SEED.length + 1
 const _listeners = []
@@ -210,20 +229,36 @@ function validateAndBuildItems(data, seq, excludeId = null) {
 // `reason` is an optional free-text "Reason for Transfer", captured once per
 // transfer (not per line) — same idea as the whole-assignment `remarks` on
 // assignmentStore.js/userAssignmentStore.js's own records.
+//
+// Same-city vs cross-city is decided here, once, from each store's own
+// `city` (storeStore.js) — a same-city move keeps today's instant
+// behavior; anything else (including either store having no city set at
+// all, a deliberately conservative default — see the file-level note
+// above) lands on 'Sent' and waits for receiveStoreTransfer() below.
 export function saveStoreTransfer(data, actor = 'Admin User') {
   const seq = _nextInternalSeq++
   const items = validateAndBuildItems(data, seq)
 
+  const storeFromCity = (getStore(data.storeFromId)?.city || '').trim().toLowerCase()
+  const storeToCity = (getStore(data.storeToId)?.city || '').trim().toLowerCase()
+  const isSameCity = !!storeFromCity && storeFromCity === storeToCity
+  const status = isSameCity ? 'Completed' : 'Sent'
+  const now = new Date().toISOString()
+
   const transfer = {
     id: `STF-${String(seq).padStart(6, '0')}`,
     transferNumber: nextTransferNumber(),
-    date: new Date().toISOString(),
+    date: now,
     storeFromId: data.storeFromId, storeFromName: data.storeFromName,
     storeToId: data.storeToId, storeToName: data.storeToName,
     items,
     reason: (data.reason || '').trim(),
     assignedBy: actor,
-    status: 'Completed',
+    status,
+    sentAt: status === 'Sent' ? now : null,
+    receivedAt: null,
+    receivedBy: null,
+    signedChallanUpload: null,
   }
   _storeTransfers = [transfer, ..._storeTransfers]
   notify()
@@ -233,16 +268,67 @@ export function saveStoreTransfer(data, actor = 'Admin User') {
   // side effect of saving the transfer, so no separate user action creates
   // the record itself (see deliveryChallanStore.js for the document's own
   // shape and its own note on why editing/reversing this transfer later
-  // doesn't regenerate it).
+  // doesn't regenerate it). Generated at Send time regardless of status —
+  // it's proof of what was dispatched, not proof of receipt; the signed
+  // copy of THIS same document, uploaded once the receiver actually signs
+  // for it, is a separate thing entirely (see receiveStoreTransfer()'s own
+  // signedChallanUpload note below).
   createDeliveryChallanForTransfer(transfer)
 
   const itemCount = items.reduce((s, it) => s + it.qty, 0)
   logAudit({
     action: 'Create', module: 'Inventory',
-    details: `Transferred ${itemCount} item(s) from ${data.storeFromName} to ${data.storeToName} (${transfer.transferNumber})`,
+    details: `Transferred ${itemCount} item(s) from ${data.storeFromName} to ${data.storeToName} (${transfer.transferNumber})${status === 'Sent' ? ' — in transit, awaiting receipt' : ''}`,
   })
 
   return transfer
+}
+
+// ── Receive a 'Sent' (in-transit) transfer at Store To ──────────────────
+// Flips a cross-city transfer's status to 'Completed' once the receiver
+// actually has the goods in hand — inventoryLedger.js's own Store
+// Transfers block only applies the destination-side effect (unit
+// storeId/status, destination drum row, destination balance) once it sees
+// 'Completed' (see that file), so this is the one call that actually
+// finishes moving stock into Store To; nothing else does.
+//
+// `signedChallanFile`, when provided, is already the converted
+// { name, size, type, preview } object — the FileReader.readAsDataURL()
+// conversion itself happens in the UI layer (StoreTransfer.jsx's Receive
+// Transfer modal), the exact same split SalesNewLead.jsx's
+// ProfilePictureUpload already uses (its own onChange handler does the
+// conversion; the caller just holds/passes along the resulting plain
+// object) — this store, like every other one in this app, stays
+// synchronous throughout, never awaiting a FileReader callback itself.
+// Stored directly on this Store Transfer record (signedChallanUpload),
+// never on deliveryChallanStore.js's own record — that store is an
+// immutable point-in-time snapshot of what was DISPATCHED (see its own
+// file-level note) and is deliberately never written to again after
+// creation; the signed, physically-received copy is a distinct artifact
+// that belongs with the transfer's own receipt event instead.
+export function receiveStoreTransfer(transferId, { receivedBy = 'Admin User', signedChallanFile = null } = {}) {
+  const transfer = _storeTransfers.find(t => t.id === transferId)
+  if (!transfer) throw new Error('Transfer not found.')
+  if (transfer.status !== 'Sent') throw new Error('Only a Sent transfer awaiting receipt can be received.')
+
+  const updated = {
+    ...transfer,
+    status: 'Completed',
+    receivedAt: new Date().toISOString(),
+    receivedBy,
+    signedChallanUpload: signedChallanFile
+      ? { name: signedChallanFile.name, size: signedChallanFile.size, type: signedChallanFile.type, preview: signedChallanFile.preview }
+      : transfer.signedChallanUpload,
+  }
+  _storeTransfers = _storeTransfers.map(t => t.id === transferId ? updated : t)
+  notify()
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Received transfer ${transfer.transferNumber} at ${transfer.storeToName}${signedChallanFile ? ' — signed challan uploaded' : ''}`,
+  })
+
+  return updated
 }
 
 // Edits an existing transfer in place — same `data` shape and validation as

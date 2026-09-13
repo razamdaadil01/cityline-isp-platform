@@ -4,6 +4,17 @@
 // loose convention used by feasibilityStore.js/areaMappingStore.js — there's
 // no canonical Branch master to foreign-key against yet. productCount/
 // totalInventory are stubbed at 0 until real stock exists (Phase 4).
+//
+// address/city/gstin — added so a Store Transfer between two stores can
+// actually tell same-city from cross-city (storeTransferStore.js's own
+// saveStoreTransfer() compares storeFrom.city/storeTo.city), and so
+// deliveryChallanStore.js's storeParty()/placeOfSupply have a real source
+// instead of the hardcoded nulls this app shipped with before. All three
+// are plain optional strings, same convention as every other free-text
+// field on this record — no format validation (GSTIN's own
+// companyEntities.js GSTIN_REGEX exists for a legal billing Company/Entity,
+// not a physical Store, which isn't itself a GST-registered party the same
+// way).
 
 import { logAudit } from './auditLogStore'
 
@@ -12,6 +23,9 @@ const SEED = [
     id: 'STR-001',
     storeName: 'Main Warehouse',
     branchCode: 'CNPL-001',
+    address: 'Plot 14, Sector 63, Noida - 201301, Uttar Pradesh',
+    city: 'Noida',
+    gstin: '09MWHCS9012D1Z6',
     contacts: [
       { name: 'Vinod Sharma', phone: '98200 44556', email: 'vinod.sharma@citylinenetworks.in' },
     ],
@@ -23,6 +37,9 @@ const SEED = [
     id: 'STR-002',
     storeName: 'Andheri Store',
     branchCode: 'CNPL-002',
+    address: 'Shop 5, Veera Desai Road, Andheri West, Mumbai - 400053, Maharashtra',
+    city: 'Mumbai',
+    gstin: '27AAWCS1234B1Z8',
     contacts: [
       { name: 'Kiran Desai', phone: '97650 11223', email: 'kiran.desai@citylinenetworks.in' },
     ],
@@ -34,6 +51,9 @@ const SEED = [
     id: 'STR-003',
     storeName: 'Bandra Store',
     branchCode: 'CNPL-003',
+    address: '212, Linking Road, Bandra West, Mumbai - 400050, Maharashtra',
+    city: 'Mumbai',
+    gstin: '27BBNCS5678C1Z2',
     contacts: [
       { name: 'Anjali Rao', phone: '96550 22334', email: 'anjali.rao@citylinenetworks.in' },
     ],
