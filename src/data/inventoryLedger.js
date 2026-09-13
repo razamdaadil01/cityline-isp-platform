@@ -327,10 +327,11 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
   // 'Completed' (storeTransferStore.js's sameCity()) and this block behaves
   // exactly as it always has: the unit/drum/balance moves to Store To in
   // this same pass. A cross-city transfer instead sits at 'Sent' until
-  // receiveStoreTransfer() flips it to 'Completed', so each branch below
-  // splits its source-side effect (leaving Store From — applied
-  // unconditionally, the instant the transfer exists) from its
-  // destination-side effect (landing at Store To — withheld while
+  // storeTransferStore.js's receiveStoreTransfer() flips it to 'Completed'
+  // (recomputed fresh on the next read, same as everywhere else in this
+  // file), so each branch below splits its source-side effect (leaving
+  // Store From — applied unconditionally, the instant the transfer exists)
+  // from its destination-side effect (landing at Store To — withheld while
   // 'Sent'). A serial/MAC unit gets an intermediate 'In Transit' status
   // while 'Sent': its storeId deliberately does NOT move yet, since status
   // alone (not 'Available') is what already excludes it from
@@ -346,7 +347,7 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
     .filter(t => t.status !== 'Reversed' && t.id !== excludeStoreTransferId)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .forEach(t => {
-    const isReceived = t.status !== 'Sent'
+    const isCompleted = t.status === 'Completed'
     t.items.forEach(it => {
       const values = [...it.serials, ...it.macs]
       let movedQty = 0
@@ -354,11 +355,14 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
         values.forEach(v => {
           const unit = unitsByValue.get(v)
           if (!unit) return
-          if (isReceived) {
+          if (isCompleted) {
             if (unit.status !== 'Available' && unit.status !== 'In Transit') return
             unit.storeId = t.storeToId
             unit.status = 'Available'
           } else {
+            // In transit — left Store From (no longer 'Available' there),
+            // hasn't arrived at Store To yet, so storeId stays put; see
+            // this block's own file-level note above.
             if (unit.status !== 'Available') return
             unit.status = 'In Transit'
           }
@@ -388,7 +392,7 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
         movedQty = sourceDrum ? Math.min(meters, sourceDrum.remainingMeters) : 0
         if (movedQty > 0) {
           sourceDrum.remainingMeters -= movedQty
-          if (isReceived) {
+          if (isCompleted) {
             const destDrumNumber = `${it.drumNumber}-${t.transferNumber}`
             let destDrum = drumsByNumber.get(destDrumNumber)
             if (!destDrum) {
@@ -412,7 +416,7 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
         const toKey = `${it.productId}|${t.storeToId}`
         movedQty = Math.min(Number(it.qty), balanceByKey[fromKey] ?? 0)
         balanceByKey[fromKey] = Math.max(0, (balanceByKey[fromKey] ?? 0) - movedQty)
-        if (isReceived) {
+        if (isCompleted) {
           balanceByKey[toKey] = (balanceByKey[toKey] ?? 0) + movedQty
         }
       }

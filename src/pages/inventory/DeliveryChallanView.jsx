@@ -3,6 +3,7 @@ import { AlertTriangle, Printer, Download } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import EntityBadge from '../../components/ui/EntityBadge'
 import { getDeliveryChallanByTransferId } from '../../data/deliveryChallanStore'
+import { getStoreTransfer } from '../../data/storeTransferStore'
 import { getCompanyEntity } from '../../data/companyEntities'
 
 // Print-friendly Delivery Challan document — same A4-card + print button +
@@ -37,6 +38,11 @@ export default function DeliveryChallanView() {
     )
   }
 
+  // Same `:id` param the challan itself is looked up by (the Store
+  // Transfer's own id) — fetched separately since signedChallanUpload
+  // lives on the transfer record, not on this immutable challan snapshot
+  // (see storeTransferStore.js's receiveStoreTransfer() for why).
+  const transfer = getStoreTransfer(id)
   const { consignor, consignee } = challan
   // Same resolution EntityBadge's other caller (PODetail.jsx) uses off its
   // own po.companyEntityId — getCompanyEntity() returns null for an unset
@@ -183,9 +189,34 @@ export default function DeliveryChallanView() {
 
         {/* ── SIGNATURE ── */}
         <div className="px-8 py-8 border-b border-gray-200">
-          <div className="ml-auto w-64">
-            <div className="border-t border-gray-400 pt-2 text-center">
-              <p className="text-xs text-gray-500">Authorized Signatory</p>
+          <div className="flex items-end justify-between gap-4">
+            {/* Signed challan proof-of-receipt — only once the destination
+                store has actually received and uploaded one (see
+                storeTransferStore.js's receiveStoreTransfer()); a
+                'Completed' same-city transfer never has one to show. */}
+            {transfer?.signedChallanUpload ? (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Signed Challan (Proof of Receipt)</p>
+                {transfer.signedChallanUpload.type?.startsWith('image/') ? (
+                  <img
+                    src={transfer.signedChallanUpload.preview}
+                    alt="Signed challan"
+                    className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                  />
+                ) : (
+                  <p className="text-xs text-gray-500">{transfer.signedChallanUpload.name}</p>
+                )}
+                {transfer.receivedBy && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    Received by {transfer.receivedBy}{transfer.receivedAt ? ` on ${transfer.receivedAt.slice(0, 10)}` : ''}
+                  </p>
+                )}
+              </div>
+            ) : <div />}
+            <div className="w-64">
+              <div className="border-t border-gray-400 pt-2 text-center">
+                <p className="text-xs text-gray-500">Authorized Signatory</p>
+              </div>
             </div>
           </div>
         </div>

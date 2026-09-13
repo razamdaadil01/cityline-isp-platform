@@ -1,13 +1,21 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText, PackageCheck } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText, PackageCheck, Upload } from 'lucide-react'
 import Button from '../../components/ui/Button'
-import Modal from '../../components/ui/Modal'
 import Badge from '../../components/ui/Badge'
+import Modal from '../../components/ui/Modal'
+import { FormField, Input } from '../../components/ui/FormInputs'
 import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine, receiveStoreTransfer } from '../../data/storeTransferStore'
 import { getUnits, getDrums } from '../../data/inventoryLedger'
 import { getProduct } from '../../data/productStore'
 import { usePermission } from '../../data/rolesStore'
+
+// 'Sent' reuses the 'yellow' variant, which is this app's actual amber tone
+// (Badge.jsx's own yellow = bg-amber-100/text-amber-700) — matches the same
+// "awaiting a decision/action" color Purchase Orders' own 'Approval
+// Request' status already uses. 'Reversed' matches Assign to User's own
+// 'Reversed' status color (gray) for the same word elsewhere in this app.
+const STATUS_BADGE = { Completed: 'green', Sent: 'yellow', Reversed: 'gray' }
 
 // Same live-lookup helper as CreateStoreTransfer.jsx's/CreateAssignment.jsx's
 // own liveTrackingType — reads the product's *current* Tracking
@@ -24,20 +32,28 @@ function liveTrackingType(productId) {
 }
 
 // A transferred line is only offered for reversal while what it moved is
-// still sitting untouched at Store To — or, for a 'Sent' (not yet Received)
-// cross-city transfer, still sitting untouched 'In Transit' (inventoryLedger.js's
-// Store Transfers block withholds the storeId move until Received — see that
-// file — so a Sent line's unit is still found at Store From, not Store To).
+// still sitting untouched — either already 'Available' at Store To (a
+// 'Completed' transfer), or still 'In Transit' and tied to this exact
+// transfer (a 'Sent' one awaiting receipt — see inventoryLedger.js's own
+// Store Transfers block for what 'In Transit' means and when it's set).
 // Serial/MAC units are checked against their own live ledger status (same
-// idea as Assignments.jsx's own lineStatus() gating "Back to Store"); wire
-// lines are checked against the specific transfer-scoped destination drum
-// inventoryLedger.js's Store Transfers block creates for them once Received
-// (a Sent line's meters have already left the source drum but don't yet
-// exist as any destination drum, so there's nothing to check against —
-// still freely reversible). Quantity-tracked lines have no discrete
-// per-line identity to check — same laxness Assign to Engineer's own
-// quantity-line "Back to Store" already accepts — so those stay reversible
-// as long as the transfer itself hasn't already been reversed.
+// idea as Assignments.jsx's own lineStatus() gating "Back to Store"); an
+// In-Transit unit's storeId is still Store From's (it hasn't arrived
+// anywhere), so the lookup below deliberately doesn't filter by storeId up
+// front — it checks storeId only for the 'Available' case, and
+// `lastTransferNumber` (set on every transfer this unit was ever part of)
+// to confirm an In-Transit unit is tied to THIS transfer specifically, not
+// some other one it happens to still be mid-flight on. Wire lines are
+// checked against the specific transfer-scoped destination drum
+// inventoryLedger.js's Store Transfers block creates for them once
+// Completed (a Sent line's meters have already left the source drum but
+// don't yet exist as any destination drum, so there's nothing to check
+// against — still freely reversible while 'Sent', no explicit "in transit"
+// case for drums the way there is for units). Quantity-tracked lines have
+// no discrete per-line identity to check —
+// same laxness Assign to Engineer's own quantity-line "Back to Store"
+// already accepts — so those stay reversible as long as the transfer
+// itself hasn't already been reversed.
 function isLineReversible(t, it) {
   const values = [...it.serials, ...it.macs]
   if (values.length) {
@@ -48,8 +64,11 @@ function isLineReversible(t, it) {
       })
     }
     return values.every(v => {
-      const unit = getUnits({ productId: it.productId, storeId: t.storeToId }).find(u => u.value === v)
-      return !!unit && unit.status === 'Available'
+      const unit = getUnits({ productId: it.productId }).find(u => u.value === v)
+      if (!unit) return false
+      if (unit.status === 'Available' && unit.storeId === t.storeToId) return true
+      if (unit.status === 'In Transit' && unit.lastTransferNumber === t.transferNumber) return true
+      return false
     })
   }
   if (it.drumNumber) {
@@ -164,14 +183,40 @@ export default function StoreTransfer() {
   // "Receive Transfer" confirms a cross-city 'Sent' shipment has arrived —
   // acts on the whole transfer (not a single line), same as Edit/View
   // Delivery Challan already do off row.transferId, since receiving is a
-  // single physical shipment landing, not a per-line action.
+  // single physical shipment landing, not a per-line action. Flips the
+  // whole transfer to 'Completed' via receiveStoreTransfer(), which is what
+  // actually applies the destination-side ledger effect (see
+  // inventoryLedger.js's own Store Transfers block). The signed challan
+  // upload uses the same FileReader.readAsDataURL() pattern as
+  // SalesNewLead.jsx's ProfilePictureUpload — converted here in the UI
+  // layer into a plain { name, size, type, preview } object before being
+  // handed to the (synchronous) store function, never inside the store
+  // itself. Optional — the receiver may not always have a scanner/camera
+  // on hand; the transfer still completes without one.
   const [receiveTarget, setReceiveTarget] = useState(null)
+  const [receivedByInput, setReceivedByInput] = useState('Admin User')
+  const [signedChallanFile, setSignedChallanFile] = useState(null)
   const [receiveError, setReceiveError] = useState('')
+  const receiveFileRef = useRef(null)
+
+  function openReceiveModal(row) {
+    setReceiveTarget(row)
+    setReceivedByInput('Admin User')
+    setSignedChallanFile(null)
+    setReceiveError('')
+  }
+
+  function handleSignedChallanFile(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setSignedChallanFile({ name: file.name, size: file.size, type: file.type, preview: ev.target.result })
+    reader.readAsDataURL(file)
+  }
 
   function confirmReceive() {
     if (!receiveTarget) return
     try {
-      receiveStoreTransfer(receiveTarget.transferId)
+      receiveStoreTransfer(receiveTarget.transferId, { receivedBy: receivedByInput.trim() || 'Admin User', signedChallanFile })
       setReceiveTarget(null)
       setReceiveError('')
     } catch (err) {
@@ -274,7 +319,7 @@ export default function StoreTransfer() {
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.assignedBy}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge variant={r.status === 'Sent' ? 'yellow' : 'green'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
+                    <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
                   </td>
                   <td className="px-4 py-3 w-16 text-center">
                     <button
@@ -307,7 +352,7 @@ export default function StoreTransfer() {
               <FileText size={13} className="text-gray-400 shrink-0" /> View Delivery Challan
             </button>
             {row.status === 'Sent' && (
-              <button onClick={() => { setReceiveTarget(row); setReceiveError(''); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+              <button onClick={() => { openReceiveModal(row); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
                 <PackageCheck size={13} className="text-brand-blue shrink-0" /> Receive Transfer
               </button>
             )}
@@ -368,6 +413,39 @@ export default function StoreTransfer() {
             <p className="text-sm text-gray-600">
               Confirm transfer <span className="font-semibold text-gray-900">{receiveTarget.transferNumber}</span> has arrived at{' '}
               <span className="font-semibold text-gray-900">{receiveTarget.storeToName}</span>? All items on this transfer become available there once received.
+            </p>
+            <FormField label="Received By">
+              <Input value={receivedByInput} onChange={e => setReceivedByInput(e.target.value)} placeholder="Name of person receiving" />
+            </FormField>
+            <FormField label="Signed Challan Copy (optional)">
+              <input
+                ref={receiveFileRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={e => handleSignedChallanFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                type="button"
+                onClick={() => receiveFileRef.current?.click()}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-gray-600 border border-dashed border-surface-border rounded-lg hover:bg-gray-50 transition-colors w-full justify-center"
+              >
+                <Upload size={13} className="text-gray-400" />
+                {signedChallanFile ? 'Replace uploaded file' : 'Upload signed challan copy'}
+              </button>
+              {signedChallanFile && (
+                <div className="mt-2 flex items-center gap-2">
+                  {signedChallanFile.type?.startsWith('image/') ? (
+                    <img src={signedChallanFile.preview} alt="Signed challan preview" className="w-14 h-14 object-cover rounded-lg border border-surface-border" />
+                  ) : (
+                    <FileText size={20} className="text-gray-400" />
+                  )}
+                  <span className="text-xs text-gray-500 truncate">{signedChallanFile.name}</span>
+                </div>
+              )}
+            </FormField>
+            <p className="text-[11px] text-gray-400">
+              The receiver is expected to sign the printed delivery challan and upload a photo/scan as proof of receipt.
             </p>
             {receiveError && (
               <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">

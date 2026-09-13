@@ -160,10 +160,13 @@ export function createDeliveryChallanForTransfer(transfer) {
     // needs to populate this one line; DeliveryChallanView.jsx already
     // degrades to "no logo shown" when it resolves to null.
     companyEntityId: null,
-    // The Consignee's own city (storeStore.js's `city` field) when
-    // available, else blank. Left as its own field (rather than just
-    // aliasing consignee.address) so a different place-of-supply source
-    // could replace this line later without touching every caller.
+    // GST's own "Place of Supply" for a goods movement is the destination
+    // state/city — the Consignee's (Store To's) own city when it's set,
+    // else null (same blank-when-unknown degrade every other optional
+    // field on this document already follows). Left as its own field
+    // (rather than just aliasing consignee.city) so a future, more
+    // precise source (e.g. a real state code) only needs to fill this one
+    // line, not touch every caller that reads it.
     placeOfSupply: getStore(transfer.storeToId)?.city ?? null,
     items: buildChallanItems(transfer.items),
     reason: transfer.reason || '',

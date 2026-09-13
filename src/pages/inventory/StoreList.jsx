@@ -23,6 +23,10 @@ const STORE_TABLE_COLUMNS = [
   { key: 'actions',     label: 'Actions',           visible: true, defaultVisible: true },
 ]
 
+// address/city/gstin — City is the one of the three shown as its own list
+// column (Store Transfer needs it to tell same-city from cross-city at a
+// glance); Address/GSTIN stay detail-only in this modal, same as every
+// other Store field this list never surfaced as a column of its own.
 function emptyForm() {
   return { storeName: '', branchCode: '', address: '', city: '', gstin: '', contacts: [{ ...EMPTY_CONTACT }] }
 }
@@ -95,16 +99,16 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="City">
+          <FormField label="City" hint="Used to tell same-city from cross-city Store Transfers">
             <Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setField('city', e.target.value)} />
           </FormField>
-          <FormField label="GSTIN">
-            <Input placeholder="e.g. 27AAAAA0000A1Z5" value={form.gstin} onChange={e => setField('gstin', e.target.value)} />
+          <FormField label="GSTIN" hint="Optional — shown on the Delivery Challan">
+            <Input placeholder="e.g. 27AAAAA0000A1Z5" value={form.gstin} onChange={e => setField('gstin', e.target.value.toUpperCase())} />
           </FormField>
         </div>
 
-        <FormField label="Address">
-          <Textarea rows={2} placeholder="Full address for Delivery Challan" value={form.address} onChange={e => setField('address', e.target.value)} />
+        <FormField label="Address" hint="Optional — shown on the Delivery Challan">
+          <Textarea rows={2} placeholder="Street, area, city, PIN…" value={form.address} onChange={e => setField('address', e.target.value)} />
         </FormField>
 
         <ContactsEditor

@@ -10,6 +10,11 @@
 // storeTransferStore.js's same-city vs. cross-city Store Transfer routing
 // (see saveStoreTransfer()) — a transfer between two stores in the same
 // city stays instant, a cross-city one goes through a 'Sent' state first.
+// All three are plain optional strings, same convention as every other
+// free-text field on this record — no format validation (GSTIN's own
+// companyEntities.js GSTIN_REGEX exists for a legal billing Company/Entity,
+// not a physical Store, which isn't itself a GST-registered party the same
+// way).
 
 import { logAudit } from './auditLogStore'
 

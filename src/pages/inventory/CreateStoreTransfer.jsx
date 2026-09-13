@@ -745,8 +745,10 @@ export default function CreateStoreTransfer() {
 
   // Same city/cross-city — purely informational here (storeTransferStore.js's
   // saveStoreTransfer() makes the actual same-city vs. 'Sent' status
-  // decision off the same two `city` fields, so this only decides the
-  // notice/button copy below, never the transfer's own outcome).
+  // decision off the same two `city` fields, via its own sameCity() helper,
+  // so this only decides the notice/button copy below, never the transfer's
+  // own outcome). Two stores that both have no city set compare equal here
+  // too, matching sameCity()'s own default.
   const citiesDiffer = storesValid && (storeFrom?.city || '').trim().toLowerCase() !== (storeTo?.city || '').trim().toLowerCase()
   const submitLabel = isEditMode ? 'Save Changes' : (citiesDiffer ? 'Send Transfer' : 'Transfer Stock')
 
