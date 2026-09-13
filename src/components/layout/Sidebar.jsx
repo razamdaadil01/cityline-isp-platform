@@ -46,7 +46,13 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Dashboard',        icon: LayoutDashboard, to: '/',              exact: true },
-  { label: 'Customers',        icon: Users,           to: '/customers'                 },
+  {
+    label: 'Customers',        icon: Users,           to: '/customers',
+    children: [
+      { label: 'Customer List',     icon: Users,         to: '/customers' },
+      { label: 'Hardware Recovery', icon: PackageSearch, to: '/customers/hardware-recovery' },
+    ],
+  },
   { label: 'Installations',    icon: Wrench,          to: '/installations'             },
   { label: 'Approvals',        icon: ShieldCheck,     to: '/approvals'                 },
   {

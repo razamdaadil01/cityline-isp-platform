@@ -1,4 +1,5 @@
 import { getCustomerType, formatCustomerId, getNextCustomerIdSequence } from './customerTypes'
+import { isRecoveryResolvedForCustomer } from './customerRecoveryStore'
 
 // TODO: existing customers (CUSTOMERS below, and any already created via
 // addCustomer()) keep their original Customer ID; only new customer
@@ -92,7 +93,17 @@ export function subscribeCustomers(fn) {
 
 let _overrides = {}
 
+// Phase 5 gate (Customer Disconnection flow) — a customer may not be marked
+// 'Disconnected' until their hardware recovery work order (Phase 3,
+// customerRecoveryStore.js) has resolved. Enforced here rather than only in
+// CustomerDetail.jsx's UI so it can't be bypassed by any other caller;
+// there's no 'Disconnected'-setting UI yet (a later phase adds it, plus its
+// own billing/settlement gate on top of this one), but this makes sure that
+// UI can't accidentally skip straight there once it exists.
 export function updateCustomer(id, patch) {
+  if (patch.status === 'Disconnected' && !isRecoveryResolvedForCustomer(id)) {
+    throw new Error(`Cannot mark ${id} as 'Disconnected' — hardware recovery must be resolved first.`)
+  }
   _overrides = { ..._overrides, [id]: { ...(_overrides[id] ?? {}), ...patch } }
   notify()
 }

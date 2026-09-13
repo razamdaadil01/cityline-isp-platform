@@ -6,18 +6,27 @@ import {
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
+  PackageSearch,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
+import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers, updateCustomer } from '../data/customersData'
 import { getPPPoEId, getAppPassword } from '../data/customerTypes'
 import { logAudit } from '../data/auditLogStore'
 import {
   getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
-  subscribeTickets, CATEGORY_SUBCATEGORIES,
+  subscribeTickets, CATEGORY_SUBCATEGORIES, TECHNICIANS,
 } from '../data/ticketsStore'
+import {
+  getRecoveries, subscribeRecoveries, addRecovery, nextRecoveryId,
+  RECOVERY_REASONS, RECOVERY_STATUS_CFG,
+} from '../data/customerRecoveryStore'
+import {
+  getActiveUserAssignmentsForCustomer, subscribeUserAssignments, linkToRecovery,
+} from '../data/userAssignmentStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -2228,6 +2237,100 @@ function StatusActionModal({ mode, onClose, onConfirm }) {
   )
 }
 
+// ── Schedule Hardware Recovery modal ─────────────────────────────────────────
+// Phase 3 of the Customer Disconnection flow — mirrors
+// IntercomCustomerDetail.jsx's ScheduleHardwareRecoveryModal (same fields:
+// technician/date/time-slot/hardware-to-recover/access-instructions), but
+// for core RES-/ENT- customers via customerRecoveryStore.js, a separate
+// store from the Intercom one. Unlike that modal, "hardware to recover" is
+// not a free-text field the agent edits — it's a read-only list sourced
+// from userAssignmentStore.js's actual handoff records for this customer.
+
+const RECOVERY_TIME_SLOTS = ['Morning 9-12', 'Afternoon 12-3', 'Evening 3-6']
+
+function ScheduleHardwareRecoveryModal({ isOpen, customer, hardwareItems, onClose, onSubmit }) {
+  const [form, setForm] = useState({ technician: '', recoveryDate: '', timeSlot: '', accessInstructions: '' })
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    if (isOpen) { setForm({ technician: '', recoveryDate: '', timeSlot: '', accessInstructions: '' }); setErrors({}) }
+  }, [isOpen])
+
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErrors(p => ({ ...p, [f]: '' })) }
+
+  function handleSubmit() {
+    const e = {}
+    if (!form.technician) e.technician = 'Select a technician'
+    if (!form.recoveryDate) e.recoveryDate = 'Recovery visit date is required'
+    if (!form.timeSlot) e.timeSlot = 'Select a time slot'
+    if (Object.keys(e).length) { setErrors(e); return }
+    onSubmit(form)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Schedule Hardware Recovery" size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>Schedule Visit</Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+        <FormField label="Customer Name">
+          <Input value={customer.name} disabled />
+        </FormField>
+        <FormField label="Customer ID">
+          <Input value={customer.id} disabled className="font-mono" />
+        </FormField>
+        <FormField label="Reason for Recovery">
+          <Input value={RECOVERY_REASONS[0]} disabled />
+        </FormField>
+        <FormField label="Assigned Technician" required error={errors.technician}>
+          <Select value={form.technician} onChange={e => set('technician', e.target.value)}>
+            <option value="">Select technician…</option>
+            {TECHNICIANS.map(t => <option key={t} value={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <div className="col-span-2">
+          <p className="text-sm font-medium text-gray-700 mb-1.5">Hardware to Recover</p>
+          {hardwareItems.length === 0 ? (
+            <p className="text-sm text-gray-400 border border-dashed border-surface-border rounded-lg px-3 py-3">
+              No hardware currently on record as handed off to this customer.
+            </p>
+          ) : (
+            <ul className="border border-surface-border rounded-lg divide-y divide-surface-border">
+              {hardwareItems.map((h, i) => (
+                <li key={i} className="px-3 py-2 text-sm text-gray-700 flex items-center justify-between gap-3">
+                  <span>{h.productName}</span>
+                  <span className="font-mono text-xs text-gray-500 text-right">{h.identifier}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <FormField label="Recovery Visit Date" required error={errors.recoveryDate}>
+          <Input type="date" value={form.recoveryDate} onChange={e => set('recoveryDate', e.target.value)} />
+        </FormField>
+        <FormField label="Time Slot" required error={errors.timeSlot}>
+          <Select value={form.timeSlot} onChange={e => set('timeSlot', e.target.value)}>
+            <option value="">Select slot…</option>
+            {RECOVERY_TIME_SLOTS.map(t => <option key={t}>{t}</option>)}
+          </Select>
+        </FormField>
+        <div className="col-span-2">
+          <FormField label="Access Instructions">
+            <Textarea value={form.accessInstructions} onChange={e => set('accessInstructions', e.target.value)} rows={2} placeholder="Gate code, floor access, etc…" />
+          </FormField>
+        </div>
+        <FormField label="Contact Number">
+          <Input value={customer.phone} disabled />
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Tab: Activity Logs ───────────────────────────────────────────────────────
 
 function ActivityTab({ activity }) {
@@ -2283,6 +2386,30 @@ export default function CustomerDetail() {
   const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | null
   const [activityLog, setActivityLog] = useState(ACTIVITY)
   const displayStatus = statusOverride ?? customer.status
+
+  // Phase 3 — hardware recovery (customerRecoveryStore.js, a separate store
+  // from the Intercom module's own intercomRecoveryStore.js).
+  const [recoveries, setRecoveries] = useState(getRecoveries())
+  useEffect(() => subscribeRecoveries(setRecoveries), [])
+  const existingRecovery = recoveries.find(r => r.customerId === id) ?? null
+
+  const [activeAssignments, setActiveAssignments] = useState(() => getActiveUserAssignmentsForCustomer(id))
+  useEffect(() => {
+    setActiveAssignments(getActiveUserAssignmentsForCustomer(id))
+    return subscribeUserAssignments(() => setActiveAssignments(getActiveUserAssignmentsForCustomer(id)))
+  }, [id])
+  const hardwareItems = activeAssignments
+    .flatMap(a => a.items.map(it => ({
+      productName: it.productName,
+      identifier: it.serials.length || it.macs.length
+        ? [...it.serials, ...it.macs].join(', ')
+        : it.drumNumber
+          ? `${it.qty}m (Drum ${it.drumNumber})`
+          : `${it.qty} unit${it.qty !== 1 ? 's' : ''}`,
+    })))
+
+  const [recoveryModalOpen, setRecoveryModalOpen] = useState(false)
+  const canScheduleRecovery = displayStatus === 'Pending Disconnection' && !existingRecovery
 
   useEffect(() => {
     setStatusOverride(null)
@@ -2371,6 +2498,42 @@ export default function CustomerDetail() {
       saveTicket(ticket)
     }
     setStatusModal(null)
+  }
+
+  function handleScheduleRecovery(form) {
+    if (existingRecovery) { setRecoveryModalOpen(false); return }
+    const now = new Date()
+    const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
+    const [y, m, d] = form.recoveryDate.split('-')
+    const workOrderId = nextRecoveryId()
+    const hardwareToRecover = hardwareItems.length
+      ? hardwareItems.map(h => `${h.productName} (${h.identifier})`).join(', ')
+      : 'None on record'
+
+    addRecovery({
+      id: workOrderId,
+      customerId: id,
+      customer: customer.name,
+      phone: customer.phone,
+      reason: RECOVERY_REASONS[0],
+      hardwareToRecover,
+      technician: form.technician,
+      scheduledDate: `${d}-${m}-${y}`,
+      timeSlot: form.timeSlot,
+      accessInstructions: form.accessInstructions,
+      createdDate,
+      notes: '',
+      status: 'pending',
+    })
+    // Links this customer's active handoffs (userAssignmentStore.js) to the
+    // new work order — the "hardware to recover" source of truth — and
+    // flips their assignmentType to 'disconnection' now that they're
+    // actually part of a disconnection-driven recovery.
+    linkToRecovery(id, workOrderId)
+
+    logAudit({ module: 'Customers', action: 'Edit', details: `Hardware recovery ${workOrderId} scheduled for customer ${id}` })
+    setActivityLog(a => [{ time: formatActivityTime(now), actor: 'Admin', event: 'Hardware recovery scheduled', meta: `${workOrderId} · Technician: ${form.technician}` }, ...a])
+    setRecoveryModalOpen(false)
   }
 
   const statusCfg = STATUS_CFG[displayStatus] ?? STATUS_CFG.inactive
@@ -2466,6 +2629,28 @@ export default function CustomerDetail() {
             >
               Terminate
             </Button>
+            {canScheduleRecovery && (
+              <Button size="sm" icon={<PackageSearch size={13} />} onClick={() => setRecoveryModalOpen(true)}>
+                Schedule Hardware Recovery
+              </Button>
+            )}
+            {existingRecovery && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200">
+                <PackageSearch size={13} className="text-purple-600 shrink-0" />
+                <span className="text-xs text-gray-700">
+                  Hardware Recovery Scheduled:{' '}
+                  <button
+                    onClick={() => navigate('/customers/hardware-recovery')}
+                    className="font-mono font-semibold text-purple-700 hover:underline"
+                  >
+                    {existingRecovery.id}
+                  </button>
+                </span>
+                <Badge variant={(RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending).variant} size="sm" dot>
+                  {(RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending).label}
+                </Badge>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2511,6 +2696,13 @@ export default function CustomerDetail() {
           onConfirm={handleStatusConfirm}
         />
       )}
+      <ScheduleHardwareRecoveryModal
+        isOpen={recoveryModalOpen}
+        customer={customer}
+        hardwareItems={hardwareItems}
+        onClose={() => setRecoveryModalOpen(false)}
+        onSubmit={handleScheduleRecovery}
+      />
     </div>
   )
 }
