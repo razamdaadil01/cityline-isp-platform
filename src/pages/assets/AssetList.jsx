@@ -262,10 +262,10 @@ export default function AssetList() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[150px]">Asset ID</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[110px]">Category</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[110px]">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[160px]">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Warranty</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned To</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[180px]">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Warranty</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Assigned To</th>
                 <th className="px-4 py-3 w-20 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
@@ -282,14 +282,14 @@ export default function AssetList() {
                   <td className="px-4 py-3 whitespace-nowrap"><span className="font-mono text-xs font-semibold text-brand-blue">{a.id}</span></td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.categoryLabel}</td>
                   <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{a.typeLabel}</td>
-                  <td className="px-4 py-3 text-gray-800 text-xs font-medium">{a.name}</td>
-                  <td className="px-4 py-3"><Badge variant={STATUS_BADGE[a.status] ?? 'gray'} size="sm" dot>{a.status}</Badge></td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-gray-800 text-xs font-medium whitespace-nowrap">{a.name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap"><Badge variant={STATUS_BADGE[a.status] ?? 'gray'} size="sm" dot>{a.status}</Badge></td>
+                  <td className="px-4 py-3 whitespace-nowrap">
                     {a.warrantyStatus === 'N/A'
                       ? <span className="text-gray-400 text-xs">—</span>
                       : <Badge variant={WARRANTY_BADGE[a.warrantyStatus] ?? 'gray'} size="sm" dot>{a.warrantyStatus}</Badge>}
                   </td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
                     {a.status === 'Assigned' && a.assignedTo
                       ? <span className="text-gray-800 font-medium">{a.assignedTo.engineerName}</span>
                       : <span className="text-gray-400">—</span>}
