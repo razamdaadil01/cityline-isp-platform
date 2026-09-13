@@ -6,15 +6,16 @@
 // totalInventory are stubbed at 0 until real stock exists (Phase 4).
 //
 // address/gstin feed deliveryChallanStore.js's consignor/consignee block
-// (see that file's storeParty()); city additionally drives
-// storeTransferStore.js's same-city vs. cross-city Store Transfer routing
-// (see saveStoreTransfer()) — a transfer between two stores in the same
-// city stays instant, a cross-city one goes through a 'Sent' state first.
-// All three are plain optional strings, same convention as every other
-// free-text field on this record — no format validation (GSTIN's own
-// companyEntities.js GSTIN_REGEX exists for a legal billing Company/Entity,
-// not a physical Store, which isn't itself a GST-registered party the same
-// way).
+// (see that file's storeParty()); city additionally feeds that same
+// document's placeOfSupply and is shown for reference on Store
+// Transfer/Store Management — every Store Transfer now goes through the
+// same Send → Receive lifecycle regardless of city (see
+// storeTransferStore.js's own file-level note), so city no longer decides
+// a transfer's status path. All three are plain optional strings, same
+// convention as every other free-text field on this record — no format
+// validation (GSTIN's own companyEntities.js GSTIN_REGEX exists for a
+// legal billing Company/Entity, not a physical Store, which isn't itself a
+// GST-registered party the same way).
 
 import { logAudit } from './auditLogStore'
 
@@ -63,9 +64,10 @@ const SEED = [
   },
   {
     // The one seeded store outside Mumbai — gives storeTransferStore.js's
-    // seed data a real cross-city pair (Andheri Store → here) to demo the
-    // 'Sent'/in-transit flow with, since STR-001..003 are all Mumbai and
-    // would only ever produce same-city, instant transfers.
+    // seed data a real cross-city pair (Andheri Store → here) with a
+    // genuinely different placeOfSupply on its Delivery Challan, even
+    // though every transfer (same-city or cross-city) now goes through the
+    // identical Send → Receive lifecycle.
     id: 'STR-004',
     storeName: 'Noida Store',
     branchCode: 'CNPL-004',

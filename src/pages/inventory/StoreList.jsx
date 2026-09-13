@@ -24,8 +24,10 @@ const STORE_TABLE_COLUMNS = [
 ]
 
 // address/city/gstin — City is the one of the three shown as its own list
-// column (Store Transfer needs it to tell same-city from cross-city at a
-// glance); Address/GSTIN stay detail-only in this modal, same as every
+// column (useful at a glance and feeds the Delivery Challan's
+// placeOfSupply — see deliveryChallanStore.js — though every Store
+// Transfer now goes through the same Send → Receive lifecycle regardless
+// of city); Address/GSTIN stay detail-only in this modal, same as every
 // other Store field this list never surfaced as a column of its own.
 function emptyForm() {
   return { storeName: '', branchCode: '', address: '', city: '', gstin: '', contacts: [{ ...EMPTY_CONTACT }] }
@@ -99,7 +101,7 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="City" hint="Used to tell same-city from cross-city Store Transfers">
+          <FormField label="City" hint="Shown on Store Transfer and the Delivery Challan">
             <Input placeholder="e.g. Mumbai" value={form.city} onChange={e => setField('city', e.target.value)} />
           </FormField>
           <FormField label="GSTIN" hint="Optional — shown on the Delivery Challan">

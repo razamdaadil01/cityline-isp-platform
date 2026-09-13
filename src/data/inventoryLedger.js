@@ -323,26 +323,25 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
   // earlier transfer into Store B) only exists once that earlier transfer
   // has already been applied.
   //
-  // 'Sent' vs. 'Completed' — a same-city transfer goes straight to
-  // 'Completed' (storeTransferStore.js's sameCity()) and this block behaves
-  // exactly as it always has: the unit/drum/balance moves to Store To in
-  // this same pass. A cross-city transfer instead sits at 'Sent' until
-  // storeTransferStore.js's receiveStoreTransfer() flips it to 'Completed'
-  // (recomputed fresh on the next read, same as everywhere else in this
-  // file), so each branch below splits its source-side effect (leaving
-  // Store From — applied unconditionally, the instant the transfer exists)
-  // from its destination-side effect (landing at Store To — withheld while
-  // 'Sent'). A serial/MAC unit gets an intermediate 'In Transit' status
-  // while 'Sent': its storeId deliberately does NOT move yet, since status
-  // alone (not 'Available') is what already excludes it from
-  // getUnits({storeId, status:'Available'}) at BOTH Store From (no longer
-  // 'Available' there) and Store To (storeId hasn't arrived there yet) — no
-  // separate "pending store" field needed. Wire meters leave the source
-  // drum immediately either way, but the transfer-scoped destination drum
-  // row is only created/credited once 'Completed' — while 'Sent', those
-  // meters simply exist nowhere pickable. Quantity-tracked balances follow
-  // the same split: fromKey decrements immediately, toKey only credits once
-  // 'Completed'.
+  // 'Sent' vs. 'Completed' — every transfer, same-city or cross-city alike,
+  // lands on 'Sent' when saved (storeTransferStore.js's saveStoreTransfer()
+  // — there is no more instant "Completed on save" path) and sits there
+  // until storeTransferStore.js's receiveStoreTransfer() flips it to
+  // 'Completed' (recomputed fresh on the next read, same as everywhere else
+  // in this file), so each branch below splits its source-side effect
+  // (leaving Store From — applied unconditionally, the instant the transfer
+  // exists) from its destination-side effect (landing at Store To —
+  // withheld while 'Sent'). A serial/MAC unit gets an intermediate
+  // 'In Transit' status while 'Sent': its storeId deliberately does NOT
+  // move yet, since status alone (not 'Available') is what already
+  // excludes it from getUnits({storeId, status:'Available'}) at BOTH Store
+  // From (no longer 'Available' there) and Store To (storeId hasn't
+  // arrived there yet) — no separate "pending store" field needed. Wire
+  // meters leave the source drum immediately either way, but the
+  // transfer-scoped destination drum row is only created/credited once
+  // 'Completed' — while 'Sent', those meters simply exist nowhere
+  // pickable. Quantity-tracked balances follow the same split: fromKey
+  // decrements immediately, toKey only credits once 'Completed'.
   ;[...getStoreTransfers()]
     .filter(t => t.status !== 'Reversed' && t.id !== excludeStoreTransferId)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
