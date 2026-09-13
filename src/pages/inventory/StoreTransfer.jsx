@@ -361,7 +361,7 @@ export default function StoreTransfer() {
             <button
               onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
               disabled={!row.reversible}
-              title={!row.reversible ? 'This line has already moved on at the destination store — cannot reverse' : undefined}
+              title={!row.reversible ? (row.status === 'Sent' ? 'This line can no longer be recalled — cannot reverse' : 'This line has already moved on at the destination store — cannot reverse') : undefined}
               className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
             >
               <Undo2 size={13} className={!row.reversible ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Reverse Transfer
@@ -385,9 +385,19 @@ export default function StoreTransfer() {
         {reverseTarget && (
           <div className="space-y-3">
             <p className="text-sm text-gray-600">
-              Move <span className="font-semibold text-gray-900">{reverseTarget.qty} × {reverseTarget.productName}</span> back from{' '}
-              <span className="font-semibold text-gray-900">{reverseTarget.storeToName}</span> to{' '}
-              <span className="font-semibold text-gray-900">{reverseTarget.storeFromName}</span>?
+              {reverseTarget.status === 'Sent' ? (
+                <>
+                  Recall <span className="font-semibold text-gray-900">{reverseTarget.qty} × {reverseTarget.productName}</span> —
+                  it hasn't reached <span className="font-semibold text-gray-900">{reverseTarget.storeToName}</span> yet. It will
+                  be returned to <span className="font-semibold text-gray-900">{reverseTarget.storeFromName}</span>.
+                </>
+              ) : (
+                <>
+                  Move <span className="font-semibold text-gray-900">{reverseTarget.qty} × {reverseTarget.productName}</span> back from{' '}
+                  <span className="font-semibold text-gray-900">{reverseTarget.storeToName}</span> to{' '}
+                  <span className="font-semibold text-gray-900">{reverseTarget.storeFromName}</span>?
+                </>
+              )}
             </p>
             {reverseError && (
               <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
