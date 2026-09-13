@@ -71,6 +71,13 @@ export const CATEGORY_SUBCATEGORIES = {
   Network: ['Outage', 'OLT Port Down', 'Backbone Issue'],
   Installation: ['New Connection Delay', 'Relocation'],
   Account: ['KYC Update', 'Address Change'],
+  // Own category rather than a subcategory under Account — Phase 1's
+  // Customer Disconnection flow (CustomerDetail.jsx's Terminate action,
+  // customersData.js's 'Pending Disconnection' status) auto-creates a
+  // ticket here, and later phases (hardware recovery, billing settlement)
+  // are expected to add their own subcategories under it rather than
+  // overload Account's KYC/Address-Change scope.
+  Disconnection: ['Disconnection Request'],
   Other: ['General Query', 'Feedback'],
 }
 export const CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)

@@ -14,6 +14,10 @@ import Modal from '../components/ui/Modal'
 import { getAllCustomers, updateCustomer } from '../data/customersData'
 import { getPPPoEId, getAppPassword } from '../data/customerTypes'
 import { logAudit } from '../data/auditLogStore'
+import {
+  getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
+  subscribeTickets, CATEGORY_SUBCATEGORIES,
+} from '../data/ticketsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -279,13 +283,6 @@ const LEDGER = [
   { date: '27 Feb 2026', description: 'Advance deposit adjustment', type: 'credit', amount: 500,  balance: 2699 },
 ]
 
-const TICKETS = [
-  { id: 'TKT-2026-0812', subject: 'Slow speeds during evening hours', priority: 'P2', status: 'open',     created: '04 May 2026', otpPending: true },
-  { id: 'TKT-2026-0634', subject: 'Landline not working',             priority: 'P1', status: 'resolved', created: '18 Apr 2026', otpPending: false },
-  { id: 'TKT-2026-0441', subject: 'OTT app login issue',             priority: 'P3', status: 'closed',   created: '02 Mar 2026', otpPending: false },
-  { id: 'TKT-2025-1201', subject: 'Router replacement request',      priority: 'P3', status: 'closed',   created: '10 Dec 2025', otpPending: false },
-]
-
 const INVENTORY = [
   { type: 'ONU / ONT', model: 'ZTE F670L',   serial: 'ZTEGCB3A12F4', mac: 'A4:C3:F0:11:22:33', signalRx: -18.4, signalTx: 2.1, port: 'OLT-AW-01 / PON-3 / Port-12', status: 'online' },
   { type: 'Router',    model: 'TP-Link C6',   serial: 'TPL2024WR0091', mac: 'D4:AD:BD:00:11:22', signalRx: null,  signalTx: null, port: 'LAN port of ONU',             status: 'online' },
@@ -339,12 +336,29 @@ const PRIORITY_CFG = {
   P1: 'bg-red-100 text-red-700',
   P2: 'bg-amber-100 text-amber-700',
   P3: 'bg-gray-100 text-gray-600',
+  P4: 'bg-gray-100 text-gray-500',
 }
 
+// Matches ticketsStore.js's TICKET_STATUSES / TicketCreate.jsx's
+// TICKET_STATUS_BADGE — this tab used to render its own hardcoded
+// open/resolved/closed mock tickets, disconnected from the real store.
 const TICKET_STATUS_CFG = {
-  open:     { variant: 'blue',  label: 'Open' },
-  resolved: { variant: 'green', label: 'Resolved' },
-  closed:   { variant: 'gray',  label: 'Closed' },
+  'New':                    { variant: 'blue',   label: 'New' },
+  'Assigned':               { variant: 'cyan',   label: 'Assigned' },
+  'In Progress':            { variant: 'orange', label: 'In Progress' },
+  'Waiting for Customer':   { variant: 'purple', label: 'Waiting for Customer' },
+  'Waiting for Technician': { variant: 'yellow', label: 'Waiting for Technician' },
+  'Waiting for NOC':        { variant: 'navy',   label: 'Waiting for NOC' },
+  'Waiting for Billing':    { variant: 'purple', label: 'Waiting for Billing' },
+  'Resolved':               { variant: 'green',  label: 'Resolved' },
+  'Closed':                 { variant: 'gray',   label: 'Closed' },
+  'Reopened':               { variant: 'red',    label: 'Reopened' },
+  'Cancelled':              { variant: 'gray',   label: 'Cancelled' },
+  'Duplicate':              { variant: 'gray',   label: 'Duplicate' },
+}
+
+function formatTicketDate(iso) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 const KYC_STATUS = {
@@ -1618,30 +1632,40 @@ function FinanceTab({ customer }) {
 
 // ── Tab: Tickets ─────────────────────────────────────────────────────────────
 
-function TicketsTab() {
+function TicketsTab({ customer }) {
+  const navigate = useNavigate()
+  // Sourced from ticketsStore.js (the same store TicketCreate.jsx's manual
+  // "Raise Ticket" flow and the Terminate flow's auto-created disconnection
+  // ticket both write to) rather than a hardcoded mock list, so tickets
+  // raised either way actually show up here.
+  const [tickets, setTickets] = useState(() => getTickets().filter(t => t.customerId === customer.id))
+  useEffect(() => subscribeTickets(() => setTickets(getTickets().filter(t => t.customerId === customer.id))), [customer.id])
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">{TICKETS.length} tickets</p>
+        <p className="text-sm text-gray-500">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
         <Button size="sm" icon={<Plus size={13} />}>Raise Ticket</Button>
       </div>
       <div className="space-y-3">
-        {TICKETS.map(t => {
-          const sc = TICKET_STATUS_CFG[t.status] ?? TICKET_STATUS_CFG.closed
+        {tickets.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No tickets raised for this customer yet.</p>
+        ) : tickets.map(t => {
+          const sc = TICKET_STATUS_CFG[t.status] ?? TICKET_STATUS_CFG['New']
           return (
-            <Card key={t.id} className="hover:shadow-card-hover transition-shadow cursor-pointer" padding={false}>
+            <Card
+              key={t.id}
+              className="hover:shadow-card-hover transition-shadow cursor-pointer"
+              padding={false}
+              onClick={() => navigate(`/support/tickets/${t.id}`)}
+            >
               <div className="px-5 py-4 flex flex-wrap items-center gap-3">
-                <span className={`px-2 py-0.5 rounded text-xs font-bold ${PRIORITY_CFG[t.priority]}`}>{t.priority}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${PRIORITY_CFG[t.priority] ?? PRIORITY_CFG.P4}`}>{t.priority}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{t.subject}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{t.id} · Raised {t.created}</p>
+                  <p className="text-sm font-medium text-gray-800">{t.category} — {t.subcategory}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t.id} · Raised {formatTicketDate(t.createdAt)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {t.otpPending && (
-                    <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                      <Clock size={11} /> OTP Pending
-                    </span>
-                  )}
                   <Badge variant={sc.variant} size="sm" dot>{sc.label}</Badge>
                 </div>
               </div>
@@ -2291,6 +2315,60 @@ export default function CustomerDetail() {
       const dateMeta = requestedDate ? ` · Requested date: ${requestedDate}` : ''
       logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} disconnection requested — reason: ${reason}${dateMeta}` })
       setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Disconnection requested (Pending Disconnection)', meta: `Reason: ${reason}${dateMeta}` }, ...a])
+
+      // Phase 2 — auto-create the disconnection ticket, linked to this
+      // customer the same way TicketCreate.jsx's manual "Raise Ticket" flow
+      // links one (a customerId matching the Customer ID). Later phases
+      // (hardware recovery, billing settlement) act on this ticket rather
+      // than creating their own.
+      const nowIso = new Date().toISOString()
+      const priority = 'P3'
+      const ticket = {
+        id: nextTicketNumber(),
+        customerName: customer.name,
+        phone: customer.phone,
+        accountNumber: id,
+        customerId: id,
+        customerAddress: customer.address?.zone ?? '—',
+        plan: customer.plan ?? '—',
+        billingStatus: '—',
+        connectionStatus: '—',
+        category: 'Disconnection',
+        subcategory: CATEGORY_SUBCATEGORIES.Disconnection[0],
+        priority,
+        status: 'New',
+        assignedAgent: null,
+        assignedTechnician: null,
+        area: customer.address?.zone ?? '—',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        slaDeadline: computeSlaDeadline(nowIso, priority),
+        outageLinked: false,
+        outageId: null,
+        reopened: false,
+        duplicateOf: null,
+        description: `Disconnection requested for ${customer.name} (${id}). Reason: ${reason}.${requestedDate ? ` Requested disconnection date: ${requestedDate}.` : ''} Account moved to 'Pending Disconnection' pending hardware recovery and billing settlement.`,
+        contactMethod: 'Portal',
+        preferredVisitTime: null,
+        nextFollowup: null,
+        customerNote: '',
+        internalNote: '',
+        attachments: [],
+        assignmentType: 'team',
+        activityLog: [
+          { time: nowIso, actor: 'Admin User', action: 'Ticket created' },
+          { time: nowIso, actor: 'System', action: `Auto-created from Terminate action on customer ${id}` },
+        ],
+        communicationLog: [
+          { time: nowIso, actor: 'System', channel: 'Portal', text: 'Disconnection request ticket auto-created.' },
+        ],
+        internalNotesLog: [],
+        technicianVisit: null,
+        resolution: null,
+        firstResponseAt: null,
+        csatScore: null,
+      }
+      saveTicket(ticket)
     }
     setStatusModal(null)
   }
@@ -2416,7 +2494,7 @@ export default function CustomerDetail() {
           {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} />}
           {activeTab === 'Package Details' && <PackagesTab />}
           {activeTab === 'Finance'         && <FinanceTab  customer={customer} />}
-          {activeTab === 'Tickets'         && <TicketsTab />}
+          {activeTab === 'Tickets'         && <TicketsTab customer={customer} />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
           {activeTab === 'TR-069'          && !isIntercom && <TR069Tab />}
