@@ -115,6 +115,22 @@ function qtyValue(it, trackingType) {
 // (record × item-line) flattening pattern Assignments.jsx uses for Assign
 // to Engineer). Each row keeps its own transferId + itemId so the 3-dot
 // menu can target the exact line to edit/reverse.
+//
+// Also flattens each transfer's own `reversedItems` (storeTransferStore.js's
+// reverseStoreTransferLine() appends a removed line there instead of just
+// discarding it) into their own rows, right alongside its still-active
+// `items` rows — so a reversed line stays visible as a read-only historical
+// record instead of silently disappearing (a transfer with only one line
+// would otherwise vanish from the list entirely once reversed). These rows
+// get `status: 'Reversed'`/`reversible: false` set directly rather than
+// read off `t.status`/isLineReversible() — a reversed line's own status
+// never depends on whatever the rest of the transfer is doing (a
+// partially-reversed 'Sent' transfer still shows its other, still-active
+// lines as 'Sent'), and it's never actionable again regardless of the
+// underlying ledger's live unit/drum state, so there's nothing to
+// recompute. `(t.reversedItems ?? [])` defaults older records seeded
+// before this array existed to none, same as reverseStoreTransferLine()'s
+// own read of it.
 function flattenRows(transfers) {
   const rows = []
   transfers.forEach(t => {
@@ -130,6 +146,20 @@ function flattenRows(transfers) {
         assignedBy: t.assignedBy,
         status: t.status,
         reversible: isLineReversible(t, it),
+      })
+    })
+    ;(t.reversedItems ?? []).forEach(it => {
+      const trackingType = liveTrackingType(it.productId)
+      rows.push({
+        key: `${t.id}-${it.id}`, transferId: t.id, itemId: it.id, transferNumber: t.transferNumber,
+        date: t.date,
+        storeFromName: t.storeFromName, storeToName: t.storeToName,
+        productName: it.productName,
+        serialMacDrumLabel: serialMacDrumLabel(it, trackingType),
+        qty: qtyValue(it, trackingType),
+        assignedBy: t.assignedBy,
+        status: 'Reversed',
+        reversible: false,
       })
     })
   })
@@ -312,14 +342,14 @@ export default function StoreTransfer() {
                   </td>
                 </tr>
               ) : rows.map(r => (
-                <tr key={r.key} className="hover:bg-blue-50/40 transition-colors">
-                  <td className="px-4 py-3 text-gray-800 text-xs font-medium whitespace-nowrap">{r.productName}</td>
-                  <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.storeFromName}</td>
-                  <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">{r.storeToName}</td>
+                <tr key={r.key} className={`transition-colors ${r.status === 'Reversed' ? 'bg-gray-50/60 text-gray-400' : 'hover:bg-blue-50/40'}`}>
+                  <td className={`px-4 py-3 text-xs font-medium whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-800'}`}>{r.productName}</td>
+                  <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.storeFromName}</td>
+                  <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.storeToName}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs font-mono">{r.serialMacDrumLabel}</td>
-                  <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap font-semibold">{r.qty}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{r.assignedBy}</td>
+                  <td className={`px-4 py-3 text-xs font-mono ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-600'}`}>{r.serialMacDrumLabel}</td>
+                  <td className={`px-4 py-3 text-xs whitespace-nowrap font-semibold ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.qty}</td>
+                  <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-600'}`}>{r.assignedBy}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
                   </td>
@@ -358,14 +388,16 @@ export default function StoreTransfer() {
                 <PackageCheck size={13} className="text-brand-blue shrink-0" /> Receive Transfer
               </button>
             )}
-            <button
-              onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
-              disabled={!row.reversible}
-              title={!row.reversible ? (row.status === 'Sent' ? 'This line can no longer be recalled — cannot reverse' : 'This line has already moved on at the destination store — cannot reverse') : undefined}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
-            >
-              <Undo2 size={13} className={!row.reversible ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Reverse Transfer
-            </button>
+            {row.status !== 'Reversed' && (
+              <button
+                onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
+                disabled={!row.reversible}
+                title={!row.reversible ? (row.status === 'Sent' ? 'This line can no longer be recalled — cannot reverse' : 'This line has already moved on at the destination store — cannot reverse') : undefined}
+                className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                <Undo2 size={13} className={!row.reversible ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Reverse Transfer
+              </button>
+            )}
           </div>
         )
       })()}
