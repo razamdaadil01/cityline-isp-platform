@@ -7,23 +7,25 @@ import EmployeeSelect from '../ui/EmployeeSelect'
 import { initiateAssetReturn, reportAssetLost, assetDisplayName, ASSET_RETURN_CONDITIONS } from '../../data/assetStore'
 import { raiseRepairRequest, REPAIR_PATHS } from '../../data/assetRepairStore'
 
-// Non-kit condition options shown in the dropdown — the 4 real
-// ASSET_RETURN_CONDITIONS plus a 5th, modal-only "Not Returned" choice
-// that never reaches initiateAssetReturn() at all (see handleConfirm()
-// below): selecting it hands off straight to reportAssetLost() instead,
-// since a non-kit asset that never comes back is a loss, not a return
-// outcome. Kept local rather than folded into the exported
-// ASSET_RETURN_CONDITIONS constant so that constant's own
+// Non-kit condition options shown in the dropdown — the 2 real
+// ASSET_RETURN_CONDITIONS ('Working'/'Damage') plus a 3rd, modal-only
+// "Lost" choice that never reaches initiateAssetReturn() at all (see
+// handleConfirm() below): selecting it hands off straight to
+// reportAssetLost() instead, since a non-kit asset that never comes back
+// is a loss, not a return outcome. Kept local rather than folded into the
+// exported ASSET_RETURN_CONDITIONS constant so that constant's own
 // ASSET_RETURN_CONDITIONS.includes(condition) validation in
 // initiateAssetReturn() keeps correctly rejecting this value if it were
 // ever passed there by mistake.
-const NON_KIT_CONDITION_OPTIONS = [...ASSET_RETURN_CONDITIONS, 'Not Returned']
+const NON_KIT_CONDITION_OPTIONS = [...ASSET_RETURN_CONDITIONS, 'Lost']
 
-// Per-component 3-way condition — Returned+Good / Returned+Damaged / Not
-// Returned — replacing the old plain Returned/Missing checkbox so the kit's
-// overall outcome can be derived from real per-component data (see
-// initiateAssetReturn()'s own note) instead of an unrelated single
-// top-level dropdown.
+// Per-component 3-way condition — Good / Damaged / Missing — replacing the
+// old plain Returned/Missing checkbox so the kit's overall outcome can be
+// derived from real per-component data (see initiateAssetReturn()'s own
+// note) instead of an unrelated single top-level dropdown. These internal
+// values ('good'/'damaged'/'missing') are their own vocabulary, separate
+// from the top-level condition options above ('Working'/'Damage'/'Lost') —
+// renaming the top-level set doesn't need to touch these.
 const KIT_COMPONENT_CONDITIONS = [
   { value: 'good', label: 'Good' },
   { value: 'damaged', label: 'Damaged' },
@@ -31,7 +33,7 @@ const KIT_COMPONENT_CONDITIONS = [
 ]
 
 // Phase 4b — the only Return flow in this app. Reworked per the Return
-// Flow Audit to close its 4 gaps: a "Not Returned" path for non-kit assets
+// Flow Audit to close its 4 gaps: a "Lost" path for non-kit assets
 // (routes to reportAssetLost()), auto-created repair requests when the
 // outcome is 'Under Repair' (raiseRepairRequest(), called from here rather
 // than from assetStore.js itself — see initiateAssetReturn()'s own note on
@@ -75,25 +77,25 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
     setKitChecklist(prev => prev.map(k => k.componentId === componentId ? { ...k, returnCondition } : k))
   }
 
-  const isNotReturned = !hasKitComponents && condition === 'Not Returned'
+  const isLost = !hasKitComponents && condition === 'Lost'
   const anyComponentDamaged = hasKitComponents && kitChecklist.some(k => k.returnCondition === 'damaged')
-  const willNeedRepair = hasKitComponents ? anyComponentDamaged : (condition === 'Damaged' || condition === 'Not Working')
+  const willNeedRepair = hasKitComponents ? anyComponentDamaged : condition === 'Damage'
   const isInHouse = repairPath === 'In-house'
   const repairFieldsValid = !willNeedRepair || (!!repairPath && (!isInHouse || !!technicianId))
 
   const canConfirm = hasKitComponents
     ? repairFieldsValid
-    : isNotReturned
+    : isLost
       ? remarks.trim().length > 0
       : !!condition && repairFieldsValid
 
   function handleConfirm() {
     setError('')
 
-    // Non-kit "Not Returned" — a loss, not a return outcome. Hands off to
-    // the existing lost-reporting mechanism (no componentId — this is the
+    // Non-kit "Lost" — a loss, not a return outcome. Hands off to the
+    // existing lost-reporting mechanism (no componentId — this is the
     // whole asset) rather than inventing a new status transition here.
-    if (isNotReturned) {
+    if (isLost) {
       if (!remarks.trim()) { setError('A reason is required.'); return }
       try {
         reportAssetLost(asset.id, { reason: remarks, reportedBy: 'Admin User' })
@@ -143,8 +145,8 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
     }
   }
 
-  const confirmLabel = isNotReturned ? 'Report Lost' : 'Confirm Return'
-  const confirmIcon = isNotReturned ? <ShieldAlert size={14} /> : <RotateCcw size={14} />
+  const confirmLabel = isLost ? 'Report Lost' : 'Confirm Return'
+  const confirmIcon = isLost ? <ShieldAlert size={14} /> : <RotateCcw size={14} />
 
   return (
     <Modal
@@ -155,7 +157,7 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
       ) : (
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" variant={isNotReturned ? 'danger' : 'primary'} icon={confirmIcon} onClick={handleConfirm} disabled={!canConfirm}>
+          <Button size="sm" variant={isLost ? 'danger' : 'primary'} icon={confirmIcon} onClick={handleConfirm} disabled={!canConfirm}>
             {confirmLabel}
           </Button>
         </>
@@ -206,7 +208,7 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
                 <PackageOpen size={13} className="text-brand-blue" /> Kit Components Checklist
               </p>
               <p className="text-[11px] text-gray-500">
-                The kit's overall outcome is derived from these — any component Damaged sends the whole kit to Under Repair; a component Not Returned is reported lost individually.
+                The kit's overall outcome is derived from these — any component Damaged sends the whole kit to Under Repair; a component Missing is reported lost individually.
               </p>
               <div className="space-y-2">
                 {kitComponents.map(c => {
@@ -248,10 +250,10 @@ export default function ReturnAssetModal({ isOpen, onClose, asset }) {
             </div>
           )}
 
-          <FormField label={isNotReturned ? 'Reason' : 'Remarks'} required={isNotReturned} hint={isNotReturned ? undefined : 'Optional'}>
+          <FormField label={isLost ? 'Reason' : 'Remarks'} required={isLost} hint={isLost ? undefined : 'Optional'}>
             <Textarea
               rows={3} value={remarks} onChange={e => setRemarks(e.target.value)}
-              placeholder={isNotReturned ? 'Describe how/when it was lost or stolen…' : 'Any notes about the returned condition…'}
+              placeholder={isLost ? 'Describe how/when it was lost or stolen…' : 'Any notes about the returned condition…'}
             />
           </FormField>
         </div>

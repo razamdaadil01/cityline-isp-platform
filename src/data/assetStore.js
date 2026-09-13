@@ -14,11 +14,11 @@ import { daysUntilWarrantyEnd } from '../utils/warrantyStatus'
 // (Purchase confirm) completes against the asset's linked Asset Purchase PO.
 // 'Assigned' is reached via assignAssetToEngineer() below (Phase 4a) — only
 // ever from 'In Stock'. 'Under Repair' is reached via initiateAssetReturn()
-// below (Phase 4b) when the returned condition is 'Damaged'/'Not Working' —
-// this phase only tracks it as a data state; no repair record/vendor
-// routing exists yet (that's Phase 5). 'Retired' and 'Lost' (Phase 8) are
-// both terminal, manually-triggered states reachable from any other status
-// via retireAsset()/reportAssetLost() below — see their own notes.
+// below (Phase 4b) when the returned condition is 'Damage' — this phase
+// only tracks it as a data state; no repair record/vendor routing exists
+// yet (that's Phase 5). 'Retired' and 'Lost' (Phase 8) are both terminal,
+// manually-triggered states reachable from any other status via
+// retireAsset()/reportAssetLost() below — see their own notes.
 export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned', 'Under Repair', 'Retired', 'Lost']
 
 // Phase 8 — retireAsset()'s own valid-reason check, and RetireAssetModal.jsx's
@@ -27,10 +27,15 @@ export const ASSET_STATUSES = ['Draft', 'PO Raised', 'In Stock', 'Assigned', 'Un
 export const ASSET_RETIREMENT_REASONS = ['Beyond Repair', 'Obsolete', 'End of Life']
 
 // Phase 4b — the condition options Return's own condition selector offers,
-// and initiateAssetReturn()'s own valid-input check. 'Working'/'Minor
-// Issue' route the asset back to 'In Stock'; 'Damaged'/'Not Working' route
-// it to 'Under Repair' — see initiateAssetReturn() below.
-export const ASSET_RETURN_CONDITIONS = ['Working', 'Minor Issue', 'Damaged', 'Not Working']
+// and initiateAssetReturn()'s own valid-input check. 'Working' routes the
+// asset back to 'In Stock'; 'Damage' routes it to 'Under Repair' — see
+// initiateAssetReturn() below. A third option, 'Lost', is offered
+// alongside these two in ReturnAssetModal.jsx's dropdown but is
+// deliberately NOT included here — it never reaches this function at all,
+// it routes straight to reportAssetLost() instead (see that modal's own
+// note), since a non-kit asset that never comes back is a loss, not a
+// return outcome.
+export const ASSET_RETURN_CONDITIONS = ['Working', 'Damage']
 
 // ── Seed data — so Phase 4a's Assign to Engineer action has real 'In Stock'
 // assets to test against without repeating Add Asset → PO → Approval → GRN
@@ -242,7 +247,7 @@ const SEED = [
       {
         id: 'RTN-2026-000001',
         date: '2026-08-25T14:00:00.000Z',
-        condition: 'Damaged',
+        condition: 'Damage',
         remarks: 'Housing cracked after a field drop; Cleaver was not returned with the unit.',
         initiatedBy: 'Admin User',
         previousEngineer: 'Anita Sharma',
@@ -662,12 +667,11 @@ function nextReturnId() {
 // Phase 4b — Return an Assigned asset. Per PRD Section 12.2, reworked per
 // the Return Flow Audit to close its gaps. Two shapes now exist:
 //   - Non-kit: `condition` (one of ASSET_RETURN_CONDITIONS) decides the
-//     outcome — 'Working'/'Minor Issue' → 'In Stock', 'Damaged'/
-//     'Not Working' → 'Under Repair'. A non-kit asset that never comes
-//     back at all is NOT a case this function handles — ReturnAssetModal.jsx
-//     routes that ("Not Returned") straight to reportAssetLost() below
-//     instead of calling this function, since it's a loss, not a return
-//     outcome.
+//     outcome — 'Working' → 'In Stock', 'Damage' → 'Under Repair'. A
+//     non-kit asset that never comes back at all is NOT a case this
+//     function handles — ReturnAssetModal.jsx routes that ('Lost') straight
+//     to reportAssetLost() below instead of calling this function, since
+//     it's a loss, not a return outcome.
 //   - Kit (a Splicing Machine with recorded kitComponents): `condition` is
 //     ignored entirely — status is derived from each component's own
 //     `returnCondition` ('good'/'damaged'/'missing') in
@@ -720,14 +724,14 @@ export function initiateAssetReturn(assetId, { condition, remarks = '', kitCompo
     const anyDamaged = kitComponentsReturned.some(kc => kc.returnCondition === 'damaged')
     missingComponentIds = kitComponentsReturned.filter(kc => kc.returnCondition === 'missing').map(kc => kc.componentId)
     newStatus = anyDamaged ? 'Under Repair' : 'In Stock'
-    effectiveCondition = anyDamaged ? 'Damaged' : 'Working'
+    effectiveCondition = anyDamaged ? 'Damage' : 'Working'
     updatedKitComponents = asset.fields.kitComponents.map(c => {
       const picked = kitComponentsReturned.find(kc => kc.componentId === c.id)
       if (!picked || picked.returnCondition === 'missing') return { ...c, returnCondition: picked?.returnCondition ?? c.returnCondition }
       return { ...c, returnCondition: picked.returnCondition, receivedStatus: 'Received' }
     })
   } else {
-    newStatus = (condition === 'Working' || condition === 'Minor Issue') ? 'In Stock' : 'Under Repair'
+    newStatus = condition === 'Working' ? 'In Stock' : 'Under Repair'
   }
 
   const hasMissingComponents = missingComponentIds.length > 0

@@ -15,7 +15,7 @@ function fmtSize(bytes) {
 
 // Phase 5 — raises a new repair record. Reused from two entry points on
 // AssetDetail.jsx: an asset already 'Under Repair' (reached via the Phase
-// 4b Return flow's Damaged/Not Working path) and, now, an asset still
+// 4b Return flow's 'Damage' condition) and, now, an asset still
 // 'Assigned' (an engineer reporting a fault directly, without first
 // returning it) — raiseRepairRequest() itself handles the status
 // transition correctly either way (a no-op if already Under Repair, else
