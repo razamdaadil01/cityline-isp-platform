@@ -124,7 +124,7 @@ export default function CreateSiteProject() {
         </div>
       </div>
 
-      <div className="max-w-4xl bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
+      <div className="w-full bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
         {/* Basic Site & Builder Information */}
         <div className="space-y-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Basic Site &amp; Builder Information</h3>
