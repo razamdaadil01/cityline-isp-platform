@@ -16,8 +16,8 @@ export const MODULES = [
 export const ACTIONS = ['View', 'Create', 'Edit', 'Delete']
 
 // Build a full permissions object (every module × action) at a single
-// default value — used both by the seed below and by RolesSettings.jsx's
-// Add Role / matrix-reset flows.
+// default value — used both by the seed below and by Settings.jsx's Roles
+// tab (its Add Role / Reset flows).
 export function buildPerms(defaultVal = false) {
   return Object.fromEntries(
     MODULES.map((m) => [m, Object.fromEntries(ACTIONS.map((a) => [a, defaultVal]))])
@@ -195,9 +195,9 @@ export function hasPermission(role, module, action) {
 // "the current user's role" is hardcoded to the role named exactly 'Admin'
 // in this store's *live* data: _roles.find(...) below re-reads the actual
 // array on every call, never a snapshot taken once and cached, so editing
-// 'Admin' in Roles & Permissions (RolesSettings.jsx, or Settings.jsx's
-// Roles tab) is reflected the next time anything calls usePermission() —
-// no extra wiring needed since nothing here holds onto a stale copy.
+// 'Admin' in Settings.jsx's Roles & Permissions tab is reflected the next
+// time anything calls usePermission() — no extra wiring needed since
+// nothing here holds onto a stale copy.
 // Falls back to the 'Super Admin' role if 'Admin' is ever renamed or
 // deleted, so a broken lookup can never silently lock the app out of
 // itself. getCurrentUser() (userStore.js's own first seeded user, still
@@ -210,34 +210,14 @@ export function getCurrentUserRole() {
   return _roles.find(r => r.name === 'Admin') ?? _roles.find(r => r.name === 'Super Admin') ?? null
 }
 
-// Exported so any UI keyed by userStore.js's role slugs — e.g. Settings.jsx's
-// Roles tab, which lists roles by slug for its left-hand picker — can
-// resolve a slug to this store's actual role record instead of keeping a
-// second, divergent copy of the mapping. Unrelated to getCurrentUserRole()
-// above: this is for picking an arbitrary role to view/edit, not for
-// resolving "who is logged in right now".
-export const ROLE_SLUG_TO_NAME = {
-  super_admin: 'Super Admin',
-  admin: 'Admin',
-  engineer: 'Field Technician',
-  support: 'Support Agent',
-  billing: 'Billing Manager',
-  readonly: 'Read Only',
-}
-
-export function getRoleBySlug(slug) {
-  const name = ROLE_SLUG_TO_NAME[slug]
-  return name ? (_roles.find(r => r.name === name) ?? null) : null
-}
-
 export function getCurrentUser() {
   return getUsers()[0] ?? null
 }
 
 // Reactive permission check for gating UI — re-renders the caller whenever
 // roles change (e.g. an admin edits the current user's role live in
-// RolesSettings.jsx) so a gated button never needs a page reload to show
-// or hide itself.
+// Settings.jsx's Roles & Permissions tab) so a gated button never needs a
+// page reload to show or hide itself.
 export function usePermission(module, action) {
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeRoles(() => forceRerender(n => n + 1)), [])

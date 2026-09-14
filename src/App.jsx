@@ -93,7 +93,6 @@ import Resellers from './pages/Resellers'
 import ResellerDetail from './pages/ResellerDetail'
 import AuditLog from './pages/AuditLog'
 import BandwidthMonitoring from './pages/BandwidthMonitoring'
-import RolesSettings from './pages/RolesSettings'
 import NotificationSettings from './pages/NotificationSettings'
 import UserManagement from './pages/UserManagement'
 
@@ -233,7 +232,6 @@ export default function App() {
           <Route path="/settings/area-mapping/area" element={<AreaMapping />} />
           <Route path="/settings/area-mapping/locality" element={<AreaMapping />} />
           <Route path="/settings/area-mapping/sub-locality" element={<AreaMapping />} />
-          <Route path="/settings/roles" element={<RolesSettings />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />

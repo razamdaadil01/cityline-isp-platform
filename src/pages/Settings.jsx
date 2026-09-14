@@ -38,7 +38,7 @@ import {
   getPartners, subscribePartners, savePartner, setPartnerStatus,
   isValidContactNumber, formatShareValue, SHARE_TYPES,
 } from '../data/partners'
-import { MODULES, ACTIONS, buildPerms, subscribeRoles, saveRole, getRoleBySlug } from '../data/rolesStore'
+import { MODULES, ACTIONS, buildPerms, getRoles, subscribeRoles, saveRole } from '../data/rolesStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -87,22 +87,17 @@ const INIT_SERVERS = [
 
 const SERVER_TYPE_VARIANT = { RADIUS: 'blue', NAS: 'green', SNMP: 'purple', Auth: 'orange', API: 'cyan', DHCP: 'yellow', Monitor: 'gray' }
 
-const ROLES = [
-  { id: 'super_admin', label: 'Super Admin',     users: 1,  color: 'red'    },
-  { id: 'admin',       label: 'Admin',           users: 3,  color: 'orange' },
-  { id: 'billing',     label: 'Billing Manager', users: 4,  color: 'blue'   },
-  { id: 'support',     label: 'Support Agent',   users: 12, color: 'green'  },
-  { id: 'engineer',    label: 'Field Engineer',  users: 24, color: 'purple' },
-  { id: 'readonly',    label: 'Read Only',       users: 2,  color: 'gray'   },
-]
-
-// Module list and per-module permissions both now come from rolesStore.js
-// (imported above) — this tab used to keep its own local MODULES array and
-// a static PERMISSIONS-by-slug mock with no write path at all, a second,
-// disconnected copy of what RolesSettings.jsx already manages for real.
-// 'full'/'view'/'none' below is just this tab's
-// own 3-button shorthand over that store's real {View,Create,Edit,Delete}
-// shape: full = all four actions on, view = View only, none = all off.
+// Module list, role list, and per-module permissions all come from
+// rolesStore.js (imported above) — this tab used to keep its own local
+// MODULES array and a fixed 6-role ROLES mock with no write path at all,
+// a second, disconnected copy of what the now-retired RolesSettings.jsx
+// page separately managed for real (including its own working "Add Role").
+// That page's functionality has been folded into this tab (see the Add
+// Role modal in RolesTab below), so rolesStore.js is now the single place
+// role data lives and is edited. 'full'/'view'/'none' below is just this
+// tab's own 3-button shorthand over the store's real
+// {View,Create,Edit,Delete} shape: full = all four actions on, view = View
+// only, none = all off.
 const PERM_VARIANT = { full: 'green', view: 'blue', none: 'gray' }
 const PERM_LABEL   = { full: 'Full',  view: 'View', none: '—'    }
 
@@ -622,17 +617,18 @@ function JazeServersTab() {
 }
 
 function RolesTab() {
-  // ROLES stays local (slug/label/color chrome for the left-hand picker),
-  // but the permissions themselves now come straight from rolesStore.js —
-  // this tab used to keep a second, static PERMISSIONS-by-slug mock with
-  // no write path at all, fully disconnected from what RolesSettings.jsx
-  // (and everything gated by usePermission()) actually reads.
-  const [, forceRerender] = useState(0)
-  useEffect(() => subscribeRoles(() => forceRerender(n => n + 1)), [])
-  const [activeRoleSlug, setActiveRoleSlug] = useState('admin')
+  // Role list and permissions both come straight from rolesStore.js — the
+  // single source of truth now that RolesSettings.jsx (which used to own
+  // "Add Role" and a fuller role list) has been retired.
+  const [roles, setRoles] = useState(getRoles)
+  useEffect(() => subscribeRoles(setRoles), [])
+  const [activeRoleId, setActiveRoleId] = useState(
+    () => getRoles().find(r => r.name === 'Admin')?.id ?? getRoles()[0]?.id ?? null
+  )
+  const role = roles.find(r => r.id === activeRoleId) ?? null
 
-  const roleMeta = ROLES.find(r => r.id === activeRoleSlug)
-  const role = getRoleBySlug(activeRoleSlug)
+  const [showAddRole, setShowAddRole] = useState(false)
+  const [newRole, setNewRole] = useState({ name: '', description: '' })
 
   // Every click writes straight to the store — no local draft to keep in
   // sync, so the highlighted button and rolesStore.js's actual data can
@@ -656,6 +652,26 @@ function RolesTab() {
     saveRole({ id: role.id, permissions: buildPerms(false) })
   }
 
+  function openAddRole() {
+    setNewRole({ name: '', description: '' })
+    setShowAddRole(true)
+  }
+
+  // Ported from RolesSettings.jsx's working Add Role flow: a fresh
+  // permissions object (nothing granted) that gets configured afterward
+  // via the matrix below. saveRole()'s create path always appends the new
+  // role to the end of the store's array and assigns its own id, so the
+  // newly created role is simply whatever's now last in getRoles().
+  function handleAddRole() {
+    const name = newRole.name.trim()
+    if (!name) return
+    saveRole({ name, description: newRole.description.trim(), permissions: buildPerms(false) })
+    const updated = getRoles()
+    const created = updated[updated.length - 1]
+    if (created) setActiveRoleId(created.id)
+    setShowAddRole(false)
+  }
+
   return (
     <div className="space-y-5">
       <div className="pb-4 border-b border-surface-border flex items-center justify-between">
@@ -663,34 +679,31 @@ function RolesTab() {
           <h2 className="text-base font-semibold text-gray-900">Roles & Permissions</h2>
           <p className="text-xs text-gray-500 mt-1">Define what each role can access across the platform</p>
         </div>
-        <Button size="sm" icon={<Plus size={14} />}>Add Role</Button>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAddRole}>Add Role</Button>
       </div>
 
       <div className="flex gap-5">
         {/* Role list */}
         <div className="w-52 shrink-0 space-y-1.5">
-          {ROLES.map(r => {
-            const usersCount = getRoleBySlug(r.id)?.usersCount ?? r.users
-            return (
-              <button key={r.id} onClick={() => setActiveRoleSlug(r.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center justify-between
-                  ${activeRoleSlug === r.id ? 'bg-brand-blue text-white' : 'bg-white border border-surface-border text-gray-700 hover:bg-gray-50'}`}>
-                <div>
-                  <p className="text-sm font-medium leading-tight">{r.label}</p>
-                  <p className={`text-xs mt-0.5 ${activeRoleSlug === r.id ? 'text-blue-100' : 'text-gray-400'}`}>{usersCount} users</p>
-                </div>
-                <Shield size={14} className={activeRoleSlug === r.id ? 'text-blue-200' : 'text-gray-300'} />
-              </button>
-            )
-          })}
+          {roles.map(r => (
+            <button key={r.id} onClick={() => setActiveRoleId(r.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-xl transition-all flex items-center justify-between
+                ${activeRoleId === r.id ? 'bg-brand-blue text-white' : 'bg-white border border-surface-border text-gray-700 hover:bg-gray-50'}`}>
+              <div>
+                <p className="text-sm font-medium leading-tight">{r.name}</p>
+                <p className={`text-xs mt-0.5 ${activeRoleId === r.id ? 'text-blue-100' : 'text-gray-400'}`}>{r.usersCount} users</p>
+              </div>
+              <Shield size={14} className={activeRoleId === r.id ? 'text-blue-200' : 'text-gray-300'} />
+            </button>
+          ))}
         </div>
 
         {/* Permissions matrix */}
         <div className="flex-1 bg-white rounded-xl border border-surface-border overflow-hidden">
           <div className="px-5 py-3.5 border-b border-surface-border flex items-center gap-2">
             <Shield size={15} className="text-brand-blue" />
-            <h3 className="text-sm font-semibold text-gray-900">{roleMeta?.label} — Module Access</h3>
-            <Badge variant={roleMeta?.color} size="sm" className="ml-2">{role?.usersCount ?? roleMeta?.users} users</Badge>
+            <h3 className="text-sm font-semibold text-gray-900">{role?.name} — Module Access</h3>
+            <Badge variant={role?.color} size="sm" className="ml-2">{role?.usersCount ?? 0} users</Badge>
           </div>
           <div className="divide-y divide-surface-border">
             {MODULES.map(mod => {
@@ -722,6 +735,31 @@ function RolesTab() {
           </div>
         </div>
       </div>
+
+      {/* Add Role — ported from RolesSettings.jsx's working Add Role flow.
+          New roles start with no permissions granted; configure them via
+          the matrix above after creating. */}
+      <Modal
+        isOpen={showAddRole}
+        onClose={() => setShowAddRole(false)}
+        title="Add Role"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setShowAddRole(false)}>Cancel</Button>
+          <Button size="sm" onClick={handleAddRole} disabled={!newRole.name.trim()}>Create Role</Button>
+        </>}>
+        <div className="space-y-4">
+          <FormField label="Role Name" required>
+            <Input placeholder="e.g. Network Manager" value={newRole.name}
+              onChange={e => setNewRole(n => ({ ...n, name: e.target.value }))} />
+          </FormField>
+          <FormField label="Description">
+            <Textarea placeholder="Brief description of this role's responsibilities" rows={2}
+              value={newRole.description}
+              onChange={e => setNewRole(n => ({ ...n, description: e.target.value }))} />
+          </FormField>
+        </div>
+      </Modal>
     </div>
   )
 }
