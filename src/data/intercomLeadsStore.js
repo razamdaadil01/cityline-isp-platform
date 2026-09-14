@@ -2,6 +2,15 @@ export const INTERCOM_STAGES = ['New Inquiry', 'Converted', 'Lost']
 
 export const INTERCOM_PLANS = ['Intercom Basic', 'Intercom Plus']
 
+// Free-text names (obviously placeholder, e.g. 'Kumar Installer') for the
+// engineer:'...' field on leads' feasibility-visit scheduling below.
+// Deliberately not bridged to userStore.js's canonical Technician roster
+// (role='engineer' users) as part of Phase 1 of the Technician Monitoring
+// Dashboard — Intercom is a separate product line, out of that phase's
+// scope. Unlike installationsStore.js's FIELD_ENGINEERS or this same
+// file's INTERCOM_STAFF below, none of these names even coincidentally
+// match a real user, so there's nothing here a confident match could hang
+// off anyway.
 export const INTERCOM_ENGINEERS = ['Ravi Technician', 'Kumar Installer', 'Sunil Networks', 'Dinesh Fiber']
 
 export const INTERCOM_STAFF = [
