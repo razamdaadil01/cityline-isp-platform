@@ -1,15 +1,17 @@
 import { useState, useEffect, Component } from 'react'
 import {
-  Plus, Edit2, Eye, EyeOff, Users, UserCheck, UserX, Shield,
+  Plus, Edit2, Eye, Users, UserCheck, UserX, Shield,
   Search, X, ChevronDown, CalendarDays, Phone, Mail,
   TrendingUp, PhoneCall, Clock, CheckCircle2, AlertTriangle,
+  KeyRound, Copy, Check,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
-import { getUsers, addUser, updateUser, subscribeUsers } from '../data/userStore'
+import { getUsers, addUser, updateUser, subscribeUsers, hashPassword } from '../data/userStore'
 import { useSession } from '../data/sessionStore'
+import { createResetToken } from '../data/passwordResetStore'
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -123,7 +125,12 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
 
   function handleSubmit() {
     if (!validate()) return
-    onSave(form)
+    // Hash a non-blank password before it ever reaches addUser()/updateUser()
+    // — a blank value (edit mode only, meaning "leave unchanged") is left
+    // as '' so handleSave's "blank means unchanged" check in
+    // UserManagementInner still works; hashPassword('') would otherwise be
+    // a non-empty string and look like an intentional change.
+    onSave({ ...form, password: form.password.trim() ? hashPassword(form.password.trim()) : '' })
   }
 
   // Self-lockout warning: editing your own role to something other than
@@ -322,6 +329,56 @@ function ViewUserModal({ isOpen, onClose, user, onEdit }) {
   )
 }
 
+// ── Reset Link Modal ──────────────────────────────────────────────────────────
+// Simulates what a real app would email the user — see
+// passwordResetStore.js's top-of-file comment. The admin never learns the
+// user's actual new password; they only get this one-time link to relay.
+
+function ResetLinkModal({ isOpen, onClose, user, token }) {
+  const [copied, setCopied] = useState(false)
+  if (!user || !token) return null
+
+  const link = `${window.location.origin}/reset-password?token=${token}`
+
+  function handleCopy() {
+    navigator.clipboard?.writeText(link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Password Reset Link"
+      size="sm"
+      footer={<Button onClick={onClose}>Done</Button>}
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <KeyRound size={15} className="text-brand-blue shrink-0 mt-0.5" />
+          <p className="text-xs text-blue-900 leading-relaxed">
+            In production this would be emailed to <span className="font-semibold">{user.email}</span>.
+            There's no email service in this demo — copy the link below and share it with them directly.
+            It expires in 30 minutes and can only be used once.
+          </p>
+        </div>
+
+        <FormField label="Reset Link">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <Input readOnly value={link} className="font-mono text-xs" onFocus={e => e.target.select()} />
+            </div>
+            <Button variant="secondary" size="sm" onClick={handleCopy} icon={copied ? <Check size={14} /> : <Copy size={14} />}>
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+          </div>
+        </FormField>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 function UserManagementInner() {
@@ -333,22 +390,11 @@ function UserManagementInner() {
   const [showAdd, setShowAdd]     = useState(false)
   const [editUser, setEditUser]   = useState(null)
   const [viewUser, setViewUser]   = useState(null)
-  // Which rows currently show their password in plain text — a purely
-  // local display toggle (per client requirement, since there's no
-  // backend/email to build a real "forgot password" flow against; see
-  // userStore.js's/sessionStore.js's own demo-grade comments). Doesn't
-  // touch how passwords are stored, validated, or logged in with.
-  const [revealedPasswords, setRevealedPasswords] = useState(() => new Set())
+  // The user + freshly generated token for the "reset link sent" modal —
+  // see ResetLinkModal below and handleResetPassword.
+  const [resetInfo, setResetInfo] = useState(null)
 
   useEffect(() => subscribeUsers(setUsers), [])
-
-  function togglePasswordReveal(id) {
-    setRevealedPasswords(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
 
   const totalUsers    = users.length
   const activeUsers   = users.filter(u => u.status === 'active').length
@@ -378,6 +424,15 @@ function UserManagementInner() {
       addUser(formData)
       setShowAdd(false)
     }
+  }
+
+  // Generates a reset token (passwordResetStore.js) and shows it in
+  // ResetLinkModal — the admin relays this link, never a password, to the
+  // user. This is the only "reset" surface the admin gets; the user sets
+  // their own new password on ResetPassword.jsx.
+  function handleResetPassword(user) {
+    const entry = createResetToken(user.id)
+    setResetInfo({ user, token: entry.token })
   }
 
   function clearFilters() {
@@ -464,7 +519,7 @@ function UserManagementInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
-                {['Name', 'Mobile No.', 'Role', 'Password', 'Status', 'Last Active', 'Actions'].map(h => (
+                {['Name', 'Mobile No.', 'Role', 'Status', 'Last Active', 'Actions'].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -474,7 +529,7 @@ function UserManagementInner() {
             <tbody className="divide-y divide-surface-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-sm text-gray-400">
+                  <td colSpan={6} className="text-center py-12 text-sm text-gray-400">
                     No users match your filters.
                   </td>
                 </tr>
@@ -504,28 +559,6 @@ function UserManagementInner() {
                   {/* Role */}
                   <td className="px-5 py-3.5">
                     <RoleBadge role={user.role} />
-                  </td>
-
-                  {/* Password — masked by default; per-row reveal toggle is
-                      display-only local state (revealedPasswords above),
-                      doesn't touch storage/login. Client requirement: admin
-                      needs to look up a forgotten password since there's no
-                      backend/email to build a real reset flow against. */}
-                  <td className="px-5 py-3.5 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600 font-mono tracking-wide">
-                        {user.password ? (revealedPasswords.has(user.id) ? user.password : '••••••••') : '—'}
-                      </span>
-                      {user.password && (
-                        <button
-                          onClick={() => togglePasswordReveal(user.id)}
-                          className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                          title={revealedPasswords.has(user.id) ? 'Hide password' : 'Show password'}
-                        >
-                          {revealedPasswords.has(user.id) ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                      )}
-                    </div>
                   </td>
 
                   {/* Status toggle */}
@@ -565,6 +598,13 @@ function UserManagementInner() {
                       >
                         <Eye size={14} />
                       </button>
+                      <button
+                        onClick={() => handleResetPassword(user)}
+                        className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors"
+                        title="Reset Password"
+                      >
+                        <KeyRound size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -598,6 +638,14 @@ function UserManagementInner() {
         onClose={() => setViewUser(null)}
         user={viewUser}
         onEdit={u => setEditUser(u)}
+      />
+
+      {/* Reset password link modal */}
+      <ResetLinkModal
+        isOpen={!!resetInfo}
+        onClose={() => setResetInfo(null)}
+        user={resetInfo?.user}
+        token={resetInfo?.token}
       />
     </div>
   )
