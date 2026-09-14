@@ -8,8 +8,19 @@
 import { useState, useEffect } from 'react'
 import { getCurrentUser as getSessionUser } from './sessionStore'
 
+// 'Technicians' gates TechnicianDashboard.jsx (/technicians) — added here
+// rather than reusing an existing module so it can be granted/revoked
+// independently. Because this array is read by every role's buildPerms()
+// call in SEED below at module-load time, adding it here is enough on its
+// own: Super Admin/Admin (buildPerms(true) base) get it automatically,
+// Read Only (its own forEach grants View on every module) gets View
+// automatically, and Billing Manager/Support Agent/Field Engineer
+// (buildPerms(false) base, only specific modules explicitly granted) stay
+// without access by default — a manager-level tool a Field Engineer isn't
+// meant to see their own aggregated data through by default, consistent
+// with everyone else's data on this dashboard also not being self-service.
 export const MODULES = [
-  'Dashboard', 'Customers', 'Sales', 'Billing', 'Support',
+  'Dashboard', 'Customers', 'Sales', 'Billing', 'Support', 'Technicians',
   'Network', 'Inventory', 'Projects', 'Reports', 'Settings', 'Resellers', 'Audit Log',
 ]
 
