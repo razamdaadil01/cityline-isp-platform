@@ -128,7 +128,7 @@ const SEED = [
         reason: 'Urgent field requirement for a VIP customer install',
         serials: ['ZTE-ONT-2026-0001', 'ZTE-ONT-2026-0002', 'ZTE-ONT-2026-0003'],
         // Still within warranty — started a year ago, runs two more years —
-        // so ZTE-ONT-2026-0002 (ASG-000005, assigned to Preethi Nair) demos
+        // so ZTE-ONT-2026-0002 (ASG-000005, assigned to Karan Mehta) demos
         // Assignments.jsx's "Send for Repair" locked-vendor/no-cost path.
         // See PUR-000005 below for this batch's out-of-warranty counterpart.
         purchaseDate: '2025-09-10', warrantyStartDate: '2025-09-10', warrantyEndDate: '2028-09-10',
@@ -174,7 +174,7 @@ const SEED = [
         reason: 'Replenishment for upcoming Andheri branch installations',
         serials: ['ZTE-ONT-2026-0004', 'ZTE-ONT-2026-0005', 'ZTE-ONT-2026-0006', 'ZTE-ONT-2026-0007', 'ZTE-ONT-2026-0008'],
         // Warranty expired a year ago — ZTE-ONT-2026-0006 (ASG-000010,
-        // assignmentStore.js, assigned to Preethi Nair) demos Assignments.jsx's
+        // assignmentStore.js, assigned to Karan Mehta) demos Assignments.jsx's
         // "Send for Repair" manual-vendor/Estimated Cost path. 0004/0005 are
         // already out at other stores via storeTransferStore.js, 0007 is
         // in transit to Noida Store (also storeTransferStore.js, STF-000006)

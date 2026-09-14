@@ -3,25 +3,25 @@ import { addCustomer } from './customersData'
 import { buildCustomerFromLead } from './leadConversion'
 
 // userId bridges each entry to userStore.js's canonical Technician roster
-// (role='engineer' users — see that file's INITIAL_USERS comment) where a
-// confident match exists: same name AND that userStore.js record actually
-// has role='engineer'. Only eng-001 and eng-004 qualify.
+// (role='engineer' users — see that file's INITIAL_USERS comment).
 //
-// eng-002/003/005 are NOT bridged despite matching a userStore.js name
-// exactly — 'Preethi Nair' (u4) is role='support', 'Anita Sharma' (u2) is
-// role='admin', and 'Ravi Menon' (u6) is role='billing' there. That's a
-// name collision with a real user in a different role, not evidence of the
-// same person being a field engineer — bridging it would be inventing a
-// match, not finding one. Left as userId: null, flagged here for manual
-// reconciliation (either these three should become real engineer-role
-// users, or this list's names need correcting to actual field engineers
-// with no login yet).
+// eng-002/003/005 originally collided with real userStore.js users of the
+// same name but a DIFFERENT role (u4 Preethi Nair/support, u2 Anita Sharma/
+// admin, u6 Ravi Menon/billing) — bridging to them would have been
+// inventing a match, not finding one. Resolved by creating 3 new,
+// distinctly-named engineer-role users (u8/u9/u10) to properly back these
+// entries instead, and renaming this list's own name/initials/color to
+// match — so this roster's display identity and its canonical userId now
+// agree, rather than quietly pointing a "Preethi Nair" label at someone
+// else. Every job record below and in assignmentStore.js/
+// userAssignmentStore.js/assetStore.js/purchaseStore.js that referenced
+// eng-002/003/005 by the old (colliding) name was updated to match.
 export const FIELD_ENGINEERS = [
-  { id: 'eng-001', name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue',   userId: 'u3'  },
-  { id: 'eng-002', name: 'Preethi Nair', initials: 'PN', color: 'bg-emerald-500',  userId: null  },
-  { id: 'eng-003', name: 'Anita Sharma', initials: 'AS', color: 'bg-purple-500',   userId: null  },
-  { id: 'eng-004', name: 'Suresh Babu',  initials: 'SB', color: 'bg-teal-500',     userId: 'u5'  },
-  { id: 'eng-005', name: 'Ravi Menon',   initials: 'RM', color: 'bg-indigo-500',   userId: null  },
+  { id: 'eng-001', name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue',   userId: 'u3'  },
+  { id: 'eng-002', name: 'Karan Mehta',   initials: 'KM', color: 'bg-rose-500',     userId: 'u8'  },
+  { id: 'eng-003', name: 'Divya Nambiar', initials: 'DN', color: 'bg-indigo-500',   userId: 'u9'  },
+  { id: 'eng-004', name: 'Suresh Babu',   initials: 'SB', color: 'bg-teal-500',     userId: 'u5'  },
+  { id: 'eng-005', name: 'Farhan Sheikh', initials: 'FS', color: 'bg-amber-500',    userId: 'u10' },
 ]
 
 export const INSTALLATION_TEAMS = [
@@ -42,7 +42,7 @@ const INIT_INSTALLATIONS = [
     plan: '100 Mbps Monthly (FTTH)',
     slotDate: '2026-06-05', slotTime: '10:00', slot: 'Morning',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-001', engineerName: 'Arjun Kumar, Preethi Nair, Suresh Babu',
+    engineerId: 'eng-001', engineerName: 'Arjun Kumar, Karan Mehta, Suresh Babu',
     branch: 'CNPL-010', createdBy: 'Ravi Patel', priority: 'High',
     status: 'Scheduled',
     hardwareRequired: true,
@@ -81,7 +81,7 @@ const INIT_INSTALLATIONS = [
     plan: '100 Mbps Monthly (FTTH)',
     slotDate: '2026-06-06', slotTime: '09:30', slot: 'Morning',
     assignedTeam: 'Team Gamma',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branch: 'CNPL-005', createdBy: 'Salim Khan', priority: 'High',
     status: 'Hardware Collection Pending',
     hardwareRequired: true,
@@ -91,7 +91,7 @@ const INIT_INSTALLATIONS = [
     createdAt: '2026-06-01',
     timeline: [
       { status: 'Scheduled', date: '2026-06-01', by: 'System', note: '' },
-      { status: 'Assigned',  date: '2026-06-01', by: 'Admin',  note: 'Assigned to Preethi Nair' },
+      { status: 'Assigned',  date: '2026-06-01', by: 'Admin',  note: 'Assigned to Karan Mehta' },
       { status: 'Hardware Collection Pending', date: '2026-06-02', by: 'Admin', note: 'Moved to hardware collection' },
     ],
   },
@@ -102,7 +102,7 @@ const INIT_INSTALLATIONS = [
     plan: '200 Mbps Quarterly (FTTH)',
     slotDate: '2026-06-06', slotTime: '13:00', slot: 'Afternoon',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-005', engineerName: 'Ravi Menon',
+    engineerId: 'eng-005', engineerName: 'Farhan Sheikh',
     branch: 'CNPL-007', createdBy: 'Pooja Mehta', priority: 'Medium',
     status: 'Dispatched',
     hardwareRequired: true,
@@ -149,7 +149,7 @@ const INIT_INSTALLATIONS = [
     plan: '100 Mbps Monthly (FTTH)',
     slotDate: '2026-06-08', slotTime: '17:00', slot: 'Evening',
     assignedTeam: 'Team Beta',
-    engineerId: 'eng-003', engineerName: 'Anita Sharma',
+    engineerId: 'eng-003', engineerName: 'Divya Nambiar',
     branch: 'CNPL-001', createdBy: 'Salim Khan', priority: 'Medium',
     status: 'Rescheduled',
     hardwareRequired: true,
@@ -192,7 +192,7 @@ const INIT_INSTALLATIONS = [
     plan: '500 Mbps Half Yearly (FTTH)',
     slotDate: '2026-06-03', slotTime: '14:00', slot: 'Afternoon',
     assignedTeam: 'Team Gamma',
-    engineerId: 'eng-005', engineerName: 'Ravi Menon',
+    engineerId: 'eng-005', engineerName: 'Farhan Sheikh',
     branch: 'CNPL-004', createdBy: 'Pooja Mehta', priority: 'High',
     status: 'Completed',
     hardwareRequired: true,
@@ -206,7 +206,7 @@ const INIT_INSTALLATIONS = [
       { status: 'Assigned',                   date: '2026-06-02', by: 'Admin',      note: '' },
       { status: 'Hardware Collection Pending', date: '2026-06-02', by: 'Admin',     note: '' },
       { status: 'Dispatched',                 date: '2026-06-03', by: 'Admin',      note: '' },
-      { status: 'Completed',                  date: '2026-06-03', by: 'Ravi Menon', note: 'Completed on time' },
+      { status: 'Completed',                  date: '2026-06-03', by: 'Farhan Sheikh', note: 'Completed on time' },
     ],
   },
   {
@@ -239,7 +239,7 @@ const INIT_INSTALLATIONS = [
     plan: '50 Mbps Monthly (FTTH)',
     slotDate: '2026-06-07', slotTime: '18:00', slot: 'Evening',
     assignedTeam: 'Team Delta',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branch: 'CNPL-008', createdBy: 'Anil Sharma', priority: 'Low',
     status: 'Scheduled',
     hardwareRequired: false, hardware: [],
@@ -280,7 +280,7 @@ const INIT_INSTALLATIONS = [
   // can be walked start to finish with zero blank/empty states: 3 real
   // Installation Work Orders, each with a completed Assign Team step
   // (engineerName set) and not yet issued any hardware, a team of 2 real
-  // existing engineers (Preethi Nair, Arjun Kumar — not a new one) on all
+  // existing engineers (Karan Mehta, Arjun Kumar) on all
   // three so EITHER engineer sees all three as assignable, and a hardware/
   // wire requirement built entirely from products with real Confirmed
   // stock at Andheri Store (STR-002): ONT Device (serial-tracked, PUR-000005),
@@ -294,7 +294,7 @@ const INIT_INSTALLATIONS = [
     plan: '100 Mbps Monthly (FTTH)',
     slotDate: '2026-08-24', slotTime: '10:00', slot: 'Morning',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair, Arjun Kumar',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta, Arjun Kumar',
     branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'Medium',
     status: 'Hardware Collection Pending',
     hardwareRequired: true,
@@ -305,7 +305,7 @@ const INIT_INSTALLATIONS = [
     createdAt: '2026-08-23',
     timeline: [
       { status: 'Scheduled', date: '2026-08-23', by: 'System', note: '' },
-      { status: 'Assigned',  date: '2026-08-23', by: 'Admin',  note: 'Assigned to Preethi Nair, Arjun Kumar — Team Alpha' },
+      { status: 'Assigned',  date: '2026-08-23', by: 'Admin',  note: 'Assigned to Karan Mehta, Arjun Kumar — Team Alpha' },
       { status: 'Hardware Collection Pending', date: '2026-08-23', by: 'Admin', note: '' },
     ],
   },
@@ -316,7 +316,7 @@ const INIT_INSTALLATIONS = [
     plan: '200 Mbps Quarterly (FTTH)',
     slotDate: '2026-08-25', slotTime: '13:00', slot: 'Afternoon',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair, Arjun Kumar',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta, Arjun Kumar',
     branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'Medium',
     status: 'Hardware Collection Pending',
     hardwareRequired: true,
@@ -327,7 +327,7 @@ const INIT_INSTALLATIONS = [
     createdAt: '2026-08-24',
     timeline: [
       { status: 'Scheduled', date: '2026-08-24', by: 'System', note: '' },
-      { status: 'Assigned',  date: '2026-08-24', by: 'Admin',  note: 'Assigned to Preethi Nair, Arjun Kumar — Team Alpha' },
+      { status: 'Assigned',  date: '2026-08-24', by: 'Admin',  note: 'Assigned to Karan Mehta, Arjun Kumar — Team Alpha' },
       { status: 'Hardware Collection Pending', date: '2026-08-24', by: 'Admin', note: '' },
     ],
   },
@@ -338,7 +338,7 @@ const INIT_INSTALLATIONS = [
     plan: '500 Mbps Half Yearly (FTTH)',
     slotDate: '2026-08-26', slotTime: '11:00', slot: 'Morning',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair, Arjun Kumar',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta, Arjun Kumar',
     branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'High',
     status: 'Hardware Collection Pending',
     hardwareRequired: true,
@@ -349,7 +349,7 @@ const INIT_INSTALLATIONS = [
     createdAt: '2026-08-25',
     timeline: [
       { status: 'Scheduled', date: '2026-08-25', by: 'System', note: '' },
-      { status: 'Assigned',  date: '2026-08-25', by: 'Admin',  note: 'Assigned to Preethi Nair, Arjun Kumar — Team Alpha' },
+      { status: 'Assigned',  date: '2026-08-25', by: 'Admin',  note: 'Assigned to Karan Mehta, Arjun Kumar — Team Alpha' },
       { status: 'Hardware Collection Pending', date: '2026-08-25', by: 'Admin', note: '' },
     ],
   },
@@ -371,7 +371,7 @@ const INIT_INSTALLATIONS = [
     plan: '100 Mbps Monthly (FTTH)',
     slotDate: '2026-08-05', slotTime: '11:00', slot: 'Morning',
     assignedTeam: 'Team Alpha',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branch: 'CNPL-002', createdBy: 'Neha Gupta', priority: 'Medium',
     status: 'Completed',
     hardwareRequired: true,
@@ -382,7 +382,7 @@ const INIT_INSTALLATIONS = [
     timeline: [
       { status: 'Scheduled', date: '2026-08-03', by: 'System', note: '' },
       { status: 'Assigned',  date: '2026-08-03', by: 'Admin',  note: '' },
-      { status: 'Completed', date: '2026-08-05', by: 'Preethi Nair', note: 'Installation completed successfully' },
+      { status: 'Completed', date: '2026-08-05', by: 'Karan Mehta', note: 'Installation completed successfully' },
     ],
   },
   {

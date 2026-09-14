@@ -81,7 +81,7 @@ const SEED = [
   },
   {
     id: 'ASG-000002', assignmentNumber: 'ASG-2026-000002',
-    engineerId: 'eng-003', engineerName: 'Anita Sharma',
+    engineerId: 'eng-003', engineerName: 'Divya Nambiar',
     branchCode: 'CNPL-001',
     workOrderId: 'INS-006', workOrderLabel: 'INS-006',
     storeId: 'STR-001', storeName: 'Main Warehouse',
@@ -130,7 +130,7 @@ const SEED = [
   // for INS-012/013/014's own separate demo.
   {
     id: 'ASG-000005', assignmentNumber: 'ASG-2026-000005',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branchCode: 'CNPL-002',
     workOrderId: 'INS-015', workOrderLabel: 'INS-015',
     storeId: 'STR-002', storeName: 'Andheri Store',
@@ -182,13 +182,13 @@ const SEED = [
   // outstanding line item to display either.
   //
   // Work Orders INS-012/013/014 (Andheri Store branch CNPL-002, team
-  // eng-001 Arjun Kumar + eng-002 Preethi Nair) were free of any prior
+  // eng-001 Arjun Kumar + eng-002 Karan Mehta) were free of any prior
   // assignment before this — used here rather than reusing
   // INS-005/006/009/011/015/016 above, which already carry a live
   // 'Assigned' record apiece.
   {
     id: 'ASG-000007', assignmentNumber: 'ASG-2026-000007',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branchCode: 'CNPL-002',
     workOrderId: 'INS-012', workOrderLabel: 'INS-012',
     storeId: 'STR-002', storeName: 'Andheri Store',
@@ -210,7 +210,7 @@ const SEED = [
   },
   {
     id: 'ASG-000009', assignmentNumber: 'ASG-2026-000009',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branchCode: 'CNPL-002',
     workOrderId: 'INS-014', workOrderLabel: 'INS-014',
     storeId: 'STR-002', storeName: 'Andheri Store',
@@ -227,11 +227,11 @@ const SEED = [
   // batch is seeded with an expired warranty window (see purchaseStore.js),
   // so this demos the manual-vendor/Estimated Cost path — ASG-000005/serial
   // 0002 above is still the within-warranty/locked-vendor counterpart.
-  // Reuses INS-012 (Preethi Nair, Andheri Store), free again since
+  // Reuses INS-012 (Karan Mehta, Andheri Store), free again since
   // ASG-000007's own assignment against it was returned.
   {
     id: 'ASG-000010', assignmentNumber: 'ASG-2026-000010',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     branchCode: 'CNPL-002',
     workOrderId: 'INS-012', workOrderLabel: 'INS-012',
     storeId: 'STR-002', storeName: 'Andheri Store',
