@@ -1,6 +1,6 @@
 import { useState, useEffect, Component } from 'react'
 import {
-  Plus, Edit2, Eye, Users, UserCheck, UserX, Shield,
+  Plus, Edit2, Eye, EyeOff, Users, UserCheck, UserX, Shield,
   Search, X, ChevronDown, CalendarDays, Phone, Mail,
   TrendingUp, PhoneCall, Clock, CheckCircle2, AlertTriangle,
 } from 'lucide-react'
@@ -333,8 +333,22 @@ function UserManagementInner() {
   const [showAdd, setShowAdd]     = useState(false)
   const [editUser, setEditUser]   = useState(null)
   const [viewUser, setViewUser]   = useState(null)
+  // Which rows currently show their password in plain text — a purely
+  // local display toggle (per client requirement, since there's no
+  // backend/email to build a real "forgot password" flow against; see
+  // userStore.js's/sessionStore.js's own demo-grade comments). Doesn't
+  // touch how passwords are stored, validated, or logged in with.
+  const [revealedPasswords, setRevealedPasswords] = useState(() => new Set())
 
   useEffect(() => subscribeUsers(setUsers), [])
+
+  function togglePasswordReveal(id) {
+    setRevealedPasswords(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   const totalUsers    = users.length
   const activeUsers   = users.filter(u => u.status === 'active').length
@@ -450,7 +464,7 @@ function UserManagementInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
-                {['Name', 'Role', 'Status', 'Last Active', 'Actions'].map(h => (
+                {['Name', 'Mobile No.', 'Role', 'Password', 'Status', 'Last Active', 'Actions'].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -460,7 +474,7 @@ function UserManagementInner() {
             <tbody className="divide-y divide-surface-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-sm text-gray-400">
+                  <td colSpan={7} className="text-center py-12 text-sm text-gray-400">
                     No users match your filters.
                   </td>
                 </tr>
@@ -482,9 +496,36 @@ function UserManagementInner() {
                     </div>
                   </td>
 
+                  {/* Mobile No. */}
+                  <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                    {user.phone || '—'}
+                  </td>
+
                   {/* Role */}
                   <td className="px-5 py-3.5">
                     <RoleBadge role={user.role} />
+                  </td>
+
+                  {/* Password — masked by default; per-row reveal toggle is
+                      display-only local state (revealedPasswords above),
+                      doesn't touch storage/login. Client requirement: admin
+                      needs to look up a forgotten password since there's no
+                      backend/email to build a real reset flow against. */}
+                  <td className="px-5 py-3.5 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600 font-mono tracking-wide">
+                        {user.password ? (revealedPasswords.has(user.id) ? user.password : '••••••••') : '—'}
+                      </span>
+                      {user.password && (
+                        <button
+                          onClick={() => togglePasswordReveal(user.id)}
+                          className="p-1 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                          title={revealedPasswords.has(user.id) ? 'Hide password' : 'Show password'}
+                        >
+                          {revealedPasswords.has(user.id) ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      )}
+                    </div>
                   </td>
 
                   {/* Status toggle */}
