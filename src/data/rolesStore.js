@@ -24,6 +24,14 @@ export function buildPerms(defaultVal = false) {
   )
 }
 
+// The 6 roles Settings.jsx's Roles & Permissions tab has always shown
+// (Super Admin, Admin, Billing Manager, Support Agent, Field Engineer,
+// Read Only). This seed briefly carried 3 extra roles (Network Engineer,
+// Reseller, and a differently-named "Field Technician") inherited from
+// RolesSettings.jsx's own broader role set — invisible in the app until
+// that tab started reading straight from this store and surfaced them.
+// Trimmed back to the original 6 here; add roles going forward via the
+// tab's own Add Role flow instead of editing this array directly.
 const SEED = [
   {
     id: 1,
@@ -85,27 +93,7 @@ const SEED = [
   },
   {
     id: 5,
-    name: 'Network Engineer',
-    description: 'Manage network infrastructure and server configurations',
-    usersCount: 4,
-    color: 'purple',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Network']['View'] = true
-      p['Network']['Create'] = true
-      p['Network']['Edit'] = true
-      p['Network']['Delete'] = true
-      p['Inventory']['View'] = true
-      p['Inventory']['Create'] = true
-      p['Inventory']['Edit'] = true
-      p['Reports']['View'] = true
-      return p
-    })(),
-  },
-  {
-    id: 6,
-    name: 'Field Technician',
+    name: 'Field Engineer',
     description: 'On-site installations, repairs, and inventory updates',
     usersCount: 12,
     color: 'orange',
@@ -121,25 +109,7 @@ const SEED = [
     })(),
   },
   {
-    id: 7,
-    name: 'Reseller',
-    description: 'Manage reseller customers and view sales data',
-    usersCount: 6,
-    color: 'yellow',
-    permissions: (() => {
-      const p = buildPerms(false)
-      p['Dashboard']['View'] = true
-      p['Customers']['View'] = true
-      p['Sales']['View'] = true
-      p['Billing']['View'] = true
-      p['Resellers']['View'] = true
-      p['Resellers']['Create'] = true
-      p['Resellers']['Edit'] = true
-      return p
-    })(),
-  },
-  {
-    id: 8,
+    id: 6,
     name: 'Read Only',
     description: 'View-only access across all modules',
     usersCount: 3,
