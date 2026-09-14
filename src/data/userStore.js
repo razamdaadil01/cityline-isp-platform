@@ -30,6 +30,16 @@ export function hashPassword(plain) {
 // `password` holds hashPassword('password123') for every seed user — same
 // placeholder credential across all of them, now stored the way
 // addUser()/updateUser() store any password (see UserManagement.jsx).
+//
+// `branch`/`zone` (role='engineer' users only, for now) were added as
+// Phase 1 of the Technician Monitoring Dashboard: these role='engineer'
+// records are the chosen canonical Technician entity — they already have
+// real login-linked ids and are the only roster referenced elsewhere by id
+// (assetRepairStore.js's technicianId). See technicianHelpers.js for the
+// lookup layer other code should read technicians through, and
+// installationsStore.js/ticketsStore.js for the userId bridge fields that
+// link (where a confident match exists) their own separate engineer/
+// technician rosters back to these ids.
 const INITIAL_USERS = [
   {
     id: 'u1', name: 'Admin User',    email: 'admin@cityline.in',   phone: '9900001111',
@@ -51,6 +61,7 @@ const INITIAL_USERS = [
     role: 'engineer',    status: 'active',   lastActive: '2026-05-27',
     memberSince: '2023-06-01', leadsAssigned: 28, followupsTotal: 45,
     initials: 'AK', color: 'bg-brand-blue',
+    branch: 'CNPL-002', zone: 'Andheri West',
   },
   {
     id: 'u4', name: 'Preethi Nair',  email: 'preethi@cityline.in', phone: '9876001122',
@@ -65,6 +76,7 @@ const INITIAL_USERS = [
     role: 'engineer',    status: 'active',   lastActive: '2026-05-26',
     memberSince: '2024-01-10', leadsAssigned: 15, followupsTotal: 22,
     initials: 'SB', color: 'bg-emerald-500',
+    branch: 'CNPL-010', zone: 'Andheri East',
   },
   {
     id: 'u6', name: 'Ravi Menon',    email: 'ravi@cityline.in',    phone: '9845001234',

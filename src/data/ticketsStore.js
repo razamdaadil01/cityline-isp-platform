@@ -108,12 +108,21 @@ export const TECHNICIAN_SKILLS = [
 // (Ticket List bulk-assign, Create Ticket) are unaffected.
 // distanceFromCustomer is static mock data (km) for demo purposes — not a real
 // GPS/routing calculation.
+//
+// userId would bridge each profile to userStore.js's canonical Technician
+// roster (role='engineer' users — see that file's INITIAL_USERS comment),
+// same as installationsStore.js's FIELD_ENGINEERS does. Every name here is
+// a genuinely different person from that roster (no name collision either
+// — unlike FIELD_ENGINEERS' eng-002/003/005) so all five are userId: null.
+// This is the entire reason the technician-dashboard audit called tickets'
+// support technicians and installations' field engineers "two disjoint
+// rosters that never intersect by name" — confirmed at the data level here.
 export const TECHNICIAN_PROFILES = [
-  { name: 'Suresh Iyer', skills: ['Fiber Splicing', 'OLT/Network Diagnostics'], active: true, distanceFromCustomer: 1.5 },
-  { name: 'Prakash Yadav', skills: ['Cabling & Wiring', 'General Troubleshooting'], active: true, distanceFromCustomer: 0.8 },
-  { name: 'Manoj Verma', skills: ['ONU Replacement', 'Fiber Splicing'], active: true, distanceFromCustomer: 5.1 },
-  { name: 'Dinesh Kumar', skills: ['Router Configuration', 'General Troubleshooting'], active: true, distanceFromCustomer: 2.4 },
-  { name: 'Vikram Singh', skills: ['Fiber Splicing', 'General Troubleshooting'], active: true, distanceFromCustomer: 3.7 },
+  { name: 'Suresh Iyer', skills: ['Fiber Splicing', 'OLT/Network Diagnostics'], active: true, distanceFromCustomer: 1.5, userId: null },
+  { name: 'Prakash Yadav', skills: ['Cabling & Wiring', 'General Troubleshooting'], active: true, distanceFromCustomer: 0.8, userId: null },
+  { name: 'Manoj Verma', skills: ['ONU Replacement', 'Fiber Splicing'], active: true, distanceFromCustomer: 5.1, userId: null },
+  { name: 'Dinesh Kumar', skills: ['Router Configuration', 'General Troubleshooting'], active: true, distanceFromCustomer: 2.4, userId: null },
+  { name: 'Vikram Singh', skills: ['Fiber Splicing', 'General Troubleshooting'], active: true, distanceFromCustomer: 3.7, userId: null },
 ]
 
 // NAS Port ID reference table — the exact port IDs already used by tickets'

@@ -2,12 +2,26 @@ import { getLeads, saveLead } from './leadsStore'
 import { addCustomer } from './customersData'
 import { buildCustomerFromLead } from './leadConversion'
 
+// userId bridges each entry to userStore.js's canonical Technician roster
+// (role='engineer' users — see that file's INITIAL_USERS comment) where a
+// confident match exists: same name AND that userStore.js record actually
+// has role='engineer'. Only eng-001 and eng-004 qualify.
+//
+// eng-002/003/005 are NOT bridged despite matching a userStore.js name
+// exactly — 'Preethi Nair' (u4) is role='support', 'Anita Sharma' (u2) is
+// role='admin', and 'Ravi Menon' (u6) is role='billing' there. That's a
+// name collision with a real user in a different role, not evidence of the
+// same person being a field engineer — bridging it would be inventing a
+// match, not finding one. Left as userId: null, flagged here for manual
+// reconciliation (either these three should become real engineer-role
+// users, or this list's names need correcting to actual field engineers
+// with no login yet).
 export const FIELD_ENGINEERS = [
-  { id: 'eng-001', name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue'  },
-  { id: 'eng-002', name: 'Preethi Nair', initials: 'PN', color: 'bg-emerald-500' },
-  { id: 'eng-003', name: 'Anita Sharma', initials: 'AS', color: 'bg-purple-500'  },
-  { id: 'eng-004', name: 'Suresh Babu',  initials: 'SB', color: 'bg-teal-500'    },
-  { id: 'eng-005', name: 'Ravi Menon',   initials: 'RM', color: 'bg-indigo-500'  },
+  { id: 'eng-001', name: 'Arjun Kumar',  initials: 'AK', color: 'bg-brand-blue',   userId: 'u3'  },
+  { id: 'eng-002', name: 'Preethi Nair', initials: 'PN', color: 'bg-emerald-500',  userId: null  },
+  { id: 'eng-003', name: 'Anita Sharma', initials: 'AS', color: 'bg-purple-500',   userId: null  },
+  { id: 'eng-004', name: 'Suresh Babu',  initials: 'SB', color: 'bg-teal-500',     userId: 'u5'  },
+  { id: 'eng-005', name: 'Ravi Menon',   initials: 'RM', color: 'bg-indigo-500',   userId: null  },
 ]
 
 export const INSTALLATION_TEAMS = [

@@ -1,3 +1,13 @@
+// Intercom (a separate product line) keeps its own engineer roster,
+// deliberately not bridged to userStore.js's canonical Technician entity
+// (role='engineer' users, see that file's INITIAL_USERS comment) as part
+// of Phase 1 of the Technician Monitoring Dashboard — that dashboard is
+// scoped to the core platform for now. Worth noting some names here
+// coincidentally match installationsStore.js's FIELD_ENGINEERS (also
+// unbridged in 3 of 5 cases, see that file) and userStore.js users, but
+// that's not treated as a confident match: these ieng-* ids, and the
+// engineer:'...' free-text field on installations below, remain unlinked
+// to any canonical id until Intercom is brought into this reconciliation.
 export const INSTALLATION_ENGINEERS = [
   { id: 'ieng-001', name: 'Suresh Babu',  initials: 'SB', color: 'bg-brand-blue'  },
   { id: 'ieng-002', name: 'Arjun Kumar',  initials: 'AK', color: 'bg-emerald-500' },
