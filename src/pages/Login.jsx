@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Wifi, CheckCircle2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input } from '../components/ui/FormInputs'
@@ -64,6 +64,10 @@ export default function Login() {
               onChange={e => setPassword(e.target.value)}
             />
           </FormField>
+
+          <Link to="/forgot-password" className="block text-xs text-brand-blue font-medium hover:underline -mt-2">
+            Forgot Password?
+          </Link>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
 

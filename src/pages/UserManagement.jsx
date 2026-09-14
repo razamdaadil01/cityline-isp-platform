@@ -3,12 +3,13 @@ import {
   Plus, Edit2, Eye, Users, UserCheck, UserX, Shield,
   Search, X, ChevronDown, CalendarDays, Phone, Mail,
   TrendingUp, PhoneCall, Clock, CheckCircle2, AlertTriangle,
-  KeyRound, Copy, Check,
+  KeyRound,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
+import ResetLinkPanel from '../components/ResetLinkPanel'
 import { getUsers, addUser, updateUser, subscribeUsers, hashPassword } from '../data/userStore'
 import { useSession } from '../data/sessionStore'
 import { createResetToken } from '../data/passwordResetStore'
@@ -335,16 +336,7 @@ function ViewUserModal({ isOpen, onClose, user, onEdit }) {
 // user's actual new password; they only get this one-time link to relay.
 
 function ResetLinkModal({ isOpen, onClose, user, token }) {
-  const [copied, setCopied] = useState(false)
   if (!user || !token) return null
-
-  const link = `${window.location.origin}/reset-password?token=${token}`
-
-  function handleCopy() {
-    navigator.clipboard?.writeText(link)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
 
   return (
     <Modal
@@ -354,27 +346,7 @@ function ResetLinkModal({ isOpen, onClose, user, token }) {
       size="sm"
       footer={<Button onClick={onClose}>Done</Button>}
     >
-      <div className="space-y-4">
-        <div className="flex items-start gap-2.5 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-          <KeyRound size={15} className="text-brand-blue shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-900 leading-relaxed">
-            In production this would be emailed to <span className="font-semibold">{user.email}</span>.
-            There's no email service in this demo — copy the link below and share it with them directly.
-            It expires in 30 minutes and can only be used once.
-          </p>
-        </div>
-
-        <FormField label="Reset Link">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <Input readOnly value={link} className="font-mono text-xs" onFocus={e => e.target.select()} />
-            </div>
-            <Button variant="secondary" size="sm" onClick={handleCopy} icon={copied ? <Check size={14} /> : <Copy size={14} />}>
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
-          </div>
-        </FormField>
-      </div>
+      <ResetLinkPanel email={user.email} token={token} />
     </Modal>
   )
 }
