@@ -92,6 +92,77 @@ const INITIAL_USERS = [
     memberSince: '2024-06-01', leadsAssigned: 5,  followupsTotal: 8,
     initials: 'DV', color: 'bg-gray-400',
   },
+  // u8-u10: created to properly back installationsStore.js's FIELD_ENGINEERS
+  // eng-002/003/005, which previously collided with u2/u4/u6's names despite
+  // those users having unrelated roles (admin/support/billing) — see
+  // FIELD_ENGINEERS' own comment. Distinct names from u2/u4/u6 on purpose.
+  {
+    id: 'u8', name: 'Karan Mehta',    email: 'karan@cityline.in',   phone: '9812345001',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-25',
+    memberSince: '2025-02-10', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'KM', color: 'bg-rose-500',
+    branch: 'CNPL-005', zone: 'Indiranagar',
+  },
+  {
+    id: 'u9', name: 'Divya Nambiar',  email: 'divya@cityline.in',   phone: '9812345002',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-24',
+    memberSince: '2025-03-18', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'DN', color: 'bg-indigo-500',
+    branch: 'CNPL-001', zone: 'Sector 18 Noida',
+  },
+  {
+    id: 'u10', name: 'Farhan Sheikh', email: 'farhan@cityline.in',  phone: '9812345003',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-23',
+    memberSince: '2025-04-22', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'FS', color: 'bg-amber-500',
+    branch: 'CNPL-007', zone: 'Whitefield',
+  },
+  // u11-u15: created to back ticketsStore.js's TECHNICIAN_PROFILES, which
+  // named 5 people never before represented in userStore.js at all (no
+  // collision to avoid here — these names were simply never bridged).
+  {
+    id: 'u11', name: 'Suresh Iyer',   email: 'suresh.iyer@cityline.in', phone: '9812345004',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-28',
+    memberSince: '2024-09-01', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'SI', color: 'bg-brand-blue',
+    branch: 'CNPL-002', zone: 'Andheri West',
+  },
+  {
+    id: 'u12', name: 'Prakash Yadav', email: 'prakash@cityline.in',     phone: '9812345005',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-27',
+    memberSince: '2024-10-15', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'PY', color: 'bg-purple-500',
+    branch: 'CNPL-003', zone: 'Bandra East',
+  },
+  {
+    id: 'u13', name: 'Manoj Verma',   email: 'manoj@cityline.in',       phone: '9812345006',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-26',
+    memberSince: '2024-11-20', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'MV', color: 'bg-emerald-500',
+    branch: 'CNPL-004', zone: 'Goregaon',
+  },
+  {
+    id: 'u14', name: 'Dinesh Kumar',  email: 'dinesh@cityline.in',      phone: '9812345007',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-25',
+    memberSince: '2025-01-05', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'DK', color: 'bg-brand-orange',
+    branch: 'CNPL-006', zone: 'Versova',
+  },
+  {
+    id: 'u15', name: 'Vikram Singh',  email: 'vikram@cityline.in',      phone: '9812345008',
+    password: hashPassword('password123'),
+    role: 'engineer',    status: 'active',   lastActive: '2026-08-24',
+    memberSince: '2025-01-28', leadsAssigned: 0,  followupsTotal: 0,
+    initials: 'VS', color: 'bg-teal-500',
+    branch: 'CNPL-009', zone: 'Andheri East',
+  },
 ]
 
 let _users = [...INITIAL_USERS]

@@ -95,7 +95,7 @@ function formatDate(raw, format) {
 }
 
 /* First assigned engineer's name + how many more are on the team, e.g.
-   "Arjun Kumar, Preethi Nair, Suresh Babu" ->
+   "Arjun Kumar, Karan Mehta, Suresh Babu" ->
    { assignedEngineer: 'Arjun Kumar', engineerExtraCount: 2, engineerExtraNames: [...] } */
 function splitEngineers(raw) {
   const names = (raw || '').split(',').map(s => s.trim()).filter(Boolean)

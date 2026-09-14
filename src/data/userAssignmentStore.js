@@ -66,13 +66,13 @@ const SEED = [
   },
   {
     id: 'USRA-000002', assignmentNumber: 'USR-2026-000002',
-    engineerId: 'eng-002', engineerName: 'Preethi Nair',
+    engineerId: 'eng-002', engineerName: 'Karan Mehta',
     workOrderType: 'Installation', workOrderId: 'INS-015', workOrderLabel: 'INS-015',
     customerName: 'Kavita Rao', customerId: null,
     assignmentType: 'new', returnedItem: null,
     items: [{ productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTE-ONT-2026-0002'], macs: [], qty: 1 }],
     remarks: 'Installation completed — ONT handed off to customer.',
-    status: 'Handed Off', assignedBy: 'Preethi Nair', assignedAt: '2026-08-05T12:00:00.000Z',
+    status: 'Handed Off', assignedBy: 'Karan Mehta', assignedAt: '2026-08-05T12:00:00.000Z',
   },
   {
     id: 'USRA-000003', assignmentNumber: 'USR-2026-000003',
