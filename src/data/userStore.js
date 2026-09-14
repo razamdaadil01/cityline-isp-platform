@@ -11,45 +11,56 @@ function initials(name) {
   return name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('')
 }
 
+// `password` is plaintext and identical ('password123') across every seed
+// user — this store has no backend to hash against, so it's a placeholder
+// for sessionStore.js's demo-grade login to compare against, not a real
+// credential. See sessionStore.js's top-of-file comment.
 const INITIAL_USERS = [
   {
     id: 'u1', name: 'Admin User',    email: 'admin@cityline.in',   phone: '9900001111',
+    password: 'password123',
     role: 'super_admin', status: 'active',   lastActive: '2026-05-28',
     memberSince: '2022-01-01', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'AD', color: 'bg-navy',
   },
   {
     id: 'u2', name: 'Anita Sharma',  email: 'anita@cityline.in',   phone: '9087654321',
+    password: 'password123',
     role: 'admin',       status: 'active',   lastActive: '2026-05-28',
     memberSince: '2022-11-20', leadsAssigned: 20, followupsTotal: 38,
     initials: 'AS', color: 'bg-brand-orange',
   },
   {
     id: 'u3', name: 'Arjun Kumar',   email: 'arjun@cityline.in',   phone: '9876543210',
+    password: 'password123',
     role: 'engineer',    status: 'active',   lastActive: '2026-05-27',
     memberSince: '2023-06-01', leadsAssigned: 28, followupsTotal: 45,
     initials: 'AK', color: 'bg-brand-blue',
   },
   {
     id: 'u4', name: 'Preethi Nair',  email: 'preethi@cityline.in', phone: '9876001122',
+    password: 'password123',
     role: 'support',     status: 'active',   lastActive: '2026-05-27',
     memberSince: '2023-08-15', leadsAssigned: 12, followupsTotal: 30,
     initials: 'PN', color: 'bg-purple-500',
   },
   {
     id: 'u5', name: 'Suresh Babu',   email: 'suresh@cityline.in',  phone: '9988001133',
+    password: 'password123',
     role: 'engineer',    status: 'active',   lastActive: '2026-05-26',
     memberSince: '2024-01-10', leadsAssigned: 15, followupsTotal: 22,
     initials: 'SB', color: 'bg-emerald-500',
   },
   {
     id: 'u6', name: 'Ravi Menon',    email: 'ravi@cityline.in',    phone: '9845001234',
+    password: 'password123',
     role: 'billing',     status: 'active',   lastActive: '2026-05-25',
     memberSince: '2023-03-05', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'RM', color: 'bg-teal-500',
   },
   {
     id: 'u7', name: 'Deepa Varma',   email: 'deepa@cityline.in',   phone: '9765432100',
+    password: 'password123',
     role: 'readonly',    status: 'inactive', lastActive: '2026-04-12',
     memberSince: '2024-06-01', leadsAssigned: 5,  followupsTotal: 8,
     initials: 'DV', color: 'bg-gray-400',
