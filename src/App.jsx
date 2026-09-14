@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import RequireAuth from './components/RequireAuth'
+import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
@@ -100,6 +102,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
@@ -238,6 +242,7 @@ export default function App() {
           <Route path="/users" element={<UserManagement />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
+        </Route>
         </Route>
       </Routes>
     </BrowserRouter>

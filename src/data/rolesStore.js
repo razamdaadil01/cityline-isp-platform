@@ -6,7 +6,7 @@
 // actually gate on it.
 
 import { useState, useEffect } from 'react'
-import { getUsers } from './userStore'
+import { getCurrentUser as getSessionUser } from './sessionStore'
 
 export const MODULES = [
   'Dashboard', 'Customers', 'Sales', 'Billing', 'Support',
@@ -160,28 +160,30 @@ export function hasPermission(role, module, action) {
 }
 
 // ── Current user / role resolution ──────────────────────────────────────
-// There is no auth/session system anywhere in this app and no role-switch
-// UI — the sidebar always shows the same static 'Admin User' identity, so
-// "the current user's role" is hardcoded to the role named exactly 'Admin'
-// in this store's *live* data: _roles.find(...) below re-reads the actual
-// array on every call, never a snapshot taken once and cached, so editing
-// 'Admin' in Settings.jsx's Roles & Permissions tab is reflected the next
-// time anything calls usePermission() — no extra wiring needed since
-// nothing here holds onto a stale copy.
-// Falls back to the 'Super Admin' role if 'Admin' is ever renamed or
-// deleted, so a broken lookup can never silently lock the app out of
-// itself. getCurrentUser() (userStore.js's own first seeded user, still
-// exported for anything that wants the display identity rather than the
-// role) is deliberately NOT part of this resolution any more — routing
-// through its role slug ('super_admin') previously resolved gating to the
-// Super Admin role, not Admin, so editing the Admin role's permissions had
-// no visible effect anywhere usePermission() gates UI.
-export function getCurrentUserRole() {
-  return _roles.find(r => r.name === 'Admin') ?? _roles.find(r => r.name === 'Super Admin') ?? null
+// Bridges userStore.js's role slugs (its own `role` field values, unrelated
+// to this store's ids/names for historical reasons) to this store's role
+// names, so a logged-in user's slug can resolve to an actual role record.
+const SLUG_TO_ROLE_NAME = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  billing: 'Billing Manager',
+  support: 'Support Agent',
+  engineer: 'Field Engineer',
+  readonly: 'Read Only',
 }
 
-export function getCurrentUser() {
-  return getUsers()[0] ?? null
+// Resolves through sessionStore.js's demo-grade session (see that file's
+// top-of-file comment) instead of any hardcoded role: nobody logged in, or
+// their role slug/name doesn't resolve to a live role, means no permissions
+// — a safe default, not a broken lookup. _roles.find() re-reads the actual
+// live array on every call, never a snapshot taken once and cached, so
+// editing a role's permissions in Settings.jsx's Roles & Permissions tab is
+// reflected the next time anything calls usePermission() for whoever is
+// currently logged in.
+export function getCurrentUserRole() {
+  const user = getSessionUser()
+  if (!user) return null
+  return _roles.find(r => r.name === SLUG_TO_ROLE_NAME[user.role]) ?? null
 }
 
 // Reactive permission check for gating UI — re-renders the caller whenever

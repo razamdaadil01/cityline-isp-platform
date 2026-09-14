@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
+import { useSession, logout } from '../../data/sessionStore'
 import {
   LayoutDashboard,
   Users,
@@ -42,6 +43,7 @@ import {
   HardDrive,
   FolderKanban,
   ListTree,
+  LogOut,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -117,6 +119,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ collapsed }) {
   const location = useLocation()
+  const user = useSession()
 
   return (
     <aside
@@ -212,17 +215,27 @@ export default function Sidebar({ collapsed }) {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer — identity reads from sessionStore.js's demo-grade session
+          (see that file's top-of-file comment); RequireAuth.jsx already
+          keeps this component from rendering while logged out, but the
+          fallbacks below keep it from breaking if that ever changes. */}
       {!collapsed && (
         <div className="shrink-0 px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-brand-orange rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
-              AD
+            <div className={`w-8 h-8 ${user?.color ?? 'bg-brand-orange'} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+              {user?.initials ?? '—'}
             </div>
             <div className="overflow-hidden flex-1">
-              <p className="text-white text-xs font-semibold truncate">Admin User</p>
-              <p className="text-blue-300/60 text-xs truncate">admin@cityline.in</p>
+              <p className="text-white text-xs font-semibold truncate">{user?.name ?? 'Not signed in'}</p>
+              <p className="text-blue-300/60 text-xs truncate">{user?.email ?? ''}</p>
             </div>
+            <button
+              onClick={logout}
+              title="Log out"
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-blue-100/50 hover:bg-white/8 hover:text-white transition-colors shrink-0"
+            >
+              <LogOut size={15} />
+            </button>
           </div>
         </div>
       )}
