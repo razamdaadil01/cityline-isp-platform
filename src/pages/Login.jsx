@@ -1,18 +1,23 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Wifi } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Wifi, CheckCircle2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input } from '../components/ui/FormInputs'
 import { login } from '../data/sessionStore'
 
 // Demo-grade login screen for the demo-grade session layer in
-// sessionStore.js — a plaintext email/password check against userStore.js's
+// sessionStore.js — a hashed (demo-grade, not real crypto — see
+// userStore.js/sessionStore.js) email/password check against userStore.js's
 // seed data, nothing more. Not production authentication.
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  // Set by ResetPassword.jsx's navigate('/login', { state: { message } })
+  // after a successful reset — not persisted, just a one-time flash.
+  const successMessage = location.state?.message
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -33,6 +38,13 @@ export default function Login() {
           <h1 className="text-lg font-bold text-gray-900">Cityline ISP Platform</h1>
           <p className="text-xs text-gray-500">Sign in to continue</p>
         </div>
+
+        {successMessage && (
+          <div className="mb-4 flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <CheckCircle2 size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-emerald-800">{successMessage}</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="Email" required>

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import RequireAuth from './components/RequireAuth'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Customers from './pages/Customers'
 import CustomerDetail from './pages/CustomerDetail'
@@ -103,6 +104,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
