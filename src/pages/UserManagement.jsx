@@ -2,13 +2,14 @@ import { useState, useEffect, Component } from 'react'
 import {
   Plus, Edit2, Eye, Users, UserCheck, UserX, Shield,
   Search, X, ChevronDown, CalendarDays, Phone, Mail,
-  TrendingUp, PhoneCall, Clock, CheckCircle2,
+  TrendingUp, PhoneCall, Clock, CheckCircle2, AlertTriangle,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import { getUsers, addUser, updateUser, subscribeUsers } from '../data/userStore'
+import { useSession } from '../data/sessionStore'
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -93,15 +94,18 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
 
 // ── User Form Modal ───────────────────────────────────────────────────────────
 
-const EMPTY_FORM = { name: '', email: '', phone: '', role: '', status: 'active' }
+const EMPTY_FORM = { name: '', email: '', phone: '', role: '', status: 'active', password: '' }
 
-function UserFormModal({ isOpen, onClose, user, onSave }) {
+function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
   const isEdit = !!user
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    setForm(user ? { name: user.name, email: user.email, phone: user.phone ?? '', role: user.role, status: user.status } : EMPTY_FORM)
+    // password always starts blank, even when editing — we never display an
+    // existing password, and a blank value on save means "leave unchanged"
+    // (see handleSave in UserManagementInner).
+    setForm(user ? { name: user.name, email: user.email, phone: user.phone ?? '', role: user.role, status: user.status, password: '' } : EMPTY_FORM)
     setErrors({})
   }, [user, isOpen])
 
@@ -112,6 +116,7 @@ function UserFormModal({ isOpen, onClose, user, onSave }) {
     if (!form.name.trim())  e.name  = 'Full name is required'
     if (!form.email.trim()) e.email = 'Email is required'
     if (!form.role)         e.role  = 'Role is required'
+    if (!isEdit && !form.password.trim()) e.password = 'Password is required'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -120,6 +125,14 @@ function UserFormModal({ isOpen, onClose, user, onSave }) {
     if (!validate()) return
     onSave(form)
   }
+
+  // Self-lockout warning: editing your own role to something other than
+  // what it currently is changes what getCurrentUserRole() resolves to on
+  // its next call (it always re-reads live, never caches) — so already
+  // gated UI on this page reflects it on its next render (e.g. navigating
+  // elsewhere), even without logging out and back in first.
+  const isSelf = isEdit && user.id === currentUserId
+  const roleChanged = isSelf && form.role && form.role !== user.role
 
   return (
     <Modal
@@ -183,6 +196,21 @@ function UserFormModal({ isOpen, onClose, user, onSave }) {
           />
         </FormField>
 
+        <FormField
+          label="Password"
+          required={!isEdit}
+          error={errors.password}
+          hint={isEdit ? 'Leave blank to keep the current password' : 'Used to sign in via /login (demo-grade — see sessionStore.js)'}
+        >
+          <Input
+            type="password"
+            placeholder={isEdit ? '••••••••' : 'Set a password'}
+            value={form.password}
+            onChange={e => set('password', e.target.value)}
+            error={!!errors.password}
+          />
+        </FormField>
+
         <FormField label="Phone">
           <Input
             type="tel"
@@ -198,6 +226,15 @@ function UserFormModal({ isOpen, onClose, user, onSave }) {
             {ROLES_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </Select>
         </FormField>
+
+        {roleChanged && (
+          <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800 leading-relaxed">
+              You're changing your own role — this may restrict your own access until you log in again.
+            </p>
+          </div>
+        )}
 
         <FormField label="Status">
           <div className="flex items-center gap-3 h-9">
@@ -288,6 +325,7 @@ function ViewUserModal({ isOpen, onClose, user, onEdit }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 function UserManagementInner() {
+  const currentUser = useSession()
   const [users, setUsers]         = useState(getUsers)
   const [search, setSearch]       = useState('')
   const [roleFilter, setRoleFilter]     = useState('')
@@ -317,7 +355,10 @@ function UserManagementInner() {
 
   function handleSave(formData) {
     if (editUser) {
-      updateUser({ ...editUser, ...formData })
+      // Blank password means "leave unchanged" — never overwrite an
+      // existing password with an empty string.
+      const { password, ...rest } = formData
+      updateUser({ ...editUser, ...rest, ...(password.trim() ? { password } : {}) })
       setEditUser(null)
     } else {
       addUser(formData)
@@ -430,7 +471,12 @@ function UserManagementInner() {
                     <div className="flex items-center gap-3">
                       <Avatar user={user} />
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                        <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                          {user.name}
+                          {currentUser?.id === user.id && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue text-[10px] font-semibold">You</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-400">{user.email}</p>
                       </div>
                     </div>
@@ -493,6 +539,7 @@ function UserManagementInner() {
         onClose={() => setShowAdd(false)}
         user={null}
         onSave={handleSave}
+        currentUserId={currentUser?.id}
       />
 
       {/* Edit User modal */}
@@ -501,6 +548,7 @@ function UserManagementInner() {
         onClose={() => setEditUser(null)}
         user={editUser}
         onSave={handleSave}
+        currentUserId={currentUser?.id}
       />
 
       {/* View User modal */}
