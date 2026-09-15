@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
@@ -444,19 +447,26 @@ export default function TechnicianDashboard() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            {filtered.map(row => {
-              const loc = getTechnicianLocation(row.tech.id)
-              if (!loc) return null
-              return (
-                <Marker key={row.tech.id} position={[loc.lat, loc.lng]}>
-                  <Popup>
-                    <p className="font-semibold text-sm">{row.tech.name}</p>
-                    <p className="text-xs text-gray-500">{row.tech.zone ?? '—'} · {row.tech.branch ?? '—'}</p>
-                    <p className="text-xs mt-1">{row.activeJobCount} active job{row.activeJobCount !== 1 ? 's' : ''}</p>
-                  </Popup>
-                </Marker>
-              )
-            })}
+            {/* Clustered so technicians whose mock coordinates sit close
+                together (e.g. several in the same zone) show a count badge
+                instead of silently stacking into one visible marker —
+                clicking a badge zooms in / spiderfies to reveal each real
+                marker underneath. */}
+            <MarkerClusterGroup chunkedLoading>
+              {filtered.map(row => {
+                const loc = getTechnicianLocation(row.tech.id)
+                if (!loc) return null
+                return (
+                  <Marker key={row.tech.id} position={[loc.lat, loc.lng]}>
+                    <Popup>
+                      <p className="font-semibold text-sm">{row.tech.name}</p>
+                      <p className="text-xs text-gray-500">{row.tech.zone ?? '—'} · {row.tech.branch ?? '—'}</p>
+                      <p className="text-xs mt-1">{row.activeJobCount} active job{row.activeJobCount !== 1 ? 's' : ''}</p>
+                    </Popup>
+                  </Marker>
+                )
+              })}
+            </MarkerClusterGroup>
           </MapContainer>
         </div>
         <div className="px-5 py-2 border-t border-surface-border bg-gray-50/60">
