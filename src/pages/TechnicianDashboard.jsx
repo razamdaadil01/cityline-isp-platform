@@ -236,6 +236,7 @@ export default function TechnicianDashboard() {
   const [search, setSearch] = useState('')
   const [zoneFilter, setZoneFilter] = useState('')
   const [detailRow, setDetailRow] = useState(null)
+  const [activeTab, setActiveTab] = useState('Table')
 
   const techStats = useMemo(() => {
     const allTickets = getTickets()
@@ -325,155 +326,186 @@ export default function TechnicianDashboard() {
         <StatCard label="Overdue Recovery Visits" value={overdueRecoveries} icon={AlertTriangle} color="text-red-600" bg="bg-red-100" />
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-surface-border shadow-card p-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name…"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-            />
-          </div>
-
-          <div className="relative">
-            <select
-              value={zoneFilter}
-              onChange={e => setZoneFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
-            >
-              <option value="">All Zones</option>
-              {zones.map(z => <option key={z} value={z}>{z}</option>)}
-            </select>
-            <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          </div>
-
-          <span className="ml-auto text-xs text-gray-400">{filtered.length} technician{filtered.length !== 1 ? 's' : ''}</span>
-        </div>
-      </div>
-
-      {/* Table */}
+      {/* Table / Map tabs — mirrors CustomerDetail.jsx's own tab nav
+          pattern (border-bottom active indicator, local useState). Stats
+          above stay visible regardless of tab; Attendance/Performance below
+          are neither "table" nor "map" content, so they stay outside the
+          tabs too, as their own persistent section. */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-surface-border bg-gray-50/60">
-                {['Technician', 'Branch / Zone', 'Active Jobs', 'Open Tickets', 'Holdings', 'Repairs', 'Actions'].map(h => (
-                  <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-sm text-gray-400">
-                    No technicians match your filters.
-                  </td>
-                </tr>
-              ) : filtered.map(row => (
-                <tr key={row.tech.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 ${row.tech.color ?? 'bg-gray-400'} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
-                        {row.tech.initials ?? '?'}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{row.tech.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{row.tech.email}</p>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin size={12} className="text-gray-400 shrink-0" />
-                      <span>{row.tech.zone ?? '—'}</span>
-                      <span className="text-gray-400">· {row.tech.branch ?? '—'}</span>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    <Badge variant={row.activeJobCount > 0 ? 'blue' : 'gray'} size="sm">{row.activeJobCount} active</Badge>
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    <Badge variant={row.openTicketCount > 0 ? 'orange' : 'gray'} size="sm">{row.openTicketCount} open</Badge>
-                  </td>
-
-                  <td className="px-5 py-3.5 text-sm text-gray-600">{row.holdingsCount}</td>
-
-                  <td className="px-5 py-3.5 text-sm text-gray-600">{row.repairs.length}</td>
-
-                  <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => setDetailRow(row)}
-                      className="p-1.5 rounded-lg hover:bg-brand-blue/10 text-gray-400 hover:text-brand-blue transition-colors"
-                      title="View Details"
-                    >
-                      <Eye size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex border-b border-surface-border">
+          {['Table', 'Map'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-5 py-3 text-sm font-medium transition-all border-b-2 -mb-px
+                ${activeTab === tab
+                  ? 'border-brand-blue text-brand-blue'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                }`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
+
+        {activeTab === 'Table' && (
+          <div>
+            {/* Filters */}
+            <div className="p-4 border-b border-surface-border">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-48">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search by name…"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                  />
+                </div>
+
+                <div className="relative">
+                  <select
+                    value={zoneFilter}
+                    onChange={e => setZoneFilter(e.target.value)}
+                    className="appearance-none pl-3 pr-8 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue bg-white"
+                  >
+                    <option value="">All Zones</option>
+                    {zones.map(z => <option key={z} value={z}>{z}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+
+                <span className="ml-auto text-xs text-gray-400">{filtered.length} technician{filtered.length !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-surface-border bg-gray-50/60">
+                    {['Technician', 'Branch / Zone', 'Active Jobs', 'Open Tickets', 'Holdings', 'Repairs', 'Actions'].map(h => (
+                      <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-sm text-gray-400">
+                        No technicians match your filters.
+                      </td>
+                    </tr>
+                  ) : filtered.map(row => (
+                    <tr key={row.tech.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 ${row.tech.color ?? 'bg-gray-400'} rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                            {row.tech.initials ?? '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{row.tech.name}</p>
+                            <p className="text-xs text-gray-400 truncate">{row.tech.email}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin size={12} className="text-gray-400 shrink-0" />
+                          <span>{row.tech.zone ?? '—'}</span>
+                          <span className="text-gray-400">· {row.tech.branch ?? '—'}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <Badge variant={row.activeJobCount > 0 ? 'blue' : 'gray'} size="sm">{row.activeJobCount} active</Badge>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <Badge variant={row.openTicketCount > 0 ? 'orange' : 'gray'} size="sm">{row.openTicketCount} open</Badge>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-sm text-gray-600">{row.holdingsCount}</td>
+
+                      <td className="px-5 py-3.5 text-sm text-gray-600">{row.repairs.length}</td>
+
+                      <td className="px-5 py-3.5">
+                        <button
+                          onClick={() => setDetailRow(row)}
+                          className="p-1.5 rounded-lg hover:bg-brand-blue/10 text-gray-400 hover:text-brand-blue transition-colors"
+                          title="View Details"
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'Map' && (
+          <div>
+            {/* Live Location — now mocked (see technicianLocations.js's own
+                top-of-file comment for exactly what "mocked" means and how
+                this swaps to real data later). Shows every technician, not
+                just those matching the Table tab's search/zone filters —
+                this tab has no filter controls of its own, so filtering it
+                invisibly would be surprising. */}
+            <div className="px-5 py-3.5 border-b border-surface-border flex items-center gap-2">
+              <MapPin size={15} className="text-brand-blue" />
+              <h3 className="text-sm font-semibold text-gray-900">Live Location</h3>
+            </div>
+            <div className="h-[640px] w-full">
+              <MapContainer
+                center={[MAP_DEFAULT_CENTER.lat, MAP_DEFAULT_CENTER.lng]}
+                zoom={MAP_DEFAULT_ZOOM}
+                scrollWheelZoom={false}
+                className="h-full w-full"
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                {/* Clustered so technicians whose mock coordinates sit close
+                    together (e.g. several in the same zone) show a count badge
+                    instead of silently stacking into one visible marker —
+                    clicking a badge zooms in / spiderfies to reveal each real
+                    marker underneath. */}
+                <MarkerClusterGroup chunkedLoading>
+                  {techStats.map(row => {
+                    const loc = getTechnicianLocation(row.tech.id)
+                    if (!loc) return null
+                    return (
+                      <Marker key={row.tech.id} position={[loc.lat, loc.lng]}>
+                        <Popup>
+                          <p className="font-semibold text-sm">{row.tech.name}</p>
+                          <p className="text-xs text-gray-500">{row.tech.zone ?? '—'} · {row.tech.branch ?? '—'}</p>
+                          <p className="text-xs mt-1">{row.activeJobCount} active job{row.activeJobCount !== 1 ? 's' : ''}</p>
+                        </Popup>
+                      </Marker>
+                    )
+                  })}
+                </MarkerClusterGroup>
+              </MapContainer>
+            </div>
+            <div className="px-5 py-2 border-t border-surface-border bg-gray-50/60">
+              <p className="text-[11px] text-gray-400">Showing simulated positions — live GPS tracking requires backend integration.</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Live Location — now mocked (see technicianLocations.js's own
-          top-of-file comment for exactly what "mocked" means and how this
-          swaps to real data later). Attendance/Shifts and Performance
-          Ratings stay locked below: unlike location, neither has any
+      {/* Attendance/Shifts and Performance Ratings stay locked here,
+          outside the Table/Map tabs — unlike location, neither has any
           reasonable basis to mock from — no shift schedule, no rating, no
           resolution-time field exists anywhere in this app to stand in for
           real data, so faking either would just be inventing numbers. */}
-      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-surface-border flex items-center gap-2">
-          <MapPin size={15} className="text-brand-blue" />
-          <h3 className="text-sm font-semibold text-gray-900">Live Location</h3>
-        </div>
-        <div className="h-[380px] w-full">
-          <MapContainer
-            center={[MAP_DEFAULT_CENTER.lat, MAP_DEFAULT_CENTER.lng]}
-            zoom={MAP_DEFAULT_ZOOM}
-            scrollWheelZoom={false}
-            className="h-full w-full"
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            {/* Clustered so technicians whose mock coordinates sit close
-                together (e.g. several in the same zone) show a count badge
-                instead of silently stacking into one visible marker —
-                clicking a badge zooms in / spiderfies to reveal each real
-                marker underneath. */}
-            <MarkerClusterGroup chunkedLoading>
-              {filtered.map(row => {
-                const loc = getTechnicianLocation(row.tech.id)
-                if (!loc) return null
-                return (
-                  <Marker key={row.tech.id} position={[loc.lat, loc.lng]}>
-                    <Popup>
-                      <p className="font-semibold text-sm">{row.tech.name}</p>
-                      <p className="text-xs text-gray-500">{row.tech.zone ?? '—'} · {row.tech.branch ?? '—'}</p>
-                      <p className="text-xs mt-1">{row.activeJobCount} active job{row.activeJobCount !== 1 ? 's' : ''}</p>
-                    </Popup>
-                  </Marker>
-                )
-              })}
-            </MarkerClusterGroup>
-          </MapContainer>
-        </div>
-        <div className="px-5 py-2 border-t border-surface-border bg-gray-50/60">
-          <p className="text-[11px] text-gray-400">Showing simulated positions — live GPS tracking requires backend integration.</p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         {[
           { label: 'Attendance & Shifts', desc: 'Not yet available — no attendance or shift tracking exists in the app yet.' },
