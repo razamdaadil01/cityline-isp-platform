@@ -56,6 +56,7 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Installations',    icon: Wrench,          to: '/installations'             },
+  { label: 'Technicians',      icon: UserCheck,       to: '/technicians'               },
   { label: 'Approvals',        icon: ShieldCheck,     to: '/approvals'                 },
   {
     label: 'Sales & Leads',    icon: TrendingUp,      to: '/sales',         exact: true,

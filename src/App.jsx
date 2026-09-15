@@ -36,6 +36,7 @@ import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
 import Installations from './pages/Installations'
 import InstallationDetail from './pages/InstallationDetail'
+import TechnicianDashboard from './pages/TechnicianDashboard'
 import Approvals from './pages/Approvals'
 import ApprovalDetail from './pages/ApprovalDetail'
 import Billing from './pages/Billing'
@@ -151,6 +152,7 @@ export default function App() {
           <Route path="/intercom/billing/payments" element={<IntercomBilling />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/installations/:id" element={<InstallationDetail />} />
+          <Route path="/technicians" element={<TechnicianDashboard />} />
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/approvals/:approvalId" element={<ApprovalDetail />} />
           <Route path="/billing" element={<Billing />} />
