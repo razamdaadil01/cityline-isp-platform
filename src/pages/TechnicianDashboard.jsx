@@ -1,4 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import {
   Search, ChevronDown, Users, ClipboardList, HeadphonesIcon, Package, Wrench,
   Eye, Lock, MapPin, AlertTriangle,
@@ -15,15 +21,32 @@ import { getTickets, subscribeTickets, technicianWorkload, CLOSED_STATUSES } fro
 import { getAssignments, subscribeAssignments } from '../data/assignmentStore'
 import { getAssets, subscribeAssets } from '../data/assetStore'
 import { getAssetRepairs, subscribeAssetRepairs } from '../data/assetRepairStore'
+import { getTechnicianLocation, MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from '../data/technicianLocations'
+
+// Leaflet's default marker icon URLs are computed relative to its own
+// bundled CSS in a way Vite's asset pipeline doesn't resolve on its own —
+// a well-known react-leaflet + bundler gotcha that otherwise renders
+// broken/invisible marker pins. Re-pointing them at the actual built asset
+// URLs these imports resolve to fixes it. Runs once at module load, before
+// any <Marker> below ever renders.
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+})
 
 // Every number on this page is derived from real, existing stores — see
 // each store's own subscribe call below. Nothing here is fabricated or
-// estimated. Three categories are deliberately absent rather than faked:
-// live location/GPS, attendance/shift status, and performance ratings or
-// resolution-time metrics — no data source for any of them exists anywhere
-// in the app (confirmed by the audit this dashboard was scoped from). The
-// "coming later" panel at the bottom names them instead of silently
-// omitting them.
+// estimated, with one explicit exception: Live Location renders real
+// technicians on a real map, but at mock coordinates (technicianLocations.js)
+// since no GPS/location-reporting data source exists anywhere in the app —
+// that file's own top-of-file comment says exactly what swaps in later.
+// Attendance/shift status and performance ratings or resolution-time
+// metrics have no equivalent reasonable basis to mock (no shift schedule,
+// no rating, no resolvedAt field exists anywhere to stand in for one), so
+// they stay as locked "coming later" placeholders rather than faked
+// numbers — confirmed absent by the audit this dashboard was scoped from.
 
 const ACTIVE_INSTALL_STATUSES = [
   'Scheduled', 'Assigned', 'Hardware Collection Pending', 'Dispatched', 'In Progress', 'Rescheduled',
@@ -398,12 +421,51 @@ export default function TechnicianDashboard() {
         </div>
       </div>
 
-      {/* Deliberately not built yet — no data source exists for any of
-          these (see the audit this dashboard was scoped from). Shown as a
-          visible boundary rather than omitted silently. */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Live Location — now mocked (see technicianLocations.js's own
+          top-of-file comment for exactly what "mocked" means and how this
+          swaps to real data later). Attendance/Shifts and Performance
+          Ratings stay locked below: unlike location, neither has any
+          reasonable basis to mock from — no shift schedule, no rating, no
+          resolution-time field exists anywhere in this app to stand in for
+          real data, so faking either would just be inventing numbers. */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-surface-border flex items-center gap-2">
+          <MapPin size={15} className="text-brand-blue" />
+          <h3 className="text-sm font-semibold text-gray-900">Live Location</h3>
+        </div>
+        <div className="h-[380px] w-full">
+          <MapContainer
+            center={[MAP_DEFAULT_CENTER.lat, MAP_DEFAULT_CENTER.lng]}
+            zoom={MAP_DEFAULT_ZOOM}
+            scrollWheelZoom={false}
+            className="h-full w-full"
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {filtered.map(row => {
+              const loc = getTechnicianLocation(row.tech.id)
+              if (!loc) return null
+              return (
+                <Marker key={row.tech.id} position={[loc.lat, loc.lng]}>
+                  <Popup>
+                    <p className="font-semibold text-sm">{row.tech.name}</p>
+                    <p className="text-xs text-gray-500">{row.tech.zone ?? '—'} · {row.tech.branch ?? '—'}</p>
+                    <p className="text-xs mt-1">{row.activeJobCount} active job{row.activeJobCount !== 1 ? 's' : ''}</p>
+                  </Popup>
+                </Marker>
+              )
+            })}
+          </MapContainer>
+        </div>
+        <div className="px-5 py-2 border-t border-surface-border bg-gray-50/60">
+          <p className="text-[11px] text-gray-400">Showing simulated positions — live GPS tracking requires backend integration.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         {[
-          { label: 'Live Location', desc: 'Not yet available — requires GPS/location tracking data collection.' },
           { label: 'Attendance & Shifts', desc: 'Not yet available — no attendance or shift tracking exists in the app yet.' },
           { label: 'Performance Ratings', desc: 'Not yet available — no ratings or resolution-time data is tracked yet.' },
         ].map(item => (
