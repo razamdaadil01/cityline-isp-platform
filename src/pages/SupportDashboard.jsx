@@ -10,7 +10,8 @@ import {
 import Badge from '../components/ui/Badge'
 import {
   getTickets, subscribeTickets, slaStatusOf,
-  CATEGORIES, AREAS, PRIORITIES, PRIORITY_LABEL, AGENTS, TECHNICIANS,
+  AREAS, PRIORITIES, PRIORITY_LABEL, AGENTS, TECHNICIANS,
+  getCategorySubcategories, subscribeCategorySubcategories,
 } from '../data/ticketsStore'
 import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/outagesStore'
 
@@ -56,6 +57,10 @@ export default function SupportDashboard() {
 
   const [outages, setOutages] = useState(getOutages)
   useEffect(() => subscribeOutages(setOutages), [])
+
+  const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
+  useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
+  const categories = useMemo(() => Object.keys(categorySubcategories), [categorySubcategories])
 
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
@@ -132,8 +137,8 @@ export default function SupportDashboard() {
   const categoryBreakdown = useMemo(() => {
     const counts = {}
     filteredTickets.forEach(t => { counts[t.category] = (counts[t.category] ?? 0) + 1 })
-    return CATEGORIES.map(c => ({ name: c, count: counts[c] ?? 0 })).filter(c => c.count > 0).sort((a, b) => b.count - a.count)
-  }, [filteredTickets])
+    return categories.map(c => ({ name: c, count: counts[c] ?? 0 })).filter(c => c.count > 0).sort((a, b) => b.count - a.count)
+  }, [filteredTickets, categories])
 
   const areaBreakdown = useMemo(() => {
     const counts = {}
@@ -186,7 +191,7 @@ export default function SupportDashboard() {
           </div>
           {[
             ['Area', fArea, setFArea, AREAS],
-            ['Category', fCategory, setFCategory, CATEGORIES],
+            ['Category', fCategory, setFCategory, categories],
             ['Priority', fPriority, setFPriority, PRIORITIES],
             ['Agent', fAgent, setFAgent, AGENTS],
             ['Technician', fTechnician, setFTechnician, TECHNICIANS],

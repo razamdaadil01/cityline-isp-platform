@@ -63,7 +63,17 @@ export function subscribeSupportSettings(fn) {
   }
 }
 
-export const CATEGORY_SUBCATEGORIES = {
+// Admin-configurable complaint category → subcategory map, editable via
+// Settings > Complaint Categories through getCategorySubcategories()/
+// saveCategorySubcategories()/subscribeCategorySubcategories() below — same
+// pattern as the SLA hours store above. CATEGORY_SUBCATEGORIES and CATEGORIES
+// stay exported directly (reassigned in place on every save) so existing
+// `import { CATEGORIES } from ...` consumers keep working without a rewrite;
+// a component that needs its rendered list to update the instant an admin
+// saves a change (rather than on next render for an unrelated reason) should
+// subscribe via subscribeCategorySubcategories() instead of relying on the
+// static import.
+export let CATEGORY_SUBCATEGORIES = {
   Connectivity: ['No Internet', 'Intermittent Connection', 'Fiber Cut'],
   Performance: ['Slow Speed', 'High Latency', 'OTT Buffering'],
   Billing: ['Invoice Query', 'Payment Not Reflected', 'Plan Upgrade/Downgrade'],
@@ -80,7 +90,28 @@ export const CATEGORY_SUBCATEGORIES = {
   Disconnection: ['Disconnection Request'],
   Other: ['General Query', 'Feedback'],
 }
-export const CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)
+export let CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)
+
+const _categorySubcategoriesListeners = []
+
+function notifyCategorySubcategories() { _categorySubcategoriesListeners.forEach(fn => fn({ ...CATEGORY_SUBCATEGORIES })) }
+
+export function getCategorySubcategories() { return { ...CATEGORY_SUBCATEGORIES } }
+
+export function saveCategorySubcategories(newData) {
+  CATEGORY_SUBCATEGORIES = { ...newData }
+  CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)
+  notifyCategorySubcategories()
+  return { ...CATEGORY_SUBCATEGORIES }
+}
+
+export function subscribeCategorySubcategories(fn) {
+  _categorySubcategoriesListeners.push(fn)
+  return () => {
+    const i = _categorySubcategoriesListeners.indexOf(fn)
+    if (i !== -1) _categorySubcategoriesListeners.splice(i, 1)
+  }
+}
 
 export const AREAS = [
   'Andheri West', 'Andheri East', 'Bandra West', 'Bandra East',

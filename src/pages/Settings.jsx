@@ -17,6 +17,8 @@ import { MOCK_LANDLINES, MOCK_STATIC_IPS } from '../data/packagesStore'
 import {
   PRIORITIES, PRIORITY_LABEL, getSlaHours, saveSlaHours,
   getSupportSettings, saveSupportSettings,
+  getTickets, subscribeTickets,
+  getCategorySubcategories, saveCategorySubcategories, subscribeCategorySubcategories,
 } from '../data/ticketsStore'
 import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data/outagesStore'
 import {
@@ -48,6 +50,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
   { id: 'sla-configuration', label: 'SLA Configuration',  icon: Clock     },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
+  { id: 'complaint-categories', label: 'Complaint Categories', icon: Tags },
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
   { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
   { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
@@ -433,6 +436,354 @@ function SupportConfigTab() {
       <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
         <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save</Button>
       </div>
+    </div>
+  )
+}
+
+function ComplaintCategoriesTab() {
+  const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
+  useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
+
+  const [tickets, setTickets] = useState(getTickets)
+  useEffect(() => subscribeTickets(setTickets), [])
+
+  const [toast, setToast] = useState('')
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [addCategoryError, setAddCategoryError] = useState('')
+
+  const [renameCategoryTarget, setRenameCategoryTarget] = useState(null) // original category name, or null
+  const [renameCategoryValue, setRenameCategoryValue] = useState('')
+  const [renameCategoryError, setRenameCategoryError] = useState('')
+
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null)
+
+  const [subInputs, setSubInputs] = useState({}) // { [category]: draft text for the "new subcategory" input }
+
+  const [renameSub, setRenameSub] = useState(null) // { category, oldName, value, error }
+  const [deleteSub, setDeleteSub] = useState(null) // { category, name }
+
+  const categories = Object.keys(categorySubcategories)
+
+  function categoryTicketCount(name) {
+    return tickets.filter(t => t.category === name).length
+  }
+  function subcategoryTicketCount(category, sub) {
+    return tickets.filter(t => t.category === category && t.subcategory === sub).length
+  }
+
+  function openAddCategory() {
+    setNewCategoryName('')
+    setAddCategoryError('')
+    setAddCategoryOpen(true)
+  }
+
+  function handleAddCategory() {
+    const name = newCategoryName.trim()
+    if (!name) { setAddCategoryError('Category name is required.'); return }
+    if (categories.some(c => c.toLowerCase() === name.toLowerCase())) {
+      setAddCategoryError('A category with this name already exists.')
+      return
+    }
+    saveCategorySubcategories({ ...categorySubcategories, [name]: [] })
+    setToast('Category added successfully')
+    setAddCategoryOpen(false)
+  }
+
+  function openRenameCategory(name) {
+    setRenameCategoryTarget(name)
+    setRenameCategoryValue(name)
+    setRenameCategoryError('')
+  }
+
+  function handleRenameCategory() {
+    const name = renameCategoryValue.trim()
+    if (!name) { setRenameCategoryError('Category name is required.'); return }
+    if (name !== renameCategoryTarget && categories.some(c => c.toLowerCase() === name.toLowerCase())) {
+      setRenameCategoryError('A category with this name already exists.')
+      return
+    }
+    if (name !== renameCategoryTarget) {
+      const next = {}
+      categories.forEach(c => { next[c === renameCategoryTarget ? name : c] = categorySubcategories[c] })
+      saveCategorySubcategories(next)
+      setToast('Category renamed successfully')
+    }
+    setRenameCategoryTarget(null)
+  }
+
+  function handleDeleteCategory() {
+    if (!deleteCategoryTarget || categoryTicketCount(deleteCategoryTarget) > 0) return
+    const next = { ...categorySubcategories }
+    delete next[deleteCategoryTarget]
+    saveCategorySubcategories(next)
+    setToast('Category deleted successfully')
+    setDeleteCategoryTarget(null)
+  }
+
+  function handleAddSubcategory(category) {
+    const name = (subInputs[category] ?? '').trim()
+    if (!name) return
+    const existing = categorySubcategories[category] ?? []
+    if (existing.some(s => s.toLowerCase() === name.toLowerCase())) return
+    saveCategorySubcategories({ ...categorySubcategories, [category]: [...existing, name] })
+    setSubInputs(s => ({ ...s, [category]: '' }))
+  }
+
+  function handleRenameSub() {
+    const { category, oldName, value } = renameSub
+    const name = value.trim()
+    if (!name) { setRenameSub(r => ({ ...r, error: 'Subcategory name is required.' })); return }
+    const list = categorySubcategories[category] ?? []
+    if (name !== oldName && list.some(s => s.toLowerCase() === name.toLowerCase())) {
+      setRenameSub(r => ({ ...r, error: 'A subcategory with this name already exists.' }))
+      return
+    }
+    if (name !== oldName) {
+      saveCategorySubcategories({ ...categorySubcategories, [category]: list.map(s => s === oldName ? name : s) })
+      setToast('Subcategory renamed successfully')
+    }
+    setRenameSub(null)
+  }
+
+  function handleDeleteSub() {
+    const { category, name } = deleteSub
+    const list = categorySubcategories[category] ?? []
+    saveCategorySubcategories({ ...categorySubcategories, [category]: list.filter(s => s !== name) })
+    setToast('Subcategory deleted successfully')
+    setDeleteSub(null)
+  }
+
+  const deleteCategoryTicketCount = deleteCategoryTarget ? categoryTicketCount(deleteCategoryTarget) : 0
+  const deleteSubTicketCount = deleteSub ? subcategoryTicketCount(deleteSub.category, deleteSub.name) : 0
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Complaint Categories</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Categories and subcategories offered in the Create Ticket wizard's Complaint Details step.
+            Changes here apply immediately across ticket creation, filters and reports — no reload needed.
+          </p>
+        </div>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAddCategory}>Add Category</Button>
+      </div>
+
+      {toast && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {categories.map(category => {
+          const subs = categorySubcategories[category] ?? []
+          const usedCount = categoryTicketCount(category)
+          return (
+            <div key={category} className="border border-surface-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-50/80">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Tags size={14} className="text-brand-blue shrink-0" />
+                  <p className="text-sm font-semibold text-gray-800 truncate">{category}</p>
+                  <Badge size="sm" variant="gray">{subs.length} subcategor{subs.length === 1 ? 'y' : 'ies'}</Badge>
+                  {usedCount > 0 && <Badge size="sm" variant="blue">{usedCount} ticket{usedCount > 1 ? 's' : ''}</Badge>}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => openRenameCategory(category)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                    <Edit2 size={13} />
+                  </button>
+                  <button onClick={() => setDeleteCategoryTarget(category)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-3 border-t border-surface-border">
+                {subs.length === 0 ? (
+                  <p className="text-xs text-gray-400">No subcategories yet.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {subs.map(sub => (
+                      <div key={sub} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-lg border border-surface-border bg-white text-xs">
+                        <span className="text-gray-700">{sub}</span>
+                        <button onClick={() => setRenameSub({ category, oldName: sub, value: sub, error: '' })}
+                          className="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                          <Edit2 size={11} />
+                        </button>
+                        <button onClick={() => setDeleteSub({ category, name: sub })}
+                          className="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Input
+                    className="max-w-xs"
+                    placeholder="New subcategory…"
+                    value={subInputs[category] ?? ''}
+                    onChange={e => setSubInputs(s => ({ ...s, [category]: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategory(category) } }}
+                  />
+                  <Button size="xs" variant="secondary" icon={<Plus size={12} />} onClick={() => handleAddSubcategory(category)}>
+                    Add
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        {categories.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-8">No complaint categories configured yet.</p>
+        )}
+      </div>
+
+      {/* Add Category */}
+      <Modal
+        isOpen={addCategoryOpen}
+        onClose={() => setAddCategoryOpen(false)}
+        title="Add Category"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setAddCategoryOpen(false)}>Cancel</Button>
+          <Button size="sm" onClick={handleAddCategory}>Add Category</Button>
+        </>}
+      >
+        <FormField label="Category Name" required error={addCategoryError}>
+          <Input value={newCategoryName} onChange={e => { setNewCategoryName(e.target.value); setAddCategoryError('') }} placeholder="e.g. Security" />
+        </FormField>
+      </Modal>
+
+      {/* Rename Category */}
+      <Modal
+        isOpen={!!renameCategoryTarget}
+        onClose={() => setRenameCategoryTarget(null)}
+        title={`Rename Category — ${renameCategoryTarget ?? ''}`}
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setRenameCategoryTarget(null)}>Cancel</Button>
+          <Button size="sm" onClick={handleRenameCategory}>Save Changes</Button>
+        </>}
+      >
+        <FormField label="Category Name" required error={renameCategoryError}>
+          <Input value={renameCategoryValue} onChange={e => { setRenameCategoryValue(e.target.value); setRenameCategoryError('') }} />
+        </FormField>
+      </Modal>
+
+      {/* Rename Subcategory */}
+      <Modal
+        isOpen={!!renameSub}
+        onClose={() => setRenameSub(null)}
+        title={`Rename Subcategory — ${renameSub?.oldName ?? ''}`}
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setRenameSub(null)}>Cancel</Button>
+          <Button size="sm" onClick={handleRenameSub}>Save Changes</Button>
+        </>}
+      >
+        <FormField label="Subcategory Name" required error={renameSub?.error}>
+          <Input value={renameSub?.value ?? ''} onChange={e => setRenameSub(r => ({ ...r, value: e.target.value, error: '' }))} />
+        </FormField>
+      </Modal>
+
+      {/* Delete Category */}
+      {deleteCategoryTarget && deleteCategoryTicketCount > 0 && (
+        <Modal
+          isOpen
+          onClose={() => setDeleteCategoryTarget(null)}
+          title="Cannot Delete Category"
+          size="sm"
+          footer={<Button onClick={() => setDeleteCategoryTarget(null)}>Got It</Button>}
+        >
+          <div className="flex gap-3 items-start">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+              <AlertTriangle size={20} className="text-red-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900 mb-1">
+                Cannot delete — <strong className="text-red-600">{deleteCategoryTicketCount} ticket{deleteCategoryTicketCount > 1 ? 's' : ''}</strong>{' '}
+                currently use "{deleteCategoryTarget}".
+              </p>
+              <p className="text-sm text-gray-600">
+                Reassign or resolve those tickets first, or rename the category instead of deleting it.
+              </p>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {deleteCategoryTarget && deleteCategoryTicketCount === 0 && (
+        <Modal
+          isOpen
+          onClose={() => setDeleteCategoryTarget(null)}
+          title="Delete Category"
+          size="sm"
+          footer={<>
+            <Button variant="secondary" size="sm" onClick={() => setDeleteCategoryTarget(null)}>Cancel</Button>
+            <Button variant="danger" size="sm" onClick={handleDeleteCategory}>Delete Category</Button>
+          </>}
+        >
+          <p className="text-sm text-gray-600">
+            Are you sure? This will permanently delete <strong>{deleteCategoryTarget}</strong> and all{' '}
+            {(categorySubcategories[deleteCategoryTarget] ?? []).length} subcategories under it. This action cannot be undone.
+          </p>
+        </Modal>
+      )}
+
+      {/* Delete Subcategory */}
+      {deleteSub && deleteSubTicketCount > 0 && (
+        <Modal
+          isOpen
+          onClose={() => setDeleteSub(null)}
+          title="Cannot Delete Subcategory"
+          size="sm"
+          footer={<Button onClick={() => setDeleteSub(null)}>Got It</Button>}
+        >
+          <div className="flex gap-3 items-start">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+              <AlertTriangle size={20} className="text-red-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900 mb-1">
+                Cannot delete — <strong className="text-red-600">{deleteSubTicketCount} ticket{deleteSubTicketCount > 1 ? 's' : ''}</strong>{' '}
+                currently use "{deleteSub.name}".
+              </p>
+              <p className="text-sm text-gray-600">
+                Reassign or resolve those tickets first, or rename the subcategory instead of deleting it.
+              </p>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {deleteSub && deleteSubTicketCount === 0 && (
+        <Modal
+          isOpen
+          onClose={() => setDeleteSub(null)}
+          title="Delete Subcategory"
+          size="sm"
+          footer={<>
+            <Button variant="secondary" size="sm" onClick={() => setDeleteSub(null)}>Cancel</Button>
+            <Button variant="danger" size="sm" onClick={handleDeleteSub}>Delete</Button>
+          </>}
+        >
+          <p className="text-sm text-gray-600">
+            Are you sure you want to delete "<strong>{deleteSub.name}</strong>" from {deleteSub.category}? This action cannot be undone.
+          </p>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -3236,6 +3587,7 @@ export default function Settings() {
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'sla-configuration' && <SlaConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
+          {activeTab === 'complaint-categories' && <ComplaintCategoriesTab />}
           {activeTab === 'outage-configuration' && <OutageConfigTab />}
           {activeTab === 'jaze-servers'  && <JazeServersTab />}
           {activeTab === 'roles-permissions'   && <RolesTab />}
