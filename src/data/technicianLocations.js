@@ -26,8 +26,11 @@ export function getTechnicianLocation(technicianId) {
   return MOCK_LOCATIONS[technicianId] ?? null
 }
 
-// Rough centroid across every seeded technician's mock position — spans
-// Mumbai/Bengaluru/Noida — at a zoom level that keeps all three clusters
-// visible on first load.
-export const MAP_DEFAULT_CENTER = { lat: 20.5, lng: 76.5 }
-export const MAP_DEFAULT_ZOOM = 5
+// Default view is the Noida/Greater Noida area (the region of actual
+// admin interest), not a wide all-India view — sits between u9's Sector 18,
+// Noida marker and Greater Noida proper, at a city-level zoom. The
+// Mumbai/Bengaluru clusters fall outside this initial viewport; panning or
+// zooming out (via the map's zoom controls — scrollWheelZoom is disabled)
+// still reaches them, marker clustering included.
+export const MAP_DEFAULT_CENTER = { lat: 28.52, lng: 77.40 }
+export const MAP_DEFAULT_ZOOM = 11
