@@ -1,5 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+// RequireAuth import kept but unused while the auth gate is paused — see
+// the comment block below, above the <Route element={<Layout />}> block,
+// for how to re-wire it back in.
+// eslint-disable-next-line no-unused-vars
 import RequireAuth from './components/RequireAuth'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
@@ -105,10 +109,23 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* /login, /forgot-password, /reset-password stay routed and fully
+            functional below — Login.jsx, ForgotPassword.jsx and
+            ResetPassword.jsx are untouched, just no longer required to
+            reach the app. */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route element={<RequireAuth />}>
+        {/* ── Auth gate paused per client request ──────────────────────
+            App defaults to Admin access with no login required (see
+            sessionStore.js's matching comment — _currentUserId is
+            bootstrapped to the Super Admin seed user at module load).
+            The <RequireAuth /> wrapper that used to sit around <Layout />
+            here has been removed so routes are reachable directly, without
+            a login redirect. RequireAuth.jsx itself is untouched.
+            To re-enable: wrap the <Route element={<Layout />}> block below
+            back in <Route element={<RequireAuth />}> ... </Route>, and
+            revert sessionStore.js's _currentUserId back to `null`. */}
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
@@ -248,7 +265,6 @@ export default function App() {
           <Route path="/users" element={<UserManagement />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
-        </Route>
         </Route>
       </Routes>
     </BrowserRouter>

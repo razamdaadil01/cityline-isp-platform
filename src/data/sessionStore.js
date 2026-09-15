@@ -14,7 +14,17 @@
 import { useState, useEffect } from 'react'
 import { getUsers, hashPassword } from './userStore'
 
-let _currentUserId = null
+// ── Auth gate paused per client request ─────────────────────────────────
+// The app defaults to Admin access with no login required: _currentUserId
+// below is bootstrapped to the Super Admin seed user (u1, admin@cityline.in)
+// at module load instead of starting null, so getCurrentUser() always
+// resolves without anyone visiting /login. All the session/role
+// infrastructure (login/logout, subscribeSession, useSession, permission
+// checks) is untouched and still fully functional.
+// To re-enable: change `_currentUserId` below back to `null` and restore
+// the <RequireAuth /> wrapper route in App.jsx (see its own matching
+// comment block for exactly what to revert).
+let _currentUserId = 'u1'
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn(_currentUserId)) }
