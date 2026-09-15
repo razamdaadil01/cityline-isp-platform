@@ -501,26 +501,6 @@ export default function TechnicianDashboard() {
         )}
       </div>
 
-      {/* Attendance/Shifts and Performance Ratings stay locked here,
-          outside the Table/Map tabs — unlike location, neither has any
-          reasonable basis to mock from — no shift schedule, no rating, no
-          resolution-time field exists anywhere in this app to stand in for
-          real data, so faking either would just be inventing numbers. */}
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          { label: 'Attendance & Shifts', desc: 'Not yet available — no attendance or shift tracking exists in the app yet.' },
-          { label: 'Performance Ratings', desc: 'Not yet available — no ratings or resolution-time data is tracked yet.' },
-        ].map(item => (
-          <div key={item.label} className="bg-gray-50 rounded-xl border border-dashed border-gray-300 p-4 opacity-70">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Lock size={14} className="text-gray-400 shrink-0" />
-              <p className="text-sm font-semibold text-gray-500">{item.label}</p>
-            </div>
-            <p className="text-xs text-gray-400">{item.desc}</p>
-          </div>
-        ))}
-      </div>
-
       <TechnicianDetailModal isOpen={!!detailRow} onClose={() => setDetailRow(null)} row={detailRow} />
     </div>
   )
