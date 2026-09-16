@@ -77,6 +77,24 @@ export const CUSTOMERS = [
 // front of it, but for now it's reachable directly too.
 export const CUSTOMER_STATUSES = ['active', 'suspended', 'inactive', 'expired', 'Pending Disconnection', 'Disconnected']
 
+// 'expired' has no dedicated transition button of its own — `expiry` (the
+// plan renewal date, already shown and date-range-filterable on the
+// Customers List) is this app's existing real signal for it, so an
+// 'active' customer whose plan has lapsed is *displayed* as Expired
+// everywhere status is shown, without the stored status value itself ever
+// becoming 'expired'. That keeps this purely a display derivation rather
+// than a real transition: Suspend/Terminate/Mark Inactive stay exactly as
+// available to a lapsed customer as to one within their renewal window,
+// and nothing here needs its own "un-expire" action. Only overrides
+// 'active' — a suspended customer past their expiry date still shows as
+// Suspended, the more specific of the two.
+export function effectiveStatus(customer) {
+  if (customer.status === 'active' && customer.expiry && customer.expiry < new Date().toISOString().slice(0, 10)) {
+    return 'expired'
+  }
+  return customer.status
+}
+
 // ── Dynamically added customers (e.g. from Intercom Customer creation) ───────
 
 let _addedCustomers = []

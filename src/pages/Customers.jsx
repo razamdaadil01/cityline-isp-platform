@@ -7,7 +7,7 @@ import {
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
-import { getAllCustomers, subscribeCustomers } from '../data/customersData'
+import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
 
 // Customer List table's Show/Hide Columns default set. Customer Name is
 // locked so the table can never end up with zero identifying columns visible.
@@ -221,7 +221,7 @@ export default function Customers() {
     const q = search.toLowerCase().trim()
     return customers.filter(c => {
       if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !c.id.toLowerCase().includes(q)) return false
-      if (statusTab !== 'All' && c.status.toLowerCase() !== statusTab.toLowerCase()) return false
+      if (statusTab !== 'All' && effectiveStatus(c).toLowerCase() !== statusTab.toLowerCase()) return false
       if (filterService  && !(c.services ?? []).includes(filterService)) return false
       if (filterZone     && c.zone    !== filterZone)             return false
       if (filterArea     && c.area    !== filterArea)             return false
@@ -279,7 +279,7 @@ export default function Customers() {
       All: customers.length, Active: 0, Suspended: 0, Inactive: 0, Expired: 0,
       'Pending Disconnection': 0, Disconnected: 0,
     }
-    customers.forEach(c => { const k = c.status.charAt(0).toUpperCase() + c.status.slice(1); if (k in base) base[k]++ })
+    customers.forEach(c => { const s = effectiveStatus(c); const k = s.charAt(0).toUpperCase() + s.slice(1); if (k in base) base[k]++ })
     return base
   }, [customers])
 
@@ -584,7 +584,7 @@ export default function Customers() {
                   </td>
                 </tr>
               ) : paginated.map(c => {
-                const cfg = STATUS_CFG[c.status] ?? STATUS_CFG.inactive
+                const cfg = STATUS_CFG[effectiveStatus(c)] ?? STATUS_CFG.inactive
                 const isSelected = selected.has(c.id)
                 const customerType = c.id.startsWith('ENT') ? 'Corporate' : 'Residential'
                 return (
