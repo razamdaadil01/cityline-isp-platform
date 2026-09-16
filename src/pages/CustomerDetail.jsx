@@ -6,7 +6,7 @@ import {
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
-  PackageSearch, Receipt, Lock, UserX,
+  PackageSearch, Receipt, Lock, UserX, Upload,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -153,7 +153,7 @@ function makeCustomerFromBase(id) {
       address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
       payment: { mode: '—', advanceDeposit: 0, creditLimit: 0, billingCycle: '—' },
       radius: { jazeUserId: '—', pppoeUsername: '—', pppoePassword: '—', appPassword: '—', nas: '—', interface: '—', ipAddress: '—', macAddress: '—' },
-      kyc: { aadhaar: 'pending', pan: 'pending', photo: 'pending', agreementSigned: false },
+      kyc: { aadhaar: 'pending', pan: 'pending', photo: 'pending', agreementSigned: false, documents: {} },
       notes: '',
     }
   }
@@ -258,11 +258,30 @@ function makeCustomerFromBase(id) {
       ipAddress: '—',
       macAddress: '—',
     },
+    // aadhaar/pan/photo prefer real upload presence (kyc.documents, written
+    // by ProfileTab's KYC Documents card via updateCustomer()) over the
+    // status-derived default below — same "override wins, else compute/
+    // default" pattern radius above uses. 'pan' is Address Proof's status
+    // field despite the name (pre-existing naming on this object, kept as
+    // -is). idProofType/addressProofType/signatureUploaded/docVerified/
+    // docComment previously had no read path here at all — always undefined
+    // for every customer except the one hardcoded MOCK_CUSTOMERS literal —
+    // now read through from a persisted edit the same way connection/sales
+    // already do.
     kyc: {
-      aadhaar: base.status === 'active' ? 'verified' : 'pending',
-      pan: base.status === 'active' ? 'verified' : 'pending',
-      photo: base.status === 'active' ? 'uploaded' : 'pending',
+      aadhaar: (base.kyc?.documents?.aadhaarFront || base.kyc?.documents?.aadhaarBack)
+        ? 'uploaded' : (base.status === 'active' ? 'verified' : 'pending'),
+      pan: base.kyc?.documents?.addressProof
+        ? 'uploaded' : (base.status === 'active' ? 'verified' : 'pending'),
+      photo: base.kyc?.documents?.photo
+        ? 'uploaded' : (base.status === 'active' ? 'uploaded' : 'pending'),
       agreementSigned: base.status === 'active',
+      idProofType: base.kyc?.idProofType,
+      addressProofType: base.kyc?.addressProofType,
+      signatureUploaded: base.kyc?.signatureUploaded ?? false,
+      docVerified: base.kyc?.docVerified ?? false,
+      docComment: base.kyc?.docComment ?? '',
+      documents: base.kyc?.documents ?? {},
     },
     notes: base.notes ?? '',
   }
@@ -519,6 +538,68 @@ function InfoField({ label, value, mono, children }) {
   )
 }
 
+// ── KYC document upload/view controls ────────────────────────────────────────
+// No backend/file storage exists in this app — documents uploaded here are
+// stored as base64 data URLs directly on the customer record (via
+// updateCustomer(), same as every other Profile persistence fix), unlike the
+// Add Customer wizard's KYC step, which only keeps File objects in local
+// state and persists metadata only. A data URL is what "View" actually needs
+// to display something real, not just a filename.
+
+function KycDocControl({ doc, viewLabel, onUpload, onView }) {
+  const inputRef = useRef()
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files[0]
+          if (file) onUpload(file)
+          e.target.value = ''
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => (doc ? onView() : inputRef.current?.click())}
+        className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
+      >
+        {doc ? viewLabel : 'Upload'}
+      </button>
+      {doc && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          title="Replace document"
+          className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+        >
+          <Upload size={11} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+function DocumentViewModal({ doc, onClose }) {
+  return (
+    <Modal isOpen={!!doc} onClose={onClose} title={doc?.title ?? 'Document'} size="lg">
+      {doc?.type?.startsWith('image/') ? (
+        <img src={doc.dataUrl} alt={doc.name} className="max-w-full max-h-[70vh] mx-auto rounded-lg block" />
+      ) : (
+        <div className="text-center py-8 space-y-3">
+          <FileText size={32} className="text-gray-300 mx-auto" />
+          <p className="text-sm text-gray-600">{doc?.name}</p>
+          <a href={doc?.dataUrl} target="_blank" rel="noreferrer" className="inline-block text-sm text-brand-blue hover:underline font-medium">
+            Open in new tab
+          </a>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
   const navigate = useNavigate()
   const [cust, setCust] = useState(initCustomer)
@@ -531,6 +612,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
   const [p4, setP4] = useState({ editing: false, draft: null })
   const [p5, setP5] = useState({ editing: false, draft: null })
   const [p7, setP7] = useState({ editing: false, draft: null })
+  const [viewDoc, setViewDoc] = useState(null)
 
   function startEdit(setter, draft) { setter({ editing: true, draft }) }
   function cancelEdit(setter) { setter({ editing: false, draft: null }) }
@@ -590,15 +672,36 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
     setCust(c => ({ ...c, sales, ownership }))
     cancelEdit(setP5)
   }
-  // Not wired to updateCustomer() like the sections above — makeCustomerFromBase()
-  // always recomputes kyc.aadhaar/pan/photo/agreementSigned from the customer's
-  // status and never reads back base.kyc at all, so persisting docVerified/
-  // docComment here wouldn't actually surface anywhere after a reload without
-  // also changing that status-derived KYC logic, which is out of this fix's
-  // scope. Left as local-only, same as before.
+  // Now wired to updateCustomer() — makeCustomerFromBase() was extended (as
+  // part of adding real KYC document upload/view below) to actually read
+  // base.kyc.docVerified/docComment back, closing the gap the previous
+  // Profile persistence fix had to leave open.
   function saveP7() {
-    setCust(c => ({ ...c, kyc: { ...c.kyc, ...p7.draft } }))
+    const kyc = { ...cust.kyc, ...p7.draft }
+    updateCustomer(cust.id, { kyc })
+    setCust(c => ({ ...c, kyc }))
     cancelEdit(setP7)
+  }
+
+  // Documents are stored as base64 data URLs directly on the customer record
+  // — this app has no file-storage backend, and "View" needs real image data
+  // to show, not just a filename. statusField moves from pending/verified to
+  // 'uploaded' on any upload (including replacing an existing file, since a
+  // swapped document genuinely does need re-verification) — never straight
+  // to 'verified', which stays the separate, explicit "Doc Verified" toggle
+  // above rather than something an upload fabricates on its own.
+  function handleDocUpload(slot, statusField, file) {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const kyc = {
+        ...cust.kyc,
+        documents: { ...(cust.kyc?.documents ?? {}), [slot]: { dataUrl: reader.result, name: file.name, type: file.type } },
+        [statusField]: 'uploaded',
+      }
+      updateCustomer(cust.id, { kyc })
+      setCust(c => ({ ...c, kyc }))
+    }
+    reader.readAsDataURL(file)
   }
 
   /* ── Reusable edit button row ── */
@@ -1013,8 +1116,18 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm text-gray-700">ID Proof — {kyc.idProofType ?? 'Aadhaar Card'}</span>
                 <div className="flex gap-1.5">
-                  <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">Front</button>
-                  <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">Back</button>
+                  <KycDocControl
+                    doc={cust.kyc?.documents?.aadhaarFront}
+                    viewLabel="Front"
+                    onUpload={file => handleDocUpload('aadhaarFront', 'aadhaar', file)}
+                    onView={() => setViewDoc({ ...cust.kyc.documents.aadhaarFront, title: 'ID Proof — Front' })}
+                  />
+                  <KycDocControl
+                    doc={cust.kyc?.documents?.aadhaarBack}
+                    viewLabel="Back"
+                    onUpload={file => handleDocUpload('aadhaarBack', 'aadhaar', file)}
+                    onView={() => setViewDoc({ ...cust.kyc.documents.aadhaarBack, title: 'ID Proof — Back' })}
+                  />
                 </div>
               </div>
               {(() => { const cfg = KYC_STATUS[cust.kyc.aadhaar] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
@@ -1025,7 +1138,12 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
             <div className="py-2 border-b border-surface-border">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm text-gray-700">Address Proof — {kyc.addressProofType ?? 'Utility Bill'}</span>
-                <button className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors">View</button>
+                <KycDocControl
+                  doc={cust.kyc?.documents?.addressProof}
+                  viewLabel="View"
+                  onUpload={file => handleDocUpload('addressProof', 'pan', file)}
+                  onView={() => setViewDoc({ ...cust.kyc.documents.addressProof, title: 'Address Proof' })}
+                />
               </div>
               {(() => { const cfg = KYC_STATUS[cust.kyc.pan] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
                 <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={12} />{cfg.label}</span>
@@ -1034,9 +1152,17 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
             {/* Photo */}
             <div className="flex items-center justify-between py-2 border-b border-surface-border">
               <span className="text-sm text-gray-700">Customer Photo</span>
-              {(() => { const cfg = KYC_STATUS[cust.kyc.photo] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
-                <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
-              ) })()}
+              <div className="flex items-center gap-2">
+                <KycDocControl
+                  doc={cust.kyc?.documents?.photo}
+                  viewLabel="View"
+                  onUpload={file => handleDocUpload('photo', 'photo', file)}
+                  onView={() => setViewDoc({ ...cust.kyc.documents.photo, title: 'Customer Photo' })}
+                />
+                {(() => { const cfg = KYC_STATUS[cust.kyc.photo] ?? KYC_STATUS.pending; const Icon = cfg.icon; return (
+                  <span className={`flex items-center gap-1 text-xs font-medium ${cfg.color}`}><Icon size={13} />{cfg.label}</span>
+                ) })()}
+              </div>
             </div>
             {/* Signature */}
             <div className="flex items-center justify-between py-2 border-b border-surface-border">
@@ -1123,6 +1249,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
           </div>
         </Card>
       </div>
+      <DocumentViewModal doc={viewDoc} onClose={() => setViewDoc(null)} />
     </div>
   )
 }
@@ -2788,6 +2915,7 @@ export default function CustomerDetail() {
     radius: liveCustomer?.radius ?? baseCustomer.radius,
     sales: liveCustomer?.sales ?? baseCustomer.sales,
     ownership: liveCustomer?.ownership ?? baseCustomer.ownership,
+    kyc: liveCustomer?.kyc ?? baseCustomer.kyc,
   }
   const isIntercom = id.startsWith('INC')
   const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
