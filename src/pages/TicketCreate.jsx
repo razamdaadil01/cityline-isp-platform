@@ -238,6 +238,19 @@ export default function TicketCreate() {
   const stepParam = Number(searchParams.get('step'))
   const wizardStep = [1, 2, 3, 4].includes(stepParam) ? stepParam : null
 
+  // Pre-selection — customer is already known (e.g. Customer Detail's
+  // "Raise Ticket" buttons link here with ?customerId=<id>), so re-searching
+  // for them would be a bad UX regression. Skips straight to Step 2 (Check
+  // Existing Complaints) rather than Step 3, since the duplicate-complaint
+  // check is still worth keeping even when the customer is already known.
+  const preselectCustomerId = searchParams.get('customerId')
+  useEffect(() => {
+    if (!preselectCustomerId || selectedCustomer) return
+    const c = getAllCustomers().find(cust => cust.id === preselectCustomerId)
+    if (c) selectCustomer(c)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectCustomerId])
+
   function stepReachable(id) {
     if (id <= 1) return true
     if (id === 2) return step1Done
@@ -246,7 +259,9 @@ export default function TicketCreate() {
   }
 
   if (!wizardStep) {
-    return <Navigate to="/support/tickets/new?step=1" replace />
+    const initialStep = preselectCustomerId ? 2 : 1
+    const qs = preselectCustomerId ? `step=${initialStep}&customerId=${preselectCustomerId}` : `step=${initialStep}`
+    return <Navigate to={`/support/tickets/new?${qs}`} replace />
   }
 
   function handleCategoryChange(v) {
