@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
 import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
+import { exportCsv } from '../utils/csvExport'
 
 // Customer List table's Show/Hide Columns default set. Customer Name is
 // locked so the table can never end up with zero identifying columns visible.
@@ -283,6 +284,46 @@ export default function Customers() {
     return base
   }, [customers])
 
+  // Export — respects Column Manager's current visibility (visibleCols) the
+  // same way the table itself does, column-by-column; Services/Zone/Expiry
+  // are always included since those three are always-shown table columns
+  // too (not part of CUSTOMER_TABLE_COLUMNS' toggleable set). 'Actions' is
+  // excluded even if toggled visible — there's no underlying data for it.
+  function buildCustomerExportRows(list) {
+    return list.map(c => {
+      const cfg = STATUS_CFG[effectiveStatus(c)] ?? STATUS_CFG.inactive
+      const row = {}
+      if (visibleCols.has('customerId'))   row['Customer ID'] = c.id
+      if (visibleCols.has('customerName')) row['Customer Name'] = c.name
+      if (visibleCols.has('customerType')) row['Customer Type'] = c.id.startsWith('ENT') ? 'Corporate' : 'Residential'
+      if (visibleCols.has('area'))         row['Area'] = c.area ?? ''
+      if (visibleCols.has('phone'))        row['Phone'] = formatPhone(c.phone)
+      row['Services'] = (c.services ?? []).join(', ')
+      if (visibleCols.has('plan'))         row['Plan'] = c.plan ?? ''
+      row['Zone'] = c.zone ?? ''
+      row['Expiry'] = c.expiry ?? ''
+      if (visibleCols.has('status'))     row['Status'] = cfg.label
+      if (visibleCols.has('connection')) row['Connection'] = c.network ?? ''
+      return row
+    })
+  }
+
+  // "Export" — all currently-filtered customers (search + active filters,
+  // the same `filtered` set the table/pagination/count already use).
+  function handleExportAll() {
+    exportCsv(`customers_export_${new Date().toISOString().slice(0, 10)}.csv`, buildCustomerExportRows(filtered))
+  }
+
+  // "Export (N)" — only the checked rows, looked up against the full
+  // (unfiltered) customer list so a filter change after selecting doesn't
+  // silently drop a still-checked row from the download.
+  function handleExportSelected() {
+    exportCsv(
+      `customers_export_selected_${new Date().toISOString().slice(0, 10)}.csv`,
+      buildCustomerExportRows(customers.filter(c => selected.has(c.id)))
+    )
+  }
+
   return (
     <div className="p-6 space-y-5">
 
@@ -297,12 +338,12 @@ export default function Customers() {
         </div>
         <div className="flex gap-2">
           {selected.size > 0 && (
-            <Button variant="secondary" size="sm" icon={<Download size={14} />}>
+            <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExportSelected}>
               Export ({selected.size})
             </Button>
           )}
           {selected.size === 0 && (
-            <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
+            <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExportAll}>Export</Button>
           )}
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
           <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
