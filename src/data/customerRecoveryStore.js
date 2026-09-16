@@ -6,11 +6,13 @@
 // store — no state or records are shared with the Intercom module, and
 // nothing here imports from or is imported by intercomRecoveryStore.js.
 //
-// Unlike the Intercom version, this store starts empty: there's no existing
-// demo data for core-customer hardware recovery to seed from (Phase 3 is a
-// brand-new flow), so work orders only appear once CustomerDetail.jsx's
-// "Schedule Hardware Recovery" action (Terminate flow, 'Pending
-// Disconnection' status) creates one.
+// Unlike the Intercom version, this store starts with just one seed record
+// (below) rather than a full demo set: there's no existing demo data for
+// core-customer hardware recovery (Phase 3 is a brand-new flow), so beyond
+// that single example — paired with customersData.js's 'Pending
+// Disconnection' customer RES-2026-0030 — work orders only appear once
+// CustomerDetail.jsx's "Schedule Hardware Recovery" action (Terminate flow,
+// 'Pending Disconnection' status) creates one.
 
 // Core customers don't have an Intercom-style "Converted to Internet" path
 // — this list only reflects the one path Phase 1/2 actually create a
@@ -33,7 +35,28 @@ export const RECOVERY_STATUS_CFG = {
 // top of this one, not replace it.
 export const RECOVERY_TERMINAL_STATUSES = ['completed', 'missing_hardware', 'damaged_hardware', 'partial_recovery']
 
-let _recoveries = []
+// Scheduled but not yet actioned — same shape addRecovery() in
+// CustomerDetail.jsx produces, and 'pending' is this store's equivalent of
+// "scheduled": a work order only exists here once a technician/date/time
+// slot has been assigned (there's no separate not-yet-scheduled state), and
+// 'pending' just means that visit hasn't happened yet.
+let _recoveries = [
+  {
+    id: 'HRWO-2026-000001',
+    customerId: 'RES-2026-0030',
+    customer: 'Ramesh Iyengar',
+    phone: '9445012378',
+    reason: 'Service Terminated',
+    hardwareToRecover: 'ONU/ONT (ZTEGCB3A0030), Wi-Fi Router (TPL2024WR0030)',
+    technician: 'Suresh Iyer',
+    scheduledDate: '22-09-2026',
+    timeSlot: 'Morning 9-12',
+    accessInstructions: 'Security desk will escort to Flat 4B.',
+    createdDate: '16-09-2026',
+    notes: '',
+    status: 'pending',
+  },
+]
 const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._recoveries])) }

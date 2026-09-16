@@ -56,6 +56,13 @@ export const CUSTOMERS = [
   { id: 'IC-CUST-2026-000001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom' },
   { id: 'ENT-2026-0002', name: 'Ashok Mehta',       companyName: 'Mehta Infotech Pvt Ltd',    phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true,  area: 'Andheri',     network: 'OLT-MC-03', expiry: '2026-07-01', services: ['ILL'] },
   { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false, area: 'Lower Parel', network: 'OLT-LP-01', expiry: '2026-09-30', services: ['ILL', 'Business BB'] },
+  // Demo data for the Customer Disconnection flow's Phase 3 (Hardware
+  // Recovery) — pairs with the seeded HRWO-2026-000001 work order in
+  // customerRecoveryStore.js so both the Customers list's 'Pending
+  // Disconnection' tab and the Hardware Recovery module have a non-empty
+  // example out of the box, without needing to walk through
+  // CustomerDetail.jsx's Terminate → Schedule Hardware Recovery flow first.
+  { id: 'RES-2026-0030', name: 'Ramesh Iyengar',    phone: '9445012378', plan: 'FTTH 100Mbps',    status: 'Pending Disconnection', zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-05-15', services: ['Broadband'] },
 ]
 
 // ── Status values ─────────────────────────────────────────────────────────────
