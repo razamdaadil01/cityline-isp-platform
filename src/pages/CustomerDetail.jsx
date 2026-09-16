@@ -1937,8 +1937,17 @@ const TR069_LAN = {
   wifi5: 'Enabled',
 }
 
-function TR069Tab() {
+// This app has no real TR-069/ACS backend — there's no device to actually
+// send these commands to. Rather than faking a success toast with zero
+// trace (the previous behavior), each action requires confirmation and,
+// once confirmed, is logged to this customer's Activity Log and the global
+// Audit Log — same as every other real state-changing action on this page
+// (Suspend/Terminate/Schedule Recovery/Generate Settlement) — so there's at
+// least an honest, inspectable record that a command was requested, rather
+// than a silent no-op dressed up as a real success.
+function TR069Tab({ customerId, setActivityLog }) {
   const [toast, setToast] = useState(null)
+  const [confirmAction, setConfirmAction] = useState(null)
 
   function showToast(msg) {
     setToast(msg)
@@ -1950,27 +1959,41 @@ function TR069Tab() {
       label: 'Reboot Device',
       icon: <RotateCcw size={14} />,
       style: 'bg-amber-500 hover:bg-amber-600 text-white',
-      confirm: 'Reboot command sent to device.',
+      question: "Reboot the customer's CPE device?",
     },
     {
       label: 'Re-push PPPoE Config',
       icon: <RefreshCw size={14} />,
       style: 'bg-brand-blue hover:bg-blue-700 text-white',
-      confirm: 'PPPoE config re-pushed successfully.',
+      question: 'Re-push the PPPoE configuration to this device?',
     },
     {
       label: 'Factory Reset',
       icon: <AlertOctagon size={14} />,
       style: 'bg-red-500 hover:bg-red-600 text-white',
-      confirm: 'Factory reset command sent. Device will reboot.',
+      question: "Factory reset the customer's device? This would normally wipe all device settings.",
     },
     {
       label: 'Fetch Live Stats',
       icon: <Zap size={14} />,
       style: 'bg-emerald-500 hover:bg-emerald-600 text-white',
-      confirm: 'Live stats fetched successfully.',
+      question: 'Fetch live stats from this device?',
     },
   ]
+
+  function handleConfirmAction() {
+    const action = confirmAction
+    setConfirmAction(null)
+    const now = new Date()
+    setActivityLog(a => [{
+      time: formatActivityTime(now),
+      actor: 'Admin',
+      event: `${action.label} command logged`,
+      meta: 'TR-069/ACS integration not connected — not actually sent to a device',
+    }, ...a])
+    logAudit({ module: 'Customers', action: 'Edit', details: `${action.label} command logged for customer ${customerId} (TR-069 — no ACS integration, not sent to a real device)` })
+    showToast(`${action.label} logged to Activity — no ACS integration to actually reach the device yet.`)
+  }
 
   return (
     <div className="space-y-5">
@@ -2081,7 +2104,7 @@ function TR069Tab() {
           {actions.map(action => (
             <button
               key={action.label}
-              onClick={() => showToast(action.confirm)}
+              onClick={() => setConfirmAction(action)}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${action.style}`}
             >
               {action.icon}
@@ -2090,6 +2113,27 @@ function TR069Tab() {
           ))}
         </div>
       </Card>
+
+      {/* Confirm modal — see the note at the top of this component */}
+      <Modal
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        title={confirmAction?.label}
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setConfirmAction(null)}>Cancel</Button>
+          <Button size="sm" onClick={handleConfirmAction}>Confirm</Button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">{confirmAction?.question}</p>
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            This app has no ACS/TR-069 backend connected yet. Confirming logs this command to the
+            customer's Activity Log and the Audit Log for record-keeping — it is not actually sent to a device.
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -2978,7 +3022,7 @@ export default function CustomerDetail() {
           {activeTab === 'Tickets'         && <TicketsTab customer={customer} />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
-          {activeTab === 'TR-069'          && !isIntercom && <TR069Tab />}
+          {activeTab === 'TR-069'          && !isIntercom && <TR069Tab customerId={id} setActivityLog={setActivityLog} />}
           {activeTab === 'Circuit Details' && isIntercom  && <CircuitDetailsTab customer={customer} />}
           {activeTab === 'Recordings'      && <RecordingsTab />}
           {activeTab === 'Activity Logs'   && <ActivityTab activity={activityLog} />}
