@@ -14,6 +14,7 @@ import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/customersData'
+import { exportCsv } from '../utils/csvExport'
 import { getPPPoEId, getAppPassword } from '../data/customerTypes'
 import { logAudit } from '../data/auditLogStore'
 import {
@@ -1522,6 +1523,20 @@ function FinanceTab({ customer }) {
   const invPages = Math.ceil(invTotal / PER_PAGE)
   const invRows  = INVOICES.slice((invPage - 1) * PER_PAGE, invPage * PER_PAGE)
 
+  // Full list (not just the current page's invRows slice) — Invoices has no
+  // status filter to respect (unlike Payments' "Display Failed" toggle
+  // below), so this is simply every invoice currently shown across all pages.
+  function handleExportInvoices() {
+    const rows = INVOICES.map(inv => ({
+      'Invoice No': inv.no,
+      'Package': inv.pkg,
+      'Date': inv.date,
+      'Amount': inv.amount,
+      'Status': inv.status === 'paid' ? 'Paid' : 'Pending',
+    }))
+    exportCsv(`${customer.id}_invoices_${new Date().toISOString().slice(0, 10)}.csv`, rows)
+  }
+
   const filteredPayments = showFailed ? MOCK_PAYMENTS.filter(p => p.status === 'Failed') : MOCK_PAYMENTS
   const payTotal = filteredPayments.length
   const payPages = Math.max(1, Math.ceil(payTotal / PER_PAGE))
@@ -1610,7 +1625,7 @@ function FinanceTab({ customer }) {
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Invoices</h3>
-            <Button variant="secondary" size="xs" icon={<Download size={12} />}>Export</Button>
+            <Button variant="secondary" size="xs" icon={<Download size={12} />} onClick={handleExportInvoices}>Export</Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
