@@ -145,9 +145,9 @@ function makeCustomerFromBase(id) {
   const base = getAllCustomers().find(c => c.id === id)
   if (!base) {
     return {
-      id, name: 'Unknown Customer', phone: '—', altPhone: '—', email: '—',
+      id, name: 'Unknown Customer', phone: '—', altPhone: '—', telephone: '—', email: '—',
       dob: '—', gender: '—', status: 'inactive', online: false,
-      services: [], outstandingDues: 0, ekyc: 'pending', accountManager: '—',
+      services: [], packages: [], outstandingDues: 0, ekyc: 'pending', accountManager: '—',
       createdOn: '—',
       address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
       payment: { mode: '—', advanceDeposit: 0, creditLimit: 0, billingCycle: '—' },
@@ -175,6 +175,7 @@ function makeCustomerFromBase(id) {
     // were real. Falls back to "—" now, consistent with every other
     // missing field on this page.
     email: base.email ?? '—',
+    telephone: base.telephone ?? '—',
     dob: base.dob ?? '—',
     gender: base.gender ?? '—',
     sonOf: base.sonOf,
@@ -203,6 +204,11 @@ function makeCustomerFromBase(id) {
     status: base.status,
     online: base.status === 'active',
     services: base.services ?? [],
+    // Package Details' per-package subscription records (plan/speed/
+    // validity/amount/dates) — null until Add Service (PackagesTab)
+    // actually persists a real customer-specific list; the tab itself
+    // falls back to the shared PACKAGES mock display when this is null.
+    packages: base.packages ?? null,
     circuit: base.circuit ?? null,
     outstandingDues: 0,
     ekyc: base.status === 'active' ? 'verified' : 'pending',
@@ -229,18 +235,18 @@ function makeCustomerFromBase(id) {
     ownership: base.ownership ?? {},
     sales: base.sales ?? {},
     payment: { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
-    // TODO: existing customers keep their original PPPoE ID/App Password —
-    // getPPPoEId()/getAppPassword() only affect a customer once its own
-    // record actually has a pppoeUsername/appPassword set (manual mode) or
-    // is freshly created via getNextCustomerId() (leadConversion.js); for
-    // every pre-existing base-only record here they just recompute the same
-    // deterministic value every render, since there's no persisted "already
-    // generated" flag to distinguish old records from new ones.
+    // jazeUserId/pppoePassword/appPassword prefer a persisted base.radius.*
+    // value (Connection Details' Edit form writes one via updateCustomer())
+    // over the deterministic getPPPoEId()/getAppPassword() default — the
+    // same "override wins, else compute/default" pattern connection/sales/
+    // address already use above. pppoeUsername/nas/interface/ipAddress/
+    // macAddress aren't editable anywhere on this page, so they stay
+    // recomputed/hardcoded as before.
     radius: {
-      jazeUserId: idSlug,
+      jazeUserId: base.radius?.jazeUserId ?? idSlug,
       pppoeUsername: getPPPoEId({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
-      pppoePassword: '—',
-      appPassword: getAppPassword({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
+      pppoePassword: base.radius?.pppoePassword ?? '—',
+      appPassword: base.radius?.appPassword ?? getAppPassword({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       nas: 'NAS-01',
       interface: '—',
       ipAddress: '—',
@@ -530,32 +536,58 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
   const ownership = cust.ownership ?? {}
   const isCorporate = cust.customerType === 'Corporate'
 
-  /* ── Save helpers ── */
+  /* ── Save helpers ──
+     Each persists via the same updateCustomer() Suspend/Terminate/Schedule
+     Recovery already use (customersData.js), not just local setCust() —
+     otherwise edits looked saved but vanished on the next navigation.
+     Nested objects (connection/radius/address/sales/ownership) are persisted
+     as a full merged object, since updateCustomer()'s override is a shallow
+     merge that would otherwise wipe out any sibling field not in this
+     section's draft. */
   function saveP1() {
+    updateCustomer(cust.id, p1.draft)
     setCust(c => ({ ...c, ...p1.draft }))
     cancelEdit(setP1)
   }
   function saveP2() {
-    setCust(c => ({ ...c, ...p2.draft }))
+    // makeCustomerFromBase() displays phone reformatted with a space
+    // ("98765 43210"); p2.draft.phone starts from that display value since
+    // the Edit form seeds itself from cust.phone — re-derive the plain
+    // digit string customersData.js actually stores before persisting.
+    const phoneDigits = p2.draft.phone.replace(/\D/g, '')
+    updateCustomer(cust.id, { ...p2.draft, phone: phoneDigits })
+    setCust(c => ({ ...c, ...p2.draft, phone: phoneDigits.replace(/(\d{5})(\d{5})/, '$1 $2') }))
     cancelEdit(setP2)
   }
   function saveP3() {
-    setCust(c => ({ ...c, connection: { ...c.connection, ...p3.draft.conn }, radius: { ...c.radius, ...p3.draft.radius }, services: p3.draft.services }))
+    const connection = { ...cust.connection, ...p3.draft.conn }
+    const radius = { ...cust.radius, ...p3.draft.radius }
+    updateCustomer(cust.id, { connection, radius, services: p3.draft.services })
+    setCust(c => ({ ...c, connection, radius, services: p3.draft.services }))
     cancelEdit(setP3)
   }
   function saveP4() {
-    setCust(c => ({ ...c, address: { ...c.address, ...p4.draft } }))
+    const address = { ...cust.address, ...p4.draft }
+    // Customers List reads flat zone/area fields (not address.zone/area),
+    // so keep them in sync with whatever this section just saved.
+    updateCustomer(cust.id, { address, zone: address.zone, area: address.area })
+    setCust(c => ({ ...c, address }))
     cancelEdit(setP4)
   }
   function saveP5() {
     const { ownershipType, ownershipEntity, ownershipPartner, ownershipBillingTo, ...salesDraft } = p5.draft
-    setCust(c => ({
-      ...c,
-      sales: { ...c.sales, ...salesDraft },
-      ownership: { ...c.ownership, type: ownershipType, entity: ownershipEntity, partner: ownershipPartner, billingTo: ownershipBillingTo },
-    }))
+    const sales = { ...cust.sales, ...salesDraft }
+    const ownership = { ...cust.ownership, type: ownershipType, entity: ownershipEntity, partner: ownershipPartner, billingTo: ownershipBillingTo }
+    updateCustomer(cust.id, { sales, ownership })
+    setCust(c => ({ ...c, sales, ownership }))
     cancelEdit(setP5)
   }
+  // Not wired to updateCustomer() like the sections above — makeCustomerFromBase()
+  // always recomputes kyc.aadhaar/pan/photo/agreementSigned from the customer's
+  // status and never reads back base.kyc at all, so persisting docVerified/
+  // docComment here wouldn't actually surface anywhere after a reload without
+  // also changing that status-derived KYC logic, which is out of this fix's
+  // scope. Left as local-only, same as before.
   function saveP7() {
     setCust(c => ({ ...c, kyc: { ...c.kyc, ...p7.draft } }))
     cancelEdit(setP7)
@@ -1105,9 +1137,13 @@ const TODAY = new Date().toISOString().slice(0, 10)
 
 const EMPTY_SVC_FORM = { serviceType: 'Broadband', packageLabel: '', amount: '', startDate: TODAY, notes: '' }
 
-function PackagesTab() {
+function PackagesTab({ customer }) {
   const [view, setView] = useState('table')
-  const [packages, setPackages] = useState(PACKAGES)
+  // Falls back to the shared PACKAGES mock for customers that have never
+  // had a real service added — customer.packages stays null until
+  // handleAddService() below persists a genuine per-customer list via
+  // updateCustomer(), same pattern as address/connection/sales.
+  const [packages, setPackages] = useState(customer.packages ?? PACKAGES)
   const [pkgMenu, setPkgMenu] = useState(null)
   const pkgMenuRef = useRef(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -1154,7 +1190,17 @@ function PackagesTab() {
       jazePkgId: `JPKG-${form.serviceType.toUpperCase().replace(/\s/g, '-')}-${Date.now()}`,
       status: 'active',
     }
-    setPackages(p => [...p, newPkg])
+    const updatedPackages = [...packages, newPkg]
+    // Keep the flat services list (Customers List's service pills,
+    // Connection Details' "Service Opted" checkboxes) in sync with what
+    // Package Details now actually has, rather than only updating the
+    // detailed package record.
+    const currentServices = customer.services ?? []
+    const updatedServices = currentServices.includes(form.serviceType)
+      ? currentServices
+      : [...currentServices, form.serviceType]
+    updateCustomer(customer.id, { packages: updatedPackages, services: updatedServices })
+    setPackages(updatedPackages)
     setShowAddModal(false)
     setForm(EMPTY_SVC_FORM)
     setToast(true)
@@ -2607,19 +2653,51 @@ export default function CustomerDetail() {
   const { id, tab, subTab } = useParams()
   const navigate = useNavigate()
 
-  // MOCK_CUSTOMERS['RES-2026-0001'] is a fully hardcoded literal — its
-  // `status: 'active'` never reflects customersData.js's real override
-  // store (unlike makeCustomerFromBase(id), which already reads through
-  // getAllCustomers()). Suspend/Terminate/hardware-recovery-outcome all
-  // persist via updateCustomer(), so re-read status from that same live
-  // source here too, rather than trusting whichever object this ID
-  // happened to come from — otherwise a fresh mount (e.g. navigating to
-  // /customers/hardware-recovery and back) shows the stale hardcoded
-  // 'active' instead of the real persisted status. `disconnectedAt` (Phase
-  // 4) is surfaced the same way, for the closure summary once Disconnected.
+  // MOCK_CUSTOMERS['RES-2026-0001'] is a fully hardcoded literal — its own
+  // fields never reflect customersData.js's real override store (unlike
+  // makeCustomerFromBase(id), which already reads through getAllCustomers()
+  // for every other customer). Suspend/Terminate/hardware-recovery-outcome
+  // and, as of ProfileTab's Save/PackagesTab's Add Service, Profile edits
+  // and added packages, all persist via updateCustomer() — so re-read every
+  // field those can touch from that same live source here too, rather than
+  // trusting whichever object this ID happened to come from, otherwise a
+  // fresh mount (e.g. navigating to /customers/hardware-recovery and back)
+  // shows stale hardcoded values instead of anything actually saved.
+  // liveCustomer's flat customersData.js record only ever has
+  // name/phone/status/services beyond the base id, so `?? baseCustomer.X`
+  // only kicks in for fields nothing has overridden yet. `phone` is
+  // reformatted the same way makeCustomerFromBase() does, since liveCustomer
+  // always stores it as plain digits.
   const baseCustomer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
   const liveCustomer = getAllCustomers().find(c => c.id === id)
-  const customer = { ...baseCustomer, status: liveCustomer?.status ?? baseCustomer.status, disconnectedAt: liveCustomer?.disconnectedAt ?? null }
+  const customer = {
+    ...baseCustomer,
+    status: liveCustomer?.status ?? baseCustomer.status,
+    disconnectedAt: liveCustomer?.disconnectedAt ?? null,
+    name: liveCustomer?.name ?? baseCustomer.name,
+    phone: liveCustomer?.phone ? liveCustomer.phone.replace(/(\d{5})(\d{5})/, '$1 $2') : baseCustomer.phone,
+    altPhone: liveCustomer?.altPhone ?? baseCustomer.altPhone,
+    telephone: liveCustomer?.telephone ?? baseCustomer.telephone,
+    email: liveCustomer?.email ?? baseCustomer.email,
+    dob: liveCustomer?.dob ?? baseCustomer.dob,
+    gender: liveCustomer?.gender ?? baseCustomer.gender,
+    sonOf: liveCustomer?.sonOf ?? baseCustomer.sonOf,
+    panCard: liveCustomer?.panCard ?? baseCustomer.panCard,
+    customerType: liveCustomer?.customerType ?? baseCustomer.customerType,
+    gstNo: liveCustomer?.gstNo ?? baseCustomer.gstNo,
+    gstType: liveCustomer?.gstType ?? baseCustomer.gstType,
+    companyName: liveCustomer?.companyName ?? baseCustomer.companyName,
+    contactPersonName: liveCustomer?.contactPersonName ?? baseCustomer.contactPersonName,
+    contactPersonEmail: liveCustomer?.contactPersonEmail ?? baseCustomer.contactPersonEmail,
+    createdOn: liveCustomer?.createdOn ?? baseCustomer.createdOn,
+    services: liveCustomer?.services ?? baseCustomer.services,
+    packages: liveCustomer?.packages ?? baseCustomer.packages,
+    address: liveCustomer?.address ?? baseCustomer.address,
+    connection: liveCustomer?.connection ?? baseCustomer.connection,
+    radius: liveCustomer?.radius ?? baseCustomer.radius,
+    sales: liveCustomer?.sales ?? baseCustomer.sales,
+    ownership: liveCustomer?.ownership ?? baseCustomer.ownership,
+  }
   const isIntercom = id.startsWith('INC')
   const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
 
@@ -3017,7 +3095,7 @@ export default function CustomerDetail() {
         {/* Tab content */}
         <div className="p-5 sm:p-6">
           {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} />}
-          {activeTab === 'Package Details' && <PackagesTab />}
+          {activeTab === 'Package Details' && <PackagesTab customer={customer} />}
           {activeTab === 'Finance'         && <FinanceTab  customer={customer} />}
           {activeTab === 'Tickets'         && <TicketsTab customer={customer} />}
           {activeTab === 'Inventory'       && <InventoryTab />}
