@@ -7,6 +7,7 @@ import {
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import Badge from '../components/ui/Badge'
+import { addCustomer, getNextCustomerId } from '../data/customersData'
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ export default function AddCustomer() {
 
   const [submitted, setSubmitted] = useState(false)
   const [cafNo,     setCafNo]     = useState('')
+  const [customerId, setCustomerId] = useState('')
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -196,9 +198,94 @@ export default function AddCustomer() {
   }
 
   function handleSubmit() {
-    const year = new Date().getFullYear()
+    const plan = PLANS.find(p => p.id === form.planId)
+    const isCorporate = ctype === 'B2B'
+    const fullName = `${form.firstName} ${form.lastName}`.trim()
+    const addressLine = [form.building, form.street].filter(Boolean).join(', ') || undefined
+    const today = new Date()
+    const displayDate = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+
+    // 30-day validity from install date, matching PACKAGES' mock validity
+    // convention elsewhere on Customer Detail — the closest this app gets to
+    // a real "plan expiry" without a billing engine behind it.
+    const expiryDate = new Date(form.installDate)
+    expiryDate.setDate(expiryDate.getDate() + 30)
+    const expiry = expiryDate.toISOString().slice(0, 10)
+
+    const year = today.getFullYear()
     const seq  = String(Math.floor(Math.random() * 99999)).padStart(5, '0')
-    setCafNo(`CAF-${year}${seq}`)
+    const caf  = `CAF-${year}${seq}`
+
+    // Field mapping follows leadConversion.js's buildCustomerFromLead() —
+    // the existing "real customer creation" template CustomerDetail.jsx's
+    // makeCustomerFromBase() already knows how to read (address.billing*/
+    // install*/area-address sub-sections, sales.*, flat customerType/gstNo
+    // for Corporate). Fields this wizard collects but the customer schema
+    // has no home for (PO Number) get folded into sales.remark rather than
+    // silently dropped; fields the schema wants but this wizard doesn't
+    // collect (connection/ownership/RADIUS) are left unset, same as
+    // buildCustomerFromLead does for anything only known post-installation.
+    const newCustomer = {
+      id: getNextCustomerId(isCorporate ? 'corporate' : 'resident'),
+      name: fullName,
+      phone: form.phone,
+      altPhone: form.altPhone || undefined,
+      email: form.email || undefined,
+      dob: form.dob || undefined,
+      gender: form.gender || undefined,
+      customerType: isCorporate ? 'Corporate' : 'Residential',
+      status: 'active',
+      plan: plan?.name,
+      services: ['Broadband'],
+      zone: form.zone,
+      area: form.area,
+      expiry,
+      cafNo: caf,
+      panCard: form.panNo || undefined,
+      // Real signal from Step 4's Aadhaar eKYC + document uploads — actual
+      // file content isn't persisted anywhere in this app yet (no working
+      // document storage/viewer exists), so only metadata is kept here.
+      aadhaarVerified: form.aadhaarVerified,
+      kycDocuments: {
+        aadhaarFront: docs.aadhaarFront ? { name: docs.aadhaarFront.name, type: docs.aadhaarFront.type } : null,
+        aadhaarBack: docs.aadhaarBack ? { name: docs.aadhaarBack.name, type: docs.aadhaarBack.type } : null,
+        photo: docs.photo ? { name: docs.photo.name, type: docs.photo.type } : null,
+        gstCert: docs.gstCert ? { name: docs.gstCert.name, type: docs.gstCert.type } : null,
+      },
+      ...(isCorporate ? {
+        companyName: form.companyName,
+        contactPersonName: fullName,
+        contactPersonEmail: form.email || undefined,
+        gstNo: form.gstNo || undefined,
+        gstVerified: false,
+      } : {}),
+      address: {
+        billingCity: form.area,
+        billingPincode: form.pincode || undefined,
+        billingLandmark: form.landmark || undefined,
+        billingAddress: addressLine,
+        installCity: form.area,
+        installPincode: form.pincode || undefined,
+        installLandmark: form.landmark || undefined,
+        installAddress: addressLine,
+        area: form.area,
+        subArea: form.subArea || undefined,
+        box: form.boxNo || undefined,
+        street: form.street,
+        building: form.building || undefined,
+        zone: form.zone,
+      },
+      sales: {
+        leadSource: 'Direct / Walk-in',
+        registrationDate: displayDate,
+        remark: form.poNumber ? `PO Number: ${form.poNumber}` : '',
+      },
+      createdOn: displayDate,
+    }
+
+    addCustomer(newCustomer)
+    setCustomerId(newCustomer.id)
+    setCafNo(caf)
     setSubmitted(true)
   }
 
@@ -234,6 +321,7 @@ export default function AddCustomer() {
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm text-left mb-8">
             {[
+              ['Customer ID', customerId],
               ['Customer', `${form.firstName} ${form.lastName}`],
               ['Plan', plan?.name],
               ['Area', form.area],
@@ -246,8 +334,8 @@ export default function AddCustomer() {
             ))}
           </div>
           <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={() => navigate('/customers')}>
-              View Customers
+            <Button variant="secondary" className="flex-1" onClick={() => navigate(`/customers/${customerId}`)}>
+              View Customer
             </Button>
             <Button className="flex-1" onClick={resetForm}>
               Add Another
