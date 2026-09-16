@@ -11,7 +11,7 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers } from '../data/customersData'
 import {
   getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
-  CATEGORY_SUBCATEGORIES, CATEGORIES, PRIORITIES, PRIORITY_LABEL, CONTACT_METHODS,
+  getCategorySubcategories, subscribeCategorySubcategories, PRIORITIES, PRIORITY_LABEL, CONTACT_METHODS,
   AGENTS, TECHNICIANS, CLOSED_STATUSES, getSupportSettings, subscribeSupportSettings,
 } from '../data/ticketsStore'
 import { findActiveOutageForArea } from '../data/outagesStore'
@@ -191,6 +191,10 @@ export default function TicketCreate() {
   const [newReason, setNewReason] = useState('')
   const [supportSettings, setSupportSettings] = useState(getSupportSettings)
   useEffect(() => subscribeSupportSettings(setSupportSettings), [])
+
+  const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
+  useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
+  const categories = useMemo(() => Object.keys(categorySubcategories), [categorySubcategories])
 
   const primaryOpenTicket = openTickets[0] ?? null
   const showDuplicateWarning = !!primaryOpenTicket && !duplicateChoice
@@ -608,13 +612,13 @@ export default function TicketCreate() {
           <FormField label="Complaint Category" required>
             <Select value={category} onChange={e => handleCategoryChange(e.target.value)}>
               <option value="">Select category…</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </Select>
           </FormField>
           <FormField label="Complaint Subcategory" required>
             <Select value={subcategory} onChange={e => setSubcategory(e.target.value)} disabled={!category}>
               <option value="">{category ? 'Select subcategory…' : 'Select a category first'}</option>
-              {(CATEGORY_SUBCATEGORIES[category] ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+              {(categorySubcategories[category] ?? []).map(s => <option key={s} value={s}>{s}</option>)}
             </Select>
           </FormField>
           <div className="col-span-2">

@@ -4,7 +4,8 @@ import {
 } from 'lucide-react'
 import {
   getTickets, subscribeTickets,
-  CATEGORIES, AREAS, PRIORITIES, PRIORITY_LABEL, AGENTS, TECHNICIANS,
+  AREAS, PRIORITIES, PRIORITY_LABEL, AGENTS, TECHNICIANS,
+  getCategorySubcategories, subscribeCategorySubcategories,
 } from '../data/ticketsStore'
 
 function SectionTitle({ children }) {
@@ -58,6 +59,10 @@ function formatDuration(hours) {
 export default function SupportReports() {
   const [tickets, setTickets] = useState(getTickets)
   useEffect(() => subscribeTickets(setTickets), [])
+
+  const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
+  useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
+  const categories = useMemo(() => Object.keys(categorySubcategories), [categorySubcategories])
 
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
@@ -172,7 +177,7 @@ export default function SupportReports() {
           </div>
           {[
             ['Area', fArea, setFArea, AREAS],
-            ['Category', fCategory, setFCategory, CATEGORIES],
+            ['Category', fCategory, setFCategory, categories],
             ['Priority', fPriority, setFPriority, PRIORITIES],
             ['Agent', fAgent, setFAgent, AGENTS],
             ['Technician', fTechnician, setFTechnician, TECHNICIANS],

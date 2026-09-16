@@ -14,6 +14,7 @@ import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager
 import {
   getTickets, subscribeTickets, assignTechnician, changePriority, addCommunication, assignTeamMembers, slaStatusOf,
   TICKET_STATUSES, CLOSED_STATUSES, PRIORITIES, PRIORITY_LABEL, CATEGORIES, AREAS, AGENTS, TECHNICIANS,
+  getCategorySubcategories, subscribeCategorySubcategories,
 } from '../data/ticketsStore'
 
 const CURRENT_USER = 'Admin User'
@@ -214,6 +215,10 @@ export default function TicketList() {
   const [messageOpen, setMessageOpen] = useState(false)
 
   useEffect(() => subscribeTickets(setTickets), [])
+
+  const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
+  useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
+  const categories = useMemo(() => Object.keys(categorySubcategories), [categorySubcategories])
 
   function clearAllFilters() {
     setFStatus(''); setFPriority(''); setFCategory(''); setFArea(''); setFAgent(''); setFTechnician('')
@@ -625,7 +630,7 @@ export default function TicketList() {
             {[
               ['Status', fStatus, setFStatus, TICKET_STATUSES],
               ['Priority', fPriority, setFPriority, PRIORITIES],
-              ['Category', fCategory, setFCategory, CATEGORIES],
+              ['Category', fCategory, setFCategory, categories],
               ['Area', fArea, setFArea, AREAS],
               ['Agent', fAgent, setFAgent, AGENTS],
               ['Technician', fTechnician, setFTechnician, TECHNICIANS],
