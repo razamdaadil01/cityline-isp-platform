@@ -6,14 +6,14 @@ import {
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
-  PackageSearch, Receipt, Lock,
+  PackageSearch, Receipt, Lock, UserX,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Card, { CardHeader } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
-import { getAllCustomers, updateCustomer } from '../data/customersData'
+import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/customersData'
 import { getPPPoEId, getAppPassword } from '../data/customerTypes'
 import { logAudit } from '../data/auditLogStore'
 import {
@@ -147,7 +147,7 @@ function makeCustomerFromBase(id) {
     return {
       id, name: 'Unknown Customer', phone: '—', altPhone: '—', telephone: '—', email: '—',
       dob: '—', gender: '—', status: 'inactive', online: false,
-      services: [], packages: [], outstandingDues: 0, ekyc: 'pending', accountManager: '—',
+      services: [], packages: [], expiry: null, outstandingDues: 0, ekyc: 'pending', accountManager: '—',
       createdOn: '—',
       address: { area: '—', subArea: '—', box: '—', street: '—', building: '—', zone: '—' },
       payment: { mode: '—', advanceDeposit: 0, creditLimit: 0, billingCycle: '—' },
@@ -209,6 +209,11 @@ function makeCustomerFromBase(id) {
     // actually persists a real customer-specific list; the tab itself
     // falls back to the shared PACKAGES mock display when this is null.
     packages: base.packages ?? null,
+    // Plan renewal date — customersData.js's existing flat field (already
+    // shown and date-range-filterable on the Customers List); surfaced here
+    // too so effectiveStatus() can derive an Expired display for a lapsed
+    // Active customer on this page as well.
+    expiry: base.expiry ?? null,
     circuit: base.circuit ?? null,
     outstandingDues: 0,
     ekyc: base.status === 'active' ? 'verified' : 'pending',
@@ -375,6 +380,7 @@ const STATUS_CFG = {
 
 const SUSPEND_REASONS = ['Non-payment', 'Customer request', 'Other']
 const TERMINATE_REASONS = ['Customer request', 'Relocation', 'Service dissatisfaction', 'Non-payment', 'Other']
+const INACTIVE_REASONS = ['Customer request', 'Non-renewal', 'Line dormant', 'Other']
 
 function formatActivityTime(d) {
   const day = String(d.getDate()).padStart(2, '0')
@@ -2340,7 +2346,8 @@ function RecordingsTab() {
 
 function StatusActionModal({ mode, onClose, onConfirm }) {
   const isTerminate = mode === 'terminate'
-  const reasons = isTerminate ? TERMINATE_REASONS : SUSPEND_REASONS
+  const isInactive = mode === 'inactive'
+  const reasons = isTerminate ? TERMINATE_REASONS : isInactive ? INACTIVE_REASONS : SUSPEND_REASONS
   const [reason, setReason] = useState(reasons[0])
   const [customReason, setCustomReason] = useState('')
   const [requestedDate, setRequestedDate] = useState('')
@@ -2354,13 +2361,13 @@ function StatusActionModal({ mode, onClose, onConfirm }) {
     <Modal
       isOpen={!!mode}
       onClose={onClose}
-      title={isTerminate ? 'Terminate Connection' : 'Suspend Customer'}
+      title={isTerminate ? 'Terminate Connection' : isInactive ? 'Mark as Inactive' : 'Suspend Customer'}
       size="sm"
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant={isTerminate ? 'danger' : 'orange'} size="sm" onClick={handleConfirm}>
-            {isTerminate ? 'Raise Disconnection Request' : 'Suspend Customer'}
+          <Button variant={isTerminate ? 'danger' : isInactive ? 'navy' : 'orange'} size="sm" onClick={handleConfirm}>
+            {isTerminate ? 'Raise Disconnection Request' : isInactive ? 'Mark Inactive' : 'Suspend Customer'}
           </Button>
         </>
       }
@@ -2369,7 +2376,9 @@ function StatusActionModal({ mode, onClose, onConfirm }) {
         <p className="text-sm text-gray-600">
           {isTerminate
             ? 'This raises a disconnection request. The customer moves to "Pending Disconnection" — the connection is only marked "Disconnected" once hardware recovery and settlement are complete.'
-            : 'This suspends the customer\'s active services immediately.'}
+            : isInactive
+              ? 'This marks the customer as Inactive. Their record stays on file but drops out of active service counts.'
+              : 'This suspends the customer\'s active services immediately.'}
         </p>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reason</label>
@@ -2692,6 +2701,7 @@ export default function CustomerDetail() {
     createdOn: liveCustomer?.createdOn ?? baseCustomer.createdOn,
     services: liveCustomer?.services ?? baseCustomer.services,
     packages: liveCustomer?.packages ?? baseCustomer.packages,
+    expiry: liveCustomer?.expiry ?? baseCustomer.expiry,
     address: liveCustomer?.address ?? baseCustomer.address,
     connection: liveCustomer?.connection ?? baseCustomer.connection,
     radius: liveCustomer?.radius ?? baseCustomer.radius,
@@ -2711,9 +2721,15 @@ export default function CustomerDetail() {
   // for the hardcoded MOCK_CUSTOMERS['RES-2026-0001'] entry that bypasses the
   // override store entirely.
   const [statusOverride, setStatusOverride] = useState(null)
-  const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | null
+  const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | 'inactive' | null
+  const [reactivateModalOpen, setReactivateModalOpen] = useState(false)
   const [activityLog, setActivityLog] = useState(ACTIVITY)
   const displayStatus = statusOverride ?? customer.status
+  // Badge-only — 'expired' is a display derivation (effectiveStatus(), see
+  // customersData.js), never the stored status value itself, so every
+  // button-visibility check below keeps reading displayStatus/customer.status
+  // exactly as before and is unaffected by a lapsed plan date.
+  const badgeStatus = effectiveStatus({ status: displayStatus, expiry: customer.expiry })
 
   // Phase 3 — hardware recovery (customerRecoveryStore.js, a separate store
   // from the Intercom module's own intercomRecoveryStore.js).
@@ -2760,6 +2776,13 @@ export default function CustomerDetail() {
   // below) via plain conditional rendering rather than a disabled prop.
   const isTerminated = displayStatus === 'Pending Disconnection' || displayStatus === 'Disconnected'
 
+  // Independent of isTerminated above — Suspend/Terminate's own visibility
+  // is untouched by these two new actions. 'suspended' and 'active' are
+  // never simultaneously 'Pending Disconnection'/'Disconnected', so neither
+  // condition needs to reference isTerminated to stay precise.
+  const canReactivate = displayStatus === 'suspended'
+  const canMarkInactive = displayStatus === 'active' || displayStatus === 'suspended'
+
   const [settlementModalOpen, setSettlementModalOpen] = useState(false)
   const [disconnectModalOpen, setDisconnectModalOpen] = useState(false)
 
@@ -2781,6 +2804,15 @@ export default function CustomerDetail() {
     }
   }
 
+  function handleReactivate() {
+    const now = formatActivityTime(new Date())
+    updateCustomer(id, { status: 'active' })
+    setStatusOverride('active')
+    logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} reactivated (Suspended → Active)` })
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer reactivated', meta: 'Status set back to Active' }, ...a])
+    setReactivateModalOpen(false)
+  }
+
   function handleStatusConfirm({ reason, requestedDate }) {
     const now = formatActivityTime(new Date())
     if (statusModal === 'suspend') {
@@ -2788,6 +2820,11 @@ export default function CustomerDetail() {
       setStatusOverride('suspended')
       logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} suspended — reason: ${reason}` })
       setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer suspended', meta: `Reason: ${reason}` }, ...a])
+    } else if (statusModal === 'inactive') {
+      updateCustomer(id, { status: 'inactive' })
+      setStatusOverride('inactive')
+      logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} marked Inactive — reason: ${reason}` })
+      setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer marked Inactive', meta: `Reason: ${reason}` }, ...a])
     } else if (statusModal === 'terminate') {
       updateCustomer(id, { status: 'Pending Disconnection' })
       setStatusOverride('Pending Disconnection')
@@ -2917,7 +2954,7 @@ export default function CustomerDetail() {
     setDisconnectModalOpen(false)
   }
 
-  const statusCfg = STATUS_CFG[displayStatus] ?? STATUS_CFG.inactive
+  const statusCfg = STATUS_CFG[badgeStatus] ?? STATUS_CFG.inactive
 
   return (
     <div className="p-6 space-y-5">
@@ -3011,6 +3048,22 @@ export default function CustomerDetail() {
                 onClick={() => setStatusModal('terminate')}
               >
                 Terminate
+              </Button>
+            )}
+            {canReactivate && (
+              <Button
+                variant="secondary" size="sm" icon={<RotateCcw size={13} />}
+                onClick={() => setReactivateModalOpen(true)}
+              >
+                Reactivate
+              </Button>
+            )}
+            {canMarkInactive && (
+              <Button
+                variant="navy" size="sm" icon={<UserX size={13} />}
+                onClick={() => setStatusModal('inactive')}
+              >
+                Mark Inactive
               </Button>
             )}
             {canScheduleRecovery && (
@@ -3114,6 +3167,22 @@ export default function CustomerDetail() {
           onConfirm={handleStatusConfirm}
         />
       )}
+      <Modal
+        isOpen={reactivateModalOpen}
+        onClose={() => setReactivateModalOpen(false)}
+        title="Reactivate Customer"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setReactivateModalOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleReactivate}>Reactivate</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          This sets the customer's status back to Active, restoring their services.
+        </p>
+      </Modal>
       <ScheduleHardwareRecoveryModal
         isOpen={recoveryModalOpen}
         customer={customer}
