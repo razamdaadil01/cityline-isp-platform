@@ -518,7 +518,8 @@ function InfoField({ label, value, mono, children }) {
   )
 }
 
-function ProfileTab({ customer: initCustomer, notes, setNotes }) {
+function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
+  const navigate = useNavigate()
   const [cust, setCust] = useState(initCustomer)
   const [showPass, setShowPass] = useState(false)
   const [showAppPass, setShowAppPass] = useState(false)
@@ -1092,8 +1093,15 @@ function ProfileTab({ customer: initCustomer, notes, setNotes }) {
         <Card>
           <CardHeader title="Quick Actions" />
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" size="sm" icon={<Ticket size={13} />} className="w-full justify-start">Raise Ticket</Button>
-            <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />} className="w-full justify-start">Send SMS</Button>
+            <Button
+              variant="secondary" size="sm" icon={<Ticket size={13} />} className="w-full justify-start"
+              onClick={() => navigate(`/support/tickets/new?customerId=${cust.id}`)}
+            >
+              Raise Ticket
+            </Button>
+            <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />} className="w-full justify-start" onClick={onSendSms}>
+              Send SMS
+            </Button>
             <Button variant="secondary" size="sm" icon={<FileText size={13} />} className="w-full justify-start">View Invoice</Button>
             <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} className="w-full justify-start">Edit Profile</Button>
           </div>
@@ -1787,7 +1795,9 @@ function TicketsTab({ customer }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm text-gray-500">{tickets.length} ticket{tickets.length !== 1 ? 's' : ''}</p>
-        <Button size="sm" icon={<Plus size={13} />}>Raise Ticket</Button>
+        <Button size="sm" icon={<Plus size={13} />} onClick={() => navigate(`/support/tickets/new?customerId=${customer.id}`)}>
+          Raise Ticket
+        </Button>
       </div>
       <div className="space-y-3">
         {tickets.length === 0 ? (
@@ -2342,6 +2352,62 @@ function RecordingsTab() {
   )
 }
 
+// ── Send SMS modal ───────────────────────────────────────────────────────────
+// This app has no real SMS gateway — there's nowhere to actually deliver this
+// to. Same honesty pattern as TR-069's Remote Actions: rather than a silent
+// fake-success toast, Send logs a real, inspectable entry to this customer's
+// Activity Log and the Audit Log, then shows a toast that says so plainly.
+
+const SMS_TEMPLATES = [
+  { label: 'Payment Reminder', text: 'Dear customer, this is a reminder that your payment is currently overdue. Please clear your outstanding balance to avoid service interruption.' },
+  { label: 'Service Update', text: 'Dear customer, we wanted to update you on your service. Our team will reach out if any further action is needed on your end.' },
+]
+
+function SendSmsModal({ isOpen, customer, onClose, onSend }) {
+  const [message, setMessage] = useState('')
+
+  useEffect(() => { if (isOpen) setMessage('') }, [isOpen])
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Send SMS"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => onSend(message)} disabled={!message.trim()}>Send</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Recipient">
+          <Input value={customer?.phone ?? ''} disabled />
+        </FormField>
+        <FormField label="Message" required>
+          <Textarea value={message} onChange={e => setMessage(e.target.value)} rows={4} placeholder="Type a message…" />
+        </FormField>
+        <div className="flex flex-wrap gap-2">
+          {SMS_TEMPLATES.map(t => (
+            <button
+              key={t.label} type="button" onClick={() => setMessage(t.text)}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-brand-blue/5 text-brand-blue border border-brand-blue/20 hover:bg-brand-blue/10 transition-colors"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          This app has no SMS gateway connected. Sending logs the message to this customer's
+          Activity Log for record-keeping — it is not actually delivered.
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Suspend / Terminate modal ────────────────────────────────────────────────
 
 function StatusActionModal({ mode, onClose, onConfirm }) {
@@ -2785,6 +2851,8 @@ export default function CustomerDetail() {
 
   const [settlementModalOpen, setSettlementModalOpen] = useState(false)
   const [disconnectModalOpen, setDisconnectModalOpen] = useState(false)
+  const [smsModalOpen, setSmsModalOpen] = useState(false)
+  const [smsToast, setSmsToast] = useState(null)
 
   useEffect(() => {
     setStatusOverride(null)
@@ -2811,6 +2879,18 @@ export default function CustomerDetail() {
     logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} reactivated (Suspended → Active)` })
     setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer reactivated', meta: 'Status set back to Active' }, ...a])
     setReactivateModalOpen(false)
+  }
+
+  function handleSendSms(message) {
+    const text = message.trim()
+    if (!text) return
+    const now = formatActivityTime(new Date())
+    const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text
+    logAudit({ module: 'Customers', action: 'Edit', details: `SMS sent to ${customer.phone} for customer ${id}: ${preview}` })
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: `SMS sent to ${customer.phone}`, meta: preview }, ...a])
+    setSmsModalOpen(false)
+    setSmsToast('SMS logged to Activity — no SMS gateway connected to actually deliver it.')
+    setTimeout(() => setSmsToast(null), 3000)
   }
 
   function handleStatusConfirm({ reason, requestedDate }) {
@@ -3031,8 +3111,15 @@ export default function CustomerDetail() {
 
           {/* Quick action buttons */}
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
-            <Button variant="secondary" size="sm" icon={<Ticket size={13} />}>Raise Ticket</Button>
-            <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
+            <Button
+              variant="secondary" size="sm" icon={<Ticket size={13} />}
+              onClick={() => navigate(`/support/tickets/new?customerId=${id}`)}
+            >
+              Raise Ticket
+            </Button>
+            <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />} onClick={() => setSmsModalOpen(true)}>
+              Send SMS
+            </Button>
             {!isTerminated && (
               <Button
                 variant="orange" size="sm" icon={<Ban size={13} />}
@@ -3147,7 +3234,7 @@ export default function CustomerDetail() {
 
         {/* Tab content */}
         <div className="p-5 sm:p-6">
-          {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} />}
+          {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} onSendSms={() => setSmsModalOpen(true)} />}
           {activeTab === 'Package Details' && <PackagesTab customer={customer} />}
           {activeTab === 'Finance'         && <FinanceTab  customer={customer} />}
           {activeTab === 'Tickets'         && <TicketsTab customer={customer} />}
@@ -3183,6 +3270,18 @@ export default function CustomerDetail() {
           This sets the customer's status back to Active, restoring their services.
         </p>
       </Modal>
+      <SendSmsModal
+        isOpen={smsModalOpen}
+        customer={customer}
+        onClose={() => setSmsModalOpen(false)}
+        onSend={handleSendSms}
+      />
+      {smsToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
+          <CheckCircle size={15} className="text-emerald-400 shrink-0" />
+          {smsToast}
+        </div>
+      )}
       <ScheduleHardwareRecoveryModal
         isOpen={recoveryModalOpen}
         customer={customer}
