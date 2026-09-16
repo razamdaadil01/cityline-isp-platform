@@ -516,6 +516,40 @@ const SEED = [
       { time: new Date(NOW - 1.6 * H).toISOString(), actor: 'Ravi T.', channel: 'Call', text: 'Call duration: 2m 50s — Customer called again reporting drops resumed; ticket reopened and technician re-dispatched.' },
     ],
   },
+  // Auto-created disconnection ticket for RES-2026-0030 (Ramesh Iyengar,
+  // customersData.js's 'Pending Disconnection' seed customer) — matches the
+  // shape CustomerDetail.jsx's Terminate action itself builds (see its
+  // handleStatusConfirm 'terminate' branch): category 'Disconnection',
+  // subcategory CATEGORY_SUBCATEGORIES.Disconnection[0], priority 'P3',
+  // status 'New', billingStatus/connectionStatus left as '—' placeholders,
+  // and customerId set (unlike the earlier seed tickets above, which predate
+  // that field) so it's picked up by both the Ticket List and this
+  // customer's own Tickets tab (CustomerDetail.jsx filters on t.customerId).
+  {
+    id: 'TKT-2026-000111',
+    subject: 'Disconnection Request',
+    customerName: 'Ramesh Iyengar', phone: '9445012378', accountNumber: 'RES-2026-0030',
+    networkStatus: 'Online', opticalPower: null, lastOutageAt: null,
+    planExpireDate: new Date('2026-05-15').toISOString(), nasPortId: null,
+    officeTeam: 'Team A', branch: 'Andheri Branch', customerType: 'Residential',
+    customerId: 'RES-2026-0030',
+    category: 'Disconnection', subcategory: 'Disconnection Request',
+    priority: 'P3', status: 'New',
+    assignedAgent: null, assignedTechnician: null,
+    area: 'Andheri East',
+    createdAt: new Date(NOW - 48 * H).toISOString(), updatedAt: new Date(NOW - 48 * H).toISOString(),
+    outageLinked: false, outageId: null, reopened: false, duplicateOf: null,
+    description: "Disconnection requested for Ramesh Iyengar (RES-2026-0030). Reason: Relocation. Account moved to 'Pending Disconnection' pending hardware recovery and billing settlement.",
+    customerAddress: 'Andheri East', plan: 'FTTH 100Mbps', billingStatus: '—', connectionStatus: '—',
+    contactMethod: 'Portal',
+    activityLog: [
+      { time: new Date(NOW - 48 * H).toISOString(), actor: 'Admin User', action: 'Ticket created' },
+      { time: new Date(NOW - 48 * H).toISOString(), actor: 'System', action: 'Auto-created from Terminate action on customer RES-2026-0030' },
+    ],
+    communicationLog: [
+      { time: new Date(NOW - 48 * H).toISOString(), actor: 'System', channel: 'Portal', text: 'Disconnection request ticket auto-created.' },
+    ],
+  },
 ].map(t => ({
   ...t,
   slaDeadline: slaDeadlineFor(t.createdAt, t.priority),
