@@ -2629,6 +2629,15 @@ export default function CustomerDetail() {
   const canGenerateSettlement = displayStatus === 'Pending Disconnection' && recoveryResolved && !settlement
   const canMarkDisconnected = displayStatus === 'Pending Disconnection' && recoveryResolved && !!settlement
 
+  // Once the Terminate action has been raised ('Pending Disconnection', the
+  // exact status it writes — see CUSTOMER_STATUSES in customersData.js)
+  // through to the final 'Disconnected' state, Suspend/Terminate no longer
+  // apply — hidden from the DOM entirely rather than left visible-but-
+  // disabled, consistent with how this action bar already hides/shows other
+  // elements once 'Disconnected' (e.g. the Account Disconnected summary
+  // below) via plain conditional rendering rather than a disabled prop.
+  const isTerminated = displayStatus === 'Pending Disconnection' || displayStatus === 'Disconnected'
+
   const [settlementModalOpen, setSettlementModalOpen] = useState(false)
   const [disconnectModalOpen, setDisconnectModalOpen] = useState(false)
 
@@ -2865,42 +2874,42 @@ export default function CustomerDetail() {
           <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
             <Button variant="secondary" size="sm" icon={<Ticket size={13} />}>Raise Ticket</Button>
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
-            <Button
-              variant="orange" size="sm" icon={<Ban size={13} />}
-              disabled={displayStatus === 'suspended' || displayStatus === 'Disconnected'}
-              onClick={() => setStatusModal('suspend')}
-            >
-              Suspend
-            </Button>
-            <Button
-              variant="danger" size="sm" icon={<AlertTriangle size={13} />}
-              disabled={displayStatus === 'Pending Disconnection' || displayStatus === 'Disconnected'}
-              onClick={() => setStatusModal('terminate')}
-            >
-              Terminate
-            </Button>
+            {!isTerminated && (
+              <Button
+                variant="orange" size="sm" icon={<Ban size={13} />}
+                disabled={displayStatus === 'suspended'}
+                onClick={() => setStatusModal('suspend')}
+              >
+                Suspend
+              </Button>
+            )}
+            {!isTerminated && (
+              <Button
+                variant="danger" size="sm" icon={<AlertTriangle size={13} />}
+                onClick={() => setStatusModal('terminate')}
+              >
+                Terminate
+              </Button>
+            )}
             {canScheduleRecovery && (
               <Button size="sm" icon={<PackageSearch size={13} />} onClick={() => setRecoveryModalOpen(true)}>
                 Schedule Hardware Recovery
               </Button>
             )}
-            {existingRecovery && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200">
-                <PackageSearch size={13} className="text-purple-600 shrink-0" />
-                <span className="text-xs text-gray-700">
-                  Hardware Recovery Scheduled:{' '}
-                  <button
-                    onClick={() => navigate('/customers/hardware-recovery')}
-                    className="font-mono font-semibold text-purple-700 hover:underline"
-                  >
-                    {existingRecovery.id}
-                  </button>
-                </span>
-                <Badge variant={(RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending).variant} size="sm" dot>
-                  {(RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending).label}
-                </Badge>
-              </div>
-            )}
+            {existingRecovery && (() => {
+              const recoveryCfg = RECOVERY_STATUS_CFG[existingRecovery.status] ?? RECOVERY_STATUS_CFG.pending
+              return (
+                <button
+                  onClick={() => navigate('/customers/hardware-recovery')}
+                  title={existingRecovery.id}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors"
+                >
+                  <PackageSearch size={13} className="text-purple-600 shrink-0" />
+                  <span className="text-xs text-gray-700">Hardware Recovery:</span>
+                  <Badge variant={recoveryCfg.variant} size="sm" dot>{recoveryCfg.label}</Badge>
+                </button>
+              )
+            })()}
             {canGenerateSettlement && (
               <Button size="sm" icon={<Receipt size={13} />} onClick={() => setSettlementModalOpen(true)}>
                 Generate Final Settlement
