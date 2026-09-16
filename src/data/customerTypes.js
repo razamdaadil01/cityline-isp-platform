@@ -13,7 +13,11 @@ let _customerTypes = [
   {
     id: 'resident', name: 'Resident', status: 'Active', systemSeeded: true,
     leadIdPrefix: 'RES-LD', includeYearInNumber: true, startingNumber: 1, sequencePadding: 3, lastIssuedSequence: null,
-    customerIdConfig: { prefix: 'RES', includeYear: true, startingNumber: 1, sequencePadding: 4, lastIssuedSequence: null },
+    // lastIssuedSequence primed to 30 (not null) — customersData.js's static
+    // CUSTOMERS seed already ships 30 RES- customers (RES-2026-0001..0030),
+    // so the next id getNextCustomerId('resident') issues must start past
+    // them or it collides with an existing seed customer's id.
+    customerIdConfig: { prefix: 'RES', includeYear: true, startingNumber: 1, sequencePadding: 4, lastIssuedSequence: 30 },
     pppoeIdConfig: { mode: 'auto', pattern: '{firstname}_{lastname}_{seq}' },
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
     zohoSyncEnabled: false,
@@ -29,7 +33,9 @@ let _customerTypes = [
   {
     id: 'corporate', name: 'Corporate', status: 'Active', systemSeeded: true,
     leadIdPrefix: 'CORP-LD', includeYearInNumber: true, startingNumber: 1, sequencePadding: 3, lastIssuedSequence: null,
-    customerIdConfig: { prefix: 'ENT', includeYear: true, startingNumber: 1, sequencePadding: 4, lastIssuedSequence: null },
+    // Same reasoning as the Resident record above — customersData.js ships
+    // 3 ENT- seed customers (ENT-2026-0001..0003).
+    customerIdConfig: { prefix: 'ENT', includeYear: true, startingNumber: 1, sequencePadding: 4, lastIssuedSequence: 3 },
     pppoeIdConfig: { mode: 'auto', pattern: '{firstname}_{lastname}_{seq}' },
     appPasswordConfig: { mode: 'auto', pattern: 'Cit@{year}#{firstname}' },
     zohoSyncEnabled: false,
