@@ -13,6 +13,7 @@ import ResetLinkPanel from '../components/ResetLinkPanel'
 import { getUsers, addUser, updateUser, subscribeUsers, hashPassword } from '../data/userStore'
 import { useSession } from '../data/sessionStore'
 import { createResetToken } from '../data/passwordResetStore'
+import { getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -47,6 +48,18 @@ const ROLE_META = {
 const ROLES_OPTIONS = Object.entries(ROLE_META).map(([value, { label }]) => ({ value, label }))
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Login events (module: 'Auth', action: 'Login') are matched to a user by
+// the same email address userStore.js keys users on — auditLogStore.js has
+// no userId field, only a plain `user` string that the seed data / logAudit
+// callers populate with an email. auditLogStore.js always keeps entries
+// newest-first (seed sorted descending by timestamp, logAudit() prepends),
+// so the first match here is the most recent login. Distinct from this
+// table's existing "Last Active" column, which reads userStore.js's own
+// separate (manually-set, not audit-derived) `lastActive` field.
+function getLastLogin(auditLogs, email) {
+  return auditLogs.find(l => l.module === 'Auth' && l.action === 'Login' && l.user === email) ?? null
+}
 
 function RoleBadge({ role }) {
   const meta = ROLE_META[role] ?? { label: role, cls: 'bg-gray-100 text-gray-600 border border-gray-200' }
@@ -356,6 +369,7 @@ function ResetLinkModal({ isOpen, onClose, user, token }) {
 function UserManagementInner() {
   const currentUser = useSession()
   const [users, setUsers]         = useState(getUsers)
+  const [auditLogs, setAuditLogs] = useState(getAuditLogs)
   const [search, setSearch]       = useState('')
   const [roleFilter, setRoleFilter]     = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -367,6 +381,7 @@ function UserManagementInner() {
   const [resetInfo, setResetInfo] = useState(null)
 
   useEffect(() => subscribeUsers(setUsers), [])
+  useEffect(() => subscribeAuditLogs(setAuditLogs), [])
 
   const totalUsers    = users.length
   const activeUsers   = users.filter(u => u.status === 'active').length
@@ -491,7 +506,7 @@ function UserManagementInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
-                {['Name', 'Mobile No.', 'Role', 'Status', 'Last Active', 'Actions'].map(h => (
+                {['Name', 'Mobile No.', 'Role', 'Status', 'Last Active', 'Last Login', 'Actions'].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -501,11 +516,13 @@ function UserManagementInner() {
             <tbody className="divide-y divide-surface-border">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-sm text-gray-400">
+                  <td colSpan={7} className="text-center py-12 text-sm text-gray-400">
                     No users match your filters.
                   </td>
                 </tr>
-              ) : filtered.map(user => (
+              ) : filtered.map(user => {
+                const lastLogin = getLastLogin(auditLogs, user.email)
+                return (
                 <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
                   {/* Name */}
                   <td className="px-5 py-3.5">
@@ -553,6 +570,13 @@ function UserManagementInner() {
                       : '—'}
                   </td>
 
+                  {/* Last Login — most recent Audit Log 'Login' entry for this user's email, live-subscribed */}
+                  <td className="px-5 py-3.5 text-sm text-gray-500 whitespace-nowrap">
+                    {lastLogin
+                      ? new Date(lastLogin.timestamp.replace(' ', 'T')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : '—'}
+                  </td>
+
                   {/* Actions */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -580,7 +604,7 @@ function UserManagementInner() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
