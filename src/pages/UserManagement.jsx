@@ -335,13 +335,6 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
           </div>
         )}
 
-        <FormField label="Zone">
-          <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
-            <option value="">Select zone…</option>
-            {zoneOptions.map(z => <option key={z} value={z}>{z}</option>)}
-          </Select>
-        </FormField>
-
         {form.role === 'engineer' && (
           <FormField label="Skills" hint="Only shown for Field Engineer">
             <div className="flex flex-wrap gap-2">
@@ -377,6 +370,13 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
           <Select value={form.area} onChange={e => set('area', e.target.value)}>
             <option value="">Select area…</option>
             {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
+          </Select>
+        </FormField>
+
+        <FormField label="Zone">
+          <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
+            <option value="">Select zone…</option>
+            {zoneOptions.map(z => <option key={z} value={z}>{z}</option>)}
           </Select>
         </FormField>
 
