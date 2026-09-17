@@ -49,16 +49,25 @@ const ROLES_OPTIONS = Object.entries(ROLE_META).map(([value, { label }]) => ({ v
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Login events (module: 'Auth', action: 'Login') are matched to a user by
-// the same email address userStore.js keys users on — auditLogStore.js has
-// no userId field, only a plain `user` string that the seed data / logAudit
-// callers populate with an email. auditLogStore.js always keeps entries
+// Both lookups match a user to Audit Log entries by email — the only field
+// shared between userStore.js's users and auditLogStore.js's log entries
+// (the log has no userId). auditLogStore.js always keeps entries
 // newest-first (seed sorted descending by timestamp, logAudit() prepends),
-// so the first match here is the most recent login. Distinct from this
-// table's existing "Last Active" column, which reads userStore.js's own
-// separate (manually-set, not audit-derived) `lastActive` field.
+// so the first match is the most recent one.
+
+// Login events specifically (module: 'Auth', action: 'Login').
 function getLastLogin(auditLogs, email) {
   return auditLogs.find(l => l.module === 'Auth' && l.action === 'Login' && l.user === email) ?? null
+}
+
+// Any action at all, login included — a real, live "Last Active" (unlike
+// userStore.js's old lastActive field, which was frozen mock data: a
+// hardcoded seed value that only ever got set once more, at account
+// creation, and never updated again). Since acting requires being logged
+// in first, this will always resolve to the same-or-newer entry than
+// getLastLogin() for the same user.
+function getLastActivity(auditLogs, email) {
+  return auditLogs.find(l => l.user === email) ?? null
 }
 
 function RoleBadge({ role }) {
@@ -275,8 +284,9 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
 
 // ── View User Modal ───────────────────────────────────────────────────────────
 
-function ViewUserModal({ isOpen, onClose, user, onEdit }) {
+function ViewUserModal({ isOpen, onClose, user, onEdit, auditLogs }) {
   if (!user) return null
+  const lastActivity = getLastActivity(auditLogs, user.email)
   return (
     <Modal
       isOpen={isOpen}
@@ -311,7 +321,7 @@ function ViewUserModal({ isOpen, onClose, user, onEdit }) {
           {[
             { icon: Mail,         label: 'Email',       value: user.email         },
             { icon: Phone,        label: 'Phone',       value: user.phone || '—'  },
-            { icon: CalendarDays, label: 'Last Active', value: user.lastActive ? new Date(user.lastActive).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+            { icon: CalendarDays, label: 'Last Active', value: lastActivity ? new Date(lastActivity.timestamp.replace(' ', 'T')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
             { icon: Clock,        label: 'Member Since', value: user.memberSince ? new Date(user.memberSince).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
           ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="flex items-center gap-3">
@@ -522,6 +532,7 @@ function UserManagementInner() {
                 </tr>
               ) : filtered.map(user => {
                 const lastLogin = getLastLogin(auditLogs, user.email)
+                const lastActivity = getLastActivity(auditLogs, user.email)
                 return (
                 <tr key={user.id} className="hover:bg-gray-50/50 transition-colors group">
                   {/* Name */}
@@ -563,10 +574,10 @@ function UserManagementInner() {
                     </div>
                   </td>
 
-                  {/* Last Active */}
+                  {/* Last Active — most recent Audit Log entry of any type for this user's email, live-subscribed */}
                   <td className="px-5 py-3.5 text-sm text-gray-500 whitespace-nowrap">
-                    {user.lastActive
-                      ? new Date(user.lastActive).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    {lastActivity
+                      ? new Date(lastActivity.timestamp.replace(' ', 'T')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                       : '—'}
                   </td>
 
@@ -633,6 +644,7 @@ function UserManagementInner() {
         isOpen={!!viewUser}
         onClose={() => setViewUser(null)}
         user={viewUser}
+        auditLogs={auditLogs}
         onEdit={u => setEditUser(u)}
       />
 
