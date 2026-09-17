@@ -1,4 +1,4 @@
-import { useState, useEffect, Component } from 'react'
+import { useState, useEffect, useRef, Component } from 'react'
 import {
   Plus, Edit2, Eye, Users, UserCheck, UserX, Shield,
   Search, X, ChevronDown, CalendarDays, Phone, Mail,
@@ -150,6 +150,76 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
   )
 }
 
+// Closed-by-default multi-select: selected values show as removable chips
+// inside the trigger field itself, click opens a checkbox-list panel below —
+// same chip style (rounded-full bg-brand-blue/10 + X) and checkbox-list-row
+// style as NasPortMultiSelect.jsx/AssignTeamModal.jsx's always-open
+// multi-selects, and the same outside-click-close ref pattern
+// Header.jsx's notification/search dropdowns use, just collapsed into a
+// closed field instead of an always-expanded panel.
+function SkillsMultiSelect({ options, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  function toggle(value) {
+    onChange(selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value])
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <div
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[38px] px-3 py-1.5 border border-surface-border rounded-lg bg-white flex items-center flex-wrap gap-1.5 cursor-pointer focus-within:ring-2 focus-within:ring-brand-blue/30 focus-within:border-brand-blue"
+      >
+        {selected.length === 0 ? (
+          <span className="text-sm text-gray-400">Select skills…</span>
+        ) : selected.map(value => (
+          <span key={value} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+            {value}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); toggle(value) }}
+              className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none"
+            >
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        <ChevronDown size={13} className={`ml-auto text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+
+      {open && (
+        <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg bg-white shadow-lg divide-y divide-surface-border overflow-hidden">
+          {options.map(value => {
+            const isSelected = selected.includes(value)
+            return (
+              <label key={value}
+                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggle(value)}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                />
+                <span className="text-sm text-gray-700">{value}</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── User Form Modal ───────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
@@ -194,10 +264,6 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
   }, [user, isOpen])
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  function toggleSkill(skill) {
-    setForm(p => ({ ...p, skills: p.skills.includes(skill) ? p.skills.filter(s => s !== skill) : [...p.skills, skill] }))
-  }
 
   function validate() {
     const e = {}
@@ -337,25 +403,11 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
 
         {form.role === 'engineer' && (
           <FormField label="Skills" hint="Only shown for Field Engineer">
-            <div className="flex flex-wrap gap-2">
-              {SKILL_OPTIONS.map(skill => {
-                const selected = form.skills.includes(skill)
-                return (
-                  <label key={skill}
-                    className={`inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
-                      selected ? 'bg-brand-blue/10 border-brand-blue/40 text-brand-blue' : 'bg-white border-surface-border text-gray-600 hover:bg-gray-50'
-                    }`}>
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleSkill(skill)}
-                      className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                    />
-                    {skill}
-                  </label>
-                )
-              })}
-            </div>
+            <SkillsMultiSelect
+              options={SKILL_OPTIONS}
+              selected={form.skills}
+              onChange={skills => set('skills', skills)}
+            />
           </FormField>
         )}
 
