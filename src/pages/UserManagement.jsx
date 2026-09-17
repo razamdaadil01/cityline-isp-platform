@@ -14,6 +14,9 @@ import { getUsers, addUser, updateUser, subscribeUsers, hashPassword } from '../
 import { useSession } from '../data/sessionStore'
 import { createResetToken } from '../data/passwordResetStore'
 import { getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
+import { getAreas } from '../data/areaMappingStore'
+import { getActiveCompanyEntities } from '../data/companyEntities'
+import { getCustomerTypes } from '../data/customerTypes'
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -46,6 +49,12 @@ const ROLE_META = {
 }
 
 const ROLES_OPTIONS = Object.entries(ROLE_META).map(([value, { label }]) => ({ value, label }))
+
+// Fixed skill list for Field Engineer (role='engineer') users — per client
+// request, this only appears on the Add/Edit User form when that role is
+// selected, same conditional-field convention as this form's own
+// roleChanged self-lockout warning below.
+const SKILL_OPTIONS = ['Fiber Installation', 'Router Repair', 'Cabling', 'OTT Setup', 'Network Troubleshooting']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -135,22 +144,46 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
 
 // ── User Form Modal ───────────────────────────────────────────────────────────
 
-const EMPTY_FORM = { name: '', email: '', phone: '', role: '', status: 'active', password: '' }
+const EMPTY_FORM = {
+  name: '', email: '', phone: '', role: '', status: 'active', password: '',
+  branch: '', skills: [], companyId: '', area: '', customerType: '',
+}
 
 function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
   const isEdit = !!user
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
+  // Branch/Area options reuse Area Mapping's own data (Settings > Area
+  // Mapping) — its branchCode is the same free-text branch identifier
+  // role='engineer' users already carry on their own `branch` field
+  // (userStore.js), and `area` is its own area tier, one level up from
+  // locality. Company options reuse Company/Entity settings data (Active
+  // only, same convention as CreatePO.jsx/AddAsset.jsx/ProductList.jsx's
+  // own company pickers). Customer Type options reuse the same
+  // Resident/Corporate enum the Customers module drives off of.
+  const areas = getAreas()
+  const branchOptions = [...new Set(areas.map(a => a.branchCode))].sort()
+  const areaOptions = [...new Set(areas.map(a => a.area))].sort()
+  const companyOptions = getActiveCompanyEntities()
+  const customerTypeOptions = getCustomerTypes()
+
   useEffect(() => {
     // password always starts blank, even when editing — we never display an
     // existing password, and a blank value on save means "leave unchanged"
     // (see handleSave in UserManagementInner).
-    setForm(user ? { name: user.name, email: user.email, phone: user.phone ?? '', role: user.role, status: user.status, password: '' } : EMPTY_FORM)
+    setForm(user ? {
+      name: user.name, email: user.email, phone: user.phone ?? '', role: user.role, status: user.status, password: '',
+      branch: user.branch ?? '', skills: user.skills ?? [], companyId: user.companyId ?? '', area: user.area ?? '', customerType: user.customerType ?? '',
+    } : EMPTY_FORM)
     setErrors({})
   }, [user, isOpen])
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+
+  function toggleSkill(skill) {
+    setForm(p => ({ ...p, skills: p.skills.includes(skill) ? p.skills.filter(s => s !== skill) : [...p.skills, skill] }))
+  }
 
   function validate() {
     const e = {}
@@ -169,7 +202,13 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
     // as '' so handleSave's "blank means unchanged" check in
     // UserManagementInner still works; hashPassword('') would otherwise be
     // a non-empty string and look like an intentional change.
-    onSave({ ...form, password: form.password.trim() ? hashPassword(form.password.trim()) : '' })
+    onSave({
+      ...form,
+      password: form.password.trim() ? hashPassword(form.password.trim()) : '',
+      // Skill only ever applies to Field Engineer — drop any stale
+      // selection left over from before the role was switched away.
+      skills: form.role === 'engineer' ? form.skills : [],
+    })
   }
 
   // Self-lockout warning: editing your own role to something other than
@@ -281,6 +320,58 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
             </p>
           </div>
         )}
+
+        <FormField label="Branch">
+          <Select value={form.branch} onChange={e => set('branch', e.target.value)}>
+            <option value="">Select branch…</option>
+            {branchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+          </Select>
+        </FormField>
+
+        {form.role === 'engineer' && (
+          <FormField label="Skills" hint="Only shown for Field Engineer">
+            <div className="flex flex-wrap gap-2">
+              {SKILL_OPTIONS.map(skill => {
+                const selected = form.skills.includes(skill)
+                return (
+                  <label key={skill}
+                    className={`inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                      selected ? 'bg-brand-blue/10 border-brand-blue/40 text-brand-blue' : 'bg-white border-surface-border text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleSkill(skill)}
+                      className="w-3.5 h-3.5 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                    />
+                    {skill}
+                  </label>
+                )
+              })}
+            </div>
+          </FormField>
+        )}
+
+        <FormField label="Company">
+          <Select value={form.companyId} onChange={e => set('companyId', e.target.value)}>
+            <option value="">Select company…</option>
+            {companyOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </FormField>
+
+        <FormField label="Area">
+          <Select value={form.area} onChange={e => set('area', e.target.value)}>
+            <option value="">Select area…</option>
+            {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
+          </Select>
+        </FormField>
+
+        <FormField label="Customer Type">
+          <Select value={form.customerType} onChange={e => set('customerType', e.target.value)}>
+            <option value="">Select customer type…</option>
+            {customerTypeOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </Select>
+        </FormField>
 
         <FormField label="Status">
           <div className="flex items-center gap-3 h-9">
