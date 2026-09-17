@@ -70,6 +70,22 @@ function getLastActivity(auditLogs, email) {
   return auditLogs.find(l => l.user === email) ?? null
 }
 
+// auditLogStore.js's timestamp is 'YYYY-MM-DD HH:MM:SS' — full date+time
+// precision, not date-only — so Last Login/Last Active can show real
+// time-of-day, not a fabricated one. `.replace(' ', 'T')` makes it a valid
+// ISO string the Date constructor parses reliably. Same day/month/year +
+// hour/minute + hour12 options this app's other pages already use for a
+// date-and-time display (formatDateTime() in OutageList.jsx,
+// SupportTicketDetail.jsx, TicketCreate.jsx, Approvals.jsx, etc. — there's
+// no single shared date-formatting util, just this same options object
+// repeated per-file, reused here rather than inventing a new one-off shape).
+function formatLogTimestamp(entry) {
+  if (!entry) return '—'
+  return new Date(entry.timestamp.replace(' ', 'T')).toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+  })
+}
+
 function RoleBadge({ role }) {
   const meta = ROLE_META[role] ?? { label: role, cls: 'bg-gray-100 text-gray-600 border border-gray-200' }
   return (
@@ -321,7 +337,7 @@ function ViewUserModal({ isOpen, onClose, user, onEdit, auditLogs }) {
           {[
             { icon: Mail,         label: 'Email',       value: user.email         },
             { icon: Phone,        label: 'Phone',       value: user.phone || '—'  },
-            { icon: CalendarDays, label: 'Last Active', value: lastActivity ? new Date(lastActivity.timestamp.replace(' ', 'T')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
+            { icon: CalendarDays, label: 'Last Active', value: formatLogTimestamp(lastActivity) },
             { icon: Clock,        label: 'Member Since', value: user.memberSince ? new Date(user.memberSince).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
           ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="flex items-center gap-3">
@@ -576,16 +592,12 @@ function UserManagementInner() {
 
                   {/* Last Active — most recent Audit Log entry of any type for this user's email, live-subscribed */}
                   <td className="px-5 py-3.5 text-sm text-gray-500 whitespace-nowrap">
-                    {lastActivity
-                      ? new Date(lastActivity.timestamp.replace(' ', 'T')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                      : '—'}
+                    {formatLogTimestamp(lastActivity)}
                   </td>
 
                   {/* Last Login — most recent Audit Log 'Login' entry for this user's email, live-subscribed */}
                   <td className="px-5 py-3.5 text-sm text-gray-500 whitespace-nowrap">
-                    {lastLogin
-                      ? new Date(lastLogin.timestamp.replace(' ', 'T')).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                      : '—'}
+                    {formatLogTimestamp(lastLogin)}
                   </td>
 
                   {/* Actions */}
