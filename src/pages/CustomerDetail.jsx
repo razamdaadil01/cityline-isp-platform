@@ -33,6 +33,10 @@ import { getProduct } from '../data/productStore'
 import {
   getSettlementByCustomerId, subscribeSettlements, addSettlement, nextSettlementId,
 } from '../data/settlementStore'
+import {
+  getInvoices, subscribeInvoices, getOutstandingTotal,
+} from '../data/invoicesStore'
+import { getPaymentsForCustomer, subscribePayments } from '../data/paymentsStore'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -350,15 +354,6 @@ function computeHardwarePenaltyDefault(recovery) {
   if (recovery.status === 'partial_recovery') return Math.round(totalValue / 2)
   return 0 // 'completed' — nothing missing or damaged
 }
-
-const INVOICES = [
-  { no: 'INV-2026-0451', pkg: 'Broadband + Landline + OTT', date: '01 May 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0312', pkg: 'Broadband + Landline + OTT', date: '01 Apr 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0189', pkg: 'Broadband + Landline + OTT', date: '01 Mar 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0088', pkg: 'Broadband + Landline + OTT', date: '01 Feb 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0052', pkg: 'Broadband',                   date: '01 Jan 2026', amount: 999,  status: 'paid' },
-  { no: 'INV-2025-0987', pkg: 'Broadband',                   date: '01 Dec 2025', amount: 999,  status: 'paid' },
-]
 
 const LEDGER = [
   { date: '01 May 2026', description: 'Invoice #INV-2026-0451',     type: 'debit',  amount: 1499, balance: 1200 },
@@ -1636,6 +1631,19 @@ function FinanceTab({ customer }) {
     return subscribeSettlements(() => setSettlement(getSettlementByCustomerId(customer.id)))
   }, [customer.id])
 
+  // Invoices — real, mutable store (invoicesStore.js) so Add Payment's
+  // Submit action (markInvoicesPaid()) is reflected here live.
+  const [invoices, setInvoices] = useState(() => getInvoices())
+  useEffect(() => subscribeInvoices(setInvoices), [])
+
+  // Real payments recorded via Add Payment, merged on top of the pre-existing
+  // MOCK_PAYMENTS seed rows below.
+  const [realPayments, setRealPayments] = useState(() => getPaymentsForCustomer(customer.id))
+  useEffect(() => {
+    setRealPayments(getPaymentsForCustomer(customer.id))
+    return subscribePayments(() => setRealPayments(getPaymentsForCustomer(customer.id)))
+  }, [customer.id])
+
   // Resolve active sub-tab from URL param; default to 'invoices'
   const activeSlug = FINANCE_SUB_TABS.find(t => t.slug === subTabParam)?.slug ?? 'invoices'
 
@@ -1646,15 +1654,15 @@ function FinanceTab({ customer }) {
 
   const goTo = (slug) => navigate(`/customers/${customerId}/finance/${slug}`)
 
-  const invTotal = INVOICES.length
+  const invTotal = invoices.length
   const invPages = Math.ceil(invTotal / PER_PAGE)
-  const invRows  = INVOICES.slice((invPage - 1) * PER_PAGE, invPage * PER_PAGE)
+  const invRows  = invoices.slice((invPage - 1) * PER_PAGE, invPage * PER_PAGE)
 
   // Full list (not just the current page's invRows slice) — Invoices has no
   // status filter to respect (unlike Payments' "Display Failed" toggle
   // below), so this is simply every invoice currently shown across all pages.
   function handleExportInvoices() {
-    const rows = INVOICES.map(inv => ({
+    const rows = invoices.map(inv => ({
       'Invoice No': inv.no,
       'Package': inv.pkg,
       'Date': inv.date,
@@ -1664,7 +1672,8 @@ function FinanceTab({ customer }) {
     exportCsv(`${customer.id}_invoices_${new Date().toISOString().slice(0, 10)}.csv`, rows)
   }
 
-  const filteredPayments = showFailed ? MOCK_PAYMENTS.filter(p => p.status === 'Failed') : MOCK_PAYMENTS
+  const allPayments = [...realPayments, ...MOCK_PAYMENTS]
+  const filteredPayments = showFailed ? allPayments.filter(p => p.status === 'Failed') : allPayments
   const payTotal = filteredPayments.length
   const payPages = Math.max(1, Math.ceil(payTotal / PER_PAGE))
   const payRows  = filteredPayments.slice((payPage - 1) * PER_PAGE, payPage * PER_PAGE)
@@ -1800,7 +1809,7 @@ function FinanceTab({ customer }) {
               Display Failed Payments
             </label>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">0</span></span>
+              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">₹{getOutstandingTotal().toLocaleString('en-IN')}</span></span>
               <button onClick={() => navigate(`/customers/${customerId}/finance/payments/add`)} className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
                 <span>+</span> Add Payment
               </button>
@@ -2916,6 +2925,12 @@ export default function CustomerDetail() {
     sales: liveCustomer?.sales ?? baseCustomer.sales,
     ownership: liveCustomer?.ownership ?? baseCustomer.ownership,
     kyc: liveCustomer?.kyc ?? baseCustomer.kyc,
+    // Invoices are still a single shared list, not per-customer (see
+    // invoicesStore.js), so this is the same outstanding total for every
+    // customer for now — but it's live-computed instead of the hardcoded
+    // 0/1200 the two source objects above carry, so it actually reflects
+    // payments recorded via Add Payment (markInvoicesPaid()) on remount.
+    outstandingDues: getOutstandingTotal(),
   }
   const isIntercom = id.startsWith('INC')
   const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
