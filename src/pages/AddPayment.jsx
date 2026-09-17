@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
+import { getOutstandingInvoices, markInvoicesPaid } from '../data/invoicesStore'
+import { addPayment, nextReceiptNo } from '../data/paymentsStore'
+import { logAudit } from '../data/auditLogStore'
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
 const disabledInp = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed"
@@ -10,9 +13,66 @@ export default function AddPayment() {
   const navigate = useNavigate()
   const today = new Date().toISOString().slice(0, 10)
 
-  const [form, setForm] = useState({ mode: 'Cash', amount: '0', txn: '', comment: '', sms: true, fullAmount: false, proof: null })
+  // Invoices are still a single shared list, not per-customer (see
+  // invoicesStore.js's comment) — same pre-existing limitation as the rest
+  // of Finance's mock data. This is every currently-outstanding invoice.
+  const [outstandingInvoices] = useState(() => getOutstandingInvoices())
+  const [selected, setSelected] = useState(() => new Set(outstandingInvoices.map(inv => inv.no)))
+  const dueAmount = outstandingInvoices
+    .filter(inv => selected.has(inv.no))
+    .reduce((sum, inv) => sum + inv.amount, 0)
+
+  const [form, setForm] = useState({ mode: 'Cash', amount: String(dueAmount), txn: '', comment: '', sms: true, fullAmount: true, proof: null })
 
   const goBack = () => navigate(`/customers/${customerId}/finance/payments`)
+
+  function toggleInvoice(no) {
+    const next = new Set(selected)
+    if (next.has(no)) next.delete(no)
+    else next.add(no)
+    setSelected(next)
+    if (form.fullAmount) {
+      const newDue = outstandingInvoices.filter(inv => next.has(inv.no)).reduce((sum, inv) => sum + inv.amount, 0)
+      setForm(f => ({ ...f, amount: String(newDue) }))
+    }
+  }
+
+  function handleSubmit() {
+    const amountPaid = Number(form.amount) || 0
+    const selectedNos = outstandingInvoices.filter(inv => selected.has(inv.no)).map(inv => inv.no)
+
+    if (selectedNos.length > 0) markInvoicesPaid(selectedNos)
+
+    const now = new Date()
+    const dateOnly = now.toLocaleDateString('en-GB').split('/').join('-')
+    const timeStr = now.toLocaleTimeString('en-GB')
+
+    const payment = addPayment({
+      id: `PAY-${Date.now()}`,
+      customerId,
+      receiptNo: nextReceiptNo(),
+      invoiceNo: selectedNos.join(', ') || '—',
+      invoiceNos: selectedNos,
+      paymentDate: dateOnly,
+      date: `${dateOnly} ${timeStr}`,
+      mode: form.mode,
+      total: amountPaid,
+      paid: amountPaid,
+      status: 'Complete',
+      orderNo: form.txn || '—',
+      chequeBCh: 0,
+      addBy: 'Admin User',
+      comment: form.comment.trim() || 'Complete',
+    })
+
+    logAudit({
+      module: 'Customers',
+      action: 'Edit',
+      details: `Payment of ₹${amountPaid.toLocaleString('en-IN')} recorded via ${form.mode} for customer ${customerId}${selectedNos.length ? ` — settled ${selectedNos.join(', ')}` : ''} (Receipt ${payment.receiptNo})`,
+    })
+
+    navigate(`/customers/${customerId}/finance/payments`)
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -53,7 +113,7 @@ export default function AddPayment() {
         {/* Row 2: Total Amount | Payment Date */}
         <div className="grid grid-cols-2 gap-5">
           {[
-            { label: 'Total Amount', value: '35400' },
+            { label: 'Total Amount', value: String(dueAmount) },
             { label: 'Payment Date', value: today   },
           ].map(f => (
             <div key={f.label}>
@@ -81,7 +141,7 @@ export default function AddPayment() {
               className={inp} />
             <label className="flex items-center gap-1.5 mt-2 cursor-pointer">
               <input type="checkbox" checked={form.fullAmount}
-                onChange={e => setForm(f => ({ ...f, fullAmount: e.target.checked, amount: e.target.checked ? '35400' : f.amount }))}
+                onChange={e => setForm(f => ({ ...f, fullAmount: e.target.checked, amount: e.target.checked ? String(dueAmount) : f.amount }))}
                 className="w-3.5 h-3.5 accent-[#0A8DCD]" />
               <span className="text-xs text-gray-500">Full Amount To be Paid</span>
             </label>
@@ -92,7 +152,7 @@ export default function AddPayment() {
         <div className="grid grid-cols-2 gap-5">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Due Amount</label>
-            <input value="35400" disabled className={disabledInp} />
+            <input value={String(dueAmount)} disabled className={disabledInp} />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Transaction No.</label>
@@ -127,7 +187,8 @@ export default function AddPayment() {
         <div className="flex justify-end gap-3 pt-2">
           <button onClick={goBack}
             className="px-7 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">Skip</button>
-          <button className="px-7 py-2.5 bg-[#0A8DCD] hover:bg-[#0878b0] text-white rounded-lg text-sm font-medium transition-colors">Submit</button>
+          <button onClick={handleSubmit}
+            className="px-7 py-2.5 bg-[#0A8DCD] hover:bg-[#0878b0] text-white rounded-lg text-sm font-medium transition-colors">Submit</button>
         </div>
       </div>
 
@@ -146,19 +207,25 @@ export default function AddPayment() {
               </tr>
             </thead>
             <tbody>
-              <tr className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <input type="checkbox" className="w-4 h-4 accent-[#0A8DCD]" />
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-600">2026-06-24</td>
-                <td className="px-4 py-3 text-xs text-gray-500">—</td>
-                <td className="px-4 py-3 text-xs font-medium text-gray-800">₹35,400.00</td>
-                <td className="px-4 py-3">
-                  <span className="text-xs font-medium text-gray-800 mr-1.5">₹35,400.00</span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Unpaid</span>
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-600">0.00</td>
-              </tr>
+              {outstandingInvoices.map(inv => (
+                <tr key={inv.no} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <input type="checkbox" checked={selected.has(inv.no)} onChange={() => toggleInvoice(inv.no)}
+                      className="w-4 h-4 accent-[#0A8DCD]" />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{inv.date}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{inv.no}</td>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-800">₹{inv.amount.toLocaleString('en-IN')}.00</td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs font-medium text-gray-800 mr-1.5">₹{inv.amount.toLocaleString('en-IN')}.00</span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Unpaid</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{selected.has(inv.no) ? inv.amount.toLocaleString('en-IN') : '0'}.00</td>
+                </tr>
+              ))}
+              {outstandingInvoices.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">No outstanding invoices.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
