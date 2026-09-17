@@ -28,6 +28,18 @@ const SKILL_OPTIONS = ['Fiber Installation', 'Router Repair', 'Cabling', 'OTT Se
 // actually written to/read from a customer record.
 const CUSTOMER_TYPE_OPTIONS = ['Residential', 'Corporate']
 
+// Same "small uppercase label, bottom border" section header AddCustomer.jsx
+// uses inside its form card (SectionHeading) — reused here so this page's
+// section grouping reads consistently with the rest of the app's full-page
+// "add new record" forms rather than inventing a new heading style.
+function SectionHeading({ children }) {
+  return (
+    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 pb-2 border-b border-surface-border">
+      {children}
+    </p>
+  )
+}
+
 function initialsFromName(fullName) {
   const parts = (fullName || '').trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return ''
@@ -36,13 +48,15 @@ function initialsFromName(fullName) {
   return (first + last).toUpperCase()
 }
 
-// Circular profile-picture upload — same FileReader.readAsDataURL capture
-// pattern as SalesNewLead.jsx's ProfilePictureUpload/CustomerDetail.jsx's
-// KYC document uploads (a data URL is the only way to keep real image data
-// on a record with no file-storage backend behind it). The no-photo-yet
-// fallback matches this app's own colored-initials Avatar convention (the
-// User Management table), rather than SalesNewLead's generic blue-tinted
-// circle, so a new user's picture slot looks like the avatar it'll become.
+// Circular profile-picture upload, sized for its own sidebar card (rather
+// than squeezed inline next to Full Name/Email) — same
+// FileReader.readAsDataURL capture pattern as SalesNewLead.jsx's
+// ProfilePictureUpload/CustomerDetail.jsx's KYC document uploads (a data
+// URL is the only way to keep real image data on a record with no
+// file-storage backend behind it). The no-photo-yet fallback matches this
+// app's own colored-initials Avatar convention (the User Management
+// table), rather than SalesNewLead's generic blue-tinted circle, so a new
+// user's picture slot looks like the avatar it'll become.
 function ProfilePictureUpload({ name, color, photoUrl, onChange }) {
   const inputRef = useRef(null)
   const initials = initialsFromName(name)
@@ -55,19 +69,19 @@ function ProfilePictureUpload({ name, color, photoUrl, onChange }) {
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 shrink-0">
+    <div className="flex flex-col items-center gap-3 shrink-0">
       <div className="relative">
-        <div className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden text-white text-xl font-bold ${photoUrl ? '' : (color ?? 'bg-brand-blue')}`}>
+        <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden text-white text-2xl font-bold ring-4 ring-surface ${photoUrl ? '' : (color ?? 'bg-brand-blue')}`}>
           {photoUrl
             ? <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
-            : (initials || <UserIcon size={28} />)}
+            : (initials || <UserIcon size={30} />)}
         </div>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-brand-blue text-white flex items-center justify-center shadow-md border-2 border-white hover:bg-brand-blue/90 transition-colors"
+          className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-brand-blue text-white flex items-center justify-center shadow-md border-2 border-white hover:bg-brand-blue/90 transition-colors"
         >
-          <Camera size={13} />
+          <Camera size={14} />
         </button>
         <input
           ref={inputRef}
@@ -77,7 +91,7 @@ function ProfilePictureUpload({ name, color, photoUrl, onChange }) {
           onChange={e => { handleFile(e.target.files?.[0]); e.target.value = '' }}
         />
       </div>
-      <p className="text-xs text-gray-500">Profile Picture</p>
+      <p className="text-xs font-medium text-gray-500">Profile Picture</p>
     </div>
   )
 }
@@ -168,8 +182,9 @@ function formFromUser(user) {
 // Add User / Edit User — a full page (moved off the old Add/Edit modal),
 // same "shared form component, `user` prop switches it into edit mode"
 // convention as SalesNewLead.jsx/SalesEditLead.jsx. Page layout (header with
-// back button, single form card, fixed bottom Cancel/Submit bar) follows
-// PackageAdd.jsx's single-step "add new record" page convention.
+// back button, two-panel body — main form left, profile/status sidebar
+// right — fixed bottom Cancel/Submit bar) follows PackageAdd.jsx's
+// full-page "add new record" page convention.
 export default function UserAdd({ user = null } = {}) {
   const navigate = useNavigate()
   const currentUser = useSession()
@@ -261,172 +276,208 @@ export default function UserAdd({ user = null } = {}) {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-card border border-surface-border p-6 space-y-5">
-        {/* Activity stats for edit */}
-        {isEdit && user && (
-          <div className="grid grid-cols-3 gap-3 p-4 bg-gray-50 rounded-xl border border-surface-border">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <TrendingUp size={13} className="text-brand-blue" />
-                <p className="text-xs font-semibold text-gray-500">Leads</p>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{user.leadsAssigned ?? 0}</p>
-            </div>
-            <div className="text-center border-x border-surface-border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <PhoneCall size={13} className="text-brand-orange" />
-                <p className="text-xs font-semibold text-gray-500">Follow-ups</p>
-              </div>
-              <p className="text-xl font-bold text-gray-900">{user.followupsTotal ?? 0}</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Clock size={13} className="text-gray-400" />
-                <p className="text-xs font-semibold text-gray-500">Member Since</p>
-              </div>
-              <p className="text-sm font-semibold text-gray-700">
-                {user.memberSince ? new Date(user.memberSince).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
-              </p>
+      {/* Two-panel body — same left-main/right-sidebar structure as
+          PackageAdd.jsx's own full-page "add new record" form, so Profile
+          Picture gets a real sidebar slot instead of being squeezed inline
+          next to Full Name/Email. */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+
+        {/* ── LEFT PANEL — form fields ─────────────────────────────── */}
+        <div className="flex-1 lg:flex-[2] w-full min-w-0 bg-white rounded-2xl shadow-card border border-surface-border p-6 space-y-6">
+
+          {/* Account Details */}
+          <div>
+            <SectionHeading>Account Details</SectionHeading>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <FormField label="Full Name" required error={errors.name}>
+                <Input
+                  placeholder="e.g. Arjun Kumar"
+                  value={form.name}
+                  onChange={e => set('name', e.target.value)}
+                  error={!!errors.name}
+                  autoComplete="off"
+                />
+              </FormField>
+
+              <FormField label="Email" required error={errors.email}>
+                <Input
+                  type="email"
+                  placeholder="e.g. arjun@cityline.in"
+                  value={form.email}
+                  onChange={e => set('email', e.target.value)}
+                  error={!!errors.email}
+                  autoComplete="off"
+                />
+              </FormField>
+
+              <FormField
+                label="Password"
+                required={!isEdit}
+                error={errors.password}
+                hint={isEdit ? 'Leave blank to keep the current password' : 'Used to sign in via /login (demo-grade — see sessionStore.js)'}
+              >
+                <Input
+                  type="password"
+                  placeholder={isEdit ? '••••••••' : 'Set a password'}
+                  value={form.password}
+                  onChange={e => set('password', e.target.value)}
+                  error={!!errors.password}
+                  autoComplete="new-password"
+                />
+              </FormField>
+
+              <FormField label="Phone">
+                <Input
+                  type="tel"
+                  placeholder="e.g. 9876543210"
+                  value={form.phone}
+                  onChange={e => set('phone', e.target.value)}
+                  autoComplete="off"
+                />
+              </FormField>
             </div>
           </div>
-        )}
 
-        {/* Profile Picture + Full Name/Email */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 pb-5 border-b border-surface-border">
-          <ProfilePictureUpload
-            name={form.name}
-            color={user?.color}
-            photoUrl={form.photoUrl}
-            onChange={url => set('photoUrl', url)}
-          />
-          <div className="hidden sm:block w-px self-stretch bg-surface-border shrink-0" />
-          <div className="flex-1 w-full space-y-4">
-            <FormField label="Full Name" required error={errors.name}>
-              <Input
-                placeholder="e.g. Arjun Kumar"
-                value={form.name}
-                onChange={e => set('name', e.target.value)}
-                error={!!errors.name}
-              />
-            </FormField>
+          {/* Role & Access */}
+          <div className="border-t border-surface-border pt-6">
+            <SectionHeading>Role &amp; Access</SectionHeading>
+            <div className="space-y-4">
+              <FormField label="Role" required error={errors.role}>
+                <Select value={form.role} onChange={e => set('role', e.target.value)} error={!!errors.role}>
+                  <option value="">Select role…</option>
+                  {ROLES_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </Select>
+              </FormField>
 
-            <FormField label="Email" required error={errors.email}>
-              <Input
-                type="email"
-                placeholder="e.g. arjun@cityline.in"
-                value={form.email}
-                onChange={e => set('email', e.target.value)}
-                error={!!errors.email}
-              />
-            </FormField>
+              {roleChanged && (
+                <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    You're changing your own role — this may restrict your own access until you log in again.
+                  </p>
+                </div>
+              )}
+
+              {form.role === 'engineer' && (
+                <FormField label="Skills" hint="Only shown for Field Engineer">
+                  <SkillsMultiSelect
+                    options={SKILL_OPTIONS}
+                    selected={form.skills}
+                    onChange={skills => set('skills', skills)}
+                  />
+                </FormField>
+              )}
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <FormField label="Company">
+                  <Select value={form.companyId} onChange={e => set('companyId', e.target.value)}>
+                    <option value="">Select company…</option>
+                    {companyOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField label="Area">
+                  <Select value={form.area} onChange={e => set('area', e.target.value)}>
+                    <option value="">Select area…</option>
+                    {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField label="Zone">
+                  <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
+                    <option value="">Select zone…</option>
+                    {zoneOptions.map(z => <option key={z} value={z}>{z}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField label="Customer Type">
+                  <Select value={form.customerType} onChange={e => set('customerType', e.target.value)}>
+                    <option value="">Select customer type…</option>
+                    {CUSTOMER_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField label="Department">
+                  <Select value={form.departmentId} onChange={e => set('departmentId', e.target.value)}>
+                    <option value="">Select department…</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </Select>
+                </FormField>
+              </div>
+            </div>
           </div>
         </div>
 
-        <FormField
-          label="Password"
-          required={!isEdit}
-          error={errors.password}
-          hint={isEdit ? 'Leave blank to keep the current password' : 'Used to sign in via /login (demo-grade — see sessionStore.js)'}
-        >
-          <Input
-            type="password"
-            placeholder={isEdit ? '••••••••' : 'Set a password'}
-            value={form.password}
-            onChange={e => set('password', e.target.value)}
-            error={!!errors.password}
-          />
-        </FormField>
+        {/* ── RIGHT PANEL — profile, activity, status ──────────────── */}
+        <div className="w-full lg:w-80 shrink-0 space-y-5">
 
-        <FormField label="Phone">
-          <Input
-            type="tel"
-            placeholder="e.g. 9876543210"
-            value={form.phone}
-            onChange={e => set('phone', e.target.value)}
-          />
-        </FormField>
-
-        <FormField label="Role" required error={errors.role}>
-          <Select value={form.role} onChange={e => set('role', e.target.value)} error={!!errors.role}>
-            <option value="">Select role…</option>
-            {ROLES_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </Select>
-        </FormField>
-
-        {roleChanged && (
-          <div className="flex items-start gap-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-800 leading-relaxed">
-              You're changing your own role — this may restrict your own access until you log in again.
-            </p>
-          </div>
-        )}
-
-        {form.role === 'engineer' && (
-          <FormField label="Skills" hint="Only shown for Field Engineer">
-            <SkillsMultiSelect
-              options={SKILL_OPTIONS}
-              selected={form.skills}
-              onChange={skills => set('skills', skills)}
+          {/* Profile Picture */}
+          <div className="bg-white rounded-2xl shadow-card border border-surface-border p-6 flex flex-col items-center text-center gap-1">
+            <ProfilePictureUpload
+              name={form.name}
+              color={user?.color}
+              photoUrl={form.photoUrl}
+              onChange={url => set('photoUrl', url)}
             />
-          </FormField>
-        )}
+            <p className="text-sm font-semibold text-gray-900 mt-2 truncate max-w-full">{form.name || 'New team member'}</p>
+            <p className="text-xs text-gray-400 truncate max-w-full">{form.email || 'No email yet'}</p>
+          </div>
 
-        <FormField label="Department">
-          <Select value={form.departmentId} onChange={e => set('departmentId', e.target.value)}>
-            <option value="">Select department…</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </Select>
-        </FormField>
+          {/* Activity stats for edit */}
+          {isEdit && user && (
+            <div className="bg-white rounded-2xl shadow-card border border-surface-border p-5">
+              <SectionHeading>Activity</SectionHeading>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <TrendingUp size={12} className="text-brand-blue" />
+                    <p className="text-[11px] font-semibold text-gray-500">Leads</p>
+                  </div>
+                  <p className="text-base font-bold text-gray-900">{user.leadsAssigned ?? 0}</p>
+                </div>
+                <div className="text-center border-x border-surface-border">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <PhoneCall size={12} className="text-brand-orange" />
+                    <p className="text-[11px] font-semibold text-gray-500">Follow-ups</p>
+                  </div>
+                  <p className="text-base font-bold text-gray-900">{user.followupsTotal ?? 0}</p>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Clock size={12} className="text-gray-400" />
+                    <p className="text-[11px] font-semibold text-gray-500">Since</p>
+                  </div>
+                  <p className="text-xs font-semibold text-gray-700 leading-tight">
+                    {user.memberSince ? new Date(user.memberSince).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-        <FormField label="Company">
-          <Select value={form.companyId} onChange={e => set('companyId', e.target.value)}>
-            <option value="">Select company…</option>
-            {companyOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-        </FormField>
-
-        <FormField label="Area">
-          <Select value={form.area} onChange={e => set('area', e.target.value)}>
-            <option value="">Select area…</option>
-            {areaOptions.map(a => <option key={a} value={a}>{a}</option>)}
-          </Select>
-        </FormField>
-
-        <FormField label="Zone">
-          <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
-            <option value="">Select zone…</option>
-            {zoneOptions.map(z => <option key={z} value={z}>{z}</option>)}
-          </Select>
-        </FormField>
-
-        <FormField label="Customer Type">
-          <Select value={form.customerType} onChange={e => set('customerType', e.target.value)}>
-            <option value="">Select customer type…</option>
-            {CUSTOMER_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-          </Select>
-        </FormField>
-
-        <FormField label="Status">
-          <div className="flex items-center gap-3 h-9">
-            <button
-              onClick={() => set('status', form.status === 'active' ? 'inactive' : 'active')}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
-                form.status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'
-              }`}
-            >
-              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-                form.status === 'active' ? 'translate-x-4.5' : 'translate-x-0.5'
-              }`} />
-            </button>
-            <span className={`text-sm font-semibold ${form.status === 'active' ? 'text-emerald-700' : 'text-gray-500'}`}>
-              {form.status === 'active' ? 'Active' : 'Inactive'}
-            </span>
+          {/* Status */}
+          <div className="bg-white rounded-2xl shadow-card border border-surface-border p-5">
+            <SectionHeading>Status</SectionHeading>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => set('status', form.status === 'active' ? 'inactive' : 'active')}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none shrink-0 ${
+                  form.status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'
+                }`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                  form.status === 'active' ? 'translate-x-4.5' : 'translate-x-0.5'
+                }`} />
+              </button>
+              <span className={`text-sm font-semibold ${form.status === 'active' ? 'text-emerald-700' : 'text-gray-500'}`}>
+                {form.status === 'active' ? 'Active' : 'Inactive'}
+              </span>
+            </div>
             {form.status === 'inactive' && (
-              <span className="text-xs text-gray-400 ml-1">— User will not appear in assignments or mentions</span>
+              <p className="text-xs text-gray-400 mt-2">User will not appear in assignments or mentions</p>
             )}
           </div>
-        </FormField>
+        </div>
       </div>
 
       {/* Fixed bottom bar */}
