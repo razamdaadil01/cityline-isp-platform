@@ -14,9 +14,8 @@ import { getUsers, addUser, updateUser, subscribeUsers, hashPassword } from '../
 import { useSession } from '../data/sessionStore'
 import { createResetToken } from '../data/passwordResetStore'
 import { getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
-import { getAreas } from '../data/areaMappingStore'
+import { getAreas, getAllLocalities } from '../data/areaMappingStore'
 import { getActiveCompanyEntities } from '../data/companyEntities'
-import { getCustomerTypes } from '../data/customerTypes'
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
@@ -55,6 +54,15 @@ const ROLES_OPTIONS = Object.entries(ROLE_META).map(([value, { label }]) => ({ v
 // selected, same conditional-field convention as this form's own
 // roleChanged self-lockout warning below.
 const SKILL_OPTIONS = ['Fiber Installation', 'Router Repair', 'Cabling', 'OTT Setup', 'Network Troubleshooting']
+
+// The real Customer Type enum, as it's actually stored/displayed on customer
+// records (customersData.js's `customerType` field, AddCustomer.jsx,
+// CustomerDetail.jsx, Customers.jsx's CUSTOMER_TYPE_STYLE/filter dropdown) —
+// deliberately NOT customerTypes.js's getCustomerTypes() `name` field, which
+// is a mismatched label ('Resident') from an unrelated Settings config
+// entity (Lead ID/Customer ID format, PPPoE pattern, etc.), not the value
+// actually written to/read from a customer record.
+const CUSTOMER_TYPE_OPTIONS = ['Residential', 'Corporate']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -146,7 +154,7 @@ function StatCard({ label, value, icon: Icon, color, bg }) {
 
 const EMPTY_FORM = {
   name: '', email: '', phone: '', role: '', status: 'active', password: '',
-  branch: '', skills: [], companyId: '', area: '', customerType: '',
+  zone: '', skills: [], companyId: '', area: '', customerType: '',
 }
 
 function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
@@ -154,19 +162,25 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
-  // Branch/Area options reuse Area Mapping's own data (Settings > Area
-  // Mapping) — its branchCode is the same free-text branch identifier
-  // role='engineer' users already carry on their own `branch` field
-  // (userStore.js), and `area` is its own area tier, one level up from
-  // locality. Company options reuse Company/Entity settings data (Active
-  // only, same convention as CreatePO.jsx/AddAsset.jsx/ProductList.jsx's
-  // own company pickers). Customer Type options reuse the same
-  // Resident/Corporate enum the Customers module drives off of.
-  const areas = getAreas()
-  const branchOptions = [...new Set(areas.map(a => a.branchCode))].sort()
-  const areaOptions = [...new Set(areas.map(a => a.area))].sort()
+  // There's no genuine, independently-scoped "Branch" master entity anywhere
+  // in this app — areaMappingStore.js's own comments say so explicitly
+  // ("no canonical Branch master to foreign-key against yet"), and its
+  // branchCode field is Sub-Locality provisioning metadata that mixes two
+  // unrelated ID schemes across regions (sequential CNPL-00N for
+  // Noida/Bangalore rows, zone-coded CNPL-<ZONE>-01 for the Mumbai suburb
+  // rows) — pulling a dropdown from it produced a confusing mixed list.
+  // role='engineer' users' real geographic field for this purpose is
+  // `zone` (e.g. 'Andheri West', 'Whitefield') — plain locality names, the
+  // same tier areaMappingStore.js's own getAllLocalities() already exposes
+  // for pickers elsewhere (e.g. Outage Management's Affected Area(s)). This
+  // field reuses that as the one real "Branch/Zone" equivalent, rather than
+  // branchCode. `area` is the tier above locality (e.g. 'Mumbai', 'Noida').
+  // Company options reuse Company/Entity settings data (Active only, same
+  // convention as CreatePO.jsx/AddAsset.jsx/ProductList.jsx's own company
+  // pickers).
+  const zoneOptions = getAllLocalities()
+  const areaOptions = [...new Set(getAreas().map(a => a.area))].sort()
   const companyOptions = getActiveCompanyEntities()
-  const customerTypeOptions = getCustomerTypes()
 
   useEffect(() => {
     // password always starts blank, even when editing — we never display an
@@ -174,7 +188,7 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
     // (see handleSave in UserManagementInner).
     setForm(user ? {
       name: user.name, email: user.email, phone: user.phone ?? '', role: user.role, status: user.status, password: '',
-      branch: user.branch ?? '', skills: user.skills ?? [], companyId: user.companyId ?? '', area: user.area ?? '', customerType: user.customerType ?? '',
+      zone: user.zone ?? '', skills: user.skills ?? [], companyId: user.companyId ?? '', area: user.area ?? '', customerType: user.customerType ?? '',
     } : EMPTY_FORM)
     setErrors({})
   }, [user, isOpen])
@@ -321,10 +335,10 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
           </div>
         )}
 
-        <FormField label="Branch">
-          <Select value={form.branch} onChange={e => set('branch', e.target.value)}>
-            <option value="">Select branch…</option>
-            {branchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+        <FormField label="Zone">
+          <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
+            <option value="">Select zone…</option>
+            {zoneOptions.map(z => <option key={z} value={z}>{z}</option>)}
           </Select>
         </FormField>
 
@@ -369,7 +383,7 @@ function UserFormModal({ isOpen, onClose, user, onSave, currentUserId }) {
         <FormField label="Customer Type">
           <Select value={form.customerType} onChange={e => set('customerType', e.target.value)}>
             <option value="">Select customer type…</option>
-            {customerTypeOptions.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {CUSTOMER_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
           </Select>
         </FormField>
 
