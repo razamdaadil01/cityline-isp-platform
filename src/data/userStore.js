@@ -31,6 +31,13 @@ export function hashPassword(plain) {
 // placeholder credential across all of them, now stored the way
 // addUser()/updateUser() store any password (see UserManagement.jsx).
 //
+// `departmentId` assigns every seed user to one of departmentStore.js's
+// INITIAL_DEPARTMENTS by role: DEPT-001 Technical (role='engineer'),
+// DEPT-002 Billing (role='billing'), DEPT-003 Support (role='support'),
+// DEPT-004 Administration (role='super_admin'/'admin'/'readonly' — grouped
+// here rather than under a dedicated department each, and rather than a
+// mismatched "HR", since none of them are HR staff).
+//
 // `branch`/`zone` (role='engineer' users only, for now) were added as
 // Phase 1 of the Technician Monitoring Dashboard: these role='engineer'
 // records are the chosen canonical Technician entity — they already have
@@ -47,6 +54,7 @@ const INITIAL_USERS = [
     role: 'super_admin', status: 'active',
     memberSince: '2022-01-01', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'AD', color: 'bg-navy',
+    departmentId: 'DEPT-004',
   },
   {
     id: 'u2', name: 'Anita Sharma',  email: 'anita@cityline.in',   phone: '9087654321',
@@ -54,6 +62,7 @@ const INITIAL_USERS = [
     role: 'admin',       status: 'active',
     memberSince: '2022-11-20', leadsAssigned: 20, followupsTotal: 38,
     initials: 'AS', color: 'bg-brand-orange',
+    departmentId: 'DEPT-004',
   },
   {
     id: 'u3', name: 'Arjun Kumar',   email: 'arjun@cityline.in',   phone: '9876543210',
@@ -62,6 +71,7 @@ const INITIAL_USERS = [
     memberSince: '2023-06-01', leadsAssigned: 28, followupsTotal: 45,
     initials: 'AK', color: 'bg-brand-blue',
     branch: 'CNPL-002', zone: 'Andheri West',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u4', name: 'Preethi Nair',  email: 'preethi@cityline.in', phone: '9876001122',
@@ -69,6 +79,7 @@ const INITIAL_USERS = [
     role: 'support',     status: 'active',
     memberSince: '2023-08-15', leadsAssigned: 12, followupsTotal: 30,
     initials: 'PN', color: 'bg-purple-500',
+    departmentId: 'DEPT-003',
   },
   {
     id: 'u5', name: 'Suresh Babu',   email: 'suresh@cityline.in',  phone: '9988001133',
@@ -77,6 +88,7 @@ const INITIAL_USERS = [
     memberSince: '2024-01-10', leadsAssigned: 15, followupsTotal: 22,
     initials: 'SB', color: 'bg-emerald-500',
     branch: 'CNPL-010', zone: 'Andheri East',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u6', name: 'Ravi Menon',    email: 'ravi@cityline.in',    phone: '9845001234',
@@ -84,6 +96,7 @@ const INITIAL_USERS = [
     role: 'billing',     status: 'active',
     memberSince: '2023-03-05', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'RM', color: 'bg-teal-500',
+    departmentId: 'DEPT-002',
   },
   {
     id: 'u7', name: 'Deepa Varma',   email: 'deepa@cityline.in',   phone: '9765432100',
@@ -91,6 +104,7 @@ const INITIAL_USERS = [
     role: 'readonly',    status: 'inactive',
     memberSince: '2024-06-01', leadsAssigned: 5,  followupsTotal: 8,
     initials: 'DV', color: 'bg-gray-400',
+    departmentId: 'DEPT-004',
   },
   // u8-u10: created to properly back installationsStore.js's FIELD_ENGINEERS
   // eng-002/003/005, which previously collided with u2/u4/u6's names despite
@@ -103,6 +117,7 @@ const INITIAL_USERS = [
     memberSince: '2025-02-10', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'KM', color: 'bg-rose-500',
     branch: 'CNPL-005', zone: 'Indiranagar',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u9', name: 'Divya Nambiar',  email: 'divya@cityline.in',   phone: '9812345002',
@@ -111,6 +126,7 @@ const INITIAL_USERS = [
     memberSince: '2025-03-18', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'DN', color: 'bg-indigo-500',
     branch: 'CNPL-001', zone: 'Sector 18 Noida',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u10', name: 'Farhan Sheikh', email: 'farhan@cityline.in',  phone: '9812345003',
@@ -119,6 +135,7 @@ const INITIAL_USERS = [
     memberSince: '2025-04-22', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'FS', color: 'bg-amber-500',
     branch: 'CNPL-007', zone: 'Whitefield',
+    departmentId: 'DEPT-001',
   },
   // u11-u15: created to back ticketsStore.js's TECHNICIAN_PROFILES, which
   // named 5 people never before represented in userStore.js at all (no
@@ -130,6 +147,7 @@ const INITIAL_USERS = [
     memberSince: '2024-09-01', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'SI', color: 'bg-brand-blue',
     branch: 'CNPL-002', zone: 'Andheri West',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u12', name: 'Prakash Yadav', email: 'prakash@cityline.in',     phone: '9812345005',
@@ -138,6 +156,7 @@ const INITIAL_USERS = [
     memberSince: '2024-10-15', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'PY', color: 'bg-purple-500',
     branch: 'CNPL-003', zone: 'Bandra East',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u13', name: 'Manoj Verma',   email: 'manoj@cityline.in',       phone: '9812345006',
@@ -146,6 +165,7 @@ const INITIAL_USERS = [
     memberSince: '2024-11-20', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'MV', color: 'bg-emerald-500',
     branch: 'CNPL-004', zone: 'Goregaon',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u14', name: 'Dinesh Kumar',  email: 'dinesh@cityline.in',      phone: '9812345007',
@@ -154,6 +174,7 @@ const INITIAL_USERS = [
     memberSince: '2025-01-05', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'DK', color: 'bg-brand-orange',
     branch: 'CNPL-006', zone: 'Versova',
+    departmentId: 'DEPT-001',
   },
   {
     id: 'u15', name: 'Vikram Singh',  email: 'vikram@cityline.in',      phone: '9812345008',
@@ -162,6 +183,7 @@ const INITIAL_USERS = [
     memberSince: '2025-01-28', leadsAssigned: 0,  followupsTotal: 0,
     initials: 'VS', color: 'bg-teal-500',
     branch: 'CNPL-009', zone: 'Andheri East',
+    departmentId: 'DEPT-001',
   },
 ]
 
