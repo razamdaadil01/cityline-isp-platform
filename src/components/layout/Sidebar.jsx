@@ -44,6 +44,7 @@ import {
   FolderKanban,
   ListTree,
   LogOut,
+  Building2,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -113,7 +114,13 @@ const NAV_ITEMS = [
   { label: 'Bandwidth',        icon: Activity,        to: '/bandwidth'                 },
   { label: 'Reports',          icon: BarChart3,       to: '/reports'                   },
   { label: 'Audit Log',        icon: Shield,          to: '/audit'                     },
-  { label: 'User Management',  icon: UsersRound,      to: '/users'                     },
+  {
+    label: 'User Management',  icon: UsersRound,      to: '/users',
+    children: [
+      { label: 'User List',   icon: UsersRound, to: '/users' },
+      { label: 'Departments', icon: Building2,  to: '/users/departments' },
+    ],
+  },
   { label: 'Settings',         icon: Settings,        to: '/settings',          exact: true },
   { label: 'Notifications',    icon: Bell,            to: '/notifications'                 },
 ]
