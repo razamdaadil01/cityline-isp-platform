@@ -106,6 +106,7 @@ import NotificationSettings from './pages/NotificationSettings'
 import UserManagement from './pages/UserManagement'
 import UserAdd from './pages/UserAdd'
 import UserEdit from './pages/UserEdit'
+import UserDepartments from './pages/UserDepartments'
 
 export default function App() {
   return (
@@ -266,6 +267,7 @@ export default function App() {
           <Route path="/resellers/:id" element={<ResellerDetail />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/users/new" element={<UserAdd />} />
+          <Route path="/users/departments" element={<UserDepartments />} />
           <Route path="/users/:id/edit" element={<UserEdit />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
