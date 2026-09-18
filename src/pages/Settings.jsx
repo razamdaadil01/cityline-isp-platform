@@ -5,7 +5,7 @@ import {
   Building2, Receipt, Shield, RefreshCw, Check,
   Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
-  ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
+  ChevronLeft, ChevronRight, ChevronDown, Clock, AlertTriangle, Headphones, Users, Handshake,
   Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
@@ -40,7 +40,10 @@ import {
   getPartners, subscribePartners, savePartner, setPartnerStatus,
   isValidContactNumber, formatShareValue, SHARE_TYPES,
 } from '../data/partners'
-import { MODULES, ACTIONS, buildPerms, getRoles, subscribeRoles, saveRole } from '../data/rolesStore'
+import {
+  MODULES, ACTIONS, buildPerms, getRoles, subscribeRoles, saveRole,
+  MODULE_MICRO_PERMISSIONS, MICRO_PERMISSION_MODULES, buildMicroPerms, buildModuleMicroPerms,
+} from '../data/rolesStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -981,6 +984,13 @@ function RolesTab() {
   const [showAddRole, setShowAddRole] = useState(false)
   const [newRole, setNewRole] = useState({ name: '', description: '' })
 
+  // Which module's granular checklist (Support/Sales only — see
+  // MICRO_PERMISSION_MODULES) is expanded open, if any. Independent of
+  // activeRoleId on purpose: switching roles while a module is expanded
+  // keeps it expanded, so comparing the same module's checklist across
+  // roles is just clicking through the role list.
+  const [expandedModule, setExpandedModule] = useState(null)
+
   // Every click writes straight to the store — no local draft to keep in
   // sync, so the highlighted button and rolesStore.js's actual data can
   // never drift apart the way the old local-state-only version could.
@@ -989,18 +999,31 @@ function RolesTab() {
     saveRole({ id: role.id, permissions: { ...role.permissions, [module]: permsForLevel(level) } })
   }
 
+  // Same "write straight to the store" convention as setLevel() above, one
+  // level deeper — toggles a single named permission for one module,
+  // leaving every other module's and every other key's grant untouched.
+  function toggleMicroPermission(module, key) {
+    if (!role) return
+    const current = role.microPermissions ?? buildMicroPerms(false)
+    const currentModule = current[module] ?? buildModuleMicroPerms(module, false)
+    saveRole({
+      id: role.id,
+      microPermissions: { ...current, [module]: { ...currentModule, [key]: !currentModule[key] } },
+    })
+  }
+
   // Permissions are already live after each click above; this re-affirms
   // the same (already-saved) permissions back to the store so the button
   // is a real, store-wired action rather than a dead one — not a draft
   // commit, since there's no draft left to commit.
   function handleSavePermissions() {
     if (!role) return
-    saveRole({ id: role.id, permissions: role.permissions })
+    saveRole({ id: role.id, permissions: role.permissions, microPermissions: role.microPermissions })
   }
 
   function handleReset() {
     if (!role) return
-    saveRole({ id: role.id, permissions: buildPerms(false) })
+    saveRole({ id: role.id, permissions: buildPerms(false), microPermissions: buildMicroPerms(false) })
   }
 
   function openAddRole() {
@@ -1016,7 +1039,10 @@ function RolesTab() {
   function handleAddRole() {
     const name = newRole.name.trim()
     if (!name) return
-    saveRole({ name, description: newRole.description.trim(), permissions: buildPerms(false) })
+    saveRole({
+      name, description: newRole.description.trim(),
+      permissions: buildPerms(false), microPermissions: buildMicroPerms(false),
+    })
     const updated = getRoles()
     const created = updated[updated.length - 1]
     if (created) setActiveRoleId(created.id)
@@ -1059,23 +1085,76 @@ function RolesTab() {
           <div className="divide-y divide-surface-border">
             {MODULES.map(mod => {
               const perm = levelForModule(role?.permissions, mod)
+              // Support/Sales additionally get a named, per-permission
+              // checklist (MODULE_MICRO_PERMISSIONS) alongside the
+              // Full/View/No Access toggle every other module keeps as its
+              // only control — expanded/collapsed via the chevron, not a
+              // replacement for the toggle above it.
+              const microDefs = MODULE_MICRO_PERMISSIONS[mod]
+              const hasMicro = MICRO_PERMISSION_MODULES.includes(mod)
+              const microVals = role?.microPermissions?.[mod] ?? {}
+              const grantedCount = microDefs?.filter(d => microVals[d.key]).length ?? 0
+              const isExpanded = expandedModule === mod
+
               return (
-                <div key={mod} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50">
-                  <span className="text-sm font-medium text-gray-700">{mod}</span>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
-                    <div className="flex gap-1">
-                      {['full', 'view', 'none'].map(p => (
-                        <button key={p} onClick={() => setLevel(mod, p)}
-                          className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
-                            ${perm === p
-                              ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
-                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                          {p === 'none' ? 'No Access' : p.charAt(0).toUpperCase() + p.slice(1)}
+                <div key={mod}>
+                  <div className="flex items-center justify-between px-5 py-3 hover:bg-gray-50/50">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {hasMicro && (
+                        <button
+                          onClick={() => setExpandedModule(isExpanded ? null : mod)}
+                          className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                          title={isExpanded ? 'Collapse granular permissions' : 'Show granular permissions'}
+                        >
+                          <ChevronDown size={14} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                         </button>
-                      ))}
+                      )}
+                      <span className="text-sm font-medium text-gray-700">{mod}</span>
+                      {hasMicro && (
+                        <button
+                          onClick={() => setExpandedModule(isExpanded ? null : mod)}
+                          className="text-[11px] font-medium text-brand-blue hover:underline shrink-0"
+                        >
+                          {grantedCount}/{microDefs.length} granular
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
+                      <div className="flex gap-1">
+                        {['full', 'view', 'none'].map(p => (
+                          <button key={p} onClick={() => setLevel(mod, p)}
+                            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
+                              ${perm === p
+                                ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
+                                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+                            {p === 'none' ? 'No Access' : p.charAt(0).toUpperCase() + p.slice(1)}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
+
+                  {hasMicro && isExpanded && (
+                    <div className="px-5 pb-4 pt-1 bg-gray-50/70 border-t border-surface-border">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2.5 pt-2">
+                        {mod} — Granular Permissions
+                      </p>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                        {microDefs.map(({ key, label }) => (
+                          <label key={key} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!microVals[key]}
+                              onChange={() => toggleMicroPermission(mod, key)}
+                              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 shrink-0"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}

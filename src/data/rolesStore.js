@@ -35,6 +35,63 @@ export function buildPerms(defaultVal = false) {
   )
 }
 
+// ── Micro-permissions ────────────────────────────────────────────────────
+// A second, separate permission structure alongside the View/Create/Edit/
+// Delete matrix above, for named permissions that don't map to generic CRUD
+// (e.g. Support's "My tickets only" or "Send technician"). Keyed by module,
+// then by a short camelCase key -> boolean — one level deeper than
+// buildPerms()'s own module->action->bool shape, and intentionally separate
+// from `permissions` rather than folded into it, since these are additive:
+// existing CRUD-based modules (Inventory, Projects, Technicians, ...) have
+// no entry here and keep using only the matrix above, completely untouched.
+//
+// Only modules listed here get a granular checklist in Settings.jsx's Roles
+// & Permissions tab; adding a third module's micro-permissions later is
+// just adding one more entry to this object — nothing else in this file,
+// or in Settings.jsx's rendering, needs to change to pick it up.
+export const MODULE_MICRO_PERMISSIONS = {
+  Support: [
+    { key: 'viewTicket',               label: 'View ticket' },
+    { key: 'editTicketDetails',        label: 'Edit ticket details' },
+    { key: 'addComment',               label: 'Add comment' },
+    { key: 'addCustomerComments',      label: 'Add customer comments' },
+    { key: 'sendTechnician',           label: 'Send technician' },
+    { key: 'addHardware',              label: 'Add hardware' },
+    { key: 'assignStaffAndDepartment', label: 'Assign staff and department' },
+    { key: 'myTicketsOnly',            label: 'My tickets only' },
+    { key: 'assignTickets',            label: 'Assign tickets' },
+  ],
+  Sales: [
+    { key: 'leadCreate',       label: 'Lead Create' },
+    { key: 'viewLead',         label: 'View Lead' },
+    { key: 'myLeadOnly',       label: 'My Lead only' },
+    { key: 'editLead',         label: 'Edit Lead' },
+    { key: 'moveLead',         label: 'Move Lead' },
+    { key: 'addManualPayment', label: 'Add manual payment' },
+    { key: 'doEkyc',           label: 'Do eKYC' },
+    { key: 'viewEkyc',         label: 'View eKYC' },
+    { key: 'packageView',      label: 'Package view' },
+    { key: 'addComments',      label: 'Add comments' },
+  ],
+}
+
+export const MICRO_PERMISSION_MODULES = Object.keys(MODULE_MICRO_PERMISSIONS)
+
+// One module's micro-permissions at a single default value.
+export function buildModuleMicroPerms(module, defaultVal = false) {
+  const perms = MODULE_MICRO_PERMISSIONS[module] ?? []
+  return Object.fromEntries(perms.map((p) => [p.key, defaultVal]))
+}
+
+// Every MODULE_MICRO_PERMISSIONS module's permissions at a single default
+// value — the microPermissions counterpart to buildPerms() above, used the
+// same way (seed below, and Settings.jsx's Add Role / Reset flows).
+export function buildMicroPerms(defaultVal = false) {
+  return Object.fromEntries(
+    MICRO_PERMISSION_MODULES.map((m) => [m, buildModuleMicroPerms(m, defaultVal)])
+  )
+}
+
 // The 6 roles Settings.jsx's Roles & Permissions tab has always shown
 // (Super Admin, Admin, Billing Manager, Support Agent, Field Engineer,
 // Read Only). This seed briefly carried 3 extra roles (Network Engineer,
@@ -51,6 +108,7 @@ const SEED = [
     usersCount: 2,
     color: 'navy',
     permissions: buildPerms(true),
+    microPermissions: buildMicroPerms(true),
   },
   {
     id: 2,
@@ -66,6 +124,10 @@ const SEED = [
       p['Audit Log']['Delete'] = false
       return p
     })(),
+    // Support/Sales aren't system-level, so Admin's broad access carries
+    // through to the granular checklist the same way it does everywhere
+    // else in `permissions` above.
+    microPermissions: buildMicroPerms(true),
   },
   {
     id: 3,
@@ -84,6 +146,9 @@ const SEED = [
       p['Reports']['View'] = true
       return p
     })(),
+    // No Support/Sales module access at all above, so nothing granted here
+    // either — same signal, one level deeper.
+    microPermissions: buildMicroPerms(false),
   },
   {
     id: 4,
@@ -99,6 +164,19 @@ const SEED = [
       p['Support']['Edit'] = true
       p['Customers']['View'] = true
       p['Customers']['Edit'] = true
+      return p
+    })(),
+    // Support-relevant day-to-day actions granted; supervisory actions
+    // (assigning staff/departments, assigning tickets to others, touching
+    // hardware records) and all of Sales stay off by default.
+    microPermissions: (() => {
+      const p = buildMicroPerms(false)
+      p['Support']['viewTicket'] = true
+      p['Support']['editTicketDetails'] = true
+      p['Support']['addComment'] = true
+      p['Support']['addCustomerComments'] = true
+      p['Support']['sendTechnician'] = true
+      p['Support']['myTicketsOnly'] = true
       return p
     })(),
   },
@@ -118,6 +196,8 @@ const SEED = [
       p['Customers']['View'] = true
       return p
     })(),
+    // No Support/Sales module access above either.
+    microPermissions: buildMicroPerms(false),
   },
   {
     id: 6,
@@ -128,6 +208,16 @@ const SEED = [
     permissions: (() => {
       const p = buildPerms(false)
       MODULES.forEach((m) => { p[m]['View'] = true })
+      return p
+    })(),
+    // Mirrors the module-level "View only, everywhere" signal: just the
+    // view-shaped granular permissions, nothing that creates/changes data.
+    microPermissions: (() => {
+      const p = buildMicroPerms(false)
+      p['Support']['viewTicket'] = true
+      p['Sales']['viewLead'] = true
+      p['Sales']['viewEkyc'] = true
+      p['Sales']['packageView'] = true
       return p
     })(),
   },
@@ -168,6 +258,14 @@ export function deleteRole(id) {
 
 export function hasPermission(role, module, action) {
   return !!role?.permissions?.[module]?.[action]
+}
+
+// Not called from any page yet (enforcement is a separate, later task) —
+// exported now so Settings.jsx's checklist and any future
+// usePermission()-style hook can read a role's granular grants the same
+// way hasPermission() reads the CRUD matrix above.
+export function hasMicroPermission(role, module, key) {
+  return !!role?.microPermissions?.[module]?.[key]
 }
 
 // ── Current user / role resolution ──────────────────────────────────────
