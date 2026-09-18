@@ -6,7 +6,7 @@ import {
   Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, Clock, AlertTriangle, Headphones, Users, Handshake,
-  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info, Search,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -42,9 +42,9 @@ import {
 } from '../data/partners'
 import { MODULES, ACTIONS, buildPerms, getRoles, subscribeRoles, saveRole } from '../data/rolesStore'
 import {
-  getDepartments, getDepartment, subscribeDepartments, saveDepartment, deleteDepartment, isDepartmentNameTaken,
+  getDepartments, subscribeDepartments, saveDepartment, deleteDepartment, isDepartmentNameTaken,
 } from '../data/departmentStore'
-import { getUsers, subscribeUsers, updateUser } from '../data/userStore'
+import { getUsers, subscribeUsers } from '../data/userStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -823,8 +823,6 @@ function DepartmentsTab() {
   const [formError, setFormError] = useState('')
 
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [staffModalTarget, setStaffModalTarget] = useState(null) // department whose staff picker is open
-  const [staffSearch, setStaffSearch] = useState('')
 
   function staffOf(departmentId) {
     return users.filter(u => u.departmentId === departmentId)
@@ -865,14 +863,7 @@ function DepartmentsTab() {
     setDeleteTarget(null)
   }
 
-  function toggleStaff(user, dept) {
-    updateUser({ ...user, departmentId: user.departmentId === dept.id ? null : dept.id })
-  }
-
   const deleteStaffCount = deleteTarget ? staffOf(deleteTarget.id).length : 0
-  const staffModalUsers = staffSearch
-    ? users.filter(u => u.name.toLowerCase().includes(staffSearch.toLowerCase()) || u.email.toLowerCase().includes(staffSearch.toLowerCase()))
-    : users
 
   return (
     <div className="space-y-5">
@@ -880,7 +871,7 @@ function DepartmentsTab() {
         <div>
           <h2 className="text-base font-semibold text-gray-900">Departments</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Group staff into departments and manage who's currently bound to each one.
+            Group staff into departments. Staff are assigned to a department from the Add User page.
           </p>
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Department</Button>
@@ -919,7 +910,7 @@ function DepartmentsTab() {
                 </div>
               </div>
 
-              <div className="p-4 space-y-3 border-t border-surface-border">
+              <div className="p-4 border-t border-surface-border">
                 {staff.length === 0 ? (
                   <p className="text-xs text-gray-400">No staff bound yet.</p>
                 ) : (
@@ -931,9 +922,6 @@ function DepartmentsTab() {
                     ))}
                   </div>
                 )}
-                <Button size="xs" variant="secondary" icon={<Users size={12} />} onClick={() => { setStaffModalTarget(dept); setStaffSearch('') }}>
-                  Manage Staff
-                </Button>
               </div>
             </div>
           )
@@ -962,52 +950,6 @@ function DepartmentsTab() {
           <FormField label="Description">
             <Textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="What this department is responsible for" />
           </FormField>
-        </div>
-      </Modal>
-
-      {/* Manage Staff */}
-      <Modal
-        isOpen={!!staffModalTarget}
-        onClose={() => setStaffModalTarget(null)}
-        title={`Manage Staff — ${staffModalTarget?.name ?? ''}`}
-        size="sm"
-        footer={<Button size="sm" onClick={() => setStaffModalTarget(null)}>Done</Button>}
-      >
-        <div className="space-y-3">
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              value={staffSearch}
-              onChange={e => setStaffSearch(e.target.value)}
-              placeholder="Search staff..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue placeholder-gray-400 text-gray-800"
-            />
-          </div>
-          <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden max-h-[280px] overflow-y-auto">
-            {staffModalUsers.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">No staff found</p>
-            ) : staffModalUsers.map(u => {
-              const selected = u.departmentId === staffModalTarget?.id
-              const otherDept = u.departmentId && u.departmentId !== staffModalTarget?.id ? getDepartment(u.departmentId) : null
-              return (
-                <label key={u.id}
-                  className={`flex items-center justify-between gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                  <span className="flex items-center gap-3 min-w-0">
-                    <input type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleStaff(u, staffModalTarget)}
-                      className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30 shrink-0"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm text-gray-700 truncate">{u.name}</span>
-                      <span className="block text-xs text-gray-400 truncate">{u.email}</span>
-                    </span>
-                  </span>
-                  {otherDept && <span className="text-[11px] text-gray-400 shrink-0">also in {otherDept.name}</span>}
-                </label>
-              )
-            })}
-          </div>
         </div>
       </Modal>
 
