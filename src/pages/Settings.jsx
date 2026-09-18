@@ -1085,11 +1085,14 @@ function RolesTab() {
           <div className="divide-y divide-surface-border">
             {MODULES.map(mod => {
               const perm = levelForModule(role?.permissions, mod)
-              // Support/Sales additionally get a named, per-permission
-              // checklist (MODULE_MICRO_PERMISSIONS) alongside the
-              // Full/View/No Access toggle every other module keeps as its
-              // only control — expanded/collapsed via the chevron, not a
-              // replacement for the toggle above it.
+              // Modules in MODULE_MICRO_PERMISSIONS (Dashboard, Customers,
+              // Sales, Billing, Support, Network, Reports, Settings,
+              // Resellers, Audit Log) get a named, per-permission checklist
+              // instead of the Full/View/No Access toggle — see the
+              // !hasMicro branch below for why the toggle is dropped
+              // entirely rather than kept alongside it. Modules with no
+              // entry there (Inventory, Projects, Technicians, ...) keep the
+              // toggle as their only control, unchanged.
               const microDefs = MODULE_MICRO_PERMISSIONS[mod]
               const hasMicro = MICRO_PERMISSION_MODULES.includes(mod)
               const microVals = role?.microPermissions?.[mod] ?? {}
@@ -1119,20 +1122,31 @@ function RolesTab() {
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
-                      <div className="flex gap-1">
-                        {['full', 'view', 'none'].map(p => (
-                          <button key={p} onClick={() => setLevel(mod, p)}
-                            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
-                              ${perm === p
-                                ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
-                                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                            {p === 'none' ? 'No Access' : p.charAt(0).toUpperCase() + p.slice(1)}
-                          </button>
-                        ))}
+                    {/* Full/View/No Access is the old CRUD-level control —
+                        modules with a granular checklist (hasMicro) drop it
+                        entirely rather than show both: clicking it never
+                        touched microPermissions (setLevel() only ever wrote
+                        `permissions`), so it was purely redundant/confusing
+                        next to the checklist, never a second way to edit the
+                        same data. Inventory/Projects/Technicians (and any
+                        other not-yet-migrated module) keep this exactly as
+                        it was. */}
+                    {!hasMicro && (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Badge variant={PERM_VARIANT[perm]} size="sm">{PERM_LABEL[perm]}</Badge>
+                        <div className="flex gap-1">
+                          {['full', 'view', 'none'].map(p => (
+                            <button key={p} onClick={() => setLevel(mod, p)}
+                              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors
+                                ${perm === p
+                                  ? p === 'full' ? 'bg-green-500 text-white' : p === 'view' ? 'bg-brand-blue text-white' : 'bg-gray-300 text-gray-600'
+                                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
+                              {p === 'none' ? 'No Access' : p.charAt(0).toUpperCase() + p.slice(1)}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {hasMicro && isExpanded && (
