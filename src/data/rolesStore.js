@@ -73,6 +73,106 @@ export const MODULE_MICRO_PERMISSIONS = {
     { key: 'packageView',      label: 'Package view' },
     { key: 'addComments',      label: 'Add comments' },
   ],
+  // Proposed lists reviewed and approved by the client before this pass
+  // (see the earlier investigation/proposal). Inventory, Projects and
+  // Technicians deliberately have no entry here — those three already have
+  // real View/Create/Edit/Delete enforcement wired into their actual pages
+  // and are handled in a separate follow-up, not this one.
+  Dashboard: [
+    { key: 'viewRevenueOverviewWidget',    label: 'View Revenue Overview Widget' },
+    { key: 'viewConnectionMixWidget',      label: 'View Connection Mix Widget' },
+    { key: 'viewRenewalForecastWidget',    label: 'View Renewal Forecast Widget' },
+    { key: 'viewTodaysCollectionsWidget',  label: "View Today's Collections Widget" },
+    { key: 'viewSalesLeadPipelineWidget',  label: 'View Sales Lead Pipeline Widget' },
+    { key: 'viewCafComplianceWidget',      label: 'View CAF Compliance Widget' },
+    { key: 'viewJazeNetworkStatusWidget',  label: 'View Jaze Network Status Widget' },
+    { key: 'viewSupportOverviewWidget',    label: 'View Support Overview Widget' },
+    { key: 'viewRecentOpenTicketsWidget',  label: 'View Recent Open Tickets Widget' },
+  ],
+  Customers: [
+    { key: 'viewCustomerList',           label: 'View Customer List' },
+    { key: 'viewCustomerDetails',        label: 'View Customer Details' },
+    { key: 'addNewCustomer',             label: 'Add New Customer' },
+    { key: 'editCustomerProfile',        label: 'Edit Customer Profile' },
+    { key: 'suspendMarkInactiveCustomer',label: 'Suspend / Mark Inactive Customer' },
+    { key: 'terminateDisconnectCustomer',label: 'Terminate / Disconnect Customer' },
+    { key: 'scheduleHardwareRecovery',   label: 'Schedule Hardware Recovery' },
+    { key: 'generateFinalSettlement',    label: 'Generate Final Settlement' },
+    { key: 'raiseTicket',                label: 'Raise Ticket' },
+    { key: 'sendSms',                    label: 'Send SMS' },
+    { key: 'uploadViewKycDocuments',     label: 'Upload/View KYC Documents' },
+    { key: 'exportCustomerList',         label: 'Export Customer List' },
+    { key: 'myCustomersOnly',            label: 'My Customers Only' },
+  ],
+  Billing: [
+    { key: 'viewInvoicesAndPaymentReceipts', label: 'View Invoices & Payment Receipts' },
+    { key: 'recordPayment',                  label: 'Record Payment' },
+    { key: 'addManualPayment',                label: 'Add Manual Payment' },
+    { key: 'generateViewTaxInvoice',          label: 'Generate/View Tax Invoice' },
+    { key: 'packageRecharge',                 label: 'Package Recharge' },
+    { key: 'emailInvoice',                    label: 'Email Invoice' },
+    { key: 'removeInvoice',                   label: 'Remove Invoice' },
+    { key: 'viewPaymentHistory',              label: 'View Payment History' },
+    { key: 'exportBillingData',               label: 'Export Billing Data' },
+  ],
+  Network: [
+    { key: 'viewNetworkTopology',    label: 'View Network Topology' },
+    { key: 'addOlt',                 label: 'Add OLT' },
+    { key: 'addSwitch',              label: 'Add Switch' },
+    { key: 'pingRunNodeDiagnostics', label: 'Ping / Run Node Diagnostics' },
+    { key: 'viewJazeServers',        label: 'View Jaze Servers' },
+    { key: 'syncJazeServer',         label: 'Sync Jaze Server' },
+    { key: 'syncAllJazeServers',     label: 'Sync All Jaze Servers' },
+    { key: 'viewBandwidthMonitoring',label: 'View Bandwidth Monitoring' },
+  ],
+  Reports: [
+    { key: 'viewRevenueReport',                label: 'View Revenue Report' },
+    { key: 'viewCafComplianceReport',          label: 'View CAF Compliance Report' },
+    { key: 'viewChurnReport',                   label: 'View Churn Report' },
+    { key: 'viewCollectionReport',              label: 'View Collection Report' },
+    { key: 'viewPartnerStoreCollectionReport',  label: 'View Partner & Store-wise Collection Report' },
+    { key: 'viewInventoryReport',               label: 'View Inventory Report' },
+    { key: 'exportReportsToExcel',              label: 'Export Reports to Excel' },
+  ],
+  // Settings is self-referential — "Manage Roles & Permissions" itself
+  // lives in this list, since it's one of Settings.jsx's own tabs. See the
+  // SEED role defaults below: this one key is seeded far more
+  // conservatively than the rest of the module (Super Admin/Admin only),
+  // since granting it lets someone re-grant themselves anything else.
+  Settings: [
+    { key: 'manageGeneralSettings',           label: 'Manage General Settings' },
+    { key: 'manageBillingSettings',           label: 'Manage Billing Settings' },
+    { key: 'manageNotificationTemplates',     label: 'Manage Notification Templates' },
+    { key: 'manageSlaConfiguration',          label: 'Manage SLA Configuration' },
+    { key: 'manageSupportConfiguration',      label: 'Manage Support Configuration' },
+    { key: 'manageComplaintCategories',       label: 'Manage Complaint Categories' },
+    { key: 'manageOutageConfiguration',       label: 'Manage Outage Configuration' },
+    { key: 'manageJazeServersConfiguration',  label: 'Manage Jaze Servers Configuration' },
+    { key: 'manageRolesAndPermissions',       label: 'Manage Roles & Permissions' },
+    { key: 'manageAreaMapping',                label: 'Manage Area Mapping' },
+    { key: 'manageZoneIntegration',            label: 'Manage Zone Integration' },
+    { key: 'manageMasterConfiguration',        label: 'Manage Master Configuration' },
+    { key: 'manageCustomerTypeConfiguration', label: 'Manage Customer Type Configuration' },
+    { key: 'manageCompanyEntity',              label: 'Manage Company / Entity' },
+    { key: 'managePartnerConfiguration',       label: 'Manage Partner Configuration' },
+  ],
+  Resellers: [
+    { key: 'viewResellerList',        label: 'View Reseller List' },
+    { key: 'viewResellerDetail',      label: 'View Reseller Detail' },
+    { key: 'addReseller',             label: 'Add Reseller' },
+    { key: 'suspendActivateReseller', label: 'Suspend / Activate Reseller' },
+    { key: 'viewCommission',          label: 'View Commission' },
+    { key: 'viewPaymentHistory',      label: 'View Payment History' },
+    { key: 'viewOutstandingDues',     label: 'View Outstanding Dues' },
+    { key: 'managePriceBook',         label: 'Manage Price Book' },
+    { key: 'exportResellerData',      label: 'Export Reseller Data' },
+  ],
+  'Audit Log': [
+    { key: 'viewAuditLog',                label: 'View Audit Log' },
+    { key: 'filterByModuleUserAction',    label: 'Filter by Module / User / Action' },
+    { key: 'exportAuditLogToExcel',       label: 'Export Audit Log to Excel' },
+    { key: 'viewSecuritySensitiveEntries',label: 'View Security-Sensitive Entries (logins, password resets, role changes)' },
+  ],
 }
 
 export const MICRO_PERMISSION_MODULES = Object.keys(MODULE_MICRO_PERMISSIONS)
@@ -124,10 +224,23 @@ const SEED = [
       p['Audit Log']['Delete'] = false
       return p
     })(),
-    // Support/Sales aren't system-level, so Admin's broad access carries
+    // Support/Sales/Dashboard/Customers/Billing/Network/Reports/Settings/
+    // Resellers aren't system-level, so Admin's broad access carries
     // through to the granular checklist the same way it does everywhere
-    // else in `permissions` above.
-    microPermissions: buildMicroPerms(true),
+    // else in `permissions` above — including Settings' own
+    // manageRolesAndPermissions, per the same "Admin gets everything except
+    // Audit Log deletes" signal the CRUD matrix already encodes above. Audit
+    // Log is the one deliberate exception, matching this role's own
+    // description ("...except system-level settings and audit log") more
+    // literally than the CRUD matrix alone does: viewing/filtering/exporting
+    // the log stays on (there's no real create/edit/delete action on an
+    // audit trail to withhold), but the most sensitive slice — security
+    // events like logins, password resets, role changes — is held back.
+    microPermissions: (() => {
+      const p = buildMicroPerms(true)
+      p['Audit Log']['viewSecuritySensitiveEntries'] = false
+      return p
+    })(),
   },
   {
     id: 3,
@@ -146,9 +259,34 @@ const SEED = [
       p['Reports']['View'] = true
       return p
     })(),
-    // No Support/Sales module access at all above, so nothing granted here
-    // either — same signal, one level deeper.
-    microPermissions: buildMicroPerms(false),
+    // No Support/Sales/Network/Settings/Resellers/Audit Log module access
+    // at all above, so nothing granted for those here either. Dashboard/
+    // Customers/Reports only have a bare View grant above (no per-widget or
+    // per-report detail to derive from), so the specific items picked below
+    // are the ones a Billing Manager's own job description ("Manage
+    // invoices, payments, and billing reports") actually touches — same
+    // "let a partial/ambiguous module-level signal be filled in with
+    // domain judgement" approach already used for Support Agent's Support
+    // grants above. Billing itself is full CRUD above, so every Billing
+    // item is granted here too.
+    microPermissions: (() => {
+      const p = buildMicroPerms(false)
+      p['Dashboard']['viewRevenueOverviewWidget'] = true
+      p['Dashboard']['viewTodaysCollectionsWidget'] = true
+      p['Dashboard']['viewCafComplianceWidget'] = true
+      p['Dashboard']['viewRenewalForecastWidget'] = true
+      p['Customers']['viewCustomerList'] = true
+      p['Customers']['viewCustomerDetails'] = true
+      // Final Settlement is a billing/financial calculation tied to
+      // disconnection — squarely this role's own domain even though it's
+      // filed under the Customers module's permission list.
+      p['Customers']['generateFinalSettlement'] = true
+      p['Billing'] = buildModuleMicroPerms('Billing', true)
+      p['Reports']['viewRevenueReport'] = true
+      p['Reports']['viewCollectionReport'] = true
+      p['Reports']['viewPartnerStoreCollectionReport'] = true
+      return p
+    })(),
   },
   {
     id: 4,
@@ -168,7 +306,10 @@ const SEED = [
     })(),
     // Support-relevant day-to-day actions granted; supervisory actions
     // (assigning staff/departments, assigning tickets to others, touching
-    // hardware records) and all of Sales stay off by default.
+    // hardware records) and all of Sales stay off by default. Dashboard/
+    // Customers below mirror the same partial View(/Edit) signal above,
+    // filled in with the day-to-day actions a Support Agent's own ticket
+    // work actually needs — same reasoning as Support's own picks.
     microPermissions: (() => {
       const p = buildMicroPerms(false)
       p['Support']['viewTicket'] = true
@@ -177,6 +318,17 @@ const SEED = [
       p['Support']['addCustomerComments'] = true
       p['Support']['sendTechnician'] = true
       p['Support']['myTicketsOnly'] = true
+      p['Dashboard']['viewSupportOverviewWidget'] = true
+      p['Dashboard']['viewRecentOpenTicketsWidget'] = true
+      p['Customers']['viewCustomerList'] = true
+      p['Customers']['viewCustomerDetails'] = true
+      p['Customers']['editCustomerProfile'] = true
+      p['Customers']['raiseTicket'] = true
+      p['Customers']['sendSms'] = true
+      // Mirrors Support's own "My tickets only" scoping — a Support Agent
+      // works the customers tied to their assigned tickets, not the whole
+      // book.
+      p['Customers']['myCustomersOnly'] = true
       return p
     })(),
   },
@@ -196,8 +348,22 @@ const SEED = [
       p['Customers']['View'] = true
       return p
     })(),
-    // No Support/Sales module access above either.
-    microPermissions: buildMicroPerms(false),
+    // No Support/Sales/Billing/Reports/Settings/Resellers/Audit Log module
+    // access above either. Dashboard/Network/Customers below fill in the
+    // partial View(/Edit) signal above with the specific on-site actions
+    // this role's own description ("On-site installations, repairs...")
+    // covers — provisioning new network hardware (Add OLT/Switch) and
+    // Jaze/NAS server administration stay out of scope for a field role.
+    microPermissions: (() => {
+      const p = buildMicroPerms(false)
+      p['Dashboard']['viewJazeNetworkStatusWidget'] = true
+      p['Network']['viewNetworkTopology'] = true
+      p['Network']['pingRunNodeDiagnostics'] = true
+      p['Network']['viewBandwidthMonitoring'] = true
+      p['Customers']['viewCustomerList'] = true
+      p['Customers']['viewCustomerDetails'] = true
+      return p
+    })(),
   },
   {
     id: 6,
@@ -211,13 +377,42 @@ const SEED = [
       return p
     })(),
     // Mirrors the module-level "View only, everywhere" signal: just the
-    // view-shaped granular permissions, nothing that creates/changes data.
+    // view-shaped granular permissions, nothing that creates/changes data —
+    // extended the same way for the 8 new modules below. Dashboard's own
+    // list is entirely "View X Widget" already, so every key there is
+    // granted; two deliberately-withheld exceptions elsewhere: Ping/Run
+    // Node Diagnostics (an active check, not passive viewing) and View
+    // Security-Sensitive Entries (the most sensitive slice of the audit
+    // trail — held back from the base view-only role same as Admin's own
+    // exception above). Settings gets nothing: every one of its permissions
+    // is a "Manage X" action, and a view-only role manages nothing.
     microPermissions: (() => {
       const p = buildMicroPerms(false)
       p['Support']['viewTicket'] = true
       p['Sales']['viewLead'] = true
       p['Sales']['viewEkyc'] = true
       p['Sales']['packageView'] = true
+      p['Dashboard'] = buildModuleMicroPerms('Dashboard', true)
+      p['Customers']['viewCustomerList'] = true
+      p['Customers']['viewCustomerDetails'] = true
+      p['Billing']['viewInvoicesAndPaymentReceipts'] = true
+      p['Billing']['viewPaymentHistory'] = true
+      p['Network']['viewNetworkTopology'] = true
+      p['Network']['viewJazeServers'] = true
+      p['Network']['viewBandwidthMonitoring'] = true
+      p['Reports']['viewRevenueReport'] = true
+      p['Reports']['viewCafComplianceReport'] = true
+      p['Reports']['viewChurnReport'] = true
+      p['Reports']['viewCollectionReport'] = true
+      p['Reports']['viewPartnerStoreCollectionReport'] = true
+      p['Reports']['viewInventoryReport'] = true
+      p['Resellers']['viewResellerList'] = true
+      p['Resellers']['viewResellerDetail'] = true
+      p['Resellers']['viewCommission'] = true
+      p['Resellers']['viewPaymentHistory'] = true
+      p['Resellers']['viewOutstandingDues'] = true
+      p['Audit Log']['viewAuditLog'] = true
+      p['Audit Log']['filterByModuleUserAction'] = true
       return p
     })(),
   },
