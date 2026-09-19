@@ -20,6 +20,7 @@ import { subscribeInventoryLedger } from '../data/inventoryLedger'
 import { computeInventoryByCategory, formatAvailableQty } from '../utils/inventoryStats'
 import { getInvoices, getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
 import { computeCollectionByMonth } from '../utils/collectionStats'
+import { computeChurnByMonth, countCurrentlyAtRisk } from '../utils/churnStats'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportWorkbook } from '../utils/excelExport'
 
@@ -63,15 +64,6 @@ function computeCafStats(customers) {
   const incompleteCustomers = customers.filter(c => (c.cafStatus ?? 'Pending') !== 'Approved')
   return { total, compliant, incomplete, complianceRate, counts, incompleteCustomers }
 }
-
-const CHURN_DATA = [
-  { month: 'Dec', churned: 12, newJoins: 34, net: 22 },
-  { month: 'Jan', churned: 15, newJoins: 28, net: 13 },
-  { month: 'Feb', churned: 9,  newJoins: 42, net: 33 },
-  { month: 'Mar', churned: 11, newJoins: 38, net: 27 },
-  { month: 'Apr', churned: 14, newJoins: 31, net: 17 },
-  { month: 'May', churned: 6,  newJoins: 14, net: 8  },
-]
 
 const PARTNER_COLLECTION = [
   { partner: 'Andheri Store',   collected: 312000, pending: 18000, pct: 95 },
@@ -369,14 +361,33 @@ function CAFDetail() {
   )
 }
 
+// Self-contained, live-subscribed detail view (same pattern as
+// RevenueDetail/CAFDetail above) — reuses computeChurnByMonth()
+// (src/utils/churnStats.js), real join dates (customersData.js's
+// createdOn) and real status-change timestamps (statusChangedAt, set by
+// every updateCustomer() call — see that function's own comment). Shows
+// every month with real data rather than a fixed recent window
+// (churnStats.js's own comment explains why: createdOn is backfilled
+// history, not recent activity like paymentsStore.js).
 function ChurnDetail() {
+  const [customers, setCustomers] = useState(getAllCustomers)
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
+
+  const byMonth = useMemo(() => computeChurnByMonth(customers), [customers])
+  const totalNewJoins = useMemo(() => byMonth.reduce((sum, m) => sum + m.newJoins, 0), [byMonth])
+  const totalChurned = useMemo(() => byMonth.reduce((sum, m) => sum + m.churned, 0), [byMonth])
+  const netGrowth = useMemo(() => byMonth.reduce((sum, m) => sum + m.net, 0), [byMonth])
+  const avgNewJoins = byMonth.length === 0 ? 0 : totalNewJoins / byMonth.length
+  const avgChurned = byMonth.length === 0 ? 0 : totalChurned / byMonth.length
+  const currentlyAtRisk = useMemo(() => countCurrentlyAtRisk(customers), [customers])
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Avg Monthly Churn',  value: '11.2/mo', color: 'text-red-500' },
-          { label: 'Avg New Joins',      value: '31.2/mo', color: 'text-green-600' },
-          { label: 'Net Growth (6m)',    value: '+120',     color: 'text-brand-blue' },
+          { label: 'Avg Monthly Churn',    value: `${avgChurned.toFixed(1)}/mo`, color: 'text-red-500' },
+          { label: 'Avg New Joins',        value: `${avgNewJoins.toFixed(1)}/mo`, color: 'text-green-600' },
+          { label: 'Net Growth (to date)', value: `${netGrowth >= 0 ? '+' : ''}${netGrowth}`, color: 'text-brand-blue' },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -385,28 +396,35 @@ function ChurnDetail() {
         ))}
       </div>
       <div className="bg-white rounded-xl border border-surface-border p-5">
-        <h4 className="text-sm font-semibold text-gray-800 mb-4">Churn vs New Joins (6 Months)</h4>
-        <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={CHURN_DATA} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="colorJoin" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#059669" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="colorChurn" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <Tooltip />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-            <Area type="monotone" dataKey="newJoins" name="New Joins" stroke="#059669" fill="url(#colorJoin)" strokeWidth={2} />
-            <Area type="monotone" dataKey="churned"  name="Churned"   stroke="#ef4444" fill="url(#colorChurn)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
+        <h4 className="text-sm font-semibold text-gray-800 mb-4">Churn vs New Joins</h4>
+        {byMonth.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-16">No customer join or status-change data recorded yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={byMonth} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorJoin" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#059669" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorChurn" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <Tooltip />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              <Area type="monotone" dataKey="newJoins" name="New Joins" stroke="#059669" fill="url(#colorJoin)" strokeWidth={2} />
+              <Area type="monotone" dataKey="churned"  name="Churned (Disconnected)" stroke="#ef4444" fill="url(#colorChurn)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+        <p className="text-[11px] text-gray-400 mt-3">
+          {currentlyAtRisk} customer{currentlyAtRisk !== 1 ? 's' : ''} currently suspended or inactive — shown as "at risk", not counted as churn unless later marked Disconnected. Churn/new-join history only reflects real join dates and status changes recorded in this app, going forward from today for status changes.
+        </p>
       </div>
     </div>
   )
@@ -694,6 +712,19 @@ export default function Reports() {
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
   const cafStats = useMemo(() => computeCafStats(customers), [customers])
 
+  // Real churn stats (customersData.js's createdOn/statusChangedAt via
+  // churnStats.js — same computeChurnByMonth() this page's own
+  // ChurnDetail uses), overriding just the 'churn' card's static value/
+  // sub/badge so it can never disagree with it.
+  const churnByMonth = useMemo(() => computeChurnByMonth(customers), [customers])
+  const churnStats = useMemo(() => {
+    const totalNewJoins = churnByMonth.reduce((sum, m) => sum + m.newJoins, 0)
+    const totalChurned = churnByMonth.reduce((sum, m) => sum + m.churned, 0)
+    const netGrowth = churnByMonth.reduce((sum, m) => sum + m.net, 0)
+    const avgChurned = churnByMonth.length === 0 ? 0 : totalChurned / churnByMonth.length
+    return { totalNewJoins, totalChurned, netGrowth, avgChurned, currentlyAtRisk: countCurrentlyAtRisk(customers) }
+  }, [churnByMonth, customers])
+
   // Real revenue stats (paymentsStore.js/customersData.js via
   // revenueStats.js — same helpers Dashboard.jsx's Revenue Overview and
   // this page's own RevenueDetail use), overriding just the 'revenue'
@@ -823,8 +854,19 @@ export default function Reports() {
           : { label: 'Fully collected', variant: 'green' },
       }
     }
+    if (card.id === 'churn') {
+      const churnRate = customers.length === 0 ? 0 : (churnStats.totalChurned / customers.length) * 100
+      return {
+        ...card,
+        value: `${churnRate.toFixed(1)}%`,
+        sub: 'Cumulative churn rate',
+        badge: churnStats.totalChurned > 0
+          ? { label: `${churnStats.totalChurned} churned`, variant: 'red' }
+          : { label: 'No churn recorded yet', variant: 'green' },
+      }
+    }
     return card
-  }), [cafStats, revenueStats, inventoryStats, collectionStats])
+  }), [cafStats, revenueStats, inventoryStats, collectionStats, churnStats, customers])
 
   // Cards the current user's role can't view are left out of the grid
   // entirely — not rendered greyed-out/disabled — same convention as every
@@ -837,12 +879,11 @@ export default function Reports() {
   // Export sheets for one report, built from the exact same real (or,
   // for reports not yet wired to real data, mock) source each report's own
   // detail view above renders — so the exported file always matches what's
-  // currently on screen. Revenue/CAF Compliance/Inventory/Collection are
-  // real, live data; Churn/Partner & Store-wise Collection are still the
-  // static mocks those detail views themselves render (see this file's
-  // audit-trail comments above each one) — exporting them just captures
-  // that same mock snapshot, not real numbers, until those reports are
-  // wired up too.
+  // currently on screen. Revenue/CAF Compliance/Inventory/Collection/Churn
+  // are real, live data; Partner & Store-wise Collection is still the
+  // static mock its detail view renders (see this file's audit-trail
+  // comment above it) — exporting it just captures that same mock
+  // snapshot, not real numbers, until that report is wired up too.
   function buildExportSheets(id) {
     switch (id) {
       case 'revenue':
@@ -881,7 +922,9 @@ export default function Reports() {
       case 'churn':
         return [{
           name: 'Churn',
-          rows: CHURN_DATA.map(r => ({ Month: r.month, Churned: r.churned, 'New Joins': r.newJoins, Net: r.net })),
+          rows: churnByMonth.map(m => ({
+            Month: m.month, 'New Joins': m.newJoins, Churned: m.churned, 'At Risk': m.atRisk, Net: m.net,
+          })),
         }]
       case 'collection':
         return [
