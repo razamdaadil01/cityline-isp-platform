@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import EntityBadge from '../../components/ui/EntityBadge'
 import { getHDDProject, getSiteProject, PROJECT_EXECUTION_TYPE_LABELS } from '../../data/projectStore'
+import { getProduct } from '../../data/productStore'
 import { getVendor } from '../../data/vendorStore'
 import { getUsers } from '../../data/userStore'
 import { getCompanyEntity } from '../../data/companyEntities'
@@ -79,6 +80,14 @@ function HDDSections({ project }) {
     ? `${project.projectExecutionType} — ${PROJECT_EXECUTION_TYPE_LABELS[project.projectExecutionType]}`
     : null
 
+  const plannedMaterials = (project.plannedMaterials ?? []).map(m => ({
+    productName: getProduct(m.productId)?.name ?? m.productId,
+    price: Number(m.price) || 0,
+    quantity: Number(m.quantity) || 0,
+    total: Number(m.total) || (Number(m.price) || 0) * (Number(m.quantity) || 0),
+  }))
+  const plannedMaterialsTotal = plannedMaterials.reduce((sum, m) => sum + m.total, 0)
+
   return (
     <>
       <Section title="Basic Project Information">
@@ -95,10 +104,38 @@ function HDDSections({ project }) {
         <Field label="End Coordinates" value={project.routeGeometry?.end ? `${project.routeGeometry.end.lat}, ${project.routeGeometry.end.lng}` : null} />
         <Field label="Total Estimated Distance" value={project.distance != null ? `${project.distance} ${project.distanceUnit ?? ''}` : null} />
       </Section>
-      <Section title="Planned Technical Specifications">
-        <Field label="Duct Type" value={project.technicalSpecs?.ductType} />
-        <Field label="Fiber Core Size" value={project.technicalSpecs?.fiberCoreSize} />
-        <Field label="Planned Chambers Count" value={project.technicalSpecs?.plannedChambers} />
+      <Section title="Planned Materials">
+        <div className="col-span-2">
+          {plannedMaterials.length === 0 ? (
+            <p className="text-sm text-gray-300 italic">Not specified</p>
+          ) : (
+            <>
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600">Product</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-600 w-28">Price</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-600 w-24">Quantity</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-600 w-32">Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {plannedMaterials.map((m, i) => (
+                    <tr key={i}>
+                      <td className="px-4 py-3 text-sm text-gray-800 font-medium">{m.productName}</td>
+                      <td className="px-4 py-3 text-right text-sm font-mono text-gray-700">₹{m.price.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 text-right text-sm font-mono text-gray-700">{m.quantity.toLocaleString('en-IN')}</td>
+                      <td className="px-4 py-3 text-right text-sm font-mono font-semibold text-gray-900">₹{m.total.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right text-sm font-bold text-gray-900 mt-3">
+                Grand Total: <span className="text-brand-blue">₹{plannedMaterialsTotal.toLocaleString('en-IN')}</span>
+              </p>
+            </>
+          )}
+        </div>
       </Section>
       <Section title="Vendor & Rate Setup">
         <Field label="Vendor / HDD Contractor" value={vendorName} />

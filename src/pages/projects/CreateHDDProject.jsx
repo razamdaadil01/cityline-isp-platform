@@ -1,17 +1,22 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Route, Save } from 'lucide-react'
+import { ArrowLeft, Route, Save, Plus, Trash2 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import EmployeeSelect from '../../components/ui/EmployeeSelect'
 import { FormField, Input, Select } from '../../components/ui/FormInputs'
 import {
-  generateHDDProjectId, saveHDDProject, DUCT_TYPES, FIBER_CORE_SIZES, DISTANCE_UNITS,
+  generateHDDProjectId, saveHDDProject, DISTANCE_UNITS,
   PROJECT_EXECUTION_TYPES, PROJECT_EXECUTION_TYPE_LABELS,
 } from '../../data/projectStore'
 import { getVendors, getVendorDrillingRate } from '../../data/vendorStore'
+import { getProducts } from '../../data/productStore'
 
 function emptyPoint() {
   return { name: '', lat: '', lng: '' }
+}
+
+function emptyMaterialRow() {
+  return { id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, productId: '', price: '', quantity: '' }
 }
 
 export default function CreateHDDProject() {
@@ -23,6 +28,7 @@ export default function CreateHDDProject() {
   const [projectId] = useState(generateHDDProjectId)
 
   const hddContractors = getVendors().filter(v => v.isHDDContractor)
+  const products = getProducts().filter(p => p.status === 'active')
 
   const [title, setTitle] = useState('')
   const [siteIncharge, setSiteIncharge] = useState('')
@@ -31,9 +37,7 @@ export default function CreateHDDProject() {
   const [end, setEnd] = useState(emptyPoint)
   const [distance, setDistance] = useState('')
   const [distanceUnit, setDistanceUnit] = useState(DISTANCE_UNITS[0])
-  const [ductType, setDuctType] = useState(DUCT_TYPES[0])
-  const [fiberCoreSize, setFiberCoreSize] = useState(FIBER_CORE_SIZES[0])
-  const [plannedChambers, setPlannedChambers] = useState('')
+  const [materials, setMaterials] = useState(() => [emptyMaterialRow()])
   const [vendorId, setVendorId] = useState('')
   const [drillingRate, setDrillingRate] = useState('')
   const [rateAutoFetched, setRateAutoFetched] = useState(false)
@@ -41,6 +45,21 @@ export default function CreateHDDProject() {
 
   function setStartField(k, v) { setStart(s => ({ ...s, [k]: v })); setErrors(e => ({ ...e, [`start.${k}`]: undefined })) }
   function setEndField(k, v) { setEnd(s => ({ ...s, [k]: v })); setErrors(e => ({ ...e, [`end.${k}`]: undefined })) }
+
+  function updateMaterial(rowId, patch) {
+    setMaterials(rows => rows.map(r => r.id === rowId ? { ...r, ...patch } : r))
+    setErrors(e => ({ ...e, materials: undefined }))
+  }
+  // Price auto-fills from the product's own Purchase Price (the same cost
+  // basis the CAPEX Material Cost calc uses — see projectStore.js's
+  // findPlannedMaterialProduct) but stays editable afterwards for a
+  // negotiated rate, same as CreatePO.jsx's own Price cell.
+  function handleProductSelect(rowId, productId) {
+    const product = products.find(p => p.id === productId)
+    updateMaterial(rowId, { productId, price: product ? String(product.purchasePrice ?? product.sellingPrice ?? '') : '' })
+  }
+  function addMaterial() { setMaterials(rows => [...rows, emptyMaterialRow()]) }
+  function removeMaterial(rowId) { setMaterials(rows => rows.filter(r => r.id !== rowId)) }
 
   function handleVendorChange(id) {
     setVendorId(id)
@@ -67,7 +86,12 @@ export default function CreateHDDProject() {
     if (end.lat === '' || Number.isNaN(Number(end.lat))) errs['end.lat'] = 'Enter a valid latitude.'
     if (end.lng === '' || Number.isNaN(Number(end.lng))) errs['end.lng'] = 'Enter a valid longitude.'
     if (distance === '' || Number.isNaN(Number(distance)) || Number(distance) <= 0) errs.distance = 'Enter a valid distance.'
-    if (plannedChambers === '' || Number.isNaN(Number(plannedChambers)) || Number(plannedChambers) < 0) errs.plannedChambers = 'Enter a valid chamber count.'
+    const chosenMaterials = materials.filter(m => m.productId)
+    if (chosenMaterials.length === 0) {
+      errs.materials = 'Add at least one planned material.'
+    } else if (chosenMaterials.some(m => m.quantity === '' || Number.isNaN(Number(m.quantity)) || Number(m.quantity) <= 0)) {
+      errs.materials = 'Every planned material needs a valid quantity.'
+    }
     if (!vendorId) errs.vendorId = 'Select an HDD Contractor.'
     if (drillingRate === '' || Number.isNaN(Number(drillingRate)) || Number(drillingRate) < 0) errs.drillingRate = 'Enter a valid drilling rate per meter.'
     return errs
@@ -86,9 +110,13 @@ export default function CreateHDDProject() {
       },
       distance: Number(distance),
       distanceUnit,
-      technicalSpecs: {
-        ductType, fiberCoreSize, plannedChambers: Number(plannedChambers),
-      },
+      plannedMaterials: materials
+        .filter(m => m.productId)
+        .map(m => {
+          const price = Number(m.price) || 0
+          const quantity = Number(m.quantity) || 0
+          return { productId: m.productId, price, quantity, total: price * quantity }
+        }),
       vendor: vendorId,
       drillingRate: Number(drillingRate),
       projectExecutionType,
@@ -195,23 +223,71 @@ export default function CreateHDDProject() {
           </div>
         </div>
 
-        {/* Planned Technical Specifications */}
-        <div className="space-y-4 pt-4 border-t border-surface-border">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Planned Technical Specifications</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <FormField label="Duct Type" required>
-              <Select value={ductType} onChange={e => setDuctType(e.target.value)}>
-                {DUCT_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Fiber Core Size" required>
-              <Select value={fiberCoreSize} onChange={e => setFiberCoreSize(e.target.value)}>
-                {FIBER_CORE_SIZES.map(f => <option key={f} value={f}>{f}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Planned Chambers Count" required error={errors.plannedChambers}>
-              <Input type="number" min="0" placeholder="e.g. 18" value={plannedChambers} onChange={e => { setPlannedChambers(e.target.value); setErrors(er => ({ ...er, plannedChambers: undefined })) }} />
-            </FormField>
+        {/* Planned Materials — replaces the old fixed Duct Type/Fiber Core
+            Size/Planned Chambers Count fields with a real Product
+            Management-backed line-items table, same add-row/remove-row
+            table pattern as CreatePO.jsx's Products step. */}
+        <div className="space-y-3 pt-4 border-t border-surface-border">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Planned Materials</h3>
+          {errors.materials && <p className="text-xs text-red-500">{errors.materials}</p>}
+          <div className="border border-surface-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 border-b border-surface-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Price</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Quantity</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Total Amount</th>
+                  <th className="px-3 py-2 w-10" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {materials.map(row => {
+                  const total = (Number(row.price) || 0) * (Number(row.quantity) || 0)
+                  return (
+                    <tr key={row.id}>
+                      <td className="px-3 py-2">
+                        <Select value={row.productId} onChange={e => handleProductSelect(row.id, e.target.value)}>
+                          <option value="">Select product…</option>
+                          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </Select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input type="number" min="0" placeholder="0.00" value={row.price} onChange={e => updateMaterial(row.id, { price: e.target.value })} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input type="number" min="0" placeholder="0" value={row.quantity} onChange={e => updateMaterial(row.id, { quantity: e.target.value })} />
+                      </td>
+                      <td className="px-3 py-2 text-right text-sm font-semibold text-gray-800 whitespace-nowrap">₹{total.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeMaterial(row.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            onClick={addMaterial}
+            className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark transition-colors"
+          >
+            <Plus size={13} /> Add Row
+          </button>
+          <div className="flex justify-end">
+            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Grand Total</span>
+              <span className="text-base font-bold text-brand-blue">
+                ₹{materials.reduce((sum, r) => sum + (Number(r.price) || 0) * (Number(r.quantity) || 0), 0).toLocaleString('en-IN')}
+              </span>
+            </div>
           </div>
         </div>
 

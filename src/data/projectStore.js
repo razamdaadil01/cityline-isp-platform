@@ -9,13 +9,6 @@ import { getProducts, getProduct } from './productStore'
 
 export const PROJECT_STATUSES = ['Planning', 'In Progress', 'On Hold', 'Completed', 'Cancelled']
 
-// Planned Technical Specifications master lists (HDD Project Creation Form,
-// Phase 2) — plain exported arrays, same "editable master list" idiom as
-// PAYMENT_TERMS in vendorStore.js / UNIT_TYPES in productStore.js. Nothing
-// in the app has a Settings-managed editable-master-list UI yet, so these
-// stay static constants here rather than a DB-backed list.
-export const DUCT_TYPES = ['40mm PLB HDPE Duct', '2-Way Coupled Duct']
-export const FIBER_CORE_SIZES = ['48-Core Armored Fiber', '96-Core Armored Fiber']
 export const DISTANCE_UNITS = ['Meters', 'Kilometers']
 
 // Project Execution Type — OH (Overhead/Aerial) vs UG (Underground) — a
@@ -92,7 +85,13 @@ export function generateSiteWorkOrderId() {
 //   routeGeometry    object   { start: {name, lat, lng}, end: {name, lat, lng} }
 //   distance         number   total estimated route distance, in distanceUnit
 //   distanceUnit     string   one of DISTANCE_UNITS
-//   technicalSpecs   object   { ductType, fiberCoreSize, plannedChambers }
+//   plannedMaterials array    [{ productId, price, quantity, total }] — planned/budgeted material
+//                              line items chosen from Product Management on the project's creation
+//                              form (CreateHDDProject.jsx); replaces the old fixed Duct Type/Fiber
+//                              Core Size/Planned Chambers Count fields. `price` defaults to the
+//                              product's purchasePrice at add-row time but is admin-editable
+//                              (negotiated rates); `total` is price × quantity, snapshotted at save
+//                              time rather than recomputed on read.
 //   vendor           string   vendorStore.js vendor id (HDD Contractor)
 //   drillingRate     number   snapshot of getVendorDrillingRate(vendor) at creation (admin-overridable)
 //   capex            object   placeholder for capital-expenditure figures (Phase 4)
@@ -194,7 +193,7 @@ export function generateSiteWorkOrderId() {
 //     product's purchasePrice (₹35, seeded in productStore.js) = ₹4,200,
 //     plus segment.couplersUsed (2) × "Coupler"'s purchasePrice (₹50) =
 //     ₹100 → ₹4,300 total, resolved live by getHDDProjectCapex()'s
-//     name-matching logic against project.technicalSpecs.ductType.
+//     name-matching logic against the project's own plannedMaterials below.
 //   - Live Total CAPEX: 26,400 + 3,000 + 4,300 = ₹33,700 on load.
 // requiredMaterials references the same two productStore.js items by id
 // (looked up by name below, not hardcoded, so it can't drift out of sync
@@ -224,7 +223,14 @@ const HDD_SEED = [
     },
     distance: 2500,
     distanceUnit: 'Meters',
-    technicalSpecs: { ductType: '40mm PLB HDPE Duct', fiberCoreSize: '48-Core Armored Fiber', plannedChambers: 6 },
+    // Preserves the exact CAPEX numbers the comment above documents: the
+    // duct line is what getHDDProjectCapex()'s name-matching keys off (see
+    // findPlannedMaterialProduct below), so it has to stay named
+    // "40mm PLB HDPE Duct" and keep its real purchasePrice/quantity.
+    plannedMaterials: [
+      ...(_seedDuctProduct ? [{ productId: _seedDuctProduct.id, price: _seedDuctProduct.purchasePrice, quantity: 2500, total: _seedDuctProduct.purchasePrice * 2500 }] : []),
+      ...(_seedCouplerProduct ? [{ productId: _seedCouplerProduct.id, price: _seedCouplerProduct.purchasePrice, quantity: 6, total: _seedCouplerProduct.purchasePrice * 6 }] : []),
+    ],
     vendor: 'VEN-001',
     drillingRate: 220,
     capex: null,
@@ -363,7 +369,7 @@ export function saveHDDProject(project) {
   const isNew = !_hddProjects.some(p => p.id === id)
   const saved = {
     status: PROJECT_STATUSES[0], routeGeometry: null, distance: null, distanceUnit: DISTANCE_UNITS[0],
-    technicalSpecs: null, vendor: null, drillingRate: null, capex: null,
+    plannedMaterials: [], vendor: null, drillingRate: null, capex: null,
     projectExecutionType: PROJECT_EXECUTION_TYPES[0],
     workOrders: [], drilledDistance: 0,
     createdAt: new Date().toISOString().split('T')[0],
@@ -458,6 +464,22 @@ function resolveProduct(itemId) {
   return getProduct(itemId) ?? getProducts().find(p => p.name.trim().toLowerCase() === String(itemId).trim().toLowerCase())
 }
 
+// Finds the Planned Materials line (if any — CreateHDDProject.jsx's Planned
+// Materials table) whose linked product's name contains `keyword`. Lets
+// getHDDProjectCapex()/getHDDInventorySummary() below resolve a project's
+// actual planned duct product directly from what the project itself
+// planned, rather than the old technicalSpecs.ductType-driven approach of
+// guessing a keyword and searching the entire Product Management catalog
+// for it.
+function findPlannedMaterialProduct(project, keyword) {
+  const q = keyword.trim().toLowerCase()
+  for (const m of project.plannedMaterials ?? []) {
+    const product = resolveProduct(m.productId)
+    if (product?.name?.toLowerCase().includes(q)) return product
+  }
+  return null
+}
+
 // ── HDD Project CAPEX (Phase 4) ─────────────────────────────────────────
 // Pure computed-on-read functions, not a stored/cached field — CAPEX
 // depends on Product Management's Purchase Price too (not just the
@@ -468,10 +490,11 @@ function resolveProduct(itemId) {
 // subscribeProjects (same reactivity as Drilled Distance).
 
 // Best-effort match against Product Management: find an item whose name
-// contains `keyword` (case-insensitive) and has a Purchase Price set.
-// Ducts are matched against the project's own technicalSpecs.ductType
-// (e.g. "40mm PLB HDPE Duct") since that's the exact duct this project
-// uses; Couplers have no per-project spec, so they're matched against the
+// contains `keyword` (case-insensitive) and has a Purchase Price set. Used
+// as the fallback for ducts (when the project's own Planned Materials table
+// has no line that looks like a duct — see findPlannedMaterialProduct
+// above, which is tried first) and always for Couplers, which have no
+// per-project planned spec of their own and are matched against the
 // generic keyword "coupler" instead. Neither duct types nor a "Coupler"
 // item exist in Product Management's seed data today, so this normally
 // falls back to ₹0 — logged once per keyword (not on every render) so a
@@ -509,7 +532,9 @@ export function getHDDProjectCapex(projectId) {
   // so those are priced against Product Management's Purchase Price instead
   // of requiredMaterials (which is a separate, unrelated allocation list).
   const products = getProducts()
-  const ductPricePerMeter = findItemPurchasePrice(products, project.technicalSpecs?.ductType || 'duct', `${projectId}'s duct type`)
+  const plannedDuctProduct = findPlannedMaterialProduct(project, 'duct')
+  const ductPricePerMeter = plannedDuctProduct?.purchasePrice
+    ?? findItemPurchasePrice(products, 'duct', `${projectId}'s duct type`)
   const couplerPricePerUnit = findItemPurchasePrice(products, 'coupler', `${projectId}'s couplers`)
   const materialCost = allSegments.reduce((sum, seg) => {
     const ductCost = (Number(seg.ductsUsed) || 0) * ductPricePerMeter
@@ -529,10 +554,11 @@ export function getHDDProjectCapex(projectId) {
 // way, though — segments only track a ductsUsed/couplersUsed count, not
 // which specific productStore.js item each use maps to — so each requested
 // item's consumed figure is resolved the same way getHDDProjectCapex()
-// prices it: by matching that item's name against the project's own
-// technicalSpecs.ductType, or against the generic "coupler" keyword. Any
-// requested item that matches neither just shows 0 consumed rather than
-// erroring — there's no other consumption tracking to fall back to yet.
+// prices it: by matching that item's name against the project's own planned
+// duct product (see findPlannedMaterialProduct), or against the generic
+// "coupler" keyword. Any requested item that matches neither just shows 0
+// consumed rather than erroring — there's no other consumption tracking to
+// fall back to yet.
 export function getHDDInventorySummary(projectId) {
   const project = getHDDProject(projectId)
   if (!project) return { rows: [] }
@@ -541,7 +567,7 @@ export function getHDDInventorySummary(projectId) {
   const allSegments = workOrders.flatMap(wo => wo.segments ?? [])
   const totalDuctsUsed = allSegments.reduce((sum, seg) => sum + (Number(seg.ductsUsed) || 0), 0)
   const totalCouplersUsed = allSegments.reduce((sum, seg) => sum + (Number(seg.couplersUsed) || 0), 0)
-  const ductKeyword = (project.technicalSpecs?.ductType || 'duct').trim().toLowerCase()
+  const ductKeyword = (findPlannedMaterialProduct(project, 'duct')?.name || 'duct').trim().toLowerCase()
 
   const requested = {}
   workOrders.forEach(wo => {
