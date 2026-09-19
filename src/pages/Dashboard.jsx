@@ -18,6 +18,7 @@ import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../d
 import { getLeads, subscribeLeads } from '../data/leadsStore'
 import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/outagesStore'
 import { getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
+import { exportCsv } from '../utils/csvExport'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -301,6 +302,76 @@ function RevenueTooltip({ active, payload, label }) {
   )
 }
 
+// Flattens every widget already wired to real data into one "long format"
+// (Section, Metric, Value) table — the shape exportCsv() (this app's
+// existing shared CSV helper, already used by Customers.jsx/
+// CustomerDetail.jsx) needs one consistent column set across every row,
+// and the widgets here have wildly different native shapes (a stat card,
+// a pie breakdown, a payments list, a ticket list...), so a single wide
+// table per widget isn't realistic in one file. Still-mock widgets (CAF
+// Compliance, Jaze Network Status) are deliberately left out — exporting
+// fabricated numbers as if they were a real report would be dishonest.
+function buildDashboardReportRows({
+  statValues, serviceMix, activeCustomers, revenueData, renewalForecast,
+  todaysPayments, leadPipeline, totalLeadsInPipeline, supportOverviewValues,
+  recentTickets, activeOutages, outstandingInvoices, outstandingTotal,
+}) {
+  const rows = []
+  const add = (section, metric, value) => rows.push({ Section: section, Metric: metric, Value: value })
+
+  STAT_CARD_META.forEach(card => {
+    const value = statValues[card.key]
+    add('Key Metrics', card.label, card.key === 'todaysCollection' ? `₹${value.toLocaleString('en-IN')}` : value)
+  })
+
+  serviceMix.forEach(s => add('Active Services by Type', s.type, s.count))
+  add('Active Services by Type', 'Total Active', activeCustomers.length)
+
+  if (revenueData.length === 0) {
+    add('Revenue Overview', 'Status', 'No payments recorded yet')
+  } else {
+    revenueData.forEach(r => add('Revenue Overview', r.month, `₹${r.collected.toLocaleString('en-IN')}`))
+  }
+
+  renewalForecast.buckets.forEach(b => add('Renewal Forecast', b.period, b.count))
+  add('Renewal Forecast', 'Collected', renewalForecast.collected)
+  add('Renewal Forecast', 'Pending', renewalForecast.pending)
+  add('Renewal Forecast', 'Expired', renewalForecast.expired)
+
+  add("Today's Collections", 'Total', `₹${statValues.todaysCollection.toLocaleString('en-IN')}`)
+  if (todaysPayments.length === 0) {
+    add("Today's Collections", 'Status', 'No payments recorded yet today')
+  } else {
+    todaysPayments.forEach(p => add("Today's Collections", `${p.customer} (${p.time})`, `₹${p.amount.toLocaleString('en-IN')} · ${p.mode}`))
+  }
+
+  if (leadPipeline.length === 0) {
+    add('Sales Lead Pipeline', 'Status', 'No leads currently in the pipeline')
+  } else {
+    leadPipeline.forEach(s => add('Sales Lead Pipeline', s.stage, s.count))
+  }
+  add('Sales Lead Pipeline', 'Total leads in pipeline', totalLeadsInPipeline)
+
+  SUPPORT_OVERVIEW_META.forEach(s => add('Support Overview', s.label, supportOverviewValues[s.key]))
+
+  if (recentTickets.length === 0) {
+    add('Recent Open Tickets', 'Status', 'No open tickets right now')
+  } else {
+    recentTickets.forEach(t => add('Recent Open Tickets', `${t.id} — ${t.customerName}`, `${t.subject} (${t.priority})`))
+  }
+
+  if (activeOutages.length === 0) {
+    add('Active Outages', 'Status', 'All systems operational')
+  } else {
+    activeOutages.forEach(o => add('Active Outages', `${o.id} — ${o.title}`, o.severity))
+  }
+
+  add('Overdue Payments', 'Outstanding Total', `₹${outstandingTotal.toLocaleString('en-IN')}`)
+  add('Overdue Payments', 'Outstanding Invoices', outstandingInvoices.length)
+
+  return rows
+}
+
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -420,6 +491,46 @@ export default function Dashboard() {
       .sort((a, b) => (severityRank[a.severity] ?? 4) - (severityRank[b.severity] ?? 4))
   }, [outages])
 
+  // Same local toast convention as CustomerDetail.jsx's own showToast() —
+  // no shared toast component exists anywhere in this app.
+  const [toast, setToast] = useState(null)
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  // Every widget here already subscribes to its own store, so nothing is
+  // stale — this just re-reads each store and gives the user visible
+  // feedback that it happened, rather than a real refetch (there's
+  // nothing to refetch from).
+  const [refreshing, setRefreshing] = useState(false)
+  function handleRefresh() {
+    setRefreshing(true)
+    setCustomers(getAllCustomers())
+    setPayments(getPayments())
+    setTickets(getTickets())
+    setLeads(getLeads())
+    setOutages(getOutages())
+    setOutstandingInvoices(getOutstandingInvoices())
+    setOutstandingTotal(getOutstandingTotal())
+    setTimeout(() => {
+      setRefreshing(false)
+      showToast('Dashboard refreshed')
+    }, 500)
+  }
+
+  function handleExportReport() {
+    exportCsv(
+      `dashboard_report_${new Date().toISOString().slice(0, 10)}.csv`,
+      buildDashboardReportRows({
+        statValues, serviceMix, activeCustomers, revenueData, renewalForecast,
+        todaysPayments, leadPipeline, totalLeadsInPipeline, supportOverviewValues,
+        recentTickets, activeOutages, outstandingInvoices, outstandingTotal,
+      })
+    )
+    showToast('Dashboard report exported')
+  }
+
   return (
     <div className="p-6 space-y-6">
 
@@ -432,8 +543,14 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Refresh</Button>
-          <Button size="sm" icon={<FileText size={14} />}>Export Report</Button>
+          <Button
+            variant="secondary" size="sm" disabled={refreshing}
+            icon={<RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />}
+            onClick={handleRefresh}
+          >
+            Refresh
+          </Button>
+          <Button size="sm" icon={<FileText size={14} />} onClick={handleExportReport}>Export Report</Button>
         </div>
       </div>
 
@@ -889,6 +1006,14 @@ export default function Dashboard() {
           </div>
         </WidgetCard>
       </div>
+
+      {/* Toast — same fixed bottom-right pill convention as CustomerDetail.jsx's own showToast() */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-fade-in">
+          <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+          {toast}
+        </div>
+      )}
 
     </div>
   )
