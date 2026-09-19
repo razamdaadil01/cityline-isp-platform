@@ -21,6 +21,7 @@ import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/ou
 import { getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
 import { getJazeServers, subscribeJazeServers } from '../data/jazeServerStore'
 import { exportCsv } from '../utils/csvExport'
+import { computeRevenueByMonth } from '../utils/revenueStats'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -99,33 +100,6 @@ const STAT_CARD_META = [
   { key: 'openTickets',       label: 'Open Tickets',         icon: <AlertTriangle size={20} />, iconBg: 'bg-brand-orange/10',  iconColor: 'text-brand-orange' },
   { key: 'renewalsDueToday',  label: 'Renewals Due Today',   icon: <RefreshCw size={20} />,     iconBg: 'bg-purple-100',       iconColor: 'text-purple-600' },
 ]
-
-// No monthly-rollup function existed anywhere in the app before this —
-// paymentsStore.js only ever held a flat, unaggregated list. Groups real
-// payments by calendar month (parsed from paymentDate's own "DD-MM-YYYY",
-// same format AddPayment.jsx writes), summing paid/total per month.
-// Returns only months that actually have at least one real payment,
-// sorted chronologically — paymentsStore.js starts empty each session, so
-// this is often mostly (or entirely) empty until AddPayment.jsx records
-// are made, same as Today's Collections' own empty state. There's no real
-// "Target" figure anywhere in this app (no monthly-goal store exists), so
-// unlike the old mock this only ever plots the one real series.
-function computeRevenueByMonth(payments) {
-  const totals = new Map() // "YYYY-MM" -> collected total
-  payments.forEach(p => {
-    const [d, m, y] = (p.paymentDate || '').split('-')
-    if (!d || !m || !y) return
-    const key = `${y}-${m}`
-    totals.set(key, (totals.get(key) || 0) + (Number(p.paid ?? p.total) || 0))
-  })
-  return [...totals.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, collected]) => {
-      const [y, m] = key.split('-')
-      const month = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short' })
-      return { key, month, collected }
-    })
-}
 
 // Same severity->Badge color convention as OutageList.jsx/OutageDetail.jsx.
 const SEVERITY_BADGE = { Critical: 'red', High: 'orange', Medium: 'yellow', Low: 'gray' }
