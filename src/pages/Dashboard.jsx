@@ -1,3 +1,4 @@
+import { useState, useEffect, useMemo } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell,
@@ -5,82 +6,88 @@ import {
 import {
   Users, Wifi, TrendingUp, IndianRupee, AlertTriangle,
   CheckCircle2, Clock, XCircle, RefreshCw, PhoneCall,
-  FileText, Server, Activity, ArrowUpRight, ArrowDownRight,
+  FileText, Server, Activity,
   ChevronRight, Zap,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
+import { getPayments, subscribePayments } from '../data/paymentsStore'
+import { getTickets, subscribeTickets, CLOSED_STATUSES } from '../data/ticketsStore'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-const SERVICE_PILLS = [
-  { label: 'FTTH', count: 842, color: 'bg-brand-blue text-white' },
-  { label: 'FTTB', count: 234, color: 'bg-navy text-white' },
-  { label: 'Wireless', count: 156, color: 'bg-brand-orange text-white' },
-  { label: 'P2P', count: 67, color: 'bg-purple-600 text-white' },
-  { label: 'Leased Line', count: 28, color: 'bg-emerald-600 text-white' },
-]
+// Key Metrics stat cards (STAT_CARD_META below) and the Connection Mix/
+// Service pills further down are the only two sections wired to real,
+// live-subscribed data so far — see Dashboard() itself for the real
+// customers/payments/tickets computation. Every other section on this page
+// (Revenue Overview, Renewal Forecast, Today's Collections, Sales Lead
+// Pipeline, CAF Compliance, Jaze Network Status, Support Overview, Recent
+// Open Tickets) is still the original static mock, per a prior audit —
+// follow-up tasks, not done here.
 
-const STAT_CARDS = [
-  {
-    label: 'Total Customers',
-    value: '1,327',
-    change: '+12',
-    period: 'this month',
-    trend: 'up',
-    icon: <Users size={20} />,
-    iconBg: 'bg-brand-blue/10',
-    iconColor: 'text-brand-blue',
-  },
-  {
-    label: 'Active Connections',
-    value: '1,189',
-    change: '+8',
-    period: 'this month',
-    trend: 'up',
-    icon: <Wifi size={20} />,
-    iconBg: 'bg-emerald-100',
-    iconColor: 'text-emerald-600',
-  },
-  {
-    label: 'Inactive / Suspended',
-    value: '138',
-    change: '-4',
-    period: 'this month',
-    trend: 'down',
-    icon: <XCircle size={20} />,
-    iconBg: 'bg-red-100',
-    iconColor: 'text-red-500',
-  },
-  {
-    label: "Today's Collection",
-    value: '₹1,24,500',
-    change: '+18%',
-    period: 'vs yesterday',
-    trend: 'up',
-    icon: <IndianRupee size={20} />,
-    iconBg: 'bg-amber-100',
-    iconColor: 'text-amber-600',
-  },
-  {
-    label: 'Open Tickets',
-    value: '47',
-    change: '-3',
-    period: 'since morning',
-    trend: 'down',
-    icon: <AlertTriangle size={20} />,
-    iconBg: 'bg-brand-orange/10',
-    iconColor: 'text-brand-orange',
-  },
-  {
-    label: 'Renewals Due Today',
-    value: '23',
-    change: '8 pending',
-    trend: 'neutral',
-    icon: <RefreshCw size={20} />,
-    iconBg: 'bg-purple-100',
-    iconColor: 'text-purple-600',
-  },
+// A customer's `plan` string always starts with its connection-technology
+// keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
+// display under this app's existing "Leased Line" label (the same label
+// the static pills/pie this replaces already used) rather than the raw
+// "ILL" plan prefix.
+function serviceTypeOf(customer) {
+  const prefix = (customer.plan || '').split(' ')[0]
+  return prefix === 'ILL' ? 'Leased Line' : (prefix || 'Other')
+}
+
+// Preferred display order/styling for the connection types this app's
+// seed data actually has today; any other plan prefix (e.g. a future
+// service type) still renders, appended after these in alphabetical order,
+// rather than silently being dropped.
+const SERVICE_TYPE_ORDER = ['FTTH', 'FTTB', 'Wireless', 'P2P', 'Leased Line']
+const SERVICE_TYPE_STYLES = {
+  FTTH:          { pill: 'bg-brand-blue text-white',   pie: '#0A8DCD' },
+  FTTB:          { pill: 'bg-navy text-white',          pie: '#0F2744' },
+  Wireless:      { pill: 'bg-brand-orange text-white',  pie: '#E8541A' },
+  P2P:           { pill: 'bg-purple-600 text-white',    pie: '#7c3aed' },
+  'Leased Line': { pill: 'bg-emerald-600 text-white',   pie: '#059669' },
+}
+const OTHER_SERVICE_TYPE_STYLE = { pill: 'bg-slate-500 text-white', pie: '#64748b' }
+
+// Single real source for both the "Active Services by Type" pills and the
+// Connection Mix pie chart, so the two can never drift out of sync the way
+// the old separately-hardcoded SERVICE_PILLS/PIE_DATA arrays could (and,
+// coincidentally, already had — their counts happened to still match, but
+// nothing enforced that). Scoped to customers with an effectively active
+// connection (effectiveStatus === 'active'), matching the "Active
+// Services by Type" section title — Total Customers below is the
+// unfiltered, all-statuses count.
+function computeServiceMix(activeCustomers) {
+  const counts = new Map()
+  activeCustomers.forEach(c => {
+    const type = serviceTypeOf(c)
+    counts.set(type, (counts.get(type) || 0) + 1)
+  })
+  const knownFirst = SERVICE_TYPE_ORDER.filter(t => counts.has(t))
+  const rest = [...counts.keys()].filter(t => !SERVICE_TYPE_ORDER.includes(t)).sort()
+  return [...knownFirst, ...rest].map(type => ({
+    type,
+    count: counts.get(type),
+    ...(SERVICE_TYPE_STYLES[type] ?? OTHER_SERVICE_TYPE_STYLE),
+  }))
+}
+
+// Static metadata (label/icon/colors) for the 6 Key Metrics cards — the
+// actual `value` for each is computed live in Dashboard() below from
+// customersData.js/paymentsStore.js/ticketsStore.js and looked up by
+// `key`. The old mock's per-card "change since X" trend arrows aren't
+// carried over: none of them has a real equivalent anywhere in this app
+// (no snapshot/history data to diff against), so inventing a new fake
+// delta to replace the old fake delta would just be a different kind of
+// placeholder — these cards show only the real current value for now.
+const STAT_CARD_META = [
+  { key: 'totalCustomers',    label: 'Total Customers',      icon: <Users size={20} />,         iconBg: 'bg-brand-blue/10',    iconColor: 'text-brand-blue' },
+  { key: 'activeConnections', label: 'Active Connections',   icon: <Wifi size={20} />,          iconBg: 'bg-emerald-100',      iconColor: 'text-emerald-600' },
+  { key: 'inactiveSuspended', label: 'Inactive / Suspended', icon: <XCircle size={20} />,       iconBg: 'bg-red-100',          iconColor: 'text-red-500' },
+  { key: 'todaysCollection',  label: "Today's Collection",   icon: <IndianRupee size={20} />,   iconBg: 'bg-amber-100',        iconColor: 'text-amber-600' },
+  { key: 'openTickets',       label: 'Open Tickets',         icon: <AlertTriangle size={20} />, iconBg: 'bg-brand-orange/10',  iconColor: 'text-brand-orange' },
+  { key: 'renewalsDueToday',  label: 'Renewals Due Today',   icon: <RefreshCw size={20} />,     iconBg: 'bg-purple-100',       iconColor: 'text-purple-600' },
 ]
 
 const REVENUE_DATA = [
@@ -146,14 +153,6 @@ const RECENT_TICKETS = [
   { id: 'TK-1025', customer: 'Sunita Rao', issue: 'Billing Query', priority: 'low', age: '8h' },
 ]
 
-const PIE_DATA = [
-  { name: 'FTTH', value: 842, color: '#0A8DCD' },
-  { name: 'FTTB', value: 234, color: '#0F2744' },
-  { name: 'Wireless', value: 156, color: '#E8541A' },
-  { name: 'P2P', value: 67, color: '#7c3aed' },
-  { name: 'Leased', value: 28, color: '#059669' },
-]
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionTitle({ children }) {
@@ -205,6 +204,40 @@ function RevenueTooltip({ active, payload, label }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  // Same getAllCustomers()-refetch pattern as Customers.jsx — subscribeCustomers()'s
+  // own payload is only the dynamically-added customers, not the full merged
+  // list, so every callback re-reads getAllCustomers() itself rather than
+  // trusting the payload.
+  const [customers, setCustomers] = useState(() => getAllCustomers())
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
+
+  const [payments, setPayments] = useState(getPayments)
+  useEffect(() => subscribePayments(setPayments), [])
+
+  const [tickets, setTickets] = useState(getTickets)
+  useEffect(() => subscribeTickets(setTickets), [])
+
+  const activeCustomers = useMemo(
+    () => customers.filter(c => effectiveStatus(c) === 'active'),
+    [customers]
+  )
+  const serviceMix = useMemo(() => computeServiceMix(activeCustomers), [activeCustomers])
+
+  const statValues = useMemo(() => {
+    const todayDMY = new Date().toLocaleDateString('en-GB').split('/').join('-') // matches AddPayment.jsx's own paymentDate format
+    const todayISO = new Date().toISOString().slice(0, 10)
+    return {
+      totalCustomers: customers.length,
+      activeConnections: activeCustomers.length,
+      inactiveSuspended: customers.filter(c => ['inactive', 'suspended'].includes(effectiveStatus(c))).length,
+      todaysCollection: payments
+        .filter(p => p.paymentDate === todayDMY)
+        .reduce((sum, p) => sum + (Number(p.paid ?? p.total) || 0), 0),
+      openTickets: tickets.filter(t => !CLOSED_STATUSES.includes(t.status)).length,
+      renewalsDueToday: customers.filter(c => c.expiry === todayISO).length,
+    }
+  }, [customers, activeCustomers, payments, tickets])
+
   return (
     <div className="p-6 space-y-6">
 
@@ -226,16 +259,16 @@ export default function Dashboard() {
       <div>
         <SectionTitle>Active Services by Type</SectionTitle>
         <div className="flex flex-wrap gap-2">
-          {SERVICE_PILLS.map((s) => (
-            <div key={s.label} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold ${s.color} shadow-sm cursor-pointer hover:opacity-90 transition-opacity`}>
+          {serviceMix.map((s) => (
+            <div key={s.type} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold ${s.pill} shadow-sm cursor-pointer hover:opacity-90 transition-opacity`}>
               <Wifi size={14} />
-              <span>{s.label}</span>
+              <span>{s.type}</span>
               <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{s.count}</span>
             </div>
           ))}
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors">
             <span>Total Active</span>
-            <span className="bg-white px-1.5 py-0.5 rounded-md text-xs font-bold text-gray-800">1,327</span>
+            <span className="bg-white px-1.5 py-0.5 rounded-md text-xs font-bold text-gray-800">{activeCustomers.length.toLocaleString('en-IN')}</span>
           </div>
         </div>
       </div>
@@ -244,28 +277,25 @@ export default function Dashboard() {
       <div>
         <SectionTitle>Key Metrics</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-          {STAT_CARDS.map((card) => (
-            <div key={card.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-500 leading-tight">{card.label}</p>
-                  <p className="text-xl font-bold text-gray-900 mt-1.5 leading-none">{card.value}</p>
-                  <p className={`text-xs mt-1.5 font-medium flex items-center gap-1 ${
-                    card.trend === 'up' ? 'text-emerald-600' :
-                    card.trend === 'down' ? 'text-red-500' : 'text-gray-500'
-                  }`}>
-                    {card.trend === 'up' && <ArrowUpRight size={12} />}
-                    {card.trend === 'down' && <ArrowDownRight size={12} />}
-                    <span>{card.change}</span>
-                    {card.period && <span className="text-gray-400 font-normal">{card.period}</span>}
-                  </p>
-                </div>
-                <div className={`w-9 h-9 rounded-lg ${card.iconBg} ${card.iconColor} flex items-center justify-center shrink-0 ml-2`}>
-                  {card.icon}
+          {STAT_CARD_META.map((card) => {
+            const value = statValues[card.key]
+            const display = card.key === 'todaysCollection'
+              ? `₹${value.toLocaleString('en-IN')}`
+              : value.toLocaleString('en-IN')
+            return (
+              <div key={card.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-500 leading-tight">{card.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1.5 leading-none">{display}</p>
+                  </div>
+                  <div className={`w-9 h-9 rounded-lg ${card.iconBg} ${card.iconColor} flex items-center justify-center shrink-0 ml-2`}>
+                    {card.icon}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
@@ -316,23 +346,23 @@ export default function Dashboard() {
         <WidgetCard title="Connection Mix">
           <ResponsiveContainer width="100%" height={150}>
             <PieChart>
-              <Pie data={PIE_DATA} cx="50%" cy="50%" innerRadius={42} outerRadius={68}
-                dataKey="value" paddingAngle={3}>
-                {PIE_DATA.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
+              <Pie data={serviceMix} cx="50%" cy="50%" innerRadius={42} outerRadius={68}
+                dataKey="count" nameKey="type" paddingAngle={3}>
+                {serviceMix.map((entry, i) => (
+                  <Cell key={i} fill={entry.pie} />
                 ))}
               </Pie>
               <Tooltip formatter={(v) => [`${v} customers`]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="mt-3 space-y-2">
-            {PIE_DATA.map((d) => (
-              <div key={d.name} className="flex items-center justify-between text-xs">
+            {serviceMix.map((d) => (
+              <div key={d.type} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
-                  <span className="text-gray-600">{d.name}</span>
+                  <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: d.pie }} />
+                  <span className="text-gray-600">{d.type}</span>
                 </div>
-                <span className="font-semibold text-gray-800">{d.value}</span>
+                <span className="font-semibold text-gray-800">{d.count}</span>
               </div>
             ))}
           </div>
