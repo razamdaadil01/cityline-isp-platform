@@ -12,7 +12,8 @@ import {
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
-import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
+import Modal from '../components/ui/Modal'
+import { getAllCustomers, subscribeCustomers, effectiveStatus, updateCustomer } from '../data/customersData'
 import { getPayments, subscribePayments } from '../data/paymentsStore'
 import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../data/ticketsStore'
 import { getLeads, subscribeLeads } from '../data/leadsStore'
@@ -24,14 +25,16 @@ import { exportCsv } from '../utils/csvExport'
 
 // Key Metrics stat cards (STAT_CARD_META below), Revenue Overview, the
 // Connection Mix/Service pills, Renewal Forecast, Today's Collections,
-// Sales Lead Pipeline, Support Overview, Recent Open Tickets, and the
-// Active Outages/Overdue Payments widgets (new, not a rewire of anything
-// pre-existing) are wired to real, live-subscribed data so far — see
+// Sales Lead Pipeline, Support Overview, Recent Open Tickets, the Active
+// Outages/Overdue Payments widgets (new, not a rewire of anything
+// pre-existing), and CAF Compliance (now backed by a genuinely new
+// cafStatus field on the customer record — see customersData.js's
+// CAF_STATUSES) are wired to real, live-subscribed data so far — see
 // Dashboard() itself for the real customers/payments/tickets/leads/
-// outages/invoices computation. CAF Compliance and Jaze Network Status
-// are still the original static mock, per a prior audit — both need
-// genuinely new backend concepts that don't exist yet, not just wiring,
-// so they're separate follow-ups.
+// outages/invoices computation. Jaze Network Status is still the
+// original static mock, per a prior audit — it needs a genuinely new
+// backend concept that doesn't exist yet, not just wiring, so it's a
+// separate follow-up.
 
 // A customer's `plan` string always starts with its connection-technology
 // keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
@@ -210,11 +213,28 @@ function computeRenewalForecast(customers, payments, todayISO) {
   return { buckets, collected, pending, expired }
 }
 
-const CAF_COMPLIANCE = [
-  { label: 'CAF Submitted', value: 312, total: 350, color: '#0A8DCD' },
-  { label: 'Pending Upload', value: 28, total: 350, color: '#E8541A' },
-  { label: 'Rejected', value: 10, total: 350, color: '#ef4444' },
+// Real per-customer cafStatus (customersData.js's CAF_STATUSES) counts,
+// shown against the full customer base — "Approved" is the only status
+// that counts toward the compliance rate below (see CAF_STATUSES' own
+// comment for why Submitted-but-unreviewed doesn't count yet).
+const CAF_STATUS_META = [
+  { key: 'Approved',  label: 'Approved',      color: '#059669' },
+  { key: 'Submitted', label: 'CAF Submitted', color: '#0A8DCD' },
+  { key: 'Pending',   label: 'Pending Upload', color: '#E8541A' },
+  { key: 'Rejected',  label: 'Rejected',      color: '#ef4444' },
 ]
+
+function computeCafCompliance(customers) {
+  const total = customers.length
+  const counts = { Approved: 0, Submitted: 0, Pending: 0, Rejected: 0 }
+  customers.forEach(c => {
+    const status = counts[c.cafStatus] !== undefined ? c.cafStatus : 'Pending'
+    counts[status]++
+  })
+  const buckets = CAF_STATUS_META.map(meta => ({ ...meta, value: counts[meta.key], total }))
+  const complianceRate = total === 0 ? 0 : (counts.Approved / total) * 100
+  return { buckets, total, approvedCount: counts.Approved, complianceRate }
+}
 
 const JAZE_STATUS = [
   { label: 'Radius Server', status: 'online', latency: '4ms' },
@@ -308,13 +328,13 @@ function RevenueTooltip({ active, payload, label }) {
 // CustomerDetail.jsx) needs one consistent column set across every row,
 // and the widgets here have wildly different native shapes (a stat card,
 // a pie breakdown, a payments list, a ticket list...), so a single wide
-// table per widget isn't realistic in one file. Still-mock widgets (CAF
-// Compliance, Jaze Network Status) are deliberately left out — exporting
-// fabricated numbers as if they were a real report would be dishonest.
+// table per widget isn't realistic in one file. Jaze Network Status is
+// still mock and deliberately left out — exporting fabricated numbers as
+// if they were a real report would be dishonest.
 function buildDashboardReportRows({
   statValues, serviceMix, activeCustomers, revenueData, renewalForecast,
   todaysPayments, leadPipeline, totalLeadsInPipeline, supportOverviewValues,
-  recentTickets, activeOutages, outstandingInvoices, outstandingTotal,
+  recentTickets, activeOutages, outstandingInvoices, outstandingTotal, cafCompliance,
 }) {
   const rows = []
   const add = (section, metric, value) => rows.push({ Section: section, Metric: metric, Value: value })
@@ -369,6 +389,9 @@ function buildDashboardReportRows({
   add('Overdue Payments', 'Outstanding Total', `₹${outstandingTotal.toLocaleString('en-IN')}`)
   add('Overdue Payments', 'Outstanding Invoices', outstandingInvoices.length)
 
+  cafCompliance.buckets.forEach(b => add('CAF Compliance', b.label, b.value))
+  add('CAF Compliance', 'Overall Compliance Rate', `${cafCompliance.complianceRate.toFixed(1)}%`)
+
   return rows
 }
 
@@ -417,6 +440,12 @@ export default function Dashboard() {
     [customers]
   )
   const serviceMix = useMemo(() => computeServiceMix(activeCustomers), [activeCustomers])
+  const cafCompliance = useMemo(() => computeCafCompliance(customers), [customers])
+  // "Upload CAF" — customers who still need one uploaded/re-uploaded.
+  const cafActionNeeded = useMemo(
+    () => customers.filter(c => (c.cafStatus ?? 'Pending') !== 'Approved' && (c.cafStatus ?? 'Pending') !== 'Submitted'),
+    [customers]
+  )
 
   const statValues = useMemo(() => ({
     totalCustomers: customers.length,
@@ -525,10 +554,23 @@ export default function Dashboard() {
       buildDashboardReportRows({
         statValues, serviceMix, activeCustomers, revenueData, renewalForecast,
         todaysPayments, leadPipeline, totalLeadsInPipeline, supportOverviewValues,
-        recentTickets, activeOutages, outstandingInvoices, outstandingTotal,
+        recentTickets, activeOutages, outstandingInvoices, outstandingTotal, cafCompliance,
       })
     )
     showToast('Dashboard report exported')
+  }
+
+  // "Upload CAF" — a simple customer-picker modal is the natural fit here
+  // (mark a customer's already-outstanding CAF as submitted/uploaded); a
+  // real file-upload flow with document storage is out of scope — this
+  // app has no working document storage/viewer anywhere yet (see
+  // AddCustomer.jsx's own kycDocuments comment).
+  const [uploadCafOpen, setUploadCafOpen] = useState(false)
+  function markCafSubmitted(customerId) {
+    // subscribeCustomers() below already re-reads getAllCustomers() on
+    // every change, so no separate local state update is needed here.
+    updateCustomer(customerId, { cafStatus: 'Submitted' })
+    showToast('CAF marked as submitted')
   }
 
   return (
@@ -872,11 +914,13 @@ export default function Dashboard() {
           </div>
         </WidgetCard>
 
-        {/* CAF Compliance */}
+        {/* CAF Compliance — real per-customer cafStatus (customersData.js),
+            live-subscribed via the same `customers` state every other
+            customer-backed widget on this page already uses. */}
         <WidgetCard title="CAF Compliance">
           <div className="space-y-3">
-            {CAF_COMPLIANCE.map((item) => (
-              <div key={item.label}>
+            {cafCompliance.buckets.map((item) => (
+              <div key={item.key}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs text-gray-600 font-medium">{item.label}</p>
                   <p className="text-xs font-bold text-gray-800">{item.value} <span className="text-gray-400 font-normal">/ {item.total}</span></p>
@@ -884,7 +928,7 @@ export default function Dashboard() {
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full"
-                    style={{ width: `${Math.round((item.value / item.total) * 100)}%`, backgroundColor: item.color }}
+                    style={{ width: item.total ? `${Math.round((item.value / item.total) * 100)}%` : '0%', backgroundColor: item.color }}
                   />
                 </div>
               </div>
@@ -893,12 +937,12 @@ export default function Dashboard() {
           <div className="mt-4 pt-4 border-t border-surface-border flex items-center gap-2">
             <CheckCircle2 size={16} className="text-emerald-500" />
             <p className="text-xs text-gray-600">
-              <span className="font-semibold text-emerald-600">89.1%</span> compliance rate this month
+              <span className="font-semibold text-emerald-600">{cafCompliance.complianceRate.toFixed(1)}%</span> overall compliance rate
             </p>
           </div>
           <div className="mt-2 flex gap-2">
-            <Button variant="secondary" size="xs" className="flex-1">Upload CAF</Button>
-            <Button size="xs" className="flex-1">View Report</Button>
+            <Button variant="secondary" size="xs" className="flex-1" onClick={() => setUploadCafOpen(true)}>Upload CAF</Button>
+            <Button size="xs" className="flex-1" onClick={() => navigate('/reports')}>View Report</Button>
           </div>
         </WidgetCard>
 
@@ -1006,6 +1050,33 @@ export default function Dashboard() {
           </div>
         </WidgetCard>
       </div>
+
+      {/* Upload CAF — picks a customer whose CAF is still Pending/Rejected
+          and marks it Submitted. Simulated "upload": no real file storage
+          exists anywhere in this app to actually attach a document to. */}
+      <Modal
+        isOpen={uploadCafOpen}
+        onClose={() => setUploadCafOpen(false)}
+        title="Upload CAF"
+        size="sm"
+        footer={<Button variant="secondary" size="sm" onClick={() => setUploadCafOpen(false)}>Close</Button>}
+      >
+        {cafActionNeeded.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">No customers currently need a CAF upload.</p>
+        ) : (
+          <div className="space-y-2">
+            {cafActionNeeded.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{c.name}</p>
+                  <p className="text-xs text-gray-400">{c.id} · {c.cafStatus ?? 'Pending'}</p>
+                </div>
+                <Button size="xs" onClick={() => markCafSubmitted(c.id)}>Mark Submitted</Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
 
       {/* Toast — same fixed bottom-right pill convention as CustomerDetail.jsx's own showToast() */}
       {toast && (
