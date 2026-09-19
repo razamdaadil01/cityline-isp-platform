@@ -5,7 +5,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import ProjectTypeModal from '../../components/projects/ProjectTypeModal'
 import { getHDDProjects, getSiteProjects, subscribeProjects } from '../../data/projectStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 // HDD's PROJECT_STATUSES and Site's SITE_PROJECT_STATUSES are two distinct
 // status sets (see projectStore.js) — both map into this one shared table's
@@ -16,7 +16,7 @@ const STATUS_BADGE = {
 }
 
 export default function ProjectList() {
-  const canCreate = usePermission('Projects', 'Create')
+  const canCreate = useMicroPermission('Projects', 'createNewProject')
   const navigate = useNavigate()
 
   const [hddProjects, setHddProjects] = useState(getHDDProjects)

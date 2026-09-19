@@ -8,7 +8,7 @@ import { FormField, Input } from '../../components/ui/FormInputs'
 import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine, receiveStoreTransfer } from '../../data/storeTransferStore'
 import { getUnits, getDrums } from '../../data/inventoryLedger'
 import { getProduct } from '../../data/productStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 // 'Sent' reuses the 'yellow' variant, which is this app's actual amber tone
 // (Badge.jsx's own yellow = bg-amber-100/text-amber-700) — matches the same
@@ -167,7 +167,7 @@ function flattenRows(transfers) {
 }
 
 export default function StoreTransfer() {
-  const canCreate = usePermission('Inventory', 'Create')
+  const canCreate = useMicroPermission('Inventory', 'createStoreTransfer')
   const navigate = useNavigate()
   const [transfers, setTransfers] = useState(getStoreTransfers)
   useEffect(() => subscribeStoreTransfers(setTransfers), [])

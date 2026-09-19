@@ -12,7 +12,7 @@ import PurchaseOrderTypeModal from '../../components/inventory/PurchaseOrderType
 import { getPurchaseOrders, subscribePurchaseOrders, PO_STATUSES, getPoStatusLabel, getPoTypeLabel } from '../../data/purchaseOrderStore'
 import { getVendors, getContacts } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 import { logAudit } from '../../data/auditLogStore'
 
 const STATUS_BADGE = {
@@ -110,8 +110,8 @@ function RemindModal({ isOpen, onClose, po, vendor, onSent }) {
 }
 
 export default function PurchaseOrders() {
-  const canCreate = usePermission('Inventory', 'Create')
-  const canEdit = usePermission('Inventory', 'Edit')
+  const canCreate = useMicroPermission('Inventory', 'createPurchaseOrder')
+  const canEdit = useMicroPermission('Inventory', 'sendPoReminder')
   const navigate = useNavigate()
   const [pos, setPos] = useState(getPurchaseOrders)
   useEffect(() => subscribePurchaseOrders(setPos), [])

@@ -15,7 +15,7 @@ import {
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
-import { usePermission } from '../data/rolesStore'
+import { useMicroPermission } from '../data/rolesStore'
 import { getAllTechnicians } from '../data/technicianHelpers'
 import { subscribeUsers } from '../data/userStore'
 import { getInstallations, subscribeInstallations, FIELD_ENGINEERS } from '../data/installationsStore'
@@ -211,7 +211,7 @@ function TechnicianDetailModal({ isOpen, onClose, row }) {
 // ── Main page ─────────────────────────────────────────────────────────────
 
 export default function TechnicianDashboard() {
-  const canView = usePermission('Technicians', 'View')
+  const canView = useMicroPermission('Technicians', 'viewTechnicianMonitoringDashboard')
 
   const [technicians, setTechnicians] = useState(getAllTechnicians)
   const [installations, setInstallations] = useState(getInstallations)

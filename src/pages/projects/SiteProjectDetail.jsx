@@ -13,7 +13,7 @@ import {
 } from '../../data/projectStore'
 import { getProduct, getProducts } from '../../data/productStore'
 import { getUsers } from '../../data/userStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 import { exportWorkbook } from '../../utils/excelExport'
 
 const STATUS_BADGE = {
@@ -321,7 +321,7 @@ function WorkOrderDetailModal({ workOrder, onClose, onAddDPR }) {
 
 // ── Documents & Vault tab ────────────────────────────────────────────────
 
-function DocumentsVaultTab({ project, canEdit }) {
+function DocumentsVaultTab({ project, canUploadDocuments }) {
   const documents = project.documents ?? []
 
   function handleUpload(type, fileList) {
@@ -345,7 +345,7 @@ function DocumentsVaultTab({ project, canEdit }) {
                 <p className="text-xs text-gray-400">Not uploaded yet</p>
               )}
             </div>
-            {canEdit && (
+            {canUploadDocuments && (
               <div className="flex items-center gap-2 shrink-0">
                 <input id={inputId} type="file" className="hidden" onChange={e => { handleUpload(type, e.target.files); e.target.value = '' }} />
                 <label htmlFor={inputId}>
@@ -373,7 +373,7 @@ function DocumentsVaultTab({ project, canEdit }) {
 
 // ── CAPEX & Cost Ledger tab ───────────────────────────────────────────────
 
-function CapexCostLedgerTab({ project, workOrders, canEdit }) {
+function CapexCostLedgerTab({ project, workOrders, canEditRevenueShare, canLogLabourCost }) {
   const capex = getSiteProjectCapex(project.id)
   const [revenueShareDraft, setRevenueShareDraft] = useState(project.revenueShare ?? '')
   const [labourDrafts, setLabourDrafts] = useState({})
@@ -430,7 +430,7 @@ function CapexCostLedgerTab({ project, workOrders, canEdit }) {
           <p className="text-sm font-medium text-gray-800">Revenue-share Details</p>
           <p className="text-xs text-gray-400">Not a cost — captured manually, e.g. "15%" or a flat figure.</p>
         </div>
-        {canEdit ? (
+        {canEditRevenueShare ? (
           <div className="flex items-center gap-2 shrink-0">
             <Input className="w-32" placeholder="e.g. 15%" value={revenueShareDraft} onChange={e => setRevenueShareDraft(e.target.value)} />
             <Button size="sm" variant="secondary" onClick={handleSaveRevenueShare}>Save</Button>
@@ -454,7 +454,7 @@ function CapexCostLedgerTab({ project, workOrders, canEdit }) {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-semibold text-gray-800">₹{(wo.labourCost ?? 0).toLocaleString('en-IN')}</span>
-                  {canEdit && (
+                  {canLogLabourCost && (
                     <>
                       <Input type="number" min="0" className="w-24" placeholder="New ₹" value={labourDrafts[wo.id] ?? ''} onChange={e => setLabourDrafts(d => ({ ...d, [wo.id]: e.target.value }))} />
                       <Button size="xs" variant="secondary" onClick={() => handleLogLabourCost(wo.id)}>Log</Button>
@@ -473,8 +473,17 @@ function CapexCostLedgerTab({ project, workOrders, canEdit }) {
 export default function SiteProjectDetail() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
-  const canCreate = usePermission('Projects', 'Create')
-  const canEdit = usePermission('Projects', 'Edit')
+  const canCreate = useMicroPermission('Projects', 'addWorkOrder')
+  const canUploadDocuments = useMicroPermission('Projects', 'uploadReplaceProjectDocuments')
+  const canEditRevenueShare = useMicroPermission('Projects', 'editCapexRevenueShare')
+  const canLogLabourCost = useMicroPermission('Projects', 'logLabourCost')
+  // "Advance to {status}" wasn't in the audited mapping — it was found
+  // gated on the same pre-migration Projects:Edit flag as the three splits
+  // above. Since none of the three approved permissions is specifically
+  // "advance project status", it's gated on any one of them being granted
+  // (preserve, don't narrow) rather than inventing an unapproved fourth
+  // permission.
+  const canAdvanceStatus = canUploadDocuments || canEditRevenueShare || canLogLabourCost
 
   // Subscribing (without using the payload directly) just forces a
   // re-render whenever projectStore changes (mirrors HDDProjectDetail.jsx's
@@ -539,7 +548,7 @@ export default function SiteProjectDetail() {
               {project.projectExecutionType && (
                 <Badge variant={project.projectExecutionType === 'OH' ? 'orange' : 'slate'} size="sm">{project.projectExecutionType}</Badge>
               )}
-              {canEdit && upcomingStatus && (
+              {canAdvanceStatus && upcomingStatus && (
                 <button
                   onClick={handleAdvanceStatus}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-surface-border text-xs text-gray-500 hover:border-brand-blue hover:text-brand-blue transition-colors"
@@ -662,8 +671,15 @@ export default function SiteProjectDetail() {
           {activeTab === 'Inventory & Consumption' && (
             <InventoryConsumptionTable rows={inventorySummary.rows} barcodesByLocation={inventorySummary.barcodesByLocation} />
           )}
-          {activeTab === 'Documents & Vault' && <DocumentsVaultTab project={project} canEdit={canEdit} />}
-          {activeTab === 'CAPEX & Cost Ledger' && <CapexCostLedgerTab project={project} workOrders={workOrders} canEdit={canEdit} />}
+          {activeTab === 'Documents & Vault' && <DocumentsVaultTab project={project} canUploadDocuments={canUploadDocuments} />}
+          {activeTab === 'CAPEX & Cost Ledger' && (
+            <CapexCostLedgerTab
+              project={project}
+              workOrders={workOrders}
+              canEditRevenueShare={canEditRevenueShare}
+              canLogLabourCost={canLogLabourCost}
+            />
+          )}
         </div>
       </div>
 

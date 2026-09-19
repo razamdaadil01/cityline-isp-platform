@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { getUserAssignments, subscribeUserAssignments, reverseUserAssignmentItem } from '../../data/userAssignmentStore'
 import { getUnits } from '../../data/inventoryLedger'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = { 'Handed Off': 'purple', Reversed: 'gray' }
 const TYPE_BADGE = { new: 'blue', replace: 'orange', disconnection: 'red' }
@@ -88,7 +88,7 @@ function flattenRows(assignments) {
 }
 
 export default function AssignToUser() {
-  const canCreate = usePermission('Inventory', 'Create')
+  const canCreate = useMicroPermission('Inventory', 'assignInventoryToUser')
   const navigate = useNavigate()
   const [assignments, setAssignments] = useState(getUserAssignments)
   useEffect(() => subscribeUserAssignments(setAssignments), [])

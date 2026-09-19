@@ -9,7 +9,7 @@ import { FormField, Input, Textarea } from '../../components/ui/FormInputs'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import ContactsEditor, { EMPTY_CONTACT, validateContacts } from '../../components/inventory/ContactsEditor'
 import { getStores, subscribeStores, saveStore, setStoreStatus, isStoreNameTaken } from '../../data/storeStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 const STORE_TABLE_COLUMNS = [
   { key: 'storeName',   label: 'Store Name',        visible: true, defaultVisible: true, locked: true },
@@ -126,8 +126,8 @@ function AddEditStoreModal({ isOpen, onClose, editing }) {
 }
 
 export default function StoreList() {
-  const canCreate = usePermission('Inventory', 'Create')
-  const canEdit = usePermission('Inventory', 'Edit')
+  const canCreate = useMicroPermission('Inventory', 'addStore')
+  const canEdit = useMicroPermission('Inventory', 'editStoreActivateDeactivate')
 
   const [stores, setStores] = useState(getStores)
   useEffect(() => subscribeStores(setStores), [])

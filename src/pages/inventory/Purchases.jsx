@@ -11,7 +11,7 @@ import { getPurchases, subscribePurchases, PURCHASE_STATUSES } from '../../data/
 import { getPurchaseOrders, subscribePurchaseOrders, getPoTypeLabel } from '../../data/purchaseOrderStore'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', Confirmed: 'green', Cancelled: 'red' }
 
@@ -37,7 +37,7 @@ const PURCHASE_TABLE_COLUMNS = [
 ]
 
 export default function Purchases() {
-  const canCreate = usePermission('Inventory', 'Create')
+  const canCreate = useMicroPermission('Inventory', 'addPurchase')
   const navigate = useNavigate()
   const [purchases, setPurchases] = useState(getPurchases)
   useEffect(() => subscribePurchases(setPurchases), [])

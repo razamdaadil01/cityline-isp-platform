@@ -16,7 +16,7 @@ import { getStores, getStore } from '../../data/storeStore'
 import { getProducts, getProduct } from '../../data/productStore'
 import { getPurchaseOrders, getPurchaseOrder, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getPurchase, savePurchase, computeItemFields, computePurchaseSummary } from '../../data/purchaseStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 import { getInventorySettings } from '../../data/inventorySettingsStore'
 import { getAssets } from '../../data/assetStore'
 import { ASSET_CONDITIONS, getFieldsForType } from '../../data/assetTaxonomy'
@@ -1053,7 +1053,7 @@ export default function CreatePurchase() {
   const { id: editingId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const isEditing = !!editingId
-  const canCreate = usePermission('Inventory', 'Create')
+  const canCreate = useMicroPermission('Inventory', 'addOutsidePoHardware')
 
   const entities = getActiveCompanyEntities()
   const vendors = getVendors().filter(v => v.status === 'active')
