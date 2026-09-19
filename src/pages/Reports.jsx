@@ -12,26 +12,22 @@ import {
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { Input, Select } from '../components/ui/FormInputs'
-import { getAllCustomers, subscribeCustomers } from '../data/customersData'
+import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
+import { getPayments, subscribePayments } from '../data/paymentsStore'
+import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueStats'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
-const MONTHLY_REVENUE = [
-  { month: 'Dec', revenue: 412000, expenses: 180000, profit: 232000 },
-  { month: 'Jan', revenue: 395000, expenses: 175000, profit: 220000 },
-  { month: 'Feb', revenue: 428000, expenses: 182000, profit: 246000 },
-  { month: 'Mar', revenue: 451000, expenses: 190000, profit: 261000 },
-  { month: 'Apr', revenue: 438000, expenses: 185000, profit: 253000 },
-  { month: 'May', revenue: 124500, expenses: 60000,  profit: 64500  },
-]
-
-const SERVICE_BREAKDOWN = [
-  { service: 'Fiber - 50 Mbps',   customers: 342, revenue: 342000, pct: 27 },
-  { service: 'Fiber - 100 Mbps',  customers: 281, revenue: 421500, pct: 34 },
-  { service: 'Fiber - 200 Mbps',  customers: 156, revenue: 312000, pct: 25 },
-  { service: 'Fiber - 500 Mbps',  customers: 89,  revenue: 267000, pct: 11 },
-  { service: 'Broadband - 25 Mbps', customers: 45, revenue: 45000, pct: 3  },
-]
+// Revenue Report used to have its own independently-hardcoded
+// MONTHLY_REVENUE/SERVICE_BREAKDOWN mocks that could never agree with
+// Dashboard.jsx's real "Revenue Overview" numbers since neither read the
+// other's data. Both now read paymentsStore.js/customersData.js through
+// the same computeRevenueByMonth()/computeRevenueByPlan() helpers
+// (src/utils/revenueStats.js) Dashboard.jsx uses, so the two pages can't
+// drift apart. There's no real expenses/profit or monthly-target figure
+// anywhere in this app (no cost or goal store exists), so unlike the old
+// mock this only ever plots the one real collected-revenue series.
+const REVENUE_MONTHS_SHOWN = 6
 
 // Real per-customer cafStatus (customersData.js's CAF_STATUSES), same
 // source Dashboard.jsx's own CAF Compliance widget reads — replaces the
@@ -162,14 +158,36 @@ const REPORT_CARDS = [
 
 // ── Detail views ──────────────────────────────────────────────────────────────
 
-function RevenueDetail({ range, onRangeChange }) {
+// Self-contained, live-subscribed detail view (same pattern as CAFDetail
+// below) rather than reading the page-level date pickers — those are
+// display-only elsewhere in this file and this view doesn't filter by them.
+function RevenueDetail() {
+  const [customers, setCustomers] = useState(getAllCustomers)
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
+  const [payments, setPayments] = useState(getPayments)
+  useEffect(() => subscribePayments(setPayments), [])
+
+  const revenueByMonth = useMemo(() => computeRevenueByMonth(payments), [payments])
+  const shownMonths = useMemo(
+    () => (revenueByMonth.length <= REVENUE_MONTHS_SHOWN ? revenueByMonth : revenueByMonth.slice(-REVENUE_MONTHS_SHOWN)),
+    [revenueByMonth]
+  )
+  const totalRevenue = useMemo(() => shownMonths.reduce((sum, m) => sum + m.collected, 0), [shownMonths])
+  const activeCustomerCount = useMemo(() => customers.filter(c => effectiveStatus(c) === 'active').length, [customers])
+  const latestMonth = shownMonths[shownMonths.length - 1]
+  const currentMonthRevenue = latestMonth?.collected ?? 0
+  const currentMonthLabel = latestMonth?.month ?? new Date().toLocaleDateString('en-US', { month: 'short' })
+  const arpu = activeCustomerCount === 0 ? 0 : currentMonthRevenue / activeCustomerCount
+
+  const revenueByPlan = useMemo(() => computeRevenueByPlan(customers, payments), [customers, payments])
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Revenue (6m)', value: '₹22,48,500', up: true },
-          { label: 'Total Profit (6m)',  value: '₹12,76,500', up: true },
-          { label: 'ARPU (May)',         value: '₹524',        up: true },
+          { label: `Total Revenue (${shownMonths.length || REVENUE_MONTHS_SHOWN}m)`, value: `₹${totalRevenue.toLocaleString('en-IN')}` },
+          { label: 'Active Customers', value: activeCustomerCount.toLocaleString('en-IN') },
+          { label: `ARPU (${currentMonthLabel})`, value: `₹${Math.round(arpu).toLocaleString('en-IN')}` },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -179,52 +197,58 @@ function RevenueDetail({ range, onRangeChange }) {
       </div>
 
       <div className="bg-white rounded-xl border border-surface-border p-5">
-        <h4 className="text-sm font-semibold text-gray-800 mb-4">Month-wise Revenue vs Expenses</h4>
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={MONTHLY_REVENUE} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-              tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`]} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="revenue"  name="Revenue"  fill="#0A8DCD" radius={[4,4,0,0]} />
-            <Bar dataKey="expenses" name="Expenses" fill="#0F2744" radius={[4,4,0,0]} />
-            <Bar dataKey="profit"   name="Profit"   fill="#059669" radius={[4,4,0,0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <h4 className="text-sm font-semibold text-gray-800 mb-4">Month-wise Revenue</h4>
+        {shownMonths.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-16">No payments recorded yet — the revenue trend will build up as payments come in.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={shownMonths} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
+                tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+              <Tooltip formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`]} />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="collected" name="Revenue" fill="#0A8DCD" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
         <div className="px-5 py-3.5 border-b border-surface-border">
-          <h4 className="text-sm font-semibold text-gray-800">Service-wise Revenue Breakdown</h4>
+          <h4 className="text-sm font-semibold text-gray-800">Plan-wise Revenue Breakdown</h4>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/60 border-b border-surface-border">
-              {['Service Plan', 'Active Customers', 'Revenue (₹)', 'Share %'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {SERVICE_BREAKDOWN.map(s => (
-              <tr key={s.service} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-medium text-gray-800">{s.service}</td>
-                <td className="px-4 py-3 text-gray-700">{s.customers}</td>
-                <td className="px-4 py-3 font-semibold text-gray-900">₹{s.revenue.toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-brand-blue rounded-full" style={{ width: `${s.pct}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-500 w-8 text-right">{s.pct}%</span>
-                  </div>
-                </td>
+        {revenueByPlan.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No customers recorded yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['Plan', 'Active Customers', 'Revenue (₹)', 'Share %'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {revenueByPlan.map(s => (
+                <tr key={s.plan} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 font-medium text-gray-800">{s.plan}</td>
+                  <td className="px-4 py-3 text-gray-700">{s.customers}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-900">₹{s.revenue.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-brand-blue rounded-full" style={{ width: `${s.pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-500 w-8 text-right">{s.pct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
@@ -528,17 +552,60 @@ export default function Reports() {
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
   const cafStats = useMemo(() => computeCafStats(customers), [customers])
 
-  const reportCards = useMemo(() => REPORT_CARDS.map(card => {
-    if (card.id !== 'caf') return card
+  // Real revenue stats (paymentsStore.js/customersData.js via
+  // revenueStats.js — same helpers Dashboard.jsx's Revenue Overview and
+  // this page's own RevenueDetail use), overriding just the 'revenue'
+  // card's static value/sub/badge and the summary strip above so neither
+  // can ever show a different number than RevenueDetail itself.
+  const [payments, setPayments] = useState(getPayments)
+  useEffect(() => subscribePayments(setPayments), [])
+  const revenueStats = useMemo(() => {
+    const byMonth = computeRevenueByMonth(payments)
+    const shownMonths = byMonth.length <= REVENUE_MONTHS_SHOWN ? byMonth : byMonth.slice(-REVENUE_MONTHS_SHOWN)
+    const periodRevenue = shownMonths.reduce((sum, m) => sum + m.collected, 0)
+    const activeCustomerCount = customers.filter(c => effectiveStatus(c) === 'active').length
+    const latestMonth = shownMonths[shownMonths.length - 1]
+    const currentMonthRevenue = latestMonth?.collected ?? 0
+    const currentMonthLabel = latestMonth?.month ?? new Date().toLocaleDateString('en-US', { month: 'short' })
+    const arpu = activeCustomerCount === 0 ? 0 : currentMonthRevenue / activeCustomerCount
     return {
-      ...card,
-      value: `${cafStats.complianceRate.toFixed(1)}%`,
-      sub: `${cafStats.incomplete} incomplete CAF${cafStats.incomplete !== 1 ? 's' : ''}`,
-      badge: cafStats.incomplete > 0
-        ? { label: 'Action needed', variant: 'yellow' }
-        : { label: 'Fully compliant', variant: 'green' },
+      monthsCounted: shownMonths.length,
+      periodRevenue,
+      currentMonthRevenue,
+      currentMonthLabel,
+      activeCustomerCount,
+      totalCustomerCount: customers.length,
+      arpu,
+      currentMonthPaymentCount: payments.filter(p => {
+        const [d, m, y] = (p.paymentDate || '').split('-')
+        return d && m && y && `${y}-${m}` === latestMonth?.key
+      }).length,
     }
-  }), [cafStats])
+  }, [payments, customers])
+
+  const reportCards = useMemo(() => REPORT_CARDS.map(card => {
+    if (card.id === 'caf') {
+      return {
+        ...card,
+        value: `${cafStats.complianceRate.toFixed(1)}%`,
+        sub: `${cafStats.incomplete} incomplete CAF${cafStats.incomplete !== 1 ? 's' : ''}`,
+        badge: cafStats.incomplete > 0
+          ? { label: 'Action needed', variant: 'yellow' }
+          : { label: 'Fully compliant', variant: 'green' },
+      }
+    }
+    if (card.id === 'revenue') {
+      return {
+        ...card,
+        value: `₹${revenueStats.periodRevenue.toLocaleString('en-IN')}`,
+        sub: `Last ${revenueStats.monthsCounted || REVENUE_MONTHS_SHOWN} month${revenueStats.monthsCounted === 1 ? '' : 's'} total`,
+        badge: revenueStats.currentMonthPaymentCount > 0
+          ? { label: `${revenueStats.currentMonthPaymentCount} payment${revenueStats.currentMonthPaymentCount !== 1 ? 's' : ''} this month`, variant: 'green' }
+          : { label: 'No payments this month', variant: 'gray' },
+      }
+    }
+    return card
+  }), [cafStats, revenueStats])
 
   const activeCard = reportCards.find(c => c.id === active)
   const DetailView = active ? DETAIL_VIEWS[active] : null
@@ -580,9 +647,21 @@ export default function Reports() {
       {!active && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Revenue (May)', value: '₹1,24,500', sub: '26% of monthly target' },
-            { label: 'Active Customers', value: '1,189', sub: 'Net +8 this month' },
-            { label: 'ARPU', value: '₹524', sub: '+₹12 vs last month' },
+            {
+              label: `Revenue (${revenueStats.currentMonthLabel})`,
+              value: `₹${revenueStats.currentMonthRevenue.toLocaleString('en-IN')}`,
+              sub: `${revenueStats.currentMonthPaymentCount} payment${revenueStats.currentMonthPaymentCount !== 1 ? 's' : ''} recorded`,
+            },
+            {
+              label: 'Active Customers',
+              value: revenueStats.activeCustomerCount.toLocaleString('en-IN'),
+              sub: `of ${revenueStats.totalCustomerCount.toLocaleString('en-IN')} total customers`,
+            },
+            {
+              label: 'ARPU',
+              value: `₹${Math.round(revenueStats.arpu).toLocaleString('en-IN')}`,
+              sub: `${revenueStats.currentMonthLabel} revenue ÷ active customers`,
+            },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl p-5 shadow-card border border-surface-border">
               <p className="text-xs text-gray-500 font-medium">{s.label}</p>
