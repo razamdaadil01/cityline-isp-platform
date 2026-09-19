@@ -26,47 +26,61 @@ import { hasSettlementForCustomer } from './settlementStore'
 // 'Approved' (long-standing customers whose CAF was verified when they
 // joined), with a handful of 'Pending'/'Rejected'/'Submitted' mixed in for
 // realism — see that const's own comment for exactly what each means.
+//
+// createdOn — real join date, backfilled here so it's an actual per-
+// customer value rather than the "01 Jan 2023"/"10 Jan 2023" fallback
+// CustomerDetail.jsx's own merge chain (makeCustomerFromBase()) used for
+// every customer when this field didn't exist here at all. Same "DD Mon
+// YYYY" display-string format CustomerDetail.jsx's "Customer Since" field
+// and AddCustomer.jsx's own createdOn (set for genuinely new customers)
+// already use — not a new date convention. Spread over roughly the past
+// 1-2 years, loosely offset back from each customer's own `expiry` (an
+// annual plan's original start date, one year before its first renewal),
+// with suspended/inactive/expired customers backdated further — a real
+// join date is the one field Reports.jsx's Churn Report needs to compute
+// a genuine "new customers per month" trend from (see
+// src/utils/churnStats.js).
 export const CUSTOMERS = [
-  { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-05-31', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East',   area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-05-20', services: ['Broadband'], cafStatus: 'Rejected' },
-  { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon',      area: 'Goregaon',     network: 'OLT-GG-01', expiry: '2026-04-15', services: ['Broadband', 'Intercom'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '9123456789', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Versova',       area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-06-30', services: ['Broadband', 'OTT'], cafStatus: 'Approved' },
-  { id: 'ENT-2026-0001', name: 'Vikram Singh',       companyName: 'Vikram Industries Pvt Ltd', phone: '9011223344', plan: 'P2P 1Gbps',       status: 'active',    zone: 'MIDC Andheri', gstNo: '27AAACV5055K1ZP', gstVerified: true, area: 'Andheri', network: 'OLT-MC-03', expiry: '2026-07-15', services: ['ILL', 'Business BB'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0005', name: 'Mohan Lal',          phone: '9765432198', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-03-01', services: ['Broadband'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0006', name: 'Deepa Nair',         phone: '9332144556', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Juhu',          area: 'Juhu',         network: 'OLT-JU-01', expiry: '2026-06-15', services: ['Broadband', 'Landline'], cafStatus: 'Pending' },
-  { id: 'RES-2026-0007', name: 'Rahul Patil',        phone: '9700112233', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Malad West',    area: 'Malad',        network: 'OLT-ML-01', expiry: '2026-05-10', services: ['Broadband', 'OTT', 'Intercom'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0008', name: 'Sunita Joshi',       phone: '9180009988', plan: 'FTTH 40Mbps',     status: 'expired',   zone: 'Santacruz',     area: 'Santacruz',    network: 'OLT-SC-02', expiry: '2026-04-30', services: ['Broadband'], cafStatus: 'Rejected' },
-  { id: 'RES-2026-0009', name: 'Arun Kapoor',        phone: '9855577889', plan: 'ILL 10Mbps',      status: 'active',    zone: 'SEEPZ',         area: 'Andheri',      network: 'OLT-MC-03', expiry: '2026-08-01', services: ['ILL'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0010', name: 'Kavitha Rao',        phone: '9600123456', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Powai',         area: 'Powai',        network: 'OLT-PW-01', expiry: '2026-05-28', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0011', name: 'Nitin Bhatt',        phone: '9900156789', plan: 'Wireless 10Mbps', status: 'suspended', zone: 'Borivali',      area: 'Borivali',     network: 'OLT-BV-01', expiry: '2026-03-15', services: ['Broadband'], cafStatus: 'Pending' },
-  { id: 'RES-2026-0012', name: 'Meera Gupta',        phone: '9776543210', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Kandivali',     area: 'Kandivali',    network: 'OLT-KD-01', expiry: '2026-07-10', services: ['Broadband', 'OTT'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0013', name: 'Sanjay Verma',       phone: '9543210987', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'BKC',           area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-09-30', services: ['Business BB', 'ILL'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0014', name: 'Pooja Menon',        phone: '9123400987', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Chembur',       area: 'Chembur',      network: 'OLT-CH-01', expiry: '2026-04-20', services: ['Broadband', 'Intercom'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0015', name: 'Amol Tiwari',        phone: '9890876543', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Ghatkopar',     area: 'Ghatkopar',    network: 'OLT-GK-01', expiry: '2026-02-28', services: ['Broadband'], cafStatus: 'Pending' },
-  { id: 'RES-2026-0016', name: 'Rekha Shetty',       phone: '9765400123', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Mulund',        area: 'Mulund',       network: 'OLT-MU-01', expiry: '2026-06-05', services: ['Broadband', 'Landline'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0017', name: 'Dinesh Naik',        phone: '9330122334', plan: 'P2P 100Mbps',     status: 'active',    zone: 'Vikhroli',      area: 'Vikhroli',     network: 'OLT-VK-01', expiry: '2026-08-15', services: ['ILL', 'Landline'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0018', name: 'Lalitha Kumar',      phone: '9870112398', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Bhandup',       area: 'Bhandup',      network: 'OLT-BH-01', expiry: '2026-05-25', services: ['Broadband', 'OTT'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0019', name: 'Prakash Yadav',      phone: '9456078901', plan: 'Wireless 25Mbps', status: 'expired',   zone: 'Kurla',         area: 'Kurla',        network: 'OLT-KU-01', expiry: '2026-04-01', services: ['Broadband'], cafStatus: 'Rejected' },
-  { id: 'RES-2026-0020', name: 'Swati Jain',         phone: '9678901234', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-07-20', services: ['Broadband', 'Landline', 'Intercom'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0021', name: 'Harish Pillai',      phone: '9110023456', plan: 'FTTH 1Gbps',      status: 'active',    zone: 'Nariman Point', area: 'South Mumbai', network: 'OLT-SM-01', expiry: '2026-10-31', services: ['Business BB'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0022', name: 'Nandita Shah',       phone: '9860034567', plan: 'FTTB 50Mbps',     status: 'suspended', zone: 'Dadar',         area: 'Dadar',        network: 'OLT-DD-01', expiry: '2026-05-15', services: ['Broadband'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0023', name: 'Rohit Bose',         phone: '9770045678', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Matunga',       area: 'Matunga',      network: 'OLT-MT-01', expiry: '2026-06-01', services: ['Broadband', 'OTT'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0024', name: 'Chandra Sekhar',     phone: '9550056789', plan: 'P2P 10Gbps',      status: 'active',    zone: 'Lower Parel',   area: 'Lower Parel',  network: 'OLT-LP-01', expiry: '2026-11-30', services: ['ILL', 'Business BB', 'Landline'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0025', name: 'Vandana Mishra',     phone: '9220067890', plan: 'FTTH 40Mbps',     status: 'inactive',  zone: 'Worli',         area: 'Worli',        network: 'OLT-WR-01', expiry: '2026-03-31', services: ['Broadband'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0026', name: 'Sunil Kadam',        phone: '9000078901', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Thane West',    area: 'Thane',        network: 'OLT-TN-01', expiry: '2026-05-01', services: ['Broadband', 'Intercom'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '9830089012', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Navi Mumbai',   area: 'Navi Mumbai',  network: 'OLT-NM-01', expiry: '2026-06-30', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Mira Road',     area: 'Mira Road',    network: 'OLT-MR-01', expiry: '2026-04-25', services: ['Broadband'], cafStatus: 'Approved' },
-  { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'Powai',         area: 'Powai',        network: 'OLT-PW-01', expiry: '2026-08-20', services: ['Broadband', 'OTT', 'Business BB'], cafStatus: 'Approved' },
-  { id: 'IC-CUST-2026-000001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom', cafStatus: 'Approved' },
-  { id: 'ENT-2026-0002', name: 'Ashok Mehta',       companyName: 'Mehta Infotech Pvt Ltd',    phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true,  area: 'Andheri',     network: 'OLT-MC-03', expiry: '2026-07-01', services: ['ILL'], cafStatus: 'Approved' },
-  { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false, area: 'Lower Parel', network: 'OLT-LP-01', expiry: '2026-09-30', services: ['ILL', 'Business BB'], cafStatus: 'Submitted' },
+  { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-05-31', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved', createdOn: '25 May 2025' },
+  { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East',   area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-05-20', services: ['Broadband'], cafStatus: 'Rejected', createdOn: '15 Nov 2024' },
+  { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon',      area: 'Goregaon',     network: 'OLT-GG-01', expiry: '2026-04-15', services: ['Broadband', 'Intercom'], cafStatus: 'Approved', createdOn: '10 Mar 2024' },
+  { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '9123456789', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Versova',       area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-06-30', services: ['Broadband', 'OTT'], cafStatus: 'Approved', createdOn: '20 Jun 2025' },
+  { id: 'ENT-2026-0001', name: 'Vikram Singh',       companyName: 'Vikram Industries Pvt Ltd', phone: '9011223344', plan: 'P2P 1Gbps',       status: 'active',    zone: 'MIDC Andheri', gstNo: '27AAACV5055K1ZP', gstVerified: true, area: 'Andheri', network: 'OLT-MC-03', expiry: '2026-07-15', services: ['ILL', 'Business BB'], cafStatus: 'Approved', createdOn: '05 Jul 2025' },
+  { id: 'RES-2026-0005', name: 'Mohan Lal',          phone: '9765432198', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-03-01', services: ['Broadband'], cafStatus: 'Approved', createdOn: '15 Feb 2024' },
+  { id: 'RES-2026-0006', name: 'Deepa Nair',         phone: '9332144556', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Juhu',          area: 'Juhu',         network: 'OLT-JU-01', expiry: '2026-06-15', services: ['Broadband', 'Landline'], cafStatus: 'Pending', createdOn: '10 Jun 2025' },
+  { id: 'RES-2026-0007', name: 'Rahul Patil',        phone: '9700112233', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Malad West',    area: 'Malad',        network: 'OLT-ML-01', expiry: '2026-05-10', services: ['Broadband', 'OTT', 'Intercom'], cafStatus: 'Approved', createdOn: '28 Apr 2025' },
+  { id: 'RES-2026-0008', name: 'Sunita Joshi',       phone: '9180009988', plan: 'FTTH 40Mbps',     status: 'expired',   zone: 'Santacruz',     area: 'Santacruz',    network: 'OLT-SC-02', expiry: '2026-04-30', services: ['Broadband'], cafStatus: 'Rejected', createdOn: '20 Apr 2024' },
+  { id: 'RES-2026-0009', name: 'Arun Kapoor',        phone: '9855577889', plan: 'ILL 10Mbps',      status: 'active',    zone: 'SEEPZ',         area: 'Andheri',      network: 'OLT-MC-03', expiry: '2026-08-01', services: ['ILL'], cafStatus: 'Approved', createdOn: '22 Jul 2025' },
+  { id: 'RES-2026-0010', name: 'Kavitha Rao',        phone: '9600123456', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Powai',         area: 'Powai',        network: 'OLT-PW-01', expiry: '2026-05-28', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved', createdOn: '18 May 2025' },
+  { id: 'RES-2026-0011', name: 'Nitin Bhatt',        phone: '9900156789', plan: 'Wireless 10Mbps', status: 'suspended', zone: 'Borivali',      area: 'Borivali',     network: 'OLT-BV-01', expiry: '2026-03-15', services: ['Broadband'], cafStatus: 'Pending', createdOn: '05 Mar 2024' },
+  { id: 'RES-2026-0012', name: 'Meera Gupta',        phone: '9776543210', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Kandivali',     area: 'Kandivali',    network: 'OLT-KD-01', expiry: '2026-07-10', services: ['Broadband', 'OTT'], cafStatus: 'Approved', createdOn: '01 Jul 2025' },
+  { id: 'RES-2026-0013', name: 'Sanjay Verma',       phone: '9543210987', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'BKC',           area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-09-30', services: ['Business BB', 'ILL'], cafStatus: 'Approved', createdOn: '20 Sep 2025' },
+  { id: 'RES-2026-0014', name: 'Pooja Menon',        phone: '9123400987', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Chembur',       area: 'Chembur',      network: 'OLT-CH-01', expiry: '2026-04-20', services: ['Broadband', 'Intercom'], cafStatus: 'Approved', createdOn: '12 Apr 2025' },
+  { id: 'RES-2026-0015', name: 'Amol Tiwari',        phone: '9890876543', plan: 'FTTH 100Mbps',    status: 'inactive',  zone: 'Ghatkopar',     area: 'Ghatkopar',    network: 'OLT-GK-01', expiry: '2026-02-28', services: ['Broadband'], cafStatus: 'Pending', createdOn: '18 Feb 2024' },
+  { id: 'RES-2026-0016', name: 'Rekha Shetty',       phone: '9765400123', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Mulund',        area: 'Mulund',       network: 'OLT-MU-01', expiry: '2026-06-05', services: ['Broadband', 'Landline'], cafStatus: 'Approved', createdOn: '28 May 2025' },
+  { id: 'RES-2026-0017', name: 'Dinesh Naik',        phone: '9330122334', plan: 'P2P 100Mbps',     status: 'active',    zone: 'Vikhroli',      area: 'Vikhroli',     network: 'OLT-VK-01', expiry: '2026-08-15', services: ['ILL', 'Landline'], cafStatus: 'Approved', createdOn: '05 Aug 2025' },
+  { id: 'RES-2026-0018', name: 'Lalitha Kumar',      phone: '9870112398', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Bhandup',       area: 'Bhandup',      network: 'OLT-BH-01', expiry: '2026-05-25', services: ['Broadband', 'OTT'], cafStatus: 'Approved', createdOn: '15 May 2025' },
+  { id: 'RES-2026-0019', name: 'Prakash Yadav',      phone: '9456078901', plan: 'Wireless 25Mbps', status: 'expired',   zone: 'Kurla',         area: 'Kurla',        network: 'OLT-KU-01', expiry: '2026-04-01', services: ['Broadband'], cafStatus: 'Rejected', createdOn: '22 Mar 2024' },
+  { id: 'RES-2026-0020', name: 'Swati Jain',         phone: '9678901234', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2026-07-20', services: ['Broadband', 'Landline', 'Intercom'], cafStatus: 'Approved', createdOn: '10 Jul 2025' },
+  { id: 'RES-2026-0021', name: 'Harish Pillai',      phone: '9110023456', plan: 'FTTH 1Gbps',      status: 'active',    zone: 'Nariman Point', area: 'South Mumbai', network: 'OLT-SM-01', expiry: '2026-10-31', services: ['Business BB'], cafStatus: 'Approved', createdOn: '20 Oct 2025' },
+  { id: 'RES-2026-0022', name: 'Nandita Shah',       phone: '9860034567', plan: 'FTTB 50Mbps',     status: 'suspended', zone: 'Dadar',         area: 'Dadar',        network: 'OLT-DD-01', expiry: '2026-05-15', services: ['Broadband'], cafStatus: 'Approved', createdOn: '05 May 2024' },
+  { id: 'RES-2026-0023', name: 'Rohit Bose',         phone: '9770045678', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Matunga',       area: 'Matunga',      network: 'OLT-MT-01', expiry: '2026-06-01', services: ['Broadband', 'OTT'], cafStatus: 'Approved', createdOn: '22 May 2025' },
+  { id: 'RES-2026-0024', name: 'Chandra Sekhar',     phone: '9550056789', plan: 'P2P 10Gbps',      status: 'active',    zone: 'Lower Parel',   area: 'Lower Parel',  network: 'OLT-LP-01', expiry: '2026-11-30', services: ['ILL', 'Business BB', 'Landline'], cafStatus: 'Approved', createdOn: '18 Nov 2025' },
+  { id: 'RES-2026-0025', name: 'Vandana Mishra',     phone: '9220067890', plan: 'FTTH 40Mbps',     status: 'inactive',  zone: 'Worli',         area: 'Worli',        network: 'OLT-WR-01', expiry: '2026-03-31', services: ['Broadband'], cafStatus: 'Approved', createdOn: '20 Mar 2024' },
+  { id: 'RES-2026-0026', name: 'Sunil Kadam',        phone: '9000078901', plan: 'FTTB 100Mbps',    status: 'active',    zone: 'Thane West',    area: 'Thane',        network: 'OLT-TN-01', expiry: '2026-05-01', services: ['Broadband', 'Intercom'], cafStatus: 'Approved', createdOn: '22 Apr 2025' },
+  { id: 'RES-2026-0027', name: 'Geetha Iyer',        phone: '9830089012', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Navi Mumbai',   area: 'Navi Mumbai',  network: 'OLT-NM-01', expiry: '2026-06-30', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved', createdOn: '15 Jun 2025' },
+  { id: 'RES-2026-0028', name: 'Mahesh Patkar',      phone: '9710090123', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Mira Road',     area: 'Mira Road',    network: 'OLT-MR-01', expiry: '2026-04-25', services: ['Broadband'], cafStatus: 'Approved', createdOn: '15 Apr 2025' },
+  { id: 'RES-2026-0029', name: 'Jayashree Kulkarni', phone: '9610001234', plan: 'FTTH 500Mbps',    status: 'active',    zone: 'Powai',         area: 'Powai',        network: 'OLT-PW-01', expiry: '2026-08-20', services: ['Broadband', 'OTT', 'Business BB'], cafStatus: 'Approved', createdOn: '08 Aug 2025' },
+  { id: 'IC-CUST-2026-000001', name: 'Mohan Das', phone: '9345678901', services: ['Intercom'], plan: 'Intercom Basic', zone: 'Andheri West', status: 'active', type: 'Intercom', cafStatus: 'Approved', createdOn: '12 Jun 2025' },
+  { id: 'ENT-2026-0002', name: 'Ashok Mehta',       companyName: 'Mehta Infotech Pvt Ltd',    phone: '9223344556', plan: 'ILL 500Mbps',      status: 'active',    zone: 'SEEPZ',        gstNo: '27AABCE2345H1Z8', gstVerified: true,  area: 'Andheri',     network: 'OLT-MC-03', expiry: '2026-07-01', services: ['ILL'], cafStatus: 'Approved', createdOn: '22 Jun 2025' },
+  { id: 'ENT-2026-0003', name: 'Farida Sheikh',     companyName: 'Sheikh Media Solutions LLP', phone: '9334455667', plan: 'P2P 2Gbps',        status: 'active',    zone: 'Lower Parel',  gstNo: '27AADCF6789K1Z2', gstVerified: false, area: 'Lower Parel', network: 'OLT-LP-01', expiry: '2026-09-30', services: ['ILL', 'Business BB'], cafStatus: 'Submitted', createdOn: '25 Sep 2025' },
   // Demo data for the Customer Disconnection flow's Phase 3 (Hardware
   // Recovery) — pairs with the seeded HRWO-2026-000001 work order in
   // customerRecoveryStore.js so both the Customers list's 'Pending
   // Disconnection' tab and the Hardware Recovery module have a non-empty
   // example out of the box, without needing to walk through
   // CustomerDetail.jsx's Terminate → Schedule Hardware Recovery flow first.
-  { id: 'RES-2026-0030', name: 'Ramesh Iyengar',    phone: '9445012378', plan: 'FTTH 100Mbps',    status: 'Pending Disconnection', zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-05-15', services: ['Broadband'], cafStatus: 'Approved' },
+  { id: 'RES-2026-0030', name: 'Ramesh Iyengar',    phone: '9445012378', plan: 'FTTH 100Mbps',    status: 'Pending Disconnection', zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-05-15', services: ['Broadband'], cafStatus: 'Approved', createdOn: '10 May 2024' },
 ]
 
 // ── Status values ─────────────────────────────────────────────────────────────
@@ -146,6 +160,18 @@ let _overrides = {}
 // 4, settlementStore.js) has been generated for them. Enforced here rather
 // than only in CustomerDetail.jsx's UI so it can't be bypassed by any other
 // caller.
+//
+// statusChangedAt — set here, once, for every caller that changes
+// `status`, rather than at each of CustomerDetail.jsx's individual
+// Suspend/Terminate/Mark Inactive/Reactivate/Mark as Disconnected call
+// sites — this is the one real choke point every status transition
+// already goes through (see the Disconnected gate above), so it's also
+// the one place a new "when did this actually change" timestamp can be
+// added without relying on every future status-changing call site to
+// remember to set it too. Real ISO timestamp, distinct from
+// `disconnectedAt` (set only by the Disconnected transition itself,
+// elsewhere) — this fires for every transition, which is what
+// churnStats.js's monthly churn aggregation needs.
 export function updateCustomer(id, patch) {
   if (patch.status === 'Disconnected') {
     if (!isRecoveryResolvedForCustomer(id)) {
@@ -155,7 +181,10 @@ export function updateCustomer(id, patch) {
       throw new Error(`Cannot mark ${id} as 'Disconnected' — a final settlement must be generated first.`)
     }
   }
-  _overrides = { ..._overrides, [id]: { ...(_overrides[id] ?? {}), ...patch } }
+  const withStatusTimestamp = patch.status !== undefined
+    ? { ...patch, statusChangedAt: new Date().toISOString() }
+    : patch
+  _overrides = { ..._overrides, [id]: { ...(_overrides[id] ?? {}), ...withStatusTimestamp } }
   notify()
 }
 
