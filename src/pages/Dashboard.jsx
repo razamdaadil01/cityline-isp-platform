@@ -14,19 +14,19 @@ import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
 import { getPayments, subscribePayments } from '../data/paymentsStore'
-import { getTickets, subscribeTickets, CLOSED_STATUSES } from '../data/ticketsStore'
+import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../data/ticketsStore'
 import { getLeads, subscribeLeads } from '../data/leadsStore'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 // Key Metrics stat cards (STAT_CARD_META below), the Connection Mix/
-// Service pills, Today's Collections, and Sales Lead Pipeline are wired to
-// real, live-subscribed data so far — see Dashboard() itself for the real
-// customers/payments/tickets/leads computation. Every other section on
-// this page (Revenue Overview, Renewal Forecast, CAF Compliance, Jaze
-// Network Status, Support Overview, Recent Open Tickets) is still the
-// original static mock, per a prior audit — follow-up tasks, not done
-// here.
+// Service pills, Today's Collections, Sales Lead Pipeline, Support
+// Overview, and Recent Open Tickets are wired to real, live-subscribed
+// data so far — see Dashboard() itself for the real customers/payments/
+// tickets/leads computation. Every other section on this page (Revenue
+// Overview, Renewal Forecast, CAF Compliance, Jaze Network Status) is
+// still the original static mock, per a prior audit — follow-up tasks,
+// not done here.
 
 // A customer's `plan` string always starts with its connection-technology
 // keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
@@ -159,20 +159,31 @@ const JAZE_STATUS = [
   { label: 'SMS Gateway', status: 'offline', latency: '—' },
 ]
 
-const SUPPORT_OVERVIEW = [
-  { label: 'New', count: 12, color: 'text-brand-blue', bg: 'bg-brand-blue/10' },
-  { label: 'In Progress', count: 19, color: 'text-amber-600', bg: 'bg-amber-100' },
-  { label: 'Pending Customer', count: 8, color: 'text-purple-600', bg: 'bg-purple-100' },
-  { label: 'Resolved Today', count: 14, color: 'text-emerald-600', bg: 'bg-emerald-100' },
-  { label: 'SLA Breached', count: 4, color: 'text-red-600', bg: 'bg-red-100' },
+// Metadata (label/color) for Support Overview's 5 tiles — the actual
+// `count` for each is computed live in Dashboard() below from
+// ticketsStore.js's real statuses/slaStatusOf() and looked up by `key`.
+const SUPPORT_OVERVIEW_META = [
+  { key: 'new',             label: 'New',              color: 'text-brand-blue',  bg: 'bg-brand-blue/10' },
+  { key: 'inProgress',      label: 'In Progress',      color: 'text-amber-600',   bg: 'bg-amber-100' },
+  { key: 'pendingCustomer', label: 'Pending Customer', color: 'text-purple-600',  bg: 'bg-purple-100' },
+  { key: 'resolvedToday',   label: 'Resolved Today',   color: 'text-emerald-600', bg: 'bg-emerald-100' },
+  { key: 'slaBreached',     label: 'SLA Breached',     color: 'text-red-600',     bg: 'bg-red-100' },
 ]
 
-const RECENT_TICKETS = [
-  { id: 'TK-1028', customer: 'Mohan Lal', issue: 'No Internet', priority: 'high', age: '2h' },
-  { id: 'TK-1027', customer: 'Radha Krishnan', issue: 'Slow Speed', priority: 'medium', age: '4h' },
-  { id: 'TK-1026', customer: 'Deepak Patel', issue: 'Router Config', priority: 'low', age: '6h' },
-  { id: 'TK-1025', customer: 'Sunita Rao', issue: 'Billing Query', priority: 'low', age: '8h' },
-]
+const RECENT_TICKETS_LIMIT = 4
+
+// Same m/h/d-ago shape as TicketDetail.jsx's own timeSince() — kept as a
+// local copy rather than imported since that file's version lives inside a
+// page module, not a shared util.
+function ticketAge(createdAt) {
+  const diffMs = Date.now() - new Date(createdAt).getTime()
+  const m = Math.floor(diffMs / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -192,9 +203,12 @@ function WidgetCard({ title, action, children, className = '' }) {
   )
 }
 
+// Real ticket priorities are 'P1'-'P4' (ticketsStore.js) — same color
+// convention as SupportTicketDetail.jsx's/Support.jsx's own PRIORITY_BADGE/
+// P_VARIANT maps.
 function PriorityBadge({ priority }) {
-  const map = { high: 'red', medium: 'yellow', low: 'gray' }
-  return <Badge variant={map[priority]} size="sm" dot>{priority}</Badge>
+  const map = { P1: 'red', P2: 'orange', P3: 'yellow', P4: 'gray' }
+  return <Badge variant={map[priority] ?? 'gray'} size="sm" dot>{priority}</Badge>
 }
 
 function StatusDot({ status }) {
@@ -289,6 +303,24 @@ export default function Dashboard() {
   const leadPipeline = useMemo(() => computeLeadPipeline(leads), [leads])
   const maxStageCount = Math.max(1, ...leadPipeline.map(s => s.count))
   const totalLeadsInPipeline = leadPipeline.reduce((sum, s) => sum + s.count, 0)
+
+  const recentTickets = useMemo(
+    () => tickets
+      .filter(t => !CLOSED_STATUSES.includes(t.status))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, RECENT_TICKETS_LIMIT),
+    [tickets]
+  )
+  const supportOverviewValues = useMemo(() => ({
+    new: tickets.filter(t => t.status === 'New').length,
+    inProgress: tickets.filter(t => t.status === 'In Progress').length,
+    pendingCustomer: tickets.filter(t => t.status === 'Waiting for Customer').length,
+    // resolution.resolvedAt is set once, exactly when resolveTicket() runs
+    // — persists through a later Close, so a ticket resolved yesterday and
+    // closed today correctly doesn't count as resolved "today".
+    resolvedToday: tickets.filter(t => t.resolution?.resolvedAt?.slice(0, 10) === todayISO).length,
+    slaBreached: tickets.filter(t => slaStatusOf(t) === 'Breached').length,
+  }), [tickets, todayISO])
 
   return (
     <div className="p-6 space-y-6">
@@ -597,14 +629,19 @@ export default function Dashboard() {
         {/* Support Overview */}
         <WidgetCard title="Support Overview">
           <div className="grid grid-cols-2 gap-3">
-            {SUPPORT_OVERVIEW.map((s) => (
+            {SUPPORT_OVERVIEW_META.map((s) => (
               <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
+                <p className={`text-2xl font-bold ${s.color}`}>{supportOverviewValues[s.key]}</p>
                 <p className="text-xs text-gray-600 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
           <div className="mt-4 pt-4 border-t border-surface-border">
+            {/* Avg resolution time / Calls handled today have no real
+                backing field anywhere in this app (no resolution-duration
+                or call-log data source exists yet) — left as static
+                placeholders rather than a fabricated live calculation, per
+                a prior audit. */}
             <div className="flex items-center gap-2 text-xs">
               <Clock size={13} className="text-amber-500" />
               <span className="text-gray-600">Avg resolution time: <span className="font-semibold text-gray-800">4.2 hrs</span></span>
@@ -618,32 +655,45 @@ export default function Dashboard() {
 
         {/* Recent Tickets */}
         <WidgetCard title="Recent Open Tickets" className="lg:col-span-2"
-          action={<Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />}>All Tickets</Button>}
+          action={<Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />} onClick={() => navigate('/support/tickets')}>All Tickets</Button>}
         >
-          <div className="space-y-2">
-            {RECENT_TICKETS.map((t) => (
-              <div key={t.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                <div className="w-8 h-8 bg-navy/10 rounded-lg flex items-center justify-center shrink-0">
-                  <AlertTriangle size={14} className="text-navy" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-gray-400">{t.id}</span>
-                    <PriorityBadge priority={t.priority} />
+          {recentTickets.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No open tickets right now.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentTickets.map((t) => (
+                <div
+                  key={t.id}
+                  onClick={() => navigate(`/support/tickets/${t.id}`)}
+                  className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  <div className="w-8 h-8 bg-navy/10 rounded-lg flex items-center justify-center shrink-0">
+                    <AlertTriangle size={14} className="text-navy" />
                   </div>
-                  <p className="text-sm font-medium text-gray-800 mt-0.5">{t.customer}</p>
-                  <p className="text-xs text-gray-500">{t.issue}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-gray-400">{t.id}</span>
+                      <PriorityBadge priority={t.priority} />
+                    </div>
+                    <p className="text-sm font-medium text-gray-800 mt-0.5">{t.customerName}</p>
+                    <p className="text-xs text-gray-500">{t.subject}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-gray-400">{ticketAge(t.createdAt)}</p>
+                    <Button
+                      variant="ghost" size="xs" className="mt-1"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/support/tickets/${t.id}`) }}
+                    >
+                      View
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs text-gray-400">{t.age} ago</p>
-                  <Button variant="ghost" size="xs" className="mt-1">View</Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <div className="mt-4 pt-4 border-t border-surface-border flex gap-2">
-            <Button size="sm" variant="secondary" className="flex-1" icon={<Zap size={13} />}>New Ticket</Button>
-            <Button size="sm" variant="secondary" className="flex-1" icon={<Activity size={13} />}>View SLA Report</Button>
+            <Button size="sm" variant="secondary" className="flex-1" icon={<Zap size={13} />} onClick={() => navigate('/support/tickets/new')}>New Ticket</Button>
+            <Button size="sm" variant="secondary" className="flex-1" icon={<Activity size={13} />} onClick={() => navigate('/support/reports')}>View SLA Report</Button>
           </div>
         </WidgetCard>
       </div>
