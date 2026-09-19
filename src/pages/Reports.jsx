@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell,
@@ -12,6 +12,7 @@ import {
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import { Input, Select } from '../components/ui/FormInputs'
+import { getAllCustomers, subscribeCustomers } from '../data/customersData'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -32,16 +33,33 @@ const SERVICE_BREAKDOWN = [
   { service: 'Broadband - 25 Mbps', customers: 45, revenue: 45000, pct: 3  },
 ]
 
-const CAF_GAUGE_DATA = [{ name: 'Compliance', value: 78, fill: '#0A8DCD' }]
-
-const INCOMPLETE_CAFS = [
-  { id: 'CAF-1042', customer: 'Rajesh Mehta',    issue: 'Photo ID missing',       date: '2026-04-12', plan: '100 Mbps' },
-  { id: 'CAF-1089', customer: 'Priya Sharma',    issue: 'Signature missing',      date: '2026-04-18', plan: '50 Mbps'  },
-  { id: 'CAF-1105', customer: 'Sunil Verma',     issue: 'Address proof expired',  date: '2026-04-21', plan: '200 Mbps' },
-  { id: 'CAF-1122', customer: 'Deepa Nair',      issue: 'Form not signed',        date: '2026-04-29', plan: '100 Mbps' },
-  { id: 'CAF-1138', customer: 'Arjun Patel',     issue: 'Photo quality poor',     date: '2026-05-02', plan: '500 Mbps' },
-  { id: 'CAF-1149', customer: 'Neha Kulkarni',   issue: 'DOB mismatch',           date: '2026-05-04', plan: '50 Mbps'  },
+// Real per-customer cafStatus (customersData.js's CAF_STATUSES), same
+// source Dashboard.jsx's own CAF Compliance widget reads — replaces the
+// old CAF_GAUGE_DATA/INCOMPLETE_CAFS mocks (CAF-1042 etc., names that
+// mostly didn't even match a real seeded customer) so the two pages can't
+// disagree. "Compliant" here means cafStatus === 'Approved' (the same
+// definition Dashboard.jsx's own compliance rate uses); everything else
+// (Submitted/Pending/Rejected) is "Incomplete" — awaiting review, not yet
+// uploaded, or sent back respectively.
+const CAF_STATUS_BREAKDOWN_META = [
+  { key: 'Submitted', label: 'Submitted — awaiting review', color: '#0A8DCD' },
+  { key: 'Pending',    label: 'Not yet uploaded',            color: '#E8541A' },
+  { key: 'Rejected',   label: 'Rejected — needs resubmission', color: '#0F2744' },
 ]
+
+function computeCafStats(customers) {
+  const total = customers.length
+  const counts = { Approved: 0, Submitted: 0, Pending: 0, Rejected: 0 }
+  customers.forEach(c => {
+    const status = counts[c.cafStatus] !== undefined ? c.cafStatus : 'Pending'
+    counts[status]++
+  })
+  const compliant = counts.Approved
+  const incomplete = total - compliant
+  const complianceRate = total === 0 ? 0 : (compliant / total) * 100
+  const incompleteCustomers = customers.filter(c => (c.cafStatus ?? 'Pending') !== 'Approved')
+  return { total, compliant, incomplete, complianceRate, counts, incompleteCustomers }
+}
 
 const CHURN_DATA = [
   { month: 'Dec', churned: 12, newJoins: 34, net: 22 },
@@ -219,13 +237,18 @@ const CUSTOM_GAUGE_LABEL = ({ cx, cy, value }) => (
 )
 
 function CAFDetail() {
+  const [customers, setCustomers] = useState(getAllCustomers)
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
+  const stats = useMemo(() => computeCafStats(customers), [customers])
+  const maxIssueCount = Math.max(1, stats.counts.Submitted, stats.counts.Pending, stats.counts.Rejected)
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total CAFs',       value: '1,189', color: 'text-gray-900' },
-          { label: 'Compliant CAFs',   value: '927',   color: 'text-green-600' },
-          { label: 'Incomplete CAFs',  value: '262',   color: 'text-amber-600' },
+          { label: 'Total CAFs',       value: stats.total.toLocaleString('en-IN'),     color: 'text-gray-900' },
+          { label: 'Compliant CAFs',   value: stats.compliant.toLocaleString('en-IN'), color: 'text-green-600' },
+          { label: 'Incomplete CAFs',  value: stats.incomplete.toLocaleString('en-IN'), color: 'text-amber-600' },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -239,11 +262,11 @@ function CAFDetail() {
           <h4 className="text-sm font-semibold text-gray-800 mb-2 self-start">Compliance Rate</h4>
           <ResponsiveContainer width="100%" height={200}>
             <RadialBarChart cx="50%" cy="80%" innerRadius="60%" outerRadius="90%"
-              startAngle={180} endAngle={0} data={CAF_GAUGE_DATA}>
+              startAngle={180} endAngle={0} data={[{ name: 'Compliance', value: Math.round(stats.complianceRate), fill: '#0A8DCD' }]}>
               <RadialBar dataKey="value" cornerRadius={6} background={{ fill: '#f0f4f8' }} />
             </RadialBarChart>
           </ResponsiveContainer>
-          <p className="text-3xl font-bold text-navy -mt-10">78%</p>
+          <p className="text-3xl font-bold text-navy -mt-10">{stats.complianceRate.toFixed(1)}%</p>
           <p className="text-xs text-gray-400 mt-1">CAF Compliance</p>
           <div className="mt-3 flex gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand-blue inline-block" /> Compliant</span>
@@ -251,21 +274,21 @@ function CAFDetail() {
           </div>
         </div>
 
+        {/* Status Breakdown — real cafStatus counts (customersData.js),
+            same statuses Dashboard.jsx's own CAF Compliance widget shows.
+            Replaces the old fabricated "Photo ID missing"/"Signature
+            missing" issue-reason breakdown — no real field tracks a
+            specific rejection reason anywhere in this app. */}
         <div className="bg-white rounded-xl border border-surface-border p-5">
-          <h4 className="text-sm font-semibold text-gray-800 mb-3">Issue Breakdown</h4>
+          <h4 className="text-sm font-semibold text-gray-800 mb-3">Status Breakdown</h4>
           <div className="space-y-2.5">
-            {[
-              { issue: 'Photo ID missing',    count: 89, color: '#E8541A' },
-              { issue: 'Signature missing',   count: 74, color: '#0A8DCD' },
-              { issue: 'Address proof issue', count: 61, color: '#0F2744' },
-              { issue: 'Form not signed',     count: 38, color: '#059669' },
-            ].map(i => (
-              <div key={i.issue}>
+            {CAF_STATUS_BREAKDOWN_META.map(s => (
+              <div key={s.key}>
                 <div className="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>{i.issue}</span><span className="font-medium">{i.count}</span>
+                  <span>{s.label}</span><span className="font-medium">{stats.counts[s.key]}</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${(i.count / 89) * 100}%`, background: i.color }} />
+                  <div className="h-full rounded-full transition-all" style={{ width: `${(stats.counts[s.key] / maxIssueCount) * 100}%`, background: s.color }} />
                 </div>
               </div>
             ))}
@@ -276,38 +299,41 @@ function CAFDetail() {
       <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
         <div className="px-5 py-3.5 border-b border-surface-border flex items-center justify-between">
           <h4 className="text-sm font-semibold text-gray-800">Incomplete CAF List</h4>
-          <Badge variant="yellow" size="sm">{INCOMPLETE_CAFS.length} pending action</Badge>
+          <Badge variant="yellow" size="sm">{stats.incompleteCustomers.length} pending action</Badge>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/60 border-b border-surface-border">
-              {['CAF ID', 'Customer', 'Plan', 'Issue', 'Date', 'Actions'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {INCOMPLETE_CAFS.map(c => (
-              <tr key={c.id} className="hover:bg-gray-50/60">
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{c.id}</td>
-                <td className="px-4 py-3 font-medium text-gray-800">{c.customer}</td>
-                <td className="px-4 py-3"><Badge variant="blue" size="sm">{c.plan}</Badge></td>
-                <td className="px-4 py-3">
-                  <span className="flex items-center gap-1.5 text-amber-600 text-xs font-medium">
-                    <AlertCircle size={12} />{c.issue}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{c.date}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="xs">Upload Docs</Button>
-                    <Button variant="ghost" size="xs">Send SMS</Button>
-                  </div>
-                </td>
+        {stats.incompleteCustomers.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No incomplete CAFs — every customer is fully compliant.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['CAF No.', 'Customer', 'Plan', 'CAF Status', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {stats.incompleteCustomers.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50/60">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{c.cafNo ?? c.id}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
+                  <td className="px-4 py-3"><Badge variant="blue" size="sm">{c.plan ?? '—'}</Badge></td>
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1.5 text-amber-600 text-xs font-medium">
+                      <AlertCircle size={12} />{c.cafStatus ?? 'Pending'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="xs">Upload Docs</Button>
+                      <Button variant="ghost" size="xs">Send SMS</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
@@ -494,7 +520,27 @@ export default function Reports() {
   const [dateFrom,  setDateFrom]  = useState(() => `${new Date().getFullYear()}-01-01`)
   const [dateTo,    setDateTo]    = useState(() => new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0])
 
-  const activeCard = REPORT_CARDS.find(c => c.id === active)
+  // Real CAF compliance stats (customersData.js), same source CAFDetail
+  // below reads independently — overrides just the 'caf' card's static
+  // value/sub/badge below so the summary card and its own detail view can
+  // never show two different numbers.
+  const [customers, setCustomers] = useState(getAllCustomers)
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
+  const cafStats = useMemo(() => computeCafStats(customers), [customers])
+
+  const reportCards = useMemo(() => REPORT_CARDS.map(card => {
+    if (card.id !== 'caf') return card
+    return {
+      ...card,
+      value: `${cafStats.complianceRate.toFixed(1)}%`,
+      sub: `${cafStats.incomplete} incomplete CAF${cafStats.incomplete !== 1 ? 's' : ''}`,
+      badge: cafStats.incomplete > 0
+        ? { label: 'Action needed', variant: 'yellow' }
+        : { label: 'Fully compliant', variant: 'green' },
+    }
+  }), [cafStats])
+
+  const activeCard = reportCards.find(c => c.id === active)
   const DetailView = active ? DETAIL_VIEWS[active] : null
 
   return (
@@ -550,7 +596,7 @@ export default function Reports() {
       {/* Report cards grid */}
       {!active && (
         <div className="grid grid-cols-3 gap-4">
-          {REPORT_CARDS.map(card => {
+          {reportCards.map(card => {
             const Icon = card.icon
             return (
               <button key={card.id} onClick={() => setActive(card.id)}

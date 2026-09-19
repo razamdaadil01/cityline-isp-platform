@@ -241,6 +241,10 @@ export default function AddCustomer() {
       area: form.area,
       expiry,
       cafNo: caf,
+      // A freshly-generated CAF starts life awaiting review, not already
+      // compliant — see customersData.js's CAF_STATUSES for the full
+      // lifecycle this feeds into (Dashboard/Reports.jsx CAF Compliance).
+      cafStatus: 'Submitted',
       panCard: form.panNo || undefined,
       // Real signal from Step 4's Aadhaar eKYC + document uploads — actual
       // file content isn't persisted anywhere in this app yet (no working
