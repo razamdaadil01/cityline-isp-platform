@@ -19,14 +19,14 @@ import { getLeads, subscribeLeads } from '../data/leadsStore'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-// Key Metrics stat cards (STAT_CARD_META below), the Connection Mix/
-// Service pills, Renewal Forecast, Today's Collections, Sales Lead
-// Pipeline, Support Overview, and Recent Open Tickets are wired to real,
-// live-subscribed data so far — see Dashboard() itself for the real
-// customers/payments/tickets/leads computation. Every other section on
-// this page (Revenue Overview, CAF Compliance, Jaze Network Status) is
-// still the original static mock, per a prior audit — follow-up tasks,
-// not done here.
+// Key Metrics stat cards (STAT_CARD_META below), Revenue Overview, the
+// Connection Mix/Service pills, Renewal Forecast, Today's Collections,
+// Sales Lead Pipeline, Support Overview, and Recent Open Tickets are
+// wired to real, live-subscribed data so far — see Dashboard() itself for
+// the real customers/payments/tickets/leads computation. CAF Compliance
+// and Jaze Network Status are still the original static mock, per a
+// prior audit — both need genuinely new backend concepts that don't
+// exist yet, not just wiring, so they're separate follow-ups.
 
 // A customer's `plan` string always starts with its connection-technology
 // keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
@@ -92,15 +92,32 @@ const STAT_CARD_META = [
   { key: 'renewalsDueToday',  label: 'Renewals Due Today',   icon: <RefreshCw size={20} />,     iconBg: 'bg-purple-100',       iconColor: 'text-purple-600' },
 ]
 
-const REVENUE_DATA = [
-  { month: 'Nov', collected: 385000, target: 420000, outstanding: 35000 },
-  { month: 'Dec', collected: 412000, target: 430000, outstanding: 18000 },
-  { month: 'Jan', collected: 395000, target: 440000, outstanding: 45000 },
-  { month: 'Feb', collected: 428000, target: 445000, outstanding: 17000 },
-  { month: 'Mar', collected: 451000, target: 460000, outstanding: 9000 },
-  { month: 'Apr', collected: 438000, target: 470000, outstanding: 32000 },
-  { month: 'May', collected: 124500, target: 480000, outstanding: 0 },
-]
+// No monthly-rollup function existed anywhere in the app before this —
+// paymentsStore.js only ever held a flat, unaggregated list. Groups real
+// payments by calendar month (parsed from paymentDate's own "DD-MM-YYYY",
+// same format AddPayment.jsx writes), summing paid/total per month.
+// Returns only months that actually have at least one real payment,
+// sorted chronologically — paymentsStore.js starts empty each session, so
+// this is often mostly (or entirely) empty until AddPayment.jsx records
+// are made, same as Today's Collections' own empty state. There's no real
+// "Target" figure anywhere in this app (no monthly-goal store exists), so
+// unlike the old mock this only ever plots the one real series.
+function computeRevenueByMonth(payments) {
+  const totals = new Map() // "YYYY-MM" -> collected total
+  payments.forEach(p => {
+    const [d, m, y] = (p.paymentDate || '').split('-')
+    if (!d || !m || !y) return
+    const key = `${y}-${m}`
+    totals.set(key, (totals.get(key) || 0) + (Number(p.paid ?? p.total) || 0))
+  })
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, collected]) => {
+      const [y, m] = key.split('-')
+      const month = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short' })
+      return { key, month, collected }
+    })
+}
 
 // Today's Collections' time column comes from paymentsStore.js's own
 // `date` field — "DD-MM-YYYY HH:MM:SS" (AddPayment.jsx's
@@ -347,6 +364,12 @@ export default function Dashboard() {
       })
   }, [payments, customers, todayDMY])
 
+  const [revenueRangeMonths, setRevenueRangeMonths] = useState(6)
+  const revenueData = useMemo(() => {
+    const byMonth = computeRevenueByMonth(payments)
+    return revenueRangeMonths >= byMonth.length ? byMonth : byMonth.slice(-revenueRangeMonths)
+  }, [payments, revenueRangeMonths])
+
   const leadPipeline = useMemo(() => computeLeadPipeline(leads), [leads])
   const maxStageCount = Math.max(1, ...leadPipeline.map(s => s.count))
   const totalLeadsInPipeline = leadPipeline.reduce((sum, s) => sum + s.count, 0)
@@ -438,39 +461,43 @@ export default function Dashboard() {
           className="xl:col-span-2"
           action={
             <div className="flex gap-1">
-              {['6M', '3M', '1M'].map((t) => (
-                <button key={t} className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors
-                  ${t === '6M' ? 'bg-brand-blue text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
-                  {t}
+              {[{ label: '6M', months: 6 }, { label: '3M', months: 3 }, { label: '1M', months: 1 }].map((r) => (
+                <button
+                  key={r.label}
+                  onClick={() => setRevenueRangeMonths(r.months)}
+                  className={`px-2 py-0.5 text-xs rounded-md font-medium transition-colors
+                    ${revenueRangeMonths === r.months ? 'bg-brand-blue text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                >
+                  {r.label}
                 </button>
               ))}
             </div>
           }
         >
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={REVENUE_DATA} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0A8DCD" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#0A8DCD" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorTarget" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0F2744" stopOpacity={0.1} />
-                  <stop offset="95%" stopColor="#0F2744" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-                tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-              <Tooltip content={<RevenueTooltip />} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="collected" name="Collected" stroke="#0A8DCD" strokeWidth={2.5}
-                fill="url(#colorCollected)" dot={{ r: 3, fill: '#0A8DCD' }} />
-              <Area type="monotone" dataKey="target" name="Target" stroke="#0F2744" strokeWidth={2}
-                strokeDasharray="5 3" fill="url(#colorTarget)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          {revenueData.length === 0 ? (
+            <div className="h-[220px] flex items-center justify-center">
+              <p className="text-sm text-gray-400">No payments recorded yet — the revenue trend will build up as payments come in.</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={revenueData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0A8DCD" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#0A8DCD" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
+                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                <Tooltip content={<RevenueTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                <Area type="monotone" dataKey="collected" name="Collected" stroke="#0A8DCD" strokeWidth={2.5}
+                  fill="url(#colorCollected)" dot={{ r: 3, fill: '#0A8DCD' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </WidgetCard>
 
         {/* Connection Mix */}
