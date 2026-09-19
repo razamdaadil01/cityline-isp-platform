@@ -14,7 +14,7 @@ import { getPurchases } from '../../data/purchaseStore'
 import { getPurchaseOrders, getPoStatusLabel } from '../../data/purchaseOrderStore'
 import { getUnits, getUnitTrail } from '../../data/inventoryLedger'
 import { getRepairsByVendor } from '../../data/repairStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 import { exportWorkbook } from '../../utils/excelExport'
 
 // PO statuses that count as "closed" for the Purchase Orders tab's
@@ -333,7 +333,7 @@ function VendorActionsMenu({ onExport, onRecordPayment, onEdit, canEdit }) {
 }
 
 export default function VendorDetail() {
-  const canEdit = usePermission('Inventory', 'Edit')
+  const canEdit = useMicroPermission('Inventory', 'editVendorActivateDeactivate')
 
   const { id, tab } = useParams()
   const navigate = useNavigate()

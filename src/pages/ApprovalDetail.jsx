@@ -9,7 +9,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Textarea } from '../components/ui/FormInputs'
 import ApprovalDecisionModal from '../components/ui/ApprovalDecisionModal'
 import { getApproval, subscribeApprovals, approveApproval, rejectApproval, sendForCorrection } from '../data/approvalsStore'
-import { usePermission } from '../data/rolesStore'
+import { useMicroPermission } from '../data/rolesStore'
 
 const CURRENT_USER = 'Admin User'
 
@@ -235,7 +235,7 @@ function SendForCorrectionModal({ isOpen, onClose, approval, onConfirm }) {
 }
 
 export default function ApprovalDetail() {
-  const canApprovePO = usePermission('Inventory', 'Edit')
+  const canApprovePO = useMicroPermission('Inventory', 'approvePurchaseOrder')
   const { approvalId } = useParams()
   const navigate = useNavigate()
   const [approval, setApproval] = useState(() => getApproval(approvalId))

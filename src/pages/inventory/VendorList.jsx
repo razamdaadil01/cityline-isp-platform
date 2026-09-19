@@ -9,7 +9,7 @@ import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnMana
 import AddEditVendorModal from '../../components/inventory/AddEditVendorModal'
 import { getVendors, subscribeVendors, setVendorStatus, getContacts } from '../../data/vendorStore'
 import { getInRepairCount } from '../../data/repairStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 // Same icon-box stat card shape used elsewhere for list-page KPI cards
 // (Resellers.jsx/UserManagement.jsx each define their own local copy rather
@@ -49,8 +49,8 @@ const VENDOR_TABLE_COLUMNS = [
 ]
 
 export default function VendorList() {
-  const canCreate = usePermission('Inventory', 'Create')
-  const canEdit = usePermission('Inventory', 'Edit')
+  const canCreate = useMicroPermission('Inventory', 'addVendor')
+  const canEdit = useMicroPermission('Inventory', 'editVendorActivateDeactivate')
 
   const navigate = useNavigate()
   const [vendors, setVendors] = useState(getVendors)

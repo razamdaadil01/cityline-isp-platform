@@ -41,12 +41,15 @@ export function buildPerms(defaultVal = false) {
 // (e.g. Support's "My tickets only" or "Send technician"). Keyed by module,
 // then by a short camelCase key -> boolean — one level deeper than
 // buildPerms()'s own module->action->bool shape, and intentionally separate
-// from `permissions` rather than folded into it, since these are additive:
-// existing CRUD-based modules (Inventory, Projects, Technicians, ...) have
-// no entry here and keep using only the matrix above, completely untouched.
+// from `permissions` rather than folded into it. A module not listed here
+// (if any remain) keeps using only the matrix above, untouched; every
+// module currently in this app has migrated to a list below, most recently
+// Inventory/Projects/Technicians, whose real button-hides/page-blocks now
+// read these via useMicroPermission()/hasMicroPermission() instead of
+// usePermission()/hasPermission().
 //
 // Only modules listed here get a granular checklist in Settings.jsx's Roles
-// & Permissions tab; adding a third module's micro-permissions later is
+// & Permissions tab; adding another module's micro-permissions later is
 // just adding one more entry to this object — nothing else in this file,
 // or in Settings.jsx's rendering, needs to change to pick it up.
 export const MODULE_MICRO_PERMISSIONS = {
@@ -173,6 +176,45 @@ export const MODULE_MICRO_PERMISSIONS = {
     { key: 'exportAuditLogToExcel',       label: 'Export Audit Log to Excel' },
     { key: 'viewSecuritySensitiveEntries',label: 'View Security-Sensitive Entries (logins, password resets, role changes)' },
   ],
+  // Inventory/Projects/Technicians migrated off the View/Create/Edit/Delete
+  // matrix last — real usePermission()/hasPermission() button-hides and
+  // TechnicianDashboard.jsx's page-level block now read these via
+  // useMicroPermission()/hasMicroPermission() instead. "Send PO Reminder"
+  // and "Approve Purchase Order" used to share one Inventory:Edit flag;
+  // "Upload/Replace Project Documents", "Edit CAPEX & Revenue Share" and
+  // "Log Labour Cost" used to share one Projects:Edit flag — all now
+  // independently grantable. "View Projects List", "View Live Location Map"
+  // and "View Technician Detail Drill-down" had no prior enforcement at all
+  // (see SEED below for how those were seeded).
+  Inventory: [
+    { key: 'addProduct',                  label: 'Add Product' },
+    { key: 'editProductActivateDeactivate', label: 'Edit Product / Activate-Deactivate Product' },
+    { key: 'addVendor',                   label: 'Add Vendor' },
+    { key: 'editVendorActivateDeactivate',label: 'Edit Vendor / Activate-Deactivate Vendor' },
+    { key: 'addStore',                    label: 'Add Store' },
+    { key: 'editStoreActivateDeactivate', label: 'Edit Store / Activate-Deactivate Store' },
+    { key: 'createStoreTransfer',         label: 'Create Store Transfer' },
+    { key: 'createPurchaseOrder',         label: 'Create Purchase Order' },
+    { key: 'sendPoReminder',              label: 'Send PO Reminder' },
+    { key: 'approvePurchaseOrder',        label: 'Approve Purchase Order' },
+    { key: 'addOutsidePoHardware',        label: 'Add Outside-PO Hardware' },
+    { key: 'addPurchase',                 label: 'Add Purchase' },
+    { key: 'assignInventoryToEngineer',   label: 'Assign Inventory to Engineer' },
+    { key: 'assignInventoryToUser',       label: 'Assign Inventory to User' },
+  ],
+  Projects: [
+    { key: 'viewProjectsList',              label: 'View Projects List' },
+    { key: 'createNewProject',              label: 'Create New Project' },
+    { key: 'addWorkOrder',                  label: 'Add Work Order' },
+    { key: 'uploadReplaceProjectDocuments', label: 'Upload/Replace Project Documents' },
+    { key: 'editCapexRevenueShare',         label: 'Edit CAPEX & Revenue Share' },
+    { key: 'logLabourCost',                 label: 'Log Labour Cost' },
+  ],
+  Technicians: [
+    { key: 'viewTechnicianMonitoringDashboard', label: 'View Technician Monitoring Dashboard' },
+    { key: 'viewLiveLocationMap',               label: 'View Live Location Map' },
+    { key: 'viewTechnicianDetailDrillDown',     label: 'View Technician Detail Drill-down' },
+  ],
 }
 
 export const MICRO_PERMISSION_MODULES = Object.keys(MODULE_MICRO_PERMISSIONS)
@@ -259,8 +301,9 @@ const SEED = [
       p['Reports']['View'] = true
       return p
     })(),
-    // No Support/Sales/Network/Settings/Resellers/Audit Log module access
-    // at all above, so nothing granted for those here either. Dashboard/
+    // No Support/Sales/Network/Settings/Resellers/Audit Log/Inventory/
+    // Projects/Technicians module access at all above, so nothing granted
+    // for those here either. Dashboard/
     // Customers/Reports only have a bare View grant above (no per-widget or
     // per-report detail to derive from), so the specific items picked below
     // are the ones a Billing Manager's own job description ("Manage
@@ -348,12 +391,21 @@ const SEED = [
       p['Customers']['View'] = true
       return p
     })(),
-    // No Support/Sales/Billing/Reports/Settings/Resellers/Audit Log module
-    // access above either. Dashboard/Network/Customers below fill in the
-    // partial View(/Edit) signal above with the specific on-site actions
-    // this role's own description ("On-site installations, repairs...")
-    // covers — provisioning new network hardware (Add OLT/Switch) and
-    // Jaze/NAS server administration stay out of scope for a field role.
+    // No Support/Sales/Billing/Reports/Settings/Resellers/Audit Log/Projects/
+    // Technicians module access above either. Dashboard/Network/Customers
+    // below fill in the partial View(/Edit) signal above with the specific
+    // on-site actions this role's own description ("On-site installations,
+    // repairs...") covers — provisioning new network hardware (Add OLT/
+    // Switch) and Jaze/NAS server administration stay out of scope for a
+    // field role. Inventory below preserves this role's pre-migration
+    // Inventory:Edit=true exactly: every action that flag used to gate
+    // (editing/activating Products/Vendors/Stores, PO reminders, PO
+    // approval) stays grantable — even PO approval, which is broader than
+    // a field role strictly needs, since narrowing it here would be a
+    // silent access loss the migration isn't supposed to cause.
+    // Inventory:Create stayed false above, so nothing Create-shaped
+    // (Add Product/Vendor/Store, Create Store Transfer/Purchase Order,
+    // Add Purchase, Assign to Engineer/User) is granted.
     microPermissions: (() => {
       const p = buildMicroPerms(false)
       p['Dashboard']['viewJazeNetworkStatusWidget'] = true
@@ -362,6 +414,11 @@ const SEED = [
       p['Network']['viewBandwidthMonitoring'] = true
       p['Customers']['viewCustomerList'] = true
       p['Customers']['viewCustomerDetails'] = true
+      p['Inventory']['editProductActivateDeactivate'] = true
+      p['Inventory']['editVendorActivateDeactivate'] = true
+      p['Inventory']['editStoreActivateDeactivate'] = true
+      p['Inventory']['sendPoReminder'] = true
+      p['Inventory']['approvePurchaseOrder'] = true
       return p
     })(),
   },
@@ -386,6 +443,17 @@ const SEED = [
     // trail — held back from the base view-only role same as Admin's own
     // exception above). Settings gets nothing: every one of its permissions
     // is a "Manage X" action, and a view-only role manages nothing.
+    // Inventory also gets nothing: pre-migration Inventory:Create/Edit were
+    // both false for this role (only View was true, and nothing ever
+    // enforced on Inventory:View), so every Inventory action stays
+    // ungranted — the base buildMicroPerms(false) above already covers
+    // that correctly with no override needed. Projects/Technicians below
+    // are the two modules with genuinely "no prior enforcement" permissions
+    // (View Projects List, View Live Location Map, View Technician Detail
+    // Drill-down) — seeded true here since this role's pre-migration
+    // Projects:View and Technicians:View were both true (this role did
+    // have *some* real access to both pages before), per the "seed true
+    // for any role that currently has [Module]:View=true" instruction.
     microPermissions: (() => {
       const p = buildMicroPerms(false)
       p['Support']['viewTicket'] = true
@@ -408,6 +476,10 @@ const SEED = [
       p['Reports']['viewInventoryReport'] = true
       p['Resellers']['viewResellerList'] = true
       p['Resellers']['viewResellerDetail'] = true
+      p['Projects']['viewProjectsList'] = true
+      p['Technicians']['viewTechnicianMonitoringDashboard'] = true
+      p['Technicians']['viewLiveLocationMap'] = true
+      p['Technicians']['viewTechnicianDetailDrillDown'] = true
       p['Resellers']['viewCommission'] = true
       p['Resellers']['viewPaymentHistory'] = true
       p['Resellers']['viewOutstandingDues'] = true
@@ -455,10 +527,9 @@ export function hasPermission(role, module, action) {
   return !!role?.permissions?.[module]?.[action]
 }
 
-// Not called from any page yet (enforcement is a separate, later task) —
-// exported now so Settings.jsx's checklist and any future
-// usePermission()-style hook can read a role's granular grants the same
-// way hasPermission() reads the CRUD matrix above.
+// Read by Settings.jsx's checklist, and (for Inventory/Projects/
+// Technicians) by the real page-level gates below — see
+// useMicroPermission() just below getCurrentUserRole().
 export function hasMicroPermission(role, module, key) {
   return !!role?.microPermissions?.[module]?.[key]
 }
@@ -498,4 +569,14 @@ export function usePermission(module, action) {
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeRoles(() => forceRerender(n => n + 1)), [])
   return hasPermission(getCurrentUserRole(), module, action)
+}
+
+// Same reactive shape as usePermission() above, one level deeper — the
+// granular-permission equivalent real call sites switch to when their
+// module migrates off the View/Create/Edit/Delete matrix (Inventory,
+// Projects, Technicians so far).
+export function useMicroPermission(module, key) {
+  const [, forceRerender] = useState(0)
+  useEffect(() => subscribeRoles(() => forceRerender(n => n + 1)), [])
+  return hasMicroPermission(getCurrentUserRole(), module, key)
 }

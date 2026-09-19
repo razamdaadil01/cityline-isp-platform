@@ -9,7 +9,7 @@ import { getHDDProject, getHDDWorkOrders, getHDDProjectCapex, getHDDInventorySum
 import { getVendor } from '../../data/vendorStore'
 import { getUsers } from '../../data/userStore'
 import { getProduct } from '../../data/productStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 import { exportWorkbook } from '../../utils/excelExport'
 
 const STATUS_BADGE = {
@@ -142,7 +142,7 @@ function WorkOrderDetailModal({ workOrder, onClose }) {
 export default function HDDProjectDetail() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
-  const canCreate = usePermission('Projects', 'Create')
+  const canCreate = useMicroPermission('Projects', 'addWorkOrder')
 
   // Subscribing (without using the payload directly) just forces a
   // re-render whenever projectStore changes, so the getHDDProject(id)

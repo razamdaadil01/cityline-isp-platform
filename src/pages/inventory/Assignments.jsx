@@ -15,7 +15,7 @@ import { getStores } from '../../data/storeStore'
 import { getVendors, getVendor } from '../../data/vendorStore'
 import { saveRepair } from '../../data/repairStore'
 import { getUnits, isUnitWithinWarranty } from '../../data/inventoryLedger'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 
 // Line-level status shown per row — deliberately only these three values
 // (never the assignment RECORD's own 'Assigned'/'Returned' status, never a
@@ -269,7 +269,7 @@ function SendForRepairModal({ target, onClose }) {
 }
 
 export default function Assignments() {
-  const canCreate = usePermission('Inventory', 'Create')
+  const canCreate = useMicroPermission('Inventory', 'assignInventoryToEngineer')
   const navigate = useNavigate()
   const [assignments, setAssignments] = useState(getAssignments)
   useEffect(() => subscribeAssignments(setAssignments), [])

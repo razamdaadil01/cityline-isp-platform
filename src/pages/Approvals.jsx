@@ -8,7 +8,7 @@ import ApprovalDecisionModal from '../components/ui/ApprovalDecisionModal'
 import {
   getApprovals, subscribeApprovals, approveApproval, rejectApproval, APPROVAL_TYPES,
 } from '../data/approvalsStore'
-import { usePermission } from '../data/rolesStore'
+import { useMicroPermission } from '../data/rolesStore'
 
 const CURRENT_USER = 'Admin User'
 
@@ -30,7 +30,7 @@ function relatedRoute(approval) {
 }
 
 export default function Approvals() {
-  const canApprovePO = usePermission('Inventory', 'Edit')
+  const canApprovePO = useMicroPermission('Inventory', 'approvePurchaseOrder')
   const navigate = useNavigate()
   const [approvals, setApprovals] = useState(getApprovals)
   const [statusTab, setStatusTab] = useState('') // '' | 'Pending' | 'Approved' | 'Rejected'

@@ -19,7 +19,7 @@ import {
   getCategory, getSubcategory, getSpecification,
   subscribeProductTaxonomy,
 } from '../../data/productTaxonomyStore'
-import { usePermission } from '../../data/rolesStore'
+import { useMicroPermission } from '../../data/rolesStore'
 import { getActiveCompanyEntities, getCompanyEntity } from '../../data/companyEntities'
 
 // Hardware products' own `name` is auto-generated from their Category ->
@@ -679,8 +679,8 @@ function FilterDrawer({ open, onClose, draft, setDraftField, onApply, onReset, b
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ProductList() {
-  const canCreate = usePermission('Inventory', 'Create')
-  const canEdit = usePermission('Inventory', 'Edit')
+  const canCreate = useMicroPermission('Inventory', 'addProduct')
+  const canEdit = useMicroPermission('Inventory', 'editProductActivateDeactivate')
 
   const [products, setProducts] = useState(getProducts)
   useEffect(() => subscribeProducts(setProducts), [])
