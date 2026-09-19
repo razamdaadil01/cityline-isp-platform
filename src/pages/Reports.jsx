@@ -7,7 +7,7 @@ import {
 import {
   Download, TrendingDown, TrendingUp, Receipt, Store,
   Package, FileText, ArrowLeft, AlertCircle, CheckCircle2,
-  Clock, ChevronRight,
+  Clock, ChevronRight, Lock,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -18,6 +18,8 @@ import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueSta
 import { getProducts, subscribeProducts } from '../data/productStore'
 import { subscribeInventoryLedger } from '../data/inventoryLedger'
 import { computeInventoryByCategory, formatAvailableQty } from '../utils/inventoryStats'
+import { useMicroPermission } from '../data/rolesStore'
+import { exportWorkbook } from '../utils/excelExport'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -643,6 +645,7 @@ export default function Reports() {
   // can ever show a different number than RevenueDetail itself.
   const [payments, setPayments] = useState(getPayments)
   useEffect(() => subscribePayments(setPayments), [])
+  const revenueByPlan = useMemo(() => computeRevenueByPlan(customers, payments), [customers, payments])
   const revenueStats = useMemo(() => {
     const byMonth = computeRevenueByMonth(payments)
     const shownMonths = byMonth.length <= REVENUE_MONTHS_SHOWN ? byMonth : byMonth.slice(-REVENUE_MONTHS_SHOWN)
@@ -653,6 +656,7 @@ export default function Reports() {
     const currentMonthLabel = latestMonth?.month ?? new Date().toLocaleDateString('en-US', { month: 'short' })
     const arpu = activeCustomerCount === 0 ? 0 : currentMonthRevenue / activeCustomerCount
     return {
+      shownMonths,
       monthsCounted: shownMonths.length,
       periodRevenue,
       currentMonthRevenue,
@@ -679,9 +683,27 @@ export default function Reports() {
   const inventoryStats = useMemo(() => {
     const byCategory = computeInventoryByCategory(products)
     const lowStockCount = byCategory.reduce((sum, c) => sum + c.lowStockCount, 0)
-    return { totalProducts: products.length, categoryCount: byCategory.length, lowStockCount }
+    return { byCategory, totalProducts: products.length, categoryCount: byCategory.length, lowStockCount }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, inventoryLedgerTick])
+
+  // Granular Reports permissions (rolesStore.js's MODULE_MICRO_PERMISSIONS.
+  // Reports) — defined there with role presets but never read anywhere
+  // until now, so every role saw and could open/export all 6 reports
+  // regardless of its configured permissions. Each hook call is reactive
+  // (re-renders this page if an admin edits the current user's role live),
+  // same as every other useMicroPermission() call site in this app.
+  const canViewRevenue    = useMicroPermission('Reports', 'viewRevenueReport')
+  const canViewCaf        = useMicroPermission('Reports', 'viewCafComplianceReport')
+  const canViewChurn      = useMicroPermission('Reports', 'viewChurnReport')
+  const canViewCollection = useMicroPermission('Reports', 'viewCollectionReport')
+  const canViewPartner    = useMicroPermission('Reports', 'viewPartnerStoreCollectionReport')
+  const canViewInventory  = useMicroPermission('Reports', 'viewInventoryReport')
+  const canExport         = useMicroPermission('Reports', 'exportReportsToExcel')
+  const reportPermissions = {
+    revenue: canViewRevenue, caf: canViewCaf, churn: canViewChurn,
+    collection: canViewCollection, partner: canViewPartner, inventory: canViewInventory,
+  }
 
   const reportCards = useMemo(() => REPORT_CARDS.map(card => {
     if (card.id === 'caf') {
@@ -717,8 +739,109 @@ export default function Reports() {
     return card
   }), [cafStats, revenueStats, inventoryStats])
 
-  const activeCard = reportCards.find(c => c.id === active)
-  const DetailView = active ? DETAIL_VIEWS[active] : null
+  // Cards the current user's role can't view are left out of the grid
+  // entirely — not rendered greyed-out/disabled — same convention as every
+  // other useMicroPermission()-gated button in this app.
+  const visibleReportCards = reportCards.filter(card => reportPermissions[card.id])
+  const activeAllowed = !!active && !!reportPermissions[active]
+  const activeCard = activeAllowed ? reportCards.find(c => c.id === active) : null
+  const DetailView = activeAllowed ? DETAIL_VIEWS[active] : null
+
+  // Export sheets for one report, built from the exact same real (or,
+  // for reports not yet wired to real data, mock) source each report's own
+  // detail view above renders — so the exported file always matches what's
+  // currently on screen. Revenue/CAF Compliance/Inventory are real, live
+  // data; Churn/Collection/Partner & Store-wise Collection are still the
+  // static mocks those detail views themselves render (see this file's
+  // audit-trail comments above each one) — exporting them just captures
+  // that same mock snapshot, not real numbers, until those reports are
+  // wired up too.
+  function buildExportSheets(id) {
+    switch (id) {
+      case 'revenue':
+        return [
+          {
+            name: 'Revenue - Monthly',
+            rows: revenueStats.shownMonths.map(m => ({ Month: m.month, 'Revenue (₹)': m.collected })),
+          },
+          {
+            name: 'Revenue - By Plan',
+            rows: revenueByPlan.map(r => ({
+              Plan: r.plan, 'Active Customers': r.customers,
+              'Revenue (₹)': r.revenue, 'Share %': Number(r.pct.toFixed(1)),
+            })),
+          },
+        ]
+      case 'caf':
+        return [
+          {
+            name: 'CAF Summary',
+            rows: [{
+              'Total CAFs': cafStats.total, 'Compliant CAFs': cafStats.compliant,
+              'Incomplete CAFs': cafStats.incomplete, 'Compliance Rate %': Number(cafStats.complianceRate.toFixed(1)),
+              Submitted: cafStats.counts.Submitted, 'Not Yet Uploaded': cafStats.counts.Pending,
+              Rejected: cafStats.counts.Rejected,
+            }],
+          },
+          {
+            name: 'Incomplete CAFs',
+            rows: cafStats.incompleteCustomers.map(c => ({
+              'CAF No.': c.cafNo ?? c.id, Customer: c.name, Plan: c.plan ?? '—',
+              'CAF Status': c.cafStatus ?? 'Pending',
+            })),
+          },
+        ]
+      case 'churn':
+        return [{
+          name: 'Churn',
+          rows: CHURN_DATA.map(r => ({ Month: r.month, Churned: r.churned, 'New Joins': r.newJoins, Net: r.net })),
+        }]
+      case 'collection':
+        return [{
+          name: 'Collection',
+          rows: COLLECTION_DATA.map(r => ({ Month: r.month, 'Collected (₹)': r.collected, 'Pending (₹)': r.pending })),
+        }]
+      case 'partner':
+        return [{
+          name: 'Partner Collection',
+          rows: PARTNER_COLLECTION.map(r => ({
+            'Store / Partner': r.partner, 'Collected (₹)': r.collected,
+            'Pending (₹)': r.pending, 'Collection %': r.pct,
+          })),
+        }]
+      case 'inventory':
+        return [
+          {
+            name: 'Inventory by Category',
+            rows: inventoryStats.byCategory.map(c => ({
+              Category: c.category, 'SKUs': c.productCount,
+              'Available Qty': c.availableQty, 'Low Stock SKUs': c.lowStockCount,
+            })),
+          },
+          {
+            name: 'Inventory - Products',
+            rows: inventoryStats.byCategory.flatMap(c => c.products.map(({ product, availableQty, lowStock }) => ({
+              Category: c.category, Product: product.name, SKU: product.sku || '',
+              Type: product.productType, 'Available Qty': formatAvailableQty(product, availableQty),
+              Status: lowStock ? 'Low Stock' : 'In Stock',
+            }))),
+          },
+        ]
+      default:
+        return []
+    }
+  }
+
+  function handleExport() {
+    if (!activeAllowed) {
+      // List view (or no permitted report currently open) — one workbook
+      // with every report the current role can view, each as its own
+      // sheet(s), rather than requiring a separate export click per report.
+      exportWorkbook('Reports.xlsx', visibleReportCards.flatMap(card => buildExportSheets(card.id)))
+      return
+    }
+    exportWorkbook(`${activeCard.title.replace(/[^\w]+/g, '_')}.xlsx`, buildExportSheets(active))
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -733,7 +856,7 @@ export default function Reports() {
           )}
           <div>
             <h1 className="text-xl font-bold text-gray-900">
-              {active ? activeCard?.title : 'Reports'}
+              {active ? (activeCard?.title ?? 'Access restricted') : 'Reports'}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {active ? 'Detailed analytics view' : 'Business analytics and performance reports'}
@@ -749,7 +872,9 @@ export default function Reports() {
             <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className="w-36 text-xs py-1.5" />
           </div>
-          <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export Excel</Button>
+          {canExport && (active ? activeAllowed : visibleReportCards.length > 0) && (
+            <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExport}>Export Excel</Button>
+          )}
         </div>
       </div>
 
@@ -783,9 +908,16 @@ export default function Reports() {
       )}
 
       {/* Report cards grid */}
-      {!active && (
+      {!active && visibleReportCards.length === 0 && (
+        <div className="bg-white rounded-xl p-10 shadow-card border border-surface-border text-center">
+          <Lock size={28} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-gray-900">No reports available</p>
+          <p className="text-xs text-gray-500 mt-1">Your role doesn't have permission to view any reports. Contact an admin if you need access.</p>
+        </div>
+      )}
+      {!active && visibleReportCards.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
-          {reportCards.map(card => {
+          {visibleReportCards.map(card => {
             const Icon = card.icon
             return (
               <button key={card.id} onClick={() => setActive(card.id)}
@@ -810,7 +942,14 @@ export default function Reports() {
       )}
 
       {/* Detail view */}
-      {active && DetailView && (
+      {active && !activeAllowed && (
+        <div className="bg-white rounded-xl p-10 shadow-card border border-surface-border text-center">
+          <Lock size={28} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-gray-900">Access restricted</p>
+          <p className="text-xs text-gray-500 mt-1">You don't have permission to view this report. Contact an admin if you need access.</p>
+        </div>
+      )}
+      {active && activeAllowed && DetailView && (
         <DetailView range={{ from: dateFrom, to: dateTo }} />
       )}
     </div>
