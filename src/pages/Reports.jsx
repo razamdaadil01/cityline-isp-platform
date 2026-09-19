@@ -18,6 +18,8 @@ import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueSta
 import { getProducts, subscribeProducts } from '../data/productStore'
 import { subscribeInventoryLedger } from '../data/inventoryLedger'
 import { computeInventoryByCategory, formatAvailableQty } from '../utils/inventoryStats'
+import { getInvoices, getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
+import { computeCollectionByMonth } from '../utils/collectionStats'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportWorkbook } from '../utils/excelExport'
 
@@ -69,15 +71,6 @@ const CHURN_DATA = [
   { month: 'Mar', churned: 11, newJoins: 38, net: 27 },
   { month: 'Apr', churned: 14, newJoins: 31, net: 17 },
   { month: 'May', churned: 6,  newJoins: 14, net: 8  },
-]
-
-const COLLECTION_DATA = [
-  { month: 'Dec', collected: 398000, pending: 14000 },
-  { month: 'Jan', collected: 382000, pending: 13000 },
-  { month: 'Feb', collected: 415000, pending: 13000 },
-  { month: 'Mar', collected: 441000, pending: 10000 },
-  { month: 'Apr', collected: 425000, pending: 13000 },
-  { month: 'May', collected: 118000, pending: 6500  },
 ]
 
 const PARTNER_COLLECTION = [
@@ -419,14 +412,38 @@ function ChurnDetail() {
   )
 }
 
+// Self-contained, live-subscribed detail view (same pattern as
+// RevenueDetail/CAFDetail above) — collected side reuses
+// computeRevenueByMonth() (src/utils/revenueStats.js, via
+// computeCollectionByMonth()), the exact same real, live paymentsStore.js
+// aggregation the Revenue Report uses; pending side reads invoicesStore.js
+// directly (getOutstandingInvoices()/getOutstandingTotal()), the same real
+// functions Dashboard.jsx's own "Overdue Payments" widget already uses, so
+// neither disagrees with the other.
 function CollectionDetail() {
+  const [payments, setPayments] = useState(getPayments)
+  useEffect(() => subscribePayments(setPayments), [])
+  const [invoices, setInvoices] = useState(getInvoices)
+  useEffect(() => subscribeInvoices(setInvoices), [])
+
+  const byMonth = useMemo(() => computeCollectionByMonth(payments, invoices), [payments, invoices])
+  const shownMonths = useMemo(
+    () => (byMonth.length <= REVENUE_MONTHS_SHOWN ? byMonth : byMonth.slice(-REVENUE_MONTHS_SHOWN)),
+    [byMonth]
+  )
+  const periodCollected = useMemo(() => shownMonths.reduce((sum, m) => sum + m.collected, 0), [shownMonths])
+  const outstandingInvoices = useMemo(() => getOutstandingInvoices(), [invoices])
+  const outstandingTotal = useMemo(() => getOutstandingTotal(), [invoices])
+  const collectionRate = (periodCollected + outstandingTotal) === 0
+    ? 0 : (periodCollected / (periodCollected + outstandingTotal)) * 100
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Collected (6m)',    value: '₹21,79,000', color: 'text-green-600' },
-          { label: 'Pending (6m)',      value: '₹69,500',    color: 'text-amber-600' },
-          { label: 'Collection Rate',  value: '96.9%',       color: 'text-brand-blue' },
+          { label: `Collected (${shownMonths.length || REVENUE_MONTHS_SHOWN}m)`, value: `₹${periodCollected.toLocaleString('en-IN')}`, color: 'text-green-600' },
+          { label: 'Pending (Outstanding)', value: `₹${outstandingTotal.toLocaleString('en-IN')}`, color: 'text-amber-600' },
+          { label: 'Collection Rate', value: `${collectionRate.toFixed(1)}%`, color: 'text-brand-blue' },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -434,20 +451,59 @@ function CollectionDetail() {
           </div>
         ))}
       </div>
+
       <div className="bg-white rounded-xl border border-surface-border p-5">
         <h4 className="text-sm font-semibold text-gray-800 mb-4">Monthly Collection vs Pending</h4>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={COLLECTION_DATA} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-              tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`]} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="collected" name="Collected" fill="#059669" radius={[4,4,0,0]} />
-            <Bar dataKey="pending"   name="Pending"   fill="#E8541A" radius={[4,4,0,0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        {shownMonths.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-16">No payments or invoices recorded yet.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={shownMonths} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
+                tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
+              <Tooltip formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`]} />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="collected" name="Collected" fill="#059669" radius={[4,4,0,0]} />
+              <Bar dataKey="pending"   name="Pending"   fill="#E8541A" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+        <p className="text-[11px] text-gray-400 mt-3">
+          Pending amounts reflect aggregate invoice data, not per-customer billing records.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-surface-border flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-gray-800">Outstanding Invoices</h4>
+          <Badge variant="yellow" size="sm">{outstandingInvoices.length} pending</Badge>
+        </div>
+        {outstandingInvoices.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No outstanding invoices.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['Invoice No.', 'Package', 'Date', 'Amount (₹)', 'Status'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {outstandingInvoices.map(inv => (
+                <tr key={inv.no} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{inv.no}</td>
+                  <td className="px-4 py-3 text-gray-700">{inv.pkg}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{inv.date}</td>
+                  <td className="px-4 py-3 font-semibold text-amber-600">₹{inv.amount.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3"><Badge variant="yellow" size="sm" className="capitalize">{inv.status}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
@@ -687,6 +743,27 @@ export default function Reports() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, inventoryLedgerTick])
 
+  // Real collection stats (paymentsStore.js/invoicesStore.js via
+  // collectionStats.js — same computeCollectionByMonth() this page's own
+  // CollectionDetail uses, and the same getOutstandingInvoices()/
+  // getOutstandingTotal() Dashboard.jsx's "Overdue Payments" widget
+  // already reads), overriding just the 'collection' card's static value/
+  // sub/badge so it can never disagree with either of those.
+  const [invoices, setInvoices] = useState(getInvoices)
+  useEffect(() => subscribeInvoices(setInvoices), [])
+  const collectionByMonth = useMemo(() => computeCollectionByMonth(payments, invoices), [payments, invoices])
+  const collectionStats = useMemo(() => {
+    const shownMonths = collectionByMonth.length <= REVENUE_MONTHS_SHOWN
+      ? collectionByMonth : collectionByMonth.slice(-REVENUE_MONTHS_SHOWN)
+    const periodCollected = shownMonths.reduce((sum, m) => sum + m.collected, 0)
+    const outstandingInvoices = getOutstandingInvoices()
+    const outstandingTotal = getOutstandingTotal()
+    const collectionRate = (periodCollected + outstandingTotal) === 0
+      ? 0 : (periodCollected / (periodCollected + outstandingTotal)) * 100
+    return { shownMonths, monthsCounted: shownMonths.length, periodCollected, outstandingInvoices, outstandingTotal, collectionRate }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionByMonth, invoices])
+
   // Granular Reports permissions (rolesStore.js's MODULE_MICRO_PERMISSIONS.
   // Reports) — defined there with role presets but never read anywhere
   // until now, so every role saw and could open/export all 6 reports
@@ -736,8 +813,18 @@ export default function Reports() {
           : { label: 'All in stock', variant: 'green' },
       }
     }
+    if (card.id === 'collection') {
+      return {
+        ...card,
+        value: `${collectionStats.collectionRate.toFixed(1)}%`,
+        sub: 'Collection efficiency',
+        badge: collectionStats.outstandingTotal > 0
+          ? { label: `₹${collectionStats.outstandingTotal.toLocaleString('en-IN')} pending`, variant: 'orange' }
+          : { label: 'Fully collected', variant: 'green' },
+      }
+    }
     return card
-  }), [cafStats, revenueStats, inventoryStats])
+  }), [cafStats, revenueStats, inventoryStats, collectionStats])
 
   // Cards the current user's role can't view are left out of the grid
   // entirely — not rendered greyed-out/disabled — same convention as every
@@ -750,8 +837,8 @@ export default function Reports() {
   // Export sheets for one report, built from the exact same real (or,
   // for reports not yet wired to real data, mock) source each report's own
   // detail view above renders — so the exported file always matches what's
-  // currently on screen. Revenue/CAF Compliance/Inventory are real, live
-  // data; Churn/Collection/Partner & Store-wise Collection are still the
+  // currently on screen. Revenue/CAF Compliance/Inventory/Collection are
+  // real, live data; Churn/Partner & Store-wise Collection are still the
   // static mocks those detail views themselves render (see this file's
   // audit-trail comments above each one) — exporting them just captures
   // that same mock snapshot, not real numbers, until those reports are
@@ -797,10 +884,21 @@ export default function Reports() {
           rows: CHURN_DATA.map(r => ({ Month: r.month, Churned: r.churned, 'New Joins': r.newJoins, Net: r.net })),
         }]
       case 'collection':
-        return [{
-          name: 'Collection',
-          rows: COLLECTION_DATA.map(r => ({ Month: r.month, 'Collected (₹)': r.collected, 'Pending (₹)': r.pending })),
-        }]
+        return [
+          {
+            name: 'Collection - Monthly',
+            rows: collectionStats.shownMonths.map(m => ({
+              Month: m.month, 'Collected (₹)': m.collected, 'Pending (₹)': m.pending,
+            })),
+          },
+          {
+            name: 'Outstanding Invoices',
+            rows: collectionStats.outstandingInvoices.map(inv => ({
+              'Invoice No.': inv.no, Package: inv.pkg, Date: inv.date,
+              'Amount (₹)': inv.amount, Status: inv.status,
+            })),
+          },
+        ]
       case 'partner':
         return [{
           name: 'Partner Collection',
