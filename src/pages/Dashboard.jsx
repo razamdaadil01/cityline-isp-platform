@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell,
@@ -14,17 +15,18 @@ import Button from '../components/ui/Button'
 import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
 import { getPayments, subscribePayments } from '../data/paymentsStore'
 import { getTickets, subscribeTickets, CLOSED_STATUSES } from '../data/ticketsStore'
+import { getLeads, subscribeLeads } from '../data/leadsStore'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-// Key Metrics stat cards (STAT_CARD_META below) and the Connection Mix/
-// Service pills further down are the only two sections wired to real,
-// live-subscribed data so far — see Dashboard() itself for the real
-// customers/payments/tickets computation. Every other section on this page
-// (Revenue Overview, Renewal Forecast, Today's Collections, Sales Lead
-// Pipeline, CAF Compliance, Jaze Network Status, Support Overview, Recent
-// Open Tickets) is still the original static mock, per a prior audit —
-// follow-up tasks, not done here.
+// Key Metrics stat cards (STAT_CARD_META below), the Connection Mix/
+// Service pills, Today's Collections, and Sales Lead Pipeline are wired to
+// real, live-subscribed data so far — see Dashboard() itself for the real
+// customers/payments/tickets/leads computation. Every other section on
+// this page (Revenue Overview, Renewal Forecast, CAF Compliance, Jaze
+// Network Status, Support Overview, Recent Open Tickets) is still the
+// original static mock, per a prior audit — follow-up tasks, not done
+// here.
 
 // A customer's `plan` string always starts with its connection-technology
 // keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
@@ -107,21 +109,40 @@ const RENEWAL_FORECAST = [
   { period: 'This Month', count: 412, amount: '₹5,15,000', status: 'normal' },
 ]
 
-const TODAYS_COLLECTIONS = [
-  { time: '09:12 AM', customer: 'Rajan Mehta', plan: 'FTTH 100Mbps', amount: '₹699', mode: 'UPI' },
-  { time: '09:34 AM', customer: 'Priya Sharma', plan: 'FTTB 50Mbps', amount: '₹499', mode: 'Cash' },
-  { time: '10:05 AM', customer: 'Suresh Kumar', plan: 'Wireless 25Mbps', amount: '₹399', mode: 'Card' },
-  { time: '10:47 AM', customer: 'Anita Desai', plan: 'FTTH 200Mbps', amount: '₹999', mode: 'UPI' },
-  { time: '11:15 AM', customer: 'Vikram Singh', plan: 'P2P 1Gbps', amount: '₹4,500', mode: 'NEFT' },
-]
+// Today's Collections' time column comes from paymentsStore.js's own
+// `date` field — "DD-MM-YYYY HH:MM:SS" (AddPayment.jsx's
+// `${dateOnly} ${timeStr}`, timeStr from toLocaleTimeString('en-GB')) —
+// reformatted to a friendly 12-hour clock rather than shown raw.
+function formatPaymentTime(payment) {
+  const timePart = (payment.date || '').split(' ')[1]
+  if (!timePart) return ''
+  const [h, m] = timePart.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`
+}
 
-const LEAD_PIPELINE = [
-  { stage: 'New Inquiry', count: 18, color: 'bg-blue-500' },
-  { stage: 'Site Survey', count: 11, color: 'bg-purple-500' },
-  { stage: 'Quotation Sent', count: 7, color: 'bg-amber-500' },
-  { stage: 'Negotiation', count: 4, color: 'bg-orange-500' },
-  { stage: 'CAF Submitted', count: 3, color: 'bg-emerald-500' },
-]
+// Won/Lost are terminal outcomes (see pipelineStore.js's own stage
+// statusType), not "still in the pipeline" — excluded so a closed-out lead
+// doesn't inflate the funnel this widget is meant to show.
+const CLOSED_LEAD_STAGES = ['Won', 'Lost']
+const LEAD_STAGE_COLORS = ['bg-blue-500', 'bg-purple-500', 'bg-amber-500', 'bg-orange-500', 'bg-emerald-500', 'bg-teal-500', 'bg-pink-500', 'bg-cyan-500']
+
+// Real lead `stage` values vary by pipeline (Residential/Enterprise/any
+// custom pipeline in pipelineStore.js each define their own stage names),
+// so there's no single fixed funnel order across all of them the way the
+// old static LEAD_PIPELINE assumed — stages are ranked by how many leads
+// are actually in them (busiest first) instead.
+function computeLeadPipeline(leads) {
+  const counts = new Map()
+  leads.forEach(l => {
+    if (CLOSED_LEAD_STAGES.includes(l.stage)) return
+    counts.set(l.stage, (counts.get(l.stage) || 0) + 1)
+  })
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([stage, count], i) => ({ stage, count, color: LEAD_STAGE_COLORS[i % LEAD_STAGE_COLORS.length] }))
+}
 
 const CAF_COMPLIANCE = [
   { label: 'CAF Submitted', value: 312, total: 350, color: '#0A8DCD' },
@@ -204,6 +225,8 @@ function RevenueTooltip({ active, payload, label }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const navigate = useNavigate()
+
   // Same getAllCustomers()-refetch pattern as Customers.jsx — subscribeCustomers()'s
   // own payload is only the dynamically-added customers, not the full merged
   // list, so every callback re-reads getAllCustomers() itself rather than
@@ -217,26 +240,55 @@ export default function Dashboard() {
   const [tickets, setTickets] = useState(getTickets)
   useEffect(() => subscribeTickets(setTickets), [])
 
+  const [leads, setLeads] = useState(getLeads)
+  useEffect(() => subscribeLeads(setLeads), [])
+
+  // "Today" in both formats this app's stores actually use — DD-MM-YYYY
+  // for paymentsStore.js's paymentDate, ISO for customersData.js's expiry.
+  const todayDMY = new Date().toLocaleDateString('en-GB').split('/').join('-')
+  const todayISO = new Date().toISOString().slice(0, 10)
+
   const activeCustomers = useMemo(
     () => customers.filter(c => effectiveStatus(c) === 'active'),
     [customers]
   )
   const serviceMix = useMemo(() => computeServiceMix(activeCustomers), [activeCustomers])
 
-  const statValues = useMemo(() => {
-    const todayDMY = new Date().toLocaleDateString('en-GB').split('/').join('-') // matches AddPayment.jsx's own paymentDate format
-    const todayISO = new Date().toISOString().slice(0, 10)
-    return {
-      totalCustomers: customers.length,
-      activeConnections: activeCustomers.length,
-      inactiveSuspended: customers.filter(c => ['inactive', 'suspended'].includes(effectiveStatus(c))).length,
-      todaysCollection: payments
-        .filter(p => p.paymentDate === todayDMY)
-        .reduce((sum, p) => sum + (Number(p.paid ?? p.total) || 0), 0),
-      openTickets: tickets.filter(t => !CLOSED_STATUSES.includes(t.status)).length,
-      renewalsDueToday: customers.filter(c => c.expiry === todayISO).length,
-    }
-  }, [customers, activeCustomers, payments, tickets])
+  const statValues = useMemo(() => ({
+    totalCustomers: customers.length,
+    activeConnections: activeCustomers.length,
+    inactiveSuspended: customers.filter(c => ['inactive', 'suspended'].includes(effectiveStatus(c))).length,
+    todaysCollection: payments
+      .filter(p => p.paymentDate === todayDMY)
+      .reduce((sum, p) => sum + (Number(p.paid ?? p.total) || 0), 0),
+    openTickets: tickets.filter(t => !CLOSED_STATUSES.includes(t.status)).length,
+    renewalsDueToday: customers.filter(c => c.expiry === todayISO).length,
+  }), [customers, activeCustomers, payments, tickets, todayDMY, todayISO])
+
+  // Chronological (earliest first) — payment.date's "DD-MM-YYYY HH:MM:SS"
+  // sorts correctly by plain string comparison once every row shares the
+  // same date prefix (guaranteed by the todayDMY filter below).
+  const todaysPayments = useMemo(() => {
+    return payments
+      .filter(p => p.paymentDate === todayDMY)
+      .slice()
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+      .map(p => {
+        const customer = customers.find(c => c.id === p.customerId)
+        return {
+          id: p.id,
+          customer: customer?.name ?? p.customerId,
+          plan: customer?.plan ?? '—',
+          amount: Number(p.paid ?? p.total) || 0,
+          mode: p.mode,
+          time: formatPaymentTime(p),
+        }
+      })
+  }, [payments, customers, todayDMY])
+
+  const leadPipeline = useMemo(() => computeLeadPipeline(leads), [leads])
+  const maxStageCount = Math.max(1, ...leadPipeline.map(s => s.count))
+  const totalLeadsInPipeline = leadPipeline.reduce((sum, s) => sum + s.count, 0)
 
   return (
     <div className="p-6 space-y-6">
@@ -417,57 +469,65 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-xs text-gray-400">Total</p>
-              <p className="text-sm font-bold text-emerald-600">₹1,24,500</p>
+              <p className="text-sm font-bold text-emerald-600">₹{statValues.todaysCollection.toLocaleString('en-IN')}</p>
             </div>
-            <Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />}>View All</Button>
+            <Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />} onClick={() => navigate('/billing/payment-history')}>View All</Button>
           </div>
         }>
-          <div className="space-y-3">
-            {TODAYS_COLLECTIONS.map((c, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
-                  <IndianRupee size={14} className="text-emerald-600" />
+          {todaysPayments.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No payments recorded yet today.</p>
+          ) : (
+            <div className="space-y-3">
+              {todaysPayments.map((c) => (
+                <div key={c.id} className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
+                    <IndianRupee size={14} className="text-emerald-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{c.customer}</p>
+                    <p className="text-xs text-gray-400">{c.plan} · {c.time}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-gray-900">₹{c.amount.toLocaleString('en-IN')}</p>
+                    <Badge variant={c.mode === 'UPI' ? 'blue' : c.mode === 'Cash' ? 'green' : c.mode === 'Card' ? 'purple' : 'navy'} size="sm">
+                      {c.mode}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{c.customer}</p>
-                  <p className="text-xs text-gray-400">{c.plan} · {c.time}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-gray-900">{c.amount}</p>
-                  <Badge variant={c.mode === 'UPI' ? 'blue' : c.mode === 'Cash' ? 'green' : c.mode === 'Card' ? 'purple' : 'navy'} size="sm">
-                    {c.mode}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </WidgetCard>
       </div>
 
       {/* Row: Lead Pipeline + CAF Compliance + Jaze Status */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lead Pipeline */}
-        <WidgetCard title="Sales Lead Pipeline" action={<Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />}>View</Button>}>
-          <div className="space-y-3">
-            {LEAD_PIPELINE.map((stage) => (
-              <div key={stage.stage} className="flex items-center gap-3">
-                <div className="w-32 shrink-0">
-                  <p className="text-xs text-gray-600 font-medium truncate">{stage.stage}</p>
-                </div>
-                <div className="flex-1 h-6 bg-gray-100 rounded-lg overflow-hidden relative">
-                  <div
-                    className={`h-full ${stage.color} rounded-lg flex items-center justify-end pr-2 transition-all`}
-                    style={{ width: `${Math.round((stage.count / 18) * 100)}%` }}
-                  >
-                    <span className="text-white text-xs font-bold">{stage.count}</span>
+        <WidgetCard title="Sales Lead Pipeline" action={<Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />} onClick={() => navigate('/sales')}>View</Button>}>
+          {leadPipeline.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No leads currently in the pipeline.</p>
+          ) : (
+            <div className="space-y-3">
+              {leadPipeline.map((stage) => (
+                <div key={stage.stage} className="flex items-center gap-3">
+                  <div className="w-32 shrink-0">
+                    <p className="text-xs text-gray-600 font-medium truncate">{stage.stage}</p>
+                  </div>
+                  <div className="flex-1 h-6 bg-gray-100 rounded-lg overflow-hidden relative">
+                    <div
+                      className={`h-full ${stage.color} rounded-lg flex items-center justify-end pr-2 transition-all`}
+                      style={{ width: `${Math.round((stage.count / maxStageCount) * 100)}%` }}
+                    >
+                      <span className="text-white text-xs font-bold">{stage.count}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <div className="mt-4 pt-4 border-t border-surface-border flex items-center justify-between">
             <p className="text-xs text-gray-500">Total leads in pipeline</p>
-            <span className="text-lg font-bold text-gray-900">43</span>
+            <span className="text-lg font-bold text-gray-900">{totalLeadsInPipeline}</span>
           </div>
         </WidgetCard>
 
