@@ -15,6 +15,9 @@ import { Input, Select } from '../components/ui/FormInputs'
 import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/customersData'
 import { getPayments, subscribePayments } from '../data/paymentsStore'
 import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueStats'
+import { getProducts, subscribeProducts } from '../data/productStore'
+import { subscribeInventoryLedger } from '../data/inventoryLedger'
+import { computeInventoryByCategory, formatAvailableQty } from '../utils/inventoryStats'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
@@ -83,13 +86,21 @@ const PARTNER_COLLECTION = [
   { partner: 'Borivali Store',  collected: 89000,  pending: 6500,  pct: 93 },
 ]
 
-const INV_CATEGORY_DATA = [
-  { name: 'CPE',        value: 165, fill: '#0A8DCD' },
-  { name: 'Router',     value: 75,  fill: '#0F2744' },
-  { name: 'Fiber',      value: 200, fill: '#059669' },
-  { name: 'Hardware',   value: 95,  fill: '#E8541A' },
-  { name: 'Networking', value: 78,  fill: '#7c3aed' },
-]
+// Display colors for productTaxonomyStore.js's real seeded categories (ONT,
+// Router, Cable, Network Accessories, Splicing & Termination) plus the
+// "Unclassified" bucket computeInventoryByCategory() groups legacy,
+// pre-taxonomy products into — any category added later via Product
+// Taxonomy's admin UI still renders (falls back to CATEGORY_COLOR_FALLBACK)
+// rather than being dropped for having no color assigned.
+const CATEGORY_COLORS = {
+  ONT: '#0A8DCD',
+  Router: '#0F2744',
+  Cable: '#059669',
+  'Network Accessories': '#E8541A',
+  'Splicing & Termination': '#7c3aed',
+  Unclassified: '#94a3b8',
+}
+const CATEGORY_COLOR_FALLBACK = '#64748b'
 
 // ── Report Cards ──────────────────────────────────────────────────────────────
 
@@ -479,14 +490,34 @@ function PartnerDetail() {
   )
 }
 
+// Self-contained, live-subscribed detail view (same pattern as
+// RevenueDetail/CAFDetail above) — reuses computeInventoryByCategory()
+// (src/utils/inventoryStats.js), the exact same category rollup and
+// low-stock definition InventoryOverview.jsx's own summary cards/table use,
+// so this report and Inventory Overview can never disagree with each
+// other. Also subscribes to inventoryLedger.js directly (not just
+// productStore.js) since a product's availability can change from a
+// purchase/assignment/transfer/repair/scrap event without the product
+// master record itself changing.
 function InventoryReportDetail() {
+  const [products, setProducts] = useState(getProducts)
+  useEffect(() => subscribeProducts(setProducts), [])
+  const [ledgerTick, setLedgerTick] = useState(0)
+  useEffect(() => subscribeInventoryLedger(() => setLedgerTick(n => n + 1)), [])
+
+  const byCategory = useMemo(() => computeInventoryByCategory(products), [products, ledgerTick])
+  const totalLowStock = useMemo(() => byCategory.reduce((sum, c) => sum + c.lowStockCount, 0), [byCategory])
+
+  const [selectedCategory, setSelectedCategory] = useState(null)
+  const activeCategory = byCategory.find(c => c.category === selectedCategory) ?? byCategory[0] ?? null
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Units In Stock', value: '613',  color: 'text-brand-blue' },
-          { label: 'Low / Critical SKUs', value: '6',    color: 'text-amber-600' },
-          { label: 'Total SKUs Tracked',  value: '10',   color: 'text-gray-900' },
+          { label: 'Total SKUs Tracked', value: products.length.toLocaleString('en-IN'), color: 'text-gray-900' },
+          { label: 'Low Stock SKUs',     value: totalLowStock.toLocaleString('en-IN'),    color: totalLowStock > 0 ? 'text-amber-600' : 'text-emerald-600' },
+          { label: 'Categories',         value: byCategory.length.toLocaleString('en-IN'), color: 'text-brand-blue' },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -494,36 +525,89 @@ function InventoryReportDetail() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-surface-border p-5">
-          <h4 className="text-sm font-semibold text-gray-800 mb-4">Stock by Category</h4>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={INV_CATEGORY_DATA} dataKey="value" nameKey="name"
-                cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`}
-                labelLine={false} fontSize={11}>
-                {INV_CATEGORY_DATA.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="bg-white rounded-xl border border-surface-border p-5">
-          <h4 className="text-sm font-semibold text-gray-800 mb-3">Category Breakdown</h4>
-          <div className="space-y-3">
-            {INV_CATEGORY_DATA.map(c => (
-              <div key={c.name} className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ background: c.fill }} />
-                <span className="text-sm text-gray-700 flex-1">{c.name}</span>
-                <span className="text-sm font-semibold text-gray-900">{c.value}</span>
-                <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(c.value / 200) * 100}%`, background: c.fill }} />
-                </div>
+
+      {byCategory.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-16">No products tracked yet.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl border border-surface-border p-5">
+              <h4 className="text-sm font-semibold text-gray-800 mb-4">Stock by Category</h4>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={byCategory} dataKey="availableQty" nameKey="category"
+                    cx="50%" cy="50%" outerRadius={80} label={({ category, availableQty }) => `${category}: ${availableQty}`}
+                    labelLine={false} fontSize={11}>
+                    {byCategory.map(c => <Cell key={c.category} fill={CATEGORY_COLORS[c.category] ?? CATEGORY_COLOR_FALLBACK} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-white rounded-xl border border-surface-border p-5">
+              <h4 className="text-sm font-semibold text-gray-800 mb-3">Category Breakdown</h4>
+              <p className="text-xs text-gray-400 mb-3">Select a category to view its products below.</p>
+              <div className="space-y-1">
+                {byCategory.map(c => {
+                  const maxQty = Math.max(1, ...byCategory.map(x => x.availableQty))
+                  const color = CATEGORY_COLORS[c.category] ?? CATEGORY_COLOR_FALLBACK
+                  const isActive = activeCategory?.category === c.category
+                  return (
+                    <button key={c.category} onClick={() => setSelectedCategory(c.category)}
+                      className={`w-full flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isActive ? 'bg-brand-blue/5 ring-1 ring-brand-blue/30' : 'hover:bg-gray-50'}`}>
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
+                      <span className="text-sm text-gray-700 flex-1">{c.category}</span>
+                      {c.lowStockCount > 0 && (
+                        <Badge variant="yellow" size="sm">{c.lowStockCount} low</Badge>
+                      )}
+                      <span className="text-sm font-semibold text-gray-900 w-14 text-right">{c.availableQty.toLocaleString('en-IN')}</span>
+                      <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${(c.availableQty / maxQty) * 100}%`, background: color }} />
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      </div>
+
+          <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-surface-border flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-800">{activeCategory?.category} — Products</h4>
+              <Badge variant="blue" size="sm">{activeCategory?.productCount ?? 0} SKUs</Badge>
+            </div>
+            {!activeCategory || activeCategory.products.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">No products in this category.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50/60 border-b border-surface-border">
+                    {['Product', 'SKU', 'Type', 'Available Qty', 'Status'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {activeCategory.products.map(({ product, availableQty, lowStock }) => (
+                    <tr key={product.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 font-medium text-gray-800">{product.name}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs font-mono">{product.sku || '—'}</td>
+                      <td className="px-4 py-3"><Badge variant={product.productType === 'wire' ? 'orange' : 'blue'} size="sm" className="capitalize">{product.productType}</Badge></td>
+                      <td className="px-4 py-3">
+                        <span className={`font-semibold text-xs ${lowStock ? 'text-red-600' : 'text-gray-800'}`}>{formatAvailableQty(product, availableQty)}</span>
+                        {lowStock && <AlertCircle size={12} className="inline-block ml-1.5 text-amber-500" />}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={lowStock ? 'yellow' : 'green'} size="sm">{lowStock ? 'Low Stock' : 'In Stock'}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -583,6 +667,22 @@ export default function Reports() {
     }
   }, [payments, customers])
 
+  // Real inventory stats (productStore.js/inventoryLedger.js via
+  // inventoryStats.js — same computeInventoryByCategory() this page's own
+  // InventoryReportDetail and InventoryOverview.jsx use), overriding just
+  // the 'inventory' card's static value/sub/badge so it can never disagree
+  // with either of those.
+  const [products, setProducts] = useState(getProducts)
+  useEffect(() => subscribeProducts(setProducts), [])
+  const [inventoryLedgerTick, setInventoryLedgerTick] = useState(0)
+  useEffect(() => subscribeInventoryLedger(() => setInventoryLedgerTick(n => n + 1)), [])
+  const inventoryStats = useMemo(() => {
+    const byCategory = computeInventoryByCategory(products)
+    const lowStockCount = byCategory.reduce((sum, c) => sum + c.lowStockCount, 0)
+    return { totalProducts: products.length, categoryCount: byCategory.length, lowStockCount }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, inventoryLedgerTick])
+
   const reportCards = useMemo(() => REPORT_CARDS.map(card => {
     if (card.id === 'caf') {
       return {
@@ -604,8 +704,18 @@ export default function Reports() {
           : { label: 'No payments this month', variant: 'gray' },
       }
     }
+    if (card.id === 'inventory') {
+      return {
+        ...card,
+        value: `${inventoryStats.totalProducts.toLocaleString('en-IN')} SKUs`,
+        sub: `Across ${inventoryStats.categoryCount} categor${inventoryStats.categoryCount === 1 ? 'y' : 'ies'}`,
+        badge: inventoryStats.lowStockCount > 0
+          ? { label: `${inventoryStats.lowStockCount} low stock`, variant: 'red' }
+          : { label: 'All in stock', variant: 'green' },
+      }
+    }
     return card
-  }), [cafStats, revenueStats])
+  }), [cafStats, revenueStats, inventoryStats])
 
   const activeCard = reportCards.find(c => c.id === active)
   const DetailView = active ? DETAIL_VIEWS[active] : null

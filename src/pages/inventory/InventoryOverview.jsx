@@ -22,6 +22,7 @@ import { getScraps } from '../../data/scrapStore'
 import { getTickets } from '../../data/ticketsStore'
 import { exportWorkbook } from '../../utils/excelExport'
 import { logAudit } from '../../data/auditLogStore'
+import { formatAvailableQty, isLowStock } from '../../utils/inventoryStats'
 
 const CURRENT_USER = 'Admin User'
 
@@ -38,10 +39,6 @@ const OVERVIEW_TABLE_COLUMNS = [
   { key: 'status',     label: 'Status',                visible: true, defaultVisible: true },
   { key: 'actions',    label: 'Actions',                visible: true, defaultVisible: true },
 ]
-
-function formatAvailable(product, qty) {
-  return product.productType === 'wire' ? `${qty.toLocaleString('en-IN')} m` : qty.toLocaleString('en-IN')
-}
 
 function productMatchesSearch(product, units, drums, q) {
   if (!q) return true
@@ -504,7 +501,7 @@ function DiscrepancyModal({ isOpen, onClose, product, allProducts, stores }) {
             </Select>
           </FormField>
           <FormField label="System Qty" hint="Read-only — the current Available Qty from Inventory Overview">
-            <Input disabled value={systemQty == null ? '' : formatAvailable(selectedProduct, systemQty)} placeholder="Select a product and store" />
+            <Input disabled value={systemQty == null ? '' : formatAvailableQty(selectedProduct, systemQty)} placeholder="Select a product and store" />
           </FormField>
           <FormField label="Physical Count" required>
             <Input type="number" min="0" value={physicalCount} onChange={e => setPhysicalCount(e.target.value)} placeholder="Counted quantity" />
@@ -618,7 +615,7 @@ export default function InventoryOverview() {
 
     const assignedToEngineers = allProducts.reduce((sum, p) => sum + scopedEngineerAssigned(p.id), 0)
 
-    const lowStockCount = allProducts.filter(p => scopedAvailability(p.id) < (Number(p.reorderAlertQty) || 0)).length
+    const lowStockCount = allProducts.filter(p => isLowStock(p, scopedAvailability(p.id))).length
 
     const scrapCount = getScraps().length
 
@@ -638,7 +635,7 @@ export default function InventoryOverview() {
         const availableQty = scopedAvailability(p.id)
         const engineerQty = scopedEngineerAssigned(p.id)
         const scrapQty = getScraps().filter(s => s.productId === p.id).length
-        return { product: p, availableQty, engineerQty, scrapQty, lowStock: availableQty < (Number(p.reorderAlertQty) || 0) }
+        return { product: p, availableQty, engineerQty, scrapQty, lowStock: isLowStock(p, availableQty) }
       })
       .filter(row => !filterLowStock || row.lowStock)
       .sort((a, b) => a.product.name.localeCompare(b.product.name))
@@ -660,7 +657,7 @@ export default function InventoryOverview() {
       name: 'Stock',
       rows: rows.map(({ product, availableQty, lowStock }) => ({
         Product: product.name, SKU: product.sku || '',
-        'Available Qty': formatAvailable(product, availableQty),
+        'Available Qty': formatAvailableQty(product, availableQty),
         Store: scopeLabel, Status: lowStock ? 'Low Stock' : (product.status === 'active' ? 'Active' : 'Inactive'),
       })),
     }])
@@ -895,7 +892,7 @@ export default function InventoryOverview() {
                   {visibleCols.has('brand')       && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{product.brand || '—'}</td>}
                   {visibleCols.has('available') && (
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <span className={`font-semibold text-xs ${lowStock ? 'text-red-600' : 'text-gray-800'}`}>{formatAvailable(product, availableQty)}</span>
+                      <span className={`font-semibold text-xs ${lowStock ? 'text-red-600' : 'text-gray-800'}`}>{formatAvailableQty(product, availableQty)}</span>
                       {lowStock && <AlertTriangle size={12} className="inline-block ml-1.5 text-amber-500" />}
                     </td>
                   )}
