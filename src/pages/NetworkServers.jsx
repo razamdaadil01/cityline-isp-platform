@@ -1,26 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { RefreshCw, Users, Clock, Wifi, AlertTriangle, WifiOff } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-
-const SERVERS = [
-  { id: 1, name: 'Jaze-01', zone: 'Andheri West', type: 'Jaze', status: 'online', latency: 12, customers: 342, lastSynced: '2 min ago' },
-  { id: 2, name: 'Jaze-02', zone: 'Andheri East', type: 'Jaze', status: 'online', latency: 15, customers: 289, lastSynced: '3 min ago' },
-  { id: 3, name: 'Jaze-03', zone: 'Bandra West', type: 'Jaze', status: 'online', latency: 18, customers: 418, lastSynced: '1 min ago' },
-  { id: 4, name: 'Jaze-04', zone: 'Khar', type: 'Jaze', status: 'degraded', latency: 87, customers: 203, lastSynced: '8 min ago' },
-  { id: 5, name: 'Jaze-05', zone: 'Santacruz', type: 'Jaze', status: 'online', latency: 14, customers: 376, lastSynced: '2 min ago' },
-  { id: 6, name: 'Jaze-06', zone: 'Vile Parle', type: 'Jaze', status: 'online', latency: 11, customers: 451, lastSynced: '4 min ago' },
-  { id: 7, name: 'Jaze-07', zone: 'Goregaon', type: 'Jaze', status: 'online', latency: 22, customers: 297, lastSynced: '2 min ago' },
-  { id: 8, name: 'Jaze-08', zone: 'Malad', type: 'Jaze', status: 'offline', latency: null, customers: 0, lastSynced: '2 hrs ago' },
-  { id: 9, name: 'Jaze-09', zone: 'Kandivali', type: 'Jaze', status: 'online', latency: 19, customers: 325, lastSynced: '3 min ago' },
-  { id: 10, name: 'Jaze-10', zone: 'Borivali', type: 'Jaze', status: 'online', latency: 25, customers: 388, lastSynced: '5 min ago' },
-  { id: 11, name: 'Jaze-11', zone: 'Dahisar', type: 'Jaze', status: 'degraded', latency: 124, customers: 167, lastSynced: '12 min ago' },
-  { id: 12, name: 'Jaze-12', zone: 'Mira Road', type: 'Jaze', status: 'online', latency: 31, customers: 214, lastSynced: '2 min ago' },
-  { id: 13, name: 'IPACCAT-01', zone: 'Core Network', type: 'IPACCAT', status: 'online', latency: 8, customers: 89, lastSynced: '1 min ago' },
-  { id: 14, name: 'IPACCAT-02', zone: 'Leased Line Hub', type: 'IPACCAT', status: 'online', latency: 9, customers: 54, lastSynced: '1 min ago' },
-  { id: 15, name: 'IPACCAT-03', zone: 'Enterprise', type: 'IPACCAT', status: 'online', latency: 11, customers: 37, lastSynced: '2 min ago' },
-  { id: 16, name: 'IPACCAT-04', zone: 'ILL Segment', type: 'IPACCAT', status: 'degraded', latency: 95, customers: 22, lastSynced: '15 min ago' },
-]
+import { getJazeServers, subscribeJazeServers, updateJazeServerSync } from '../data/jazeServerStore'
 
 const STATUS_DOT = {
   online: 'bg-emerald-500',
@@ -48,7 +30,9 @@ function latencyClass(ms) {
 }
 
 export default function NetworkServers() {
-  const [servers, setServers] = useState(SERVERS)
+  const [servers, setServers] = useState(getJazeServers)
+  useEffect(() => subscribeJazeServers(setServers), [])
+
   const [syncing, setSyncing] = useState(new Set())
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -59,6 +43,11 @@ export default function NetworkServers() {
     return matchType && matchStatus
   })
 
+  // Still a simulated re-check, not a real health probe (see
+  // jazeServerStore.js's own top-of-file note) — just persisted to the
+  // shared store now instead of local-only component state, so a sync
+  // done here is reflected wherever else this data is read (e.g.
+  // Dashboard.jsx's Jaze Network Status widget).
   function handleSync(id) {
     setSyncing(prev => new Set([...prev, id]))
     setTimeout(() => {
@@ -67,11 +56,11 @@ export default function NetworkServers() {
         next.delete(id)
         return next
       })
-      setServers(prev => prev.map(s =>
-        s.id === id
-          ? { ...s, lastSynced: 'just now', latency: s.status === 'offline' ? null : Math.floor(Math.random() * 30) + 8 }
-          : s
-      ))
+      const server = servers.find(s => s.id === id)
+      updateJazeServerSync(id, {
+        lastSynced: 'just now',
+        latency: server?.status === 'offline' ? null : Math.floor(Math.random() * 30) + 8,
+      })
     }, 1800)
   }
 
@@ -80,11 +69,7 @@ export default function NetworkServers() {
     setSyncing(new Set(ids))
     setTimeout(() => {
       setSyncing(new Set())
-      setServers(prev => prev.map(s =>
-        ids.includes(s.id)
-          ? { ...s, lastSynced: 'just now' }
-          : s
-      ))
+      ids.forEach(id => updateJazeServerSync(id, { lastSynced: 'just now' }))
     }, 2200)
   }
 
@@ -99,7 +84,7 @@ export default function NetworkServers() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Jaze Network Status</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Real-time status of all 16 configured servers</p>
+          <p className="text-sm text-gray-500 mt-0.5">Real-time status of all {servers.length} configured servers</p>
         </div>
         <Button
           size="sm"
