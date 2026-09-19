@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -10,7 +10,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import {
   Search, ChevronDown, Users, ClipboardList, HeadphonesIcon, Package, Wrench,
-  Eye, Lock, MapPin, AlertTriangle,
+  Eye, Lock, MapPin, AlertTriangle, X, Route,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -24,7 +24,7 @@ import { getTickets, subscribeTickets, technicianWorkload, CLOSED_STATUSES } fro
 import { getAssignments, subscribeAssignments } from '../data/assignmentStore'
 import { getAssets, subscribeAssets } from '../data/assetStore'
 import { getAssetRepairs, subscribeAssetRepairs } from '../data/assetRepairStore'
-import { getTechnicianLocation, MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from '../data/technicianLocations'
+import { getTechnicianLocation, getTechnicianDayRoute, MAP_DEFAULT_CENTER, MAP_DEFAULT_ZOOM } from '../data/technicianLocations'
 
 // Leaflet's default marker icon URLs are computed relative to its own
 // bundled CSS in a way Vite's asset pipeline doesn't resolve on its own —
@@ -237,6 +237,10 @@ export default function TechnicianDashboard() {
   const [zoneFilter, setZoneFilter] = useState('')
   const [detailRow, setDetailRow] = useState(null)
   const [activeTab, setActiveTab] = useState('Table')
+  // Map tab's "day route" overlay — at most one technician's route shown at
+  // a time, so a second selection replaces rather than stacks with the
+  // first; picking the same technician again (or the X below) clears it.
+  const [routeTechId, setRouteTechId] = useState(null)
 
   const techStats = useMemo(() => {
     const allTickets = getTickets()
@@ -286,6 +290,12 @@ export default function TechnicianDashboard() {
   const zones = useMemo(
     () => [...new Set(technicians.map(t => t.zone).filter(Boolean))].sort(),
     [technicians]
+  )
+
+  const routeTech = routeTechId ? technicians.find(t => t.id === routeTechId) : null
+  const dayRoute = useMemo(
+    () => (routeTechId ? getTechnicianDayRoute(routeTechId) : null),
+    [routeTechId]
   )
 
   const filtered = techStats.filter(({ tech }) => {
@@ -460,6 +470,19 @@ export default function TechnicianDashboard() {
             <div className="px-5 py-3.5 border-b border-surface-border flex items-center gap-2">
               <MapPin size={15} className="text-brand-blue" />
               <h3 className="text-sm font-semibold text-gray-900">Live Location</h3>
+              {routeTech && (
+                <div className="ml-auto flex items-center gap-2">
+                  <Badge variant="yellow" size="sm">Simulated route — for demo purposes</Badge>
+                  <span className="text-xs text-gray-500">{routeTech.name}'s day route</span>
+                  <button
+                    onClick={() => setRouteTechId(null)}
+                    className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Hide route"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="h-[640px] w-full">
               <MapContainer
@@ -487,11 +510,46 @@ export default function TechnicianDashboard() {
                           <p className="font-semibold text-sm">{row.tech.name}</p>
                           <p className="text-xs text-gray-500">{row.tech.zone ?? '—'} · {row.tech.branch ?? '—'}</p>
                           <p className="text-xs mt-1">{row.activeJobCount} active job{row.activeJobCount !== 1 ? 's' : ''}</p>
+                          <button
+                            onClick={() => setRouteTechId(id => id === row.tech.id ? null : row.tech.id)}
+                            className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-blue hover:underline"
+                          >
+                            <Route size={12} />
+                            {routeTechId === row.tech.id ? 'Hide Day Route' : 'Show Day Route'}
+                          </button>
                         </Popup>
                       </Marker>
                     )
                   })}
                 </MarkerClusterGroup>
+
+                {/* Simulated "day route" overlay for one technician at a
+                    time — kept outside MarkerClusterGroup so these waypoint
+                    pins and the connecting line never get folded into the
+                    cluster count above. Purely mock data (see
+                    getTechnicianDayRoute's own comment) — not derived from
+                    any real installation/ticket record. */}
+                {dayRoute && (
+                  <>
+                    <Polyline
+                      positions={dayRoute.map(stop => [stop.lat, stop.lng])}
+                      pathOptions={{ color: '#f59e0b', weight: 3, dashArray: '6 6' }}
+                    />
+                    {dayRoute.map((stop, i) => (
+                      <CircleMarker
+                        key={i}
+                        center={[stop.lat, stop.lng]}
+                        radius={7}
+                        pathOptions={{ color: '#f59e0b', weight: 2, fillColor: '#fff', fillOpacity: 1 }}
+                      >
+                        <Popup>
+                          <p className="text-xs font-semibold text-gray-800">{stop.label}</p>
+                          <p className="text-[11px] text-gray-500">{stop.time}{routeTech ? ` · ${routeTech.name}` : ''}</p>
+                        </Popup>
+                      </CircleMarker>
+                    ))}
+                  </>
+                )}
               </MapContainer>
             </div>
             <div className="px-5 py-2 border-t border-surface-border bg-gray-50/60">
