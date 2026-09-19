@@ -150,8 +150,9 @@ const WIRE_SEED = [
 // catalogs. Seeded here so their respective CAPEX Material Cost calcs
 // (getHDDProjectCapex()/getSiteProjectCapex()) have a real Purchase Price
 // to match against instead of falling back to ₹0. "40mm PLB HDPE Duct" is
-// named to match the seeded HDD project's technicalSpecs.ductType exactly
-// (that's what HDD's matching logic searches for); "Coupler" just needs to
+// named to match the seeded HDD project's own plannedMaterials entry
+// exactly (that's what HDD's matching logic searches for — see
+// findPlannedMaterialProduct in projectStore.js); "Coupler" just needs to
 // contain the keyword "coupler". "16-Port FAT Box" and "1:16 PLC Splitter"
 // match the exact item names the seeded Site work order's requiredMaterials/
 // DPR materialConsumed rows reference (Site's matching is by exact
