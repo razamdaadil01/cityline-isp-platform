@@ -8,6 +8,8 @@ import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import Badge from '../components/ui/Badge'
 import { addCustomer, getNextCustomerId } from '../data/customersData'
+import { getStores } from '../data/storeStore'
+import { getActivePartners } from '../data/partners'
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -45,6 +47,7 @@ const INIT_FORM = {
   firstName: '', lastName: '', phone: '', email: '', dob: '', gender: '', altPhone: '',
   companyName: '', gstNo: '', poNumber: '',
   area: '', subArea: '', boxNo: '', street: '', building: '', zone: '', landmark: '', pincode: '',
+  storeId: '', partnerId: '',
   planId: '', installDate: '', staticIp: false, routerModel: '',
   aadhaarNo: '', aadhaarVerified: false, panNo: '',
 }
@@ -161,6 +164,7 @@ export default function AddCustomer() {
       if (!form.area)         e.area   = 'Please select an area'
       if (!form.street.trim()) e.street = 'Street / road is required'
       if (!form.zone)         e.zone   = 'Please select a zone'
+      if (!form.storeId)      e.storeId = 'Please select a servicing store'
     }
     if (step === 3) {
       if (!form.planId)       e.planId      = 'Please select a service plan'
@@ -239,6 +243,12 @@ export default function AddCustomer() {
       services: ['Broadband'],
       zone: form.zone,
       area: form.area,
+      storeId: form.storeId,
+      // Select values always come back as strings — partners.js's own ids
+      // are numeric (see its seed data), so this is converted back rather
+      // than saved as "2", which would silently fail every future
+      // getPartner(customer.partnerId) strict-equality lookup.
+      partnerId: form.partnerId ? Number(form.partnerId) : undefined,
       expiry,
       cafNo: caf,
       // A freshly-generated CAF starts life awaiting review, not already
@@ -352,6 +362,12 @@ export default function AddCustomer() {
 
   const subAreas    = AREAS_MAP[form.area] ?? []
   const selectedPlan = PLANS.find(p => p.id === form.planId)
+  // Real stores/partners (storeStore.js/partners.js) — every customer is
+  // assigned a servicing store (required, same as Area/Zone); a partner is
+  // only set when this customer actually came through a reseller, so it's
+  // optional and defaults to none ("Direct customer").
+  const stores = getStores().filter(s => s.status === 'active')
+  const activePartners = getActivePartners()
 
   // ── Main form ───────────────────────────────────────────────────────────────
   return (
@@ -588,6 +604,28 @@ export default function AddCustomer() {
                     onChange={e => set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="560095"
                   />
+                </FormField>
+
+                <FormField label="Servicing Store" required error={errors.storeId}
+                  hint="Which store/branch services this customer">
+                  <Select
+                    value={form.storeId}
+                    onChange={e => set('storeId', e.target.value)}
+                    error={errors.storeId}
+                  >
+                    <option value="">Select Store</option>
+                    {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
+                  </Select>
+                </FormField>
+
+                <FormField label="Partner / Reseller" hint="Only if this customer came through a partner">
+                  <Select
+                    value={form.partnerId}
+                    onChange={e => set('partnerId', e.target.value)}
+                  >
+                    <option value="">Direct customer (no partner)</option>
+                    {activePartners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </Select>
                 </FormField>
               </div>
 

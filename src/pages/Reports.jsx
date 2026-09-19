@@ -21,6 +21,9 @@ import { computeInventoryByCategory, formatAvailableQty } from '../utils/invento
 import { getInvoices, getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
 import { computeCollectionByMonth } from '../utils/collectionStats'
 import { computeChurnByMonth, countCurrentlyAtRisk } from '../utils/churnStats'
+import { getStores, subscribeStores } from '../data/storeStore'
+import { getPartners, subscribePartners } from '../data/partners'
+import { computeStoreCollection, computePartnerCollection } from '../utils/partnerStoreStats'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportWorkbook } from '../utils/excelExport'
 
@@ -64,14 +67,6 @@ function computeCafStats(customers) {
   const incompleteCustomers = customers.filter(c => (c.cafStatus ?? 'Pending') !== 'Approved')
   return { total, compliant, incomplete, complianceRate, counts, incompleteCustomers }
 }
-
-const PARTNER_COLLECTION = [
-  { partner: 'Andheri Store',   collected: 312000, pending: 18000, pct: 95 },
-  { partner: 'Bandra Store',    collected: 275000, pending: 22000, pct: 93 },
-  { partner: 'Thane Store',     collected: 198000, pending: 14000, pct: 93 },
-  { partner: 'Kurla Store',     collected: 142000, pending: 8000,  pct: 95 },
-  { partner: 'Borivali Store',  collected: 89000,  pending: 6500,  pct: 93 },
-]
 
 // Display colors for productTaxonomyStore.js's real seeded categories (ONT,
 // Router, Cable, Network Accessories, Splicing & Termination) plus the
@@ -527,41 +522,105 @@ function CollectionDetail() {
   )
 }
 
+// Self-contained, live-subscribed detail view (same pattern as
+// RevenueDetail/CAFDetail above) — reuses computeStoreCollection()/
+// computePartnerCollection() (src/utils/partnerStoreStats.js), the real
+// join between customersData.js's storeId/partnerId and each customer's
+// real paymentsStore.js payments. No "Pending"/"Collection %" columns
+// like the old mock had — there's no real per-store/per-partner pending
+// figure anywhere in this app (partnerStoreStats.js's own comment
+// explains why: invoicesStore.js has no customerId to attribute a
+// pending invoice through).
 function PartnerDetail() {
+  const [customers, setCustomers] = useState(getAllCustomers)
+  useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
+  const [payments, setPayments] = useState(getPayments)
+  useEffect(() => subscribePayments(setPayments), [])
+  const [stores, setStores] = useState(getStores)
+  useEffect(() => subscribeStores(setStores), [])
+  const [partners, setPartners] = useState(getPartners)
+  useEffect(() => subscribePartners(setPartners), [])
+
+  const storeRows = useMemo(() => computeStoreCollection(customers, payments, stores), [customers, payments, stores])
+  const partnerRows = useMemo(() => computePartnerCollection(customers, payments, partners), [customers, payments, partners])
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
         <div className="px-5 py-3.5 border-b border-surface-border">
-          <h4 className="text-sm font-semibold text-gray-800">Store-wise Collection Summary</h4>
+          <h4 className="text-sm font-semibold text-gray-800">Store-wise Collection</h4>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/60 border-b border-surface-border">
-              {['Store / Partner', 'Collected (₹)', 'Pending (₹)', 'Collection %', 'Status'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {PARTNER_COLLECTION.map(p => (
-              <tr key={p.partner} className="hover:bg-gray-50/60">
-                <td className="px-4 py-3 font-medium text-gray-800">{p.partner}</td>
-                <td className="px-4 py-3 font-semibold text-green-600">₹{p.collected.toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3 text-amber-600 font-medium">₹{p.pending.toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${p.pct}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-600 font-medium">{p.pct}%</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3"><Badge variant={p.pct >= 95 ? 'green' : 'yellow'} size="sm">{p.pct >= 95 ? 'On Target' : 'Below Target'}</Badge></td>
+        {storeRows.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No stores configured yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['Store', 'Customers', 'Collected (₹)', 'Share %'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {storeRows.map(s => (
+                <tr key={s.storeId} className="hover:bg-gray-50/60">
+                  <td className="px-4 py-3 font-medium text-gray-800">{s.storeName}</td>
+                  <td className="px-4 py-3 text-gray-700">{s.customerCount}</td>
+                  <td className="px-4 py-3 font-semibold text-green-600">₹{s.collected.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${s.pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-600 font-medium">{s.pct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
+
+      <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-surface-border">
+          <h4 className="text-sm font-semibold text-gray-800">Partner-wise Collection</h4>
+        </div>
+        {partnerRows.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">No partners configured yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['Partner', 'Customers', 'Collected (₹)', 'Share %'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {partnerRows.map(p => (
+                <tr key={p.partnerId ?? 'direct'} className="hover:bg-gray-50/60">
+                  <td className="px-4 py-3 font-medium text-gray-800">{p.partnerName}</td>
+                  <td className="px-4 py-3 text-gray-700">{p.customerCount}</td>
+                  <td className="px-4 py-3 font-semibold text-green-600">₹{p.collected.toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-brand-blue rounded-full" style={{ width: `${p.pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-600 font-medium">{p.pct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <p className="text-[11px] text-gray-400">
+        Pending/overdue amounts can't be attributed to a specific store or partner yet — invoice records in this app aren't linked to individual customers. Only real collected amounts are shown above.
+      </p>
     </div>
   )
 }
@@ -795,6 +854,22 @@ export default function Reports() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectionByMonth, invoices])
 
+  // Real partner/store collection stats (customersData.js's storeId/
+  // partnerId + paymentsStore.js via partnerStoreStats.js — same
+  // computeStoreCollection()/computePartnerCollection() this page's own
+  // PartnerDetail uses), overriding just the 'partner' card's static
+  // value/sub/badge so it can never disagree with it.
+  const [stores, setStores] = useState(getStores)
+  useEffect(() => subscribeStores(setStores), [])
+  const [partners, setPartners] = useState(getPartners)
+  useEffect(() => subscribePartners(setPartners), [])
+  const storeCollection = useMemo(() => computeStoreCollection(customers, payments, stores), [customers, payments, stores])
+  const partnerCollection = useMemo(() => computePartnerCollection(customers, payments, partners), [customers, payments, partners])
+  const partnerStoreStats = useMemo(() => {
+    const totalCollected = storeCollection.reduce((sum, s) => sum + s.collected, 0)
+    return { totalCollected, storeCount: stores.length, partnerCount: partners.length, topStore: storeCollection[0] ?? null }
+  }, [storeCollection, stores, partners])
+
   // Granular Reports permissions (rolesStore.js's MODULE_MICRO_PERMISSIONS.
   // Reports) — defined there with role presets but never read anywhere
   // until now, so every role saw and could open/export all 6 reports
@@ -865,8 +940,18 @@ export default function Reports() {
           : { label: 'No churn recorded yet', variant: 'green' },
       }
     }
+    if (card.id === 'partner') {
+      return {
+        ...card,
+        value: `₹${partnerStoreStats.totalCollected.toLocaleString('en-IN')}`,
+        sub: `${partnerStoreStats.storeCount} stores · ${partnerStoreStats.partnerCount} partners`,
+        badge: partnerStoreStats.totalCollected > 0
+          ? { label: `Top: ${partnerStoreStats.topStore?.storeName ?? '—'}`, variant: 'green' }
+          : { label: 'No collections yet', variant: 'gray' },
+      }
+    }
     return card
-  }), [cafStats, revenueStats, inventoryStats, collectionStats, churnStats, customers])
+  }), [cafStats, revenueStats, inventoryStats, collectionStats, churnStats, partnerStoreStats, customers])
 
   // Cards the current user's role can't view are left out of the grid
   // entirely — not rendered greyed-out/disabled — same convention as every
@@ -879,11 +964,7 @@ export default function Reports() {
   // Export sheets for one report, built from the exact same real (or,
   // for reports not yet wired to real data, mock) source each report's own
   // detail view above renders — so the exported file always matches what's
-  // currently on screen. Revenue/CAF Compliance/Inventory/Collection/Churn
-  // are real, live data; Partner & Store-wise Collection is still the
-  // static mock its detail view renders (see this file's audit-trail
-  // comment above it) — exporting it just captures that same mock
-  // snapshot, not real numbers, until that report is wired up too.
+  // currently on screen. All 6 reports are now real, live data.
   function buildExportSheets(id) {
     switch (id) {
       case 'revenue':
@@ -943,13 +1024,22 @@ export default function Reports() {
           },
         ]
       case 'partner':
-        return [{
-          name: 'Partner Collection',
-          rows: PARTNER_COLLECTION.map(r => ({
-            'Store / Partner': r.partner, 'Collected (₹)': r.collected,
-            'Pending (₹)': r.pending, 'Collection %': r.pct,
-          })),
-        }]
+        return [
+          {
+            name: 'Store Collection',
+            rows: storeCollection.map(s => ({
+              Store: s.storeName, Customers: s.customerCount,
+              'Collected (₹)': s.collected, 'Share %': Number(s.pct.toFixed(1)),
+            })),
+          },
+          {
+            name: 'Partner Collection',
+            rows: partnerCollection.map(p => ({
+              Partner: p.partnerName, Customers: p.customerCount,
+              'Collected (₹)': p.collected, 'Share %': Number(p.pct.toFixed(1)),
+            })),
+          },
+        ]
       case 'inventory':
         return [
           {
