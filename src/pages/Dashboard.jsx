@@ -19,6 +19,7 @@ import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../d
 import { getLeads, subscribeLeads } from '../data/leadsStore'
 import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/outagesStore'
 import { getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
+import { getJazeServers, subscribeJazeServers } from '../data/jazeServerStore'
 import { exportCsv } from '../utils/csvExport'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -31,10 +32,9 @@ import { exportCsv } from '../utils/csvExport'
 // cafStatus field on the customer record — see customersData.js's
 // CAF_STATUSES) are wired to real, live-subscribed data so far — see
 // Dashboard() itself for the real customers/payments/tickets/leads/
-// outages/invoices computation. Jaze Network Status is still the
-// original static mock, per a prior audit — it needs a genuinely new
-// backend concept that doesn't exist yet, not just wiring, so it's a
-// separate follow-up.
+// outages/invoices computation. Jaze Network Status is now wired to
+// jazeServerStore.js too — the same real, persisted store NetworkServers.jsx
+// reads/writes, so both pages show one consistent set of servers.
 
 // A customer's `plan` string always starts with its connection-technology
 // keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
@@ -236,14 +236,24 @@ function computeCafCompliance(customers) {
   return { buckets, total, approvedCount: counts.Approved, complianceRate }
 }
 
-const JAZE_STATUS = [
-  { label: 'Radius Server', status: 'online', latency: '4ms' },
-  { label: 'Billing Engine', status: 'online', latency: '12ms' },
-  { label: 'API Gateway', status: 'online', latency: '8ms' },
-  { label: 'NMS Poller', status: 'degraded', latency: '210ms' },
-  { label: 'Mail Server', status: 'online', latency: '35ms' },
-  { label: 'SMS Gateway', status: 'offline', latency: '—' },
-]
+// Real online/degraded/offline counts + a prioritized preview list for the
+// Jaze Network Status widget below — computed from jazeServerStore.js's
+// live server records (degraded/offline first, since those are the
+// actionable ones), capped so the widget stays a compact preview rather
+// than repeating NetworkServers.jsx's own full grid.
+const JAZE_PREVIEW_LIMIT = 6
+const JAZE_STATUS_RANK = { offline: 0, degraded: 1, online: 2 }
+
+function computeJazeSummary(servers) {
+  const online = servers.filter(s => s.status === 'online').length
+  const degraded = servers.filter(s => s.status === 'degraded').length
+  const offline = servers.filter(s => s.status === 'offline').length
+  const preview = servers
+    .slice()
+    .sort((a, b) => (JAZE_STATUS_RANK[a.status] ?? 3) - (JAZE_STATUS_RANK[b.status] ?? 3))
+    .slice(0, JAZE_PREVIEW_LIMIT)
+  return { online, degraded, offline, total: servers.length, preview }
+}
 
 // Metadata (label/color) for Support Overview's 5 tiles — the actual
 // `count` for each is computed live in Dashboard() below from
@@ -328,13 +338,12 @@ function RevenueTooltip({ active, payload, label }) {
 // CustomerDetail.jsx) needs one consistent column set across every row,
 // and the widgets here have wildly different native shapes (a stat card,
 // a pie breakdown, a payments list, a ticket list...), so a single wide
-// table per widget isn't realistic in one file. Jaze Network Status is
-// still mock and deliberately left out — exporting fabricated numbers as
-// if they were a real report would be dishonest.
+// table per widget isn't realistic in one file.
 function buildDashboardReportRows({
   statValues, serviceMix, activeCustomers, revenueData, renewalForecast,
   todaysPayments, leadPipeline, totalLeadsInPipeline, supportOverviewValues,
   recentTickets, activeOutages, outstandingInvoices, outstandingTotal, cafCompliance,
+  jazeSummary,
 }) {
   const rows = []
   const add = (section, metric, value) => rows.push({ Section: section, Metric: metric, Value: value })
@@ -392,6 +401,11 @@ function buildDashboardReportRows({
   cafCompliance.buckets.forEach(b => add('CAF Compliance', b.label, b.value))
   add('CAF Compliance', 'Overall Compliance Rate', `${cafCompliance.complianceRate.toFixed(1)}%`)
 
+  add('Jaze Network Status', 'Online', jazeSummary.online)
+  add('Jaze Network Status', 'Degraded', jazeSummary.degraded)
+  add('Jaze Network Status', 'Offline', jazeSummary.offline)
+  add('Jaze Network Status', 'Total Servers', jazeSummary.total)
+
   return rows
 }
 
@@ -429,6 +443,9 @@ export default function Dashboard() {
     setOutstandingInvoices(getOutstandingInvoices())
     setOutstandingTotal(getOutstandingTotal())
   }), [])
+
+  const [jazeServers, setJazeServers] = useState(getJazeServers)
+  useEffect(() => subscribeJazeServers(setJazeServers), [])
 
   // "Today" in both formats this app's stores actually use — DD-MM-YYYY
   // for paymentsStore.js's paymentDate, ISO for customersData.js's expiry.
@@ -520,6 +537,8 @@ export default function Dashboard() {
       .sort((a, b) => (severityRank[a.severity] ?? 4) - (severityRank[b.severity] ?? 4))
   }, [outages])
 
+  const jazeSummary = useMemo(() => computeJazeSummary(jazeServers), [jazeServers])
+
   // Same local toast convention as CustomerDetail.jsx's own showToast() —
   // no shared toast component exists anywhere in this app.
   const [toast, setToast] = useState(null)
@@ -542,6 +561,7 @@ export default function Dashboard() {
     setOutages(getOutages())
     setOutstandingInvoices(getOutstandingInvoices())
     setOutstandingTotal(getOutstandingTotal())
+    setJazeServers(getJazeServers())
     setTimeout(() => {
       setRefreshing(false)
       showToast('Dashboard refreshed')
@@ -555,6 +575,7 @@ export default function Dashboard() {
         statValues, serviceMix, activeCustomers, revenueData, renewalForecast,
         todaysPayments, leadPipeline, totalLeadsInPipeline, supportOverviewValues,
         recentTickets, activeOutages, outstandingInvoices, outstandingTotal, cafCompliance,
+        jazeSummary,
       })
     )
     showToast('Dashboard report exported')
@@ -953,15 +974,29 @@ export default function Dashboard() {
             Live
           </div>
         }>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="text-center bg-emerald-50 rounded-lg py-2">
+              <p className="text-lg font-bold text-emerald-600">{jazeSummary.online}</p>
+              <p className="text-[11px] text-gray-500">Online</p>
+            </div>
+            <div className="text-center bg-amber-50 rounded-lg py-2">
+              <p className="text-lg font-bold text-amber-600">{jazeSummary.degraded}</p>
+              <p className="text-[11px] text-gray-500">Degraded</p>
+            </div>
+            <div className="text-center bg-red-50 rounded-lg py-2">
+              <p className="text-lg font-bold text-red-500">{jazeSummary.offline}</p>
+              <p className="text-[11px] text-gray-500">Offline</p>
+            </div>
+          </div>
           <div className="space-y-2.5">
-            {JAZE_STATUS.map((s) => (
-              <div key={s.label} className="flex items-center justify-between">
+            {jazeSummary.preview.map((s) => (
+              <div key={s.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <StatusDot status={s.status} />
-                  <span className="text-sm text-gray-700">{s.label}</span>
+                  <span className="text-sm text-gray-700">{s.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 font-mono">{s.latency}</span>
+                  <span className="text-xs text-gray-400 font-mono">{s.latency !== null ? `${s.latency}ms` : '—'}</span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                     s.status === 'online' ? 'bg-emerald-100 text-emerald-700' :
                     s.status === 'degraded' ? 'bg-amber-100 text-amber-700' :
@@ -972,7 +1007,10 @@ export default function Dashboard() {
             ))}
           </div>
           <div className="mt-4 pt-4 border-t border-surface-border text-xs text-gray-400">
-            Last synced: just now · <span className="text-brand-blue cursor-pointer hover:underline">View full report</span>
+            {jazeSummary.total > jazeSummary.preview.length && (
+              <span>+{jazeSummary.total - jazeSummary.preview.length} more · </span>
+            )}
+            <span className="text-brand-blue cursor-pointer hover:underline" onClick={() => navigate('/network/servers')}>View full report</span>
           </div>
         </WidgetCard>
       </div>
