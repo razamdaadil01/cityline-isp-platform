@@ -16,17 +16,21 @@ import { getAllCustomers, subscribeCustomers, effectiveStatus } from '../data/cu
 import { getPayments, subscribePayments } from '../data/paymentsStore'
 import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../data/ticketsStore'
 import { getLeads, subscribeLeads } from '../data/leadsStore'
+import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/outagesStore'
+import { getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 // Key Metrics stat cards (STAT_CARD_META below), Revenue Overview, the
 // Connection Mix/Service pills, Renewal Forecast, Today's Collections,
-// Sales Lead Pipeline, Support Overview, and Recent Open Tickets are
-// wired to real, live-subscribed data so far — see Dashboard() itself for
-// the real customers/payments/tickets/leads computation. CAF Compliance
-// and Jaze Network Status are still the original static mock, per a
-// prior audit — both need genuinely new backend concepts that don't
-// exist yet, not just wiring, so they're separate follow-ups.
+// Sales Lead Pipeline, Support Overview, Recent Open Tickets, and the
+// Active Outages/Overdue Payments widgets (new, not a rewire of anything
+// pre-existing) are wired to real, live-subscribed data so far — see
+// Dashboard() itself for the real customers/payments/tickets/leads/
+// outages/invoices computation. CAF Compliance and Jaze Network Status
+// are still the original static mock, per a prior audit — both need
+// genuinely new backend concepts that don't exist yet, not just wiring,
+// so they're separate follow-ups.
 
 // A customer's `plan` string always starts with its connection-technology
 // keyword ("FTTH 100Mbps", "Wireless 25Mbps", ...) except ILL plans, which
@@ -118,6 +122,9 @@ function computeRevenueByMonth(payments) {
       return { key, month, collected }
     })
 }
+
+// Same severity->Badge color convention as OutageList.jsx/OutageDetail.jsx.
+const SEVERITY_BADGE = { Critical: 'red', High: 'orange', Medium: 'yellow', Low: 'gray' }
 
 // Today's Collections' time column comes from paymentsStore.js's own
 // `date` field — "DD-MM-YYYY HH:MM:SS" (AddPayment.jsx's
@@ -315,6 +322,20 @@ export default function Dashboard() {
   const [leads, setLeads] = useState(getLeads)
   useEffect(() => subscribeLeads(setLeads), [])
 
+  const [outages, setOutages] = useState(getOutages)
+  useEffect(() => subscribeOutages(setOutages), [])
+
+  // getOutstandingInvoices()/getOutstandingTotal() are derived getters, not
+  // the raw store — subscribeInvoices()'s payload is the raw invoice list,
+  // so both are re-read fresh on every notification rather than derived
+  // from that payload here.
+  const [outstandingInvoices, setOutstandingInvoices] = useState(getOutstandingInvoices)
+  const [outstandingTotal, setOutstandingTotal] = useState(getOutstandingTotal)
+  useEffect(() => subscribeInvoices(() => {
+    setOutstandingInvoices(getOutstandingInvoices())
+    setOutstandingTotal(getOutstandingTotal())
+  }), [])
+
   // "Today" in both formats this app's stores actually use — DD-MM-YYYY
   // for paymentsStore.js's paymentDate, ISO for customersData.js's expiry.
   const todayDMY = new Date().toLocaleDateString('en-GB').split('/').join('-')
@@ -392,6 +413,13 @@ export default function Dashboard() {
     slaBreached: tickets.filter(t => slaStatusOf(t) === 'Breached').length,
   }), [tickets, todayISO])
 
+  const activeOutages = useMemo(() => {
+    const severityRank = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+    return outages
+      .filter(o => ACTIVE_OUTAGE_STATUSES.includes(o.status))
+      .sort((a, b) => (severityRank[a.severity] ?? 4) - (severityRank[b.severity] ?? 4))
+  }, [outages])
+
   return (
     <div className="p-6 space-y-6">
 
@@ -406,6 +434,91 @@ export default function Dashboard() {
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Refresh</Button>
           <Button size="sm" icon={<FileText size={14} />}>Export Report</Button>
+        </div>
+      </div>
+
+      {/* Row: Active Outages + Overdue Payments — new widgets flagged by a
+          prior audit as missing despite real backing data already existing
+          (outagesStore.js/invoicesStore.js), placed right under the page
+          heading given their operational urgency. */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Active Outages / Critical Alerts */}
+        <div
+          onClick={() => navigate('/support/outages')}
+          className={`xl:col-span-2 rounded-xl shadow-card border overflow-hidden cursor-pointer transition-colors ${
+            activeOutages.length > 0
+              ? 'bg-red-50 border-red-200 hover:bg-red-100/70'
+              : 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100/60'
+          }`}
+        >
+          <div className="px-5 py-3.5 flex items-center gap-2 border-b border-black/5">
+            {activeOutages.length > 0 ? (
+              <>
+                <AlertTriangle size={16} className="text-red-600 shrink-0" />
+                <h3 className="text-sm font-semibold text-red-800">
+                  {activeOutages.length} Active Outage{activeOutages.length !== 1 ? 's' : ''}
+                </h3>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                <h3 className="text-sm font-semibold text-emerald-800">All systems operational</h3>
+              </>
+            )}
+          </div>
+          <div className="p-4">
+            {activeOutages.length === 0 ? (
+              <p className="text-sm text-emerald-700">No active outages right now.</p>
+            ) : (
+              <div className="space-y-2">
+                {activeOutages.slice(0, 3).map((o) => (
+                  <div
+                    key={o.id}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/support/outages/${o.id}`) }}
+                    className="flex items-center gap-3 p-2.5 rounded-lg bg-white/60 hover:bg-white transition-colors"
+                  >
+                    <Badge variant={SEVERITY_BADGE[o.severity] ?? 'gray'} size="sm">{o.severity}</Badge>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 truncate">{o.title}</p>
+                      <p className="text-xs text-gray-500 truncate">{o.description}</p>
+                    </div>
+                  </div>
+                ))}
+                {activeOutages.length > 3 && (
+                  <p className="text-xs text-red-700 font-medium pl-1">+{activeOutages.length - 3} more — view all</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Overdue Payments / Aging — invoicesStore.js is a single shared
+            invoice list rather than genuinely per-customer data (see that
+            file's own top-of-file comment), so this reflects that store's
+            real (if limited) outstanding total/count exactly, not a true
+            company-wide receivables aggregate. No due-date/overdue-by-days
+            field exists there either (just an issue `date` and a paid/
+            pending `status`), so no aging breakdown is fabricated. */}
+        <div
+          onClick={() => navigate('/billing')}
+          className="rounded-xl shadow-card border border-surface-border bg-white overflow-hidden cursor-pointer hover:bg-gray-50/70 transition-colors"
+        >
+          <div className="px-5 py-3.5 flex items-center gap-2 border-b border-surface-border">
+            <IndianRupee size={16} className="text-amber-600 shrink-0" />
+            <h3 className="text-sm font-semibold text-gray-800">Overdue Payments</h3>
+          </div>
+          <div className="p-4">
+            {outstandingInvoices.length === 0 ? (
+              <p className="text-sm text-gray-400">No outstanding invoices.</p>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-amber-600">₹{outstandingTotal.toLocaleString('en-IN')}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {outstandingInvoices.length} outstanding invoice{outstandingInvoices.length !== 1 ? 's' : ''}
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
