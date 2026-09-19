@@ -437,10 +437,54 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Service type pills */}
+      <div>
+        <SectionTitle>Active Services by Type</SectionTitle>
+        <div className="flex flex-wrap gap-2">
+          {serviceMix.map((s) => (
+            <div key={s.type} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold ${s.pill} shadow-sm cursor-pointer hover:opacity-90 transition-opacity`}>
+              <Wifi size={14} />
+              <span>{s.type}</span>
+              <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{s.count}</span>
+            </div>
+          ))}
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors">
+            <span>Total Active</span>
+            <span className="bg-white px-1.5 py-0.5 rounded-md text-xs font-bold text-gray-800">{activeCustomers.length.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stat cards row */}
+      <div>
+        <SectionTitle>Key Metrics</SectionTitle>
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+          {STAT_CARD_META.map((card) => {
+            const value = statValues[card.key]
+            const display = card.key === 'todaysCollection'
+              ? `₹${value.toLocaleString('en-IN')}`
+              : value.toLocaleString('en-IN')
+            return (
+              <div key={card.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-500 leading-tight">{card.label}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1.5 leading-none">{display}</p>
+                  </div>
+                  <div className={`w-9 h-9 rounded-lg ${card.iconBg} ${card.iconColor} flex items-center justify-center shrink-0 ml-2`}>
+                    {card.icon}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Row: Active Outages + Overdue Payments — new widgets flagged by a
           prior audit as missing despite real backing data already existing
-          (outagesStore.js/invoicesStore.js), placed right under the page
-          heading given their operational urgency. */}
+          (outagesStore.js/invoicesStore.js), placed after Key Metrics given
+          their operational urgency. */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Active Outages / Critical Alerts */}
         <div
@@ -519,50 +563,6 @@ export default function Dashboard() {
               </>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Service type pills */}
-      <div>
-        <SectionTitle>Active Services by Type</SectionTitle>
-        <div className="flex flex-wrap gap-2">
-          {serviceMix.map((s) => (
-            <div key={s.type} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold ${s.pill} shadow-sm cursor-pointer hover:opacity-90 transition-opacity`}>
-              <Wifi size={14} />
-              <span>{s.type}</span>
-              <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-xs">{s.count}</span>
-            </div>
-          ))}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors">
-            <span>Total Active</span>
-            <span className="bg-white px-1.5 py-0.5 rounded-md text-xs font-bold text-gray-800">{activeCustomers.length.toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stat cards row */}
-      <div>
-        <SectionTitle>Key Metrics</SectionTitle>
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-          {STAT_CARD_META.map((card) => {
-            const value = statValues[card.key]
-            const display = card.key === 'todaysCollection'
-              ? `₹${value.toLocaleString('en-IN')}`
-              : value.toLocaleString('en-IN')
-            return (
-              <div key={card.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-500 leading-tight">{card.label}</p>
-                    <p className="text-xl font-bold text-gray-900 mt-1.5 leading-none">{display}</p>
-                  </div>
-                  <div className={`w-9 h-9 rounded-lg ${card.iconBg} ${card.iconColor} flex items-center justify-center shrink-0 ml-2`}>
-                    {card.icon}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
         </div>
       </div>
 
