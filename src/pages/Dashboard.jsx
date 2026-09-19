@@ -20,11 +20,11 @@ import { getLeads, subscribeLeads } from '../data/leadsStore'
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 // Key Metrics stat cards (STAT_CARD_META below), the Connection Mix/
-// Service pills, Today's Collections, Sales Lead Pipeline, Support
-// Overview, and Recent Open Tickets are wired to real, live-subscribed
-// data so far — see Dashboard() itself for the real customers/payments/
-// tickets/leads computation. Every other section on this page (Revenue
-// Overview, Renewal Forecast, CAF Compliance, Jaze Network Status) is
+// Service pills, Renewal Forecast, Today's Collections, Sales Lead
+// Pipeline, Support Overview, and Recent Open Tickets are wired to real,
+// live-subscribed data so far — see Dashboard() itself for the real
+// customers/payments/tickets/leads computation. Every other section on
+// this page (Revenue Overview, CAF Compliance, Jaze Network Status) is
 // still the original static mock, per a prior audit — follow-up tasks,
 // not done here.
 
@@ -102,13 +102,6 @@ const REVENUE_DATA = [
   { month: 'May', collected: 124500, target: 480000, outstanding: 0 },
 ]
 
-const RENEWAL_FORECAST = [
-  { period: 'Today', count: 23, amount: '₹28,750', status: 'urgent' },
-  { period: 'Tomorrow', count: 31, amount: '₹38,900', status: 'warning' },
-  { period: 'This Week', count: 128, amount: '₹1,60,000', status: 'info' },
-  { period: 'This Month', count: 412, amount: '₹5,15,000', status: 'normal' },
-]
-
 // Today's Collections' time column comes from paymentsStore.js's own
 // `date` field — "DD-MM-YYYY HH:MM:SS" (AddPayment.jsx's
 // `${dateOnly} ${timeStr}`, timeStr from toLocaleTimeString('en-GB')) —
@@ -142,6 +135,54 @@ function computeLeadPipeline(leads) {
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([stage, count], i) => ({ stage, count, color: LEAD_STAGE_COLORS[i % LEAD_STAGE_COLORS.length] }))
+}
+
+// Today/Tomorrow/This Week/This Month are cumulative windows off
+// customersData.js's real per-customer `expiry` (ISO date) field — This
+// Month (today through +29 days) is the widest, so the Collected/Pending/
+// Expired breakdown below is deliberately scoped to that exact same
+// customer set rather than a separately-computed range, guaranteeing the
+// two numbers relate to each other (their three counts always sum to
+// This Month's own count) instead of being unrelated figures the way the
+// old static mock's were. No real per-customer plan price exists anywhere
+// (customer.plan is a free-text string like "FTTH 100Mbps" with nothing
+// resembling a Product Management foreign key), so the old mock's ₹
+// amount per period isn't carried over — showing a fabricated number
+// there would be no more honest than the count it replaced.
+//
+// Per-customer classification within This Month, in priority order:
+//   Collected — paymentsStore.js has any recorded payment for them
+//     (renewed already, regardless of exactly when relative to expiry).
+//   Expired   — not paid, and customersData.js's own effectiveStatus()
+//     already reads 'expired' for them (structurally rare within a
+//     forward-only window — only reachable if their status was already
+//     something other than 'active' before expiry day arrived — but a
+//     real computed predicate, not a hardcoded floor of 0).
+//   Pending   — everyone else in the window: due, not yet paid, not yet
+//     lapsed.
+function computeRenewalForecast(customers, payments, todayISO) {
+  const addDaysISO = (n) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const tomorrowISO = addDaysISO(1)
+  const weekEndISO = addDaysISO(6)
+  const monthEndISO = addDaysISO(29)
+  const inRange = (expiry, end) => expiry >= todayISO && expiry <= end
+
+  const monthCohort = customers.filter(c => c.expiry && inRange(c.expiry, monthEndISO))
+  let collected = 0, expired = 0, pending = 0
+  monthCohort.forEach(c => {
+    if (payments.some(p => p.customerId === c.id)) collected++
+    else if (effectiveStatus(c) === 'expired') expired++
+    else pending++
+  })
+
+  const buckets = [
+    { period: 'Today', count: customers.filter(c => c.expiry === todayISO).length, status: 'urgent' },
+    { period: 'Tomorrow', count: customers.filter(c => c.expiry === tomorrowISO).length, status: 'warning' },
+    { period: 'This Week', count: customers.filter(c => c.expiry && inRange(c.expiry, weekEndISO)).length, status: 'info' },
+    { period: 'This Month', count: monthCohort.length, status: 'normal' },
+  ]
+
+  return { buckets, collected, pending, expired }
 }
 
 const CAF_COMPLIANCE = [
@@ -278,6 +319,12 @@ export default function Dashboard() {
     openTickets: tickets.filter(t => !CLOSED_STATUSES.includes(t.status)).length,
     renewalsDueToday: customers.filter(c => c.expiry === todayISO).length,
   }), [customers, activeCustomers, payments, tickets, todayDMY, todayISO])
+
+  const renewalForecast = useMemo(
+    () => computeRenewalForecast(customers, payments, todayISO),
+    [customers, payments, todayISO]
+  )
+  const maxRenewalBucketCount = Math.max(1, ...renewalForecast.buckets.map(b => b.count))
 
   // Chronological (earliest first) — payment.date's "DD-MM-YYYY HH:MM:SS"
   // sorts correctly by plain string comparison once every row shares the
@@ -456,23 +503,25 @@ export default function Dashboard() {
       {/* Row: Renewal Forecast + Today's Collection */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Renewal Forecast */}
-        <WidgetCard title="Renewal Forecast" action={<Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />}>View All</Button>}>
+        <WidgetCard title="Renewal Forecast" action={
+          <Button variant="ghost" size="xs" iconRight={<ChevronRight size={12} />} onClick={() => navigate('/customers')}>View All</Button>
+        }>
           <div className="space-y-3">
-            {RENEWAL_FORECAST.map((r) => {
+            {renewalForecast.buckets.map((r) => {
               const variantMap = { urgent: 'red', warning: 'yellow', info: 'blue', normal: 'gray' }
-              const widthMap = { urgent: 'w-[18%]', warning: 'w-[24%]', info: '!w-[50%]', normal: 'w-full' }
               return (
                 <div key={r.period} className="flex items-center gap-4">
                   <div className="w-24 shrink-0">
                     <p className="text-xs font-semibold text-gray-700">{r.period}</p>
-                    <p className="text-xs text-gray-400">{r.amount}</p>
                   </div>
                   <div className="flex-1">
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all
-                        ${r.status === 'urgent' ? 'bg-red-500' : r.status === 'warning' ? 'bg-amber-400' : r.status === 'info' ? 'bg-brand-blue' : 'bg-emerald-500'}
-                        ${r.period === 'Today' ? 'w-[18%]' : r.period === 'Tomorrow' ? 'w-[24%]' : r.period === 'This Week' ? 'w-[50%]' : 'w-full'}
-                      `} />
+                      <div
+                        className={`h-full rounded-full transition-all
+                          ${r.status === 'urgent' ? 'bg-red-500' : r.status === 'warning' ? 'bg-amber-400' : r.status === 'info' ? 'bg-brand-blue' : 'bg-emerald-500'}
+                        `}
+                        style={{ width: `${Math.round((r.count / maxRenewalBucketCount) * 100)}%` }}
+                      />
                     </div>
                   </div>
                   <div className="w-12 text-right">
@@ -482,17 +531,20 @@ export default function Dashboard() {
               )
             })}
           </div>
-          <div className="mt-4 pt-4 border-t border-surface-border grid grid-cols-3 gap-3">
-            {[
-              { label: 'Collected', value: '15', color: 'text-emerald-600' },
-              { label: 'Pending', value: '8', color: 'text-amber-600' },
-              { label: 'Expired', value: '0', color: 'text-red-500' },
-            ].map((s) => (
-              <div key={s.label} className="text-center">
-                <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-              </div>
-            ))}
+          <div className="mt-4 pt-4 border-t border-surface-border">
+            <p className="text-xs text-gray-400 mb-2">Breakdown of this month's {renewalForecast.buckets[3].count} renewals</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Collected', value: renewalForecast.collected, color: 'text-emerald-600' },
+                { label: 'Pending', value: renewalForecast.pending, color: 'text-amber-600' },
+                { label: 'Expired', value: renewalForecast.expired, color: 'text-red-500' },
+              ].map((s) => (
+                <div key={s.label} className="text-center">
+                  <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </WidgetCard>
 
