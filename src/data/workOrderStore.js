@@ -17,10 +17,12 @@
 // how to render category-specific fields for.
 
 import { logAudit } from './auditLogStore'
-import { markPOPCleaned, markEquipmentMaintained } from './popStore'
+import { markPOPCleaned, markEquipmentMaintained, getPOP } from './popStore'
 import { saveAssignment } from './assignmentStore'
 import { getProduct } from './productStore'
 import { getUsers } from './userStore'
+import { getProductAvailability } from './inventoryLedger'
+import { raiseStockTransferRequestIfNeeded } from './stockTransferRequestStore'
 
 export const WORK_ORDER_CATEGORIES = ['Cleaning', 'Preventive Maintenance', 'Breakdown-Fault']
 export const WORK_ORDER_PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
@@ -359,6 +361,29 @@ export function saveWorkOrder(wo) {
   if (justResolved && saved.category !== 'Cleaning' && saved.equipmentInvolved) {
     markEquipmentMaintained(saved.popId, saved.equipmentInvolved, now.slice(0, 10))
   }
+
+  // Business rule (PRD Phase 2): a Hardware Need line whose requested
+  // quantity exceeds what's actually available at central stock
+  // auto-raises a Stock Transfer Request — same shortfall check
+  // POPWorkOrderDetail.jsx's own inline warning already computes. Runs on
+  // every save (not gated to Resolved/justResolved — a shortfall is real
+  // the moment it's requested, not just once the Work Order is done), and
+  // is itself idempotent (raiseStockTransferRequestIfNeeded skips a
+  // product/Work Order pair that already has an open request), so saving
+  // the same Work Order repeatedly never raises duplicates.
+  ;(saved.hardwareNeed ?? []).forEach(line => {
+    if (!line.productId) return
+    const requestedQty = Number(line.quantity) || 0
+    const availableQty = getProductAvailability(line.productId)
+    if (requestedQty > availableQty) {
+      raiseStockTransferRequestIfNeeded({
+        popId: saved.popId, popName: getPOP(saved.popId)?.name ?? saved.popId,
+        workOrderId: saved.id,
+        productId: line.productId, productName: getProduct(line.productId)?.name ?? line.productId,
+        requestedQty, availableQty,
+      })
+    }
+  })
 
   logAudit({
     action: isNew ? 'Create' : 'Edit', module: 'Network',

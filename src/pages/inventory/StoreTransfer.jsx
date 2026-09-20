@@ -1,11 +1,15 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText, PackageCheck, Upload } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText, PackageCheck, Upload, Wrench, Check, X as XIcon, Truck } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
-import { FormField, Input } from '../../components/ui/FormInputs'
+import { FormField, Input, Textarea } from '../../components/ui/FormInputs'
 import { getStoreTransfers, subscribeStoreTransfers, reverseStoreTransferLine, receiveStoreTransfer } from '../../data/storeTransferStore'
+import {
+  getStockTransferRequests, subscribeStockTransferRequests,
+  approveStockTransferRequest, rejectStockTransferRequest, fulfillStockTransferRequest,
+} from '../../data/stockTransferRequestStore'
 import { getUnits, getDrums } from '../../data/inventoryLedger'
 import { getProduct } from '../../data/productStore'
 import { useMicroPermission } from '../../data/rolesStore'
@@ -166,11 +170,28 @@ function flattenRows(transfers) {
   return rows.sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
+// 'Approved' gets its own blue rather than reusing 'Sent'/'Pending's amber —
+// it's a distinct decided-but-not-yet-executed state between Pending and
+// Fulfilled, not "awaiting a decision" the way Sent/Pending both are.
+const REQUEST_STATUS_BADGE = { Pending: 'yellow', Approved: 'blue', Rejected: 'red', Fulfilled: 'green' }
+
 export default function StoreTransfer() {
   const canCreate = useMicroPermission('Inventory', 'createStoreTransfer')
   const navigate = useNavigate()
   const [transfers, setTransfers] = useState(getStoreTransfers)
   useEffect(() => subscribeStoreTransfers(setTransfers), [])
+
+  // POP Stock Requests — a distinct tab on this same page rather than a
+  // separate page, per the PRD's own "extend the existing Store Transfer
+  // page" instruction (see stockTransferRequestStore.js's file-level note
+  // on why the underlying record isn't just another Store Transfer).
+  // Reuses this page's own 'createStoreTransfer' permission to gate
+  // Approve/Reject/Fulfill — there's no dedicated permission key for this
+  // new action yet, and the same people who can move stock between stores
+  // are the natural Store Manager audience for these requests too.
+  const [tab, setTab] = useState('transfers')
+  const [requests, setRequests] = useState(getStockTransferRequests)
+  useEffect(() => subscribeStockTransferRequests(setRequests), [])
 
   const [menuId, setMenuId] = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
@@ -256,6 +277,46 @@ export default function StoreTransfer() {
     }
   }
 
+  // POP Stock Request actions — Approve/Reject (Pending only) and Fulfill
+  // (Approved only), each with its own small confirm modal, same
+  // one-target-plus-error-state pattern as Reverse/Receive Transfer above.
+  const [rejectTarget, setRejectTarget] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [requestError, setRequestError] = useState('')
+  const [fulfillTarget, setFulfillTarget] = useState(null)
+
+  function confirmApprove(request) {
+    try {
+      approveStockTransferRequest(request.id)
+      setRequestError('')
+    } catch (err) {
+      setRequestError(err.message || 'Could not approve this request.')
+    }
+  }
+
+  function confirmReject() {
+    if (!rejectTarget) return
+    try {
+      rejectStockTransferRequest(rejectTarget.id, rejectReason)
+      setRejectTarget(null)
+      setRejectReason('')
+      setRequestError('')
+    } catch (err) {
+      setRequestError(err.message || 'Could not reject this request.')
+    }
+  }
+
+  function confirmFulfill() {
+    if (!fulfillTarget) return
+    try {
+      fulfillStockTransferRequest(fulfillTarget.id)
+      setFulfillTarget(null)
+      setRequestError('')
+    } catch (err) {
+      setRequestError(err.message || 'Could not fulfill this request.')
+    }
+  }
+
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     return {
@@ -286,87 +347,198 @@ export default function StoreTransfer() {
           <h1 className="text-2xl font-bold text-gray-900">Store Transfer</h1>
           <p className="text-sm text-gray-500 mt-0.5">{rows.length} of {allRows.length} transfer lines</p>
         </div>
-        {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/store-transfer/new')}>Transfer Product</Button>}
+        {canCreate && tab === 'transfers' && <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/inventory/store-transfer/new')}>Transfer Product</Button>}
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {/* Tabs — POP Stock Requests sits alongside regular inter-store
+          Transfers on this same page rather than a separate one, per the
+          PRD's own instruction (see stockTransferRequestStore.js for why
+          the two are still separate records/stores under the hood). */}
+      <div className="flex items-center gap-1 border-b border-surface-border">
         {[
-          { label: 'Total Transfers',   value: stats.total, icon: ArrowLeftRight, color: 'text-brand-blue',  bg: 'bg-brand-blue/10' },
-          { label: "Today's Transfers", value: stats.today, icon: CalendarDays,   color: 'text-emerald-600', bg: 'bg-emerald-50' },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
-              <s.icon size={18} className={s.color} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xl font-bold text-gray-900">{s.value}</p>
-              <p className="text-[11px] text-gray-500 leading-tight">{s.label}</p>
-            </div>
-          </div>
+          { key: 'transfers', label: 'Store Transfers' },
+          { key: 'requests', label: `POP Stock Requests${requests.filter(r => r.status === 'Pending').length ? ` (${requests.filter(r => r.status === 'Pending').length})` : ''}` },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === t.key ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search product, store, serial, assigned by…"
-          className="pl-9 pr-3 py-1.5 text-sm w-96 bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-        />
-      </div>
+      {tab === 'transfers' && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Total Transfers',   value: stats.total, icon: ArrowLeftRight, color: 'text-brand-blue',  bg: 'bg-brand-blue/10' },
+              { label: "Today's Transfers", value: stats.today, icon: CalendarDays,   color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.bg}`}>
+                  <s.icon size={18} className={s.color} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                  <p className="text-[11px] text-gray-500 leading-tight">{s.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
 
-      <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface-border bg-gray-50/60">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store From</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store To</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Transfer Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial/MAC/Drum</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Qty</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned By</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 w-16 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-14 text-center text-sm text-gray-400">
-                    <StoreIcon size={32} className="mx-auto mb-2 text-gray-200" />
-                    No store transfers found
-                  </td>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search product, store, serial, assigned by…"
+              className="pl-9 pr-3 py-1.5 text-sm w-96 bg-white border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+            />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-border bg-gray-50/60">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Product Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store From</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Store To</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Transfer Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial/MAC/Drum</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Qty</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Assigned By</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                    <th className="px-4 py-3 w-16 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-14 text-center text-sm text-gray-400">
+                        <StoreIcon size={32} className="mx-auto mb-2 text-gray-200" />
+                        No store transfers found
+                      </td>
+                    </tr>
+                  ) : rows.map(r => (
+                    <tr key={r.key} className={`transition-colors ${r.status === 'Reversed' ? 'bg-gray-50/60 text-gray-400' : 'hover:bg-blue-50/40'}`}>
+                      <td className={`px-4 py-3 text-xs font-medium whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-800'}`}>{r.productName}</td>
+                      <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.storeFromName}</td>
+                      <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.storeToName}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
+                      <td className={`px-4 py-3 text-xs font-mono ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-600'}`}>{r.serialMacDrumLabel}</td>
+                      <td className={`px-4 py-3 text-xs whitespace-nowrap font-semibold ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.qty}</td>
+                      <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-600'}`}>{r.assignedBy}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
+                      </td>
+                      <td className="px-4 py-3 w-16 text-center">
+                        <button
+                          onClick={e => openMenu(e, r.key)}
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.key ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {tab === 'requests' && (
+        <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-surface-border bg-gray-50/60">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Request #</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">POP</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Requested / Available</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Work Order</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Requested Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3 w-48 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
                 </tr>
-              ) : rows.map(r => (
-                <tr key={r.key} className={`transition-colors ${r.status === 'Reversed' ? 'bg-gray-50/60 text-gray-400' : 'hover:bg-blue-50/40'}`}>
-                  <td className={`px-4 py-3 text-xs font-medium whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-800'}`}>{r.productName}</td>
-                  <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.storeFromName}</td>
-                  <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.storeToName}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.date || '').slice(0, 10)}</td>
-                  <td className={`px-4 py-3 text-xs font-mono ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-600'}`}>{r.serialMacDrumLabel}</td>
-                  <td className={`px-4 py-3 text-xs whitespace-nowrap font-semibold ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-700'}`}>{r.qty}</td>
-                  <td className={`px-4 py-3 text-xs whitespace-nowrap ${r.status === 'Reversed' ? 'text-gray-400' : 'text-gray-600'}`}>{r.assignedBy}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status === 'Sent' ? 'In Transit' : r.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 w-16 text-center">
-                    <button
-                      onClick={e => openMenu(e, r.key)}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.key ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                    >
-                      <MoreVertical size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {requests.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-14 text-center text-sm text-gray-400">
+                      <Truck size={32} className="mx-auto mb-2 text-gray-200" />
+                      No POP Stock Requests — auto-raised whenever a Work Order's Hardware Need exceeds central stock.
+                    </td>
+                  </tr>
+                ) : requests.map(r => (
+                  <tr key={r.id} className="hover:bg-blue-50/40 transition-colors">
+                    <td className="px-4 py-3 text-xs font-mono text-gray-700 whitespace-nowrap">{r.requestNumber}</td>
+                    <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{r.popName}</td>
+                    <td className="px-4 py-3 text-xs font-medium text-gray-800">{r.productName}</td>
+                    <td className="px-4 py-3 text-xs text-center whitespace-nowrap">
+                      <span className="font-semibold text-gray-800">{r.requestedQty}</span>
+                      <span className="text-gray-400"> / {r.availableQty} avail.</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap">
+                      <button onClick={() => navigate(`/network/pops/work-orders/${r.workOrderId}`)} className="font-mono text-brand-blue hover:underline">
+                        {r.workOrderId}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{(r.requestedAt || '').slice(0, 10)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge variant={REQUEST_STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status}</Badge>
+                    </td>
+                    <td className="px-4 py-3 w-48">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {r.status === 'Pending' && canCreate && (
+                          <>
+                            <button
+                              onClick={() => confirmApprove(r)}
+                              title="Approve"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            >
+                              <Check size={14} />
+                            </button>
+                            <button
+                              onClick={() => { setRejectTarget(r); setRejectReason(''); setRequestError('') }}
+                              title="Reject"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <XIcon size={14} />
+                            </button>
+                          </>
+                        )}
+                        {r.status === 'Approved' && canCreate && (
+                          <Button size="xs" variant="secondary" icon={<Truck size={12} />} onClick={() => { setFulfillTarget(r); setRequestError('') }}>
+                            Fulfill
+                          </Button>
+                        )}
+                        {r.status === 'Fulfilled' && r.storeTransferId && (
+                          <button
+                            onClick={() => navigate(`/inventory/store-transfer/${r.storeTransferId}/edit`)}
+                            className="text-xs text-gray-400 hover:text-brand-blue hover:underline"
+                          >
+                            View Transfer
+                          </button>
+                        )}
+                        {!canCreate && r.status !== 'Fulfilled' && <span className="text-xs text-gray-300">—</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {menuId && (() => {
         const row = rows.find(r => r.key === menuId)
@@ -499,6 +671,71 @@ export default function StoreTransfer() {
           </div>
         )}
       </Modal>
+
+      <Modal
+        isOpen={!!rejectTarget}
+        onClose={() => { setRejectTarget(null); setRejectReason(''); setRequestError('') }}
+        title="Reject Stock Transfer Request"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setRejectTarget(null); setRejectReason(''); setRequestError('') }}>Cancel</Button>
+            <Button variant="danger" onClick={confirmReject}>Reject</Button>
+          </>
+        }
+      >
+        {rejectTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Reject request <span className="font-semibold text-gray-900">{rejectTarget.requestNumber}</span> for{' '}
+              <span className="font-semibold text-gray-900">{rejectTarget.requestedQty} × {rejectTarget.productName}</span> (POP {rejectTarget.popName})?
+            </p>
+            <FormField label="Reason (optional)">
+              <Textarea rows={2} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Why is this request being rejected?" />
+            </FormField>
+            {requestError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {requestError}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!fulfillTarget}
+        onClose={() => { setFulfillTarget(null); setRequestError('') }}
+        title="Fulfill Stock Transfer Request"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setFulfillTarget(null); setRequestError('') }}>Cancel</Button>
+            <Button onClick={confirmFulfill}>Confirm Fulfillment</Button>
+          </>
+        }
+      >
+        {fulfillTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Fulfill <span className="font-semibold text-gray-900">{fulfillTarget.requestedQty} × {fulfillTarget.productName}</span> for{' '}
+              <span className="font-semibold text-gray-900">{fulfillTarget.popName}</span>? This finds whichever other store currently holds the most{' '}
+              {fulfillTarget.productName} and transfers enough of it into {fulfillTarget.sourceStoreName} to cover the shortfall, completing the
+              transfer immediately.
+            </p>
+            {requestError && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {requestError}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {requestError && !rejectTarget && !fulfillTarget && (
+        <div className="fixed bottom-4 right-4 flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs shadow-lg border border-red-100 z-50">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {requestError}
+        </div>
+      )}
     </div>
   )
 }

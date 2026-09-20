@@ -12,6 +12,14 @@ import { getPOPs, getPOP } from '../data/popStore'
 import { getProducts } from '../data/productStore'
 import { getProductAvailability } from '../data/inventoryLedger'
 import { getAllTechnicians } from '../data/technicianHelpers'
+import { getStockTransferRequestsForWorkOrder } from '../data/stockTransferRequestStore'
+
+const REQUEST_STATUS_BADGE_CLASSES = {
+  Pending: 'bg-amber-100 text-amber-700',
+  Approved: 'bg-brand-blue/10 text-brand-blue',
+  Rejected: 'bg-red-100 text-red-600',
+  Fulfilled: 'bg-emerald-100 text-emerald-700',
+}
 
 function emptyChecklist() {
   return Object.fromEntries(CLEANING_CHECKLIST_ITEMS.map(c => [c.key, false]))
@@ -354,6 +362,16 @@ export default function POPWorkOrderDetail() {
                   const available = row.productId ? getProductAvailability(row.productId) : null
                   const requested = Number(row.quantity) || 0
                   const insufficient = row.productId && requested > 0 && requested > available
+                  // Looked up by (Work Order id, productId) — the exact
+                  // pair workOrderStore.js's saveWorkOrder() auto-raises a
+                  // Stock Transfer Request against (stockTransferRequestStore.js's
+                  // raiseStockTransferRequestIfNeeded()). Only ever
+                  // populated once this Work Order has actually been saved
+                  // at least once with this shortfall — a brand-new,
+                  // not-yet-saved row has nothing to look up yet.
+                  const stockRequest = (insufficient && existing)
+                    ? getStockTransferRequestsForWorkOrder(existing.id).find(r => r.productId === row.productId)
+                    : null
                   return (
                     <tr key={row.id}>
                       <td className="px-3 py-2">
@@ -370,6 +388,18 @@ export default function POPWorkOrderDetail() {
                         {insufficient && (
                           <p className="flex items-center gap-1 text-[11px] text-red-500 mt-1">
                             <AlertTriangle size={11} /> Insufficient stock — {available} available
+                          </p>
+                        )}
+                        {insufficient && stockRequest && (
+                          <p className="mt-1">
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full ${REQUEST_STATUS_BADGE_CLASSES[stockRequest.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                              Stock Transfer Request: {stockRequest.status} ({stockRequest.requestNumber})
+                            </span>
+                          </p>
+                        )}
+                        {insufficient && !stockRequest && (
+                          <p className="text-[11px] text-gray-400 mt-1">
+                            {existing ? 'A Stock Transfer Request will be raised on save.' : 'Save this Work Order to auto-raise a Stock Transfer Request.'}
                           </p>
                         )}
                       </td>
