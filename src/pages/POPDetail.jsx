@@ -583,10 +583,10 @@ export default function POPDetail() {
         </div>
 
         {/* Inventory Details — POP Inventory Management (PRD Phase 1). Kept
-            as its own section (same underlying `equipment` rows as the
-            table above, via updateEquipment) rather than widened into it —
-            the table above is already 8 columns of network/device config,
-            and adding this many asset-management fields to one table would
+            as its own table (same underlying `equipment` rows as the table
+            above, via updateEquipment) rather than widened into it — the
+            table above is already 8 columns of network/device config, and
+            adding this many asset-management columns to one table would
             make it unreadable. Last Cleaning/Last Maintenance and Linked
             Work Orders are read-only here (auto-stamped by Work Order
             resolution via popStore.js's markPOPCleaned()/
@@ -596,114 +596,105 @@ export default function POPDetail() {
             view (POPInventory.jsx), reachable from POP Management's list/
             detail pages.
 
-            A one-row-per-item table (10 columns, several of them real
-            inputs/dropdowns) was too cramped for its own content — Serial
-            Number in particular got squeezed into a ~100px cell and
-            truncated. This is a card-per-item layout instead: a flex-wrap
-            row of key editable fields (Item, Category, Serial Number, Qty,
-            Condition), then a second flex-wrap row of the secondary/
-            read-only fields (Install Date, Warranty/AMC Expiry, Last
-            Cleaning, Last Maintenance, Linked Work Orders) — each field
-            gets the width its own content actually needs rather than a
-            fixed column, and flex-wrap lets fields reflow onto further
-            lines on a narrow viewport instead of ever forcing horizontal
-            scroll. Category/Condition are compact pill-styled <select>s
-            (BadgeSelect) rather than full-width FormInputs.Selects, same
-            "don't spend width on a one-word field" reasoning. */}
+            One row per item, one column per field — a two-row-per-item card
+            layout was tried here and reverted; horizontal scroll on a wide
+            table (overflow-x-auto below) is the accepted tradeoff for
+            keeping every field readable in a single row. Each column is
+            sized generously (not the original cramped widths) so its own
+            content never gets visually truncated — Serial Number in
+            particular is now wide enough for a realistic value like
+            "SN-HUAWEIMA5600-04". Category/Condition stay as compact
+            pill-styled <select>s (BadgeSelect) rather than full-width
+            FormInputs.Selects — still fully editable dropdowns, just
+            visually lighter so they don't need as much of that width. */}
         <div className="space-y-3 pt-4 border-t border-surface-border">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Inventory Details</h3>
-          {equipment.length === 0 ? (
-            <p className="text-xs text-gray-400 border border-dashed border-surface-border rounded-xl px-3 py-8 text-center">
-              Add equipment above to set its inventory details.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {equipment.map(row => {
-                const savedEq = existingEquipmentById[row.id]
-                const linkedCount = existing ? getWorkOrdersForEquipment(existing.id, row.id).length : 0
-                return (
-                  <div key={row.id} className="border border-surface-border rounded-xl p-3 space-y-3">
-                    {/* Row 1 — key fields */}
-                    <div className="flex flex-wrap items-end gap-4">
-                      <div className="min-w-[140px] max-w-[220px]">
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Item</p>
-                        <p className="text-sm font-medium text-gray-800 truncate" title={row.label || undefined}>
-                          {row.label || <span className="text-gray-300 font-normal">Untitled</span>}
-                          {row.type && <span className="text-gray-400 font-normal"> · {row.type}</span>}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Category</p>
-                        <BadgeSelect
-                          value={row.itemCategory}
-                          onChange={e => updateEquipment(row.id, { itemCategory: e.target.value })}
-                          options={EQUIPMENT_ITEM_CATEGORIES}
-                          colorMap={ITEM_CATEGORY_BADGE}
-                        />
-                      </div>
-                      <div className="w-48">
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Serial Number</p>
-                        <Input
-                          placeholder="e.g. SN-ZTEC300-01"
-                          value={row.serialNumber}
-                          title={row.serialNumber || undefined}
-                          onChange={e => updateEquipment(row.id, { serialNumber: e.target.value })}
-                        />
-                      </div>
-                      <div className="w-20">
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Qty</p>
-                        <Input type="number" min="1" value={row.quantity} onChange={e => updateEquipment(row.id, { quantity: e.target.value })} />
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Condition</p>
-                        <BadgeSelect
-                          value={row.condition}
-                          onChange={e => updateEquipment(row.id, { condition: e.target.value })}
-                          options={EQUIPMENT_CONDITIONS}
-                          colorMap={CONDITION_BADGE}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 2 — secondary/read-only fields */}
-                    <div className="flex flex-wrap items-end gap-4 pt-3 border-t border-dashed border-surface-border">
-                      <div className="w-40">
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Install Date</p>
-                        <Input type="date" value={row.installDate} onChange={e => updateEquipment(row.id, { installDate: e.target.value })} />
-                      </div>
-                      <div className="w-40">
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Warranty/AMC Expiry</p>
-                        <Input type="date" value={row.warrantyAmcExpiry} onChange={e => updateEquipment(row.id, { warrantyAmcExpiry: e.target.value })} />
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Last Cleaning</p>
-                        <p className="text-sm text-gray-600 py-2">{savedEq?.lastCleaningDate ?? '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1">Last Maintenance</p>
-                        <p className="text-sm text-gray-600 py-2">{savedEq?.lastMaintenanceDate ?? '—'}</p>
-                      </div>
-                      <div className="ml-auto">
-                        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1 text-right">Linked Work Orders</p>
-                        <button
-                          type="button"
-                          onClick={() => setLinkedWorkOrdersFor(row)}
-                          disabled={linkedCount === 0}
-                          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors ${
-                            linkedCount === 0
-                              ? 'text-gray-300 cursor-default'
-                              : 'text-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 cursor-pointer'
-                          }`}
-                        >
-                          <Wrench size={12} /> {linkedCount}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          <div className="border border-surface-border rounded-xl overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 border-b border-surface-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-44">Item</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-44">Category</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-56">Serial Number</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Qty</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-40">Install Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Last Cleaning</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Last Maintenance</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-40">Warranty/AMC Expiry</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-44">Condition</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Linked Work Orders</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {equipment.map(row => {
+                  const savedEq = existingEquipmentById[row.id]
+                  const linkedCount = existing ? getWorkOrdersForEquipment(existing.id, row.id).length : 0
+                  return (
+                  <tr key={row.id}>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap" title={row.label || undefined}>
+                      {row.label || <span className="text-gray-300">Untitled</span>}
+                      {row.type && <span className="text-gray-400"> · {row.type}</span>}
+                    </td>
+                    <td className="px-3 py-2">
+                      <BadgeSelect
+                        value={row.itemCategory}
+                        onChange={e => updateEquipment(row.id, { itemCategory: e.target.value })}
+                        options={EQUIPMENT_ITEM_CATEGORIES}
+                        colorMap={ITEM_CATEGORY_BADGE}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input
+                        placeholder="e.g. SN-ZTEC300-01"
+                        value={row.serialNumber}
+                        title={row.serialNumber || undefined}
+                        onChange={e => updateEquipment(row.id, { serialNumber: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input type="number" min="1" value={row.quantity} onChange={e => updateEquipment(row.id, { quantity: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input type="date" value={row.installDate} onChange={e => updateEquipment(row.id, { installDate: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{savedEq?.lastCleaningDate ?? '—'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{savedEq?.lastMaintenanceDate ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      <Input type="date" value={row.warrantyAmcExpiry} onChange={e => updateEquipment(row.id, { warrantyAmcExpiry: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <BadgeSelect
+                        value={row.condition}
+                        onChange={e => updateEquipment(row.id, { condition: e.target.value })}
+                        options={EQUIPMENT_CONDITIONS}
+                        colorMap={CONDITION_BADGE}
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setLinkedWorkOrdersFor(row)}
+                        disabled={linkedCount === 0}
+                        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors ${
+                          linkedCount === 0
+                            ? 'text-gray-300 cursor-default'
+                            : 'text-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 cursor-pointer'
+                        }`}
+                      >
+                        <Wrench size={12} /> {linkedCount}
+                      </button>
+                    </td>
+                  </tr>
+                  )
+                })}
+                {equipment.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Add equipment above to set its inventory details.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <Modal
