@@ -97,6 +97,7 @@ const NAV_ITEMS = [
       { label: 'Dashboard',    icon: LayoutDashboard, to: '/network/pops/dashboard' },
       { label: 'POP List',     icon: MapPin,          to: '/network/pops' },
       { label: 'Work Orders',  icon: Wrench,          to: '/network/pops/work-orders' },
+      { label: 'Reports',      icon: BarChart2,       to: '/network/pops/reports' },
     ],
   },
   {

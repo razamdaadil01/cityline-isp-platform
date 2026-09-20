@@ -135,6 +135,16 @@ export const MODULE_MICRO_PERMISSIONS = {
     { key: 'viewCollectionReport',              label: 'View Collection Report' },
     { key: 'viewPartnerStoreCollectionReport',  label: 'View Partner & Store-wise Collection Report' },
     { key: 'viewInventoryReport',               label: 'View Inventory Report' },
+    // POP Management Reports & Analytics (PRD Phase 3, Feature 6,
+    // src/pages/POPReports.jsx) — added to this existing module rather than
+    // a new one, since these are still Reports-shaped granular view
+    // permissions and reuse this module's own exportReportsToExcel below
+    // for their Export Excel action, same as every other report here.
+    { key: 'viewWorkOrderTATReport',            label: 'View Work Order TAT Report' },
+    { key: 'viewTechnicianPerformanceReport',   label: 'View Technician Performance Report' },
+    { key: 'viewPOPDowntimeReport',             label: 'View POP-wise Downtime Report' },
+    { key: 'viewCleaningComplianceReport',      label: 'View Cleaning Compliance Report' },
+    { key: 'viewInventoryConsumptionReport',    label: 'View Inventory Consumption & Cost Report' },
     { key: 'exportReportsToExcel',              label: 'Export Reports to Excel' },
   ],
   // Settings is self-referential — "Manage Roles & Permissions" itself
@@ -474,6 +484,11 @@ const SEED = [
       p['Reports']['viewCollectionReport'] = true
       p['Reports']['viewPartnerStoreCollectionReport'] = true
       p['Reports']['viewInventoryReport'] = true
+      p['Reports']['viewWorkOrderTATReport'] = true
+      p['Reports']['viewTechnicianPerformanceReport'] = true
+      p['Reports']['viewPOPDowntimeReport'] = true
+      p['Reports']['viewCleaningComplianceReport'] = true
+      p['Reports']['viewInventoryConsumptionReport'] = true
       p['Resellers']['viewResellerList'] = true
       p['Resellers']['viewResellerDetail'] = true
       p['Projects']['viewProjectsList'] = true
