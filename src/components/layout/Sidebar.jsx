@@ -91,7 +91,13 @@ const NAV_ITEMS = [
   { label: 'OTT',              icon: Tv2,             to: '/ott'                        },
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
   { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
-  { label: 'POP Management',   icon: MapPin,          to: '/network/pops'              },
+  {
+    label: 'POP Management',   icon: MapPin,          to: '/network/pops',
+    children: [
+      { label: 'POP List',     icon: MapPin,          to: '/network/pops' },
+      { label: 'Work Orders',  icon: Wrench,          to: '/network/pops/work-orders' },
+    ],
+  },
   {
     label: 'Inventory',        icon: Package,         to: '/inventory',
     children: [
