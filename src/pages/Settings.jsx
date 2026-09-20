@@ -21,6 +21,7 @@ import {
   getCategorySubcategories, saveCategorySubcategories, subscribeCategorySubcategories,
 } from '../data/ticketsStore'
 import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data/outagesStore'
+import { getCleaningIntervalDays, saveCleaningIntervalDays } from '../data/popAlertsStore'
 import {
   getCustomerTypes, getCustomerType, subscribeCustomerTypes, setCustomerTypeStatus,
   saveLeadIdConfig, formatLeadId,
@@ -52,6 +53,7 @@ const TABS = [
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
   { id: 'sla-configuration', label: 'SLA Configuration',  icon: Clock     },
+  { id: 'pop-alerts-configuration', label: 'POP Alerts Configuration', icon: Bell },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
   { id: 'complaint-categories', label: 'Complaint Categories', icon: Tags },
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
@@ -390,6 +392,67 @@ function SlaConfigTab() {
 
       <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
         <Button size="sm" icon={<Save size={14} />} onClick={handleSave} disabled={!allPositive}>Save</Button>
+      </div>
+    </div>
+  )
+}
+
+// Same tiny single-value get/save-triplet shape as SlaConfigTab above, for
+// popAlertsStore.js's own Cleaning Due interval — the one alert trigger the
+// PRD explicitly asks to be configurable rather than hardcoded (the other
+// two "expiry approaching" triggers, Warranty/AMC and Rent & Agreement,
+// reuse an already-established fixed 30-day window instead — see
+// popAlertsStore.js's own note).
+function PopAlertsConfigTab() {
+  const [days, setDays] = useState(getCleaningIntervalDays)
+  const [saved, setSaved] = useState(false)
+
+  const parsed = Number(days)
+  const isValid = Number.isFinite(parsed) && parsed > 0
+
+  function handleSave() {
+    if (!isValid) return
+    saveCleaningIntervalDays(parsed)
+    setSaved(true)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">POP Alerts Configuration</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Set how many days may pass since a POP equipment item's Last Cleaning Date before a "Cleaning Due" alert
+          is raised. Applies going forward on every alert computation — there's nothing to recalculate retroactively,
+          since alerts are computed fresh each time rather than stored.
+        </p>
+      </div>
+
+      <FormField label="Cleaning Due Interval (days)">
+        <Input
+          type="number"
+          min="1"
+          value={days}
+          onChange={e => { setDays(e.target.value); setSaved(false) }}
+          className="max-w-xs"
+        />
+      </FormField>
+
+      {!isValid && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          Enter a positive number of days.
+        </div>
+      )}
+
+      {saved && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          POP Alerts settings saved.
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave} disabled={!isValid}>Save</Button>
       </div>
     </div>
   )
@@ -3679,6 +3742,7 @@ export default function Settings() {
           {activeTab === 'billing'       && <BillingTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'sla-configuration' && <SlaConfigTab />}
+          {activeTab === 'pop-alerts-configuration' && <PopAlertsConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
           {activeTab === 'complaint-categories' && <ComplaintCategoriesTab />}
           {activeTab === 'outage-configuration' && <OutageConfigTab />}

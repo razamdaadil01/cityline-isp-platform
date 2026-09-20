@@ -23,6 +23,7 @@ import { getProduct } from './productStore'
 import { getUsers } from './userStore'
 import { getProductAvailability } from './inventoryLedger'
 import { raiseStockTransferRequestIfNeeded } from './stockTransferRequestStore'
+import { addNotification } from './notificationStore'
 
 export const WORK_ORDER_CATEGORIES = ['Cleaning', 'Preventive Maintenance', 'Breakdown-Fault']
 export const WORK_ORDER_PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
@@ -384,6 +385,31 @@ export function saveWorkOrder(wo) {
       })
     }
   })
+
+  // Alert trigger (PRD Phase 2, "Work Order assigned -> notify the
+  // assigned Technician(s)"): fires for whichever technician id(s) are
+  // newly present in assignedTechnicianIds that weren't there on the prior
+  // save — covers both a brand-new Work Order created with technicians
+  // already picked and a later addition of technicians to an existing one.
+  // Unlike the other 5 alert triggers (all standing conditions recomputed
+  // fresh by popAlertsStore.js's getPOPAlerts()), this one is a genuine
+  // EVENT — it happens once, at the exact moment of assignment — so it's
+  // pushed directly to the real shared notificationStore.js bell here
+  // rather than being something to keep recomputing as "currently true".
+  const newlyAssignedIds = (saved.assignedTechnicianIds ?? []).filter(tid => !(prev?.assignedTechnicianIds ?? []).includes(tid))
+  if (newlyAssignedIds.length > 0) {
+    const users = getUsers()
+    const names = newlyAssignedIds.map(tid => users.find(u => u.id === tid)?.name ?? tid)
+    const pop = getPOP(saved.popId)
+    addNotification({
+      type: 'wo_assigned',
+      title: 'Work Order Assigned',
+      description: `Work Order ${saved.id} (${saved.category}) for ${pop?.name ?? saved.popId} assigned to ${names.join(', ')}. (Notify: Technician — Field Engineer)`,
+      meta: saved.id,
+      reference: saved.id,
+      color: 'blue',
+    })
+  }
 
   logAudit({
     action: isNew ? 'Create' : 'Edit', module: 'Network',

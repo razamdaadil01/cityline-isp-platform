@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, Search, Menu, ChevronDown, UserPlus, Clock, AlertCircle, MessageSquare, ArrowRight, CheckCheck, Users, Ticket } from 'lucide-react'
+import { Bell, Search, Menu, ChevronDown, UserPlus, Clock, AlertCircle, AlertTriangle, MessageSquare, ArrowRight, CheckCheck, Users, Ticket, PackageX, CalendarClock, ShieldAlert } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   getNotifications, markAsRead, markAllAsRead, subscribeNotifications,
@@ -15,6 +15,15 @@ const TYPE_ICONS = {
   mention:          MessageSquare,
   stage_moved:      ArrowRight,
   followup_tomorrow: Clock,
+  // POP Alerts (PRD Phase 2) — pushed by popAlertsStore.js's
+  // syncPOPAlertsToNotifications()/workOrderStore.js's own Work Order
+  // Assigned trigger.
+  cleaning_due:     CalendarClock,
+  sla_breach:       AlertTriangle,
+  warranty_expiry:  ShieldAlert,
+  low_stock:        PackageX,
+  rent_expiry:      CalendarClock,
+  wo_assigned:      UserPlus,
 }
 
 const ICON_BG = {
