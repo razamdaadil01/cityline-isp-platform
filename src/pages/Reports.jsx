@@ -18,12 +18,13 @@ import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueSta
 import { getProducts, subscribeProducts } from '../data/productStore'
 import { subscribeInventoryLedger } from '../data/inventoryLedger'
 import { computeInventoryByCategory, formatAvailableQty } from '../utils/inventoryStats'
-import { getInvoices, getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
+import { getInvoices, getOutstandingInvoices, subscribeInvoices } from '../data/invoicesStore'
 import { computeCollectionByMonth } from '../utils/collectionStats'
 import { computeChurnByMonth, countCurrentlyAtRisk } from '../utils/churnStats'
 import { getStores, subscribeStores } from '../data/storeStore'
 import { getPartners, subscribePartners } from '../data/partners'
 import { computeStoreCollection, computePartnerCollection } from '../utils/partnerStoreStats'
+import { isoFromDMonYYYY, isoFromDMY, isDateInRange, isMonthKeyInRange } from '../utils/dateFormats'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportWorkbook } from '../utils/excelExport'
 
@@ -38,7 +39,28 @@ import { exportWorkbook } from '../utils/excelExport'
 // drift apart. There's no real expenses/profit or monthly-target figure
 // anywhere in this app (no cost or goal store exists), so unlike the old
 // mock this only ever plots the one real collected-revenue series.
-const REVENUE_MONTHS_SHOWN = 6
+
+// Shared date-range filters for this page's own date picker (dateFrom/
+// dateTo state in Reports(), passed down as `range` to every detail view
+// below) — applied against whichever real date field backs each report's
+// timeline. Used both by the parent's own card/summary-strip stats and by
+// each self-contained detail view, so a report's summary card and its
+// detail view are always filtered the same way and can't disagree.
+function filterPaymentsByRange(payments, from, to) {
+  return payments.filter(p => isDateInRange(isoFromDMY(p.paymentDate), from, to))
+}
+function filterInvoicesByRange(invoices, from, to) {
+  return invoices.filter(inv => isDateInRange(isoFromDMonYYYY(inv.date), from, to))
+}
+// CAF Compliance has no submission-date field of its own — no rejection
+// reason or submission timestamp is tracked anywhere for it (see
+// customersData.js's own CAF_STATUSES comment). createdOn (real join
+// date) is used as the closest real proxy for "when this customer's CAF
+// entered the system" — the same date this page's Churn Report treats as
+// the real signal for "new" activity.
+function filterCustomersByCreatedOn(customers, from, to) {
+  return customers.filter(c => isDateInRange(isoFromDMonYYYY(c.createdOn), from, to))
+}
 
 // Real per-customer cafStatus (customersData.js's CAF_STATUSES), same
 // source Dashboard.jsx's own CAF Compliance widget reads — replaces the
@@ -152,19 +174,21 @@ const REPORT_CARDS = [
 // ── Detail views ──────────────────────────────────────────────────────────────
 
 // Self-contained, live-subscribed detail view (same pattern as CAFDetail
-// below) rather than reading the page-level date pickers — those are
-// display-only elsewhere in this file and this view doesn't filter by them.
-function RevenueDetail() {
+// below) — accepts the page-level `range` prop (dateFrom/dateTo) and
+// filters real payments to it via filterPaymentsByRange() above, so the
+// monthly trend, its totals, and the plan-wise breakdown all reflect
+// whatever date range the user picked rather than a fixed recent window.
+function RevenueDetail({ range }) {
   const [customers, setCustomers] = useState(getAllCustomers)
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
   const [payments, setPayments] = useState(getPayments)
   useEffect(() => subscribePayments(setPayments), [])
 
-  const revenueByMonth = useMemo(() => computeRevenueByMonth(payments), [payments])
-  const shownMonths = useMemo(
-    () => (revenueByMonth.length <= REVENUE_MONTHS_SHOWN ? revenueByMonth : revenueByMonth.slice(-REVENUE_MONTHS_SHOWN)),
-    [revenueByMonth]
+  const filteredPayments = useMemo(
+    () => filterPaymentsByRange(payments, range?.from, range?.to),
+    [payments, range?.from, range?.to]
   )
+  const shownMonths = useMemo(() => computeRevenueByMonth(filteredPayments), [filteredPayments])
   const totalRevenue = useMemo(() => shownMonths.reduce((sum, m) => sum + m.collected, 0), [shownMonths])
   const activeCustomerCount = useMemo(() => customers.filter(c => effectiveStatus(c) === 'active').length, [customers])
   const latestMonth = shownMonths[shownMonths.length - 1]
@@ -172,13 +196,13 @@ function RevenueDetail() {
   const currentMonthLabel = latestMonth?.month ?? new Date().toLocaleDateString('en-US', { month: 'short' })
   const arpu = activeCustomerCount === 0 ? 0 : currentMonthRevenue / activeCustomerCount
 
-  const revenueByPlan = useMemo(() => computeRevenueByPlan(customers, payments), [customers, payments])
+  const revenueByPlan = useMemo(() => computeRevenueByPlan(customers, filteredPayments), [customers, filteredPayments])
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: `Total Revenue (${shownMonths.length || REVENUE_MONTHS_SHOWN}m)`, value: `₹${totalRevenue.toLocaleString('en-IN')}` },
+          { label: 'Total Revenue (Selected Range)', value: `₹${totalRevenue.toLocaleString('en-IN')}` },
           { label: 'Active Customers', value: activeCustomerCount.toLocaleString('en-IN') },
           { label: `ARPU (${currentMonthLabel})`, value: `₹${Math.round(arpu).toLocaleString('en-IN')}` },
         ].map(s => (
@@ -192,7 +216,7 @@ function RevenueDetail() {
       <div className="bg-white rounded-xl border border-surface-border p-5">
         <h4 className="text-sm font-semibold text-gray-800 mb-4">Month-wise Revenue</h4>
         {shownMonths.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-16">No payments recorded yet — the revenue trend will build up as payments come in.</p>
+          <p className="text-sm text-gray-400 text-center py-16">No payments recorded in the selected date range.</p>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={shownMonths} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -253,10 +277,18 @@ const CUSTOM_GAUGE_LABEL = ({ cx, cy, value }) => (
   </text>
 )
 
-function CAFDetail() {
+// Accepts the page-level `range` prop — CAF Compliance has no submission-
+// date field of its own, so customers are filtered by createdOn (real
+// join date), the closest real proxy (see filterCustomersByCreatedOn()'s
+// own comment above).
+function CAFDetail({ range }) {
   const [customers, setCustomers] = useState(getAllCustomers)
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
-  const stats = useMemo(() => computeCafStats(customers), [customers])
+  const filteredCustomers = useMemo(
+    () => filterCustomersByCreatedOn(customers, range?.from, range?.to),
+    [customers, range?.from, range?.to]
+  )
+  const stats = useMemo(() => computeCafStats(filteredCustomers), [filteredCustomers])
   const maxIssueCount = Math.max(1, stats.counts.Submitted, stats.counts.Pending, stats.counts.Rejected)
 
   return (
@@ -273,6 +305,9 @@ function CAFDetail() {
           </div>
         ))}
       </div>
+      <p className="text-[11px] text-gray-400 -mt-4">
+        CAF Compliance has no submission-date field of its own — filtered above by each customer's join date (Customer Since) instead, the closest real date this app tracks per customer.
+      </p>
 
       <div className="grid grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-surface-border p-5 flex flex-col items-center">
@@ -360,29 +395,38 @@ function CAFDetail() {
 // RevenueDetail/CAFDetail above) — reuses computeChurnByMonth()
 // (src/utils/churnStats.js), real join dates (customersData.js's
 // createdOn) and real status-change timestamps (statusChangedAt, set by
-// every updateCustomer() call — see that function's own comment). Shows
-// every month with real data rather than a fixed recent window
-// (churnStats.js's own comment explains why: createdOn is backfilled
-// history, not recent activity like paymentsStore.js).
-function ChurnDetail() {
+// every updateCustomer() call — see that function's own comment). Accepts
+// the page-level `range` prop and narrows the monthly series to it by
+// filtering on each month's own "YYYY-MM" key rather than filtering
+// customers directly — a customer's createdOn (feeds newJoins) and
+// statusChangedAt (feeds churned) can easily fall in different months, so
+// filtering the already-bucketed output is the only way to keep both
+// series correct at once.
+function ChurnDetail({ range }) {
   const [customers, setCustomers] = useState(getAllCustomers)
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
 
-  const byMonth = useMemo(() => computeChurnByMonth(customers), [customers])
+  const byMonth = useMemo(() => {
+    const all = computeChurnByMonth(customers)
+    return all.filter(m => isMonthKeyInRange(m.key, range?.from, range?.to))
+  }, [customers, range?.from, range?.to])
   const totalNewJoins = useMemo(() => byMonth.reduce((sum, m) => sum + m.newJoins, 0), [byMonth])
   const totalChurned = useMemo(() => byMonth.reduce((sum, m) => sum + m.churned, 0), [byMonth])
   const netGrowth = useMemo(() => byMonth.reduce((sum, m) => sum + m.net, 0), [byMonth])
   const avgNewJoins = byMonth.length === 0 ? 0 : totalNewJoins / byMonth.length
   const avgChurned = byMonth.length === 0 ? 0 : totalChurned / byMonth.length
+  // Live snapshot, not date-filtered — "currently at risk" means right
+  // now, independent of when a customer entered that state (see
+  // countCurrentlyAtRisk()'s own comment in churnStats.js).
   const currentlyAtRisk = useMemo(() => countCurrentlyAtRisk(customers), [customers])
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Avg Monthly Churn',    value: `${avgChurned.toFixed(1)}/mo`, color: 'text-red-500' },
-          { label: 'Avg New Joins',        value: `${avgNewJoins.toFixed(1)}/mo`, color: 'text-green-600' },
-          { label: 'Net Growth (to date)', value: `${netGrowth >= 0 ? '+' : ''}${netGrowth}`, color: 'text-brand-blue' },
+          { label: 'Avg Monthly Churn',           value: `${avgChurned.toFixed(1)}/mo`, color: 'text-red-500' },
+          { label: 'Avg New Joins',               value: `${avgNewJoins.toFixed(1)}/mo`, color: 'text-green-600' },
+          { label: 'Net Growth (Selected Range)', value: `${netGrowth >= 0 ? '+' : ''}${netGrowth}`, color: 'text-brand-blue' },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -393,7 +437,7 @@ function ChurnDetail() {
       <div className="bg-white rounded-xl border border-surface-border p-5">
         <h4 className="text-sm font-semibold text-gray-800 mb-4">Churn vs New Joins</h4>
         {byMonth.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-16">No customer join or status-change data recorded yet.</p>
+          <p className="text-sm text-gray-400 text-center py-16">No customer join or status-change data in the selected date range.</p>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={byMonth} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -429,24 +473,38 @@ function ChurnDetail() {
 // RevenueDetail/CAFDetail above) — collected side reuses
 // computeRevenueByMonth() (src/utils/revenueStats.js, via
 // computeCollectionByMonth()), the exact same real, live paymentsStore.js
-// aggregation the Revenue Report uses; pending side reads invoicesStore.js
-// directly (getOutstandingInvoices()/getOutstandingTotal()), the same real
-// functions Dashboard.jsx's own "Overdue Payments" widget already uses, so
-// neither disagrees with the other.
-function CollectionDetail() {
+// aggregation the Revenue Report uses; pending side filters invoicesStore.js's
+// own getOutstandingInvoices() (the same real function Dashboard.jsx's
+// "Overdue Payments" widget uses) down to the selected date range by each
+// invoice's own issue date. Accepts the page-level `range` prop and
+// applies it to both sides.
+function CollectionDetail({ range }) {
   const [payments, setPayments] = useState(getPayments)
   useEffect(() => subscribePayments(setPayments), [])
   const [invoices, setInvoices] = useState(getInvoices)
   useEffect(() => subscribeInvoices(setInvoices), [])
 
-  const byMonth = useMemo(() => computeCollectionByMonth(payments, invoices), [payments, invoices])
+  const filteredPayments = useMemo(
+    () => filterPaymentsByRange(payments, range?.from, range?.to),
+    [payments, range?.from, range?.to]
+  )
+  const filteredInvoices = useMemo(
+    () => filterInvoicesByRange(invoices, range?.from, range?.to),
+    [invoices, range?.from, range?.to]
+  )
   const shownMonths = useMemo(
-    () => (byMonth.length <= REVENUE_MONTHS_SHOWN ? byMonth : byMonth.slice(-REVENUE_MONTHS_SHOWN)),
-    [byMonth]
+    () => computeCollectionByMonth(filteredPayments, filteredInvoices),
+    [filteredPayments, filteredInvoices]
   )
   const periodCollected = useMemo(() => shownMonths.reduce((sum, m) => sum + m.collected, 0), [shownMonths])
-  const outstandingInvoices = useMemo(() => getOutstandingInvoices(), [invoices])
-  const outstandingTotal = useMemo(() => getOutstandingTotal(), [invoices])
+  const outstandingInvoices = useMemo(
+    () => filterInvoicesByRange(getOutstandingInvoices(), range?.from, range?.to),
+    [invoices, range?.from, range?.to]
+  )
+  const outstandingTotal = useMemo(
+    () => outstandingInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0),
+    [outstandingInvoices]
+  )
   const collectionRate = (periodCollected + outstandingTotal) === 0
     ? 0 : (periodCollected / (periodCollected + outstandingTotal)) * 100
 
@@ -454,8 +512,8 @@ function CollectionDetail() {
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: `Collected (${shownMonths.length || REVENUE_MONTHS_SHOWN}m)`, value: `₹${periodCollected.toLocaleString('en-IN')}`, color: 'text-green-600' },
-          { label: 'Pending (Outstanding)', value: `₹${outstandingTotal.toLocaleString('en-IN')}`, color: 'text-amber-600' },
+          { label: 'Collected (Selected Range)', value: `₹${periodCollected.toLocaleString('en-IN')}`, color: 'text-green-600' },
+          { label: 'Pending (Selected Range)', value: `₹${outstandingTotal.toLocaleString('en-IN')}`, color: 'text-amber-600' },
           { label: 'Collection Rate', value: `${collectionRate.toFixed(1)}%`, color: 'text-brand-blue' },
         ].map(s => (
           <div key={s.label} className="bg-gray-50 rounded-xl p-4 border border-surface-border">
@@ -468,7 +526,7 @@ function CollectionDetail() {
       <div className="bg-white rounded-xl border border-surface-border p-5">
         <h4 className="text-sm font-semibold text-gray-800 mb-4">Monthly Collection vs Pending</h4>
         {shownMonths.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-16">No payments or invoices recorded yet.</p>
+          <p className="text-sm text-gray-400 text-center py-16">No payments or invoices in the selected date range.</p>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={shownMonths} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
@@ -484,7 +542,7 @@ function CollectionDetail() {
           </ResponsiveContainer>
         )}
         <p className="text-[11px] text-gray-400 mt-3">
-          Pending amounts reflect aggregate invoice data, not per-customer billing records.
+          Pending amounts reflect aggregate invoice data, not per-customer billing records, filtered to invoices issued within the selected date range.
         </p>
       </div>
 
@@ -530,8 +588,11 @@ function CollectionDetail() {
 // like the old mock had — there's no real per-store/per-partner pending
 // figure anywhere in this app (partnerStoreStats.js's own comment
 // explains why: invoicesStore.js has no customerId to attribute a
-// pending invoice through).
-function PartnerDetail() {
+// pending invoice through). Accepts the page-level `range` prop and
+// filters the payments fed into the aggregation to it — customer counts
+// stay unfiltered (which store/partner a customer belongs to is a current
+// assignment, not a dated event).
+function PartnerDetail({ range }) {
   const [customers, setCustomers] = useState(getAllCustomers)
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
   const [payments, setPayments] = useState(getPayments)
@@ -541,8 +602,18 @@ function PartnerDetail() {
   const [partners, setPartners] = useState(getPartners)
   useEffect(() => subscribePartners(setPartners), [])
 
-  const storeRows = useMemo(() => computeStoreCollection(customers, payments, stores), [customers, payments, stores])
-  const partnerRows = useMemo(() => computePartnerCollection(customers, payments, partners), [customers, payments, partners])
+  const filteredPayments = useMemo(
+    () => filterPaymentsByRange(payments, range?.from, range?.to),
+    [payments, range?.from, range?.to]
+  )
+  const storeRows = useMemo(
+    () => computeStoreCollection(customers, filteredPayments, stores),
+    [customers, filteredPayments, stores]
+  )
+  const partnerRows = useMemo(
+    () => computePartnerCollection(customers, filteredPayments, partners),
+    [customers, filteredPayments, partners]
+  )
 
   return (
     <div className="space-y-6">
@@ -619,7 +690,7 @@ function PartnerDetail() {
       </div>
 
       <p className="text-[11px] text-gray-400">
-        Pending/overdue amounts can't be attributed to a specific store or partner yet — invoice records in this app aren't linked to individual customers. Only real collected amounts are shown above.
+        Pending/overdue amounts can't be attributed to a specific store or partner yet — invoice records in this app aren't linked to individual customers. Collected amounts above are filtered to the selected date range; customer counts reflect each customer's current store/partner assignment regardless of date.
       </p>
     </div>
   )
@@ -634,6 +705,13 @@ function PartnerDetail() {
 // productStore.js) since a product's availability can change from a
 // purchase/assignment/transfer/repair/scrap event without the product
 // master record itself changing.
+//
+// Deliberately ignores the page-level date range — stock levels are a
+// live snapshot (how much is available right now), not a trend with a
+// start/end date the way payments or join dates are. Reports() hides the
+// date picker entirely while this report is open rather than leaving it
+// present but inert, and this note explains why for anyone exporting or
+// otherwise expecting it to have filtered something.
 function InventoryReportDetail() {
   const [products, setProducts] = useState(getProducts)
   useEffect(() => subscribeProducts(setProducts), [])
@@ -660,6 +738,9 @@ function InventoryReportDetail() {
           </div>
         ))}
       </div>
+      <p className="text-[11px] text-gray-400 -mt-4">
+        Date range not applicable — inventory levels reflect current stock, not a historical trend.
+      </p>
 
       {byCategory.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-16">No products tracked yet.</p>
@@ -759,23 +840,43 @@ const DETAIL_VIEWS = {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Reports() {
-  const [active,    setActive]    = useState(null)
-  const [dateFrom,  setDateFrom]  = useState(() => `${new Date().getFullYear()}-01-01`)
-  const [dateTo,    setDateTo]    = useState(() => new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0])
+  const [active, setActive] = useState(null)
+  // Defaults to a rolling 2-year window ending today — wide enough to
+  // cover customersData.js's real createdOn backfill (spread over roughly
+  // the past 1-2 years) and any real payments recorded this session, so
+  // reports aren't empty on first load. The old default (Jan 1 of the
+  // current year to the end of the current month) cut off most of that
+  // real join history and included future dates within the month that
+  // could never have real data.
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() - 2)
+    return d.toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
   // Real CAF compliance stats (customersData.js), same source CAFDetail
   // below reads independently — overrides just the 'caf' card's static
   // value/sub/badge below so the summary card and its own detail view can
-  // never show two different numbers.
+  // never show two different numbers. Filtered by createdOn (see
+  // filterCustomersByCreatedOn()'s own comment above) since CAF Compliance
+  // has no submission-date field of its own.
   const [customers, setCustomers] = useState(getAllCustomers)
   useEffect(() => subscribeCustomers(() => setCustomers(getAllCustomers())), [])
-  const cafStats = useMemo(() => computeCafStats(customers), [customers])
+  const cafStats = useMemo(
+    () => computeCafStats(filterCustomersByCreatedOn(customers, dateFrom, dateTo)),
+    [customers, dateFrom, dateTo]
+  )
 
   // Real churn stats (customersData.js's createdOn/statusChangedAt via
   // churnStats.js — same computeChurnByMonth() this page's own
   // ChurnDetail uses), overriding just the 'churn' card's static value/
-  // sub/badge so it can never disagree with it.
-  const churnByMonth = useMemo(() => computeChurnByMonth(customers), [customers])
+  // sub/badge so it can never disagree with it. Filtered by each month's
+  // own key, same reasoning ChurnDetail's own comment gives.
+  const churnByMonth = useMemo(() => {
+    const all = computeChurnByMonth(customers)
+    return all.filter(m => isMonthKeyInRange(m.key, dateFrom, dateTo))
+  }, [customers, dateFrom, dateTo])
   const churnStats = useMemo(() => {
     const totalNewJoins = churnByMonth.reduce((sum, m) => sum + m.newJoins, 0)
     const totalChurned = churnByMonth.reduce((sum, m) => sum + m.churned, 0)
@@ -791,10 +892,19 @@ export default function Reports() {
   // can ever show a different number than RevenueDetail itself.
   const [payments, setPayments] = useState(getPayments)
   useEffect(() => subscribePayments(setPayments), [])
-  const revenueByPlan = useMemo(() => computeRevenueByPlan(customers, payments), [customers, payments])
+  // Shared across Revenue/Collection/Partner sections below — every real
+  // payment amount this page aggregates is scoped to the same selected
+  // date range, via the same filterPaymentsByRange() the detail views use.
+  const filteredPayments = useMemo(
+    () => filterPaymentsByRange(payments, dateFrom, dateTo),
+    [payments, dateFrom, dateTo]
+  )
+  const revenueByPlan = useMemo(
+    () => computeRevenueByPlan(customers, filteredPayments),
+    [customers, filteredPayments]
+  )
   const revenueStats = useMemo(() => {
-    const byMonth = computeRevenueByMonth(payments)
-    const shownMonths = byMonth.length <= REVENUE_MONTHS_SHOWN ? byMonth : byMonth.slice(-REVENUE_MONTHS_SHOWN)
+    const shownMonths = computeRevenueByMonth(filteredPayments)
     const periodRevenue = shownMonths.reduce((sum, m) => sum + m.collected, 0)
     const activeCustomerCount = customers.filter(c => effectiveStatus(c) === 'active').length
     const latestMonth = shownMonths[shownMonths.length - 1]
@@ -810,18 +920,19 @@ export default function Reports() {
       activeCustomerCount,
       totalCustomerCount: customers.length,
       arpu,
-      currentMonthPaymentCount: payments.filter(p => {
+      currentMonthPaymentCount: filteredPayments.filter(p => {
         const [d, m, y] = (p.paymentDate || '').split('-')
         return d && m && y && `${y}-${m}` === latestMonth?.key
       }).length,
     }
-  }, [payments, customers])
+  }, [filteredPayments, customers])
 
   // Real inventory stats (productStore.js/inventoryLedger.js via
   // inventoryStats.js — same computeInventoryByCategory() this page's own
   // InventoryReportDetail and InventoryOverview.jsx use), overriding just
   // the 'inventory' card's static value/sub/badge so it can never disagree
-  // with either of those.
+  // with either of those. Not date-filtered — see InventoryReportDetail's
+  // own comment on why a stock snapshot has no date dimension to filter.
   const [products, setProducts] = useState(getProducts)
   useEffect(() => subscribeProducts(setProducts), [])
   const [inventoryLedgerTick, setInventoryLedgerTick] = useState(0)
@@ -835,36 +946,50 @@ export default function Reports() {
 
   // Real collection stats (paymentsStore.js/invoicesStore.js via
   // collectionStats.js — same computeCollectionByMonth() this page's own
-  // CollectionDetail uses, and the same getOutstandingInvoices()/
-  // getOutstandingTotal() Dashboard.jsx's "Overdue Payments" widget
-  // already reads), overriding just the 'collection' card's static value/
-  // sub/badge so it can never disagree with either of those.
+  // CollectionDetail uses, and the same getOutstandingInvoices()
+  // Dashboard.jsx's "Overdue Payments" widget already reads), overriding
+  // just the 'collection' card's static value/sub/badge so it can never
+  // disagree with either of those. Both collected and pending sides are
+  // scoped to the selected date range.
   const [invoices, setInvoices] = useState(getInvoices)
   useEffect(() => subscribeInvoices(setInvoices), [])
-  const collectionByMonth = useMemo(() => computeCollectionByMonth(payments, invoices), [payments, invoices])
+  const filteredInvoices = useMemo(
+    () => filterInvoicesByRange(invoices, dateFrom, dateTo),
+    [invoices, dateFrom, dateTo]
+  )
+  const collectionByMonth = useMemo(
+    () => computeCollectionByMonth(filteredPayments, filteredInvoices),
+    [filteredPayments, filteredInvoices]
+  )
   const collectionStats = useMemo(() => {
-    const shownMonths = collectionByMonth.length <= REVENUE_MONTHS_SHOWN
-      ? collectionByMonth : collectionByMonth.slice(-REVENUE_MONTHS_SHOWN)
+    const shownMonths = collectionByMonth
     const periodCollected = shownMonths.reduce((sum, m) => sum + m.collected, 0)
-    const outstandingInvoices = getOutstandingInvoices()
-    const outstandingTotal = getOutstandingTotal()
+    const outstandingInvoices = filterInvoicesByRange(getOutstandingInvoices(), dateFrom, dateTo)
+    const outstandingTotal = outstandingInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0)
     const collectionRate = (periodCollected + outstandingTotal) === 0
       ? 0 : (periodCollected / (periodCollected + outstandingTotal)) * 100
     return { shownMonths, monthsCounted: shownMonths.length, periodCollected, outstandingInvoices, outstandingTotal, collectionRate }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionByMonth, invoices])
+  }, [collectionByMonth, invoices, dateFrom, dateTo])
 
   // Real partner/store collection stats (customersData.js's storeId/
   // partnerId + paymentsStore.js via partnerStoreStats.js — same
   // computeStoreCollection()/computePartnerCollection() this page's own
   // PartnerDetail uses), overriding just the 'partner' card's static
-  // value/sub/badge so it can never disagree with it.
+  // value/sub/badge so it can never disagree with it. Payments are date-
+  // filtered; customer-to-store/partner assignment is a current fact, not
+  // a dated event, so customer counts aren't.
   const [stores, setStores] = useState(getStores)
   useEffect(() => subscribeStores(setStores), [])
   const [partners, setPartners] = useState(getPartners)
   useEffect(() => subscribePartners(setPartners), [])
-  const storeCollection = useMemo(() => computeStoreCollection(customers, payments, stores), [customers, payments, stores])
-  const partnerCollection = useMemo(() => computePartnerCollection(customers, payments, partners), [customers, payments, partners])
+  const storeCollection = useMemo(
+    () => computeStoreCollection(customers, filteredPayments, stores),
+    [customers, filteredPayments, stores]
+  )
+  const partnerCollection = useMemo(
+    () => computePartnerCollection(customers, filteredPayments, partners),
+    [customers, filteredPayments, partners]
+  )
   const partnerStoreStats = useMemo(() => {
     const totalCollected = storeCollection.reduce((sum, s) => sum + s.collected, 0)
     return { totalCollected, storeCount: stores.length, partnerCount: partners.length, topStore: storeCollection[0] ?? null }
@@ -903,7 +1028,9 @@ export default function Reports() {
       return {
         ...card,
         value: `₹${revenueStats.periodRevenue.toLocaleString('en-IN')}`,
-        sub: `Last ${revenueStats.monthsCounted || REVENUE_MONTHS_SHOWN} month${revenueStats.monthsCounted === 1 ? '' : 's'} total`,
+        sub: revenueStats.monthsCounted > 0
+          ? `${revenueStats.monthsCounted} month${revenueStats.monthsCounted === 1 ? '' : 's'} in range`
+          : 'No data in range',
         badge: revenueStats.currentMonthPaymentCount > 0
           ? { label: `${revenueStats.currentMonthPaymentCount} payment${revenueStats.currentMonthPaymentCount !== 1 ? 's' : ''} this month`, variant: 'green' }
           : { label: 'No payments this month', variant: 'gray' },
@@ -934,7 +1061,7 @@ export default function Reports() {
       return {
         ...card,
         value: `${churnRate.toFixed(1)}%`,
-        sub: 'Cumulative churn rate',
+        sub: 'Churn rate (selected range)',
         badge: churnStats.totalChurned > 0
           ? { label: `${churnStats.totalChurned} churned`, variant: 'red' }
           : { label: 'No churn recorded yet', variant: 'green' },
@@ -1095,14 +1222,20 @@ export default function Reports() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <span>From</span>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="w-36 text-xs py-1.5" />
-            <span>To</span>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="w-36 text-xs py-1.5" />
-          </div>
+          {/* Inventory is a live stock snapshot, not a trend — a date range
+              has nothing to filter there (see InventoryReportDetail's own
+              note), so the picker is hidden rather than left present but
+              inert while that report is open. */}
+          {active !== 'inventory' && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <span>From</span>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                className="w-36 text-xs py-1.5" />
+              <span>To</span>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                className="w-36 text-xs py-1.5" />
+            </div>
+          )}
           {canExport && (active ? activeAllowed : visibleReportCards.length > 0) && (
             <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExport}>Export Excel</Button>
           )}
@@ -1114,9 +1247,11 @@ export default function Reports() {
         <div className="grid grid-cols-3 gap-4">
           {[
             {
-              label: `Revenue (${revenueStats.currentMonthLabel})`,
-              value: `₹${revenueStats.currentMonthRevenue.toLocaleString('en-IN')}`,
-              sub: `${revenueStats.currentMonthPaymentCount} payment${revenueStats.currentMonthPaymentCount !== 1 ? 's' : ''} recorded`,
+              label: 'Revenue (Selected Range)',
+              value: `₹${revenueStats.periodRevenue.toLocaleString('en-IN')}`,
+              sub: revenueStats.monthsCounted > 0
+                ? `${revenueStats.monthsCounted} month${revenueStats.monthsCounted === 1 ? '' : 's'} in range`
+                : 'No data in range',
             },
             {
               label: 'Active Customers',
@@ -1124,7 +1259,7 @@ export default function Reports() {
               sub: `of ${revenueStats.totalCustomerCount.toLocaleString('en-IN')} total customers`,
             },
             {
-              label: 'ARPU',
+              label: `ARPU (${revenueStats.currentMonthLabel})`,
               value: `₹${Math.round(revenueStats.arpu).toLocaleString('en-IN')}`,
               sub: `${revenueStats.currentMonthLabel} revenue ÷ active customers`,
             },

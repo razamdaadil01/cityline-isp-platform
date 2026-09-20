@@ -32,3 +32,45 @@ export function monthLabelFromKey(key) {
   const [y, m] = key.split('-')
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-US', { month: 'short' })
 }
+
+// "YYYY-MM-DD" ISO — same day-precision format the Reports.jsx date-range
+// picker's <input type="date"> values already come in, so a "DD Mon YYYY"
+// field can be compared directly against dateFrom/dateTo with plain string
+// comparison (ISO sorts lexicographically).
+export function isoFromDMonYYYY(dateStr) {
+  const parsed = parseDMonYYYY(dateStr)
+  if (!parsed) return null
+  return `${parsed.year}-${String(parsed.monthIndex + 1).padStart(2, '0')}-${parsed.day.padStart(2, '0')}`
+}
+
+// paymentsStore.js's paymentDate is "DD-MM-YYYY" (see revenueStats.js's own
+// computeRevenueByMonth, which parses it the same field-by-field way) —
+// same ISO output as isoFromDMonYYYY() above, for the same reason.
+export function isoFromDMY(dateStr) {
+  const [d, m, y] = (dateStr || '').split('-')
+  if (!d || !m || !y) return null
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
+// Inclusive range check — a missing/unparseable date never matches (dates
+// this app can't place on a timeline are excluded from a date-filtered
+// view rather than silently counted as always-in-range). Either bound can
+// be omitted to leave that side open.
+export function isDateInRange(isoDate, fromISO, toISO) {
+  if (!isoDate) return false
+  if (fromISO && isoDate < fromISO) return false
+  if (toISO && isoDate > toISO) return false
+  return true
+}
+
+// Same inclusive check, one level coarser — for a "YYYY-MM" month-bucket
+// key (revenueStats.js/collectionStats.js/churnStats.js's own output
+// shape) against a day-precision date range, comparing only the "YYYY-MM"
+// slice of each bound so a range that starts/ends mid-month still includes
+// that whole month.
+export function isMonthKeyInRange(key, fromISO, toISO) {
+  if (!key) return false
+  if (fromISO && key < fromISO.slice(0, 7)) return false
+  if (toISO && key > toISO.slice(0, 7)) return false
+  return true
+}
