@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Trash2, Upload, FileText, X } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Upload, FileText, X, Boxes } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import {
   getPOP, savePOP, isPopNameTaken, previewPOPId, getProjectsForPOPType,
   POWER_BACKUP_TYPES, POP_STATUSES, POP_TYPES, POP_CATEGORIES, POWER_SOURCES, SITE_OWNERSHIP_TYPES,
-  EQUIPMENT_TYPES, EQUIPMENT_STATUSES,
+  EQUIPMENT_TYPES, EQUIPMENT_STATUSES, EQUIPMENT_ITEM_CATEGORIES, EQUIPMENT_CONDITIONS,
 } from '../data/popStore'
 import { getStates, getDistricts, getAreasList, getLocalities } from '../data/areaMappingStore'
 import { getAllTechnicians } from '../data/technicianHelpers'
@@ -16,12 +16,18 @@ function emptyEquipmentRow() {
     id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: EQUIPMENT_TYPES[0], label: '', ip: '', model: '', ports: '', portsUsed: '',
     status: EQUIPMENT_STATUSES[0], customers: '', vlan: '',
+    itemCategory: EQUIPMENT_ITEM_CATEGORIES[0], serialNumber: '', quantity: '1',
+    installDate: '', warrantyAmcExpiry: '', condition: EQUIPMENT_CONDITIONS[0],
   }
 }
 
 // Existing equipment's numeric fields come back from the store as numbers;
 // form inputs need strings, same as every other create/edit page's own
 // existing-record -> form-state conversion (e.g. CreateHDDProject.jsx).
+// lastCleaningDate/lastMaintenanceDate are deliberately NOT part of this
+// form's editable state — they're auto-stamped by Work Order resolution
+// (see popStore.js's markPOPCleaned()/markEquipmentMaintained()), read-only
+// values surfaced instead on the POP Inventory view (POPInventory.jsx).
 function equipmentToForm(eq) {
   return {
     id: eq.id, type: eq.type, label: eq.label ?? '', ip: eq.ip ?? '', model: eq.model ?? '',
@@ -30,6 +36,12 @@ function equipmentToForm(eq) {
     status: eq.status ?? EQUIPMENT_STATUSES[0],
     customers: eq.customers != null ? String(eq.customers) : '',
     vlan: eq.vlan ?? '',
+    itemCategory: eq.itemCategory ?? EQUIPMENT_ITEM_CATEGORIES[0],
+    serialNumber: eq.serialNumber ?? '',
+    quantity: eq.quantity != null ? String(eq.quantity) : '1',
+    installDate: eq.installDate ?? '',
+    warrantyAmcExpiry: eq.warrantyAmcExpiry ?? '',
+    condition: eq.condition ?? EQUIPMENT_CONDITIONS[0],
   }
 }
 
@@ -141,6 +153,14 @@ export default function POPDetail() {
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
 
+    // lastCleaningDate/lastMaintenanceDate aren't part of this form's state
+    // (see equipmentToForm()'s own note) but `equipment` is still saved
+    // wholesale below, same as every other field here — so each existing
+    // row's already-stamped dates are looked up by id and carried forward
+    // explicitly, rather than silently dropped by a save that only knows
+    // about this form's own fields. A brand-new row (no matching existing
+    // record) simply has neither yet.
+    const existingEquipmentById = Object.fromEntries((existing?.equipment ?? []).map(eq => [eq.id, eq]))
     const cleanedEquipment = equipment
       .filter(eq => eq.label.trim() || eq.ip.trim())
       .map(eq => ({
@@ -155,6 +175,14 @@ export default function POPDetail() {
         ...(eq.type === 'OLT'
           ? { customers: Number(eq.customers) || 0 }
           : { vlan: eq.vlan.trim() }),
+        itemCategory: eq.itemCategory,
+        serialNumber: eq.serialNumber.trim(),
+        quantity: Number(eq.quantity) || 1,
+        installDate: eq.installDate || null,
+        warrantyAmcExpiry: eq.warrantyAmcExpiry || null,
+        condition: eq.condition,
+        lastCleaningDate: existingEquipmentById[eq.id]?.lastCleaningDate ?? null,
+        lastMaintenanceDate: existingEquipmentById[eq.id]?.lastMaintenanceDate ?? null,
       }))
 
     const showsLandlordFields = OWNERSHIP_NEEDING_LANDLORD.includes(siteOwnership)
@@ -193,26 +221,33 @@ export default function POPDetail() {
 
   return (
     <div className="p-6 pb-10">
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate('/network/pops')}
-          className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border bg-white hover:bg-gray-50 text-gray-500 transition-colors"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">{isEditing ? 'Edit POP' : 'Add POP'}</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            POP ID: <span className="font-mono font-semibold text-brand-blue">{isEditing ? existing?.id : previewPOPId(popType)}</span>
-            {!isEditing && <span className="text-gray-400"> (assigned on save)</span>}
-            {/* Read-only — set automatically when a linked Cleaning Work
-                Order (POPWorkOrderDetail.jsx) is marked Resolved, never
-                hand-edited here. */}
-            {isEditing && existing?.lastCleaningDate && (
-              <span className="text-gray-400"> · Last cleaned {existing.lastCleaningDate}</span>
-            )}
-          </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/network/pops')}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border bg-white hover:bg-gray-50 text-gray-500 transition-colors"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{isEditing ? 'Edit POP' : 'Add POP'}</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              POP ID: <span className="font-mono font-semibold text-brand-blue">{isEditing ? existing?.id : previewPOPId(popType)}</span>
+              {!isEditing && <span className="text-gray-400"> (assigned on save)</span>}
+              {/* Read-only — set automatically when a linked Cleaning Work
+                  Order (POPWorkOrderDetail.jsx) is marked Resolved, never
+                  hand-edited here. */}
+              {isEditing && existing?.lastCleaningDate && (
+                <span className="text-gray-400"> · Last cleaned {existing.lastCleaningDate}</span>
+              )}
+            </p>
+          </div>
         </div>
+        {isEditing && (
+          <Button size="sm" variant="secondary" icon={<Boxes size={14} />} onClick={() => navigate(`/network/pops/${existing.id}/inventory`)}>
+            View Inventory
+          </Button>
+        )}
       </div>
 
       <div className="w-full bg-white rounded-xl border border-surface-border shadow-card p-6 space-y-6">
@@ -496,6 +531,69 @@ export default function POPDetail() {
           >
             <Plus size={13} /> Add Equipment
           </button>
+        </div>
+
+        {/* Inventory Details — POP Inventory Management (PRD Phase 1). Kept
+            as its own table (same underlying `equipment` rows as the table
+            above, via updateEquipment) rather than widened into it — the
+            table above is already 8 columns of network/device config, and
+            adding 6 more asset-management columns to one table would make
+            it unreadable. Last Cleaning/Maintenance Date and Linked Work
+            Orders aren't editable here at all (auto-stamped by Work Order
+            resolution) — those, plus a Warranty/AMC "expiring soon" flag,
+            live on the read-focused POP Inventory view (POPInventory.jsx),
+            reachable from POP Management's list/detail pages. */}
+        <div className="space-y-3 pt-4 border-t border-surface-border">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Inventory Details</h3>
+          <div className="border border-surface-border rounded-xl overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 border-b border-surface-border">
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-40">Category</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Serial Number</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Qty</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Install Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Warranty/AMC Expiry</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Condition</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {equipment.map(row => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.label || <span className="text-gray-300">Untitled</span>}</td>
+                    <td className="px-3 py-2">
+                      <Select value={row.itemCategory} onChange={e => updateEquipment(row.id, { itemCategory: e.target.value })}>
+                        {EQUIPMENT_ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </Select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input placeholder="e.g. SN-ZTEC300-01" value={row.serialNumber} onChange={e => updateEquipment(row.id, { serialNumber: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input type="number" min="1" value={row.quantity} onChange={e => updateEquipment(row.id, { quantity: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input type="date" value={row.installDate} onChange={e => updateEquipment(row.id, { installDate: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Input type="date" value={row.warrantyAmcExpiry} onChange={e => updateEquipment(row.id, { warrantyAmcExpiry: e.target.value })} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Select value={row.condition} onChange={e => updateEquipment(row.id, { condition: e.target.value })}>
+                        {EQUIPMENT_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </Select>
+                    </td>
+                  </tr>
+                ))}
+                {equipment.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-8 text-center text-xs text-gray-400">Add equipment above to set its inventory details.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="flex justify-end pt-4 border-t border-surface-border">

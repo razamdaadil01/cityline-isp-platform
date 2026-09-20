@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, MoreVertical, Edit2, Trash2, MapPin, Server } from 'lucide-react'
+import { Plus, Search, X, MoreVertical, Edit2, Trash2, MapPin, Server, Boxes } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -164,6 +164,12 @@ export default function POPManagement() {
               className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+            </button>
+            <button
+              onClick={() => { navigate(`/network/pops/${pop.id}/inventory`); setMenuId(null) }}
+              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Boxes size={13} className="text-gray-400 shrink-0" /> View Inventory
             </button>
             <button
               onClick={() => { setDeleteTarget(pop); setMenuId(null) }}

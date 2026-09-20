@@ -17,7 +17,7 @@
 // how to render category-specific fields for.
 
 import { logAudit } from './auditLogStore'
-import { savePOP } from './popStore'
+import { markPOPCleaned, markEquipmentMaintained } from './popStore'
 
 export const WORK_ORDER_CATEGORIES = ['Cleaning', 'Preventive Maintenance', 'Breakdown-Fault']
 export const WORK_ORDER_PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
@@ -158,6 +158,15 @@ export function getWorkOrders() { return _workOrders }
 export function getWorkOrder(id) { return _workOrders.find(w => w.id === id) ?? null }
 export function getWorkOrdersForPOP(popId) { return _workOrders.filter(w => w.popId === popId) }
 
+// Every Work Order that named this specific equipment item (a Maintenance
+// Work Order's own equipmentInvolved field — Cleaning Work Orders are
+// POP-wide and never carry one, see saveWorkOrder()'s own note) — backs the
+// POP Inventory view's "Linked Work Orders" column/modal per equipment row.
+export function getWorkOrdersForEquipment(popId, equipmentId) {
+  if (!equipmentId) return []
+  return _workOrders.filter(w => w.popId === popId && w.equipmentInvolved === equipmentId)
+}
+
 export function subscribeWorkOrders(fn) {
   _listeners.push(fn)
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
@@ -176,9 +185,10 @@ export function subscribeWorkOrders(fn) {
 //     leaves 'Open') to now — never recomputed on a later save, so editing
 //     an already-resolved Work Order's other fields doesn't silently drift
 //     its recorded resolution time.
-// The Cleaning -> Resolved -> stamp the linked POP's Last Cleaning Date
-// business rule lives here too, via popStore.js's own savePOP() (merges
-// { lastCleaningDate } onto the existing POP record without touching its
+// The Cleaning -> Resolved -> stamp Last Cleaning Date and Maintenance ->
+// Resolved -> stamp Last Maintenance Date business rules live here too, via
+// popStore.js's own markPOPCleaned()/markEquipmentMaintained() (both merge
+// onto the existing POP/equipment record via savePOP() without touching
 // other fields — same partial-update behavior savePOP()'s isNew===false
 // branch already gives every other caller).
 export function saveWorkOrder(wo) {
@@ -223,12 +233,18 @@ export function saveWorkOrder(wo) {
   }
   notify()
 
-  // Business rule: a Cleaning Work Order marked Resolved stamps its linked
-  // POP's Last Cleaning Date — only on the save that actually transitions
-  // it to Resolved (justResolved), not on every subsequent edit of an
+  // Business rule: a Cleaning Work Order marked Resolved stamps Last
+  // Cleaning Date on its POP and every one of its equipment rows; a
+  // Preventive/Breakdown-Fault Maintenance Work Order marked Resolved
+  // stamps Last Maintenance Date on the one equipment row it names (if
+  // any). Both only fire on the save that actually transitions status to
+  // Resolved (justResolved), not on every subsequent edit of an
   // already-resolved record.
   if (justResolved && saved.category === 'Cleaning') {
-    savePOP({ id: saved.popId, lastCleaningDate: now.slice(0, 10) })
+    markPOPCleaned(saved.popId, now.slice(0, 10))
+  }
+  if (justResolved && saved.category !== 'Cleaning' && saved.equipmentInvolved) {
+    markEquipmentMaintained(saved.popId, saved.equipmentInvolved, now.slice(0, 10))
   }
 
   logAudit({
