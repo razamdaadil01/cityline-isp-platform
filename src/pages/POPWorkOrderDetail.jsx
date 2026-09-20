@@ -457,6 +457,25 @@ export default function POPWorkOrderDetail() {
               Time Taken: <span className="font-medium text-gray-700">{existing?.timeTaken != null ? `${existing.timeTaken} hrs` : 'Calculated automatically once resolved'}</span>
             </p>
 
+            {/* Read-only — set automatically the moment this Work Order is
+                first Resolved (workOrderStore.js's saveWorkOrder(), via
+                deductHardwareUsed()), never hand-edited here. Only shown
+                once hardware has actually been deducted or a deduction was
+                attempted and failed, so a not-yet-resolved Work Order
+                doesn't show a misleading "nothing to deduct" line. */}
+            {existing?.hardwareDeducted && (
+              <p className="text-xs text-gray-500">
+                Inventory:{' '}
+                {existing.hardwareDeductionError ? (
+                  <span className="font-medium text-red-600">Deduction failed — {existing.hardwareDeductionError}</span>
+                ) : existing.inventoryAssignmentId ? (
+                  <span className="font-medium text-emerald-700">Deducted from central stock ({existing.inventoryAssignmentId})</span>
+                ) : (
+                  <span className="font-medium text-gray-700">No Hardware Used to deduct</span>
+                )}
+              </p>
+            )}
+
             <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
