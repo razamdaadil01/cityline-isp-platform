@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Upload, FileText, X } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import {
-  getPOP, savePOP, isPopNameTaken, POWER_BACKUP_TYPES, POP_STATUSES, EQUIPMENT_TYPES, EQUIPMENT_STATUSES,
+  getPOP, savePOP, isPopNameTaken, previewPOPId, getProjectsForPOPType,
+  POWER_BACKUP_TYPES, POP_STATUSES, POP_TYPES, POP_CATEGORIES, POWER_SOURCES, SITE_OWNERSHIP_TYPES,
+  EQUIPMENT_TYPES, EQUIPMENT_STATUSES,
 } from '../data/popStore'
 import { getStates, getDistricts, getAreasList, getLocalities } from '../data/areaMappingStore'
+import { getAllTechnicians } from '../data/technicianHelpers'
 
 function emptyEquipmentRow() {
   return {
@@ -30,6 +33,22 @@ function equipmentToForm(eq) {
   }
 }
 
+// Site Photos/Documents are stored as base64 data URLs directly on the POP
+// record — same no-file-storage-backend convention as CustomerDetail.jsx's
+// KYC document upload (handleDocUpload there). Unlike KYC's fixed named
+// slots, this is a free-form multi-file list, so each upload just appends
+// to the array rather than replacing a named slot.
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve({ name: file.name, type: file.type, dataUrl: reader.result, uploadedAt: new Date().toISOString().split('T')[0] })
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+const OWNERSHIP_NEEDING_LANDLORD = ['Rented', 'Shared']
+
 export default function POPDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -37,14 +56,30 @@ export default function POPDetail() {
   const existing = isEditing ? getPOP(id) : null
 
   const [name, setName] = useState(existing?.name ?? '')
+  const [popType, setPopType] = useState(existing?.popType ?? POP_TYPES[0])
+  const [category, setCategory] = useState(existing?.category ?? POP_CATEGORIES[0])
+  const [projectId, setProjectId] = useState(existing?.projectId ?? '')
   const [address, setAddress] = useState(existing?.address ?? '')
+  const [landmark, setLandmark] = useState(existing?.landmark ?? '')
   const [latitude, setLatitude] = useState(existing?.latitude != null ? String(existing.latitude) : '')
   const [longitude, setLongitude] = useState(existing?.longitude != null ? String(existing.longitude) : '')
   const [state, setState] = useState(existing?.locality?.state ?? '')
   const [district, setDistrict] = useState(existing?.locality?.district ?? '')
   const [area, setArea] = useState(existing?.locality?.area ?? '')
   const [locality, setLocality] = useState(existing?.locality?.locality ?? '')
+  const [capacity, setCapacity] = useState(existing?.capacity ?? '')
+  const [powerSource, setPowerSource] = useState(existing?.powerSource ?? POWER_SOURCES[0])
   const [powerBackup, setPowerBackup] = useState(existing?.powerBackup ?? POWER_BACKUP_TYPES[0])
+  const [hasBackupPower, setHasBackupPower] = useState(existing?.hasBackupPower ?? false)
+  const [backupHours, setBackupHours] = useState(existing?.backupHours != null ? String(existing.backupHours) : '')
+  const [siteOwnership, setSiteOwnership] = useState(existing?.siteOwnership ?? SITE_OWNERSHIP_TYPES[0])
+  const [ownerContactName, setOwnerContactName] = useState(existing?.ownerContactName ?? '')
+  const [ownerContactPhone, setOwnerContactPhone] = useState(existing?.ownerContactPhone ?? '')
+  const [rentAgreementExpiry, setRentAgreementExpiry] = useState(existing?.rentAgreementExpiry ?? '')
+  const [siteContactName, setSiteContactName] = useState(existing?.siteContactName ?? '')
+  const [siteContactPhone, setSiteContactPhone] = useState(existing?.siteContactPhone ?? '')
+  const [defaultTechnicianId, setDefaultTechnicianId] = useState(existing?.defaultTechnicianId ?? '')
+  const [documents, setDocuments] = useState(existing?.documents ?? [])
   const [status, setStatus] = useState(existing?.status ?? POP_STATUSES[0])
   const [equipment, setEquipment] = useState(() => existing?.equipment?.map(equipmentToForm) ?? [])
   const [errors, setErrors] = useState({})
@@ -53,9 +88,22 @@ export default function POPDetail() {
   const areas = state && district ? getAreasList(state, district) : []
   const localities = state && district && area ? getLocalities(state, district, area) : []
 
+  const projectOptions = getProjectsForPOPType(popType)
+  const technicians = getAllTechnicians()
+
   function handleStateChange(v) { setState(v); setDistrict(''); setArea(''); setLocality('') }
   function handleDistrictChange(v) { setDistrict(v); setArea(''); setLocality('') }
   function handleAreaChange(v) { setArea(v); setLocality('') }
+
+  // Changing POP Type re-scopes the Project dropdown (getProjectsForPOPType
+  // above) — an already-picked Project that no longer matches the new type
+  // is cleared rather than silently kept, so the saved link never disagrees
+  // with its own POP's type.
+  function handlePopTypeChange(v) {
+    setPopType(v)
+    const stillValid = getProjectsForPOPType(v).some(p => p.id === projectId)
+    if (!stillValid) setProjectId('')
+  }
 
   function updateEquipment(rowId, patch) {
     setEquipment(rows => rows.map(r => r.id === rowId ? { ...r, ...patch } : r))
@@ -64,6 +112,14 @@ export default function POPDetail() {
   function addEquipment() { setEquipment(rows => [...rows, emptyEquipmentRow()]) }
   function removeEquipment(rowId) { setEquipment(rows => rows.filter(r => r.id !== rowId)) }
 
+  async function handleFilesSelected(fileList) {
+    const files = Array.from(fileList)
+    if (files.length === 0) return
+    const read = await Promise.all(files.map(readFileAsDataUrl))
+    setDocuments(docs => [...docs, ...read])
+  }
+  function removeDocument(idx) { setDocuments(docs => docs.filter((_, i) => i !== idx)) }
+
   function validate() {
     const errs = {}
     if (!name.trim()) errs.name = 'POP name is required.'
@@ -71,6 +127,9 @@ export default function POPDetail() {
     if (!address.trim()) errs.address = 'Address is required.'
     if (latitude !== '' && Number.isNaN(Number(latitude))) errs.latitude = 'Enter a valid latitude.'
     if (longitude !== '' && Number.isNaN(Number(longitude))) errs.longitude = 'Enter a valid longitude.'
+    if (hasBackupPower && (backupHours === '' || Number.isNaN(Number(backupHours)) || Number(backupHours) < 0)) {
+      errs.backupHours = 'Enter valid backup hours.'
+    }
     const namedRows = equipment.filter(eq => eq.label.trim() || eq.ip.trim())
     if (namedRows.some(eq => eq.ports === '' || Number.isNaN(Number(eq.ports)) || Number(eq.ports) < 0)) {
       errs.equipment = 'Every equipment row needs a valid port count.'
@@ -98,19 +157,39 @@ export default function POPDetail() {
           : { vlan: eq.vlan.trim() }),
       }))
 
+    const showsLandlordFields = OWNERSHIP_NEEDING_LANDLORD.includes(siteOwnership)
+
     savePOP({
       id: existing?.id,
       name: name.trim(),
+      popType,
+      category,
+      projectId: projectId || null,
       address: address.trim(),
+      landmark: landmark.trim(),
       latitude: latitude === '' ? null : Number(latitude),
       longitude: longitude === '' ? null : Number(longitude),
       locality: (state && district && area && locality) ? { state, district, area, locality } : null,
+      capacity: capacity.trim(),
+      powerSource,
       powerBackup,
+      hasBackupPower,
+      backupHours: hasBackupPower ? Number(backupHours) : null,
+      siteOwnership,
+      ownerContactName: showsLandlordFields ? ownerContactName.trim() : '',
+      ownerContactPhone: showsLandlordFields ? ownerContactPhone.trim() : '',
+      rentAgreementExpiry: rentAgreementExpiry || null,
+      siteContactName: siteContactName.trim(),
+      siteContactPhone: siteContactPhone.trim(),
+      defaultTechnicianId: defaultTechnicianId || null,
+      documents,
       status,
       equipment: cleanedEquipment,
     })
     navigate('/network/pops')
   }
+
+  const showsLandlordFields = OWNERSHIP_NEEDING_LANDLORD.includes(siteOwnership)
 
   return (
     <div className="p-6 pb-10">
@@ -123,7 +202,10 @@ export default function POPDetail() {
         </button>
         <div>
           <h1 className="text-xl font-bold text-gray-900">{isEditing ? 'Edit POP' : 'Add POP'}</h1>
-          {isEditing && <p className="text-xs text-gray-500 mt-0.5">POP ID: <span className="font-mono font-semibold text-brand-blue">{existing?.id}</span></p>}
+          <p className="text-xs text-gray-500 mt-0.5">
+            POP ID: <span className="font-mono font-semibold text-brand-blue">{isEditing ? existing?.id : previewPOPId(popType)}</span>
+            {!isEditing && <span className="text-gray-400"> (assigned on save)</span>}
+          </p>
         </div>
       </div>
 
@@ -140,15 +222,47 @@ export default function POPDetail() {
                 {POP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </FormField>
+            <FormField label="POP Type" required hint="Determines which Projects can be linked below.">
+              <Select value={popType} onChange={e => handlePopTypeChange(e.target.value)}>
+                {POP_TYPES.map(t => <option key={t} value={t}>{t === 'OH' ? 'OH (Overhead)' : t}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="POP Category" required>
+              <Select value={category} onChange={e => setCategory(e.target.value)}>
+                {POP_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </FormField>
           </div>
+        </div>
+
+        {/* Project Linkage */}
+        <div className="space-y-4 pt-4 border-t border-surface-border">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Project Linkage</h3>
+          <FormField label="Linked Project" hint={`Showing Projects matching "${popType}" — a Project can have multiple linked POPs.`}>
+            <Select value={projectId} onChange={e => setProjectId(e.target.value)}>
+              <option value="">None</option>
+              {projectOptions.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+              ))}
+            </Select>
+          </FormField>
         </div>
 
         {/* Location */}
         <div className="space-y-4 pt-4 border-t border-surface-border">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</h3>
-          <FormField label="Address" required error={errors.address}>
-            <Input placeholder="e.g. Plot 14, MIDC Industrial Area, Goregaon" value={address} onChange={e => { setAddress(e.target.value); setErrors(er => ({ ...er, address: undefined })) }} />
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Address" required error={errors.address}>
+              <Input placeholder="e.g. Plot 14, MIDC Industrial Area, Goregaon" value={address} onChange={e => { setAddress(e.target.value); setErrors(er => ({ ...er, address: undefined })) }} />
+            </FormField>
+            <FormField label="Landmark">
+              <Input placeholder="e.g. Opposite City Mall" value={landmark} onChange={e => setLandmark(e.target.value)} />
+            </FormField>
+          </div>
+          {/* No map-picker component exists anywhere in this app yet (only
+              read-only Leaflet display maps, e.g. TechnicianDashboard.jsx) —
+              building one from scratch is out of scope here, so this stays a
+              plain lat/lng text-input pair, same as before. */}
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Latitude" error={errors.latitude}>
               <Input type="number" placeholder="e.g. 19.1364" value={latitude} onChange={e => { setLatitude(e.target.value); setErrors(er => ({ ...er, latitude: undefined })) }} />
@@ -194,14 +308,106 @@ export default function POPDetail() {
           </div>
         </div>
 
-        {/* Power Backup */}
+        {/* Capacity & Power */}
         <div className="space-y-4 pt-4 border-t border-surface-border">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Power Backup</h3>
-          <FormField label="Power Backup Type" required>
-            <Select value={powerBackup} onChange={e => setPowerBackup(e.target.value)}>
-              {POWER_BACKUP_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Capacity & Power</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <FormField label="Capacity" hint="Port count or splitter ratio, e.g. 1:8, 1:16, 64.">
+              <Input placeholder="e.g. 1:16" value={capacity} onChange={e => setCapacity(e.target.value)} />
+            </FormField>
+            <FormField label="Power Source" required hint="Primary supply.">
+              <Select value={powerSource} onChange={e => setPowerSource(e.target.value)}>
+                {POWER_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Power Backup Type" required hint="Backup equipment installed.">
+              <Select value={powerBackup} onChange={e => setPowerBackup(e.target.value)}>
+                {POWER_BACKUP_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+              </Select>
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Backup Power Present (UPS/Battery)">
+              <Select value={hasBackupPower ? 'yes' : 'no'} onChange={e => { const v = e.target.value === 'yes'; setHasBackupPower(v); if (!v) setErrors(er => ({ ...er, backupHours: undefined })) }}>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </Select>
+            </FormField>
+            {hasBackupPower && (
+              <FormField label="Backup Hours" required error={errors.backupHours}>
+                <Input type="number" min="0" placeholder="e.g. 4" value={backupHours} onChange={e => { setBackupHours(e.target.value); setErrors(er => ({ ...er, backupHours: undefined })) }} />
+              </FormField>
+            )}
+          </div>
+        </div>
+
+        {/* Site Ownership & Contacts */}
+        <div className="space-y-4 pt-4 border-t border-surface-border">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Site Ownership & Contacts</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Site Ownership" required>
+              <Select value={siteOwnership} onChange={e => setSiteOwnership(e.target.value)}>
+                {SITE_OWNERSHIP_TYPES.map(o => <option key={o} value={o}>{o}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Rent & Agreement Expiry" hint="Optional.">
+              <Input type="date" value={rentAgreementExpiry} onChange={e => setRentAgreementExpiry(e.target.value)} />
+            </FormField>
+          </div>
+          {showsLandlordFields && (
+            <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50/60 rounded-lg border border-surface-border">
+              <FormField label="Owner / Landlord Name">
+                <Input placeholder="e.g. Ramesh Gupta" value={ownerContactName} onChange={e => setOwnerContactName(e.target.value)} />
+              </FormField>
+              <FormField label="Owner / Landlord Phone">
+                <Input type="tel" placeholder="e.g. 9820011223" value={ownerContactPhone} onChange={e => setOwnerContactPhone(e.target.value)} />
+              </FormField>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Site Contact Person">
+              <Input placeholder="e.g. Arjun Kumar" value={siteContactName} onChange={e => setSiteContactName(e.target.value)} />
+            </FormField>
+            <FormField label="Site Contact Phone">
+              <Input type="tel" placeholder="e.g. 9876543210" value={siteContactPhone} onChange={e => setSiteContactPhone(e.target.value)} />
+            </FormField>
+          </div>
+          <FormField label="Default In-charge Technician" hint="Field Engineer / Technician users.">
+            <Select value={defaultTechnicianId} onChange={e => setDefaultTechnicianId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {technicians.map(t => <option key={t.id} value={t.id}>{t.name}{t.zone ? ` — ${t.zone}` : ''}</option>)}
             </Select>
           </FormField>
+        </div>
+
+        {/* Site Photos / Documents */}
+        <div className="space-y-3 pt-4 border-t border-surface-border">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Site Photos / Documents</h3>
+          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark transition-colors cursor-pointer">
+            <Upload size={13} /> Upload Photos / Documents
+            <input
+              type="file"
+              multiple
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={e => { handleFilesSelected(e.target.files); e.target.value = '' }}
+            />
+          </label>
+          {documents.length > 0 && (
+            <ul className="divide-y divide-surface-border border border-surface-border rounded-xl overflow-hidden">
+              {documents.map((doc, idx) => (
+                <li key={idx} className="flex items-center justify-between px-3 py-2 text-sm bg-white">
+                  <a href={doc.dataUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-gray-700 hover:text-brand-blue truncate">
+                    <FileText size={14} className="text-gray-400 shrink-0" />
+                    <span className="truncate">{doc.name}</span>
+                  </a>
+                  <button type="button" onClick={() => removeDocument(idx)} className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                    <X size={13} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Equipment */}

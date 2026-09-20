@@ -4,9 +4,12 @@ import { Plus, Search, X, MoreVertical, Edit2, Trash2, MapPin, Server } from 'lu
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import { getPOPs, subscribePOPs, deletePOP } from '../data/popStore'
+import { getPOPs, subscribePOPs, deletePOP, getLinkedProject } from '../data/popStore'
 
-const STATUS_BADGE = { Active: 'green', Inactive: 'gray', 'Under Maintenance': 'yellow' }
+const STATUS_BADGE = {
+  Planned: 'slate', 'Under Construction': 'yellow', Active: 'green', Inactive: 'gray', Decommissioned: 'red',
+}
+const POP_TYPE_BADGE = { FTTH: 'blue', OH: 'orange', Hybrid: 'purple' }
 
 function localityLabel(pop) {
   if (!pop.locality) return pop.address || '—'
@@ -87,9 +90,9 @@ export default function POPManagement() {
             <thead>
               <tr className="border-b border-surface-border bg-gray-50/60">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[180px]">POP Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type / Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Linked Project</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Address / Locality</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Power Backup</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Equipment</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
               </tr>
@@ -102,7 +105,9 @@ export default function POPManagement() {
                     No POPs found
                   </td>
                 </tr>
-              ) : filtered.map(pop => (
+              ) : filtered.map(pop => {
+                const linkedProject = getLinkedProject(pop.projectId)
+                return (
                 <tr
                   key={pop.id}
                   onClick={() => navigate(`/network/pops/${pop.id}`)}
@@ -112,14 +117,21 @@ export default function POPManagement() {
                     <span className="font-medium text-gray-800">{pop.name}</span>
                     <span className="block text-xs text-gray-400 font-mono">{pop.id}</span>
                   </td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant={POP_TYPE_BADGE[pop.popType] ?? 'gray'} size="sm">{pop.popType ?? '—'}</Badge>
+                      <span className="text-gray-500">{pop.category ?? '—'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">
+                    {linkedProject ? `${linkedProject.name} (${linkedProject.id})` : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-gray-600 text-xs">
                     <div className="flex items-center gap-1.5">
                       <MapPin size={12} className="text-gray-400 shrink-0" />
                       {localityLabel(pop)}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{pop.powerBackup}</td>
-                  <td className="px-4 py-3 text-center text-gray-600 text-xs">{pop.equipment?.length ?? 0}</td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_BADGE[pop.status] ?? 'gray'} dot size="sm">{pop.status}</Badge>
                   </td>
@@ -132,7 +144,7 @@ export default function POPManagement() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
