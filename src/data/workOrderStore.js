@@ -18,6 +18,9 @@
 
 import { logAudit } from './auditLogStore'
 import { markPOPCleaned, markEquipmentMaintained } from './popStore'
+import { saveAssignment } from './assignmentStore'
+import { getProduct } from './productStore'
+import { getUsers } from './userStore'
 
 export const WORK_ORDER_CATEGORIES = ['Cleaning', 'Preventive Maintenance', 'Breakdown-Fault']
 export const WORK_ORDER_PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
@@ -109,6 +112,11 @@ const SEED = [
     hardwareUsed: [],
     technicianSignOff: true,
     requireSupervisorApproval: false, supervisorApproval: false,
+    // No hardware was used resolving this Cleaning Work Order (hardwareUsed
+    // is empty above), so nothing to have deducted — same "parallel
+    // literal, not driven by a live saveWorkOrder() call" reasoning as this
+    // seed's other resolution fields.
+    hardwareDeducted: false, inventoryAssignmentId: null, hardwareDeductionError: null,
     createdAt: new Date(NOW - 31 * 24 * H).toISOString(),
     assignedAt: new Date(NOW - 31 * 24 * H).toISOString(),
     resolvedAt: new Date(NOW - 31 * 24 * H + 2.3 * H).toISOString(),
@@ -128,6 +136,7 @@ const SEED = [
     hardwareNeed: [],
     resolutionNotes: '', rootCause: '', hardwareUsed: [], technicianSignOff: false,
     requireSupervisorApproval: true, supervisorApproval: false,
+    hardwareDeducted: false, inventoryAssignmentId: null, hardwareDeductionError: null,
     createdAt: new Date(NOW - 30 * H).toISOString(),
     assignedAt: new Date(NOW - 30 * H).toISOString(),
     resolvedAt: null,
@@ -172,6 +181,83 @@ export function subscribeWorkOrders(fn) {
   return () => { const i = _listeners.indexOf(fn); if (i >= 0) _listeners.splice(i, 1) }
 }
 
+// ── Hardware auto-deduction from central Inventory stock (PRD Phase 2) ────
+// Reuses assignmentStore.js's real saveAssignment() — the exact mechanism
+// Assign to Engineer/Assign to User already rely on to reduce available
+// stock. There is no separate "decrement a number" path anywhere in this
+// app for quantity-tracked hardware: inventoryLedger.js's computeLedger()
+// derives every product's available balance by netting gross purchase
+// receipts against every non-'Returned' Assignment record's hardwareLines
+// (see that file's own "Assignments: deductions" block) — an Assignment is
+// the one real write path that actually reduces what Inventory Overview,
+// Product Detail's Movement History, etc. report as available. So rather
+// than inventing a second deduction mechanism, a Work Order's confirmed
+// Hardware Used lines are booked as a real Assignment record here, exactly
+// like Assign to Engineer/Assign to User already do.
+//
+// POPs have no "store" concept of their own, and the PRD frames this as
+// deducting from "central Inventory stock" rather than any one branch, so
+// every POP Work Order's deduction is booked against STR-001 — storeStore.js's
+// own seeded 'Main Warehouse' — regardless of which POP it belongs to.
+const CENTRAL_STORE = { id: 'STR-001', name: 'Main Warehouse', branchCode: 'CNPL-001' }
+
+// Deducts only the *confirmed* hardwareUsed quantities — never the
+// originally-requested hardwareNeed quantities, which can be larger; the
+// Resolution form's hardwareUsed rows already are "confirm actual qty
+// used" (POPWorkOrderDetail.jsx), so they're exactly what should leave
+// stock. requiredQty on the resulting Assignment line (a documentation
+// field only — saveAssignment() validates against assignedQty, not it) is
+// still carried through from the matching Hardware Need row so the
+// Assignments list shows what was originally requested alongside what was
+// actually taken.
+//
+// The Work Order's first assigned technician stands in for
+// saveAssignment()'s required engineer — a real userStore.js id/name pair.
+// It sits in a different id namespace than installationsStore.js's own
+// FIELD_ENGINEERS roster the Assign-to-Engineer flow normally issues
+// against, but nothing in saveAssignment()'s own save path validates
+// engineerId against that roster (only that flow's own UI/branch-roster
+// helpers do), so this is safe.
+//
+// saveAssignment() re-validates against real current stock itself and
+// throws if a line would take a balance negative. That's caught here
+// rather than left to abort the whole Work Order resolution — the
+// physical work is already done by the time a Work Order is being
+// resolved, so a stock-record shortfall should surface as a flagged
+// discrepancy (the returned `error`, stored as hardwareDeductionError on
+// the Work Order) rather than block the resolution outright.
+function deductHardwareUsed(wo) {
+  const lines = (wo.hardwareUsed ?? []).filter(u => u.productId && (Number(u.quantity) || 0) > 0)
+  if (lines.length === 0) return { assignmentId: null, error: null }
+
+  const technicianId = wo.assignedTechnicianIds?.[0] ?? null
+  const technician = technicianId ? getUsers().find(u => u.id === technicianId) : null
+
+  try {
+    const assignment = saveAssignment({
+      engineerId: technicianId ?? 'unassigned',
+      engineerName: technician?.name ?? 'Unassigned Technician',
+      branchCode: CENTRAL_STORE.branchCode,
+      workOrderId: wo.id,
+      workOrderLabel: `${wo.id} (POP ${wo.popId} — ${wo.category})`,
+      storeId: CENTRAL_STORE.id,
+      storeName: CENTRAL_STORE.name,
+      hardwareLines: lines.map(u => ({
+        productId: u.productId,
+        productName: getProduct(u.productId)?.name ?? u.productId,
+        requiredQty: Number((wo.hardwareNeed ?? []).find(n => n.productId === u.productId)?.quantity ?? u.quantity) || 0,
+        assignedQty: Number(u.quantity) || 0,
+        serials: [], macs: [],
+        remark: `Consumed resolving POP Work Order ${wo.id}`,
+      })),
+      remarks: `Auto-deducted from central stock on resolution of POP Work Order ${wo.id}.`,
+    })
+    return { assignmentId: assignment.id, error: null }
+  } catch (err) {
+    return { assignmentId: null, error: err.message }
+  }
+}
+
 // Create or update. Callers pass an `id` to update an existing Work Order;
 // omitting it (new Work Order) assigns a new generateWorkOrderId() id, same
 // isNew/generated-id convention as popStore.js's savePOP(). Two business
@@ -190,7 +276,10 @@ export function subscribeWorkOrders(fn) {
 // popStore.js's own markPOPCleaned()/markEquipmentMaintained() (both merge
 // onto the existing POP/equipment record via savePOP() without touching
 // other fields — same partial-update behavior savePOP()'s isNew===false
-// branch already gives every other caller).
+// branch already gives every other caller). Hardware auto-deduction (see
+// deductHardwareUsed() above) fires the same way, gated by
+// hardwareDeducted rather than justResolved alone — see that gate's own
+// comment below.
 export function saveWorkOrder(wo) {
   const isNew = !(wo.id && _workOrders.find(w => w.id === wo.id))
   const prev = isNew ? null : _workOrders.find(w => w.id === wo.id)
@@ -214,7 +303,6 @@ export function saveWorkOrder(wo) {
       ...prev, ...wo, assignedAt, timeTaken, resolvedAt, updatedAt: now,
       activityLog: prevStatus !== wo.status ? appendActivity(prev, `Status changed to ${wo.status}`, 'Admin User') : prev.activityLog,
     }
-    _workOrders = _workOrders.map(w => w.id === wo.id ? saved : w)
   } else {
     const id = generateWorkOrderId()
     saved = {
@@ -223,14 +311,39 @@ export function saveWorkOrder(wo) {
       equipmentInvolved: null, faultType: null,
       resolutionNotes: '', rootCause: '', hardwareUsed: [], technicianSignOff: false,
       requireSupervisorApproval: false, supervisorApproval: false,
+      hardwareDeducted: false, inventoryAssignmentId: null, hardwareDeductionError: null,
       ...wo, id, status: wo.status || WORK_ORDER_STATUSES[0],
       assignedAt, timeTaken, resolvedAt,
       createdAt: now, updatedAt: now,
       slaDate: slaDateFor(now, wo.priority),
       activityLog: [{ time: now, actor: 'Admin User', action: 'Work Order created' }],
     }
-    _workOrders = [saved, ..._workOrders]
   }
+
+  // Guard against double-deduction: gated on hardwareDeducted — a
+  // persisted flag on the record itself, not just justResolved's own
+  // prevStatus check. Status here is a plain dropdown with no reopen
+  // workflow guarding it, so an admin can walk a Work Order Resolved ->
+  // Closed -> Resolved again by hand; justResolved alone would be true
+  // again on that second transition and deduct a second time.
+  // hardwareDeducted is set true (see below) the first time this ever
+  // fires and stays true forever after, so a later re-resolution is
+  // correctly recognized as not-the-first and skipped.
+  const firstTimeResolved = justResolved && !prev?.hardwareDeducted
+  if (firstTimeResolved) {
+    const deduction = deductHardwareUsed(saved)
+    saved = { ...saved, hardwareDeducted: true, inventoryAssignmentId: deduction.assignmentId, hardwareDeductionError: deduction.error }
+    logAudit({
+      action: 'Edit', module: 'Network',
+      details: deduction.error
+        ? `Work Order ${saved.id}: hardware deduction from central stock failed — ${deduction.error}`
+        : deduction.assignmentId
+          ? `Work Order ${saved.id}: deducted confirmed Hardware Used from central stock (${deduction.assignmentId})`
+          : `Work Order ${saved.id}: resolved with no Hardware Used to deduct.`,
+    })
+  }
+
+  _workOrders = isNew ? [saved, ..._workOrders] : _workOrders.map(w => w.id === wo.id ? saved : w)
   notify()
 
   // Business rule: a Cleaning Work Order marked Resolved stamps Last
