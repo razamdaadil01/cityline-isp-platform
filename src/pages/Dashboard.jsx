@@ -622,7 +622,11 @@ export default function Dashboard() {
               <div key={card.label} className="bg-white rounded-xl p-4 shadow-card border border-surface-border">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-500 leading-tight">{card.label}</p>
+                    {/* min-h reserves room for a 2-line label (text-xs/leading-tight
+                        ≈ 15px per line) so the value below always starts at the same
+                        vertical position, whether a given card's label wraps to one
+                        line ("Open Tickets") or two ("Renewals Due Today"). */}
+                    <p className="text-xs font-medium text-gray-500 leading-tight min-h-[2rem]">{card.label}</p>
                     <p className="text-xl font-bold text-gray-900 mt-1.5 leading-none">{display}</p>
                   </div>
                   <div className={`w-9 h-9 rounded-lg ${card.iconBg} ${card.iconColor} flex items-center justify-center shrink-0 ml-2`}>
