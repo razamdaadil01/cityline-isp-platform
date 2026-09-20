@@ -165,6 +165,25 @@ export default function Sidebar({ collapsed }) {
             ? location.pathname === to
             : location.pathname.startsWith(to)
           const hasActiveChild = children?.some(c => c.to && location.pathname.startsWith(c.to))
+          // Several submenus have a "list root" child whose own `to` is a
+          // literal prefix of one or more sibling children's `to` (e.g. POP
+          // Management's "POP List" -> /network/pops is a prefix of
+          // "Reports" -> /network/pops/reports; same shape for Customers'
+          // "Customer List" -> /customers vs "Hardware Recovery", Inventory's
+          // "Assign to Engineer" -> /inventory/assign vs "Assign to User",
+          // and User Management's "User List" -> /users vs "Departments").
+          // A plain per-child startsWith() check (below) would match *both*
+          // that root child and the real active child on any of those
+          // sibling routes. Resolving the whole group to a single "longest
+          // matching `to` wins" child here — rather than checking each
+          // child in isolation — keeps exactly one sub-item highlighted:
+          // the more specific route always wins over the shorter prefix
+          // that happens to also match, while a genuine detail/sub-route of
+          // the root child (e.g. /customers/:id) still only matches that
+          // one child and highlights it as before.
+          const activeChild = children
+            ?.filter(c => c.to && (c.exact ? location.pathname === c.to : location.pathname.startsWith(c.to)))
+            .sort((a, b) => b.to.length - a.to.length)[0] ?? null
 
           return (
             <div key={to}>
@@ -203,9 +222,7 @@ export default function Sidebar({ collapsed }) {
                         </p>
                       )
                     }
-                    const childActive = child.exact
-                      ? location.pathname === child.to
-                      : location.pathname.startsWith(child.to)
+                    const childActive = child === activeChild
                     const ChildIcon = child.icon
                     return (
                       <NavLink
