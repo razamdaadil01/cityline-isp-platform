@@ -68,6 +68,7 @@ import POPDetail from './pages/POPDetail'
 import POPWorkOrders from './pages/POPWorkOrders'
 import POPWorkOrderDetail from './pages/POPWorkOrderDetail'
 import POPInventory from './pages/POPInventory'
+import POPReports from './pages/POPReports'
 import ProductList from './pages/inventory/ProductList'
 import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
 import VendorList from './pages/inventory/VendorList'
@@ -211,6 +212,7 @@ export default function App() {
           <Route path="/network/pops/work-orders" element={<POPWorkOrders />} />
           <Route path="/network/pops/work-orders/new" element={<POPWorkOrderDetail />} />
           <Route path="/network/pops/work-orders/:id" element={<POPWorkOrderDetail />} />
+          <Route path="/network/pops/reports" element={<POPReports />} />
           <Route path="/network/pops/:id/inventory" element={<POPInventory />} />
           <Route path="/network/pops/:id" element={<POPDetail />} />
           <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
