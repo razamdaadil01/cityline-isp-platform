@@ -63,6 +63,7 @@ import OTTManagement from './pages/OTTManagement'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import POPManagement from './pages/POPManagement'
+import POPDashboard from './pages/POPDashboard'
 import POPDetail from './pages/POPDetail'
 import POPWorkOrders from './pages/POPWorkOrders'
 import POPWorkOrderDetail from './pages/POPWorkOrderDetail'
@@ -205,6 +206,7 @@ export default function App() {
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
           <Route path="/network/pops" element={<POPManagement />} />
+          <Route path="/network/pops/dashboard" element={<POPDashboard />} />
           <Route path="/network/pops/new" element={<POPDetail />} />
           <Route path="/network/pops/work-orders" element={<POPWorkOrders />} />
           <Route path="/network/pops/work-orders/new" element={<POPWorkOrderDetail />} />

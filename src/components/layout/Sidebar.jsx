@@ -94,6 +94,7 @@ const NAV_ITEMS = [
   {
     label: 'POP Management',   icon: MapPin,          to: '/network/pops',
     children: [
+      { label: 'Dashboard',    icon: LayoutDashboard, to: '/network/pops/dashboard' },
       { label: 'POP List',     icon: MapPin,          to: '/network/pops' },
       { label: 'Work Orders',  icon: Wrench,          to: '/network/pops/work-orders' },
     ],
