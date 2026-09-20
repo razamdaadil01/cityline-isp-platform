@@ -205,6 +205,12 @@ export default function POPDetail() {
           <p className="text-xs text-gray-500 mt-0.5">
             POP ID: <span className="font-mono font-semibold text-brand-blue">{isEditing ? existing?.id : previewPOPId(popType)}</span>
             {!isEditing && <span className="text-gray-400"> (assigned on save)</span>}
+            {/* Read-only — set automatically when a linked Cleaning Work
+                Order (POPWorkOrderDetail.jsx) is marked Resolved, never
+                hand-edited here. */}
+            {isEditing && existing?.lastCleaningDate && (
+              <span className="text-gray-400"> · Last cleaned {existing.lastCleaningDate}</span>
+            )}
           </p>
         </div>
       </div>

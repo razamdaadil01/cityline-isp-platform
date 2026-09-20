@@ -93,6 +93,7 @@ const INITIAL_POPS = [
     latitude: 19.1197,
     longitude: 72.8468,
     locality: null,
+    lastCleaningDate: null,
     popType: 'Hybrid',
     projectId: null,
     category: 'Main POP',
@@ -122,6 +123,11 @@ const INITIAL_POPS = [
     popType: 'FTTH',
     projectId: null,
     category: 'OLT Room',
+    // Matches WO-POP-2026-0001's seeded resolved Cleaning Work Order below
+    // in workOrderStore.js — kept as a plain literal here (not set via a
+    // cross-module savePOP() call from that seed) so app boot doesn't fire a
+    // spurious audit-log "Updated POP" entry before any real user action.
+    lastCleaningDate: '2026-08-20',
     landmark: 'Near Andheri West Metro Station',
     capacity: '1:8',
     powerSource: 'Grid',
@@ -148,6 +154,7 @@ const INITIAL_POPS = [
     latitude: 19.0596,
     longitude: 72.8656,
     locality: { state: 'Maharashtra', district: 'Mumbai Suburban', area: 'Mumbai', locality: 'Bandra East' },
+    lastCleaningDate: null,
     popType: 'FTTH',
     projectId: null,
     category: 'OLT Room',
@@ -278,7 +285,7 @@ export function savePOP(pop) {
   } else {
     const id = generatePOPId(pop.popType)
     saved = {
-      equipment: [], documents: [], projectId: null,
+      equipment: [], documents: [], projectId: null, lastCleaningDate: null,
       popType: POP_TYPES[0], category: POP_CATEGORIES[0],
       landmark: '', capacity: '', powerSource: POWER_SOURCES[0],
       hasBackupPower: false, backupHours: null,
