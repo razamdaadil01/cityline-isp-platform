@@ -24,7 +24,7 @@ import { computeChurnByMonth, countCurrentlyAtRisk } from '../utils/churnStats'
 import { getStores, subscribeStores } from '../data/storeStore'
 import { getPartners, subscribePartners } from '../data/partners'
 import { computeStoreCollection, computePartnerCollection } from '../utils/partnerStoreStats'
-import { isoFromDMonYYYY, isoFromDMY, isDateInRange, isMonthKeyInRange } from '../utils/dateFormats'
+import { isoFromDMonYYYY, isoFromDMY, isDateInRange, isMonthKeyInRange, monthLabelFromKey } from '../utils/dateFormats'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportWorkbook } from '../utils/excelExport'
 
@@ -45,7 +45,12 @@ import { exportWorkbook } from '../utils/excelExport'
 // below) — applied against whichever real date field backs each report's
 // timeline. Used both by the parent's own card/summary-strip stats and by
 // each self-contained detail view, so a report's summary card and its
-// detail view are always filtered the same way and can't disagree.
+// detail view are always filtered the same way and can't disagree — with
+// one exception: the Revenue Report's own detail view is driven by its
+// own separate revenueDateFrom/revenueDateTo state (see Reports()'s own
+// comment on it) so it can default to a full 12-month trend without
+// widening/narrowing the generic dateFrom/dateTo every other report (and
+// the list-view 'revenue' summary card) still uses.
 function filterPaymentsByRange(payments, from, to) {
   return payments.filter(p => isDateInRange(isoFromDMY(p.paymentDate), from, to))
 }
@@ -60,6 +65,42 @@ function filterInvoicesByRange(invoices, from, to) {
 // the real signal for "new" activity.
 function filterCustomersByCreatedOn(customers, from, to) {
   return customers.filter(c => isDateInRange(isoFromDMonYYYY(c.createdOn), from, to))
+}
+
+// Continuous "YYYY-MM"-keyed month sequence between two ISO day-precision
+// bounds (inclusive), walked with plain integer year/month arithmetic —
+// not a `Date` object — for the same reason dateFormats.js's own header
+// comment gives for its own parsing helpers: no locale/timezone-dependent
+// Date math to silently misplace a month boundary.
+function monthKeysInRange(fromISO, toISO) {
+  const [fy, fm] = fromISO.slice(0, 7).split('-').map(Number)
+  const [ty, tm] = toISO.slice(0, 7).split('-').map(Number)
+  const keys = []
+  let y = fy, m = fm
+  while (y < ty || (y === ty && m <= tm)) {
+    keys.push(`${y}-${String(m).padStart(2, '0')}`)
+    m += 1
+    if (m > 12) { m = 1; y += 1 }
+  }
+  return keys
+}
+
+// Fills any month in [from, to] that has no real payment data with a
+// zero-value entry, so the Revenue Report's Month-wise Revenue chart
+// always shows a visually continuous timeline (all 12 months of its own
+// default range, in order) instead of silently skipping months nothing
+// was paid in. computeRevenueByMonth() itself only returns months that
+// actually have a real payment (see its own comment in revenueStats.js)
+// — the right behavior for Dashboard.jsx's Revenue Overview, which has no
+// business fabricating a flat-0 history before this mock backend had any
+// real payment data at all, but wrong for a report meant to plot one
+// continuous trend line across a chosen range.
+function fillMonthRange(shownMonths, fromISO, toISO) {
+  if (!fromISO || !toISO) return shownMonths
+  const byKey = new Map(shownMonths.map(m => [m.key, m]))
+  return monthKeysInRange(fromISO, toISO).map(key =>
+    byKey.get(key) ?? { key, month: monthLabelFromKey(key), collected: 0 }
+  )
 }
 
 // Real per-customer cafStatus (customersData.js's CAF_STATUSES), same
@@ -188,7 +229,13 @@ function RevenueDetail({ range }) {
     () => filterPaymentsByRange(payments, range?.from, range?.to),
     [payments, range?.from, range?.to]
   )
-  const shownMonths = useMemo(() => computeRevenueByMonth(filteredPayments), [filteredPayments])
+  // Zero-filled so the chart below always plots a continuous timeline
+  // across the selected range (e.g. all 12 months of this report's own
+  // default) rather than only the months that happen to have a payment.
+  const shownMonths = useMemo(
+    () => fillMonthRange(computeRevenueByMonth(filteredPayments), range?.from, range?.to),
+    [filteredPayments, range?.from, range?.to]
+  )
   const totalRevenue = useMemo(() => shownMonths.reduce((sum, m) => sum + m.collected, 0), [shownMonths])
   const activeCustomerCount = useMemo(() => customers.filter(c => effectiveStatus(c) === 'active').length, [customers])
   const latestMonth = shownMonths[shownMonths.length - 1]
@@ -218,10 +265,14 @@ function RevenueDetail({ range }) {
         {shownMonths.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-16">No payments recorded in the selected date range.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={shownMonths} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={shownMonths} margin={{ top: 5, right: 5, left: 0, bottom: 0 }} barCategoryGap="20%">
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              {/* interval={0} forces every month label to render rather than
+                  recharts auto-skipping some to avoid overlap — with up to
+                  12 short 3-letter labels (this report's own default range)
+                  there's always room for all of them. */}
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval={0} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
                 tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
               <Tooltip formatter={v => [`₹${Number(v).toLocaleString('en-IN')}`]} />
@@ -855,6 +906,23 @@ export default function Reports() {
   })
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
 
+  // Revenue Report's own default date range — a clean rolling 12 months
+  // (this calendar month back through the same month last year), kept
+  // separate from the generic 2-year default above rather than changing
+  // it: CAF/Churn/Collection/Partner all still need that wider window so
+  // their own real data (customersData.js's createdOn, backfilled 1-2
+  // years) doesn't load looking empty. The Revenue Report specifically
+  // wants a full-but-compact 12-bar month-wise trend by default. Still
+  // freely adjustable via the same From/To picker below — this only sets
+  // the initial range shown on first load.
+  const [revenueDateFrom, setRevenueDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() - 11)
+    return d.toISOString().slice(0, 10)
+  })
+  const [revenueDateTo, setRevenueDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+
   // Real CAF compliance stats (customersData.js), same source CAFDetail
   // below reads independently — overrides just the 'caf' card's static
   // value/sub/badge below so the summary card and its own detail view can
@@ -1229,10 +1297,17 @@ export default function Reports() {
           {active !== 'inventory' && (
             <div className="flex items-center gap-1 text-xs text-gray-500">
               <span>From</span>
-              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              {/* Revenue Report drives this same picker off its own
+                  revenueDateFrom/revenueDateTo state (12-month default)
+                  rather than the generic dateFrom/dateTo every other
+                  report uses, but it's still the one on-screen picker —
+                  freely adjustable, not a fixed 12-month lock. */}
+              <Input type="date" value={active === 'revenue' ? revenueDateFrom : dateFrom}
+                onChange={e => active === 'revenue' ? setRevenueDateFrom(e.target.value) : setDateFrom(e.target.value)}
                 className="w-36 text-xs py-1.5" />
               <span>To</span>
-              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              <Input type="date" value={active === 'revenue' ? revenueDateTo : dateTo}
+                onChange={e => active === 'revenue' ? setRevenueDateTo(e.target.value) : setDateTo(e.target.value)}
                 className="w-36 text-xs py-1.5" />
             </div>
           )}
@@ -1316,7 +1391,7 @@ export default function Reports() {
         </div>
       )}
       {active && activeAllowed && DetailView && (
-        <DetailView range={{ from: dateFrom, to: dateTo }} />
+        <DetailView range={active === 'revenue' ? { from: revenueDateFrom, to: revenueDateTo } : { from: dateFrom, to: dateTo }} />
       )}
     </div>
   )
