@@ -5,6 +5,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { getPOPs, subscribePOPs, deletePOP, getLinkedProject } from '../data/popStore'
+import PopAlertsPanel from '../components/network/PopAlertsPanel'
 
 const STATUS_BADGE = {
   Planned: 'slate', 'Under Construction': 'yellow', Active: 'green', Inactive: 'gray', Decommissioned: 'red',
@@ -68,6 +69,8 @@ export default function POPManagement() {
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/network/pops/new')}>Add POP</Button>
       </div>
+
+      <PopAlertsPanel />
 
       <div className="relative w-72">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

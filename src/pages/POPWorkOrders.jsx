@@ -11,6 +11,7 @@ import {
 } from '../data/workOrderStore'
 import { getPOPs } from '../data/popStore'
 import { getUsers } from '../data/userStore'
+import PopAlertsPanel from '../components/network/PopAlertsPanel'
 
 const STATUS_BADGE = {
   Open: 'blue', Assigned: 'indigo', 'In-Progress': 'orange', 'On-Hold': 'yellow', Resolved: 'green', Closed: 'gray',
@@ -89,6 +90,8 @@ export default function POPWorkOrders() {
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={() => navigate('/network/pops/work-orders/new')}>Add Work Order</Button>
       </div>
+
+      <PopAlertsPanel />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-72">
