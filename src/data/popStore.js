@@ -58,6 +58,35 @@ export const POP_CATEGORIES = ['Main POP', 'Sub-POP', 'Splitter Box', 'FDMS', 'D
 export const POWER_SOURCES = ['Grid', 'Solar', 'Generator']
 export const SITE_OWNERSHIP_TYPES = ['Owned', 'Rented', 'Shared']
 
+// ── POP Inventory Management (PRD Phase 1) ──────────────────────────────
+// Per-equipment-item fields layered onto the existing equipment row shape
+// (id/type/label/ip/model/ports/portsUsed/status/customers-or-vlan above) —
+// deliberately its own classification, not productStore.js's goodType
+// ('consumable'/'non_consumable'): that split is about how Inventory
+// replenishes stock, this one is the standard telecom Active/Passive/
+// Consumable split field techs actually use to describe a POP's rack
+// contents (OLT/Switch are powered -> Active; a splitter/patch panel is
+// unpowered -> Passive). No coupling between the two is needed.
+export const EQUIPMENT_ITEM_CATEGORIES = ['Active Equipment', 'Passive Equipment', 'Consumable']
+export const EQUIPMENT_CONDITIONS = ['Working', 'Faulty', 'Under Repair', 'Replaced']
+
+// Same day-math and 30-day threshold as utils/warrantyStatus.js's
+// getWarrantyStatus() (Asset Management's own warranty badge) — not reused
+// directly since that helper reads asset.fields.warrantyEndDate/
+// warrantyDate specifically, while a POP equipment item carries a single
+// flat warrantyAmcExpiry field; same 4-state result either way so the two
+// read as one consistent "warranty status" concept across the app.
+export const EQUIPMENT_WARRANTY_EXPIRING_SOON_DAYS = 30
+export function equipmentWarrantyStatus(item) {
+  const end = item?.warrantyAmcExpiry
+  if (!end) return 'N/A'
+  const today = new Date().toISOString().slice(0, 10)
+  const days = Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${today}T00:00:00Z`)) / 86400000)
+  if (days < 0) return 'Expired'
+  if (days <= EQUIPMENT_WARRANTY_EXPIRING_SOON_DAYS) return 'Expiring Soon'
+  return 'Active'
+}
+
 // Migrated from Network.jsx's own hardcoded SWITCHES/OLTS arrays, grouped
 // into 3 POPs that mirror the existing topology's own Core -> Distribution
 // -> OLT tree rather than one POP per device (that tree already groups
@@ -110,7 +139,12 @@ const INITIAL_POPS = [
     documents: [],
     status: 'Active',
     equipment: [
-      { id: 'CORE', type: 'Switch', label: 'Core Switch', ip: '10.0.0.1', model: 'Cisco Catalyst 9300', ports: 48, portsUsed: 48, status: 'online', vlan: 'VLAN 10, 20, 30' },
+      {
+        id: 'CORE', type: 'Switch', label: 'Core Switch', ip: '10.0.0.1', model: 'Cisco Catalyst 9300', ports: 48, portsUsed: 48, status: 'online', vlan: 'VLAN 10, 20, 30',
+        itemCategory: 'Active Equipment', serialNumber: 'SN-CORE-9300-01', quantity: 1,
+        installDate: '2022-01-15', lastCleaningDate: null, lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2027-06-30', condition: 'Working',
+      },
     ],
   },
   {
@@ -140,11 +174,37 @@ const INITIAL_POPS = [
     defaultTechnicianId: 'u3', // Arjun Kumar (userStore.js) — zone: Andheri West
     documents: [],
     status: 'Active',
+    // Every row's lastCleaningDate matches this POP's own lastCleaningDate
+    // above (2026-08-20) — WO-POP-2026-0001 (workOrderStore.js's seeded
+    // resolved Cleaning Work Order for this POP) is a POP-wide rack/dust/
+    // cable/splitter checklist, not tied to one specific equipment item, so
+    // resolving it stamps every equipment row in the POP (see popStore.js's
+    // own markPOPCleaned()) rather than picking one arbitrarily.
     equipment: [
-      { id: 'DIST-01', type: 'Switch', label: 'Distribution Switch', ip: '10.1.0.1', model: 'Cisco SG350', ports: 24, portsUsed: 24, status: 'online', vlan: 'VLAN 20' },
-      { id: 'OLT-01', type: 'OLT', label: 'OLT — Versova', ip: '10.10.1.1', model: 'ZTE C300', ports: 8, portsUsed: 8, status: 'online', customers: 64 },
-      { id: 'OLT-02', type: 'OLT', label: 'OLT — Lokhandwala', ip: '10.10.1.2', model: 'ZTE C300', ports: 8, portsUsed: 6, status: 'online', customers: 48 },
-      { id: 'OLT-03', type: 'OLT', label: 'OLT — DN Nagar', ip: '10.10.1.3', model: 'ZTE C300', ports: 8, portsUsed: 0, status: 'offline', customers: 0 },
+      {
+        id: 'DIST-01', type: 'Switch', label: 'Distribution Switch', ip: '10.1.0.1', model: 'Cisco SG350', ports: 24, portsUsed: 24, status: 'online', vlan: 'VLAN 20',
+        itemCategory: 'Active Equipment', serialNumber: 'SN-SG350-D01', quantity: 1,
+        installDate: '2023-03-10', lastCleaningDate: '2026-08-20', lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2026-10-05', condition: 'Working',
+      },
+      {
+        id: 'OLT-01', type: 'OLT', label: 'OLT — Versova', ip: '10.10.1.1', model: 'ZTE C300', ports: 8, portsUsed: 8, status: 'online', customers: 64,
+        itemCategory: 'Active Equipment', serialNumber: 'SN-ZTEC300-01', quantity: 1,
+        installDate: '2023-03-10', lastCleaningDate: '2026-08-20', lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2025-05-01', condition: 'Working',
+      },
+      {
+        id: 'OLT-02', type: 'OLT', label: 'OLT — Lokhandwala', ip: '10.10.1.2', model: 'ZTE C300', ports: 8, portsUsed: 6, status: 'online', customers: 48,
+        itemCategory: 'Active Equipment', serialNumber: 'SN-ZTEC300-02', quantity: 1,
+        installDate: '2023-03-10', lastCleaningDate: '2026-08-20', lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2027-03-10', condition: 'Working',
+      },
+      {
+        id: 'OLT-03', type: 'OLT', label: 'OLT — DN Nagar', ip: '10.10.1.3', model: 'ZTE C300', ports: 8, portsUsed: 0, status: 'offline', customers: 0,
+        itemCategory: 'Active Equipment', serialNumber: 'SN-ZTEC300-03', quantity: 1,
+        installDate: '2023-03-10', lastCleaningDate: '2026-08-20', lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2027-03-10', condition: 'Faulty',
+      },
     ],
   },
   {
@@ -170,11 +230,35 @@ const INITIAL_POPS = [
     defaultTechnicianId: 'u12', // Prakash Yadav (userStore.js) — zone: Bandra East
     documents: [],
     status: 'Active',
+    // DIST-02's condition 'Under Repair' + null lastMaintenanceDate match
+    // workOrderStore.js's WO-POP-2026-0002 — a Preventive Maintenance Work
+    // Order for this exact equipment item that's still In-Progress, not yet
+    // Resolved, so markEquipmentMaintained() hasn't fired for it yet.
     equipment: [
-      { id: 'DIST-02', type: 'Switch', label: 'Distribution Switch', ip: '10.2.0.1', model: 'Cisco SG350', ports: 24, portsUsed: 22, status: 'online', vlan: 'VLAN 30' },
-      { id: 'OLT-04', type: 'OLT', label: 'OLT — Khar', ip: '10.10.2.1', model: 'Huawei MA5600', ports: 8, portsUsed: 5, status: 'degraded', customers: 40 },
-      { id: 'OLT-05', type: 'OLT', label: 'OLT — Santacruz', ip: '10.10.2.2', model: 'Huawei MA5600', ports: 8, portsUsed: 7, status: 'online', customers: 56 },
-      { id: 'OLT-06', type: 'OLT', label: 'OLT — Vile Parle', ip: '10.10.2.3', model: 'Huawei MA5600', ports: 8, portsUsed: 8, status: 'online', customers: 64 },
+      {
+        id: 'DIST-02', type: 'Switch', label: 'Distribution Switch', ip: '10.2.0.1', model: 'Cisco SG350', ports: 24, portsUsed: 22, status: 'online', vlan: 'VLAN 30',
+        itemCategory: 'Active Equipment', serialNumber: 'SN-SG350-D02', quantity: 1,
+        installDate: '2023-06-01', lastCleaningDate: null, lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2026-10-15', condition: 'Under Repair',
+      },
+      {
+        id: 'OLT-04', type: 'OLT', label: 'OLT — Khar', ip: '10.10.2.1', model: 'Huawei MA5600', ports: 8, portsUsed: 5, status: 'degraded', customers: 40,
+        itemCategory: 'Active Equipment', serialNumber: 'SN-HUAWEIMA5600-04', quantity: 1,
+        installDate: '2023-06-01', lastCleaningDate: null, lastMaintenanceDate: null,
+        warrantyAmcExpiry: null, condition: 'Faulty',
+      },
+      {
+        id: 'OLT-05', type: 'OLT', label: 'OLT — Santacruz', ip: '10.10.2.2', model: 'Huawei MA5600', ports: 8, portsUsed: 7, status: 'online', customers: 56,
+        itemCategory: 'Active Equipment', serialNumber: 'SN-HUAWEIMA5600-05', quantity: 1,
+        installDate: '2023-06-01', lastCleaningDate: null, lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2027-01-01', condition: 'Working',
+      },
+      {
+        id: 'OLT-06', type: 'OLT', label: 'OLT — Vile Parle', ip: '10.10.2.3', model: 'Huawei MA5600', ports: 8, portsUsed: 8, status: 'online', customers: 64,
+        itemCategory: 'Active Equipment', serialNumber: 'SN-HUAWEIMA5600-06', quantity: 1,
+        installDate: '2023-06-01', lastCleaningDate: null, lastMaintenanceDate: null,
+        warrantyAmcExpiry: '2027-01-01', condition: 'Working',
+      },
     ],
   },
 ].map(p => ({ ...p, status: STATUS_MIGRATION[p.status] || p.status, createdAt: new Date().toISOString().split('T')[0] }))
@@ -303,6 +387,39 @@ export function savePOP(pop) {
     details: `${isNew ? 'Added' : 'Updated'} POP ${saved.name} (${saved.id})`,
   })
   return saved
+}
+
+// Business rule (POP Inventory Management, wired from workOrderStore.js's
+// saveWorkOrder()): resolving a Cleaning Work Order for this POP stamps
+// lastCleaningDate on both the POP record itself (kept for the existing
+// POP list/detail "last cleaned" display) and on every one of its
+// equipment rows — a Cleaning Work Order's own checklist (rack cleaning,
+// dust removal, cable dressing, splitter check) is POP-wide, not scoped to
+// one specific equipment item the way a Maintenance Work Order's
+// equipmentInvolved is, so there's no single row to single out here.
+export function markPOPCleaned(popId, dateStr) {
+  const pop = getPOP(popId)
+  if (!pop) return
+  savePOP({
+    id: popId,
+    lastCleaningDate: dateStr,
+    equipment: (pop.equipment ?? []).map(eq => ({ ...eq, lastCleaningDate: dateStr })),
+  })
+}
+
+// Business rule counterpart for Preventive/Breakdown-Fault Maintenance —
+// unlike Cleaning, a Maintenance Work Order does carry a specific
+// equipmentInvolved id, so only that one equipment row is stamped. A no-op
+// when equipmentId is null (a Maintenance Work Order that was never tied to
+// a specific equipment item has no single row to update).
+export function markEquipmentMaintained(popId, equipmentId, dateStr) {
+  if (!equipmentId) return
+  const pop = getPOP(popId)
+  if (!pop) return
+  savePOP({
+    id: popId,
+    equipment: (pop.equipment ?? []).map(eq => eq.id === equipmentId ? { ...eq, lastMaintenanceDate: dateStr } : eq),
+  })
 }
 
 export function deletePOP(id) {
