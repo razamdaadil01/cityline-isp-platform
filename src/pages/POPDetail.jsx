@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Trash2, Upload, FileText, X, Boxes } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Upload, FileText, X, Boxes, Wrench } from 'lucide-react'
 import Button from '../components/ui/Button'
+import Badge from '../components/ui/Badge'
+import Modal from '../components/ui/Modal'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
 import {
   getPOP, savePOP, isPopNameTaken, previewPOPId, getProjectsForPOPType,
@@ -10,6 +12,11 @@ import {
 } from '../data/popStore'
 import { getStates, getDistricts, getAreasList, getLocalities } from '../data/areaMappingStore'
 import { getAllTechnicians } from '../data/technicianHelpers'
+import { getWorkOrdersForEquipment } from '../data/workOrderStore'
+
+const WO_STATUS_BADGE = {
+  Open: 'blue', Assigned: 'indigo', 'In-Progress': 'orange', 'On-Hold': 'yellow', Resolved: 'green', Closed: 'gray',
+}
 
 function emptyEquipmentRow() {
   return {
@@ -67,6 +74,16 @@ export default function POPDetail() {
   const isEditing = !!id
   const existing = isEditing ? getPOP(id) : null
 
+  // lastCleaningDate/lastMaintenanceDate aren't part of the equipment form
+  // state (see equipmentToForm()'s own note) — they're auto-stamped by Work
+  // Order resolution, never hand-edited here — so the Inventory Details
+  // table below reads them straight from the last-saved record by id
+  // instead, and handleSave() carries them forward the same way rather than
+  // silently dropping them on a save that only knows about this form's own
+  // fields. A brand-new row (no matching existing record) simply has
+  // neither yet.
+  const existingEquipmentById = Object.fromEntries((existing?.equipment ?? []).map(eq => [eq.id, eq]))
+
   const [name, setName] = useState(existing?.name ?? '')
   const [popType, setPopType] = useState(existing?.popType ?? POP_TYPES[0])
   const [category, setCategory] = useState(existing?.category ?? POP_CATEGORIES[0])
@@ -95,6 +112,10 @@ export default function POPDetail() {
   const [status, setStatus] = useState(existing?.status ?? POP_STATUSES[0])
   const [equipment, setEquipment] = useState(() => existing?.equipment?.map(equipmentToForm) ?? [])
   const [errors, setErrors] = useState({})
+  // Which equipment row's Linked Work Orders modal is open, if any — a
+  // saved-form row, not just an id, so the modal's title can show its label
+  // without a second lookup.
+  const [linkedWorkOrdersFor, setLinkedWorkOrdersFor] = useState(null)
 
   const districts = state ? getDistricts(state) : []
   const areas = state && district ? getAreasList(state, district) : []
@@ -153,14 +174,6 @@ export default function POPDetail() {
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
 
-    // lastCleaningDate/lastMaintenanceDate aren't part of this form's state
-    // (see equipmentToForm()'s own note) but `equipment` is still saved
-    // wholesale below, same as every other field here — so each existing
-    // row's already-stamped dates are looked up by id and carried forward
-    // explicitly, rather than silently dropped by a save that only knows
-    // about this form's own fields. A brand-new row (no matching existing
-    // record) simply has neither yet.
-    const existingEquipmentById = Object.fromEntries((existing?.equipment ?? []).map(eq => [eq.id, eq]))
     const cleanedEquipment = equipment
       .filter(eq => eq.label.trim() || eq.ip.trim())
       .map(eq => ({
@@ -537,12 +550,15 @@ export default function POPDetail() {
             as its own table (same underlying `equipment` rows as the table
             above, via updateEquipment) rather than widened into it — the
             table above is already 8 columns of network/device config, and
-            adding 6 more asset-management columns to one table would make
-            it unreadable. Last Cleaning/Maintenance Date and Linked Work
-            Orders aren't editable here at all (auto-stamped by Work Order
-            resolution) — those, plus a Warranty/AMC "expiring soon" flag,
-            live on the read-focused POP Inventory view (POPInventory.jsx),
-            reachable from POP Management's list/detail pages. */}
+            adding this many asset-management columns to one table would
+            make it unreadable. Last Cleaning/Last Maintenance and Linked
+            Work Orders are read-only here (auto-stamped by Work Order
+            resolution via popStore.js's markPOPCleaned()/
+            markEquipmentMaintained() — see existingEquipmentById above),
+            never hand-edited on this form; a Warranty/AMC "expiring soon"
+            flag is also shown on the dedicated, read-focused POP Inventory
+            view (POPInventory.jsx), reachable from POP Management's list/
+            detail pages. */}
         <div className="space-y-3 pt-4 border-t border-surface-border">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Inventory Details</h3>
           <div className="border border-surface-border rounded-xl overflow-hidden overflow-x-auto">
@@ -554,12 +570,18 @@ export default function POPDetail() {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Serial Number</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Qty</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Install Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Last Cleaning</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Last Maintenance</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-36">Warranty/AMC Expiry</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Condition</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Linked Work Orders</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {equipment.map(row => (
+                {equipment.map(row => {
+                  const savedEq = existingEquipmentById[row.id]
+                  const linkedCount = existing ? getWorkOrdersForEquipment(existing.id, row.id).length : 0
+                  return (
                   <tr key={row.id}>
                     <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.label || <span className="text-gray-300">Untitled</span>}</td>
                     <td className="px-3 py-2">
@@ -576,6 +598,8 @@ export default function POPDetail() {
                     <td className="px-3 py-2">
                       <Input type="date" value={row.installDate} onChange={e => updateEquipment(row.id, { installDate: e.target.value })} />
                     </td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{savedEq?.lastCleaningDate ?? '—'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{savedEq?.lastMaintenanceDate ?? '—'}</td>
                     <td className="px-3 py-2">
                       <Input type="date" value={row.warrantyAmcExpiry} onChange={e => updateEquipment(row.id, { warrantyAmcExpiry: e.target.value })} />
                     </td>
@@ -584,17 +608,60 @@ export default function POPDetail() {
                         {EQUIPMENT_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
                       </Select>
                     </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setLinkedWorkOrdersFor(row)}
+                        disabled={linkedCount === 0}
+                        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
+                          linkedCount === 0
+                            ? 'text-gray-300 cursor-default'
+                            : 'text-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 cursor-pointer'
+                        }`}
+                      >
+                        <Wrench size={12} /> {linkedCount}
+                      </button>
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
                 {equipment.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-xs text-gray-400">Add equipment above to set its inventory details.</td>
+                    <td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">Add equipment above to set its inventory details.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        <Modal
+          isOpen={!!linkedWorkOrdersFor}
+          onClose={() => setLinkedWorkOrdersFor(null)}
+          title={`Work Orders — ${linkedWorkOrdersFor?.label ?? ''}`}
+          size="md"
+        >
+          {(() => {
+            const linkedWorkOrders = (existing && linkedWorkOrdersFor)
+              ? getWorkOrdersForEquipment(existing.id, linkedWorkOrdersFor.id)
+              : []
+            return linkedWorkOrders.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No Work Orders reference this equipment item yet.</p>
+            ) : (
+              <ul className="divide-y divide-surface-border -mx-2">
+                {linkedWorkOrders.map(wo => (
+                  <li key={wo.id} className="flex items-center justify-between gap-3 px-2 py-2.5">
+                    <span>
+                      <span className="block text-sm font-medium text-gray-800 font-mono">{wo.id}</span>
+                      <span className="block text-xs text-gray-500">{wo.category} · {wo.scheduledDateTime?.slice(0, 10) ?? '—'}</span>
+                    </span>
+                    <Badge variant={WO_STATUS_BADGE[wo.status] ?? 'gray'} dot size="sm">{wo.status}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
+        </Modal>
 
         <div className="flex justify-end pt-4 border-t border-surface-border">
           <Button icon={<Save size={14} />} onClick={handleSave}>Save POP</Button>
