@@ -1047,12 +1047,25 @@ function RolesTab() {
   const [showAddRole, setShowAddRole] = useState(false)
   const [newRole, setNewRole] = useState({ name: '', description: '' })
 
-  // Which module's granular checklist (Support/Sales only — see
-  // MICRO_PERMISSION_MODULES) is expanded open, if any. Independent of
-  // activeRoleId on purpose: switching roles while a module is expanded
-  // keeps it expanded, so comparing the same module's checklist across
-  // roles is just clicking through the role list.
-  const [expandedModule, setExpandedModule] = useState(null)
+  // Which modules' granular checklists (see MICRO_PERMISSION_MODULES) are
+  // expanded open, keyed by module name rather than a single "currently
+  // expanded module" value — each module's own accordion toggles
+  // independently, so e.g. Customers and Sales can both be open at once
+  // instead of expanding one collapsing the other. Independent of
+  // activeRoleId on purpose: switching roles never touches this set, so
+  // whatever modules were expanded while viewing one role's permissions
+  // stay expanded when you switch to another role's — comparing the same
+  // module's checklist across roles is just clicking through the role
+  // list.
+  const [expandedModules, setExpandedModules] = useState(() => new Set())
+  function toggleModuleExpanded(mod) {
+    setExpandedModules(prev => {
+      const next = new Set(prev)
+      if (next.has(mod)) next.delete(mod)
+      else next.add(mod)
+      return next
+    })
+  }
 
   // Every click writes straight to the store — no local draft to keep in
   // sync, so the highlighted button and rolesStore.js's actual data can
@@ -1160,7 +1173,7 @@ function RolesTab() {
               const hasMicro = MICRO_PERMISSION_MODULES.includes(mod)
               const microVals = role?.microPermissions?.[mod] ?? {}
               const grantedCount = microDefs?.filter(d => microVals[d.key]).length ?? 0
-              const isExpanded = expandedModule === mod
+              const isExpanded = expandedModules.has(mod)
 
               return (
                 <div key={mod}>
@@ -1168,7 +1181,7 @@ function RolesTab() {
                     <div className="flex items-center gap-2 min-w-0">
                       {hasMicro && (
                         <button
-                          onClick={() => setExpandedModule(isExpanded ? null : mod)}
+                          onClick={() => toggleModuleExpanded(mod)}
                           className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
                           title={isExpanded ? 'Collapse granular permissions' : 'Show granular permissions'}
                         >
@@ -1178,7 +1191,7 @@ function RolesTab() {
                       <span className="text-sm font-medium text-gray-700">{mod}</span>
                       {hasMicro && (
                         <button
-                          onClick={() => setExpandedModule(isExpanded ? null : mod)}
+                          onClick={() => toggleModuleExpanded(mod)}
                           className="text-[11px] font-medium text-brand-blue hover:underline shrink-0"
                         >
                           {grantedCount}/{microDefs.length} granular
