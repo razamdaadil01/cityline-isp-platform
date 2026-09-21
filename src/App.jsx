@@ -269,6 +269,17 @@ export default function App() {
           <Route path="/assets/reports" element={<AssetReports />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
           <Route path="/reports" element={<Reports />} />
+          {/* One dedicated route per report detail view — same
+              "several static routes, one page component" convention
+              /billing/tax-invoice etc. already use, so each report gets
+              its own bookmarkable/shareable URL (Reports.jsx derives
+              which one from location.pathname). */}
+          <Route path="/reports/revenue" element={<Reports />} />
+          <Route path="/reports/caf-compliance" element={<Reports />} />
+          <Route path="/reports/churn" element={<Reports />} />
+          <Route path="/reports/collection" element={<Reports />} />
+          <Route path="/reports/partner-store-collection" element={<Reports />} />
+          <Route path="/reports/inventory" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/master-config" element={<Settings />} />
           <Route path="/settings/master-config/:tab" element={<Settings />} />

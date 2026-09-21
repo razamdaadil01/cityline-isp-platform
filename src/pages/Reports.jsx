@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell,
@@ -888,10 +889,39 @@ const DETAIL_VIEWS = {
   inventory: InventoryReportDetail,
 }
 
+// Each report id's own dedicated URL under /reports — registered as static
+// sibling routes in App.jsx (same "several routes, one page component"
+// convention Billing.jsx already uses for /billing/tax-invoice etc.,
+// switching on location.pathname rather than a route param). Slugs read
+// cleaner than the bare internal ids for 'caf'/'partner' specifically, so
+// this is a distinct display-slug map rather than reusing REPORT_CARDS' own
+// ids directly in the URL.
+const REPORT_SLUGS = {
+  revenue: 'revenue',
+  caf: 'caf-compliance',
+  churn: 'churn',
+  collection: 'collection',
+  partner: 'partner-store-collection',
+  inventory: 'inventory',
+}
+const REPORT_ID_BY_SLUG = Object.fromEntries(
+  Object.entries(REPORT_SLUGS).map(([id, slug]) => [slug, id])
+)
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Reports() {
-  const [active, setActive] = useState(null)
+  const navigate = useNavigate()
+  const location = useLocation()
+  // Derived from the URL rather than local state — App.jsx registers a
+  // static route per report (/reports/revenue, /reports/caf-compliance,
+  // ...) all rendering this same component, same as Billing.jsx's own
+  // /billing/tax-invoice etc. `active` stays null on the bare /reports
+  // list view and on any path this map doesn't recognize (routing only
+  // ever sends a recognized slug here, since each is its own registered
+  // route — see REPORT_SLUGS/REPORT_ID_BY_SLUG above).
+  const activeSlug = location.pathname.replace(/^\/reports\/?/, '')
+  const active = activeSlug ? (REPORT_ID_BY_SLUG[activeSlug] ?? null) : null
   // Defaults to a rolling 2-year window ending today — wide enough to
   // cover customersData.js's real createdOn backfill (spread over roughly
   // the past 1-2 years) and any real payments recorded this session, so
@@ -1275,7 +1305,7 @@ export default function Reports() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {active && (
-            <button onClick={() => setActive(null)}
+            <button onClick={() => navigate('/reports')}
               className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
               <ArrowLeft size={16} />
             </button>
@@ -1361,7 +1391,7 @@ export default function Reports() {
           {visibleReportCards.map(card => {
             const Icon = card.icon
             return (
-              <button key={card.id} onClick={() => setActive(card.id)}
+              <button key={card.id} onClick={() => navigate(`/reports/${REPORT_SLUGS[card.id]}`)}
                 className="bg-white rounded-xl p-5 shadow-card border border-surface-border text-left
                   hover:border-brand-blue/40 hover:shadow-md transition-all group">
                 <div className="flex items-start justify-between mb-4">
