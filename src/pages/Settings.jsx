@@ -1056,8 +1056,10 @@ function RolesTab() {
   // whatever modules were expanded while viewing one role's permissions
   // stay expanded when you switch to another role's — comparing the same
   // module's checklist across roles is just clicking through the role
-  // list.
-  const [expandedModules, setExpandedModules] = useState(() => new Set())
+  // list. Customers starts pre-expanded (the module admins most often
+  // need to fine-tune first) — every other module still starts collapsed,
+  // same as before.
+  const [expandedModules, setExpandedModules] = useState(() => new Set(['Customers']))
   function toggleModuleExpanded(mod) {
     setExpandedModules(prev => {
       const next = new Set(prev)
