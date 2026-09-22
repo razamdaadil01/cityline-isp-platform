@@ -145,6 +145,16 @@ export const MODULE_MICRO_PERMISSIONS = {
     { key: 'viewPOPDowntimeReport',             label: 'View POP-wise Downtime Report' },
     { key: 'viewCleaningComplianceReport',      label: 'View Cleaning Compliance Report' },
     { key: 'viewInventoryConsumptionReport',    label: 'View Inventory Consumption & Cost Report' },
+    // Added for the Reports library's new card sections that had no
+    // Reports-module permission of their own before (Customers/Technicians/
+    // Support/Sales report cards) — Resellers' own card reuses
+    // viewPartnerStoreCollectionReport above (same underlying computation),
+    // and 2 of the 3 Network/POP cards reuse viewWorkOrderTATReport/
+    // viewCleaningComplianceReport above, so neither needed a new key.
+    { key: 'viewCustomerReports',               label: 'View Customer Reports' },
+    { key: 'viewTechnicianReports',             label: 'View Technician Reports' },
+    { key: 'viewSupportReports',                label: 'View Support Reports' },
+    { key: 'viewSalesReports',                  label: 'View Sales Reports' },
     { key: 'exportReportsToExcel',              label: 'Export Reports to Excel' },
   ],
   // Settings is self-referential — "Manage Roles & Permissions" itself
@@ -371,6 +381,9 @@ const SEED = [
       p['Support']['addCustomerComments'] = true
       p['Support']['sendTechnician'] = true
       p['Support']['myTicketsOnly'] = true
+      // Support-domain report cards (Ticket Summary, SLA Breach, Complaint
+      // Category-wise, Outage) squarely match this role's own ticket work.
+      p['Reports']['viewSupportReports'] = true
       p['Dashboard']['viewSupportOverviewWidget'] = true
       p['Dashboard']['viewRecentOpenTicketsWidget'] = true
       p['Customers']['viewCustomerList'] = true
@@ -489,6 +502,10 @@ const SEED = [
       p['Reports']['viewPOPDowntimeReport'] = true
       p['Reports']['viewCleaningComplianceReport'] = true
       p['Reports']['viewInventoryConsumptionReport'] = true
+      p['Reports']['viewCustomerReports'] = true
+      p['Reports']['viewTechnicianReports'] = true
+      p['Reports']['viewSupportReports'] = true
+      p['Reports']['viewSalesReports'] = true
       p['Resellers']['viewResellerList'] = true
       p['Resellers']['viewResellerDetail'] = true
       p['Projects']['viewProjectsList'] = true
