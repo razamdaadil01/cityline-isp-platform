@@ -466,7 +466,6 @@ function EquipmentPills({ items }) {
 
 export default function SalesHwAssignment() {
   const [queue, setQueue]           = useState(INIT_QUEUE)
-  const [filter, setFilter]         = useState('All')
   const [expandedRows, setExpandedRows] = useState(new Set())
 
   // ?modal=assign-hardware&itemId=HW-xxx opens the Assign modal for that queue
@@ -474,6 +473,20 @@ export default function SalesHwAssignment() {
   // the assignment popup for a specific item is shareable/bookmarkable and
   // reopens automatically when the URL is visited directly.
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // ?status=<All|Pending|Assigned|Completed> — the status filter tabs below,
+  // same URL-param pattern, so the current filter is shareable/bookmarkable
+  // and reapplies automatically on load. Omitted from the URL entirely when
+  // set back to the "All" default.
+  const filter = searchParams.get('status') ?? 'All'
+  function setFilter(next) {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev)
+      if (next === 'All') params.delete('status')
+      else params.set('status', next)
+      return params
+    })
+  }
   const assignItemId = searchParams.get('modal') === 'assign-hardware' ? searchParams.get('itemId') : null
   const assignItem = assignItemId ? (queue.find(i => i.id === assignItemId) ?? null) : null
 

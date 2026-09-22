@@ -958,14 +958,37 @@ export default function SalesFollowups() {
     phone: modalFollowup?.phone ?? '',
   }
 
-  const [search, setSearch]         = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [filterStatus, setFilterStatus]     = useState('')
-  const [filterPipeline, setFilterPipeline] = useState('')
-  const [filterAssigned, setFilterAssigned] = useState('')
-  const [filterDateFrom, setFilterDateFrom] = useState('')
-  const [filterDateTo, setFilterDateTo]     = useState('')
   const [callToast, setCallToast]           = useState(null)
+
+  // ?search=/?status=/?pipeline=/?assigned=/?dateFrom=/?dateTo= — the
+  // search box and filter drawer's controls below, same URL-param pattern
+  // as this page's own ?view=/?modal= params, so the current filter state
+  // is shareable/bookmarkable and reapplies automatically on load. Each
+  // param is only present in the URL while its filter is active; clearing
+  // a filter removes it. The search box uses a history replace (not push)
+  // since it updates on every keystroke.
+  const search         = searchParams.get('search') ?? ''
+  const filterStatus   = searchParams.get('status') ?? ''
+  const filterPipeline = searchParams.get('pipeline') ?? ''
+  const filterAssigned = searchParams.get('assigned') ?? ''
+  const filterDateFrom = searchParams.get('dateFrom') ?? ''
+  const filterDateTo   = searchParams.get('dateTo') ?? ''
+
+  function setUrlParam(key, value, opts) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    }, opts)
+  }
+  function setSearch(value)         { setUrlParam('search', value, { replace: true }) }
+  function setFilterStatus(value)   { setUrlParam('status', value) }
+  function setFilterPipeline(value) { setUrlParam('pipeline', value) }
+  function setFilterAssigned(value) { setUrlParam('assigned', value) }
+  function setFilterDateFrom(value) { setUrlParam('dateFrom', value) }
+  function setFilterDateTo(value)   { setUrlParam('dateTo', value) }
 
   function openFollowupModal(fu) {
     setSearchParams(prev => {
@@ -1029,9 +1052,32 @@ export default function SalesFollowups() {
     if (cancelTarget) { cancelFollowup(cancelTarget.id); closeFollowupModal() }
   }
 
+  // Clears all 5 filter params (and clearAllAndSearch also `search`) in a
+  // single combined update — calling the individual setFilterX()/setSearch()
+  // setters in sequence would each compute their `next` from the same
+  // stale searchParams snapshot and only the last one would actually stick.
   function clearAllFilters() {
-    setFilterStatus(''); setFilterPipeline('')
-    setFilterAssigned(''); setFilterDateFrom(''); setFilterDateTo('')
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('status'); next.delete('pipeline')
+      next.delete('assigned'); next.delete('dateFrom'); next.delete('dateTo')
+      return next
+    })
+  }
+  function clearDateRange() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('dateFrom'); next.delete('dateTo')
+      return next
+    })
+  }
+  function clearAllFiltersAndSearch() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('status'); next.delete('pipeline'); next.delete('assigned')
+      next.delete('dateFrom'); next.delete('dateTo'); next.delete('search')
+      return next
+    })
   }
 
   const scopedFollowups = salesPerm === 'view_my'
@@ -1193,10 +1239,10 @@ export default function SalesFollowups() {
             {(filterDateFrom || filterDateTo) && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                 Date: {filterDateFrom || '…'} → {filterDateTo || '…'}
-                <button onClick={() => { setFilterDateFrom(''); setFilterDateTo('') }} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+                <button onClick={clearDateRange} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
               </span>
             )}
-            <button onClick={() => { clearAllFilters(); setSearch('') }}
+            <button onClick={clearAllFiltersAndSearch}
               className="text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors ml-0.5">
               Clear all
             </button>

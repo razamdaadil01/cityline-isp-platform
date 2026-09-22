@@ -1510,19 +1510,92 @@ export default function Sales() {
     })
   }
 
-  const [search, setSearch]             = useState('')
-  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:salesLeadsTable', SALES_LEADS_COLUMNS)
+  // ?search= — shared by the kanban board and the table view's search box,
+  // history-replaced since it updates on every keystroke.
+  const search = searchParams.get('search') ?? ''
+  function setSearch(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('search', value)
+      else next.delete('search')
+      return next
+    }, { replace: true })
+  }
+
+  // Manage Columns — ?columns=key1,key2,... overlays visibility from the URL
+  // onto the localStorage-backed preference below (used for rendering and
+  // passed to ColumnManager), so a shared URL reproduces the same column
+  // layout. localStorage persistence (useColumnPrefs) is unchanged; the URL
+  // param is only set/kept when it differs from the default column set —
+  // "Reset to Default" removes it entirely.
+  const [tableColumnsPrefs, setTableColumnsPrefs] = useColumnPrefs('columnPrefs:salesLeadsTable', SALES_LEADS_COLUMNS)
+  const columnsParam = searchParams.get('columns')
+  const tableColumns = columnsParam !== null
+    ? tableColumnsPrefs.map(c => ({ ...c, visible: c.locked ? true : columnsParam.split(',').includes(c.key) }))
+    : tableColumnsPrefs
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
+
+  function handleColumnsChange(nextColumns) {
+    setTableColumnsPrefs(nextColumns)
+    const isDefault = nextColumns.every(c => c.visible === (c.locked ? true : (c.defaultVisible ?? true)))
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (isDefault) next.delete('columns')
+      else next.set('columns', nextColumns.filter(c => c.visible).map(c => c.key).join(','))
+      return next
+    })
+  }
+
   const activeCustomerTypes = customerTypes.filter(t => t.status === 'Active')
   const [formModules, setFormModules]   = useState(getFormModules())
   const [inventoryToast, setInventoryToast]       = useState(false)
-  const [tableStageFilter, setTableStageFilter]   = useState('')
-  const [tableUserFilter, setTableUserFilter]     = useState('')
-  const [tableStatusFilter, setTableStatusFilter] = useState('')
-  const [tableDateFrom, setTableDateFrom]         = useState('')
-  const [tableDateTo, setTableDateTo]             = useState('')
-  const [tableFollowFrom, setTableFollowFrom]     = useState('')
-  const [tableFollowTo, setTableFollowTo]         = useState('')
+
+  // Table filters — ?filterStage=&assigned=&status=&dateFrom=&dateTo=&
+  // followFrom=&followTo=, same ?modal=-style URL-param pattern used
+  // elsewhere on this page, so the current filter state is
+  // shareable/bookmarkable and reapplies automatically on load. (`stage`
+  // itself is already used by the move-stage/required-stage modals above,
+  // so the Stage filter uses `filterStage` to avoid colliding with it.)
+  const tableStageFilter  = searchParams.get('filterStage') ?? ''
+  const tableUserFilter   = searchParams.get('assigned') ?? ''
+  const tableStatusFilter = searchParams.get('status') ?? ''
+  const tableDateFrom     = searchParams.get('dateFrom') ?? ''
+  const tableDateTo       = searchParams.get('dateTo') ?? ''
+  const tableFollowFrom   = searchParams.get('followFrom') ?? ''
+  const tableFollowTo     = searchParams.get('followTo') ?? ''
+
+  function setTableFilterParam(key, value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    })
+  }
+  function setTableStageFilter(value)  { setTableFilterParam('filterStage', value) }
+  function setTableUserFilter(value)   { setTableFilterParam('assigned', value) }
+  function setTableStatusFilter(value) { setTableFilterParam('status', value) }
+  function setTableDateFrom(value)     { setTableFilterParam('dateFrom', value) }
+  function setTableDateTo(value)       { setTableFilterParam('dateTo', value) }
+  function setTableFollowFrom(value)   { setTableFilterParam('followFrom', value) }
+  function setTableFollowTo(value)     { setTableFilterParam('followTo', value) }
+
+  // Combined clears — each touches 2+ URL params at once, so they go
+  // through a single setSearchParams call rather than sequential
+  // setTableX() calls (which would each compute `next` from the same
+  // stale searchParams snapshot and only the last one would stick).
+  function clearDateRange() { setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('dateFrom'); next.delete('dateTo'); return next }) }
+  function clearFollowRange() { setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('followFrom'); next.delete('followTo'); return next }) }
+  function clearAllFiltersAndSearch() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('filterStage'); next.delete('assigned'); next.delete('status')
+      next.delete('dateFrom'); next.delete('dateTo'); next.delete('followFrom'); next.delete('followTo')
+      next.delete('search')
+      return next
+    })
+  }
+
   const [tableSort, setTableSort]                 = useState({ by: 'createdAt', dir: 'desc' })
   const [tablePage, setTablePage]                 = useState(1)
   const [showExportMenu, setShowExportMenu]     = useState(false)
@@ -1711,13 +1784,12 @@ export default function Sales() {
   }
 
   function clearAllFilters() {
-    setTableStageFilter('')
-    setTableUserFilter('')
-    setTableStatusFilter('')
-    setTableDateFrom('')
-    setTableDateTo('')
-    setTableFollowFrom('')
-    setTableFollowTo('')
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('filterStage'); next.delete('assigned'); next.delete('status')
+      next.delete('dateFrom'); next.delete('dateTo'); next.delete('followFrom'); next.delete('followTo')
+      return next
+    })
     setTablePage(1)
   }
 
@@ -1914,7 +1986,15 @@ export default function Sales() {
                   }).map(opt => (
                     <button
                       key={opt.key}
-                      onClick={() => { setSearchParams(p => { const n = new URLSearchParams(p); n.set('pipeline', PIPELINE_SLUG[opt.key] ?? opt.key); return n }); setSearch(''); setPipelineDropdownOpen(false) }}
+                      onClick={() => {
+                        setSearchParams(p => {
+                          const n = new URLSearchParams(p)
+                          n.set('pipeline', PIPELINE_SLUG[opt.key] ?? opt.key)
+                          n.delete('search')
+                          return n
+                        })
+                        setPipelineDropdownOpen(false)
+                      }}
                       className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors ${
                         activePipeline === opt.key
                           ? 'bg-purple-50 text-purple-700'
@@ -2018,7 +2098,7 @@ export default function Sales() {
             </Button>
 
             {/* Columns (table view only) — rightmost/last in the toolbar */}
-            {viewMode === 'table' && <ColumnManager columns={tableColumns} onChange={setTableColumns} />}
+            {viewMode === 'table' && <ColumnManager columns={tableColumns} onChange={handleColumnsChange} />}
           </div>
 
           {/* Active filter pills */}
@@ -2052,16 +2132,16 @@ export default function Sales() {
               {(tableDateFrom || tableDateTo) && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                   Created: {tableDateFrom || '…'} → {tableDateTo || '…'}
-                  <button onClick={() => { setTableDateFrom(''); setTableDateTo(''); setTablePage(1) }} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+                  <button onClick={() => { clearDateRange(); setTablePage(1) }} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
                 </span>
               )}
               {(tableFollowFrom || tableFollowTo) && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                   Follow-up: {tableFollowFrom || '…'} → {tableFollowTo || '…'}
-                  <button onClick={() => { setTableFollowFrom(''); setTableFollowTo(''); setTablePage(1) }} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
+                  <button onClick={() => { clearFollowRange(); setTablePage(1) }} className="ml-0.5 hover:text-purple-900"><X size={10} /></button>
                 </span>
               )}
-              <button onClick={() => { clearAllFilters(); setSearch('') }}
+              <button onClick={() => { clearAllFiltersAndSearch(); setTablePage(1) }}
                 className="text-[11px] font-semibold text-red-500 hover:text-red-700 transition-colors ml-0.5">
                 Clear all
               </button>
@@ -2553,7 +2633,7 @@ export default function Sales() {
           {/* Sticky footer */}
           <div className="shrink-0 px-5 py-4 border-t border-surface-border bg-gray-50 flex items-center gap-3">
             <button
-              onClick={() => { clearAllFilters(); setTablePage(1) }}
+              onClick={clearAllFilters}
               className="flex-1 py-2.5 text-sm font-semibold text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-xl transition-colors bg-white"
             >
               Clear All Filters
