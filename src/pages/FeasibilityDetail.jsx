@@ -339,8 +339,6 @@ export default function FeasibilityDetail() {
   }
 
   // Modals
-  const [showApprove, setShowApprove] = useState(false)
-  const [showReject,  setShowReject]  = useState(false)
   const [showAddHardware, setShowAddHardware] = useState(false)
 
   // Header "Actions" dropdown — consolidates the Assign Engineer/Approve/
@@ -534,9 +532,31 @@ export default function FeasibilityDetail() {
     setToast('Changes saved successfully')
   }
 
+  // ?modal=approve-feasibility / ?modal=reject-feasibility — same ?modal=
+  // URL-param pattern as the Assign Engineer/Stage Fields/Configure Summary/
+  // Add Segment modals above. These two were previously plain showApprove/
+  // showReject booleans that never touched the URL at all, so opening
+  // either one left the address bar unchanged — indistinguishable from
+  // each other (and from the modal being closed). Each now gets its own
+  // distinct param value.
+  const approveModalOpen = searchParams.get('modal') === 'approve-feasibility'
+  const rejectModalOpen  = searchParams.get('modal') === 'reject-feasibility'
+
   function openApprove() {
     setApproveForm({ comment: '', fiberEstimate: req.fiberRequired || '', hardware: '', installNotes: '' })
-    setShowApprove(true)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'approve-feasibility')
+      return next
+    })
+  }
+
+  function closeApprove() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
   }
 
   function handleApprove() {
@@ -550,13 +570,25 @@ export default function FeasibilityDetail() {
       approvedAt:       now,
       _note: 'Feasibility approved',
     })
-    setShowApprove(false)
+    closeApprove()
     setToast('Feasibility approved successfully')
   }
 
   function openReject() {
     setRejectForm({ reason: '', remarks: '' })
-    setShowReject(true)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'reject-feasibility')
+      return next
+    })
+  }
+
+  function closeReject() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      return next
+    })
   }
 
   function handleReject() {
@@ -568,7 +600,7 @@ export default function FeasibilityDetail() {
       rejectedAt:       now,
       _note: `Rejected — ${rejectForm.reason}`,
     })
-    setShowReject(false)
+    closeReject()
     setToast('Feasibility rejected')
   }
 
@@ -1116,12 +1148,12 @@ export default function FeasibilityDetail() {
 
       {/* ── Approve Modal ─────────────────────────────────────────── */}
       <Modal
-        isOpen={showApprove}
-        onClose={() => setShowApprove(false)}
+        isOpen={approveModalOpen}
+        onClose={closeApprove}
         title={`Approve Feasibility — ${req.id}`}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowApprove(false)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeApprove}>Cancel</Button>
           <Button size="sm"
             className="bg-emerald-600 hover:bg-emerald-700"
             onClick={handleApprove}
@@ -1151,12 +1183,12 @@ export default function FeasibilityDetail() {
 
       {/* ── Reject Modal ──────────────────────────────────────────── */}
       <Modal
-        isOpen={showReject}
-        onClose={() => setShowReject(false)}
+        isOpen={rejectModalOpen}
+        onClose={closeReject}
         title={`Reject Feasibility — ${req.id}`}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowReject(false)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeReject}>Cancel</Button>
           <Button size="sm"
             className="bg-red-600 hover:bg-red-700"
             onClick={handleReject}
