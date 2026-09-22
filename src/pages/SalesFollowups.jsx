@@ -975,20 +975,54 @@ export default function SalesFollowups() {
   const filterDateFrom = searchParams.get('dateFrom') ?? ''
   const filterDateTo   = searchParams.get('dateTo') ?? ''
 
-  function setUrlParam(key, value, opts) {
+  function setSearch(value) {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
-      if (value) next.set(key, value)
-      else next.delete(key)
+      if (value) next.set('search', value)
+      else next.delete('search')
       return next
-    }, opts)
+    }, { replace: true })
   }
-  function setSearch(value)         { setUrlParam('search', value, { replace: true }) }
-  function setFilterStatus(value)   { setUrlParam('status', value) }
-  function setFilterPipeline(value) { setUrlParam('pipeline', value) }
-  function setFilterAssigned(value) { setUrlParam('assigned', value) }
-  function setFilterDateFrom(value) { setUrlParam('dateFrom', value) }
-  function setFilterDateTo(value)   { setUrlParam('dateTo', value) }
+  function setFilterStatus(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('status', value)
+      else next.delete('status')
+      return next
+    })
+  }
+  function setFilterPipeline(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('pipeline', value)
+      else next.delete('pipeline')
+      return next
+    })
+  }
+  function setFilterAssigned(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('assigned', value)
+      else next.delete('assigned')
+      return next
+    })
+  }
+  function setFilterDateFrom(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('dateFrom', value)
+      else next.delete('dateFrom')
+      return next
+    })
+  }
+  function setFilterDateTo(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('dateTo', value)
+      else next.delete('dateTo')
+      return next
+    })
+  }
 
   function openFollowupModal(fu) {
     setSearchParams(prev => {
