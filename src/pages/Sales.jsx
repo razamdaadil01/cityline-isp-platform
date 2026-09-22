@@ -1406,21 +1406,116 @@ export default function Sales() {
   const viewMode       = searchParams.get('view') === 'kanban' ? 'kanban' : 'table'
   const [draggingId, setDraggingId]     = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
-  const [showModal, setShowModal]       = useState(false)
-  const [editLead, setEditLead]         = useState(null)
-  const [ekycLead, setEkycLead]         = useState(null)
-  const [hwLead, setHwLead]             = useState(null)
+
+  // ?modal=lead-form|ekyc|assign-hardware|feasibility-report|set-followup|
+  // move-stage|required-stage|call &leadId=... — same ?modal= URL-param
+  // pattern as FeasibilityDetail's modals, so each lead popup is
+  // shareable/bookmarkable and reopens automatically (merging with the
+  // existing ?pipeline=/&view= params) when the URL is visited directly.
+  const modalParam = searchParams.get('modal')
+  const modalLeadId = searchParams.get('leadId')
+  const modalLead = modalLeadId ? (leads.find(l => l.id === modalLeadId) ?? null) : null
+
+  const showModal        = modalParam === 'lead-form'
+  const editLead          = showModal ? modalLead : null
+  const ekycLead          = modalParam === 'ekyc'               ? modalLead : null
+  const hwLead            = modalParam === 'assign-hardware'    ? modalLead : null
+  const feasibilityLead   = modalParam === 'feasibility-report' ? modalLead : null
+  const followupLead      = modalParam === 'set-followup'       ? modalLead : null
+  const moveStageLeadId   = modalParam === 'move-stage'         ? modalLeadId : null
+  const moveStageInitial  = modalParam === 'move-stage'         ? (searchParams.get('stage') ?? '') : ''
+  const requiredStageWarning = modalParam === 'required-stage'
+    ? { stageName: searchParams.get('stage') ?? '' }
+    : null
+  const callModal = {
+    open:  modalParam === 'call' && !!modalLead,
+    name:  modalLead?.name ?? '',
+    phone: modalLead?.phone ?? '',
+  }
+
+  function openLeadModal(lead) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'lead-form')
+      next.set('leadId', lead.id)
+      return next
+    })
+  }
+  function openEkycModal(lead) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'ekyc')
+      next.set('leadId', lead.id)
+      return next
+    })
+  }
+  function openHwModal(lead) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'assign-hardware')
+      next.set('leadId', lead.id)
+      return next
+    })
+  }
+  function openFeasibilityModal(lead) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'feasibility-report')
+      next.set('leadId', lead.id)
+      return next
+    })
+  }
+  function openFollowupModal(lead) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'set-followup')
+      next.set('leadId', lead.id)
+      return next
+    })
+  }
+  function openMoveStageModal(leadId, initialStage = '') {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'move-stage')
+      next.set('leadId', leadId)
+      if (initialStage) next.set('stage', initialStage)
+      else next.delete('stage')
+      return next
+    })
+  }
+  function openRequiredStageWarning(stageName) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'required-stage')
+      next.set('stage', stageName)
+      next.delete('leadId')
+      return next
+    })
+  }
+  function openCallModal(lead) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'call')
+      next.set('leadId', lead.id)
+      return next
+    })
+  }
+  function closeLeadModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('leadId')
+      next.delete('stage')
+      return next
+    })
+  }
+
   const [search, setSearch]             = useState('')
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:salesLeadsTable', SALES_LEADS_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
   const activeCustomerTypes = customerTypes.filter(t => t.status === 'Active')
-  const [requiredStageWarning, setRequiredStageWarning] = useState(null) // { stageName }
   const [formModules, setFormModules]   = useState(getFormModules())
-  const [feasibilityLead, setFeasibilityLead]     = useState(null)
-  const [followupLead, setFollowupLead]           = useState(null)
   const [inventoryToast, setInventoryToast]       = useState(false)
-  const [moveStageLeadId, setMoveStageLeadId]     = useState(null)
-  const [moveStageInitial, setMoveStageInitial]   = useState('')
   const [tableStageFilter, setTableStageFilter]   = useState('')
   const [tableUserFilter, setTableUserFilter]     = useState('')
   const [tableStatusFilter, setTableStatusFilter] = useState('')
@@ -1434,7 +1529,6 @@ export default function Sales() {
   const [exportToast, setExportToast]           = useState('')
   const [wonBlockedNotice, setWonBlockedNotice] = useState('')
   const [pipelineDropdownOpen, setPipelineDropdownOpen] = useState(false)
-  const [callModal, setCallModal]               = useState({ open: false, name: '', phone: '' })
   const [callToast, setCallToast]               = useState(null)
   const [drawerOpen, setDrawerOpen]             = useState(false)
   const exportMenuRef       = useRef(null)
@@ -1533,7 +1627,7 @@ export default function Sales() {
             const skipped   = plDef.stages.slice(fromIdx + 1, toIdx)
             const blockedBy = skipped.find(s => reqStages.includes(s))
             if (blockedBy) {
-              setRequiredStageWarning({ stageName: blockedBy })
+              openRequiredStageWarning(blockedBy)
               setDraggingId(null)
               setDragOverStage(null)
               return
@@ -1543,8 +1637,7 @@ export default function Sales() {
 
         // Intercept Feasibility drops — route through MoveStageModal for field capture
         if (targetStage === 'Feasibility' && lead.pipeline === 'B2C') {
-          setMoveStageLeadId(lead.id)
-          setMoveStageInitial(targetStage)
+          openMoveStageModal(lead.id, targetStage)
           setDraggingId(null)
           setDragOverStage(null)
           return
@@ -1566,8 +1659,7 @@ export default function Sales() {
         // Intercept Lost drops — route through MoveStageModal for field capture
         const isLostDrop = targetStage === 'Lost' || dropSC?.statusType === 'Lost'
         if (isLostDrop) {
-          setMoveStageLeadId(lead.id)
-          setMoveStageInitial(targetStage)
+          openMoveStageModal(lead.id, targetStage)
           setDraggingId(null)
           setDragOverStage(null)
           return
@@ -1576,8 +1668,7 @@ export default function Sales() {
 
       const movingLead = leads.find(l => l.id === draggingId)
       if (movingLead && movingLead.stage !== targetStage) {
-        setMoveStageLeadId(movingLead.id)
-        setMoveStageInitial(targetStage)
+        openMoveStageModal(movingLead.id, targetStage)
       }
     }
     setDraggingId(null)
@@ -1752,11 +1843,11 @@ export default function Sales() {
 
       <CallModal
         isOpen={callModal.open}
-        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        onClose={closeLeadModal}
         customerName={callModal.name}
         phoneNumber={callModal.phone}
         onCallInitiated={({ number }) => {
-          setCallModal({ open: false, name: '', phone: '' })
+          closeLeadModal()
           setCallToast('Call initiated successfully')
           setTimeout(() => setCallToast(null), 3000)
         }}
@@ -2056,7 +2147,7 @@ export default function Sales() {
                         {visibleCols.has('mobile') && (
                           <td className="px-4 py-3 whitespace-nowrap">
                             <button
-                              onClick={e => { e.stopPropagation(); setCallModal({ open: true, name: lead.name, phone: lead.phone }) }}
+                              onClick={e => { e.stopPropagation(); openCallModal(lead) }}
                               className="flex items-center gap-1.5 font-mono text-xs text-gray-600 hover:text-emerald-600 transition-colors group"
                             >
                               <Phone size={11} className="text-gray-400 group-hover:text-emerald-500 shrink-0" />
@@ -2212,13 +2303,13 @@ export default function Sales() {
                       <LeadCard key={lead.id} lead={lead}
                         onDragStart={handleDragStart} onDragEnd={handleDragEnd}
                         isDragging={draggingId === lead.id}
-                        onEdit={l => { setEditLead(l); setShowModal(true) }}
-                        onEkyc={l => setEkycLead(l)}
-                        onAssignHw={l => setHwLead(l)}
-                        onFeasibility={l => setFeasibilityLead(l)}
-                        onFollowup={l => setFollowupLead(l)}
+                        onEdit={openLeadModal}
+                        onEkyc={openEkycModal}
+                        onAssignHw={openHwModal}
+                        onFeasibility={openFeasibilityModal}
+                        onFollowup={openFollowupModal}
                         onView={l => navigate(`/sales/leads/${l.id}`)}
-                        onCall={l => setCallModal({ open: true, name: l.name, phone: l.phone })}
+                        onCall={openCallModal}
                         onSendToInventory={sendToInventory}
                         userRole={userRole}
                         followUpAllowed={followUpAllowed}
@@ -2236,7 +2327,7 @@ export default function Sales() {
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       {showModal && (
         <LeadModal isOpen={showModal}
-          onClose={() => { setShowModal(false); setEditLead(null) }}
+          onClose={closeLeadModal}
           onSave={handleSaveLead}
           initial={editLead}
           defaultPipeline={activePipeline}
@@ -2244,24 +2335,24 @@ export default function Sales() {
         />
       )}
       {ekycLead && (
-        <EkycModal isOpen={!!ekycLead} onClose={() => setEkycLead(null)} lead={ekycLead}
+        <EkycModal isOpen={!!ekycLead} onClose={closeLeadModal} lead={ekycLead}
           onSave={status => saveEkycStatus(ekycLead.id, status)} />
       )}
       {hwLead && (
-        <HardwareAssignModal isOpen={!!hwLead} onClose={() => setHwLead(null)} lead={hwLead}
+        <HardwareAssignModal isOpen={!!hwLead} onClose={closeLeadModal} lead={hwLead}
           onConfirm={hw => saveHwAssignment(hwLead.id, hw)} />
       )}
       {requiredStageWarning && (
         <RequiredStageModal
           isOpen={!!requiredStageWarning}
-          onClose={() => setRequiredStageWarning(null)}
+          onClose={closeLeadModal}
           stageName={requiredStageWarning.stageName}
         />
       )}
       {feasibilityLead && (
         <FeasibilityModal
           isOpen={!!feasibilityLead}
-          onClose={() => setFeasibilityLead(null)}
+          onClose={closeLeadModal}
           lead={feasibilityLead}
           onSave={data => saveFeasibility(feasibilityLead.id, data)}
         />
@@ -2269,7 +2360,7 @@ export default function Sales() {
       {followupLead && (
         <SetFollowupModal
           isOpen={!!followupLead}
-          onClose={() => setFollowupLead(null)}
+          onClose={closeLeadModal}
           lead={followupLead}
           onSave={handleSaveFollowup}
         />
@@ -2295,7 +2386,7 @@ export default function Sales() {
             availableStages={availableStages}
             plStore={plStore}
             initialStage={moveStageInitial}
-            onClose={() => { setMoveStageLeadId(null); setMoveStageInitial('') }}
+            onClose={closeLeadModal}
             onMove={(targetStage, fieldVals, fuData) => {
               const updatedLead = {
                 ...msLead,
@@ -2309,8 +2400,7 @@ export default function Sales() {
               }
               if (fuData?.date) updatedLead.followUp = fuData.date
               saveLeadToStore(updatedLead)
-              setMoveStageLeadId(null)
-              setMoveStageInitial('')
+              closeLeadModal()
             }}
           />
         )
@@ -2503,7 +2593,7 @@ export default function Sales() {
               <Edit3 size={13} className="text-gray-400 shrink-0" /> Edit Lead
             </button>
             <button
-              onClick={() => { setMoveStageLeadId(lead.id); setTableMenuId(null) }}
+              onClick={() => { openMoveStageModal(lead.id); setTableMenuId(null) }}
               className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <TrendingUp size={13} className="text-brand-blue shrink-0" /> Move Stage
@@ -2512,7 +2602,7 @@ export default function Sales() {
               <>
                 <div className="my-1 border-t border-surface-border" />
                 <button
-                  onClick={() => { setMoveStageLeadId(lead.id); setMoveStageInitial('Lost'); setTableMenuId(null) }}
+                  onClick={() => { openMoveStageModal(lead.id, 'Lost'); setTableMenuId(null) }}
                   className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
                 >
                   <XCircle size={13} className="shrink-0" /> Mark as Lost

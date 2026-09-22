@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   List, Clock, CheckCircle2, XCircle, Loader2,
   Search, MoreVertical, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench, Edit2, Phone,
@@ -126,10 +126,22 @@ export default function FeasibilityRequests() {
   const [menuId,  setMenuId]  = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
 
-  // Modals
-  const [assignReq,  setAssignReq]  = useState(null)
-  const [approveReq, setApproveReq] = useState(null)
-  const [rejectReq,  setRejectReq]  = useState(null)
+  // ?modal=edit-feasibility|assign-engineer|hardware-requirements|
+  // approve-feasibility|reject-feasibility&requestId=... — same ?modal=
+  // URL-param pattern as FeasibilityDetail's modals, so each row-action
+  // popup is shareable/bookmarkable and reopens automatically (with its
+  // form pre-filled from the request) when the URL is visited directly,
+  // not just via the row's own "⋮" menu.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modalParam = searchParams.get('modal')
+  const requestIdParam = searchParams.get('requestId')
+  const modalReq = requestIdParam ? (requests.find(r => r.id === requestIdParam) ?? null) : null
+
+  const editReq    = modalParam === 'edit-feasibility'      ? modalReq : null
+  const assignReq  = modalParam === 'assign-engineer'       ? modalReq : null
+  const approveReq = modalParam === 'approve-feasibility'   ? modalReq : null
+  const rejectReq  = modalParam === 'reject-feasibility'    ? modalReq : null
+  const hwReqId    = modalParam === 'hardware-requirements' ? requestIdParam : null
 
   // Approve form
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
@@ -137,38 +149,70 @@ export default function FeasibilityRequests() {
   // Reject form
   const [rejectForm, setRejectForm] = useState({ reason: '', remarks: '' })
 
-  // Edit modal
-  const [editReq,  setEditReq]  = useState(null)
+  // Edit modal form
   const [editForm, setEditForm] = useState({})
 
-  function startEdit(req) {
-    setEditForm({
-      localityName:             req.localityName             || '',
-      subLocalityName:          req.subLocalityName          || '',
-      completeAddress:          req.completeAddress          || '',
-      landmark:                 req.landmark                 || '',
-      connectionType:           req.connectionType           || '',
-      customerRequirementNotes: req.customerRequirementNotes || '',
-      assignedBranch:           req.assignedBranch           || '',
-      fiberRequired:            req.fiberRequired             || '',
-      priority:                 req.priority                 || 'Medium',
-    })
-    setEditReq(req); setMenuId(null)
-  }
-
-  function handleSaveEdit() {
-    saveFeasibilityRequest({ ...editReq, ...editForm })
-    setEditReq(null)
-    setToast('Changes saved successfully')
-  }
-
-  // Hardware requirements (separate modal)
-  const [hwReqId,   setHwReqId]   = useState(null)
+  // Hardware requirements form
   const [hwItems,   setHwItems]   = useState([])
   const [wireItems, setWireItems] = useState([])
 
   // Toast
   const [toast, setToast] = useState('')
+
+  function openRowModal(modal, req) {
+    setMenuId(null)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', modal)
+      next.set('requestId', req.id)
+      return next
+    })
+  }
+
+  function closeRowModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('requestId')
+      return next
+    })
+  }
+
+  // Pre-fills each modal's local form state whenever it opens for a given
+  // request — covers both the row menu's click-to-open path and a direct
+  // page load at a URL that already carries ?modal=&requestId=.
+  useEffect(() => {
+    if (!modalReq) return
+    if (modalParam === 'edit-feasibility') {
+      setEditForm({
+        localityName:             modalReq.localityName             || '',
+        subLocalityName:          modalReq.subLocalityName          || '',
+        completeAddress:          modalReq.completeAddress          || '',
+        landmark:                 modalReq.landmark                 || '',
+        connectionType:           modalReq.connectionType           || '',
+        customerRequirementNotes: modalReq.customerRequirementNotes || '',
+        assignedBranch:           modalReq.assignedBranch           || '',
+        fiberRequired:            modalReq.fiberRequired             || '',
+        priority:                 modalReq.priority                 || 'Medium',
+      })
+    } else if (modalParam === 'hardware-requirements') {
+      setHwItems([newHwRow('ONT Device', '1', 'pcs'), newHwRow('Drop Wire', '50', 'm')])
+      setWireItems([newWireRow('Ethernet Cat6', '20', 'm')])
+    } else if (modalParam === 'approve-feasibility') {
+      setApproveForm({ comment: '', fiberEstimate: modalReq.fiberRequired || '', hardware: '', installNotes: '' })
+    } else if (modalParam === 'reject-feasibility') {
+      setRejectForm({ reason: '', remarks: '' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam, modalReq?.id])
+
+  function startEdit(req)           { openRowModal('edit-feasibility', req) }
+
+  function handleSaveEdit() {
+    saveFeasibilityRequest({ ...editReq, ...editForm })
+    closeRowModal()
+    setToast('Changes saved successfully')
+  }
 
   useEffect(() => subscribeFeasibility(setRequests), [])
 
@@ -186,21 +230,14 @@ export default function FeasibilityRequests() {
     setMenuId(id)
   }
 
-  function startAssign(req) {
-    setAssignReq(req); setMenuId(null)
-  }
-
-  function startHwRequirements(req) {
-    setHwItems([newHwRow('ONT Device', '1', 'pcs'), newHwRow('Drop Wire', '50', 'm')])
-    setWireItems([newWireRow('Ethernet Cat6', '20', 'm')])
-    setHwReqId(req.id); setMenuId(null)
-  }
+  function startAssign(req)         { openRowModal('assign-engineer', req) }
+  function startHwRequirements(req) { openRowModal('hardware-requirements', req) }
 
   function handleSaveHw() {
     const req = requests.find(r => r.id === hwReqId)
     if (req) saveFeasibilityRequest({ ...req, hwItems, wireItems })
     setToast('Hardware requirements saved')
-    setHwReqId(null)
+    closeRowModal()
   }
 
   function addHwItem()   { setHwItems(r   => [...r, newHwRow()])    }
@@ -210,25 +247,19 @@ export default function FeasibilityRequests() {
   function updateHwItem(id, field, val)   { setHwItems(r   => r.map(x => x.id === id ? { ...x, [field]: val } : x)) }
   function updateWireItem(id, field, val) { setWireItems(r => r.map(x => x.id === id ? { ...x, [field]: val } : x)) }
 
-  function startApprove(req) {
-    setApproveForm({ comment: '', fiberEstimate: req.fiberRequired || '', hardware: '', installNotes: '' })
-    setApproveReq(req); setMenuId(null)
-  }
+  function startApprove(req)        { openRowModal('approve-feasibility', req) }
 
   function handleApprove() {
     updateFeasibilityStatus(approveReq.id, 'Approved', { fiberRequired: approveForm.fiberEstimate })
-    setApproveReq(null)
+    closeRowModal()
     setToast('Feasibility approved successfully')
   }
 
-  function startReject(req) {
-    setRejectForm({ reason: '', remarks: '' })
-    setRejectReq(req); setMenuId(null)
-  }
+  function startReject(req)         { openRowModal('reject-feasibility', req) }
 
   function handleReject() {
     updateFeasibilityStatus(rejectReq.id, 'Rejected')
-    setRejectReq(null)
+    closeRowModal()
     setToast('Feasibility rejected')
   }
 
@@ -547,11 +578,11 @@ export default function FeasibilityRequests() {
       {/* Edit modal */}
       <Modal
         isOpen={!!editReq}
-        onClose={() => setEditReq(null)}
+        onClose={closeRowModal}
         title={`Edit — ${editReq?.id}`}
         size="md"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setEditReq(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeRowModal}>Cancel</Button>
           <Button size="sm" onClick={handleSaveEdit}>Save Changes</Button>
         </>}
       >
@@ -603,18 +634,18 @@ export default function FeasibilityRequests() {
       <AssignEngineerModal
         isOpen={!!assignReq}
         request={assignReq}
-        onClose={() => setAssignReq(null)}
-        onAssigned={() => { setAssignReq(null); setToast('Engineer(s) assigned successfully') }}
+        onClose={closeRowModal}
+        onAssigned={() => { closeRowModal(); setToast('Engineer(s) assigned successfully') }}
       />
 
       {/* ── Hardware Requirements Modal ──────────────────────────── */}
       <Modal
         isOpen={!!hwReqId}
-        onClose={() => setHwReqId(null)}
+        onClose={closeRowModal}
         title={`Hardware Requirements — ${hwReqId}`}
         size="md"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setHwReqId(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeRowModal}>Cancel</Button>
           <Button size="sm" onClick={handleSaveHw}>Save Requirements</Button>
         </>}
       >
@@ -704,11 +735,11 @@ export default function FeasibilityRequests() {
       {/* Approve modal */}
       <Modal
         isOpen={!!approveReq}
-        onClose={() => setApproveReq(null)}
+        onClose={closeRowModal}
         title={`Approve Feasibility — ${approveReq?.leadId}`}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setApproveReq(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeRowModal}>Cancel</Button>
           <Button size="sm"
             className="bg-emerald-600 hover:bg-emerald-700"
             onClick={handleApprove}
@@ -739,11 +770,11 @@ export default function FeasibilityRequests() {
       {/* Reject modal */}
       <Modal
         isOpen={!!rejectReq}
-        onClose={() => setRejectReq(null)}
+        onClose={closeRowModal}
         title={`Reject Feasibility — ${rejectReq?.leadId}`}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setRejectReq(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeRowModal}>Cancel</Button>
           <Button size="sm"
             className="bg-red-600 hover:bg-red-700"
             onClick={handleReject}

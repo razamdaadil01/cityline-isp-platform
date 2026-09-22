@@ -883,7 +883,7 @@ function CalendarView({ followups, onEdit, onCall }) {
                         <div>
                           <p className="font-semibold text-sm text-gray-900">{fu.leadName}</p>
                           <button
-                            onClick={() => onCall?.({ name: fu.leadName, phone: fu.phone })}
+                            onClick={() => onCall?.(fu.id)}
                             className="flex items-center gap-1 text-xs text-gray-400 font-mono hover:text-emerald-600 transition-colors group"
                           >
                             <Phone size={10} className="group-hover:text-emerald-500" />
@@ -900,7 +900,7 @@ function CalendarView({ followups, onEdit, onCall }) {
                       {fu.note && <p className="text-xs text-gray-500 italic mb-2">{fu.note}</p>}
                       <div className="flex gap-2">
                         <button
-                          onClick={() => onCall?.({ name: fu.leadName, phone: fu.phone })}
+                          onClick={() => onCall?.(fu.id)}
                           className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded-lg transition-colors"
                         >
                           <Phone size={11} /> Call
@@ -938,10 +938,26 @@ export default function SalesFollowups() {
   const [allUsers, setAllUsers]   = useState(getUsers)
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'table' // 'table' | 'calendar' (kanban hidden)
-  const [editingFU, setEditingFU] = useState(null)
-  const showModal = searchParams.get('action') === 'new' || editingFU !== null
-  const [cancelTarget, setCancelTarget]       = useState(null)
-  const [rescheduleTarget, setRescheduleTarget] = useState(null)
+
+  // ?modal=set-followup(&followupId=FU-xxx for edit) / ?modal=cancel-followup&
+  // followupId= / ?modal=reschedule-followup&followupId= / ?modal=call&
+  // followupId= — same ?modal= URL-param pattern as FeasibilityDetail's
+  // modals, so each follow-up popup is shareable/bookmarkable and reopens
+  // automatically when the URL is visited directly.
+  const modalParam = searchParams.get('modal')
+  const followupIdParam = searchParams.get('followupId')
+  const modalFollowup = followupIdParam ? (followups.find(f => f.id === followupIdParam) ?? null) : null
+
+  const editingFU        = modalParam === 'set-followup' ? modalFollowup : null
+  const showModal         = modalParam === 'set-followup'
+  const cancelTarget      = modalParam === 'cancel-followup'     ? modalFollowup : null
+  const rescheduleTarget  = modalParam === 'reschedule-followup' ? modalFollowup : null
+  const callModal = {
+    open:  modalParam === 'call' && !!modalFollowup,
+    name:  modalFollowup?.leadName ?? '',
+    phone: modalFollowup?.phone ?? '',
+  }
+
   const [search, setSearch]         = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [filterStatus, setFilterStatus]     = useState('')
@@ -949,8 +965,53 @@ export default function SalesFollowups() {
   const [filterAssigned, setFilterAssigned] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo]     = useState('')
-  const [callModal, setCallModal]           = useState({ open: false, name: '', phone: '' })
   const [callToast, setCallToast]           = useState(null)
+
+  function openFollowupModal(fu) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'set-followup')
+      if (fu) next.set('followupId', fu.id)
+      else next.delete('followupId')
+      return next
+    })
+  }
+
+  function openCancelModal(fu) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'cancel-followup')
+      next.set('followupId', fu.id)
+      return next
+    })
+  }
+
+  function openRescheduleModal(fu) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'reschedule-followup')
+      next.set('followupId', fu.id)
+      return next
+    })
+  }
+
+  function openCallModal(followupId) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'call')
+      next.set('followupId', followupId)
+      return next
+    })
+  }
+
+  function closeFollowupModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('followupId')
+      return next
+    })
+  }
 
   useEffect(() => subscribeFollowups(setFollowups), [])
   useEffect(() => subscribeSalesPermission(setSalesPerm), [])
@@ -960,12 +1021,12 @@ export default function SalesFollowups() {
 
   function saveFU(fu) { saveFollowup(fu) }
   function markDone(id) { markFollowupDone(id) }
-  function openEdit(fu) { setEditingFU(fu) }
-  function openReschedule(fu) { setRescheduleTarget(fu) }
-  function openCancel(fu) { setCancelTarget(fu) }
+  function openEdit(fu) { openFollowupModal(fu) }
+  function openReschedule(fu) { openRescheduleModal(fu) }
+  function openCancel(fu) { openCancelModal(fu) }
 
   function confirmCancel() {
-    if (cancelTarget) { cancelFollowup(cancelTarget.id); setCancelTarget(null) }
+    if (cancelTarget) { cancelFollowup(cancelTarget.id); closeFollowupModal() }
   }
 
   function clearAllFilters() {
@@ -1036,7 +1097,7 @@ export default function SalesFollowups() {
               <Calendar size={13} /> Calendar
             </button>
           </div>
-          <Button icon={<Plus size={14} />} onClick={() => { setEditingFU(null); setSearchParams({ action: 'new' }) }}>
+          <Button icon={<Plus size={14} />} onClick={() => openFollowupModal(null)}>
             Set Follow-up
           </Button>
         </div>
@@ -1145,7 +1206,7 @@ export default function SalesFollowups() {
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
       {view === 'calendar' ? (
-        <CalendarView followups={filtered} onEdit={openEdit} onCall={({ name, phone }) => setCallModal({ open: true, name, phone })} />
+        <CalendarView followups={filtered} onEdit={openEdit} onCall={openCallModal} />
       ) : (
         <TableView followups={filtered} onMarkDone={markDone} onReschedule={openReschedule} onEdit={openEdit} onCancel={openCancel} />
       )}
@@ -1157,7 +1218,7 @@ export default function SalesFollowups() {
       {showModal && (
         <FollowupModal
           isOpen={showModal}
-          onClose={() => { setEditingFU(null); setSearchParams({}) }}
+          onClose={closeFollowupModal}
           initial={editingFU}
           onSave={saveFU}
           staff={activeStaff}
@@ -1166,7 +1227,7 @@ export default function SalesFollowups() {
       {cancelTarget && (
         <CancelConfirmModal
           isOpen={!!cancelTarget}
-          onClose={() => setCancelTarget(null)}
+          onClose={closeFollowupModal}
           onConfirm={confirmCancel}
           leadName={cancelTarget?.leadName}
         />
@@ -1175,7 +1236,7 @@ export default function SalesFollowups() {
         <RescheduleModal
           key={rescheduleTarget.id}
           isOpen={!!rescheduleTarget}
-          onClose={() => setRescheduleTarget(null)}
+          onClose={closeFollowupModal}
           followup={rescheduleTarget}
           onSave={saveFU}
         />
@@ -1183,11 +1244,11 @@ export default function SalesFollowups() {
 
       <CallModal
         isOpen={callModal.open}
-        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        onClose={closeFollowupModal}
         customerName={callModal.name}
         phoneNumber={callModal.phone}
         onCallInitiated={() => {
-          setCallModal({ open: false, name: '', phone: '' })
+          closeFollowupModal()
           setCallToast('Call initiated successfully')
           setTimeout(() => setCallToast(null), 3000)
         }}
