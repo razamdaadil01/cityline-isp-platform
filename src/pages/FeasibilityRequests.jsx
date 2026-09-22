@@ -72,27 +72,61 @@ export default function FeasibilityRequests() {
   const menuRef  = useRef(null)
 
   const [requests, setRequests] = useState(getFeasibilityRequests())
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // Manage Columns
-  const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:feasibilityTable', FEASIBILITY_TABLE_COLUMNS)
+  // Manage Columns — ?columns=key1,key2,... overlays visibility from the URL
+  // onto the localStorage-backed preference below (used for rendering and
+  // passed to ColumnManager), so a shared URL reproduces the same column
+  // layout. localStorage persistence (useColumnPrefs) is unchanged; the URL
+  // param is only set/kept when it differs from the default column set —
+  // "Reset to Default" removes it entirely.
+  const [tableColumnsPrefs, setTableColumnsPrefs] = useColumnPrefs('columnPrefs:feasibilityTable', FEASIBILITY_TABLE_COLUMNS)
+  const columnsParam = searchParams.get('columns')
+  const tableColumns = columnsParam !== null
+    ? tableColumnsPrefs.map(c => ({ ...c, visible: c.locked ? true : columnsParam.split(',').includes(c.key) }))
+    : tableColumnsPrefs
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
-  // Search (stays in main page)
-  const [search, setSearch] = useState('')
+  function handleColumnsChange(nextColumns) {
+    setTableColumnsPrefs(nextColumns)
+    const isDefault = nextColumns.every(c => c.visible === (c.locked ? true : (c.defaultVisible ?? true)))
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (isDefault) next.delete('columns')
+      else next.set('columns', nextColumns.filter(c => c.visible).map(c => c.key).join(','))
+      return next
+    })
+  }
+
+  // Search (stays in main page) — ?search=, history-replaced since it
+  // updates on every keystroke.
+  const search = searchParams.get('search') ?? ''
+  function setSearch(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('search', value)
+      else next.delete('search')
+      return next
+    }, { replace: true })
+  }
 
   // Pagination
   const [page,     setPage]     = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  // Applied filters
-  const [filterStatuses,  setFilterStatuses]  = useState([])
-  const [filterEngineer,  setFilterEngineer]  = useState('')
-  const [filterPriority,  setFilterPriority]  = useState('')
-  const [filterBranch,    setFilterBranch]    = useState('')
-  const [filterDateFrom,  setFilterDateFrom]  = useState('')
-  const [filterDateTo,    setFilterDateTo]    = useState('')
+  // Applied filters — ?status=Pending,Assigned&engineer=&priority=&branch=&
+  // dateFrom=&dateTo=, same URL-param pattern as this page's own ?modal=
+  // params, so the current filter state is shareable/bookmarkable and
+  // reapplies automatically on load.
+  const filterStatuses = (searchParams.get('status') ?? '').split(',').filter(Boolean)
+  const filterEngineer = searchParams.get('engineer') ?? ''
+  const filterPriority = searchParams.get('priority') ?? ''
+  const filterBranch   = searchParams.get('branch') ?? ''
+  const filterDateFrom = searchParams.get('dateFrom') ?? ''
+  const filterDateTo   = searchParams.get('dateTo') ?? ''
 
-  // Drawer
+  // Drawer — draft is pure pre-apply UI state, not itself URL-addressable;
+  // "Apply" commits it to the URL params above in one combined update.
   const EMPTY_DRAFT = { statuses: [], engineer: '', priority: '', branch: '', dateFrom: '', dateTo: '' }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draft,      setDraft]      = useState(EMPTY_DRAFT)
@@ -103,9 +137,16 @@ export default function FeasibilityRequests() {
     setDrawerOpen(true)
   }
   function applyDrawer() {
-    setFilterStatuses(draft.statuses); setFilterEngineer(draft.engineer)
-    setFilterPriority(draft.priority); setFilterBranch(draft.branch)
-    setFilterDateFrom(draft.dateFrom); setFilterDateTo(draft.dateTo)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (draft.statuses.length) next.set('status', draft.statuses.join(',')); else next.delete('status')
+      if (draft.engineer) next.set('engineer', draft.engineer); else next.delete('engineer')
+      if (draft.priority) next.set('priority', draft.priority); else next.delete('priority')
+      if (draft.branch)   next.set('branch', draft.branch);     else next.delete('branch')
+      if (draft.dateFrom) next.set('dateFrom', draft.dateFrom); else next.delete('dateFrom')
+      if (draft.dateTo)   next.set('dateTo', draft.dateTo);     else next.delete('dateTo')
+      return next
+    })
     setPage(1)
     setDrawerOpen(false)
   }
@@ -132,7 +173,6 @@ export default function FeasibilityRequests() {
   // popup is shareable/bookmarkable and reopens automatically (with its
   // form pre-filled from the request) when the URL is visited directly,
   // not just via the row's own "⋮" menu.
-  const [searchParams, setSearchParams] = useSearchParams()
   const modalParam = searchParams.get('modal')
   const requestIdParam = searchParams.get('requestId')
   const modalReq = requestIdParam ? (requests.find(r => r.id === requestIdParam) ?? null) : null
@@ -264,8 +304,12 @@ export default function FeasibilityRequests() {
   }
 
   function clearAllFilters() {
-    setFilterStatuses([]); setFilterEngineer(''); setFilterPriority('')
-    setFilterBranch(''); setFilterDateFrom(''); setFilterDateTo('')
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('status'); next.delete('engineer'); next.delete('priority')
+      next.delete('branch'); next.delete('dateFrom'); next.delete('dateTo')
+      return next
+    })
   }
 
   /* Counts */
@@ -365,7 +409,7 @@ export default function FeasibilityRequests() {
                 Clear all
               </button>
             )}
-            <ColumnManager columns={tableColumns} onChange={setTableColumns} />
+            <ColumnManager columns={tableColumns} onChange={handleColumnsChange} />
             <span className="text-xs text-gray-400 shrink-0">{visible.length} request{visible.length !== 1 ? 's' : ''}</span>
           </div>
         </div>

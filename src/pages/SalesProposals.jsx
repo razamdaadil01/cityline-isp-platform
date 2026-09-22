@@ -470,13 +470,26 @@ function DeleteConfirm({ isOpen, onClose, proposal, onConfirm }) {
 
 export default function SalesProposals() {
   const [proposals, setProposals] = useState(INIT_PROPOSALS)
-  const [filterStatus, setFilterStatus] = useState('All')
 
   // ?modal=create-proposal / ?modal=edit-proposal&proposalId=.../
   // ?modal=delete-proposal&proposalId=... — same ?modal= URL-param pattern
   // as FeasibilityDetail's modals, so each proposal popup is
   // shareable/bookmarkable and reopens automatically on load.
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // ?status=<Draft|Sent|...> — the status filter tabs below, same URL-param
+  // pattern, so the current filter is shareable/bookmarkable and reapplies
+  // automatically on load. Omitted from the URL entirely when set back to
+  // the "All" default.
+  const filterStatus = searchParams.get('status') ?? 'All'
+  function setFilterStatus(next) {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev)
+      if (next === 'All') params.delete('status')
+      else params.set('status', next)
+      return params
+    })
+  }
   const modalParam = searchParams.get('modal')
   const proposalIdParam = searchParams.get('proposalId')
   const showCreate = modalParam === 'create-proposal'

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Users, TrendingUp, CheckCircle2, XCircle, PhoneCall,
   Layers, ArrowLeft, Target, Award, AlertCircle, Eye,
@@ -496,7 +496,21 @@ const ROLES = [
 ]
 
 export default function SalesAnalytics() {
-  const [role, setRole] = useState('owner')
+  // ?role=<owner|manager|exec> — the role-view toggle below, same URL-param
+  // pattern used elsewhere in Sales & Leads, so the selected view is
+  // shareable/bookmarkable and reapplies automatically on load. Omitted
+  // from the URL entirely when set back to the "owner" default.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const roleParam = searchParams.get('role')
+  const role = ROLES.some(r => r.key === roleParam) ? roleParam : 'owner'
+  function setRole(next) {
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev)
+      if (next === 'owner') params.delete('role')
+      else params.set('role', next)
+      return params
+    })
+  }
   const [salesPerm, setSalesPerm] = useState(getSalesPermission)
 
   useEffect(() => subscribeSalesPermission(setSalesPerm), [])
