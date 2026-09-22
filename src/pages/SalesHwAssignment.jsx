@@ -1,5 +1,5 @@
 import { useState, Fragment } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   HardDrive, Shield, AlertTriangle, CheckCircle2, Clock,
   Package, User, ChevronDown, ChevronUp, Check, Loader2, BarChart3,
@@ -467,8 +467,33 @@ function EquipmentPills({ items }) {
 export default function SalesHwAssignment() {
   const [queue, setQueue]           = useState(INIT_QUEUE)
   const [filter, setFilter]         = useState('All')
-  const [assignItem, setAssignItem] = useState(null)
   const [expandedRows, setExpandedRows] = useState(new Set())
+
+  // ?modal=assign-hardware&itemId=HW-xxx opens the Assign modal for that queue
+  // item — same ?modal= URL-param pattern as FeasibilityDetail's modals, so
+  // the assignment popup for a specific item is shareable/bookmarkable and
+  // reopens automatically when the URL is visited directly.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const assignItemId = searchParams.get('modal') === 'assign-hardware' ? searchParams.get('itemId') : null
+  const assignItem = assignItemId ? (queue.find(i => i.id === assignItemId) ?? null) : null
+
+  function openAssign(item) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'assign-hardware')
+      next.set('itemId', item.id)
+      return next
+    })
+  }
+
+  function closeAssign() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('itemId')
+      return next
+    })
+  }
 
   function toggleExpand(id) {
     setExpandedRows(prev => {
@@ -685,7 +710,7 @@ export default function SalesHwAssignment() {
                             <Button
                               size="xs"
                               icon={<HardDrive size={12} />}
-                              onClick={() => setAssignItem(item)}
+                              onClick={() => openAssign(item)}
                             >
                               Assign
                             </Button>
@@ -756,11 +781,11 @@ export default function SalesHwAssignment() {
       {assignItem && (
         <AssignModal
           isOpen={!!assignItem}
-          onClose={() => setAssignItem(null)}
+          onClose={closeAssign}
           item={assignItem}
           onConfirm={data => {
             handleAssigned(assignItem.id, data)
-            setAssignItem(null)
+            closeAssign()
           }}
         />
       )}

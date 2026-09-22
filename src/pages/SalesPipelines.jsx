@@ -1251,8 +1251,10 @@ export default function SalesPipelines() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [pipelines, setPipelines] = useState(getPipelines)
   const [leads, setLeads]         = useState(getLeads)
-  const [editingPipeline, setEditingPipeline]   = useState(null)
-  const [deletingPipeline, setDeletingPipeline] = useState(null)
+  // fieldManagerStage stays local (not URL-addressable): it's opened from
+  // within the Stage Editor modal (PipelineEditorModal) and refers to that
+  // modal's own unsaved draft `stages` array, not the persisted pipeline —
+  // there's no URL-safe way to reconstruct in-progress, unsaved edits.
   const [fieldManagerStage, setFieldManagerStage] = useState(null)
 
   useEffect(() => subscribePipelines(setPipelines), [])
@@ -1262,14 +1264,33 @@ export default function SalesPipelines() {
   const action      = searchParams.get('action')   // 'create'
   const editSlug    = searchParams.get('edit')      // 'residential' | 'enterprise' | pipeline-id
   const viewParam   = searchParams.get('view')      // 'stages'
+  const modalParam  = searchParams.get('modal')     // 'delete-pipeline'
+  const pipelineIdParam = searchParams.get('pipelineId')
 
   const showCreate         = action === 'create'
   const stageEditorId      = viewParam === 'stages' && editSlug ? (SLUG_TO_ID[editSlug] ?? editSlug) : null
   const stageEditorPipeline = stageEditorId ? (pipelines.find(p => p.id === stageEditorId) ?? null) : null
 
+  // ?edit=<slug> (without &view=stages) opens the Edit Pipeline Details
+  // modal — same `edit` param as the Stage Editor above, reused so a
+  // pipeline never has two different URL params pointing at it.
+  const editDetailsId    = editSlug && viewParam !== 'stages' ? (SLUG_TO_ID[editSlug] ?? editSlug) : null
+  const editingPipeline  = editDetailsId ? (pipelines.find(p => p.id === editDetailsId) ?? null) : null
+
+  // ?modal=delete-pipeline&pipelineId=... — same ?modal= URL-param pattern
+  // as FeasibilityDetail's modals.
+  const deletingPipelineBase = modalParam === 'delete-pipeline' && pipelineIdParam
+    ? (pipelines.find(p => p.id === pipelineIdParam) ?? null)
+    : null
+  const deletingPipeline = deletingPipelineBase
+    ? { ...deletingPipelineBase, _leadCount: getPipelineLeadCount(deletingPipelineBase.id) }
+    : null
+
   // URL helpers
   function openCreate()           { setSearchParams({ action: 'create' }) }
   function openStages(pipeline)   { setSearchParams({ edit: PIPELINE_EDIT_SLUG[pipeline.id] ?? pipeline.id, view: 'stages' }) }
+  function openEditDetails(pipeline) { setSearchParams({ edit: PIPELINE_EDIT_SLUG[pipeline.id] ?? pipeline.id }) }
+  function openDeletePipeline(pipeline) { setSearchParams({ modal: 'delete-pipeline', pipelineId: pipeline.id }) }
   function closeModal()           { setSearchParams({}) }
 
   const defaultPipelines = pipelines.filter(p => p.isDefault)
@@ -1285,7 +1306,7 @@ export default function SalesPipelines() {
 
   function handleSaveEdit(patch) {
     updatePipeline(editingPipeline.id, patch)
-    setEditingPipeline(null)
+    closeModal()
   }
 
   function handleSaveStages(stages) {
@@ -1295,11 +1316,11 @@ export default function SalesPipelines() {
 
   function handleDelete() {
     deletePipeline(deletingPipeline.id)
-    setDeletingPipeline(null)
+    closeModal()
   }
 
   function handleOpenDelete(pipeline) {
-    setDeletingPipeline({ ...pipeline, _leadCount: getPipelineLeadCount(pipeline.id) })
+    openDeletePipeline(pipeline)
   }
 
   function handleToggleActive(pipelineId, value) {
@@ -1324,7 +1345,7 @@ export default function SalesPipelines() {
           <PipelineCard
             key={pipeline.id}
             pipeline={pipeline}
-            onEdit={setEditingPipeline}
+            onEdit={openEditDetails}
             onDelete={handleOpenDelete}
             onEditStages={() => openStages(pipeline)}
             onToggleActive={v => handleToggleActive(pipeline.id, v)}
@@ -1357,7 +1378,7 @@ export default function SalesPipelines() {
             <PipelineCard
               key={pipeline.id}
               pipeline={pipeline}
-              onEdit={setEditingPipeline}
+              onEdit={openEditDetails}
               onDelete={handleOpenDelete}
               onEditStages={() => openStages(pipeline)}
               onToggleActive={v => handleToggleActive(pipeline.id, v)}
@@ -1376,7 +1397,7 @@ export default function SalesPipelines() {
       {editingPipeline && (
         <EditPipelineModal
           isOpen={!!editingPipeline}
-          onClose={() => setEditingPipeline(null)}
+          onClose={closeModal}
           pipeline={editingPipeline}
           onSave={handleSaveEdit}
         />
@@ -1396,7 +1417,7 @@ export default function SalesPipelines() {
       {deletingPipeline && (
         <DeleteConfirmModal
           isOpen={!!deletingPipeline}
-          onClose={() => setDeletingPipeline(null)}
+          onClose={closeModal}
           pipeline={deletingPipeline}
           onConfirm={handleDelete}
           leadCount={deletingPipeline._leadCount ?? 0}

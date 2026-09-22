@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus, FileText, Download, Eye, Edit3, Trash2,
   Copy, CheckCircle, Send, CornerDownRight, PenLine,
@@ -469,10 +470,54 @@ function DeleteConfirm({ isOpen, onClose, proposal, onConfirm }) {
 
 export default function SalesProposals() {
   const [proposals, setProposals] = useState(INIT_PROPOSALS)
-  const [editing, setEditing]     = useState(null)
-  const [showCreate, setShowCreate] = useState(false)
-  const [deleting, setDeleting]   = useState(null)
   const [filterStatus, setFilterStatus] = useState('All')
+
+  // ?modal=create-proposal / ?modal=edit-proposal&proposalId=.../
+  // ?modal=delete-proposal&proposalId=... — same ?modal= URL-param pattern
+  // as FeasibilityDetail's modals, so each proposal popup is
+  // shareable/bookmarkable and reopens automatically on load.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modalParam = searchParams.get('modal')
+  const proposalIdParam = searchParams.get('proposalId')
+  const showCreate = modalParam === 'create-proposal'
+  const editing   = modalParam === 'edit-proposal'   ? (proposals.find(p => p.id === proposalIdParam) ?? null) : null
+  const deleting  = modalParam === 'delete-proposal' ? (proposals.find(p => p.id === proposalIdParam) ?? null) : null
+
+  function openCreate() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'create-proposal')
+      next.delete('proposalId')
+      return next
+    })
+  }
+
+  function openEdit(p) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit-proposal')
+      next.set('proposalId', p.id)
+      return next
+    })
+  }
+
+  function openDelete(p) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'delete-proposal')
+      next.set('proposalId', p.id)
+      return next
+    })
+  }
+
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('proposalId')
+      return next
+    })
+  }
 
   const displayed = filterStatus === 'All'
     ? proposals
@@ -487,7 +532,7 @@ export default function SalesProposals() {
 
   function deleteProposal() {
     setProposals(prev => prev.filter(p => p.id !== deleting.id))
-    setDeleting(null)
+    closeModal()
   }
 
   return (
@@ -498,7 +543,7 @@ export default function SalesProposals() {
           <h1 className="text-xl font-bold text-gray-900">Proposals</h1>
           <p className="text-sm text-gray-500 mt-0.5">Create and manage customer service proposals</p>
         </div>
-        <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
+        <Button icon={<Plus size={14} />} onClick={openCreate}>
           New Proposal
         </Button>
       </div>
@@ -590,7 +635,7 @@ export default function SalesProposals() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1 justify-end">
                       <button
-                        onClick={() => { setEditing(p) }}
+                        onClick={() => openEdit(p)}
                         className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded-lg transition-colors"
                       >
                         <Edit3 size={12} /> Edit
@@ -641,7 +686,7 @@ export default function SalesProposals() {
                         <Download size={12} /> PDF
                       </button>
                       <button
-                        onClick={() => setDeleting(p)}
+                        onClick={() => openDelete(p)}
                         className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg transition-colors"
                       >
                         <Trash2 size={14} />
@@ -659,14 +704,14 @@ export default function SalesProposals() {
       {showCreate && (
         <ProposalEditor
           isOpen={showCreate}
-          onClose={() => setShowCreate(false)}
+          onClose={closeModal}
           onSave={saveProposal}
         />
       )}
       {editing && (
         <ProposalEditor
           isOpen={!!editing}
-          onClose={() => setEditing(null)}
+          onClose={closeModal}
           onSave={saveProposal}
           initial={editing}
         />
@@ -674,7 +719,7 @@ export default function SalesProposals() {
       {deleting && (
         <DeleteConfirm
           isOpen={!!deleting}
-          onClose={() => setDeleting(null)}
+          onClose={closeModal}
           proposal={deleting}
           onConfirm={deleteProposal}
         />

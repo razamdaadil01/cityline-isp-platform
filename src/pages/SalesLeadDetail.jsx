@@ -2442,10 +2442,7 @@ export default function SalesLeadDetail() {
     setLinkToast('Refund processed')
     setTimeout(() => setLinkToast(null), 3000)
   }
-  const [followupOpen, setFollowupOpen]       = useState(false)
-  const [reopenOpen, setReopenOpen]           = useState(false)
   const [reopenToast, setReopenToast]         = useState(false)
-  const [visitInstallationOpen, setVisitInstallationOpen] = useState(false)
   const [expandedStages, setExpandedStages] = useState({})
   const [newComment, setNewComment] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
@@ -2458,37 +2455,26 @@ export default function SalesLeadDetail() {
   const [installStatus, setInstallStatus]         = useState('not_started')
   const [installStartedAt, setInstallStartedAt]   = useState('')
   const [elapsed, setElapsed]                     = useState(0)
-  const [hwModalOpen, setHwModalOpen]             = useState(false)
   const [activationData, setActivationData]       = useState(null)
-  const [activationModalOpen, setActivationModalOpen]   = useState(false)
-  const [activationSuccessOpen, setActivationSuccessOpen] = useState(false)
 
   // Quotation state
-  const [quotationOpen, setQuotationOpen]   = useState(false)
   const [quotationToast, setQuotationToast] = useState(null)
 
   // Package tab state
-  const [pkgModalOpen, setPkgModalOpen]     = useState(false)
   const [bwEditPrice, setBwEditPrice]       = useState(false)
   const [bwCustomPrice, setBwCustomPrice]   = useState('')
   const [paymentLinkToast, setPaymentLinkToast] = useState(null)
   const [bwApprover, setBwApprover]         = useState('Regional Manager')
 
-  // Package tab — Add-ons
-  const [addonModalOpen, setAddonModalOpen] = useState(false)
-
   // Package tab — Enterprise Payment table, Invoice modal, Add Payment
   const [leadPayments, setLeadPayments]     = useState([])
-  const [invoiceOpen, setInvoiceOpen]       = useState(false)
   const [paymentMenuOpen, setPaymentMenuOpen] = useState(false)
   const paymentMenuRef = useRef(null)
-  const [addPaymentOpen, setAddPaymentOpen] = useState(false)
 
   // Payment table row "⋮" menu (Refund) — only one row's menu open at a time,
   // same single-ref click-outside pattern as paymentMenuRef above.
   const [refundMenuId, setRefundMenuId]     = useState(null)
   const refundMenuRef = useRef(null)
-  const [refundTarget, setRefundTarget]     = useState(null)
 
   // Active Package Details card's "⋮" menu (Manual Payment / Refund)
   const [pkgActionsOpen, setPkgActionsOpen] = useState(false)
@@ -2500,11 +2486,9 @@ export default function SalesLeadDetail() {
   // eKYC tab — local (non-persisted) UI state; verification status/results live on lead.ekyc
   const [ekycIdentifier, setEkycIdentifier] = useState('')
   const [ekycCheckResult, setEkycCheckResult] = useState(null)
-  const [editingFu, setEditingFu] = useState(null)
   const [fuToast, setFuToast] = useState(null)
   const [expandedRemarks, setExpandedRemarks] = useState(new Set())
   const [remarkInputs, setRemarkInputs] = useState({})
-  const [callModal, setCallModal] = useState({ open: false, name: '', phone: '' })
   const [callToast, setCallToast] = useState(null)
   const [linkToast, setLinkToast] = useState(null)
 
@@ -2611,7 +2595,7 @@ export default function SalesLeadDetail() {
       addBy: lead.assigned ?? 'Admin',
       comment: form.status,
     }])
-    setAddPaymentOpen(false)
+    closeLeadDetailModal()
     setLinkToast('Payment added successfully')
     setTimeout(() => setLinkToast(null), 3000)
   }
@@ -2621,7 +2605,7 @@ export default function SalesLeadDetail() {
     setLeadPayments(p => p.map(pay => pay.id === refundTarget.id
       ? { ...pay, status: 'Refunded', refundAmount, refundReason: reason, comment: 'Refunded' }
       : pay))
-    setRefundTarget(null)
+    closeLeadDetailModal()
     setLinkToast('Payment refunded successfully')
     setTimeout(() => setLinkToast(null), 3000)
   }
@@ -2723,6 +2707,77 @@ export default function SalesLeadDetail() {
     ]
   })
 
+  // ?modal=select-package|select-addon|send-quotation|set-followup|
+  // visit-installation|invoice|add-payment|refund-payment&paymentId=...|
+  // assign-hardware|activation-payment|activation-success|reopen-lead|
+  // edit-followup&fuId=...|call&phone=primary|alternate — same ?modal=
+  // URL-param pattern as FeasibilityDetail's modals (and this page's own
+  // pre-existing ?modal=send-ekyc/manual-payment/refund-package and
+  // ?action=move-stage), so each of this lead's popups is
+  // shareable/bookmarkable and reopens automatically when the URL is
+  // visited directly. All of these operate on "the current lead" (already
+  // scoped by the :id route param), except refund-payment and
+  // edit-followup, which need an extra id since a lead can have several
+  // payments/follow-ups, and call, which can target the primary or
+  // alternate phone number.
+  const leadModalParam = searchParams.get('modal')
+  const pkgModalOpen           = leadModalParam === 'select-package'
+  const addonModalOpen         = leadModalParam === 'select-addon'
+  const quotationOpen          = leadModalParam === 'send-quotation'
+  const followupOpen           = leadModalParam === 'set-followup'
+  const visitInstallationOpen  = leadModalParam === 'visit-installation'
+  const invoiceOpen            = leadModalParam === 'invoice'
+  const addPaymentOpen         = leadModalParam === 'add-payment'
+  const hwModalOpen            = leadModalParam === 'assign-hardware'
+  const activationModalOpen    = leadModalParam === 'activation-payment'
+  const activationSuccessOpen  = leadModalParam === 'activation-success'
+  const reopenOpen             = leadModalParam === 'reopen-lead'
+
+  const refundPaymentIdParam = searchParams.get('paymentId')
+  const refundTarget = leadModalParam === 'refund-payment' && refundPaymentIdParam
+    ? (leadPayments.find(p => p.id === refundPaymentIdParam) ?? null)
+    : null
+
+  const editFuIdParam = searchParams.get('fuId')
+  const editingFu = leadModalParam === 'edit-followup' && editFuIdParam
+    ? (followups.find(f => f.id === editFuIdParam) ?? null)
+    : null
+
+  const callPhoneType = searchParams.get('phone') === 'alternate' ? 'alternate' : 'primary'
+  const callModal = {
+    open:  leadModalParam === 'call' && !!lead,
+    name:  lead?.name ?? '',
+    phone: (callPhoneType === 'alternate' ? lead?.alternateMobile : lead?.phone) ?? '',
+  }
+
+  function openLeadDetailModal(modal, extraParams = {}) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', modal)
+      // Clear any other modal's id/variant params before applying this
+      // modal's own, so switching modals never leaves a stale ?paymentId=/
+      // &fuId=/&phone= behind from whatever was open previously.
+      next.delete('paymentId')
+      next.delete('fuId')
+      next.delete('phone')
+      Object.entries(extraParams).forEach(([k, v]) => next.set(k, v))
+      return next
+    })
+  }
+  function openRefundModal(payment)  { openLeadDetailModal('refund-payment', { paymentId: payment.id }) }
+  function openEditFuModal(fu)       { openLeadDetailModal('edit-followup', { fuId: fu.id }) }
+  function openCallModal(phoneType = 'primary') { openLeadDetailModal('call', { phone: phoneType }) }
+  function closeLeadDetailModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('paymentId')
+      next.delete('fuId')
+      next.delete('phone')
+      return next
+    })
+  }
+
   // Mock comments
   const [comments, setComments] = useState([
     { id: 'C3', author: 'Arjun Kumar', initials: 'AK', color: 'bg-brand-blue',   text: 'Feasibility confirmed. Moving to site survey.',                            timeLabel: '5 hours ago',  replies: [] },
@@ -2804,7 +2859,7 @@ export default function SalesLeadDetail() {
         ...(lead.activityLog ?? []),
       ],
     })
-    setQuotationOpen(false)
+    closeLeadDetailModal()
     setQuotationToast(formData.notifierEmail)
     setTimeout(() => setQuotationToast(null), 3500)
   }
@@ -2884,7 +2939,7 @@ export default function SalesLeadDetail() {
       activityLog: [reopenEntry, ...(lead.activityLog ?? [])],
       stageHistory: [...(lead.stageHistory ?? []), { stage: firstStage, date: TODAY, movedBy: 'Admin', fields: {} }],
     })
-    setReopenOpen(false)
+    closeLeadDetailModal()
     setReopenToast(true)
     setTimeout(() => setReopenToast(false), 3000)
   }
@@ -2927,7 +2982,7 @@ export default function SalesLeadDetail() {
 
   function handleEditFuSave(updated) {
     setFollowups(p => p.map(f => f.id === updated.id ? updated : f))
-    setEditingFu(null)
+    closeLeadDetailModal()
     setFuToast('Follow-up updated')
     setTimeout(() => setFuToast(null), 3000)
   }
@@ -3002,14 +3057,13 @@ export default function SalesLeadDetail() {
     })
 
     setActivationData({ customerId, username, pppoePassword, appPassword, plan: lead.plan ?? '100 Mbps Home', customerName: lead.name })
-    setHwModalOpen(false)
-    setActivationModalOpen(true)
+    openLeadDetailModal('activation-payment')
   }
 
   const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))
 
   function openPkgModal() {
-    setPkgModalOpen(true)
+    openLeadDetailModal('select-package')
   }
 
   function handleSelectPkg(plan) {
@@ -3017,7 +3071,7 @@ export default function SalesLeadDetail() {
       ? { packageId: plan.id, customPrice: null, approvalStatus: 'Not Sent', requestedBy: null, requestedAt: null, approver: null, resolvedBy: null, resolvedAt: null, notes: '' }
       : { packageId: plan.id, customPrice: null } // Residential / Custom — no approval
     saveLead({ ...lead, bandwidthPackage: newPkg })
-    setPkgModalOpen(false)
+    closeLeadDetailModal()
   }
 
   function handleSaveEnterprisePkg(sendForApproval) {
@@ -3148,7 +3202,7 @@ export default function SalesLeadDetail() {
               </Button>
             ) : (
               <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
-                onClick={() => setReopenOpen(true)}
+                onClick={() => openLeadDetailModal('reopen-lead')}
                 className="border-amber-300 text-amber-700 hover:bg-amber-50">
                 Reopen Lead
               </Button>
@@ -3174,7 +3228,7 @@ export default function SalesLeadDetail() {
                 >
                   <span title={quotDisabledReason || undefined}>
                     <button
-                      onClick={() => { setQuotationOpen(true); setActionsOpen(false) }}
+                      onClick={() => { openLeadDetailModal('send-quotation'); setActionsOpen(false) }}
                       disabled={!!quotDisabledReason}
                       className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
                       <FileText size={14} className="text-gray-400 shrink-0" /> Send Quotation
@@ -3191,12 +3245,12 @@ export default function SalesLeadDetail() {
                     <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
                   </button>
                   <button
-                    onClick={() => { setVisitInstallationOpen(true); setActionsOpen(false) }}
+                    onClick={() => { openLeadDetailModal('visit-installation'); setActionsOpen(false) }}
                     className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
                     <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
                   </button>
                   <button
-                    onClick={() => { setFollowupOpen(true); setActionsOpen(false) }}
+                    onClick={() => { openLeadDetailModal('set-followup'); setActionsOpen(false) }}
                     className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
                     <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
                   </button>
@@ -3295,7 +3349,7 @@ export default function SalesLeadDetail() {
               <span className="truncate">{lead.name}</span>
             </div>
             <button
-              onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
+              onClick={() => openCallModal('primary')}
               className="flex items-center gap-2 hover:text-brand-blue transition-colors w-full text-left"
             >
               <Phone size={14} className="text-gray-400 shrink-0" />
@@ -3415,7 +3469,7 @@ export default function SalesLeadDetail() {
                         <span className="text-xs font-medium text-brand-blue">{lead.phone || <span className="text-gray-300 font-normal">—</span>}</span>
                         {lead.phone && (
                           <button
-                            onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.phone })}
+                            onClick={() => openCallModal('primary')}
                             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
                           >
                             <PhoneCall size={9} /> Call
@@ -3429,7 +3483,7 @@ export default function SalesLeadDetail() {
                         <span className="text-xs font-medium text-gray-800">{lead.alternateMobile || <span className="text-gray-300 font-normal">—</span>}</span>
                         {lead.alternateMobile && (
                           <button
-                            onClick={() => setCallModal({ open: true, name: lead.name, phone: lead.alternateMobile })}
+                            onClick={() => openCallModal('alternate')}
                             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors"
                           >
                             <PhoneCall size={9} /> Call
@@ -3510,7 +3564,7 @@ export default function SalesLeadDetail() {
           {activeTab === 'followups' && (
             <Card>
               <CardHeader title="All Follow-ups" action={
-                <Button size="sm" icon={<Plus size={14} />} onClick={() => setFollowupOpen(true)}>Add Follow-up</Button>
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => openLeadDetailModal('set-followup')}>Add Follow-up</Button>
               } />
               <div className="divide-y divide-surface-border">
                 {followups.map(fu => {
@@ -3533,9 +3587,9 @@ export default function SalesLeadDetail() {
                         </div>
                         {!['Completed','Cancelled'].includes(fu.status) && (
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <Button size="xs" icon={<Edit3 size={10} />} variant="secondary" onClick={() => setEditingFu(fu)}>Edit</Button>
+                            <Button size="xs" icon={<Edit3 size={10} />} variant="secondary" onClick={() => openEditFuModal(fu)}>Edit</Button>
                             <Button size="xs" onClick={() => handleMarkFollowupComplete(fu.id)}>Complete</Button>
-                            <Button size="xs" variant="secondary" onClick={() => setFollowupOpen(true)}>Reschedule</Button>
+                            <Button size="xs" variant="secondary" onClick={() => openLeadDetailModal('set-followup')}>Reschedule</Button>
                             <Button size="xs" variant="danger" onClick={() => handleCancelFollowup(fu.id)}>Cancel</Button>
                           </div>
                         )}
@@ -3856,7 +3910,7 @@ export default function SalesLeadDetail() {
                         ) : (
                           <div className="flex items-center gap-2 shrink-0">
                             {customerType === 'Enterprise' && (
-                              <Button size="sm" variant="secondary" icon={<Download size={13} />} onClick={() => setInvoiceOpen(true)}>
+                              <Button size="sm" variant="secondary" icon={<Download size={13} />} onClick={() => openLeadDetailModal('invoice')}>
                                 Invoice
                               </Button>
                             )}
@@ -3891,7 +3945,7 @@ export default function SalesLeadDetail() {
                               )}
                             </div>
                             {customerType !== 'Residential' && (
-                              <Button size="sm" icon={<FileText size={13} />} onClick={() => setQuotationOpen(true)}>
+                              <Button size="sm" icon={<FileText size={13} />} onClick={() => openLeadDetailModal('send-quotation')}>
                                 Generate Quotation
                               </Button>
                             )}
@@ -3939,7 +3993,7 @@ export default function SalesLeadDetail() {
                                 {paymentMenuOpen && (
                                   <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-40">
                                     <button
-                                      onClick={() => { setAddPaymentOpen(true); setPaymentMenuOpen(false) }}
+                                      onClick={() => { openLeadDetailModal('add-payment'); setPaymentMenuOpen(false) }}
                                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
                                       <Plus size={13} className="text-gray-400 shrink-0" /> Add Payment
                                     </button>
@@ -3986,7 +4040,7 @@ export default function SalesLeadDetail() {
                                         {refundMenuId === pay.id && (
                                           <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-surface-border rounded-lg shadow-xl overflow-hidden w-32">
                                             <button
-                                              onClick={() => { setRefundTarget(pay); setRefundMenuId(null) }}
+                                              onClick={() => { openRefundModal(pay); setRefundMenuId(null) }}
                                               className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap">
                                               <RotateCcw size={13} className="shrink-0" /> Refund
                                             </button>
@@ -4019,7 +4073,7 @@ export default function SalesLeadDetail() {
                     <Card padding={false}>
                       <div className="p-5 pb-4 flex items-center justify-between border-b border-surface-border">
                         <h3 className="text-sm font-semibold text-gray-800">Add-ons</h3>
-                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => setAddonModalOpen(true)}>
+                        <Button size="sm" variant="secondary" icon={<Plus size={13} />} onClick={() => openLeadDetailModal('select-addon')}>
                           Add Add-on
                         </Button>
                       </div>
@@ -4226,14 +4280,14 @@ export default function SalesLeadDetail() {
       {/* ── Package selection modal ─────────────────────────────────────── */}
       <PackageSelectModal
         isOpen={pkgModalOpen}
-        onClose={() => setPkgModalOpen(false)}
+        onClose={closeLeadDetailModal}
         onSelect={handleSelectPkg}
         title="Select Bandwidth Package"
       />
 
       <AddonSelectModal
         isOpen={addonModalOpen}
-        onClose={() => setAddonModalOpen(false)}
+        onClose={closeLeadDetailModal}
         addons={MOCK_ADDONS}
         selectedIds={(lead.addons ?? []).map(a => a.id)}
         onSelect={handleAddAddon}
@@ -4242,7 +4296,7 @@ export default function SalesLeadDetail() {
       {/* ── Send Quotation modal ───────────────────────────────────────── */}
       <SendQuotationModal
         isOpen={quotationOpen}
-        onClose={() => setQuotationOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         onSend={handleSendQuotation}
       />
@@ -4272,17 +4326,17 @@ export default function SalesLeadDetail() {
       />
       <SetFollowupModal
         isOpen={followupOpen}
-        onClose={() => setFollowupOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         onSave={handleSaveFollowup}
       />
       <VisitInstallationModal
         isOpen={visitInstallationOpen}
-        onClose={() => setVisitInstallationOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         linkedFeasibility={linkedFeasibility}
         onCreated={() => {
-          setVisitInstallationOpen(false)
+          closeLeadDetailModal()
           saveLead({
             ...lead,
             activityLog: [
@@ -4296,20 +4350,20 @@ export default function SalesLeadDetail() {
       />
       <InvoiceModal
         isOpen={invoiceOpen}
-        onClose={() => setInvoiceOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         pkg={lead?.bandwidthPackage}
         plan={lead?.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null}
       />
       <AddPaymentModal
         isOpen={addPaymentOpen}
-        onClose={() => setAddPaymentOpen(false)}
+        onClose={closeLeadDetailModal}
         onSave={handleAddPayment}
         nextReceiptNo={lead ? `RC-${lead.id}-${String(leadPayments.length + 1).padStart(2, '0')}` : ''}
       />
       <RefundPaymentModal
         isOpen={!!refundTarget}
-        onClose={() => setRefundTarget(null)}
+        onClose={closeLeadDetailModal}
         payment={refundTarget}
         onConfirm={handleConfirmRefund}
       />
@@ -4325,30 +4379,29 @@ export default function SalesLeadDetail() {
       />
       <HardwareAssignmentModal
         isOpen={hwModalOpen}
-        onClose={() => setHwModalOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         onConfirm={handleHardwareConfirm}
       />
       <PaymentModal
         isOpen={activationModalOpen}
-        onClose={() => setActivationModalOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         data={activationData}
         onPaymentConfirmed={(advancePaymentNotRequired, credentials) => {
           saveLead({ ...lead, advancePaymentNotRequired })
           setActivationData(prev => ({ ...prev, ...credentials }))
-          setActivationModalOpen(false)
-          setActivationSuccessOpen(true)
+          openLeadDetailModal('activation-success')
         }}
       />
       <ActivationSuccessModal
         isOpen={activationSuccessOpen}
-        onClose={() => setActivationSuccessOpen(false)}
+        onClose={closeLeadDetailModal}
         data={activationData}
       />
       <ReopenModal
         isOpen={reopenOpen}
-        onClose={() => setReopenOpen(false)}
+        onClose={closeLeadDetailModal}
         lead={lead}
         firstStage={pl.stages[0]}
         onConfirm={handleReopen}
@@ -4370,10 +4423,10 @@ export default function SalesLeadDetail() {
         onCheckExisting={handleCheckExistingEkyc}
         onReuseVerification={handleReuseEkycVerification}
       />
-      <EditFuModal isOpen={!!editingFu} onClose={() => setEditingFu(null)} fu={editingFu} onSave={handleEditFuSave} />
+      <EditFuModal isOpen={!!editingFu} onClose={closeLeadDetailModal} fu={editingFu} onSave={handleEditFuSave} />
       <CallModal
         isOpen={callModal.open}
-        onClose={() => setCallModal({ open: false, name: '', phone: '' })}
+        onClose={closeLeadDetailModal}
         customerName={callModal.name}
         phoneNumber={callModal.phone}
         onCallInitiated={handleCallInitiated}
