@@ -357,8 +357,6 @@ export default function FeasibilityRequests() {
                     <th className="px-4 py-3 text-left whitespace-nowrap">Branch</th>
                     {visibleCols.has('connectionType') && <th className="px-4 py-3 text-left whitespace-nowrap">Connection Type</th>}
                     <th className="px-4 py-3 text-left whitespace-nowrap">Area</th>
-                    <th className="px-4 py-3 text-left whitespace-nowrap">Locality</th>
-                    <th className="px-4 py-3 text-left whitespace-nowrap">Sub Locality</th>
                     {visibleCols.has('assignedEngineer') && <th className="px-4 py-3 text-left whitespace-nowrap">Assigned Engineer</th>}
                     <th className="px-4 py-3 text-left whitespace-nowrap">Fiber Req (M)</th>
                     <th className="px-4 py-3 text-left whitespace-nowrap">Priority</th>
@@ -415,12 +413,6 @@ export default function FeasibilityRequests() {
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs text-gray-700">{r.area}</span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700">{r.localityName}</span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs text-gray-700">{r.subLocalityName}</span>
                       </td>
                       {visibleCols.has('assignedEngineer') && (
                         <td className="px-4 py-3 whitespace-nowrap">
