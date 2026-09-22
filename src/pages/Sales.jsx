@@ -1564,21 +1564,62 @@ export default function Sales() {
   const tableFollowFrom   = searchParams.get('followFrom') ?? ''
   const tableFollowTo     = searchParams.get('followTo') ?? ''
 
-  function setTableFilterParam(key, value) {
+  function setTableStageFilter(value) {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
-      if (value) next.set(key, value)
-      else next.delete(key)
+      if (value) next.set('filterStage', value)
+      else next.delete('filterStage')
       return next
     })
   }
-  function setTableStageFilter(value)  { setTableFilterParam('filterStage', value) }
-  function setTableUserFilter(value)   { setTableFilterParam('assigned', value) }
-  function setTableStatusFilter(value) { setTableFilterParam('status', value) }
-  function setTableDateFrom(value)     { setTableFilterParam('dateFrom', value) }
-  function setTableDateTo(value)       { setTableFilterParam('dateTo', value) }
-  function setTableFollowFrom(value)   { setTableFilterParam('followFrom', value) }
-  function setTableFollowTo(value)     { setTableFilterParam('followTo', value) }
+  function setTableUserFilter(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('assigned', value)
+      else next.delete('assigned')
+      return next
+    })
+  }
+  function setTableStatusFilter(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('status', value)
+      else next.delete('status')
+      return next
+    })
+  }
+  function setTableDateFrom(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('dateFrom', value)
+      else next.delete('dateFrom')
+      return next
+    })
+  }
+  function setTableDateTo(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('dateTo', value)
+      else next.delete('dateTo')
+      return next
+    })
+  }
+  function setTableFollowFrom(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('followFrom', value)
+      else next.delete('followFrom')
+      return next
+    })
+  }
+  function setTableFollowTo(value) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('followTo', value)
+      else next.delete('followTo')
+      return next
+    })
+  }
 
   // Combined clears — each touches 2+ URL params at once, so they go
   // through a single setSearchParams call rather than sequential
