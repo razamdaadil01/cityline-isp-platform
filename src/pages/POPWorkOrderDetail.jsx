@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Trash2, Search, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, Search, AlertTriangle, X, ChevronDown } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import {
@@ -31,6 +31,118 @@ function emptyInspectionChecklist() {
 }
 function emptyHardwareRow() {
   return { id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, productId: '', quantity: '', reason: '' }
+}
+
+// Searchable chip-based multi-select for technician assignment. Follows the
+// same chip style (rounded-full bg-brand-blue/10 + X) as UserAdd.jsx's
+// SkillsMultiSelect, and adds a type-ahead search input that filters options
+// by name or zone so the list stays manageable as the engineer roster grows.
+// Availability badge is shown inline in each dropdown row, same as the
+// previous checkbox-list implementation.
+function TechnicianMultiSelect({ technicians, selected, onToggle, error }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const wrapRef = useRef(null)
+  const searchRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  function openDropdown() {
+    setOpen(true)
+    setTimeout(() => searchRef.current?.focus(), 0)
+  }
+
+  const filtered = technicians.filter(t => {
+    const q = query.toLowerCase()
+    return t.name.toLowerCase().includes(q) || (t.zone ?? '').toLowerCase().includes(q)
+  })
+
+  const selectedTechs = technicians.filter(t => selected.includes(t.id))
+
+  return (
+    <div ref={wrapRef} className="relative">
+      {/* Chip trigger field */}
+      <div
+        onClick={openDropdown}
+        className={`w-full min-h-[38px] px-3 py-1.5 border rounded-lg bg-white flex items-center flex-wrap gap-1.5 cursor-pointer transition-colors ${
+          error ? 'border-red-400 focus-within:ring-2 focus-within:ring-red-300' : 'border-surface-border focus-within:ring-2 focus-within:ring-brand-blue/30 focus-within:border-brand-blue'
+        }`}
+      >
+        {selectedTechs.length === 0 ? (
+          <span className="text-sm text-gray-400">Search and select technicians…</span>
+        ) : (
+          selectedTechs.map(t => (
+            <span key={t.id} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+              {t.name}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onToggle(t.id) }}
+                className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))
+        )}
+        <ChevronDown size={13} className={`ml-auto text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg bg-white shadow-lg overflow-hidden">
+          {/* Search input */}
+          <div className="relative border-b border-surface-border">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Filter by name or zone…"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-transparent focus:outline-none"
+            />
+          </div>
+          {/* Options */}
+          <div className="max-h-52 overflow-y-auto divide-y divide-surface-border">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-3">No matching technicians</p>
+            ) : filtered.map(t => {
+              const isSelected = selected.includes(t.id)
+              const openCount = technicianOpenWorkOrderCount(t.id)
+              return (
+                <label
+                  key={t.id}
+                  className={`flex items-center justify-between gap-3 px-3 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                >
+                  <span className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggle(t.id)}
+                      className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                    />
+                    <span className="text-sm text-gray-700">{t.name}{t.zone ? ` — ${t.zone}` : ''}</span>
+                  </span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${openCount === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {openCount === 0 ? 'Available' : `${openCount} active WO${openCount > 1 ? 's' : ''}`}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Searchable POP picker — same text-input-plus-floating-list interaction as
@@ -436,28 +548,12 @@ export default function POPWorkOrderDetail() {
           <div>
             <p className="text-sm font-medium text-gray-700 mb-1.5">Technician Assignment {status !== 'Open' && <span className="text-red-500">*</span>}</p>
             {errors.assignedTechnicianIds && <p className="text-xs text-red-500 mb-1.5">{errors.assignedTechnicianIds}</p>}
-            <div className="border border-surface-border rounded-lg divide-y divide-surface-border max-h-56 overflow-y-auto">
-              {technicians.map(t => {
-                const selected = assignedTechnicianIds.includes(t.id)
-                const openCount = technicianOpenWorkOrderCount(t.id)
-                return (
-                  <label key={t.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 cursor-pointer transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                    <span className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => toggleTechnician(t.id)}
-                        className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
-                      />
-                      <span className="text-sm text-gray-700">{t.name}{t.zone ? ` — ${t.zone}` : ''}</span>
-                    </span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${openCount === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {openCount === 0 ? 'Available' : `${openCount} active WO${openCount > 1 ? 's' : ''}`}
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
+            <TechnicianMultiSelect
+              technicians={technicians}
+              selected={assignedTechnicianIds}
+              onToggle={toggleTechnician}
+              error={!!errors.assignedTechnicianIds}
+            />
           </div>
 
           <FormField label="Description" required error={errors.description}>
