@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Save, Plus, Trash2, Search, AlertTriangle, X, ChevronDown } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
@@ -219,12 +219,35 @@ export default function POPWorkOrderDetail() {
   const isEditing = !!id
   const existing = isEditing ? getWorkOrder(id) : null
 
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Merge-safe URL update — same patchSearchParams helper used by
+  // CreateStoreTransfer.jsx; { replace: true } on all form-field changes so
+  // the browser back-button goes back to the previous *page*, not to a
+  // previous category selection.
+  function patchSearchParams(patch) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Object.entries(patch).forEach(([k, v]) => { v == null ? next.delete(k) : next.set(k, String(v)) })
+      return next
+    }, { replace: true })
+  }
+
+  // In add mode: seed category from ?category= if it's a valid category
+  // value, otherwise fall back to the first category and write the default
+  // into the URL on mount. In edit mode: category is always the saved
+  // record's own category, synced into the URL on mount.
+  const categoryParam = searchParams.get('category')
+  const initialCategory = isEditing
+    ? existing.category
+    : (WORK_ORDER_CATEGORIES.includes(categoryParam) ? categoryParam : WORK_ORDER_CATEGORIES[0])
+
   const pops = getPOPs()
   const products = getProducts().filter(p => p.status === 'active')
   const technicians = getAllTechnicians()
 
   const [popId, setPopId] = useState(existing?.popId ?? '')
-  const [category, setCategory] = useState(existing?.category ?? WORK_ORDER_CATEGORIES[0])
+  const [category, setCategory] = useState(initialCategory)
   const [priority, setPriority] = useState(existing?.priority ?? WORK_ORDER_PRIORITIES[0])
   const [assignedTechnicianIds, setAssignedTechnicianIds] = useState(existing?.assignedTechnicianIds ?? [])
   const [scheduledDateTime, setScheduledDateTime] = useState(existing?.scheduledDateTime ?? '')
@@ -267,6 +290,17 @@ export default function POPWorkOrderDetail() {
 
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState('')
+
+  // On mount: write ?category= into the URL if it isn't already the right
+  // value — covers the case where no param was present (add mode) or where
+  // the edit URL is opened without any param. Uses replace so it doesn't add
+  // a history entry.
+  useEffect(() => {
+    if (searchParams.get('category') !== initialCategory) {
+      patchSearchParams({ category: initialCategory })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const selectedPop = popId ? getPOP(popId) : null
   const popEquipment = selectedPop?.equipment ?? []
@@ -397,7 +431,7 @@ export default function POPWorkOrderDetail() {
           </FormField>
           <div className="grid grid-cols-3 gap-4">
             <FormField label="Category" required>
-              <Select value={category} onChange={e => setCategory(e.target.value)}>
+              <Select value={category} onChange={e => { setCategory(e.target.value); patchSearchParams({ category: e.target.value }) }}>
                 {WORK_ORDER_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </FormField>
