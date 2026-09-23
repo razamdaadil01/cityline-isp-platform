@@ -39,8 +39,11 @@ export default function AddHardwareModal({ open, onClose, onAdd }) {
   // On open, pre-check the first 2 Chargeable + first 2 Non-Chargeable
   // catalog items (both categories at once, since selection is shared
   // across the tab toggle) rather than starting from an empty selection.
-  // Also reset the sub-tab back to its ?category=chargeable default. On
-  // close (but only if it was actually open — not on first mount),
+  // ?category= defaults to "chargeable" only when not already set — so a
+  // URL loaded fresh with ?category=non-chargeable already present (e.g.
+  // a shared/bookmarked link to this modal) restores that sub-tab instead
+  // of being forced back to the default. On close (but only if it was
+  // actually open — not on first mount),
   // ?category= is removed entirely — it's this modal's own scratch param,
   // and a host page may separately read the same ?category= key for its
   // own purposes (e.g. filtering a hardware list), so it shouldn't linger
@@ -67,6 +70,7 @@ export default function AddHardwareModal({ open, onClose, onAdd }) {
     setSelected(Object.fromEntries(defaultItems.map(h =>
       [h.name, { name: h.name, chargeable: h.chargeable, unitPrice: h.unitPrice, quantity: 1 }])))
     setSearchParams(prev => {
+      if (prev.get('category') === 'chargeable' || prev.get('category') === 'non-chargeable') return prev
       const next = new URLSearchParams(prev)
       next.set('category', 'chargeable')
       return next
