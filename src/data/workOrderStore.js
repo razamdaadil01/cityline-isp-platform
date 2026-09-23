@@ -9,12 +9,11 @@
 // ticketsStore.js's own slaStatusOf), and a plain activityLog entries array
 // (mirrors ticketsStore.js's appendActivity).
 //
-// Phase 1 scope (per the client's PRD): only the Cleaning and Preventive/
-// Breakdown Maintenance categories are implemented. Installation, Power
-// Issue, Inspection, and Other are explicitly out of scope for this pass —
-// WORK_ORDER_CATEGORIES intentionally lists only the two in scope so the
-// Category dropdown can't create a Work Order this store/UI doesn't know
-// how to render category-specific fields for.
+// All 7 PRD categories are implemented: Cleaning, Preventive Maintenance,
+// Breakdown-Fault, Installation, Power Issue, Inspection, and Other. Each
+// carries its own category-specific field set (see POPWorkOrderDetail.jsx)
+// while sharing the same SLA, status lifecycle, hardware-need, and
+// resolution flow as the original Phase 1 categories.
 
 import { logAudit } from './auditLogStore'
 import { markPOPCleaned, markEquipmentMaintained, getPOP } from './popStore'
@@ -25,7 +24,7 @@ import { getProductAvailability } from './inventoryLedger'
 import { raiseStockTransferRequestIfNeeded } from './stockTransferRequestStore'
 import { addNotification } from './notificationStore'
 
-export const WORK_ORDER_CATEGORIES = ['Cleaning', 'Preventive Maintenance', 'Breakdown-Fault']
+export const WORK_ORDER_CATEGORIES = ['Cleaning', 'Preventive Maintenance', 'Breakdown-Fault', 'Installation', 'Power Issue', 'Inspection', 'Other']
 export const WORK_ORDER_PRIORITIES = ['Low', 'Medium', 'High', 'Critical']
 export const WORK_ORDER_STATUSES = ['Open', 'Assigned', 'In-Progress', 'On-Hold', 'Resolved', 'Closed']
 export const CLOSED_WORK_ORDER_STATUSES = ['Resolved', 'Closed']
@@ -42,6 +41,26 @@ export const CLEANING_CHECKLIST_ITEMS = [
 function emptyCleaningChecklist() {
   return Object.fromEntries(CLEANING_CHECKLIST_ITEMS.map(c => [c.key, false]))
 }
+
+// Inspection checklist — five site-health items that map a general POP
+// inspection to a structured yes/no outcome, same keyed-boolean shape as
+// CLEANING_CHECKLIST_ITEMS. inspectionFindings (free-text) supplements the
+// checklist for anything that doesn't fit a checkbox.
+export const INSPECTION_CHECKLIST_ITEMS = [
+  { key: 'exteriorCleanliness', label: 'Exterior & site cleanliness' },
+  { key: 'equipmentOperational', label: 'All equipment operational' },
+  { key: 'cableIntegrity', label: 'Cable routing & integrity' },
+  { key: 'powerSupplyCheck', label: 'Power supply & backup check' },
+  { key: 'securityIntact', label: 'Physical security intact' },
+]
+function emptyInspectionChecklist() {
+  return Object.fromEntries(INSPECTION_CHECKLIST_ITEMS.map(c => [c.key, false]))
+}
+
+// Power Issue select options — standard site-power states for both battery
+// backup and generator, aligned with ISP field practice.
+export const BATTERY_BACKUP_STATUSES = ['Active', 'Degraded', 'Failed', 'Not Present']
+export const GENERATOR_STATUSES = ['Running', 'Standby', 'Fault', 'Not Present']
 
 const H = 3600000 // 1 hour in ms
 
@@ -312,6 +331,13 @@ export function saveWorkOrder(wo) {
       assignedTechnicianIds: [], hardwareNeed: [],
       cleaningChecklist: wo.category === 'Cleaning' ? emptyCleaningChecklist() : null,
       equipmentInvolved: null, faultType: null,
+      // Installation
+      newEquipmentDetails: '', projectReference: null,
+      // Power Issue
+      batteryBackupStatus: '', downtimeStartTime: '', generatorStatus: '',
+      // Inspection
+      inspectionChecklist: wo.category === 'Inspection' ? emptyInspectionChecklist() : null,
+      inspectionFindings: '',
       resolutionNotes: '', rootCause: '', hardwareUsed: [], technicianSignOff: false,
       requireSupervisorApproval: false, supervisorApproval: false,
       hardwareDeducted: false, inventoryAssignmentId: null, hardwareDeductionError: null,
