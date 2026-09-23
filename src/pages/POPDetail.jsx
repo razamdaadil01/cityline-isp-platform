@@ -146,7 +146,7 @@ export default function POPDetail() {
   const [defaultTechnicianId, setDefaultTechnicianId] = useState(existing?.defaultTechnicianId ?? '')
   const [documents, setDocuments] = useState(existing?.documents ?? [])
   const [status, setStatus] = useState(existing?.status ?? POP_STATUSES[0])
-  const [equipment, setEquipment] = useState(() => existing?.equipment?.map(equipmentToForm) ?? [])
+  const [equipment, setEquipment] = useState(() => existing?.equipment?.map(equipmentToForm) ?? [emptyEquipmentRow()])
   const [errors, setErrors] = useState({})
   // Which equipment row's Linked Work Orders modal is open, if any — a
   // saved-form row, not just an id, so the modal's title can show its label
