@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Navigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, Building2, MapPin, CalendarDays, FileText,
   User, UserPlus, Activity, XCircle, MessageSquare, Paperclip, Send,
@@ -561,7 +561,16 @@ function CommentsTab() {
 
 function AttachmentsTab() {
   const [attachments, setAttachments] = useState(MOCK_ATTACHMENTS)
-  const [previewEntry, setPreviewEntry] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const attachIdParam = searchParams.get('modal') === 'attachment-preview' ? searchParams.get('attachId') : null
+  const previewEntry = attachIdParam ? attachments.find(a => String(a.id) === attachIdParam) ?? null : null
+
+  function openPreview(entry) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'attachment-preview'); next.set('attachId', String(entry.id)); return next })
+  }
+  function closePreview() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('attachId'); return next })
+  }
 
   function handleUpload(fileList) {
     const files = Array.from(fileList ?? [])
@@ -594,7 +603,7 @@ function AttachmentsTab() {
     if (entry.file) {
       window.open(URL.createObjectURL(entry.file), '_blank')
     } else {
-      setPreviewEntry(entry)
+      openPreview(entry)
     }
   }
 
@@ -642,7 +651,7 @@ function AttachmentsTab() {
         )}
       </Card>
 
-      <Modal isOpen={!!previewEntry} onClose={() => setPreviewEntry(null)} title={previewEntry?.name ?? 'Preview'} size="md">
+      <Modal isOpen={!!previewEntry} onClose={closePreview} title={previewEntry?.name ?? 'Preview'} size="md">
         {previewEntry && isImageName(previewEntry.name) ? (
           <img src={PLACEHOLDER_IMAGE} alt={previewEntry.name} className="w-full rounded-lg border border-surface-border" />
         ) : (
@@ -699,8 +708,10 @@ export default function IntercomLeadDetail() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
   const [lead, setLead] = useState(() => getLead(id))
-  const [lostModalOpen, setLostModalOpen] = useState(false)
-  const [updateStageOpen, setUpdateStageOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modal = searchParams.get('modal')
+  const lostModalOpen = modal === 'mark-lost'
+  const updateStageOpen = modal === 'update-stage'
   const [successMessage, setSuccessMessage] = useState('')
 
   const [installations, setInstallations] = useState(getInstallations())
@@ -729,10 +740,20 @@ export default function IntercomLeadDetail() {
     return { ...updated, stageHistory: [...(lead.stageHistory ?? []), entry] }
   }
 
+  function openLostModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'mark-lost'); return next })
+  }
+  function openUpdateStage() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'update-stage'); return next })
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
+  }
+
   function handleMarkLost(data) {
     const updated = { ...lead, stage: 'Cancelled', lostReason: data.lostReason, lostNotes: data.notes }
     saveLead(addHistory(updated, `Marked as Cancelled — ${data.lostReason}${data.notes ? ': ' + data.notes : ''}`))
-    setLostModalOpen(false)
+    closeModal()
   }
 
   function handleUpdateStage(data) {
@@ -772,14 +793,14 @@ export default function IntercomLeadDetail() {
       }
       const updated = { ...lead, stage: 'Installation In Progress', installationId: workOrderId }
       saveLead(addHistory(updated, `Stage updated to ${data.newStage} — Installation Visit created (Work Order ${workOrderId})${data.remarks ? ' — ' + data.remarks : ''}`))
-      setUpdateStageOpen(false)
+      closeModal()
       setSuccessMessage('Installation Visit created successfully')
       return
     }
 
     const updated = { ...lead, stage: data.newStage }
     saveLead(addHistory(updated, `Stage updated to ${data.newStage}${data.remarks ? ' — ' + data.remarks : ''}`))
-    setUpdateStageOpen(false)
+    closeModal()
   }
 
   function handleCreateCustomer() {
@@ -880,8 +901,8 @@ export default function IntercomLeadDetail() {
             )}
             <StageActions
               lead={lead}
-              onUpdateStage={() => setUpdateStageOpen(true)}
-              onMarkLost={() => setLostModalOpen(true)}
+              onUpdateStage={openUpdateStage}
+              onMarkLost={openLostModal}
               onCreateCustomer={handleCreateCustomer}
             />
           </div>
@@ -929,14 +950,14 @@ export default function IntercomLeadDetail() {
       {/* ── Stage Action Modals ─────────────────────────────────────────── */}
       <MarkAsLostModal
         isOpen={lostModalOpen}
-        onClose={() => setLostModalOpen(false)}
+        onClose={closeModal}
         onSubmit={handleMarkLost}
       />
       <UpdateStageModal
         isOpen={updateStageOpen}
         currentStage={lead.stage}
         lead={lead}
-        onClose={() => setUpdateStageOpen(false)}
+        onClose={closeModal}
         onSubmit={handleUpdateStage}
       />
 
