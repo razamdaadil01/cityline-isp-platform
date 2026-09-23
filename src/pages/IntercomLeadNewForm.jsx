@@ -162,6 +162,19 @@ export default function IntercomLeadNewForm() {
   // Duplicate check
   const [duplicateModal, setDuplicateModal] = useState(null)
 
+  function openDuplicateModal(data) {
+    setDuplicateModal(data)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', data.kind === 'lead' ? 'duplicate-lead' : 'duplicate-internet-customer')
+      return next
+    })
+  }
+  function closeDuplicateModal() {
+    setDuplicateModal(null)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
+  }
+
   function setA(f, v) { setFormA(p => ({ ...p, [f]: v })) }
 
   function setB(f, v) {
@@ -310,14 +323,14 @@ export default function IntercomLeadNewForm() {
     if (!payload) return
 
     if (duplicateLead) {
-      setDuplicateModal({ kind: 'lead', ...duplicateLead, pendingPayload: payload })
+      openDuplicateModal({ kind: 'lead', ...duplicateLead, pendingPayload: payload })
       return
     }
 
     if (relationship === 'no') {
       const existingCustomer = findInternetCustomerByMobile(formB.primaryMobile)
       if (existingCustomer) {
-        setDuplicateModal({ kind: 'internetCustomer', customer: existingCustomer, pendingPayload: payload })
+        openDuplicateModal({ kind: 'internetCustomer', customer: existingCustomer, pendingPayload: payload })
         return
       }
     }
@@ -327,16 +340,16 @@ export default function IntercomLeadNewForm() {
 
   function handleContinueAnyway() {
     if (duplicateModal?.pendingPayload) commitLead(duplicateModal.pendingPayload)
-    setDuplicateModal(null)
+    closeDuplicateModal()
   }
 
   function handleViewExisting() {
     if (duplicateModal) navigate(`/intercom/leads/${duplicateModal.id}/profile`)
-    setDuplicateModal(null)
+    closeDuplicateModal()
   }
 
   function handleSwitchToFlowA(customer) {
-    setDuplicateModal(null)
+    closeDuplicateModal()
     navigate(`/intercom/leads/new/existing?customerId=${encodeURIComponent(customer.id)}`, {
       state: { prefillCustomer: toFoundCustomerShape(customer) },
       replace: true,
@@ -676,13 +689,13 @@ export default function IntercomLeadNewForm() {
       {/* ── Duplicate Lead Modal ────────────────────────────────────────── */}
       <Modal
         isOpen={!!duplicateModal}
-        onClose={() => setDuplicateModal(null)}
+        onClose={closeDuplicateModal}
         title={duplicateModal?.kind === 'internetCustomer' ? 'Existing Internet Customer Found' : 'Duplicate Lead Found'}
         size="sm"
         footer={
           duplicateModal?.kind === 'internetCustomer' ? (
             <>
-              <Button variant="secondary" onClick={() => setDuplicateModal(null)}>Go Back</Button>
+              <Button variant="secondary" onClick={closeDuplicateModal}>Go Back</Button>
               <Button onClick={() => handleSwitchToFlowA(duplicateModal.customer)}>Switch to Flow A</Button>
             </>
           ) : (

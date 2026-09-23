@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Check, Cpu, ClipboardList, Activity, UserCog, Search, X } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -323,7 +323,15 @@ export default function IntercomInstallationDetail() {
   const [engineer, setEngineer] = useState(order.engineer)
   const [installDate, setInstallDate] = useState(order.installDate)
   const [installTime, setInstallTime] = useState(order.installTime)
-  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const assignModalOpen = searchParams.get('modal') === 'assign-engineer'
+
+  function openAssignModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'assign-engineer'); return next })
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
+  }
 
   const statusCfg = STATUS_CFG[status] ?? STATUS_CFG.pending
   const hasEngineer = !!engineer && engineer !== '—'
@@ -359,7 +367,7 @@ export default function IntercomInstallationDetail() {
     }])
 
     updateInstallation(order.id, { engineer: names, installDate: ddmmyyyy, installTime: newTime, status: newStatus })
-    setAssignModalOpen(false)
+    closeModal()
   }
 
   return (
@@ -389,7 +397,7 @@ export default function IntercomInstallationDetail() {
             </div>
             <div className="flex gap-2">
               {!hasEngineer && (
-                <Button size="sm" icon={<UserCog size={14} />} onClick={() => setAssignModalOpen(true)}>
+                <Button size="sm" icon={<UserCog size={14} />} onClick={openAssignModal}>
                   Assign Engineer
                 </Button>
               )}
@@ -555,7 +563,7 @@ export default function IntercomInstallationDetail() {
 
       <AssignEngineerModal
         isOpen={assignModalOpen}
-        onClose={() => setAssignModalOpen(false)}
+        onClose={closeModal}
         order={{ id: order.id, engineer, installDate, installTime }}
         onSubmit={handleAssignSubmit}
       />

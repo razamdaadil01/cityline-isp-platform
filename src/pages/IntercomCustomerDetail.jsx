@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Navigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate, useSearchParams } from 'react-router-dom'
 import {
   Ticket, MessageSquare, Ban, AlertTriangle, CheckCircle, Clock,
   Cpu, Activity, Download, FileText, ExternalLink, Plus, Wrench,
@@ -988,8 +988,20 @@ export default function IntercomCustomerDetail() {
   useEffect(() => subscribeRecoveries(setRecoveries), [])
   const existingRecovery = recoveries.find(r => r.customerId === customer.id) ?? null
 
-  const [convertModalOpen, setConvertModalOpen] = useState(false)
-  const [recoveryModalOpen, setRecoveryModalOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const _modal = searchParams.get('modal')
+  const convertModalOpen = _modal === 'convert-to-internet'
+  const recoveryModalOpen = _modal === 'schedule-recovery'
+
+  function openConvert() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'convert-to-internet'); return next })
+  }
+  function openRecovery() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'schedule-recovery'); return next })
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
+  }
   const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
@@ -1010,7 +1022,7 @@ export default function IntercomCustomerDetail() {
   }
 
   function handleConvertToInternet() {
-    if (overrides.internetLeadId) { setConvertModalOpen(false); return }
+    if (overrides.internetLeadId) { closeModal(); return }
     const today = new Date().toISOString().slice(0, 10)
     const leadId = nextSalesLeadId('resident') // pipeline is fixed 'B2C' below, i.e. the Resident type
     saveSalesLead({
@@ -1041,12 +1053,12 @@ export default function IntercomCustomerDetail() {
       notes: '',
     })
     setOverrides(o => ({ ...o, internetLeadId: leadId }))
-    setConvertModalOpen(false)
+    closeModal()
     setSuccessMessage(`Internet Lead created! Lead ID: ${leadId}`)
   }
 
   function handleScheduleRecovery(form) {
-    if (existingRecovery) { setRecoveryModalOpen(false); return }
+    if (existingRecovery) { closeModal(); return }
     const now = new Date()
     const createdDate = now.toLocaleDateString('en-GB').split('/').join('-')
     const [y, m, d] = form.recoveryDate.split('-')
@@ -1067,7 +1079,7 @@ export default function IntercomCustomerDetail() {
       notes: form.visitNotes,
       status: 'pending',
     })
-    setRecoveryModalOpen(false)
+    closeModal()
     setSuccessMessage(`Hardware Recovery Visit scheduled! Work Order: ${workOrderId}`)
   }
 
@@ -1135,7 +1147,7 @@ export default function IntercomCustomerDetail() {
             <Button variant="secondary" size="sm" icon={<Ticket size={13} />}>Raise Ticket</Button>
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />}>Send SMS</Button>
             {canConvertToInternet && (
-              <Button size="sm" icon={<Wifi size={13} />} onClick={() => setConvertModalOpen(true)}>
+              <Button size="sm" icon={<Wifi size={13} />} onClick={openConvert}>
                 Convert to Internet
               </Button>
             )}
@@ -1176,7 +1188,7 @@ export default function IntercomCustomerDetail() {
               </div>
             )}
             {canScheduleRecovery && (
-              <Button size="sm" icon={<PackageSearch size={13} />} onClick={() => setRecoveryModalOpen(true)}>
+              <Button size="sm" icon={<PackageSearch size={13} />} onClick={openRecovery}>
                 Schedule Hardware Recovery
               </Button>
             )}
@@ -1234,14 +1246,14 @@ export default function IntercomCustomerDetail() {
       <ConvertToInternetModal
         isOpen={convertModalOpen}
         customer={customer}
-        onClose={() => setConvertModalOpen(false)}
+        onClose={closeModal}
         onConfirm={handleConvertToInternet}
       />
       <ScheduleHardwareRecoveryModal
         isOpen={recoveryModalOpen}
         customer={customer}
         defaultReason={recoveryDefaultReason}
-        onClose={() => setRecoveryModalOpen(false)}
+        onClose={closeModal}
         onSubmit={handleScheduleRecovery}
       />
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, MoreVertical,
   Users, Activity, CalendarDays, CheckCircle2, Eye, Edit3, Trash2, AlertTriangle,
@@ -122,7 +122,9 @@ export default function IntercomLeads() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deleteTargetId = searchParams.get('modal') === 'delete-lead' ? searchParams.get('id') : null
+  const deleteTarget = deleteTargetId ? leads.find(l => l.id === deleteTargetId) ?? null : null
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
@@ -161,8 +163,14 @@ export default function IntercomLeads() {
   const todayFollowUps  = leads.filter(l => l.followUp === TODAY_DMY).length
   const convertedCount  = leads.filter(l => l.stage === 'Converted').length
 
+  function openDeleteModal(lead) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'delete-lead'); next.set('id', lead.id); return next })
+  }
+  function closeDeleteModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
+  }
   function confirmDelete() {
-    if (deleteTarget) { deleteLead(deleteTarget.id); setDeleteTarget(null) }
+    if (deleteTarget) { deleteLead(deleteTarget.id); closeDeleteModal() }
   }
 
   return (
@@ -336,7 +344,7 @@ export default function IntercomLeads() {
                         lead={lead}
                         onView={l => navigate(`/intercom/leads/${l.id}`)}
                         onEdit={l => navigate(`/intercom/leads/${l.id}?edit=1`)}
-                        onDelete={l => setDeleteTarget(l)}
+                        onDelete={openDeleteModal}
                       />
                     </td>
                   </tr>
@@ -381,7 +389,7 @@ export default function IntercomLeads() {
       </div>
 
       {/* ── Delete Confirm ───────────────────────────────────────────────────── */}
-      <DeleteConfirmModal lead={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
+      <DeleteConfirmModal lead={deleteTarget} onClose={closeDeleteModal} onConfirm={confirmDelete} />
 
       {/* ── Filter Drawer ────────────────────────────────────────────────────── */}
       <div className={`fixed top-14 left-0 right-0 bottom-0 z-50 transition-opacity duration-300 ${drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
