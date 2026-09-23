@@ -425,9 +425,30 @@ export function saveInstallation(inst) {
   notify()
 }
 
+// Business rule gate: before marking an installation linked to a lead as
+// Completed, the lead's eKYC must be Completed. Returns
+// { ekycBlocked: true, reason: '...' } if the gate rejects the action
+// (installation status is NOT changed); returns the created customer object
+// (or null) on success, matching the old return type for non-blocked calls.
+// Callers must check result?.ekycBlocked to surface the blocking reason.
 export function updateInstallationStatus(id, status, extra = {}) {
   const now = new Date().toISOString().split('T')[0]
   const { _by, _note, ...cleanExtra } = extra
+
+  // eKYC gate: enforce that ekycStatus === 'Completed' on the linked lead
+  // before allowing Installation Done, mirroring the Feasibility-approval
+  // gate that blocks Package Selection until feasibility is approved (BR-14).
+  if (status === 'Completed') {
+    const inst = _installations.find(i => i.id === id)
+    if (inst?.leadId) {
+      const lead = getLeads().find(l => l.id === inst.leadId)
+      if (lead && lead.ekycStatus !== 'Completed') {
+        // Gate rejected — do not change the installation status.
+        return { ekycBlocked: true, reason: 'eKYC must be completed for this lead before marking the installation as done.' }
+      }
+    }
+  }
+
   let createdCustomer = null
 
   _installations = _installations.map(inst => {
