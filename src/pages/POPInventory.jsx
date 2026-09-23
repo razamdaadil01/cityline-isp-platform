@@ -44,7 +44,7 @@ export default function POPInventory() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/network/pops')}
+            onClick={() => navigate(`/network/pops/${pop.id}`)}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border bg-white hover:bg-gray-50 text-gray-500 transition-colors"
           >
             <ArrowLeft size={16} />
@@ -57,7 +57,7 @@ export default function POPInventory() {
             </p>
           </div>
         </div>
-        <Button size="sm" variant="secondary" icon={<Edit2 size={14} />} onClick={() => navigate(`/network/pops/${pop.id}`)}>
+        <Button size="sm" variant="secondary" icon={<Edit2 size={14} />} onClick={() => navigate(`/network/pops/${pop.id}/edit`)}>
           Edit POP
         </Button>
       </div>

@@ -163,7 +163,7 @@ export default function POPManagement() {
             className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
           >
             <button
-              onClick={() => { navigate(`/network/pops/${pop.id}`); setMenuId(null) }}
+              onClick={() => { navigate(`/network/pops/${pop.id}/edit`); setMenuId(null) }}
               className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
