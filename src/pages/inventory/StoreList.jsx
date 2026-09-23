@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, X, MoreVertical, Edit2, CheckCircle2, XCircle, Warehouse,
 } from 'lucide-react'
@@ -132,12 +133,16 @@ export default function StoreList() {
   const [stores, setStores] = useState(getStores)
   useEffect(() => subscribeStores(setStores), [])
 
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:inventoryStoreTable', STORE_TABLE_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
+
+  const modal = searchParams.get('modal')
+  const editingId = searchParams.get('id')
+  const modalOpen = modal === 'add-store' || modal === 'edit-store'
+  const editing = modal === 'edit-store' && editingId ? stores.find(s => s.id === editingId) ?? null : null
 
   const [menuId, setMenuId] = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
@@ -167,8 +172,16 @@ export default function StoreList() {
     )
   }, [stores, search])
 
-  function openAdd() { setEditing(null); setModalOpen(true) }
-  function openEdit(store) { setEditing(store); setModalOpen(true); setMenuId(null) }
+  function openAdd() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-store'); next.delete('id'); return next })
+  }
+  function openEdit(store) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-store'); next.set('id', store.id); return next })
+    setMenuId(null)
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
+  }
   function toggleStatus(store) {
     setStoreStatus(store.id, store.status === 'active' ? 'inactive' : 'active')
     setMenuId(null)
@@ -295,7 +308,7 @@ export default function StoreList() {
         )
       })()}
 
-      <AddEditStoreModal isOpen={modalOpen} onClose={() => setModalOpen(false)} editing={editing} />
+      <AddEditStoreModal isOpen={modalOpen} onClose={closeModal} editing={editing} />
     </div>
   )
 }

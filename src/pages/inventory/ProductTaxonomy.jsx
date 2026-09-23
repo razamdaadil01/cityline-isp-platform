@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus, ChevronRight, ChevronDown, MoreVertical, Edit2, CheckCircle2, XCircle, ListTree,
 } from 'lucide-react'
@@ -146,6 +147,7 @@ export default function ProductTaxonomy() {
     })
   }
 
+  const [searchParams, setSearchParams] = useSearchParams()
   const [menu, setMenu] = useState(null) // { level, id, top, right }
   const menuRef = useRef(null)
 
@@ -162,17 +164,60 @@ export default function ProductTaxonomy() {
     setMenu({ level, id, top: rect.bottom + 4, right: window.innerWidth - rect.right })
   }
 
-  const [modalState, setModalState] = useState(null) // { level, mode, parentId, editing }
+  // URL-driven modal state — modal name encodes both mode and level:
+  // add-category, edit-category, add-subcategory, edit-subcategory,
+  // add-specification, edit-specification. editId present when mode=edit,
+  // parentId present when adding a child level.
+  const modalParam = searchParams.get('modal')
+  const editId = searchParams.get('editId')
+  const parentIdParam = searchParams.get('parentId')
+
+  const modalState = (() => {
+    if (!modalParam) return null
+    const dashIdx = modalParam.indexOf('-')
+    if (dashIdx === -1) return null
+    const mode = modalParam.slice(0, dashIdx)     // 'add' or 'edit'
+    const level = modalParam.slice(dashIdx + 1)   // 'category', 'subcategory', 'specification'
+    if (!['add', 'edit'].includes(mode)) return null
+    if (!['category', 'subcategory', 'specification'].includes(level)) return null
+    const editing = mode === 'edit' && editId ? LEVEL_CONFIG[level].getRecord(editId) ?? null : null
+    const parentId = parentIdParam || (
+      mode === 'edit' && editing
+        ? (level === 'subcategory' ? editing.categoryId : level === 'specification' ? editing.subcategoryId : null)
+        : null
+    )
+    return { level, mode, parentId, editing }
+  })()
 
   function openAdd(level, parentId = null) {
-    setModalState({ level, mode: 'add', parentId, editing: null })
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', `add-${level}`)
+      next.delete('editId')
+      if (parentId) next.set('parentId', parentId); else next.delete('parentId')
+      return next
+    })
     setMenu(null)
   }
   function openEdit(level, record, parentId = null) {
-    setModalState({ level, mode: 'edit', parentId, editing: record })
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', `edit-${level}`)
+      next.set('editId', record.id)
+      if (parentId) next.set('parentId', parentId); else next.delete('parentId')
+      return next
+    })
     setMenu(null)
   }
-  function closeModal() { setModalState(null) }
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('editId')
+      next.delete('parentId')
+      return next
+    })
+  }
 
   function handleModalSubmit(label) {
     const { level, mode, parentId, editing } = modalState

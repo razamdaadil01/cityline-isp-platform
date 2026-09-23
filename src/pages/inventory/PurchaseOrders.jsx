@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, Eye, Bell, CheckCircle2, ClipboardList, MoreVertical,
 } from 'lucide-react'
@@ -113,6 +113,7 @@ export default function PurchaseOrders() {
   const canCreate = useMicroPermission('Inventory', 'createPurchaseOrder')
   const canEdit = useMicroPermission('Inventory', 'sendPoReminder')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [pos, setPos] = useState(getPurchaseOrders)
   useEffect(() => subscribePurchaseOrders(setPos), [])
 
@@ -126,9 +127,23 @@ export default function PurchaseOrders() {
 
   const [search, setSearch] = useState('')
 
-  const [remindPO, setRemindPO] = useState(null)
+  const modal = searchParams.get('modal')
+  const remindPoId = modal === 'remind-po' ? searchParams.get('id') : null
+  const remindPO = remindPoId ? pos.find(po => po.id === remindPoId) ?? null : null
+  const typeModalOpen = modal === 'po-type'
+
   const [toast, setToast] = useState('')
-  const [typeModalOpen, setTypeModalOpen] = useState(false)
+
+  function openRemind(po) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'remind-po'); next.set('id', po.id); return next })
+    setMenuId(null)
+  }
+  function openPoType() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'po-type'); next.delete('id'); return next })
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
+  }
 
   useEffect(() => {
     if (!toast) return
@@ -215,7 +230,7 @@ export default function PurchaseOrders() {
         </div>
         <div className="flex gap-2">
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={() => setTypeModalOpen(true)}>Add Purchase Order</Button>}
+          {canCreate && <Button size="sm" icon={<Plus size={14} />} onClick={openPoType}>Add Purchase Order</Button>}
         </div>
       </div>
 
@@ -438,7 +453,7 @@ export default function PurchaseOrders() {
             </button>
             {canEdit && (
               <button
-                onClick={() => { setRemindPO(menuPO); setMenuId(null) }}
+                onClick={() => openRemind(menuPO)}
                 className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 <Bell size={13} className="text-gray-400 shrink-0" /> Remind
@@ -448,11 +463,11 @@ export default function PurchaseOrders() {
         )
       })()}
 
-      <PurchaseOrderTypeModal isOpen={typeModalOpen} onClose={() => setTypeModalOpen(false)} />
+      <PurchaseOrderTypeModal isOpen={typeModalOpen} onClose={closeModal} />
 
       <RemindModal
         isOpen={!!remindPO}
-        onClose={() => setRemindPO(null)}
+        onClose={closeModal}
         po={remindPO}
         vendor={remindPO ? vendors.find(v => v.id === remindPO.vendorId) : null}
         onSent={email => setToast(`Reminder sent to ${email || 'vendor'}`)}

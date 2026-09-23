@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2, RotateCcw, UserCog,
   CalendarDays, Users, ClipboardList, AlertTriangle, Wrench, Trash2,
@@ -271,6 +271,7 @@ function SendForRepairModal({ target, onClose }) {
 export default function Assignments() {
   const canCreate = useMicroPermission('Inventory', 'assignInventoryToEngineer')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [assignments, setAssignments] = useState(getAssignments)
   useEffect(() => subscribeAssignments(setAssignments), [])
 
@@ -298,27 +299,19 @@ export default function Assignments() {
   // non-Returned assignment line contents (see returnAssignmentLine in
   // assignmentStore.js). Confirmed via this Modal since the app has no
   // window.confirm()/toast precedent for a destructive action like this.
-  const [returnTarget, setReturnTarget] = useState(null)
   const [returnError, setReturnError] = useState('')
 
-  function confirmReturn() {
-    if (!returnTarget) return
-    try {
-      returnAssignmentLine(returnTarget.assignmentId, returnTarget.lineKind, returnTarget.lineId)
-      setReturnTarget(null)
-      setReturnError('')
-    } catch (err) {
-      setReturnError(err.message || 'Could not return this line to store.')
-    }
-  }
+  const modal = searchParams.get('modal')
+  const modalKey = searchParams.get('key')
 
-  // "Send for Repair" — only ever meaningful for a hardware line with a
-  // real serial/MAC identity (see canSendForRepair below); built from the
-  // LIVE assignment/line via row.assignmentId/lineId rather than the
-  // flattened row's own display-only serialMacDrumLabel string, so
-  // SendForRepairModal always gets the real serials/macs arrays to pick
-  // a specific unit from.
-  const [repairTarget, setRepairTarget] = useState(null)
+  function openModal(name, key) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', name); next.set('key', key); return next })
+    setMenuId(null)
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('key'); return next })
+    setReturnError('')
+  }
 
   // Shared by both "Send for Repair" and "Scrap" below — resolves the LIVE
   // assignment/line for a row and builds its unit list (index-paired
@@ -336,37 +329,8 @@ export default function Assignments() {
     return { assignment, line, units }
   }
 
-  function openSendForRepair(row) {
-    const resolved = lineTargetForRow(row)
-    if (!resolved) return
-    const { assignment, line, units } = resolved
-    setRepairTarget({
-      assignmentId: assignment.id, lineId: line.id,
-      productId: line.productId, productName: line.productName,
-      engineerName: assignment.engineerName, storeName: assignment.storeName,
-      units,
-    })
-    setMenuId(null)
-  }
-
-  // "Scrap" — same gating/lookup as "Send for Repair" above, but removes
-  // the unit via the same single-unit removal (not "Back to Store"'s
-  // whole-line removal) and needs storeId (not just storeName) since
-  // scrapStore.js's record shape carries both.
-  const [scrapTarget, setScrapTarget] = useState(null)
-
-  function openScrap(row) {
-    const resolved = lineTargetForRow(row)
-    if (!resolved) return
-    const { assignment, line, units } = resolved
-    setScrapTarget({
-      assignmentId: assignment.id, lineId: line.id,
-      productId: line.productId, productName: line.productName,
-      storeId: assignment.storeId, storeName: assignment.storeName,
-      units,
-    })
-    setMenuId(null)
-  }
+  function openSendForRepair(row) { openModal('send-repair', row.key) }
+  function openScrap(row) { openModal('scrap-unit', row.key) }
 
   const stores = getStores()
 
@@ -411,6 +375,37 @@ export default function Assignments() {
   const branches = useMemo(() => [...stores].filter(s => s.branchCode).sort((a, b) => a.branchCode.localeCompare(b.branchCode)), [stores])
 
   const allRows = useMemo(() => flattenRows(assignments), [assignments])
+
+  // Lazy-derive modal targets from URL so direct-URL loads work correctly.
+  const returnRow = modal === 'return-line' && modalKey ? allRows.find(r => r.key === modalKey) ?? null : null
+  const returnTarget = returnRow
+
+  const repairRow = modal === 'send-repair' && modalKey ? allRows.find(r => r.key === modalKey) ?? null : null
+  const repairTarget = repairRow ? (() => {
+    const resolved = lineTargetForRow(repairRow)
+    if (!resolved) return null
+    const { assignment, line, units } = resolved
+    return { assignmentId: assignment.id, lineId: line.id, productId: line.productId, productName: line.productName, engineerName: assignment.engineerName, storeName: assignment.storeName, units }
+  })() : null
+
+  const scrapRow = modal === 'scrap-unit' && modalKey ? allRows.find(r => r.key === modalKey) ?? null : null
+  const scrapTarget = scrapRow ? (() => {
+    const resolved = lineTargetForRow(scrapRow)
+    if (!resolved) return null
+    const { assignment, line, units } = resolved
+    return { assignmentId: assignment.id, lineId: line.id, productId: line.productId, productName: line.productName, storeId: assignment.storeId, storeName: assignment.storeName, units }
+  })() : null
+
+  function confirmReturn() {
+    if (!returnTarget) return
+    try {
+      returnAssignmentLine(returnTarget.assignmentId, returnTarget.lineKind, returnTarget.lineId)
+      closeModal()
+    } catch (err) {
+      setReturnError(err.message || 'Could not return this line to store.')
+    }
+  }
+
   const rows = useMemo(() => {
     const q = search.toLowerCase().trim()
     return allRows.filter(r => {
@@ -636,7 +631,7 @@ export default function Assignments() {
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
             </button>
             <button
-              onClick={() => { if (alreadyWithUser) return; setReturnTarget(row); setReturnError(''); setMenuId(null) }}
+              onClick={() => { if (alreadyWithUser) return; openModal('return-line', row.key) }}
               disabled={alreadyWithUser}
               title={alreadyWithUser ? 'Already handed off to a user — cannot return to store' : undefined}
               className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${alreadyWithUser ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
@@ -665,12 +660,12 @@ export default function Assignments() {
 
       <Modal
         isOpen={!!returnTarget}
-        onClose={() => { setReturnTarget(null); setReturnError('') }}
+        onClose={closeModal}
         title="Return to Store"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setReturnTarget(null); setReturnError('') }}>Cancel</Button>
+            <Button variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button onClick={confirmReturn}>Confirm</Button>
           </>
         }
@@ -691,11 +686,11 @@ export default function Assignments() {
         )}
       </Modal>
 
-      <SendForRepairModal target={repairTarget} onClose={() => setRepairTarget(null)} />
+      <SendForRepairModal target={repairTarget} onClose={closeModal} />
       <ScrapUnitModal
         target={scrapTarget}
-        onClose={() => setScrapTarget(null)}
-        onScrapped={unit => removeUnitFromAssignmentLine(scrapTarget.assignmentId, scrapTarget.lineId, unit.value)}
+        onClose={closeModal}
+        onScrapped={unit => scrapTarget && removeUnitFromAssignmentLine(scrapTarget.assignmentId, scrapTarget.lineId, unit.value)}
       />
     </div>
   )

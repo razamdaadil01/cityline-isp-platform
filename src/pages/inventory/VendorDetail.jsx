@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Download, CreditCard, Edit2, Building2, MapPin, Phone, FileText,
   ClipboardList, Receipt, Wallet, ChevronDown, Eye, Wrench, ChevronLeft, ChevronRight,
@@ -337,6 +337,7 @@ export default function VendorDetail() {
 
   const { id, tab } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Subscribing (without using the list directly) just forces a re-render
   // whenever vendorStore changes, so the getVendor(id) lookup below always
@@ -345,11 +346,30 @@ export default function VendorDetail() {
   useEffect(() => subscribeVendors(() => forceRerender(n => n + 1)), [])
   const vendor = getVendor(id)
 
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-  const [editModalOpen, setEditModalOpen] = useState(false)
   const [expandedPurchases, setExpandedPurchases] = useState(new Set())
-  const [lineDetail, setLineDetail] = useState(null)
-  const [unitHistory, setUnitHistory] = useState(null)
+
+  const modal = searchParams.get('modal')
+  const paymentModalOpen = modal === 'record-payment'
+  const editModalOpen = modal === 'edit-vendor'
+
+  function openModal(name, extra = {}) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', name)
+      Object.entries(extra).forEach(([k, v]) => next.set(k, v))
+      return next
+    })
+  }
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('purchaseId')
+      next.delete('itemId')
+      next.delete('unit')
+      return next
+    })
+  }
 
   // One page number per paginated table — Active/Previous POs count as two
   // independent tables since they're two independent lists.
@@ -435,6 +455,18 @@ export default function VendorDetail() {
     ...r, unit: getUnits({ productId: r.productId }).find(u => u.value === r.value) ?? null,
   }))
   const repairPagination = paginateSlice(vendorRepairs, repairPage, PAGE_SIZE)
+
+  // URL-derived modal targets — lazy so direct-URL loads work correctly.
+  const lineDetailPurchaseId = modal === 'line-detail' ? searchParams.get('purchaseId') : null
+  const lineDetailItemId = modal === 'line-detail' ? searchParams.get('itemId') : null
+  const lineDetailPurchase = lineDetailPurchaseId ? vendorPurchases.find(p => p.id === lineDetailPurchaseId) ?? null : null
+  const lineDetailItem = lineDetailPurchase && lineDetailItemId ? lineDetailPurchase.items?.find(it => it.id === lineDetailItemId) ?? null : null
+  const lineDetail = lineDetailPurchase && lineDetailItem ? { purchase: lineDetailPurchase, item: lineDetailItem } : null
+
+  const unitHistoryValue = modal === 'unit-history' ? searchParams.get('unit') : null
+  const unitHistoryUnit = unitHistoryValue
+    ? (vendorRepairs.find(r => r.unit?.value === decodeURIComponent(unitHistoryValue))?.unit ?? null)
+    : null
 
   // Purchase Orders tab — one table renderer shared by the Active/Previous
   // groups below so both stay visually identical apart from which POs they
@@ -557,8 +589,8 @@ export default function VendorDetail() {
 
             <VendorActionsMenu
               onExport={handleExport}
-              onRecordPayment={() => setPaymentModalOpen(true)}
-              onEdit={() => setEditModalOpen(true)}
+              onRecordPayment={() => openModal('record-payment')}
+              onEdit={() => openModal('edit-vendor')}
               canEdit={canEdit}
             />
           </div>
@@ -655,7 +687,7 @@ export default function VendorDetail() {
                                         <td className="py-1.5 text-gray-700">{it.productName}</td>
                                         <td className="py-1.5 text-right pr-2">
                                           <button
-                                            onClick={e => { e.stopPropagation(); setLineDetail({ purchase: p, item: it }) }}
+                                            onClick={e => { e.stopPropagation(); openModal('line-detail', { purchaseId: p.id, itemId: it.id }) }}
                                             className="font-semibold text-brand-blue hover:underline"
                                           >
                                             {it.receivedQty}
@@ -778,7 +810,7 @@ export default function VendorDetail() {
                       <tr key={r.id}>
                         <td className="px-4 py-3 text-xs whitespace-nowrap">
                           <button
-                            onClick={() => r.unit && setUnitHistory(r.unit)}
+                            onClick={() => r.unit && openModal('unit-history', { unit: encodeURIComponent(r.unit.value) })}
                             disabled={!r.unit}
                             className="font-mono font-semibold text-brand-blue hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-default"
                             title={r.unit ? 'View unit history' : 'Unit record not found'}
@@ -811,10 +843,10 @@ export default function VendorDetail() {
         </div>
       </div>
 
-      <RecordPaymentModal isOpen={paymentModalOpen} onClose={() => setPaymentModalOpen(false)} vendor={vendor} />
-      <AddEditVendorModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} editing={vendor} />
-      <LineItemDetailModal detail={lineDetail} onClose={() => setLineDetail(null)} />
-      <UnitHistoryModal unit={unitHistory} onClose={() => setUnitHistory(null)} />
+      <RecordPaymentModal isOpen={paymentModalOpen} onClose={closeModal} vendor={vendor} />
+      <AddEditVendorModal isOpen={editModalOpen} onClose={closeModal} editing={vendor} />
+      <LineItemDetailModal detail={lineDetail} onClose={closeModal} />
+      <UnitHistoryModal unit={unitHistoryUnit} onClose={closeModal} />
     </div>
   )
 }
