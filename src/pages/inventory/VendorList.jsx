@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, X, MoreVertical, Eye, Edit2, CheckCircle2, XCircle, Truck, Wrench,
 } from 'lucide-react'
@@ -53,6 +53,7 @@ export default function VendorList() {
   const canEdit = useMicroPermission('Inventory', 'editVendorActivateDeactivate')
 
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [vendors, setVendors] = useState(getVendors)
   useEffect(() => subscribeVendors(setVendors), [])
 
@@ -60,8 +61,11 @@ export default function VendorList() {
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState(null)
+
+  const modal = searchParams.get('modal')
+  const editingId = searchParams.get('id')
+  const modalOpen = modal === 'add-vendor' || modal === 'edit-vendor'
+  const editing = modal === 'edit-vendor' && editingId ? vendors.find(v => v.id === editingId) ?? null : null
 
   const [menuId, setMenuId] = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
@@ -91,8 +95,16 @@ export default function VendorList() {
     )
   }, [vendors, search])
 
-  function openAdd() { setEditing(null); setModalOpen(true) }
-  function openEdit(vendor) { setEditing(vendor); setModalOpen(true); setMenuId(null) }
+  function openAdd() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-vendor'); next.delete('id'); return next })
+  }
+  function openEdit(vendor) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-vendor'); next.set('id', vendor.id); return next })
+    setMenuId(null)
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
+  }
   function toggleStatus(vendor) {
     setVendorStatus(vendor.id, vendor.status === 'active' ? 'inactive' : 'active')
     setMenuId(null)
@@ -234,7 +246,7 @@ export default function VendorList() {
         )
       })()}
 
-      <AddEditVendorModal isOpen={modalOpen} onClose={() => setModalOpen(false)} editing={editing} />
+      <AddEditVendorModal isOpen={modalOpen} onClose={closeModal} editing={editing} />
     </div>
   )
 }

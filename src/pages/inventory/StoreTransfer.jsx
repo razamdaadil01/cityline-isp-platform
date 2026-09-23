@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, ArrowLeftRight, CalendarDays, Store as StoreIcon, MoreVertical, Edit2, Undo2, AlertTriangle, FileText, PackageCheck, Upload, Wrench, Check, X as XIcon, Truck } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -178,6 +178,7 @@ const REQUEST_STATUS_BADGE = { Pending: 'yellow', Approved: 'blue', Rejected: 'r
 export default function StoreTransfer() {
   const canCreate = useMicroPermission('Inventory', 'createStoreTransfer')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [transfers, setTransfers] = useState(getStoreTransfers)
   useEffect(() => subscribeStoreTransfers(setTransfers), [])
 
@@ -211,53 +212,45 @@ export default function StoreTransfer() {
     setMenuId(id)
   }
 
-  // "Reverse Transfer" undoes one line — removing it from the transfer's
-  // own `items` is all that's needed since inventoryLedger.js's
-  // computeLedger() derives every unit's storeId/balance/drum meters purely
-  // from current transfers' item contents (see reverseStoreTransferLine in
-  // storeTransferStore.js). Confirmed via this Modal, same as Assignments.jsx's
-  // own "Back to Store" confirmation.
-  const [reverseTarget, setReverseTarget] = useState(null)
+  // URL-driven modal state — four modals, each with its own param name.
+  const modal = searchParams.get('modal')
+  const modalKey = searchParams.get('key')
+  const modalId = searchParams.get('id')
+
   const [reverseError, setReverseError] = useState('')
-
-  function confirmReverse() {
-    if (!reverseTarget) return
-    try {
-      reverseStoreTransferLine(reverseTarget.transferId, reverseTarget.itemId)
-      setReverseTarget(null)
-      setReverseError('')
-    } catch (err) {
-      setReverseError(err.message || 'Could not reverse this transfer line.')
-    }
-  }
-
-  // "Receive Transfer" confirms a 'Sent' shipment has arrived — every
-  // transfer goes through this Send → Receive step now, same-city or
-  // cross-city alike. Acts on the whole transfer (not a single line), same
-  // as Edit/View
-  // Delivery Challan already do off row.transferId, since receiving is a
-  // single physical shipment landing, not a per-line action. Flips the
-  // whole transfer to 'Completed' via receiveStoreTransfer(), which is what
-  // actually applies the destination-side ledger effect (see
-  // inventoryLedger.js's own Store Transfers block). The signed challan
-  // upload uses the same FileReader.readAsDataURL() pattern as
-  // SalesNewLead.jsx's ProfilePictureUpload — converted here in the UI
-  // layer into a plain { name, size, type, preview } object before being
-  // handed to the (synchronous) store function, never inside the store
-  // itself. Optional — the receiver may not always have a scanner/camera
-  // on hand; the transfer still completes without one.
-  const [receiveTarget, setReceiveTarget] = useState(null)
   const [receivedByInput, setReceivedByInput] = useState('Admin User')
   const [signedChallanFile, setSignedChallanFile] = useState(null)
   const [receiveError, setReceiveError] = useState('')
   const receiveFileRef = useRef(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [requestError, setRequestError] = useState('')
 
-  function openReceiveModal(row) {
-    setReceiveTarget(row)
-    setReceivedByInput('Admin User')
-    setSignedChallanFile(null)
-    setReceiveError('')
+  function openTransferModal(name, key) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', name); next.set('key', key); next.delete('id'); return next })
+    setMenuId(null)
   }
+  function openRequestModal(name, id) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', name); next.set('id', id); next.delete('key'); return next })
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('key'); next.delete('id'); return next })
+    setReverseError(''); setReceiveError(''); setRequestError('')
+  }
+
+  const allRows = useMemo(() => flattenRows(transfers), [transfers])
+
+  const reverseTarget = modal === 'reverse-transfer' && modalKey ? allRows.find(r => r.key === modalKey) ?? null : null
+  const receiveTarget = modal === 'receive-transfer' && modalKey ? allRows.find(r => r.key === modalKey) ?? null : null
+  const rejectTarget = modal === 'reject-request' && modalId ? requests.find(r => r.id === modalId) ?? null : null
+  const fulfillTarget = modal === 'fulfill-request' && modalId ? requests.find(r => r.id === modalId) ?? null : null
+
+  useEffect(() => {
+    if (modal === 'receive-transfer' && modalKey) {
+      setReceivedByInput('Admin User')
+      setSignedChallanFile(null)
+      setReceiveError('')
+    }
+  }, [modal, modalKey])
 
   function handleSignedChallanFile(file) {
     if (!file) return
@@ -266,25 +259,29 @@ export default function StoreTransfer() {
     reader.readAsDataURL(file)
   }
 
+  // "Reverse Transfer" — see reverseStoreTransferLine in storeTransferStore.js
+  function confirmReverse() {
+    if (!reverseTarget) return
+    try {
+      reverseStoreTransferLine(reverseTarget.transferId, reverseTarget.itemId)
+      closeModal()
+    } catch (err) {
+      setReverseError(err.message || 'Could not reverse this transfer line.')
+    }
+  }
+
+  // "Receive Transfer" — see receiveStoreTransfer in storeTransferStore.js
   function confirmReceive() {
     if (!receiveTarget) return
     try {
       receiveStoreTransfer(receiveTarget.transferId, { receivedBy: receivedByInput.trim() || 'Admin User', signedChallanFile })
-      setReceiveTarget(null)
-      setReceiveError('')
+      closeModal()
     } catch (err) {
       setReceiveError(err.message || 'Could not receive this transfer.')
     }
   }
 
-  // POP Stock Request actions — Approve/Reject (Pending only) and Fulfill
-  // (Approved only), each with its own small confirm modal, same
-  // one-target-plus-error-state pattern as Reverse/Receive Transfer above.
-  const [rejectTarget, setRejectTarget] = useState(null)
-  const [rejectReason, setRejectReason] = useState('')
-  const [requestError, setRequestError] = useState('')
-  const [fulfillTarget, setFulfillTarget] = useState(null)
-
+  // POP Stock Request actions
   function confirmApprove(request) {
     try {
       approveStockTransferRequest(request.id)
@@ -298,9 +295,8 @@ export default function StoreTransfer() {
     if (!rejectTarget) return
     try {
       rejectStockTransferRequest(rejectTarget.id, rejectReason)
-      setRejectTarget(null)
+      closeModal()
       setRejectReason('')
-      setRequestError('')
     } catch (err) {
       setRequestError(err.message || 'Could not reject this request.')
     }
@@ -310,8 +306,7 @@ export default function StoreTransfer() {
     if (!fulfillTarget) return
     try {
       fulfillStockTransferRequest(fulfillTarget.id)
-      setFulfillTarget(null)
-      setRequestError('')
+      closeModal()
     } catch (err) {
       setRequestError(err.message || 'Could not fulfill this request.')
     }
@@ -327,7 +322,6 @@ export default function StoreTransfer() {
 
   const [search, setSearch] = useState('')
 
-  const allRows = useMemo(() => flattenRows(transfers), [transfers])
   const rows = useMemo(() => {
     const q = search.toLowerCase().trim()
     if (!q) return allRows
@@ -508,7 +502,7 @@ export default function StoreTransfer() {
                               <Check size={14} />
                             </button>
                             <button
-                              onClick={() => { setRejectTarget(r); setRejectReason(''); setRequestError('') }}
+                              onClick={() => { openRequestModal('reject-request', r.id); setRejectReason(''); setRequestError('') }}
                               title="Reject"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors"
                             >
@@ -517,7 +511,7 @@ export default function StoreTransfer() {
                           </>
                         )}
                         {r.status === 'Approved' && canCreate && (
-                          <Button size="xs" variant="secondary" icon={<Truck size={12} />} onClick={() => { setFulfillTarget(r); setRequestError('') }}>
+                          <Button size="xs" variant="secondary" icon={<Truck size={12} />} onClick={() => { openRequestModal('fulfill-request', r.id); setRequestError('') }}>
                             Fulfill
                           </Button>
                         )}
@@ -556,13 +550,13 @@ export default function StoreTransfer() {
               <FileText size={13} className="text-gray-400 shrink-0" /> View Delivery Challan
             </button>
             {row.status === 'Sent' && (
-              <button onClick={() => { openReceiveModal(row); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+              <button onClick={() => openTransferModal('receive-transfer', row.key)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
                 <PackageCheck size={13} className="text-brand-blue shrink-0" /> Receive Transfer
               </button>
             )}
             {row.status !== 'Reversed' && (
               <button
-                onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
+                onClick={() => { if (!row.reversible) return; openTransferModal('reverse-transfer', row.key) }}
                 disabled={!row.reversible}
                 title={!row.reversible ? (row.status === 'Sent' ? 'This line can no longer be recalled — cannot reverse' : 'This line has already moved on at the destination store — cannot reverse') : undefined}
                 className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
@@ -576,12 +570,12 @@ export default function StoreTransfer() {
 
       <Modal
         isOpen={!!reverseTarget}
-        onClose={() => { setReverseTarget(null); setReverseError('') }}
+        onClose={closeModal}
         title="Reverse Transfer"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setReverseTarget(null); setReverseError('') }}>Cancel</Button>
+            <Button variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button onClick={confirmReverse}>Confirm</Button>
           </>
         }
@@ -614,12 +608,12 @@ export default function StoreTransfer() {
 
       <Modal
         isOpen={!!receiveTarget}
-        onClose={() => { setReceiveTarget(null); setReceiveError('') }}
+        onClose={closeModal}
         title="Receive Transfer"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setReceiveTarget(null); setReceiveError('') }}>Cancel</Button>
+            <Button variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button onClick={confirmReceive}>Confirm Receipt</Button>
           </>
         }
@@ -674,12 +668,12 @@ export default function StoreTransfer() {
 
       <Modal
         isOpen={!!rejectTarget}
-        onClose={() => { setRejectTarget(null); setRejectReason(''); setRequestError('') }}
+        onClose={() => { closeModal(); setRejectReason('') }}
         title="Reject Stock Transfer Request"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setRejectTarget(null); setRejectReason(''); setRequestError('') }}>Cancel</Button>
+            <Button variant="secondary" onClick={() => { closeModal(); setRejectReason('') }}>Cancel</Button>
             <Button variant="danger" onClick={confirmReject}>Reject</Button>
           </>
         }
@@ -704,12 +698,12 @@ export default function StoreTransfer() {
 
       <Modal
         isOpen={!!fulfillTarget}
-        onClose={() => { setFulfillTarget(null); setRequestError('') }}
+        onClose={closeModal}
         title="Fulfill Stock Transfer Request"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setFulfillTarget(null); setRequestError('') }}>Cancel</Button>
+            <Button variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button onClick={confirmFulfill}>Confirm Fulfillment</Button>
           </>
         }

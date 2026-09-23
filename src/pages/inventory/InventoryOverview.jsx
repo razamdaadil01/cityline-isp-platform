@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search, Filter, X, ChevronDown, Boxes, AlertTriangle, UserCog, Users,
   ShieldAlert, Trash2, Eye, ChevronRight, History, Package, Download, Flag, RefreshCw,
@@ -54,8 +54,26 @@ function productMatchesSearch(product, units, drums, q) {
 function UnitRow({ unit, storeName, productName }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
-  const [replaceOpen, setReplaceOpen] = useState(false)
-  const [scrapTarget, setScrapTarget] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modal = searchParams.get('modal')
+  const unitParam = searchParams.get('unit')
+  const decodedUnit = unitParam ? decodeURIComponent(unitParam) : null
+  const isMyUnit = decodedUnit === unit.value
+  const replaceOpen = modal === 'mark-replaced' && isMyUnit
+  const scrapTarget = (modal === 'scrap-unit' && isMyUnit) ? (() => {
+    let assignmentId = null, lineId = null
+    if (unit.assignmentId) {
+      const assignment = getAssignments().find(a => a.id === unit.assignmentId)
+      const line = assignment?.hardwareLines.find(l => l.serials.includes(unit.value) || l.macs.includes(unit.value))
+      if (assignment && line) { assignmentId = assignment.id; lineId = line.id }
+    }
+    return {
+      assignmentId, lineId,
+      productId: unit.productId, productName,
+      storeId: unit.storeId, storeName,
+      units: [{ value: unit.value, kind: unit.serial ? 'serial' : 'mac' }],
+    }
+  })() : null
   const trail = expanded ? getUnitTrail(unit) : null
   const isAssigned = unit.status === 'Assigned to Engineer' || unit.status === 'Assigned to User'
   // No 'Installed' status exists in the current state model yet — treat
@@ -72,30 +90,14 @@ function UnitRow({ unit, storeName, productName }) {
   // this same terminal state (Scrapped).
   const canScrap = unit.status !== 'Replaced' && unit.status !== 'Scrapped'
 
+  function openReplace() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'mark-replaced'); next.set('unit', encodeURIComponent(unit.value)); return next })
+  }
   function openScrap() {
-    // A unit currently 'Assigned to Engineer' still sits on a real
-    // assignment line — same removal Assignments.jsx's own "Scrap" action
-    // uses, found here by searching that one assignment (via
-    // unit.assignmentId, set by inventoryLedger.js's own Assignments
-    // layering block) for the line actually carrying this unit's value.
-    // Any other status (Available, Sent for Repair, In Service, ...) has
-    // no assignment to remove from, so this simply stays null for those.
-    let assignmentId = null, lineId = null
-    if (unit.assignmentId) {
-      const assignment = getAssignments().find(a => a.id === unit.assignmentId)
-      const line = assignment?.hardwareLines.find(l => l.serials.includes(unit.value) || l.macs.includes(unit.value))
-      if (assignment && line) { assignmentId = assignment.id; lineId = line.id }
-    }
-    setScrapTarget({
-      assignmentId, lineId,
-      productId: unit.productId, productName,
-      storeId: unit.storeId, storeName,
-      // Dual-tracked (kind: 'serial-mac') units are identified by their
-      // serial when they have one, same preference SendForRepairModal/
-      // ScrapUnitModal's other caller (Assignments.jsx) already applies —
-      // scrapStore.js's own kind is only ever 'serial'|'mac'.
-      units: [{ value: unit.value, kind: unit.serial ? 'serial' : 'mac' }],
-    })
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'scrap-unit'); next.set('unit', encodeURIComponent(unit.value)); return next })
+  }
+  function closeUnitModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('unit'); return next })
   }
 
   return (
@@ -140,7 +142,7 @@ function UnitRow({ unit, storeName, productName }) {
           </div>
           <div className="flex items-center gap-4">
             {canReplace && (
-              <button type="button" onClick={() => setReplaceOpen(true)}
+              <button type="button" onClick={openReplace}
                 className="flex items-center gap-1.5 text-xs font-medium text-brand-blue hover:text-brand-blue-dark">
                 <RefreshCw size={12} /> Mark as Replaced
               </button>
@@ -161,10 +163,10 @@ function UnitRow({ unit, storeName, productName }) {
           </div>
         </div>
       )}
-      <MarkReplacedModal isOpen={replaceOpen} onClose={() => setReplaceOpen(false)} unit={unit} />
+      <MarkReplacedModal isOpen={replaceOpen} onClose={closeUnitModal} unit={unit} />
       <ScrapUnitModal
         target={scrapTarget}
-        onClose={() => setScrapTarget(null)}
+        onClose={closeUnitModal}
         onScrapped={u => { if (scrapTarget.assignmentId) removeUnitFromAssignmentLine(scrapTarget.assignmentId, scrapTarget.lineId, u.value) }}
       />
     </div>
@@ -532,10 +534,14 @@ export default function InventoryOverview() {
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:inventoryOverviewTable', OVERVIEW_TABLE_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modal = searchParams.get('modal')
+  const modalId = searchParams.get('id')
+  const selectedProductId = modal === 'product-detail' ? modalId : null
+  const discrepancyOpen = modal === 'discrepancy'
+  const discrepancyProduct = discrepancyOpen && modalId ? allProducts.find(p => p.id === modalId) ?? null : null
+
   const [search, setSearch] = useState('')
-  const [selectedProductId, setSelectedProductId] = useState(null)
-  const [discrepancyOpen, setDiscrepancyOpen] = useState(false)
-  const [discrepancyProduct, setDiscrepancyProduct] = useState(null)
 
   const [filterBranch, setFilterBranch] = useState('')
   const [filterStore, setFilterStore] = useState('')
@@ -564,6 +570,15 @@ export default function InventoryOverview() {
   function clearAllFilters() {
     setFilterBranch(''); setFilterStore(''); setFilterProduct(''); setFilterProductType('')
     setFilterBrand(''); setFilterStatus(''); setFilterLowStock(false)
+  }
+  function openProductDetail(id) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'product-detail'); next.set('id', id); return next })
+  }
+  function openDiscrepancy(product) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'discrepancy'); if (product) next.set('id', product.id); else next.delete('id'); return next })
+  }
+  function closeModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
   }
   const activeFiltersCount = [filterBranch, filterStore, filterProduct, filterProductType, filterBrand, filterStatus].filter(Boolean).length + (filterLowStock ? 1 : 0)
 
@@ -671,7 +686,7 @@ export default function InventoryOverview() {
           <p className="text-sm text-gray-500 mt-0.5">{rows.length} of {allProducts.length} products · Showing: {scopeLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => { setDiscrepancyProduct(null); setDiscrepancyOpen(true) }}>Report a Discrepancy</Button>
+          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => openDiscrepancy(null)}>Report a Discrepancy</Button>
           <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExport}>Export</Button>
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
         </div>
@@ -881,7 +896,7 @@ export default function InventoryOverview() {
                   </td>
                 </tr>
               ) : rows.map(({ product, availableQty, engineerQty, scrapQty, lowStock }) => (
-                <tr key={product.id} onClick={() => setSelectedProductId(product.id)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
+                <tr key={product.id} onClick={() => openProductDetail(product.id)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-800">{product.name}</span>
@@ -908,10 +923,10 @@ export default function InventoryOverview() {
                   {visibleCols.has('actions') && (
                     <td className="px-4 py-3 w-20 text-center" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setSelectedProductId(product.id)} title="View" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors">
+                        <button onClick={() => openProductDetail(product.id)} title="View" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors">
                           <Eye size={14} />
                         </button>
-                        <button onClick={() => { setDiscrepancyProduct(product); setDiscrepancyOpen(true) }} title="Report a Discrepancy" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <button onClick={() => openDiscrepancy(product)} title="Report a Discrepancy" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
                           <Flag size={14} />
                         </button>
                       </div>
@@ -925,12 +940,12 @@ export default function InventoryOverview() {
       </div>
 
       {selectedProduct && (
-        <ProductDetailPanel product={selectedProduct} stores={stores} onClose={() => setSelectedProductId(null)} />
+        <ProductDetailPanel product={selectedProduct} stores={stores} onClose={closeModal} />
       )}
 
       <DiscrepancyModal
         isOpen={discrepancyOpen}
-        onClose={() => setDiscrepancyOpen(false)}
+        onClose={closeModal}
         product={discrepancyProduct}
         allProducts={allProducts}
         stores={stores}

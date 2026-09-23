@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, Edit2, Boxes, Wrench } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -25,8 +24,8 @@ function fmt(dateStr) { return dateStr || '—' }
 export default function POPInventory() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const pop = getPOP(id)
-  const [linkedFor, setLinkedFor] = useState(null) // equipment row, or null
 
   if (!pop) {
     return (
@@ -37,7 +36,27 @@ export default function POPInventory() {
   }
 
   const equipment = pop.equipment ?? []
+  const linkedForId = searchParams.get('modal') === 'linked-workorders' ? searchParams.get('equipId') : null
+  const linkedFor = linkedForId ? equipment.find(it => it.id === linkedForId) ?? null : null
   const linkedWorkOrders = linkedFor ? getWorkOrdersForEquipment(pop.id, linkedFor.id) : []
+
+  function openLinkedWorkorders(item) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'linked-workorders')
+      next.set('equipId', item.id)
+      return next
+    })
+  }
+
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('equipId')
+      return next
+    })
+  }
 
   return (
     <div className="p-6 pb-10">
@@ -112,7 +131,7 @@ export default function POPInventory() {
                     <td className="px-4 py-3 text-center">
                       <button
                         type="button"
-                        onClick={() => setLinkedFor(item)}
+                        onClick={() => openLinkedWorkorders(item)}
                         disabled={linkedCount === 0}
                         className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
                           linkedCount === 0
@@ -133,7 +152,7 @@ export default function POPInventory() {
 
       <Modal
         isOpen={!!linkedFor}
-        onClose={() => setLinkedFor(null)}
+        onClose={closeModal}
         title={`Work Orders — ${linkedFor?.label ?? ''}`}
         size="md"
       >

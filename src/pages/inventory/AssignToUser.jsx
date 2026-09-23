@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Search, MoreVertical, Edit2, Undo2, Users, CalendarDays, UserCog, ClipboardList, AlertTriangle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -90,6 +90,7 @@ function flattenRows(assignments) {
 export default function AssignToUser() {
   const canCreate = useMicroPermission('Inventory', 'assignInventoryToUser')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [assignments, setAssignments] = useState(getUserAssignments)
   useEffect(() => subscribeUserAssignments(setAssignments), [])
 
@@ -117,18 +118,18 @@ export default function AssignToUser() {
   // CURRENT user assignments' item contents (see
   // reverseUserAssignmentItem in userAssignmentStore.js). Confirmed via
   // this Modal, same as Assignments.jsx's own "Back to Store" confirmation.
-  const [reverseTarget, setReverseTarget] = useState(null)
   const [reverseError, setReverseError] = useState('')
 
-  function confirmReverse() {
-    if (!reverseTarget) return
-    try {
-      reverseUserAssignmentItem(reverseTarget.assignmentId, reverseTarget.itemId)
-      setReverseTarget(null)
-      setReverseError('')
-    } catch (err) {
-      setReverseError(err.message || 'Could not reverse this handoff line.')
-    }
+  const reverseKey = searchParams.get('modal') === 'reverse-handoff' ? searchParams.get('key') : null
+
+  function openReverse(row) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'reverse-handoff'); next.set('key', row.key); return next })
+    setReverseError('')
+    setMenuId(null)
+  }
+  function closeReverse() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('key'); return next })
+    setReverseError('')
   }
 
   // Assignment-record-level aggregates — these stay meaningful counted
@@ -158,6 +159,18 @@ export default function AssignToUser() {
       r.serialMac.toLowerCase().includes(q)
     )
   }, [allRows, search])
+
+  const reverseTarget = reverseKey ? allRows.find(r => r.key === reverseKey) ?? null : null
+
+  function confirmReverse() {
+    if (!reverseTarget) return
+    try {
+      reverseUserAssignmentItem(reverseTarget.assignmentId, reverseTarget.itemId)
+      closeReverse()
+    } catch (err) {
+      setReverseError(err.message || 'Could not reverse this handoff line.')
+    }
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -264,7 +277,7 @@ export default function AssignToUser() {
               <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
             </button>
             <button
-              onClick={() => { if (!row.reversible) return; setReverseTarget(row); setReverseError(''); setMenuId(null) }}
+              onClick={() => { if (!row.reversible) return; openReverse(row) }}
               disabled={!row.reversible}
               title={!row.reversible ? 'This unit has already moved on with the user — cannot reverse' : undefined}
               className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
@@ -277,12 +290,12 @@ export default function AssignToUser() {
 
       <Modal
         isOpen={!!reverseTarget}
-        onClose={() => { setReverseTarget(null); setReverseError('') }}
+        onClose={closeReverse}
         title="Back to Engineer"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" onClick={() => { setReverseTarget(null); setReverseError('') }}>Cancel</Button>
+            <Button variant="secondary" onClick={closeReverse}>Cancel</Button>
             <Button onClick={confirmReverse}>Confirm</Button>
           </>
         }
