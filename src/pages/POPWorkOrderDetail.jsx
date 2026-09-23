@@ -7,12 +7,14 @@ import {
   getWorkOrder, saveWorkOrder, previewWorkOrderId, technicianOpenWorkOrderCount,
   WORK_ORDER_CATEGORIES, WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES,
   FAULT_TYPES, CLEANING_CHECKLIST_ITEMS,
+  INSPECTION_CHECKLIST_ITEMS, BATTERY_BACKUP_STATUSES, GENERATOR_STATUSES,
 } from '../data/workOrderStore'
 import { getPOPs, getPOP } from '../data/popStore'
 import { getProducts } from '../data/productStore'
 import { getProductAvailability } from '../data/inventoryLedger'
 import { getAllTechnicians } from '../data/technicianHelpers'
 import { getStockTransferRequestsForWorkOrder } from '../data/stockTransferRequestStore'
+import { getHDDProjects, getSiteProjects } from '../data/projectStore'
 
 const REQUEST_STATUS_BADGE_CLASSES = {
   Pending: 'bg-amber-100 text-amber-700',
@@ -23,6 +25,9 @@ const REQUEST_STATUS_BADGE_CLASSES = {
 
 function emptyChecklist() {
   return Object.fromEntries(CLEANING_CHECKLIST_ITEMS.map(c => [c.key, false]))
+}
+function emptyInspectionChecklist() {
+  return Object.fromEntries(INSPECTION_CHECKLIST_ITEMS.map(c => [c.key, false]))
 }
 function emptyHardwareRow() {
   return { id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, productId: '', quantity: '', reason: '' }
@@ -118,6 +123,19 @@ export default function POPWorkOrderDetail() {
   const [equipmentInvolved, setEquipmentInvolved] = useState(existing?.equipmentInvolved ?? '')
   const [faultType, setFaultType] = useState(existing?.faultType ?? '')
 
+  // Installation-specific
+  const [newEquipmentDetails, setNewEquipmentDetails] = useState(existing?.newEquipmentDetails ?? '')
+  const [projectReference, setProjectReference] = useState(existing?.projectReference ?? '')
+
+  // Power Issue-specific
+  const [batteryBackupStatus, setBatteryBackupStatus] = useState(existing?.batteryBackupStatus ?? '')
+  const [downtimeStartTime, setDowntimeStartTime] = useState(existing?.downtimeStartTime ?? '')
+  const [generatorStatus, setGeneratorStatus] = useState(existing?.generatorStatus ?? '')
+
+  // Inspection-specific
+  const [inspectionChecklist, setInspectionChecklist] = useState(existing?.inspectionChecklist ?? emptyInspectionChecklist())
+  const [inspectionFindings, setInspectionFindings] = useState(existing?.inspectionFindings ?? '')
+
   const [hardwareNeed, setHardwareNeed] = useState(() =>
     existing?.hardwareNeed?.length
       ? existing.hardwareNeed.map(r => ({ id: `${r.productId}-${Math.random().toString(36).slice(2, 7)}`, productId: r.productId, quantity: String(r.quantity), reason: r.reason ?? '' }))
@@ -141,7 +159,17 @@ export default function POPWorkOrderDetail() {
   const selectedPop = popId ? getPOP(popId) : null
   const popEquipment = selectedPop?.equipment ?? []
   const isMaintenance = category === 'Preventive Maintenance' || category === 'Breakdown-Fault'
+  const isInstallation = category === 'Installation'
+  const isPowerIssue = category === 'Power Issue'
+  const isInspection = category === 'Inspection'
   const isResolving = status === 'Resolved' || status === 'Closed'
+
+  // Flat project list for Installation's Project Reference picker — both HDD
+  // and Site projects, since Installation work can relate to either type.
+  const allProjects = [
+    ...getHDDProjects().map(p => ({ ...p, _type: 'HDD' })),
+    ...getSiteProjects().map(p => ({ ...p, _type: 'Site' })),
+  ]
 
   function toggleTechnician(userId) {
     setAssignedTechnicianIds(list => list.includes(userId) ? list.filter(i => i !== userId) : [...list, userId])
@@ -165,6 +193,9 @@ export default function POPWorkOrderDetail() {
     const namedHardwareRows = hardwareNeed.filter(r => r.productId)
     if (namedHardwareRows.some(r => r.quantity === '' || Number.isNaN(Number(r.quantity)) || Number(r.quantity) <= 0)) {
       errs.hardwareNeed = 'Every Hardware Need row needs a valid quantity.'
+    }
+    if (isInstallation && namedHardwareRows.length === 0) {
+      errs.hardwareNeedRequired = 'Installation work orders require at least one hardware item.'
     }
     if (isResolving) {
       if (!resolutionNotes.trim()) errs.resolutionNotes = 'Resolution notes are required.'
@@ -201,6 +232,16 @@ export default function POPWorkOrderDetail() {
       cleaningChecklist: category === 'Cleaning' ? cleaningChecklist : null,
       equipmentInvolved: isMaintenance ? (equipmentInvolved || null) : null,
       faultType: isMaintenance ? faultType : null,
+      // Installation
+      newEquipmentDetails: isInstallation ? newEquipmentDetails.trim() : null,
+      projectReference: isInstallation ? (projectReference || null) : null,
+      // Power Issue
+      batteryBackupStatus: isPowerIssue ? (batteryBackupStatus || null) : null,
+      downtimeStartTime: isPowerIssue ? (downtimeStartTime || null) : null,
+      generatorStatus: isPowerIssue ? (generatorStatus || null) : null,
+      // Inspection
+      inspectionChecklist: isInspection ? inspectionChecklist : null,
+      inspectionFindings: isInspection ? inspectionFindings.trim() : null,
       hardwareNeed: cleanedHardwareNeed,
       requireSupervisorApproval,
       supervisorApproval: isResolving ? supervisorApproval : false,
@@ -262,7 +303,7 @@ export default function POPWorkOrderDetail() {
         </div>
 
         {/* Category-specific fields */}
-        {category === 'Cleaning' ? (
+        {category === 'Cleaning' && (
           <div className="space-y-3 pt-4 border-t border-surface-border">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cleaning Checklist</h3>
             {selectedPop && (
@@ -284,7 +325,9 @@ export default function POPWorkOrderDetail() {
               ))}
             </div>
           </div>
-        ) : (
+        )}
+
+        {isMaintenance && (
           <div className="space-y-4 pt-4 border-t border-surface-border">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Maintenance Details</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -301,6 +344,85 @@ export default function POPWorkOrderDetail() {
                 </Select>
               </FormField>
             </div>
+          </div>
+        )}
+
+        {isInstallation && (
+          <div className="space-y-4 pt-4 border-t border-surface-border">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Installation Details</h3>
+            <FormField label="Project Reference" hint="Link this work order to an existing HDD or Site project.">
+              <Select value={projectReference} onChange={e => setProjectReference(e.target.value)}>
+                <option value="">No project linked</option>
+                {allProjects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p._type} · {p.id})</option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="New Equipment Details" hint="Describe the equipment being installed (make, model, serial numbers, specifications, etc.).">
+              <Textarea
+                rows={3}
+                placeholder="e.g. Huawei OLT MA5608T, 16-port GPON board, serial # …"
+                value={newEquipmentDetails}
+                onChange={e => setNewEquipmentDetails(e.target.value)}
+              />
+            </FormField>
+            {errors.hardwareNeedRequired && (
+              <p className="text-xs text-red-500">{errors.hardwareNeedRequired}</p>
+            )}
+          </div>
+        )}
+
+        {isPowerIssue && (
+          <div className="space-y-4 pt-4 border-t border-surface-border">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Power Issue Details</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <FormField label="Downtime Start Time">
+                <Input
+                  type="datetime-local"
+                  value={downtimeStartTime}
+                  onChange={e => setDowntimeStartTime(e.target.value)}
+                />
+              </FormField>
+              <FormField label="Battery Backup Status">
+                <Select value={batteryBackupStatus} onChange={e => setBatteryBackupStatus(e.target.value)}>
+                  <option value="">Unknown</option>
+                  {BATTERY_BACKUP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Generator Status">
+                <Select value={generatorStatus} onChange={e => setGeneratorStatus(e.target.value)}>
+                  <option value="">Unknown</option>
+                  {GENERATOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </FormField>
+            </div>
+          </div>
+        )}
+
+        {isInspection && (
+          <div className="space-y-3 pt-4 border-t border-surface-border">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Inspection Checklist</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {INSPECTION_CHECKLIST_ITEMS.map(item => (
+                <label key={item.key} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-surface-border cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={inspectionChecklist[item.key] ?? false}
+                    onChange={e => setInspectionChecklist(c => ({ ...c, [item.key]: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                  />
+                  <span className="text-sm text-gray-700">{item.label}</span>
+                </label>
+              ))}
+            </div>
+            <FormField label="Inspection Findings" hint="Document any issues, observations, or follow-up actions identified during the inspection.">
+              <Textarea
+                rows={3}
+                placeholder="Describe findings, observations, and any follow-up actions…"
+                value={inspectionFindings}
+                onChange={e => setInspectionFindings(e.target.value)}
+              />
+            </FormField>
           </div>
         )}
 
