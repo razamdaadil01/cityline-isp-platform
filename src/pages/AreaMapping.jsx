@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, ChevronRight, ChevronDown, Edit2, Trash2, Save, MapPin, CheckCircle2,
   Upload, Download, FileSpreadsheet, AlertTriangle, X, CheckCircle, XCircle, Search,
@@ -1000,13 +1000,50 @@ export default function AreaMapping() {
   const [areas, setAreas]   = useState(getAreas)
   const [, setTick]         = useState(0)
   const [showForm, setShowForm]           = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [editItem, setEditItem]           = useState(null)
   const [hierarchyEditItem, setHierarchyEditItem] = useState(null)
-  const [deleteId, setDeleteId]           = useState(null)
-  const [deleteItemName, setDeleteItemName] = useState('')
-  const [hierarchyDeleteItem, setHierarchyDeleteItem] = useState(null)
   const [toast, setToast]   = useState(null)
-  const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
+
+  const amModal     = searchParams.get('modal')
+  const amDeleteId  = searchParams.get('id')
+  const amDType     = searchParams.get('dtype')
+  const amDName     = searchParams.get('dname')
+  const amDState    = searchParams.get('dstate')
+  const amDDistrict = searchParams.get('ddistrict')
+  const amDArea     = searchParams.get('darea')
+
+  const deleteId   = amModal === 'delete-area' ? amDeleteId : null
+  const bulkUploadOpen = amModal === 'bulk-upload'
+  const hierarchyDeleteItem = amModal === 'delete-hierarchy' && amDType && amDName
+    ? { type: amDType, name: amDName, state: amDState || '', district: amDDistrict || '', area: amDArea || '' }
+    : null
+  const deleteItemName = deleteId
+    ? (areas.find(a => String(a.id) === deleteId)?.subLocality || 'this entry')
+    : ''
+
+  function openAMModal(name, extra = {}) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', name)
+      Object.entries(extra).forEach(([k, v]) => v != null ? next.set(k, String(v)) : next.delete(k))
+      return next
+    })
+  }
+
+  function closeAMModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('id')
+      next.delete('dtype')
+      next.delete('dname')
+      next.delete('dstate')
+      next.delete('ddistrict')
+      next.delete('darea')
+      return next
+    })
+  }
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef(null)
@@ -1055,15 +1092,13 @@ export default function AreaMapping() {
     setShowForm(true)
   }
 
-  function handleDelete(id, name) {
-    setDeleteId(id)
-    setDeleteItemName(name || 'this entry')
+  function handleDelete(id) {
+    openAMModal('delete-area', { id })
   }
 
   function confirmDelete() {
     deleteArea(deleteId)
-    setDeleteId(null)
-    setDeleteItemName('')
+    closeAMModal()
     showToast('Entry deleted')
   }
 
@@ -1074,7 +1109,10 @@ export default function AreaMapping() {
   }
 
   function handleHierarchyDelete(item) {
-    setHierarchyDeleteItem(item)
+    openAMModal('delete-hierarchy', {
+      dtype: item.type, dname: item.name,
+      dstate: item.state || null, ddistrict: item.district || null, darea: item.area || null,
+    })
   }
 
   function confirmHierarchyDelete() {
@@ -1083,7 +1121,7 @@ export default function AreaMapping() {
     else if (type === 'District') deleteDistrictName(state, name)
     else if (type === 'Area')     deleteAreaName(state, district, name)
     else if (type === 'Locality') deleteLocalityName(state, district, area, name)
-    setHierarchyDeleteItem(null)
+    closeAMModal()
     showToast(`${type} deleted`)
   }
 
@@ -1113,7 +1151,7 @@ export default function AreaMapping() {
           <Button
             variant="secondary"
             icon={<Upload size={14} />}
-            onClick={() => setBulkUploadOpen(true)}
+            onClick={() => openAMModal('bulk-upload')}
           >
             Bulk Upload
           </Button>
@@ -1298,12 +1336,12 @@ export default function AreaMapping() {
       {/* Sub-locality delete confirm */}
       <Modal
         isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
+        onClose={closeAMModal}
         title="Delete Sub Locality"
         size="sm"
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={closeAMModal}>Cancel</Button>
             <Button variant="danger" size="sm" onClick={confirmDelete}>Delete</Button>
           </>
         }
@@ -1318,12 +1356,12 @@ export default function AreaMapping() {
       {/* Hierarchy delete confirm */}
       <Modal
         isOpen={!!hierarchyDeleteItem}
-        onClose={() => setHierarchyDeleteItem(null)}
+        onClose={closeAMModal}
         title={`Delete ${hierarchyDeleteItem?.type ?? ''}`}
         size="sm"
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => setHierarchyDeleteItem(null)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={closeAMModal}>Cancel</Button>
             <Button variant="danger" size="sm" onClick={confirmHierarchyDelete}>Delete</Button>
           </>
         }
@@ -1338,8 +1376,8 @@ export default function AreaMapping() {
       {/* Bulk Upload */}
       <BulkUploadModal
         isOpen={bulkUploadOpen}
-        onClose={() => setBulkUploadOpen(false)}
-        onSuccess={count => { showToast(`${count} entries added successfully`); setBulkUploadOpen(false) }}
+        onClose={closeAMModal}
+        onSuccess={count => { showToast(`${count} entries added successfully`); closeAMModal() }}
       />
 
       {/* Success toast */}

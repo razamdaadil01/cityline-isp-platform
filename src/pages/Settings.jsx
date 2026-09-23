@@ -521,20 +521,64 @@ function ComplaintCategoriesTab() {
     }
   }, [toast])
 
-  const [addCategoryOpen, setAddCategoryOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const modalParam    = searchParams.get('modal')
+  const modalName     = searchParams.get('name')
+  const modalCategory = searchParams.get('category')
+  const modalSub      = searchParams.get('sub')
+
+  function openModal(name, extra = {}) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', name)
+      Object.entries(extra).forEach(([k, v]) => v != null ? next.set(k, String(v)) : next.delete(k))
+      return next
+    })
+  }
+
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('name')
+      next.delete('category')
+      next.delete('sub')
+      return next
+    })
+  }
+
+  const addCategoryOpen      = modalParam === 'add-category'
+  const renameCategoryTarget = modalParam === 'rename-category' ? modalName : null
+  const deleteCategoryTarget = modalParam === 'delete-category' ? modalName : null
+  const renameSubDerived     = (modalParam === 'rename-subcategory' && modalCategory && modalSub)
+    ? { category: modalCategory, oldName: modalSub } : null
+  const deleteSubDerived     = (modalParam === 'delete-subcategory' && modalCategory && modalSub)
+    ? { category: modalCategory, name: modalSub } : null
+
   const [newCategoryName, setNewCategoryName] = useState('')
   const [addCategoryError, setAddCategoryError] = useState('')
-
-  const [renameCategoryTarget, setRenameCategoryTarget] = useState(null) // original category name, or null
-  const [renameCategoryValue, setRenameCategoryValue] = useState('')
+  const [renameCategoryValue, setRenameCategoryValue] = useState(
+    () => modalParam === 'rename-category' ? (modalName ?? '') : ''
+  )
   const [renameCategoryError, setRenameCategoryError] = useState('')
+  const [subInputs, setSubInputs] = useState({})
+  const [renameSubValue, setRenameSubValue] = useState(
+    () => modalParam === 'rename-subcategory' ? (modalSub ?? '') : ''
+  )
+  const [renameSubError, setRenameSubError] = useState('')
 
-  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null)
+  useEffect(() => {
+    if (modalParam === 'add-category') { setNewCategoryName(''); setAddCategoryError('') }
+  }, [modalParam])
 
-  const [subInputs, setSubInputs] = useState({}) // { [category]: draft text for the "new subcategory" input }
+  useEffect(() => {
+    if (modalParam === 'rename-category') { setRenameCategoryValue(modalName ?? ''); setRenameCategoryError('') }
+  }, [modalParam, modalName])
 
-  const [renameSub, setRenameSub] = useState(null) // { category, oldName, value, error }
-  const [deleteSub, setDeleteSub] = useState(null) // { category, name }
+  useEffect(() => {
+    if (modalParam === 'rename-subcategory') { setRenameSubValue(modalSub ?? ''); setRenameSubError('') }
+  }, [modalParam, modalSub])
 
   const categories = Object.keys(categorySubcategories)
 
@@ -545,11 +589,7 @@ function ComplaintCategoriesTab() {
     return tickets.filter(t => t.category === category && t.subcategory === sub).length
   }
 
-  function openAddCategory() {
-    setNewCategoryName('')
-    setAddCategoryError('')
-    setAddCategoryOpen(true)
-  }
+  function openAddCategory() { openModal('add-category') }
 
   function handleAddCategory() {
     const name = newCategoryName.trim()
@@ -560,14 +600,10 @@ function ComplaintCategoriesTab() {
     }
     saveCategorySubcategories({ ...categorySubcategories, [name]: [] })
     setToast('Category added successfully')
-    setAddCategoryOpen(false)
+    closeModal()
   }
 
-  function openRenameCategory(name) {
-    setRenameCategoryTarget(name)
-    setRenameCategoryValue(name)
-    setRenameCategoryError('')
-  }
+  function openRenameCategory(name) { openModal('rename-category', { name }) }
 
   function handleRenameCategory() {
     const name = renameCategoryValue.trim()
@@ -582,7 +618,7 @@ function ComplaintCategoriesTab() {
       saveCategorySubcategories(next)
       setToast('Category renamed successfully')
     }
-    setRenameCategoryTarget(null)
+    closeModal()
   }
 
   function handleDeleteCategory() {
@@ -591,7 +627,7 @@ function ComplaintCategoriesTab() {
     delete next[deleteCategoryTarget]
     saveCategorySubcategories(next)
     setToast('Category deleted successfully')
-    setDeleteCategoryTarget(null)
+    closeModal()
   }
 
   function handleAddSubcategory(category) {
@@ -604,31 +640,31 @@ function ComplaintCategoriesTab() {
   }
 
   function handleRenameSub() {
-    const { category, oldName, value } = renameSub
-    const name = value.trim()
-    if (!name) { setRenameSub(r => ({ ...r, error: 'Subcategory name is required.' })); return }
+    const { category, oldName } = renameSubDerived
+    const name = renameSubValue.trim()
+    if (!name) { setRenameSubError('Subcategory name is required.'); return }
     const list = categorySubcategories[category] ?? []
     if (name !== oldName && list.some(s => s.toLowerCase() === name.toLowerCase())) {
-      setRenameSub(r => ({ ...r, error: 'A subcategory with this name already exists.' }))
+      setRenameSubError('A subcategory with this name already exists.')
       return
     }
     if (name !== oldName) {
       saveCategorySubcategories({ ...categorySubcategories, [category]: list.map(s => s === oldName ? name : s) })
       setToast('Subcategory renamed successfully')
     }
-    setRenameSub(null)
+    closeModal()
   }
 
   function handleDeleteSub() {
-    const { category, name } = deleteSub
+    const { category, name } = deleteSubDerived
     const list = categorySubcategories[category] ?? []
     saveCategorySubcategories({ ...categorySubcategories, [category]: list.filter(s => s !== name) })
     setToast('Subcategory deleted successfully')
-    setDeleteSub(null)
+    closeModal()
   }
 
   const deleteCategoryTicketCount = deleteCategoryTarget ? categoryTicketCount(deleteCategoryTarget) : 0
-  const deleteSubTicketCount = deleteSub ? subcategoryTicketCount(deleteSub.category, deleteSub.name) : 0
+  const deleteSubTicketCount = deleteSubDerived ? subcategoryTicketCount(deleteSubDerived.category, deleteSubDerived.name) : 0
 
   return (
     <div className="space-y-5">
@@ -668,7 +704,7 @@ function ComplaintCategoriesTab() {
                     className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                     <Edit2 size={13} />
                   </button>
-                  <button onClick={() => setDeleteCategoryTarget(category)}
+                  <button onClick={() => openModal('delete-category', { name: category })}
                     className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                     <Trash2 size={13} />
                   </button>
@@ -683,11 +719,11 @@ function ComplaintCategoriesTab() {
                     {subs.map(sub => (
                       <div key={sub} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-lg border border-surface-border bg-white text-xs">
                         <span className="text-gray-700">{sub}</span>
-                        <button onClick={() => setRenameSub({ category, oldName: sub, value: sub, error: '' })}
+                        <button onClick={() => openModal('rename-subcategory', { category, sub })}
                           className="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
                           <Edit2 size={11} />
                         </button>
-                        <button onClick={() => setDeleteSub({ category, name: sub })}
+                        <button onClick={() => openModal('delete-subcategory', { category, sub })}
                           className="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
                           <X size={12} />
                         </button>
@@ -718,14 +754,14 @@ function ComplaintCategoriesTab() {
         )}
       </div>
 
-      {/* Add Category */}
+      {/* Add Category — ?section=complaint-categories&modal=add-category */}
       <Modal
         isOpen={addCategoryOpen}
-        onClose={() => setAddCategoryOpen(false)}
+        onClose={closeModal}
         title="Add Category"
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setAddCategoryOpen(false)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
           <Button size="sm" onClick={handleAddCategory}>Add Category</Button>
         </>}
       >
@@ -734,14 +770,14 @@ function ComplaintCategoriesTab() {
         </FormField>
       </Modal>
 
-      {/* Rename Category */}
+      {/* Rename Category — ?section=complaint-categories&modal=rename-category&name=<category> */}
       <Modal
         isOpen={!!renameCategoryTarget}
-        onClose={() => setRenameCategoryTarget(null)}
+        onClose={closeModal}
         title={`Rename Category — ${renameCategoryTarget ?? ''}`}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setRenameCategoryTarget(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
           <Button size="sm" onClick={handleRenameCategory}>Save Changes</Button>
         </>}
       >
@@ -750,30 +786,30 @@ function ComplaintCategoriesTab() {
         </FormField>
       </Modal>
 
-      {/* Rename Subcategory */}
+      {/* Rename Subcategory — ?section=complaint-categories&modal=rename-subcategory&category=<cat>&sub=<sub> */}
       <Modal
-        isOpen={!!renameSub}
-        onClose={() => setRenameSub(null)}
-        title={`Rename Subcategory — ${renameSub?.oldName ?? ''}`}
+        isOpen={!!renameSubDerived}
+        onClose={closeModal}
+        title={`Rename Subcategory — ${modalSub ?? ''}`}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setRenameSub(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
           <Button size="sm" onClick={handleRenameSub}>Save Changes</Button>
         </>}
       >
-        <FormField label="Subcategory Name" required error={renameSub?.error}>
-          <Input value={renameSub?.value ?? ''} onChange={e => setRenameSub(r => ({ ...r, value: e.target.value, error: '' }))} />
+        <FormField label="Subcategory Name" required error={renameSubError}>
+          <Input value={renameSubValue} onChange={e => { setRenameSubValue(e.target.value); setRenameSubError('') }} />
         </FormField>
       </Modal>
 
-      {/* Delete Category */}
+      {/* Delete Category — ?section=complaint-categories&modal=delete-category&name=<category> */}
       {deleteCategoryTarget && deleteCategoryTicketCount > 0 && (
         <Modal
           isOpen
-          onClose={() => setDeleteCategoryTarget(null)}
+          onClose={closeModal}
           title="Cannot Delete Category"
           size="sm"
-          footer={<Button onClick={() => setDeleteCategoryTarget(null)}>Got It</Button>}
+          footer={<Button onClick={closeModal}>Got It</Button>}
         >
           <div className="flex gap-3 items-start">
             <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
@@ -794,11 +830,11 @@ function ComplaintCategoriesTab() {
       {deleteCategoryTarget && deleteCategoryTicketCount === 0 && (
         <Modal
           isOpen
-          onClose={() => setDeleteCategoryTarget(null)}
+          onClose={closeModal}
           title="Delete Category"
           size="sm"
           footer={<>
-            <Button variant="secondary" size="sm" onClick={() => setDeleteCategoryTarget(null)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
             <Button variant="danger" size="sm" onClick={handleDeleteCategory}>Delete Category</Button>
           </>}
         >
@@ -809,14 +845,14 @@ function ComplaintCategoriesTab() {
         </Modal>
       )}
 
-      {/* Delete Subcategory */}
-      {deleteSub && deleteSubTicketCount > 0 && (
+      {/* Delete Subcategory — ?section=complaint-categories&modal=delete-subcategory&category=<cat>&sub=<sub> */}
+      {deleteSubDerived && deleteSubTicketCount > 0 && (
         <Modal
           isOpen
-          onClose={() => setDeleteSub(null)}
+          onClose={closeModal}
           title="Cannot Delete Subcategory"
           size="sm"
-          footer={<Button onClick={() => setDeleteSub(null)}>Got It</Button>}
+          footer={<Button onClick={closeModal}>Got It</Button>}
         >
           <div className="flex gap-3 items-start">
             <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
@@ -825,7 +861,7 @@ function ComplaintCategoriesTab() {
             <div>
               <p className="text-sm font-semibold text-gray-900 mb-1">
                 Cannot delete — <strong className="text-red-600">{deleteSubTicketCount} ticket{deleteSubTicketCount > 1 ? 's' : ''}</strong>{' '}
-                currently use "{deleteSub.name}".
+                currently use "{deleteSubDerived.name}".
               </p>
               <p className="text-sm text-gray-600">
                 Reassign or resolve those tickets first, or rename the subcategory instead of deleting it.
@@ -834,19 +870,19 @@ function ComplaintCategoriesTab() {
           </div>
         </Modal>
       )}
-      {deleteSub && deleteSubTicketCount === 0 && (
+      {deleteSubDerived && deleteSubTicketCount === 0 && (
         <Modal
           isOpen
-          onClose={() => setDeleteSub(null)}
+          onClose={closeModal}
           title="Delete Subcategory"
           size="sm"
           footer={<>
-            <Button variant="secondary" size="sm" onClick={() => setDeleteSub(null)}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
             <Button variant="danger" size="sm" onClick={handleDeleteSub}>Delete</Button>
           </>}
         >
           <p className="text-sm text-gray-600">
-            Are you sure you want to delete "<strong>{deleteSub.name}</strong>" from {deleteSub.category}? This action cannot be undone.
+            Are you sure you want to delete "<strong>{deleteSubDerived.name}</strong>" from {deleteSubDerived.category}? This action cannot be undone.
           </p>
         </Modal>
       )}
@@ -948,27 +984,49 @@ function ServerCard({ server, onEdit, onDelete }) {
 }
 
 function JazeServersTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [servers, setServers] = useState(INIT_SERVERS)
-  const [editServer, setEditServer] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', ip: '', port: '', type: 'RADIUS' })
+
+  const modalParam = searchParams.get('modal')
+  const modalId    = searchParams.get('id')
+
+  const editServer = modalParam === 'edit-server'
+    ? servers.find(s => String(s.id) === modalId) ?? null
+    : null
+  const showAdd = modalParam === 'add-server'
+
+  function openAdd() {
+    setForm({ name: '', ip: '', port: '', type: 'RADIUS' })
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-server'); next.delete('id'); return next })
+  }
+
+  function openEdit(sv) {
+    setForm({ name: sv.name, ip: sv.ip, port: sv.port, type: sv.type })
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-server'); next.set('id', String(sv.id)); return next })
+  }
+
+  function closeServerModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
+    setForm({ name: '', ip: '', port: '', type: 'RADIUS' })
+  }
+
+  useEffect(() => {
+    if (modalParam === 'edit-server' && editServer) {
+      setForm({ name: editServer.name, ip: editServer.ip, port: editServer.port, type: editServer.type })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam, modalId])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSave = () => {
     if (editServer) {
       setServers(s => s.map(x => x.id === editServer.id ? { ...editServer, ...form } : x))
-      setEditServer(null)
     } else {
       setServers(s => [...s, { ...form, id: Date.now(), status: 'online' }])
-      setShowAdd(false)
     }
-    setForm({ name: '', ip: '', port: '', type: 'RADIUS' })
-  }
-
-  const handleEdit = (sv) => {
-    setForm({ name: sv.name, ip: sv.ip, port: sv.port, type: sv.type })
-    setEditServer(sv)
+    closeServerModal()
   }
 
   const handleDelete = (id) => setServers(s => s.filter(x => x.id !== id))
@@ -986,7 +1044,7 @@ function JazeServersTab() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Test All</Button>
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => { setForm({ name: '', ip: '', port: '', type: 'RADIUS' }); setShowAdd(true) }}>
+          <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>
             Add Server
           </Button>
         </div>
@@ -994,18 +1052,18 @@ function JazeServersTab() {
 
       <div className="grid grid-cols-4 gap-3">
         {servers.map(sv => (
-          <ServerCard key={sv.id} server={sv} onEdit={handleEdit} onDelete={handleDelete} />
+          <ServerCard key={sv.id} server={sv} onEdit={openEdit} onDelete={handleDelete} />
         ))}
       </div>
 
       {/* Add / Edit modal */}
       <Modal
         isOpen={showAdd || !!editServer}
-        onClose={() => { setShowAdd(false); setEditServer(null) }}
+        onClose={closeServerModal}
         title={editServer ? `Edit Server — ${editServer.name}` : 'Add Jaze Server'}
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => { setShowAdd(false); setEditServer(null) }}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeServerModal}>Cancel</Button>
           <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>
             {editServer ? 'Save Changes' : 'Add Server'}
           </Button>
@@ -1034,6 +1092,7 @@ function JazeServersTab() {
 }
 
 function RolesTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
   // Role list and permissions both come straight from rolesStore.js — the
   // single source of truth now that RolesSettings.jsx (which used to own
   // "Add Role" and a fuller role list) has been retired.
@@ -1044,7 +1103,7 @@ function RolesTab() {
   )
   const role = roles.find(r => r.id === activeRoleId) ?? null
 
-  const [showAddRole, setShowAddRole] = useState(false)
+  const showAddRole = searchParams.get('modal') === 'add-role'
   const [newRole, setNewRole] = useState({ name: '', description: '' })
 
   // Which modules' granular checklists (see MICRO_PERMISSION_MODULES) are
@@ -1106,7 +1165,11 @@ function RolesTab() {
 
   function openAddRole() {
     setNewRole({ name: '', description: '' })
-    setShowAddRole(true)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-role'); return next })
+  }
+
+  function closeAddRole() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
   }
 
   // Ported from RolesSettings.jsx's working Add Role flow: a fresh
@@ -1124,7 +1187,7 @@ function RolesTab() {
     const updated = getRoles()
     const created = updated[updated.length - 1]
     if (created) setActiveRoleId(created.id)
-    setShowAddRole(false)
+    closeAddRole()
   }
 
   return (
@@ -1263,11 +1326,11 @@ function RolesTab() {
           the matrix above after creating. */}
       <Modal
         isOpen={showAddRole}
-        onClose={() => setShowAddRole(false)}
+        onClose={closeAddRole}
         title="Add Role"
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setShowAddRole(false)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeAddRole}>Cancel</Button>
           <Button size="sm" onClick={handleAddRole} disabled={!newRole.name.trim()}>Create Role</Button>
         </>}>
         <div className="space-y-4">
@@ -1295,11 +1358,22 @@ const INIT_ZONES = [
 ]
 
 function ZoneTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [zones, setZones] = useState(INIT_ZONES)
-  const [addModal, setAddModal] = useState(false)
   const [menuOpen, setMenuOpen] = useState(null)
   const [shownPw, setShownPw] = useState({})
   const [form, setForm] = useState({ customerType: 'Cityline', zoneName: '', zoneId: '', zoneUrl: '', username: '', password: '' })
+
+  const addModal = searchParams.get('modal') === 'add-zone'
+
+  function openAddZone() {
+    setForm({ customerType: 'Cityline', zoneName: '', zoneId: '', zoneUrl: '', username: '', password: '' })
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-zone'); return next })
+  }
+
+  function closeAddZone() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
+  }
 
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -1310,7 +1384,7 @@ function ZoneTab() {
           <h2 className="text-base font-semibold text-gray-900">Zone Management</h2>
           <p className="text-xs text-gray-500 mt-1">Configure Jaze ISP zone connections</p>
         </div>
-        <button onClick={() => { setForm({ customerType: 'Cityline', zoneName: '', zoneId: '', zoneUrl: '', username: '', password: '' }); setAddModal(true) }}
+        <button onClick={openAddZone}
           className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600">
           <Plus size={15} /> Add Zone
         </button>
@@ -1383,7 +1457,7 @@ function ZoneTab() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
               <h2 className="font-semibold text-gray-800">Add Zone</h2>
-              <button onClick={() => setAddModal(false)}><X size={16} className="text-gray-400" /></button>
+              <button onClick={closeAddZone}><X size={16} className="text-gray-400" /></button>
             </div>
             <div className="p-5 space-y-3">
               <div>
@@ -1411,11 +1485,11 @@ function ZoneTab() {
                 </div>
               ))}
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setAddModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button onClick={closeAddZone} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
                 <button onClick={() => {
                   if (!form.zoneName || !form.zoneId) return
                   setZones(prev => [...prev, { id: Date.now(), ...form, addedDate: new Date().toISOString().slice(0, 10) }])
-                  setAddModal(false)
+                  closeAddZone()
                 }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Zone</button>
               </div>
             </div>
@@ -1502,32 +1576,43 @@ function MCPagination({ page, setPage, total }) {
 function MasterConfigTab() {
   const { tab } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const sub = MASTER_SUB_TABS.find(t => t.slug === tab)?.label ?? 'Tenure'
   if (!tab) return <Navigate to="/settings/master-config/tenure" replace />
 
+  const modalParam = searchParams.get('modal')
+
+  function openMCModal(name) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', name); return next })
+  }
+
+  function closeMCModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); return next })
+  }
+
   // Tenure state
   const [tenures, setTenures] = useState(INIT_MC_TENURES)
-  const [tenureModal, setTenureModal] = useState(false)
+  const tenureModal = modalParam === 'add-tenure'
   const [tenureForm, setTenureForm] = useState({ name: '', months: '', description: '' })
   const [tenurePage, setTenurePage] = useState(1)
 
   // Bandwidth state
   const [bandwidths, setBandwidths] = useState(INIT_MC_BANDWIDTHS)
-  const [bwModal, setBwModal] = useState(false)
+  const bwModal = modalParam === 'add-bandwidth'
   const [bwForm, setBwForm] = useState({ speed: '', unit: 'Mbps', description: '' })
   const [bwPage, setBwPage] = useState(1)
 
   // Landline state
   const [landlines, setLandlines] = useState(MOCK_LANDLINES)
-  const [landlineModal, setLandlineModal] = useState(false)
-  const [landlineBulkModal, setLandlineBulkModal] = useState(false)
+  const landlineModal = modalParam === 'add-landline'
+  const landlineBulkModal = modalParam === 'bulk-import-landline'
   const [landlineForm, setLandlineForm] = useState({ number: '', status: 'Available' })
   const [landlinePage, setLandlinePage] = useState(1)
 
   // Static IP state
   const [staticIps, setStaticIps] = useState(MOCK_STATIC_IPS)
-  const [ipModal, setIpModal] = useState(false)
-  const [ipBulkModal, setIpBulkModal] = useState(false)
+  const ipModal = modalParam === 'add-ip'
+  const ipBulkModal = modalParam === 'bulk-import-ip'
   const [ipForm, setIpForm] = useState({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
   const [ipPage, setIpPage] = useState(1)
 
@@ -1560,7 +1645,7 @@ function MasterConfigTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Tenure Options</h3>
-            <button onClick={() => setTenureModal(true)}
+            <button onClick={() => openMCModal('add-tenure')}
               className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
               <Plus size={13} /> Add Tenure
             </button>
@@ -1596,7 +1681,7 @@ function MasterConfigTab() {
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="font-semibold text-gray-800">Add Tenure</h2>
-                  <button onClick={() => setTenureModal(false)}><X size={16} className="text-gray-400" /></button>
+                  <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-3">
                   {[['Tenure Name *','name','e.g. 12+1'],['Total Months *','months','e.g. 13'],['Description','description','']].map(([lbl,k,ph]) => (
@@ -1607,12 +1692,12 @@ function MasterConfigTab() {
                     </div>
                   ))}
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => setTenureModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={closeMCModal} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
                     <button onClick={() => {
                       if (!tenureForm.name || !tenureForm.months) return
                       setTenures(prev => [...prev, { id: Date.now(), name: tenureForm.name, months: Number(tenureForm.months), description: tenureForm.description, status: 'Active' }])
                       setTenureForm({ name: '', months: '', description: '' })
-                      setTenureModal(false)
+                      closeMCModal()
                     }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
                   </div>
                 </div>
@@ -1627,7 +1712,7 @@ function MasterConfigTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Bandwidth Options</h3>
-            <button onClick={() => setBwModal(true)}
+            <button onClick={() => openMCModal('add-bandwidth')}
               className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
               <Plus size={13} /> Add Bandwidth
             </button>
@@ -1663,7 +1748,7 @@ function MasterConfigTab() {
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="font-semibold text-gray-800">Add Bandwidth</h2>
-                  <button onClick={() => setBwModal(false)}><X size={16} className="text-gray-400" /></button>
+                  <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
@@ -1683,12 +1768,12 @@ function MasterConfigTab() {
                     <input value={bwForm.description} onChange={e => setBwForm(f=>({...f,description:e.target.value}))} className={inp} />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => setBwModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={closeMCModal} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
                     <button onClick={() => {
                       if (!bwForm.speed) return
                       setBandwidths(prev => [...prev, { id: Date.now(), speed: Number(bwForm.speed), unit: bwForm.unit, description: bwForm.description, status: 'Active' }])
                       setBwForm({ speed: '', unit: 'Mbps', description: '' })
-                      setBwModal(false)
+                      closeMCModal()
                     }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add</button>
                   </div>
                 </div>
@@ -1704,11 +1789,11 @@ function MasterConfigTab() {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Landline Number Pool</h3>
             <div className="flex gap-2">
-              <button onClick={() => setLandlineBulkModal(true)}
+              <button onClick={() => openMCModal('bulk-import-landline')}
                 className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
                 📥 Bulk Import
               </button>
-              <button onClick={() => setLandlineModal(true)}
+              <button onClick={() => openMCModal('add-landline')}
                 className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
                 <Plus size={13} /> Add Number
               </button>
@@ -1749,7 +1834,7 @@ function MasterConfigTab() {
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="font-semibold text-gray-800">Add Landline Number</h2>
-                  <button onClick={() => setLandlineModal(false)}><X size={16} className="text-gray-400" /></button>
+                  <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-3">
                   <div>
@@ -1764,12 +1849,12 @@ function MasterConfigTab() {
                     </select>
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => setLandlineModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={closeMCModal} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
                     <button onClick={() => {
                       if (!landlineForm.number) return
                       setLandlines(prev => [...prev, { id: Date.now(), number: landlineForm.number, status: landlineForm.status, assignedTo: null, customer: null, assignedDate: null }])
                       setLandlineForm({ number: '', status: 'Available' })
-                      setLandlineModal(false)
+                      closeMCModal()
                     }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Number</button>
                   </div>
                 </div>
@@ -1781,7 +1866,7 @@ function MasterConfigTab() {
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="font-semibold text-gray-800">Bulk Import Numbers</h2>
-                  <button onClick={() => setLandlineBulkModal(false)}><X size={16} className="text-gray-400" /></button>
+                  <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-4">
                   <button className="w-full flex items-center justify-center gap-2 border border-dashed border-[#0A8DCD] rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">
@@ -1792,7 +1877,7 @@ function MasterConfigTab() {
                     <p className="text-sm">Drop Excel file here or click to upload</p>
                     <p className="text-xs mt-1">Supports .xlsx, .csv</p>
                   </div>
-                  <button onClick={() => setLandlineBulkModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                  <button onClick={closeMCModal} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
                 </div>
               </div>
             </div>
@@ -1806,11 +1891,11 @@ function MasterConfigTab() {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Static IP Pool</h3>
             <div className="flex gap-2">
-              <button onClick={() => setIpBulkModal(true)}
+              <button onClick={() => openMCModal('bulk-import-ip')}
                 className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
                 📥 Bulk Import
               </button>
-              <button onClick={() => setIpModal(true)}
+              <button onClick={() => openMCModal('add-ip')}
                 className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
                 <Plus size={13} /> Add IP
               </button>
@@ -1852,7 +1937,7 @@ function MasterConfigTab() {
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="font-semibold text-gray-800">Add Static IP</h2>
-                  <button onClick={() => setIpModal(false)}><X size={16} className="text-gray-400" /></button>
+                  <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-3">
                   {[['IP Address *','ip','e.g. 103.21.58.10'],['Subnet Mask *','subnet','e.g. 255.255.255.0'],['Gateway *','gateway','e.g. 103.21.58.1'],['DNS Primary','dns1','e.g. 8.8.8.8'],['DNS Secondary','dns2','e.g. 8.8.4.4']].map(([lbl,k,ph]) => (
@@ -1862,12 +1947,12 @@ function MasterConfigTab() {
                     </div>
                   ))}
                   <div className="flex gap-3 pt-2">
-                    <button onClick={() => setIpModal(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={closeMCModal} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
                     <button onClick={() => {
                       if (!ipForm.ip) return
                       setStaticIps(prev => [...prev, { id: Date.now(), ip: ipForm.ip, subnet: ipForm.subnet, gateway: ipForm.gateway, status: 'Available', assignedTo: null, customer: null }])
                       setIpForm({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
-                      setIpModal(false)
+                      closeMCModal()
                     }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add IP</button>
                   </div>
                 </div>
@@ -1879,7 +1964,7 @@ function MasterConfigTab() {
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                   <h2 className="font-semibold text-gray-800">Bulk Import IPs</h2>
-                  <button onClick={() => setIpBulkModal(false)}><X size={16} className="text-gray-400" /></button>
+                  <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-4">
                   <button className="w-full flex items-center justify-center gap-2 border border-dashed border-[#0A8DCD] rounded-lg py-2 text-sm text-[#0A8DCD] hover:bg-blue-50">
@@ -1890,7 +1975,7 @@ function MasterConfigTab() {
                     <p className="text-sm">Drop Excel file here or click to upload</p>
                     <p className="text-xs mt-1">Supports .xlsx, .csv</p>
                   </div>
-                  <button onClick={() => setIpBulkModal(false)} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
+                  <button onClick={closeMCModal} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
                 </div>
               </div>
             </div>
@@ -2030,16 +2115,23 @@ function ctEmptyTagForm(defaultType) {
 }
 
 function ServiceTagsPanel({ filterType, onFilterChange, onBack }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const customerTypes = getCustomerTypes()
 
   const [tags, setTags] = useState(getServiceTags)
-  const [modalTag, setModalTag] = useState(null) // existing tag being edited, or null
-  const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(() => ctEmptyTagForm(customerTypes[0]?.id))
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [dragIndex, setDragIndex] = useState(null)
   const [overIndex, setOverIndex] = useState(null)
+
+  const modalParam  = searchParams.get('modal')
+  const modalTagId  = searchParams.get('tagId')
+
+  const showModal = modalParam === 'add-service-tag' || modalParam === 'edit-service-tag'
+  const modalTag  = modalParam === 'edit-service-tag'
+    ? tags.find(t => String(t.id) === modalTagId) ?? null
+    : null
 
   useEffect(() => subscribeServiceTags(setTags), [])
 
@@ -2049,6 +2141,23 @@ function ServiceTagsPanel({ filterType, onFilterChange, onBack }) {
       return () => clearTimeout(t)
     }
   }, [toast])
+
+  useEffect(() => {
+    if (modalParam === 'add-service-tag') {
+      const defaultType = filterType !== 'all' ? filterType : customerTypes[0]?.id
+      setForm(ctEmptyTagForm(defaultType))
+      setError('')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam])
+
+  useEffect(() => {
+    if (modalParam === 'edit-service-tag' && modalTag) {
+      setForm({ name: modalTag.name, customerType: modalTag.customerType, status: modalTag.status, displayOrder: modalTag.displayOrder })
+      setError('')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam, modalTagId])
 
   const filtered = filterType === 'all' ? tags : tags.filter(t => t.customerType === filterType)
 
@@ -2063,22 +2172,19 @@ function ServiceTagsPanel({ filterType, onFilterChange, onBack }) {
 
   function openAdd() {
     const defaultType = filterType !== 'all' ? filterType : customerTypes[0]?.id
-    setModalTag(null)
     setForm(ctEmptyTagForm(defaultType))
     setError('')
-    setShowModal(true)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-service-tag'); next.delete('tagId'); return next })
   }
 
   function openEdit(tag) {
-    setModalTag(tag)
     setForm({ name: tag.name, customerType: tag.customerType, status: tag.status, displayOrder: tag.displayOrder })
     setError('')
-    setShowModal(true)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-service-tag'); next.set('tagId', String(tag.id)); return next })
   }
 
   function closeModal() {
-    setShowModal(false)
-    setModalTag(null)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('tagId'); return next })
   }
 
   function handleSave() {
@@ -3436,12 +3542,19 @@ function partnerToForm(partner) {
 }
 
 function PartnerTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [partners, setPartners] = useState(getPartners)
-  const [modalPartner, setModalPartner] = useState(null)
-  const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(partnerEmptyForm)
   const [errors, setErrors] = useState({})
   const [toast, setToast] = useState('')
+
+  const modalParam     = searchParams.get('modal')
+  const modalPartnerId = searchParams.get('id')
+
+  const showModal    = modalParam === 'add-partner' || modalParam === 'edit-partner'
+  const modalPartner = modalParam === 'edit-partner'
+    ? partners.find(p => String(p.id) === modalPartnerId) ?? null
+    : null
 
   useEffect(() => subscribePartners(setPartners), [])
 
@@ -3452,28 +3565,35 @@ function PartnerTab() {
     }
   }, [toast])
 
+  useEffect(() => {
+    if (modalParam === 'add-partner') { setForm(partnerEmptyForm()); setErrors({}) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam])
+
+  useEffect(() => {
+    if (modalParam === 'edit-partner' && modalPartner) { setForm(partnerToForm(modalPartner)); setErrors({}) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam, modalPartnerId])
+
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
   }
 
   function openAdd() {
-    setModalPartner(null)
     setForm(partnerEmptyForm())
     setErrors({})
-    setShowModal(true)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-partner'); next.delete('id'); return next })
   }
 
   function openEdit(partner) {
-    setModalPartner(partner)
     setForm(partnerToForm(partner))
     setErrors({})
-    setShowModal(true)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-partner'); next.set('id', String(partner.id)); return next })
   }
 
   function closeModal() {
-    setShowModal(false)
-    setModalPartner(null)
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
   }
 
   function validate() {
