@@ -339,7 +339,29 @@ export default function FeasibilityDetail() {
   }
 
   // Modals
-  const [showAddHardware, setShowAddHardware] = useState(false)
+  // ?modal=add-hardware opens the Add Hardware picker — same ?modal=
+  // URL-param pattern as the other modals on this page (and the same
+  // slug SupportTicketDetail.jsx's own AddHardwareModal usage already
+  // uses), so it's shareable/bookmarkable and reopens automatically on
+  // load instead of only via the "Add Hardware" button's click handler.
+  const addHardwareModalOpen = searchParams.get('modal') === 'add-hardware'
+
+  function openAddHardware() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-hardware')
+      return next
+    })
+  }
+
+  function closeAddHardware() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('category')
+      return next
+    })
+  }
 
   // Header "Actions" dropdown — consolidates the Assign Engineer/Approve/
   // Reject triggers into one menu; same close-on-outside-click pattern as
@@ -607,7 +629,7 @@ export default function FeasibilityDetail() {
   function handleAddHardware(items) {
     if (items.length === 0) return
     saveFeasibilityRequest({ ...req, hardwareItems: [...(req.hardwareItems ?? []), ...items] })
-    setShowAddHardware(false)
+    closeAddHardware()
     setToast('Hardware added successfully')
   }
 
@@ -910,7 +932,7 @@ export default function FeasibilityDetail() {
                 icon={Wrench}
                 headerAction={
                   <button
-                    onClick={() => setShowAddHardware(true)}
+                    onClick={openAddHardware}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     <Plus size={13} /> Add Hardware
@@ -1288,8 +1310,8 @@ export default function FeasibilityDetail() {
 
       {/* ── Add Hardware Modal (shared Chargeable/Non-Chargeable picker) ── */}
       <AddHardwareModal
-        open={showAddHardware}
-        onClose={() => setShowAddHardware(false)}
+        open={addHardwareModalOpen}
+        onClose={closeAddHardware}
         onAdd={handleAddHardware}
       />
 
