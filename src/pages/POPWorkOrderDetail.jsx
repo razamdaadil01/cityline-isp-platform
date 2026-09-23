@@ -401,14 +401,14 @@ export default function POPWorkOrderDetail() {
       setSaveError('Could not close this Work Order — supervisor approval is required first.')
       return
     }
-    navigate('/network/pops/work-orders')
+    navigate(isEditing ? `/network/pops/work-orders/${saved.id}` : '/network/pops/work-orders')
   }
 
   return (
     <div className="p-6 pb-10">
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate('/network/pops/work-orders')}
+          onClick={() => navigate(isEditing ? `/network/pops/work-orders/${existing.id}` : '/network/pops/work-orders')}
           className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border bg-white hover:bg-gray-50 text-gray-500 transition-colors"
         >
           <ArrowLeft size={16} />
