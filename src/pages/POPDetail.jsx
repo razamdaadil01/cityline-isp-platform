@@ -236,7 +236,7 @@ export default function POPDetail() {
 
     const showsLandlordFields = OWNERSHIP_NEEDING_LANDLORD.includes(siteOwnership)
 
-    savePOP({
+    const saved = savePOP({
       id: existing?.id,
       name: name.trim(),
       popType,
@@ -263,7 +263,7 @@ export default function POPDetail() {
       status,
       equipment: cleanedEquipment,
     })
-    navigate('/network/pops')
+    navigate(saved?.id ? `/network/pops/${saved.id}` : '/network/pops')
   }
 
   const showsLandlordFields = OWNERSHIP_NEEDING_LANDLORD.includes(siteOwnership)
@@ -273,7 +273,7 @@ export default function POPDetail() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/network/pops')}
+            onClick={() => navigate(isEditing ? `/network/pops/${existing.id}` : '/network/pops')}
             className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border bg-white hover:bg-gray-50 text-gray-500 transition-colors"
           >
             <ArrowLeft size={16} />

@@ -65,6 +65,7 @@ import NetworkServers from './pages/NetworkServers'
 import POPManagement from './pages/POPManagement'
 import POPDashboard from './pages/POPDashboard'
 import POPDetail from './pages/POPDetail'
+import POPView from './pages/POPView'
 import POPWorkOrders from './pages/POPWorkOrders'
 import POPWorkOrderDetail from './pages/POPWorkOrderDetail'
 import POPInventory from './pages/POPInventory'
@@ -214,7 +215,8 @@ export default function App() {
           <Route path="/network/pops/work-orders/:id" element={<POPWorkOrderDetail />} />
           <Route path="/network/pops/reports" element={<POPReports />} />
           <Route path="/network/pops/:id/inventory" element={<POPInventory />} />
-          <Route path="/network/pops/:id" element={<POPDetail />} />
+          <Route path="/network/pops/:id/edit" element={<POPDetail />} />
+          <Route path="/network/pops/:id" element={<POPView />} />
           <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
           <Route path="/inventory/overview" element={<InventoryOverview />} />
           <Route path="/inventory/products" element={<ProductList />} />
