@@ -899,9 +899,13 @@ export default function InstallationDetail() {
           <Button variant="secondary" size="sm" onClick={() => setCompleteOpen(false)}>Cancel</Button>
           <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700"
             onClick={() => {
-              const customer = doStatus('Completed', { _note: 'Installation completed successfully' })
+              const result = doStatus('Completed', { _note: 'Installation completed successfully' })
               setCompleteOpen(false)
-              setToast(customer ? `Installation completed — Customer record created: ${customer.id}` : 'Installation marked as Completed')
+              if (result?.ekycBlocked) {
+                setToast(`Cannot complete: ${result.reason}`)
+              } else {
+                setToast(result ? `Installation completed — Customer record created: ${result.id}` : 'Installation marked as Completed')
+              }
             }}>
             <CheckCircle2 size={13} className="mr-1" /> Mark Completed
           </Button>

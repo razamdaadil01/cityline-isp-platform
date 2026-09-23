@@ -7,6 +7,7 @@ import {
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
   Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical, RotateCcw, Banknote,
+  UploadCloud, FileSignature, Shield,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
@@ -99,6 +100,13 @@ function formatTimer(secs) {
 function maskPhone(phone) {
   if (!phone || phone.length < 3) return phone
   return 'X'.repeat(phone.length - 3) + phone.slice(-3)
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const EKYC_TAB_STATUS_BADGE = {
@@ -1964,6 +1972,14 @@ const TAB_PATH_TO_KEY = {
   'stage-history': 'stageHistory',
   'activity-log':  'activity',
   'package':       'package',
+  'document':      'document',
+}
+
+// ── Document tab — E-Sign status badge ────────────────────────────────────────
+const DOC_EKYC_STATUS_BADGE = {
+  'Not Started': 'gray',
+  'In Progress': 'yellow',
+  'Completed':   'green',
 }
 
 // ── EditFuModal ────────────────────────────────────────────────────────────────
@@ -2486,6 +2502,12 @@ export default function SalesLeadDetail() {
   // eKYC tab — local (non-persisted) UI state; verification status/results live on lead.ekyc
   const [ekycIdentifier, setEkycIdentifier] = useState('')
   const [ekycCheckResult, setEkycCheckResult] = useState(null)
+
+  // Document tab state
+  const [esignToast, setEsignToast] = useState(null)
+  const [esignConfirmOpen, setEsignConfirmOpen] = useState(false)
+  const docUploadRef = useRef(null)
+
   const [fuToast, setFuToast] = useState(null)
   const [expandedRemarks, setExpandedRemarks] = useState(new Set())
   const [remarkInputs, setRemarkInputs] = useState({})
@@ -2670,6 +2692,90 @@ export default function SalesLeadDetail() {
     setEkycCheckResult(null)
   }
 
+  // ── Document tab handlers ────────────────────────────────────────────────────
+
+  // "Send For E-Sign" — honest mock: no real e-sign backend; logs to Activity Log
+  // and shows a confirmation toast, same pattern as CustomerDetail's Send SMS.
+  function handleSendEsign() {
+    if (!lead) return
+    const entry = {
+      id: Date.now(),
+      icon: '✍️',
+      text: `E-sign request sent for document — awaiting recipient signature`,
+      user: lead.assigned ?? 'Admin',
+      time: 'just now',
+    }
+    saveLead({ ...lead, activityLog: [entry, ...(lead.activityLog ?? [])] })
+    setEsignConfirmOpen(false)
+    setEsignToast('E-sign request logged to Activity Log — no real e-sign gateway is connected.')
+    setTimeout(() => setEsignToast(null), 4000)
+  }
+
+  // Upload a document: read as base64 data URL, save onto lead.documents array.
+  // Follows the same readAsDataURL pattern as CustomerDetail's handleDocUpload.
+  function handleLeadDocUpload(file) {
+    if (!lead || !file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const docEntry = {
+        id: Date.now(),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        dataUrl: reader.result,
+        uploadedAt: new Date().toISOString(),
+        signed: false,
+      }
+      const activityEntry = {
+        id: Date.now() + 1,
+        icon: '📄',
+        text: `Document uploaded: ${file.name}`,
+        user: lead.assigned ?? 'Admin',
+        time: 'just now',
+      }
+      saveLead({
+        ...lead,
+        documents: [...(lead.documents ?? []), docEntry],
+        activityLog: [activityEntry, ...(lead.activityLog ?? [])],
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Delete a document from lead.documents by its id.
+  function handleLeadDocDelete(docId) {
+    if (!lead) return
+    saveLead({
+      ...lead,
+      documents: (lead.documents ?? []).filter(d => d.id !== docId),
+    })
+  }
+
+  // Document tab eKYC toggle — simple Not Started → In Progress → Completed
+  // status toggle; no real eKYC backend. Mirrors the "honest mock" pattern:
+  // each toggle logs to Activity Log and updates lead.ekycStatus directly.
+  function handleDocEkycToggle() {
+    if (!lead) return
+    const current = lead.ekycStatus ?? 'Not Started'
+    const next = (current === 'Not Started' || current === null)
+      ? 'In Progress'
+      : current === 'In Progress'
+        ? 'Completed'
+        : 'Completed' // already completed — no-op direction
+    const entry = {
+      id: Date.now(),
+      icon: '🔐',
+      text: `eKYC status updated to ${next}`,
+      user: lead.assigned ?? 'Admin',
+      time: 'just now',
+    }
+    saveLead({
+      ...lead,
+      ekycStatus: next,
+      activityLog: [entry, ...(lead.activityLog ?? [])],
+    })
+  }
+
   const PIPELINE_LABEL = { B2C: 'Residential', Custom: 'Custom', Enterprise: 'Enterprise' }
   // Same Customer Type pill treatment used on the Sales Pipeline table and
   // Customer List table (Residential = blue, Corporate/Enterprise = fuchsia).
@@ -2809,6 +2915,27 @@ export default function SalesLeadDetail() {
       movedBy: i === 0 ? (lead.createdBy ?? 'Arjun Kumar') : lead.assigned,
       fields: {},
     }))
+  })()
+
+  // Compute Stage Entered and Days in Stage from real stageHistory data.
+  // Walk backwards to find the most recent history entry for the current stage.
+  const currentStageHistoryEntry = (() => {
+    if (!stageHistory.length) return null
+    for (let i = stageHistory.length - 1; i >= 0; i--) {
+      if (stageHistory[i].stage === lead.stage) return stageHistory[i]
+    }
+    return stageHistory[stageHistory.length - 1]
+  })()
+  const stageEnteredDate = currentStageHistoryEntry?.date ?? TODAY
+  const realDaysInStage = Math.max(0, Math.round((new Date(TODAY) - new Date(stageEnteredDate)) / 86400000))
+
+  // Derive Document-tab eKYC status from lead.ekycStatus (simple string field).
+  // Maps legacy 'Sent' value to 'In Progress' for consistent display.
+  const docEkycStatus = (() => {
+    const s = lead.ekycStatus
+    if (s === 'Completed') return 'Completed'
+    if (s === 'In Progress' || s === 'Sent') return 'In Progress'
+    return 'Not Started'
   })()
 
 
@@ -3155,6 +3282,7 @@ export default function SalesLeadDetail() {
     { key: 'stageHistory', path: 'stage-history', label: 'Stage History', icon: TrendingUp },
     { key: 'activity',     path: 'activity-log',  label: 'Activity Log',  icon: Activity },
     { key: 'package',      path: 'package',       label: 'Package',       icon: Package },
+    { key: 'document',     path: 'document',      label: 'Document',      icon: FileSignature },
   ]
 
   const FU_STATUS_STYLE = {
@@ -4157,6 +4285,135 @@ export default function SalesLeadDetail() {
               })()}
             </div>
           )}
+
+          {/* ─── DOCUMENT ─────────────────────────────────────────────── */}
+          {activeTab === 'document' && (
+            <div>
+              {/* Document E-Sign card */}
+              <Card padding={false}>
+                {/* Card header */}
+                <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileSignature size={16} className="text-brand-blue" />
+                    <h3 className="text-sm font-semibold text-gray-800">Document E-Sign</h3>
+                  </div>
+                  {/* Send For E-Sign — honest mock: no real e-sign backend.
+                      Logs to Activity Log (same pattern as Send SMS for customers). */}
+                  <Button
+                    size="sm"
+                    icon={<Send size={13} />}
+                    onClick={() => setEsignConfirmOpen(true)}
+                  >
+                    Send For E-Sign
+                  </Button>
+                </div>
+
+                <div className="px-5 py-5 space-y-6">
+                  {/* Upload Document area */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-gray-700">Upload Document</p>
+                      <input
+                        ref={docUploadRef}
+                        type="file"
+                        accept="application/pdf,image/*,.doc,.docx"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files[0]
+                          if (file) handleLeadDocUpload(file)
+                          e.target.value = ''
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => docUploadRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-blue/10 text-brand-blue border border-brand-blue/20 hover:bg-brand-blue/15 transition-colors"
+                      >
+                        <UploadCloud size={13} /> + Select Doc
+                      </button>
+                    </div>
+
+                    {/* Uploaded documents list */}
+                    {(lead.documents ?? []).length === 0 ? (
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/40 py-10 text-center">
+                        <UploadCloud size={20} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm text-gray-400">No documents uploaded yet</p>
+                        <p className="text-xs text-gray-300 mt-1">Click "+ Select Doc" to upload a file</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(lead.documents ?? []).map(doc => (
+                          <div key={doc.id} className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-surface-border rounded-xl">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                                <FileText size={14} className="text-brand-blue" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-400">{formatFileSize(doc.size)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Uploaded</span>
+                              <button
+                                type="button"
+                                onClick={() => handleLeadDocDelete(doc.id)}
+                                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                title="Remove document"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Signed Document section */}
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-3">Signed Document</p>
+                    {(lead.documents ?? []).filter(d => d.signed).length === 0 ? (
+                      <div className="border-2 border-dashed border-emerald-100 rounded-xl bg-emerald-50/30 py-8 text-center">
+                        <CheckCircle2 size={18} className="mx-auto text-emerald-200 mb-2" />
+                        <p className="text-sm text-gray-400">No signed documents yet</p>
+                        <p className="text-xs text-gray-300 mt-1">Signed documents will appear here after e-signature</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(lead.documents ?? []).filter(d => d.signed).map(doc => (
+                          <div key={doc.id} className="flex items-center justify-between px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                                <CheckCircle2 size={14} className="text-emerald-600" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-400">{formatFileSize(doc.size)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <CheckCircle2 size={10} /> Signed
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleLeadDocDelete(doc.id)}
+                                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                title="Remove document"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
       </div>
 
         </div>
@@ -4164,56 +4421,8 @@ export default function SalesLeadDetail() {
         {/* ── RIGHT SIDEBAR ── */}
         <div className="w-full lg:w-72 shrink-0 space-y-4 lg:sticky lg:top-4">
 
-          {/* Installation — when lead is in Installation Visit stage */}
-          {lead.stage === 'Installation Visit' && linkedInstallation && (
-            <div className="bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
-                  <Wrench size={14} className="text-orange-600" />
-                </div>
-                <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Installation</p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-                  <span className="text-xs text-gray-500 shrink-0">ID</span>
-                  <a
-                    href={`/installations/${linkedInstallation.id}`}
-                    className="text-xs font-semibold text-brand-blue hover:underline"
-                    onClick={e => { e.preventDefault(); navigate(`/installations/${linkedInstallation.id}`) }}
-                  >
-                    {linkedInstallation.id}
-                  </a>
-                </div>
-                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-                  <span className="text-xs text-gray-500 shrink-0">Slot</span>
-                  <span className="text-xs font-medium text-gray-800 text-right">
-                    {linkedInstallation.slotDate} · {linkedInstallation.slotTime}
-                  </span>
-                </div>
-                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
-                  <span className="text-xs text-gray-500 shrink-0">Engineer</span>
-                  <span className="text-xs font-medium text-gray-800 text-right">
-                    {linkedInstallation.engineerName ?? '—'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="text-xs text-gray-500">Status</span>
-                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${{
-                    'Pending':     'bg-gray-100 text-gray-500',
-                    'Assigned':    'bg-blue-100 text-blue-700',
-                    'Scheduled':   'bg-purple-100 text-purple-700',
-                    'In Progress': 'bg-amber-100 text-amber-700',
-                    'Completed':   'bg-emerald-100 text-emerald-700',
-                    'Cancelled':   'bg-red-100 text-red-600',
-                  }[linkedInstallation.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                    {linkedInstallation.status}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Current Stage Info — moved here from the main content column */}
+          {/* Current Stage Info — Stage Entered and Days in Stage are computed
+              from real stageHistory data, not the lead.daysInStage approximation. */}
           <div className="bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
             <div className="flex items-center gap-2.5 mb-3">
               <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
@@ -4232,32 +4441,111 @@ export default function SalesLeadDetail() {
               </div>
               <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
                 <span className="text-xs text-gray-500 shrink-0">Stage Entered</span>
-                <span className="text-xs font-medium text-gray-800 text-right">
-                  {(() => { const d = new Date(); d.setDate(d.getDate() - lead.daysInStage); return d.toISOString().split('T')[0] })()}
-                </span>
+                <span className="text-xs font-medium text-gray-800 text-right">{stageEnteredDate}</span>
               </div>
               <div className="flex items-center justify-between gap-2 pt-1">
                 <span className="text-xs text-gray-500">Days in Stage</span>
                 <span className="text-xs font-medium text-gray-800">
-                  {`${lead.daysInStage} day${lead.daysInStage !== 1 ? 's' : ''}`}
+                  {`${realDaysInStage} day${realDaysInStage !== 1 ? 's' : ''}`}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* eKYC Verification — opens the "Send eKYC" popup for the full flow */}
+          {/* Installation — always shown; sourced from the real Installation record
+              linked to this lead (if one exists), with a "Not scheduled yet" fallback. */}
+          <div className="bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
+                <Wrench size={14} className="text-orange-600" />
+              </div>
+              <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Installation</p>
+            </div>
+            {linkedInstallation ? (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 shrink-0">ID</span>
+                  <a
+                    href={`/installations/${linkedInstallation.id}`}
+                    className="text-xs font-semibold text-brand-blue hover:underline"
+                    onClick={e => { e.preventDefault(); navigate(`/installations/${linkedInstallation.id}`) }}
+                  >
+                    {linkedInstallation.id}
+                  </a>
+                </div>
+                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 shrink-0">Slot</span>
+                  <span className="text-xs font-medium text-gray-800 text-right">
+                    {linkedInstallation.slotDate} · {linkedInstallation.slotTime}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2 py-1.5 border-b border-gray-50">
+                  <span className="text-xs text-gray-500 shrink-0">Engineer(s)</span>
+                  <span className="text-xs font-medium text-gray-800 text-right">
+                    {linkedInstallation.engineerName ?? '—'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-gray-500">Status</span>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${{
+                    'Pending':                       'bg-gray-100 text-gray-500',
+                    'Assigned':                      'bg-blue-100 text-blue-700',
+                    'Scheduled':                     'bg-purple-100 text-purple-700',
+                    'In Progress':                   'bg-amber-100 text-amber-700',
+                    'Hardware Collection Pending':   'bg-yellow-100 text-yellow-700',
+                    'Dispatched':                    'bg-orange-100 text-orange-700',
+                    'Completed':                     'bg-emerald-100 text-emerald-700',
+                    'Rescheduled':                   'bg-sky-100 text-sky-700',
+                    'Cancelled':                     'bg-red-100 text-red-600',
+                  }[linkedInstallation.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    {linkedInstallation.status}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-3">Not scheduled yet</p>
+            )}
+          </div>
+
+          {/* eKYC Verification — on the Document tab, shows a simple "Start eKYC"
+              toggle (Not Started → In Progress → Completed) that updates
+              lead.ekycStatus directly, consistent with this app's honest-mock
+              patterns. For other tabs, the existing "Send eKYC" modal is accessible
+              via the action dropdown. The note is shown on all tabs to reinforce
+              the business rule: eKYC must be Completed before Installation Done. */}
           <div className="bg-white rounded-xl border-2 border-purple-200 shadow-card py-5 px-4">
             <div className="flex items-center justify-between gap-2.5 mb-1">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                  <Fingerprint size={15} className="text-purple-600" />
+                  <Shield size={15} className="text-purple-600" />
                 </div>
                 <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">eKYC Verification</p>
               </div>
-              <Badge variant={EKYC_TAB_STATUS_BADGE[ekycStatus] ?? 'gray'} size="sm">{ekycStatus}</Badge>
+              <Badge variant={DOC_EKYC_STATUS_BADGE[docEkycStatus] ?? 'gray'} size="sm">{docEkycStatus}</Badge>
             </div>
-            {ekycStatus === 'Verified' && ekycVerifiedAt ? (
-              <p className="text-xs text-gray-500 mt-2">Verified {formatEkycTimestamp(ekycVerifiedAt)}</p>
+            {docEkycStatus === 'Completed' ? (
+              <div className="flex items-center gap-1.5 mt-2">
+                <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                <p className="text-xs text-emerald-600 font-medium">eKYC Completed</p>
+              </div>
+            ) : activeTab === 'document' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleDocEkycToggle}
+                  className={`w-full mt-3 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg shadow-sm transition-colors
+                    ${docEkycStatus === 'In Progress'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                    }`}
+                >
+                  <Shield size={14} />
+                  {docEkycStatus === 'In Progress' ? 'Mark Completed' : 'Start eKYC'}
+                </button>
+                <p className="text-[11px] text-gray-400 text-center mt-2">
+                  eKYC must be completed before Installation Done can be marked.
+                </p>
+              </>
             ) : (
               <>
                 <button
@@ -4441,6 +4729,40 @@ export default function SalesLeadDetail() {
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
           {linkToast}
+        </div>
+      )}
+
+      {/* ── E-Sign confirmation modal ─────────────────────────────────────── */}
+      {/* Honest mock: no real e-sign backend — logs to Activity Log, same
+          pattern as Send SMS in CustomerDetail. */}
+      <Modal
+        isOpen={esignConfirmOpen}
+        onClose={() => setEsignConfirmOpen(false)}
+        title="Send For E-Sign"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setEsignConfirmOpen(false)}>Cancel</Button>
+            <Button size="sm" icon={<Send size={13} />} onClick={handleSendEsign}>Send E-Sign Request</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Send an e-sign request for the document to <span className="font-semibold">{lead?.name}</span>?
+          </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-amber-700">
+              <span className="font-semibold">Note:</span> No real e-sign gateway is connected. This action will log an e-sign request entry to the Activity Log.
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {esignToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none max-w-sm">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          {esignToast}
         </div>
       )}
     </div>

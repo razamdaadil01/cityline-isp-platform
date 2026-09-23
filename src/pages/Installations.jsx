@@ -554,9 +554,14 @@ export default function Installations() {
   }
 
   function handleNetComplete() {
-    const customer = updateInstallationStatus(netCompleteInst.id, 'Completed', { _note: 'Installation completed' })
+    const result = updateInstallationStatus(netCompleteInst.id, 'Completed', { _note: 'Installation completed' })
+    if (result?.ekycBlocked) {
+      setNetCompleteInst(null)
+      setToast(`Cannot complete: ${result.reason}`)
+      return
+    }
     setNetCompleteInst(null)
-    setToast(customer ? `Installation completed — Customer record created: ${customer.id}` : 'Installation marked as Completed')
+    setToast(result ? `Installation completed — Customer record created: ${result.id}` : 'Installation marked as Completed')
   }
 
   function handleNetCancel() {
