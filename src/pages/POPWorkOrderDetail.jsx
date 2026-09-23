@@ -274,7 +274,7 @@ export default function POPWorkOrderDetail() {
   const [hardwareNeed, setHardwareNeed] = useState(() =>
     existing?.hardwareNeed?.length
       ? existing.hardwareNeed.map(r => ({ id: `${r.productId}-${Math.random().toString(36).slice(2, 7)}`, productId: r.productId, quantity: String(r.quantity), reason: r.reason ?? '' }))
-      : []
+      : [emptyHardwareRow()]
   )
 
   const [requireSupervisorApproval, setRequireSupervisorApproval] = useState(existing?.requireSupervisorApproval ?? false)
