@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
   Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
-  Plus, Trash2, Check, Route, Download, ChevronDown,
+  Plus, Trash2, Check, Route, Download, ChevronDown, X,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -167,18 +167,76 @@ function Toast({ msg, onDone }) {
   )
 }
 
-/* ── Mock attachment placeholder ────────────────────────────────── */
-function AttachmentSlot({ label, icon: Icon }) {
+/* ── Attachment upload helpers ───────────────────────────────────── */
+// Same base64 / no-file-storage-backend convention as POPDetail.jsx's
+// Site Photos section and CustomerDetail.jsx's KYC document upload.
+function readFilesAsDataUrls(fileList) {
+  return Promise.all(Array.from(fileList).map(file =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({
+        name: file.name,
+        type: file.type,
+        dataUrl: reader.result,
+        uploadedAt: new Date().toISOString().split('T')[0],
+      })
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  ))
+}
+
+/* ── Multi-file upload slot ──────────────────────────────────────── */
+// Dropzone stays always visible so more files can be added at any time.
+// Uploaded images show as thumbnails; PDFs/others show as a filename row.
+function AttachmentSlot({ label, icon: Icon, files = [], onAdd, onRemove }) {
+  async function handleChange(e) {
+    if (!e.target.files?.length) return
+    const newFiles = await readFilesAsDataUrls(e.target.files)
+    onAdd(newFiles)
+    e.target.value = ''
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
-      <div className="border-2 border-dashed border-surface-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-brand-blue/40 hover:bg-blue-50/30 transition-colors cursor-pointer group">
+      <label className="border-2 border-dashed border-surface-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-brand-blue/40 hover:bg-blue-50/30 transition-colors cursor-pointer group">
+        <input
+          type="file"
+          multiple
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={handleChange}
+        />
         <div className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-brand-blue/10 flex items-center justify-center transition-colors">
           <Icon size={18} className="text-gray-400 group-hover:text-brand-blue transition-colors" />
         </div>
         <p className="text-xs text-gray-400 group-hover:text-brand-blue transition-colors font-medium">Click to upload</p>
         <p className="text-[10px] text-gray-300">PNG, JPG, PDF up to 10 MB</p>
-      </div>
+      </label>
+      {files.length > 0 && (
+        <div className="grid grid-cols-3 gap-1.5">
+          {files.map((f, idx) => (
+            <div key={idx} className="relative group/file rounded-lg overflow-hidden border border-surface-border bg-gray-50">
+              {f.type.startsWith('image/') ? (
+                <img src={f.dataUrl} alt={f.name} className="w-full h-16 object-cover" />
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-1 h-16 px-1">
+                  <FileText size={16} className="text-gray-400 shrink-0" />
+                  <p className="text-[9px] text-gray-500 text-center leading-tight break-all line-clamp-2">{f.name}</p>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => onRemove(idx)}
+                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -391,6 +449,15 @@ export default function FeasibilityDetail() {
   const [editingSegmentIndex, setEditingSegmentIndex] = useState(null)
 
   const [toast, setToast] = useState('')
+
+  // Attachment upload handlers — each section (siteImages, locationPhotos,
+  // supportingDocuments) stores an independent array on the feasibility record.
+  function handleAttachmentAdd(field, newFiles) {
+    saveFeasibilityRequest({ ...req, [field]: [...(req[field] ?? []), ...newFiles] })
+  }
+  function handleAttachmentRemove(field, idx) {
+    saveFeasibilityRequest({ ...req, [field]: (req[field] ?? []).filter((_, i) => i !== idx) })
+  }
 
   // ?modal=assign-engineer opens the same "Assign Engineer" modal used by
   // the Feasibility Requests list page's row action (see
@@ -995,9 +1062,27 @@ export default function FeasibilityDetail() {
         {activeTab === 'attachments' && (
           <Card title="Attachments" icon={Image}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <AttachmentSlot label="Site Images"           icon={Image} />
-              <AttachmentSlot label="Location Photos"       icon={MapPin} />
-              <AttachmentSlot label="Supporting Documents"  icon={FileText} />
+              <AttachmentSlot
+                label="Site Images"
+                icon={Image}
+                files={req.siteImages ?? []}
+                onAdd={files => handleAttachmentAdd('siteImages', files)}
+                onRemove={idx => handleAttachmentRemove('siteImages', idx)}
+              />
+              <AttachmentSlot
+                label="Location Photos"
+                icon={MapPin}
+                files={req.locationPhotos ?? []}
+                onAdd={files => handleAttachmentAdd('locationPhotos', files)}
+                onRemove={idx => handleAttachmentRemove('locationPhotos', idx)}
+              />
+              <AttachmentSlot
+                label="Supporting Documents"
+                icon={FileText}
+                files={req.supportingDocuments ?? []}
+                onAdd={files => handleAttachmentAdd('supportingDocuments', files)}
+                onRemove={idx => handleAttachmentRemove('supportingDocuments', idx)}
+              />
             </div>
           </Card>
         )}
