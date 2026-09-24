@@ -187,9 +187,11 @@ function readFilesAsDataUrls(fileList) {
 }
 
 /* ── Multi-file upload slot ──────────────────────────────────────── */
-// Dropzone stays always visible so more files can be added at any time.
-// Uploaded images show as thumbnails; PDFs/others show as a filename row.
+// "+ Add" button triggers the hidden file input; no permanent dropzone.
+// Images render as square thumbnails (5-per-row); PDFs show a file icon + name.
 function AttachmentSlot({ label, icon: Icon, files = [], onAdd, onRemove }) {
+  const inputRef = useRef(null)
+
   async function handleChange(e) {
     if (!e.target.files?.length) return
     const newFiles = await readFilesAsDataUrls(e.target.files)
@@ -198,30 +200,39 @@ function AttachmentSlot({ label, icon: Icon, files = [], onAdd, onRemove }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
-      <label className="border-2 border-dashed border-surface-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-brand-blue/40 hover:bg-blue-50/30 transition-colors cursor-pointer group">
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Icon size={14} className="text-gray-400 shrink-0" />
+          <p className="text-sm font-semibold text-gray-700">{label}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 hover:border-brand-blue/40 hover:text-brand-blue transition-colors"
+        >
+          <Plus size={12} /> Add
+        </button>
         <input
+          ref={inputRef}
           type="file"
           multiple
           accept="image/*,application/pdf"
           className="hidden"
           onChange={handleChange}
         />
-        <div className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-brand-blue/10 flex items-center justify-center transition-colors">
-          <Icon size={18} className="text-gray-400 group-hover:text-brand-blue transition-colors" />
-        </div>
-        <p className="text-xs text-gray-400 group-hover:text-brand-blue transition-colors font-medium">Click to upload</p>
-        <p className="text-[10px] text-gray-300">PNG, JPG, PDF up to 10 MB</p>
-      </label>
-      {files.length > 0 && (
-        <div className="grid grid-cols-3 gap-1.5">
+      </div>
+
+      {files.length === 0 ? (
+        <p className="text-xs text-gray-400 py-1">No {label.toLowerCase()} uploaded yet</p>
+      ) : (
+        <div className="grid grid-cols-5 gap-2">
           {files.map((f, idx) => (
-            <div key={idx} className="relative group/file rounded-lg overflow-hidden border border-surface-border bg-gray-50">
+            <div key={idx} className="relative group/file rounded-lg overflow-hidden border border-surface-border bg-gray-50 aspect-square">
               {f.type.startsWith('image/') ? (
-                <img src={f.dataUrl} alt={f.name} className="w-full h-16 object-cover" />
+                <img src={f.dataUrl} alt={f.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="flex flex-col items-center justify-center gap-1 h-16 px-1">
+                <div className="flex flex-col items-center justify-center gap-1 w-full h-full px-1 py-2">
                   <FileText size={16} className="text-gray-400 shrink-0" />
                   <p className="text-[9px] text-gray-500 text-center leading-tight break-all line-clamp-2">{f.name}</p>
                 </div>
@@ -1061,28 +1072,34 @@ export default function FeasibilityDetail() {
         {/* Attachments */}
         {activeTab === 'attachments' && (
           <Card title="Attachments" icon={Image}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <AttachmentSlot
-                label="Site Images"
-                icon={Image}
-                files={req.siteImages ?? []}
-                onAdd={files => handleAttachmentAdd('siteImages', files)}
-                onRemove={idx => handleAttachmentRemove('siteImages', idx)}
-              />
-              <AttachmentSlot
-                label="Location Photos"
-                icon={MapPin}
-                files={req.locationPhotos ?? []}
-                onAdd={files => handleAttachmentAdd('locationPhotos', files)}
-                onRemove={idx => handleAttachmentRemove('locationPhotos', idx)}
-              />
-              <AttachmentSlot
-                label="Supporting Documents"
-                icon={FileText}
-                files={req.supportingDocuments ?? []}
-                onAdd={files => handleAttachmentAdd('supportingDocuments', files)}
-                onRemove={idx => handleAttachmentRemove('supportingDocuments', idx)}
-              />
+            <div className="divide-y divide-surface-border">
+              <div className="pb-5">
+                <AttachmentSlot
+                  label="Site Images"
+                  icon={Image}
+                  files={req.siteImages ?? []}
+                  onAdd={files => handleAttachmentAdd('siteImages', files)}
+                  onRemove={idx => handleAttachmentRemove('siteImages', idx)}
+                />
+              </div>
+              <div className="py-5">
+                <AttachmentSlot
+                  label="Location Photos"
+                  icon={MapPin}
+                  files={req.locationPhotos ?? []}
+                  onAdd={files => handleAttachmentAdd('locationPhotos', files)}
+                  onRemove={idx => handleAttachmentRemove('locationPhotos', idx)}
+                />
+              </div>
+              <div className="pt-5">
+                <AttachmentSlot
+                  label="Supporting Documents"
+                  icon={FileText}
+                  files={req.supportingDocuments ?? []}
+                  onAdd={files => handleAttachmentAdd('supportingDocuments', files)}
+                  onRemove={idx => handleAttachmentRemove('supportingDocuments', idx)}
+                />
+              </div>
             </div>
           </Card>
         )}
