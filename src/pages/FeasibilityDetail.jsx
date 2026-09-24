@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
-  Phone, Mail, Calendar, FileText, Image, Upload, Wrench, Edit2, ExternalLink,
+  Phone, Mail, Calendar, FileText, Image, Upload, UploadCloud, Wrench, Edit2, ExternalLink,
   Plus, Trash2, Check, Route, Download, ChevronDown, X,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
@@ -62,6 +62,13 @@ const SEGMENT_STATUS_VARIANT = {
 const PROGRESS_STAGE_LABELS = ['Request Raised', 'Engineer Assigned', 'Feasibility Check', 'Approved / Rejected']
 
 /* ── Helpers ────────────────────────────────────────────────────── */
+
+function formatFileSize(bytes) {
+  if (!bytes) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -177,6 +184,7 @@ function readFilesAsDataUrls(fileList) {
       reader.onload = () => resolve({
         name: file.name,
         type: file.type,
+        size: file.size,
         dataUrl: reader.result,
         uploadedAt: new Date().toISOString().split('T')[0],
       })
@@ -187,8 +195,8 @@ function readFilesAsDataUrls(fileList) {
 }
 
 /* ── Multi-file upload slot ──────────────────────────────────────── */
-// "+ Add" button triggers the hidden file input; no permanent dropzone.
-// Images render as square thumbnails (5-per-row); PDFs show a file icon + name.
+// Matches the Lead Document tab's Upload Document pattern:
+// dashed empty-state box, then file rows with icon/name/size/badge/delete.
 function AttachmentSlot({ label, icon: Icon, files = [], onAdd, onRemove }) {
   const inputRef = useRef(null)
 
@@ -204,14 +212,14 @@ function AttachmentSlot({ label, icon: Icon, files = [], onAdd, onRemove }) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Icon size={14} className="text-gray-400 shrink-0" />
-          <p className="text-sm font-semibold text-gray-700">{label}</p>
+          <p className="text-sm font-medium text-gray-700">{label}</p>
         </div>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-surface-border bg-white text-gray-600 hover:bg-gray-50 hover:border-brand-blue/40 hover:text-brand-blue transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-blue/10 text-brand-blue border border-brand-blue/20 hover:bg-brand-blue/15 transition-colors"
         >
-          <Plus size={12} /> Add
+          <UploadCloud size={13} /> + Add
         </button>
         <input
           ref={inputRef}
@@ -224,26 +232,37 @@ function AttachmentSlot({ label, icon: Icon, files = [], onAdd, onRemove }) {
       </div>
 
       {files.length === 0 ? (
-        <p className="text-xs text-gray-400 py-1">No {label.toLowerCase()} uploaded yet</p>
+        <div className="border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/40 py-8 text-center">
+          <Icon size={18} className="mx-auto text-gray-300 mb-2" />
+          <p className="text-sm text-gray-400">No {label.toLowerCase()} uploaded yet</p>
+          <p className="text-xs text-gray-300 mt-1">Click "+ Add" to upload files</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-5 gap-2">
+        <div className="space-y-2">
           {files.map((f, idx) => (
-            <div key={idx} className="relative group/file rounded-lg overflow-hidden border border-surface-border bg-gray-50 aspect-square">
-              {f.type.startsWith('image/') ? (
-                <img src={f.dataUrl} alt={f.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-1 w-full h-full px-1 py-2">
-                  <FileText size={16} className="text-gray-400 shrink-0" />
-                  <p className="text-[9px] text-gray-500 text-center leading-tight break-all line-clamp-2">{f.name}</p>
+            <div key={idx} className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-surface-border rounded-xl">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                  {f.type.startsWith('image/')
+                    ? <Image size={14} className="text-brand-blue" />
+                    : <FileText size={14} className="text-brand-blue" />}
                 </div>
-              )}
-              <button
-                type="button"
-                onClick={() => onRemove(idx)}
-                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity"
-              >
-                <X size={10} />
-              </button>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{f.name}</p>
+                  <p className="text-xs text-gray-400">{formatFileSize(f.size)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Uploaded</span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(idx)}
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="Remove file"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
