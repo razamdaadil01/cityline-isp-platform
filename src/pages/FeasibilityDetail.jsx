@@ -3,31 +3,20 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, UserCheck, CheckCircle2, XCircle, MapPin, User,
   Phone, Mail, Calendar, FileText, Image, Upload, UploadCloud, Wrench, Edit2, ExternalLink,
-  Plus, Trash2, Check, Route, Download, ChevronDown, X,
+  Plus, Trash2, Check, Route, Download, ChevronDown, X, ArrowRight,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { FormField, Select, Input, Textarea } from '../components/ui/FormInputs'
 import AddHardwareModal from '../components/hardware/AddHardwareModal'
-import MoveStageModal from '../components/leads/MoveStageModal'
 import AssignEngineerModal from '../components/feasibility/AssignEngineerModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
-import { getPipelines } from '../data/pipelineStore'
-import { saveFollowup } from '../data/followupStore'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
-// Feasibility requests store their pipeline as the display name ("Residential",
-// "Enterprise" — see feasibilityStore.js), but MoveStageModal's findStageId
-// (shared from the Leads flow) looks pipelines up by the short key a lead
-// record carries in lead.pipeline ("B2C", "Enterprise" — see PIPELINE_MAP in
-// MoveStageModal.jsx). Without this translation, findStageId can't resolve a
-// stage id, stageFields comes back empty, and the modal silently falls back
-// to rendering nothing but its follow-up toggle.
-const PIPELINE_NAME_TO_KEY = { Residential: 'B2C', Enterprise: 'Enterprise' }
 
 const REJECTION_REASONS = [
   'Not Feasible — Too Far from Network',
@@ -389,7 +378,6 @@ export default function FeasibilityDetail() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [req, setReq] = useState(() => getFeasibilityRequest(id))
-  const pipelines = getPipelines()
 
   useEffect(() => {
     return subscribeFeasibility(all => {
@@ -477,6 +465,11 @@ export default function FeasibilityDetail() {
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
   const [segmentForm, setSegmentForm] = useState({ pathName: '', distance: '', status: 'New Build', segmentType: 'Underground Ducts', remarks: '' })
   const [editingSegmentIndex, setEditingSegmentIndex] = useState(null)
+  const [stageFieldsForm, setStageFieldsForm] = useState({
+    estDistance: '', area: '', localityName: '', subLocalityName: '',
+    completeAddress: '', landmark: '', connectionType: '',
+    customerRequirement: '', requiredFiber: '', nearestPop: '', remarks: '',
+  })
 
   const [toast, setToast] = useState('')
 
@@ -518,6 +511,19 @@ export default function FeasibilityDetail() {
   const stageFieldsOpen = searchParams.get('modal') === 'edit-stage-fields'
 
   function openStageFieldsEdit() {
+    setStageFieldsForm({
+      estDistance:         req.estimatedDistanceFromFiber || '',
+      area:                req.area || '',
+      localityName:        req.localityName || '',
+      subLocalityName:     req.subLocalityName || '',
+      completeAddress:     req.completeAddress || '',
+      landmark:            req.landmark || '',
+      connectionType:      req.connectionType || '',
+      customerRequirement: req.customerRequirementNotes || req.customerRequirement || '',
+      requiredFiber:       req.fiberRequired || '',
+      nearestPop:          req.nearestPop || '',
+      remarks:             req.internalRemarks || '',
+    })
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.set('modal', 'edit-stage-fields')
@@ -590,26 +596,22 @@ export default function FeasibilityDetail() {
     saveFeasibilityRequest({ ...req, fiberRouteSegments: (req.fiberRouteSegments ?? []).filter((_, i) => i !== index) })
   }
 
-  function handleStageFieldsSave(targetStage, fieldVals, fuData) {
+  function handleStageFieldsSave() {
     saveFeasibilityRequest({
       ...req,
-      localityName:             fieldVals['s4-f1'] || req.localityName || '',
-      subLocalityName:          fieldVals['s4-f2'] || req.subLocalityName || '',
-      completeAddress:          fieldVals['s4-f3'] || req.completeAddress || '',
-      landmark:                 fieldVals['s4-f4'] || req.landmark || '',
-      connectionType:           fieldVals['s4-f5'] || req.connectionType || '',
-      customerRequirementNotes: fieldVals['s4-f6'] || req.customerRequirementNotes || '',
-      assignedBranch:           fieldVals['s4-f7'] || req.assignedBranch || '',
-      internalRemarks:          fieldVals['s4-f8'] || req.internalRemarks || '',
+      estimatedDistanceFromFiber: stageFieldsForm.estDistance,
+      area:                       stageFieldsForm.area,
+      localityName:               stageFieldsForm.localityName,
+      subLocalityName:            stageFieldsForm.subLocalityName,
+      completeAddress:            stageFieldsForm.completeAddress,
+      landmark:                   stageFieldsForm.landmark,
+      connectionType:             stageFieldsForm.connectionType,
+      customerRequirementNotes:   stageFieldsForm.customerRequirement,
+      fiberRequired:              stageFieldsForm.requiredFiber,
+      nearestPop:                 stageFieldsForm.nearestPop,
+      internalRemarks:            stageFieldsForm.remarks,
     })
-    if (fuData?.date) {
-      saveFollowup({
-        id: `FU-${Date.now()}`, leadId: req.leadId, leadName: req.customerName, phone: req.mobile,
-        date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage,
-        assignedTo: req.assignedEngineer || '', notifyTo: fuData.notifyTo,
-        priority: req.priority ?? 'medium', status: 'Pending',
-      })
-    }
+    closeStageFieldsEdit()
     setToast('Changes saved successfully')
   }
 
@@ -715,22 +717,6 @@ export default function FeasibilityDetail() {
   const isAssigned   = ['Assigned', 'In Progress', 'Approved'].includes(status)
   const isApproved   = status === 'Approved'
   const isRejected   = status === 'Rejected'
-
-  // Shaped to duck-type the subset of a lead's fields MoveStageModal reads
-  // to pre-fill the Feasibility stage fields (s4-f*, see stageFieldsStore.js)
-  // — using this request's own location/requirement data instead of a lead's.
-  const stageFieldsLead = {
-    name:                req.customerName,
-    pipeline:            PIPELINE_NAME_TO_KEY[req.pipeline] ?? req.pipeline,
-    locality:            req.localityName,
-    subLocality:         req.subLocalityName,
-    address:             req.completeAddress,
-    landmark:            req.landmark,
-    siteType:            req.connectionType,
-    customerRequirement: req.customerRequirementNotes,
-    branchCode:          req.assignedBranch,
-    remarks:             req.internalRemarks,
-  }
 
   // ?category=chargeable|non-chargeable filters the Hardware tab's Added
   // Hardware list; absent (or any other value) shows everything. Original
@@ -1224,17 +1210,96 @@ export default function FeasibilityDetail() {
 
       </div>
 
-      {/* ── Feasibility Details Edit Modal (shared Stage Fields modal, reused
-           as-is from the Leads move-stage flow) ──────────────────────── */}
-      <MoveStageModal
+      {/* ── Feasibility Details Edit Modal ───────────────────────── */}
+      <Modal
         isOpen={stageFieldsOpen}
         onClose={closeStageFieldsEdit}
-        lead={stageFieldsLead}
-        pipelines={pipelines}
-        targetStage="Feasibility"
-        onSave={handleStageFieldsSave}
         title={`Feasibility Details — ${req.customerName}`}
-      />
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={closeStageFieldsEdit}>Cancel</Button>
+            <Button
+              size="sm"
+              iconRight={<ArrowRight size={13} />}
+              onClick={handleStageFieldsSave}
+              disabled={!stageFieldsForm.localityName.trim() || !stageFieldsForm.completeAddress.trim()}
+            >
+              Submit
+            </Button>
+          </>
+        }
+      >
+        {/* Section header bar */}
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-4 py-2 mb-5">
+          <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">Stage Fields — Feasibility</p>
+          <p className="text-xs text-blue-600 font-medium">
+            {Object.values(stageFieldsForm).filter(v => v.trim()).length}/11 filled · 2 required
+          </p>
+        </div>
+        <div className="space-y-4">
+          {/* Row 1: Est. Distance | Area */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Est. Distance">
+              <Input value={stageFieldsForm.estDistance}
+                onChange={e => setStageFieldsForm(f => ({ ...f, estDistance: e.target.value }))} />
+            </FormField>
+            <FormField label="Area">
+              <Input value={stageFieldsForm.area}
+                onChange={e => setStageFieldsForm(f => ({ ...f, area: e.target.value }))} />
+            </FormField>
+          </div>
+          {/* Row 2: Locality Name * | Sub Locality Name */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Enter Locality Name" required>
+              <Input value={stageFieldsForm.localityName}
+                onChange={e => setStageFieldsForm(f => ({ ...f, localityName: e.target.value }))} />
+            </FormField>
+            <FormField label="Enter Sub Locality Name">
+              <Input value={stageFieldsForm.subLocalityName}
+                onChange={e => setStageFieldsForm(f => ({ ...f, subLocalityName: e.target.value }))} />
+            </FormField>
+          </div>
+          {/* Row 3: Complete Address * (full width) */}
+          <FormField label="Complete Address" required>
+            <Textarea rows={2} placeholder="Enter complete address..."
+              value={stageFieldsForm.completeAddress}
+              onChange={e => setStageFieldsForm(f => ({ ...f, completeAddress: e.target.value }))} />
+          </FormField>
+          {/* Row 4: Landmark | Expected Connection Type */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Landmark">
+              <Input value={stageFieldsForm.landmark}
+                onChange={e => setStageFieldsForm(f => ({ ...f, landmark: e.target.value }))} />
+            </FormField>
+            <FormField label="Expected Connection Type">
+              <Input placeholder="e.g. FTTH" value={stageFieldsForm.connectionType}
+                onChange={e => setStageFieldsForm(f => ({ ...f, connectionType: e.target.value }))} />
+            </FormField>
+          </div>
+          {/* Row 5: Customer Requirement (full width) */}
+          <FormField label="Customer Requirement">
+            <Textarea rows={2} value={stageFieldsForm.customerRequirement}
+              onChange={e => setStageFieldsForm(f => ({ ...f, customerRequirement: e.target.value }))} />
+          </FormField>
+          {/* Row 6: Required Fiber | Nearest POP */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Required Fiber">
+              <Input value={stageFieldsForm.requiredFiber}
+                onChange={e => setStageFieldsForm(f => ({ ...f, requiredFiber: e.target.value }))} />
+            </FormField>
+            <FormField label="Nearest POP">
+              <Input value={stageFieldsForm.nearestPop}
+                onChange={e => setStageFieldsForm(f => ({ ...f, nearestPop: e.target.value }))} />
+            </FormField>
+          </div>
+          {/* Row 7: Remarks (full width) */}
+          <FormField label="Remarks">
+            <Textarea rows={2} value={stageFieldsForm.remarks}
+              onChange={e => setStageFieldsForm(f => ({ ...f, remarks: e.target.value }))} />
+          </FormField>
+        </div>
+      </Modal>
 
       {/* ── Assign Engineer Modal (shared with the Feasibility Requests
            list page's row action — see
