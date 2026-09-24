@@ -437,7 +437,7 @@ export default function IntercomInstallationDetail() {
             <InfoField label="Customer ID" value={order.customerId} mono />
             <InfoField label="Phone" value={order.phone} mono />
             <InfoField label="Circuit ID" value={order.circuitId} mono />
-            <InfoField label="Zone" value={order.zone} />
+            <InfoField label="Radius" value={order.zone} />
             <div className="col-span-2">
               <InfoField label="Installation Address" value={order.address} />
             </div>

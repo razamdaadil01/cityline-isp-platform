@@ -505,7 +505,7 @@ export default function IntercomBilling() {
 
             {/* Select Zone */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Zone</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Radius</label>
               <div className="relative">
                 <select value={draft.zone} onChange={e => setDraft(d => ({ ...d, zone: e.target.value }))} className={drawerSelectCls}>
                   <option value="">Please Select</option>

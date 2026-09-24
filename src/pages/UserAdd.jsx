@@ -383,9 +383,9 @@ export default function UserAdd({ user = null } = {}) {
                   </Select>
                 </FormField>
 
-                <FormField label="Zone">
+                <FormField label="Radius">
                   <Select value={form.zone} onChange={e => set('zone', e.target.value)}>
-                    <option value="">Select zone…</option>
+                    <option value="">Select radius…</option>
                     {zoneOptions.map(z => <option key={z} value={z}>{z}</option>)}
                   </Select>
                 </FormField>

@@ -300,7 +300,7 @@ export default function Customers() {
       if (visibleCols.has('phone'))        row['Phone'] = formatPhone(c.phone)
       row['Services'] = (c.services ?? []).join(', ')
       if (visibleCols.has('plan'))         row['Plan'] = c.plan ?? ''
-      row['Zone'] = c.zone ?? ''
+      row['Radius'] = c.zone ?? ''
       row['Expiry'] = c.expiry ?? ''
       if (visibleCols.has('status'))     row['Status'] = cfg.label
       if (visibleCols.has('connection')) row['Connection'] = c.network ?? ''
@@ -468,7 +468,7 @@ export default function Customers() {
               ['Area',     'area',     AREAS],
               ['Locality', 'locality', LOCALITIES],
               ['Branch',   'branch',   BRANCHES],
-              ['Zone',     'zone',     ZONES],
+              ['Radius',   'zone',     ZONES],
             ].map(([label, key, opts]) => (
               <div key={label}>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{label}</label>
@@ -609,7 +609,7 @@ export default function Customers() {
                 {visibleCols.has('phone') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Phone</th>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[200px]">Services</th>
                 {visibleCols.has('plan') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Plan</th>}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Zone</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Radius</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[100px]">Expiry</th>
                 {visibleCols.has('status') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">Status</th>}
                 {visibleCols.has('connection') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Connection</th>}

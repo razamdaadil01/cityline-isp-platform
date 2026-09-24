@@ -173,7 +173,7 @@ export const MODULE_MICRO_PERMISSIONS = {
     { key: 'manageJazeServersConfiguration',  label: 'Manage Jaze Servers Configuration' },
     { key: 'manageRolesAndPermissions',       label: 'Manage Roles & Permissions' },
     { key: 'manageAreaMapping',                label: 'Manage Area Mapping' },
-    { key: 'manageZoneIntegration',            label: 'Manage Zone Integration' },
+    { key: 'manageZoneIntegration',            label: 'Manage Radius Integration' },
     { key: 'manageMasterConfiguration',        label: 'Manage Master Configuration' },
     { key: 'manageCustomerTypeConfiguration', label: 'Manage Customer Type Configuration' },
     { key: 'manageCompanyEntity',              label: 'Manage Company / Entity' },
