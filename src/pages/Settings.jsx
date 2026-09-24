@@ -60,7 +60,7 @@ const TABS = [
   { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
   { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
-  { id: 'zone',                label: 'Zone',                  icon: Map       },
+  { id: 'zone',                label: 'Radius',                icon: Map       },
   { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
 ]
 
@@ -1381,12 +1381,12 @@ function ZoneTab() {
     <div className="space-y-5">
       <div className="pb-4 border-b border-surface-border flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Zone Management</h2>
-          <p className="text-xs text-gray-500 mt-1">Configure Jaze ISP zone connections</p>
+          <h2 className="text-base font-semibold text-gray-900">Radius Management</h2>
+          <p className="text-xs text-gray-500 mt-1">Configure Jaze ISP radius connections</p>
         </div>
         <button onClick={openAddZone}
           className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600">
-          <Plus size={15} /> Add Zone
+          <Plus size={15} /> Add Radius
         </button>
       </div>
 
@@ -1395,7 +1395,7 @@ function ZoneTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50/80 border-b border-surface-border">
-                {['S.NO', 'CUSTOMER TYPE', 'ZONE NAME', 'ZONE ID', 'ZONE IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
+                {['S.NO', 'CUSTOMER TYPE', 'RADIUS NAME', 'RADIUS ID', 'RADIUS IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
                   <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1444,7 +1444,7 @@ function ZoneTab() {
                 </tr>
               ))}
               {zones.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">No zones configured yet</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">No radius configured yet</td></tr>
               )}
             </tbody>
           </table>
@@ -1456,7 +1456,7 @@ function ZoneTab() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Add Zone</h2>
+              <h2 className="font-semibold text-gray-800">Add Radius</h2>
               <button onClick={closeAddZone}><X size={16} className="text-gray-400" /></button>
             </div>
             <div className="p-5 space-y-3">
@@ -1469,9 +1469,9 @@ function ZoneTab() {
                 </select>
               </div>
               {[
-                ['Zone Name *',    'zoneName', 'e.g. Andheri West Zone'],
-                ['Zone ID *',      'zoneId',   'e.g. AW-001'],
-                ['Zone IP/URL *',  'zoneUrl',  'e.g. https://jaze.cityline.in/aw'],
+                ['Radius Name *',    'zoneName', 'e.g. Andheri West Zone'],
+                ['Radius ID *',      'zoneId',   'e.g. AW-001'],
+                ['Radius IP/URL *',  'zoneUrl',  'e.g. https://jaze.cityline.in/aw'],
                 ['Username *',     'username', 'e.g. admin_aw'],
                 ['Password *',     'password', 'Enter password'],
               ].map(([label, key, ph]) => (
@@ -1490,7 +1490,7 @@ function ZoneTab() {
                   if (!form.zoneName || !form.zoneId) return
                   setZones(prev => [...prev, { id: Date.now(), ...form, addedDate: new Date().toISOString().slice(0, 10) }])
                   closeAddZone()
-                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Zone</button>
+                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Radius</button>
               </div>
             </div>
           </div>

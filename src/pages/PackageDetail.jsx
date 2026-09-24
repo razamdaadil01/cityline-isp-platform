@@ -92,7 +92,7 @@ export default function PackageDetail() {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Basic Information</h2>
             <InfoRow label="Package Name">{pkg.name}</InfoRow>
-            <InfoRow label="Zone">
+            <InfoRow label="Radius">
               <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">{pkg.zone}</span>
             </InfoRow>
             <InfoRow label="Type">{pkg.type}</InfoRow>

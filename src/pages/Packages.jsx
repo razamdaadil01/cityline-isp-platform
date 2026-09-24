@@ -323,7 +323,7 @@ export default function Packages() {
           <>
             <select value={bwZone} onChange={e => setBwZone(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none shrink-0">
-              <option value="All">All Zones</option>
+              <option value="All">All Radius</option>
               <option>Residential</option>
               <option>Enterprise</option>
               <option>Both</option>
@@ -356,7 +356,7 @@ export default function Packages() {
           <>
             <select value={othZone} onChange={e => setOthZone(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none shrink-0">
-              <option value="All">All Zones</option>
+              <option value="All">All Radius</option>
               <option>Residential</option>
               <option>Enterprise</option>
               <option>Both</option>
@@ -406,7 +406,7 @@ export default function Packages() {
                     {visibleCols.has('packageId') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Package ID</th>}
                     {visibleCols.has('packageName') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Package Name</th>}
                     {visibleCols.has('type') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Zone</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Radius</th>
                     {visibleCols.has('speedValue') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Bandwidth</th>}
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Jaze ID</th>
                     {visibleCols.has('validity') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Tenure</th>}
@@ -478,7 +478,7 @@ export default function Packages() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Package Name','Zone','Bind Package','Price','Separate Invoice','Status','Actions'].map(h => (
+                    {['Package Name','Radius','Bind Package','Price','Separate Invoice','Status','Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>

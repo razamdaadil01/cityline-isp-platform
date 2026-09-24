@@ -1038,7 +1038,7 @@ export default function SupportTicketDetail() {
               ) : (
                 <div>
                   <InfoRow label="Address" value={ticket.customerAddress ?? ticket.area} />
-                  <InfoRow label="Area / Zone" value={ticket.area} />
+                  <InfoRow label="Area / Radius" value={ticket.area} />
                   <InfoRow label="Phone" value={ticket.phone} />
                 </div>
               )}

@@ -123,9 +123,9 @@ export default function PackageAdd() {
           <div className="border-t border-surface-border pt-5">
             <p className={sectionLabel}>Basic Details</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <FormField label="Select Zone" required>
+              <FormField label="Select Radius" required>
                 <Select value={zone} onChange={e => setZone(e.target.value)}>
-                  <option value="">Select zone…</option>
+                  <option value="">Select radius…</option>
                   {ZONES.map(z => <option key={z}>{z}</option>)}
                 </Select>
               </FormField>

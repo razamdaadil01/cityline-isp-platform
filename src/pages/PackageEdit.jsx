@@ -14,7 +14,7 @@ function Toggle({ value, onChange }) {
   )
 }
 
-const STEPS = ['Zone & Type', 'Configuration', 'Settings']
+const STEPS = ['Radius & Type', 'Configuration', 'Settings']
 
 export default function PackageEdit() {
   const { packageId } = useParams()
@@ -109,9 +109,9 @@ export default function PackageEdit() {
         {step === 0 && (
           <>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Select Zone *</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Select Radius *</label>
               <select value={zone} onChange={e => setZone(e.target.value)} className={inp}>
-                <option value="">Select zone...</option>
+                <option value="">Select radius...</option>
                 <option>Residential</option>
                 <option>Enterprise</option>
                 <option>Zone A</option>
@@ -210,7 +210,7 @@ export default function PackageEdit() {
         {step === 1 && pkgType === 'Other' && (
           <>
             <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
-              Zone: <span className="font-medium">{zone}</span>
+              Radius: <span className="font-medium">{zone}</span>
             </div>
             <div className="flex items-center justify-between py-3 border-b border-gray-100">
               <div>
@@ -285,7 +285,7 @@ export default function PackageEdit() {
               <p className="font-semibold text-gray-700 mb-3">Summary</p>
               {[
                 ['Package Name', pkgName],
-                ['Zone', zone],
+                ['Radius', zone],
                 ['Type', pkgType + ' Package'],
                 ['Editable', editable ? 'Yes' : 'No'],
                 ['Landline', landline ? 'Yes' : 'No'],

@@ -303,7 +303,7 @@ export default function IntercomCustomers() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                {['Customer ID', 'Name', 'Phone', 'Circuit ID', 'Plan', 'Zone', 'Status', 'Actions'].map(h => (
+                {['Customer ID', 'Name', 'Phone', 'Circuit ID', 'Plan', 'Radius', 'Status', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -451,11 +451,11 @@ export default function IntercomCustomers() {
 
             {/* Zone */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Zone</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Radius</label>
               <div className="relative">
                 <select value={draft.zone} onChange={e => setDraft(d => ({ ...d, zone: e.target.value }))}
                   className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
-                  <option value="">All Zones</option>
+                  <option value="">All Radius</option>
                   {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />

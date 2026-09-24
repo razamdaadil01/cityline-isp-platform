@@ -191,9 +191,9 @@ export default function IntercomCustomerNew() {
                 {PROJECTS.map(p => <option key={p}>{p}</option>)}
               </Select>
             </FormField>
-            <FormField label="Area/Zone" required error={errors.areaZone}>
+            <FormField label="Area/Radius" required error={errors.areaZone}>
               <Select value={form.areaZone} onChange={e => set('areaZone', e.target.value)}>
-                <option value="">Select area/zone…</option>
+                <option value="">Select area/radius…</option>
                 {AREAS_ZONES.map(a => <option key={a}>{a}</option>)}
               </Select>
             </FormField>

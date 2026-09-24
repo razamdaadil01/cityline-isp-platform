@@ -372,7 +372,7 @@ function ProfileTab({ customer }) {
             <InfoField label="Billing Address"      value={customer.billingAddress} wide />
             <InfoField label="Installation Address" value={customer.installationAddress} wide />
             <InfoField label="Project"       value={customer.project} />
-            <InfoField label="Area/Zone"     value={customer.zone} />
+            <InfoField label="Area/Radius"   value={customer.zone} />
             <InfoField label="Sales Executive" value={customer.salesExecutive} />
             <InfoField label="Intercom Circuit ID" value={customer.circuit.circuitId} mono />
             <div>

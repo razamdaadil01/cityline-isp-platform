@@ -578,14 +578,14 @@ export default function AddCustomer() {
                 </FormField>
 
                 {/* Level 6 – Zone */}
-                <FormField label="Zone" required error={errors.zone}
-                  hint="Level 6 — Network zone">
+                <FormField label="Radius" required error={errors.zone}
+                  hint="Level 6 — Network radius">
                   <Select
                     value={form.zone}
                     onChange={e => set('zone', e.target.value)}
                     error={errors.zone}
                   >
-                    <option value="">Select Zone</option>
+                    <option value="">Select Radius</option>
                     {ZONES.map(z => <option key={z}>{z}</option>)}
                   </Select>
                 </FormField>
@@ -896,7 +896,7 @@ export default function AddCustomer() {
                   ['Box/ONT',   form.boxNo || '—'],
                   ['Street',    form.street || '—'],
                   ['Building',  form.building || '—'],
-                  ['Zone',      form.zone || '—'],
+                  ['Radius',    form.zone || '—'],
                   ['Landmark',  form.landmark || '—'],
                   ['PIN Code',  form.pincode || '—'],
                 ]} />

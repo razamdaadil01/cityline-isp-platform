@@ -90,7 +90,7 @@ function buildPaymentHistoryRows() {
 function buildCustomerStatusRows() {
   return getAllCustomers().map(c => ({
     'Customer ID': c.id, Name: c.name, Status: effectiveStatus(c),
-    Plan: c.plan ?? '—', Zone: c.zone ?? '—',
+    Plan: c.plan ?? '—', Radius: c.zone ?? '—',
   }))
 }
 
@@ -137,8 +137,8 @@ function buildZoneWiseCustomerRows() {
   })
   return [...counts.entries()]
     .map(([key, count]) => {
-      const [Zone, Area] = key.split('|')
-      return { Zone, Area, 'Customer Count': count }
+      const [Radius, Area] = key.split('|')
+      return { Radius, Area, 'Customer Count': count }
     })
     .sort((a, b) => b['Customer Count'] - a['Customer Count'])
 }
@@ -166,7 +166,7 @@ function buildTechnicianWorkloadRows() {
       (sum, a) => sum + (a.hardwareLines?.length ?? 0) + (a.wireLines?.length ?? 0), 0
     )
     return {
-      Technician: tech.name, Zone: tech.zone ?? '—',
+      Technician: tech.name, Radius: tech.zone ?? '—',
       'Active Jobs': activeInstalls + activeRecoveries,
       'Open Tickets': technicianWorkload(tech.name),
       'Hardware Holdings': holdingsCount,
@@ -404,7 +404,7 @@ const REPORT_LIBRARY = [
       { key: 'customer-churn', title: 'Customer Churn Report', description: 'Customers disconnected/lost, with monthly trend.', permKey: 'viewChurnReport', filename: 'customer_churn_report.csv', buildRows: buildChurnReportRows },
       { key: 'caf-compliance', title: 'CAF Compliance Report', description: 'CAF submission/approval status across all customers.', permKey: 'viewCafComplianceReport', filename: 'caf_compliance_report.csv', buildRows: buildCafComplianceRows },
       { key: 'renewal-expiry', title: 'Renewal/Expiry Report', description: 'Customers due for plan renewal within the next 30 days.', permKey: 'viewCustomerReports', filename: 'renewal_expiry_report.csv', buildRows: buildRenewalExpiryRows },
-      { key: 'zone-wise-customers', title: 'Area/Zone-wise Customer Report', description: 'Customer distribution across zones and localities.', permKey: 'viewCustomerReports', filename: 'area_zone_wise_customer_report.csv', buildRows: buildZoneWiseCustomerRows },
+      { key: 'zone-wise-customers', title: 'Area/Radius-wise Customer Report', description: 'Customer distribution across radius and localities.', permKey: 'viewCustomerReports', filename: 'area_zone_wise_customer_report.csv', buildRows: buildZoneWiseCustomerRows },
     ],
   },
   {

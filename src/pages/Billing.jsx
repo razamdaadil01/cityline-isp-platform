@@ -744,7 +744,7 @@ export default function Billing() {
 
             {/* Select Server/Zone */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Server/Zone</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Server/Radius</label>
               <div className="relative">
                 <select value={fZone} onChange={e => setFZone(e.target.value)} className={drawerSelectCls}>
                   <option value="">Please Select</option>

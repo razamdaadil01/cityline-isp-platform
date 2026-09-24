@@ -983,7 +983,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
                 <InfoField label="Splitter"    value={cust.address.splitter} mono />
                 <InfoField label="Port"        value={cust.address.port} />
                 <InfoField label="Building"    value={cust.address.building} />
-                <InfoField label="Zone"        value={cust.address.zone} />
+                <InfoField label="Radius"      value={cust.address.zone} />
                 <InfoField label="Branch Code" value={cust.address.branchCode} mono />
               </div>
             </>
@@ -1023,7 +1023,7 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
                 <EF label="Splitter"    value={p4.draft.splitter}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, splitter: v } }))} mono />
                 <EF label="Port"        value={p4.draft.port}       onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, port: v } }))} />
                 <EF label="Building"    value={p4.draft.building}   onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, building: v } }))} />
-                <EF label="Zone"        value={p4.draft.zone}       onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, zone: v } }))} />
+                <EF label="Radius"      value={p4.draft.zone}       onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, zone: v } }))} />
                 <EF label="Branch Code" value={p4.draft.branchCode} onChange={v => setP4(s => ({ ...s, draft: { ...s.draft, branchCode: v } }))} mono />
               </div>
               <EditActions onSave={saveP4} onCancel={() => cancelEdit(setP4)} />
