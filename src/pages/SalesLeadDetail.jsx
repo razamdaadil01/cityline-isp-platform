@@ -1969,7 +1969,6 @@ const TAB_PATH_TO_KEY = {
   'overview':      'overview',
   'followups':     'followups',
   'comments':      'comments',
-  'stage-history': 'stageHistory',
   'activity-log':  'activity',
   'package':       'package',
   'document':      'document',
@@ -2364,6 +2363,14 @@ export default function SalesLeadDetail() {
   const [feasibilityRequests, setFeasibilityRequests] = useState(getFeasibilityRequests)
   const [pipelines, setPipelines]   = useState(getPipelines)
   const activeTab = TAB_PATH_TO_KEY[tabParam] ?? 'overview'
+
+  // Redirect legacy stage-history URLs to activity-log
+  useEffect(() => {
+    if (tabParam === 'stage-history') {
+      navigate(`/sales/leads/${id}/activity-log`, { replace: true })
+    }
+  }, [tabParam, id, navigate])
+
   const [actionsOpen, setActionsOpen] = useState(false)
   const [actionsPos, setActionsPos]   = useState({ top: 0, right: 0 })
   const actionsRef = useRef(null)
@@ -2459,7 +2466,6 @@ export default function SalesLeadDetail() {
     setTimeout(() => setLinkToast(null), 3000)
   }
   const [reopenToast, setReopenToast]         = useState(false)
-  const [expandedStages, setExpandedStages] = useState({})
   const [newComment, setNewComment] = useState('')
   const [mentionOpen, setMentionOpen] = useState(false)
   const [mentionQ, setMentionQ]     = useState('')
@@ -3279,7 +3285,6 @@ export default function SalesLeadDetail() {
     { key: 'overview',     path: 'overview',      label: 'Overview',      icon: User },
     { key: 'followups',    path: 'followups',     label: 'Follow-ups',    icon: Bell },
     { key: 'comments',     path: 'comments',      label: 'Comments',      icon: MessageSquare },
-    { key: 'stageHistory', path: 'stage-history', label: 'Stage History', icon: TrendingUp },
     { key: 'activity',     path: 'activity-log',  label: 'Activity Log',  icon: Activity },
     { key: 'package',      path: 'package',       label: 'Package',       icon: Package },
     { key: 'document',     path: 'document',      label: 'Document',      icon: FileSignature },
@@ -3833,106 +3838,6 @@ export default function SalesLeadDetail() {
                 ))}
               </div>
             </Card>
-          )}
-
-          {/* ─── STAGE HISTORY ────────────────────────────────────────── */}
-          {activeTab === 'stageHistory' && (
-            <div>
-              <Card padding={false}>
-                <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-800">Stage History</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {stageHistory.length} stage{stageHistory.length !== 1 ? 's' : ''} traversed
-                    </p>
-                  </div>
-                  <Badge variant={status === 'Won' ? 'green' : status === 'Lost' ? 'red' : 'blue'} dot size="sm">
-                    {status}
-                  </Badge>
-                </div>
-                <div className="px-5 py-5">
-                  {stageHistory.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-8">No stage history recorded</p>
-                  ) : (
-                    <div className="space-y-0">
-                      {stageHistory.map((sh, i) => {
-                        const ss = STAGE_STYLES[sh.stage] ?? STAGE_STYLES['New Inquiry']
-                        const filledFields = Object.entries(sh.fields ?? {}).filter(([, v]) => v)
-                        const isExpanded = expandedStages[`hist_${i}`] ?? false
-                        const isLatest = i === stageHistory.length - 1
-                        return (
-                          <div key={i} className="flex gap-4 pb-6 relative">
-                            {i < stageHistory.length - 1 && (
-                              <div className="absolute left-3 top-8 bottom-0 w-px bg-gray-200" />
-                            )}
-                            <div className={`w-6 h-6 rounded-full shrink-0 mt-1.5 z-10 flex items-center justify-center ${ss.dot} ${isLatest ? 'ring-2 ring-offset-2 ring-gray-200' : ''}`}>
-                              {isLatest && <div className="w-2 h-2 rounded-full bg-white" />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedStages(p => ({ ...p, [`hist_${i}`]: !p[`hist_${i}`] }))}
-                                className="w-full text-left"
-                              >
-                                <div className="flex items-center justify-between mb-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${ss.chip}`}>{sh.stage}</span>
-                                    {isLatest && (
-                                      <span className="text-[10px] font-semibold text-brand-blue bg-brand-blue/10 px-2 py-0.5 rounded-full">
-                                        Current
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {filledFields.length > 0 && (
-                                      <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                                        {filledFields.length} field{filledFields.length !== 1 ? 's' : ''}
-                                      </span>
-                                    )}
-                                    <ChevronDown size={14} className={`text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
-                                  </div>
-                                </div>
-                                <p className="text-xs text-gray-400">{sh.date} · by {sh.movedBy}</p>
-                              </button>
-
-                              {isExpanded && (
-                                <div className="mt-3 mb-2">
-                                  {filledFields.length > 0 ? (
-                                    <div className="bg-gray-50 rounded-xl border border-surface-border p-4">
-                                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">
-                                        Captured Fields
-                                      </p>
-                                      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-                                        {filledFields.map(([key, val]) => (
-                                          <div key={key} className="bg-white rounded-lg border border-surface-border p-3">
-                                            <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
-                                              {getFieldLabel(pipelines, lead.pipeline, sh.stage, key)}
-                                            </p>
-                                            <p className="text-xs font-semibold text-gray-800 break-all">
-                                              {displayFieldValue(val)}
-                                            </p>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border border-surface-border rounded-xl">
-                                      <span className="text-xs text-gray-400 italic">
-                                        No fields recorded for this stage
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </div>
           )}
 
           {/* ─── ACTIVITY LOG ─────────────────────────────────────────── */}
