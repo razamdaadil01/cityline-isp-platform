@@ -3295,34 +3295,79 @@ export default function SalesLeadDetail() {
 
   return (
     <>
-      {/* ── Top bar (white, full width, sits directly below the app header) ── */}
-      <div className="bg-white border-b border-surface-border shadow-sm px-4 py-2">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/sales')}
-            className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
-            <ArrowLeft size={15} /> Back to leads
-          </button>
+    <div className="p-6 space-y-5">
+      {/* ── Lead header card — CustomerDetail style ── */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+        {/* Gradient accent strip */}
+        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
 
-          {/* Tab nav — centered within the space between the back link and the
-              right-side buttons; scrolls horizontally instead of wrapping if
-              it doesn't fit. */}
-          <div className="flex-1 min-w-0 flex justify-center overflow-x-auto scrollbar-none">
-            {TABS.map(tab => {
-              const Icon = tab.icon
-              return (
-                <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-3.5 lg:px-3 xl:px-4 text-xs lg:text-xs xl:text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
-                    ${activeTab === tab.key
-                      ? 'border-brand-blue text-brand-blue'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
-                    }`}>
-                  <Icon size={14} /> {tab.label}
-                </button>
-              )
-            })}
+        {/* Breadcrumb */}
+        <div className="px-5 lg:px-6 xl:px-7 2xl:px-8 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
+          <button onClick={() => navigate('/sales')} className="text-gray-400 hover:text-gray-600 hover:underline transition-colors">Sales</button>
+          <span className="text-gray-300">›</span>
+          <button onClick={() => navigate('/sales')} className="text-gray-400 hover:text-gray-600 hover:underline transition-colors">Leads</button>
+          <span className="text-gray-300">›</span>
+          <span className="text-gray-500 truncate">{lead.id}</span>
+        </div>
+        <div className="border-t border-surface-border" />
+
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-5">
+
+            {/* Avatar */}
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md overflow-hidden">
+              {lead.profilePicture?.preview
+                ? <img src={lead.profilePicture.preview} alt="" className="w-full h-full object-cover" />
+                : lead.name.charAt(0)}
+            </div>
+
+            {/* Core info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-xl font-bold text-gray-900">{leadDisplayName}</h1>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${customerTypePillStyle}`}>
+                  {PIPELINE_LABEL[lead.pipeline]}
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${stageStyle.chip}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
+                  {lead.stage}
+                </span>
+                {status !== 'Open' && (
+                  <Badge variant={status === 'Won' ? 'green' : 'red'} size="sm">{status}</Badge>
+                )}
+              </div>
+              <p className="text-sm text-gray-500 mb-2">
+                <span className="font-mono font-semibold text-brand-blue">{lead.id}</span>
+                {lead.phone && <><span className="mx-2 text-gray-300">·</span>{lead.phone}</>}
+                {lead.email && <><span className="mx-2 text-gray-300">·</span>{lead.email}</>}
+                {(lead.area || lead.city) && <><span className="mx-2 text-gray-300">·</span>{[lead.area, lead.city].filter(Boolean).join(', ')}</>}
+              </p>
+              {lead.assigned && (
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${staff?.color ?? 'bg-gray-400'}`}>
+                    {staff?.initials ?? '?'}
+                  </div>
+                  <span className="text-xs text-gray-500">{lead.assigned}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Stats tiles */}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
+                <p className="text-xs text-gray-400">Days in Stage</p>
+                <p className="text-base font-bold text-gray-800">{realDaysInStage}</p>
+              </div>
+              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
+                <p className="text-xs text-gray-400">Follow-ups</p>
+                <p className="text-sm font-bold text-gray-800">{followups.length}</p>
+              </div>
+            </div>
+
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Action buttons row */}
+          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
             {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
               <Button variant="danger" size="sm" icon={<XCircle size={14} />}
                 onClick={() => openMoveStage('Lost')}>
@@ -3335,8 +3380,6 @@ export default function SalesLeadDetail() {
                 Reopen Lead
               </Button>
             )}
-            {/* More options — folds in what used to be the standalone "Send
-                Quotation" button and the "Actions" dropdown's items. */}
             <div className="relative" ref={actionsRef}>
               <button
                 onClick={() => {
@@ -3389,8 +3432,6 @@ export default function SalesLeadDetail() {
         </div>
       </div>
 
-    <div className="pt-2 pb-6 px-4 space-y-3">
-
       {/* Quotation sent toast */}
       {quotationToast && (
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
@@ -3437,118 +3478,34 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
-      {/* ── 3-column layout: left sidebar | main content | right sidebar ──
-          Note: no overflow-hidden on any ancestor here — it breaks position:
-          sticky for any descendant that uses it, since it becomes the
-          containing block instead of the page's real scroll container
-          (<main> in Layout.jsx). The right sidebar below relies on this. */}
-      <div className="flex flex-col lg:flex-row items-start gap-4">
+      {/* ── Tab card + right sidebar ──
+          Note: no overflow-hidden on any ancestor — it breaks position:
+          sticky for the right sidebar (the page's real scroll container is
+          <main> in Layout.jsx). */}
+      <div className="flex flex-col lg:flex-row items-start gap-5">
 
-        {/* ── LEFT SIDEBAR ── */}
-        <div className="w-full lg:w-72 shrink-0 bg-white rounded-xl border border-surface-border shadow-card py-5 px-4">
-          <div className="flex flex-col items-center text-center">
-            {/* Avatar — shows the profile picture captured at lead creation
-                (lead.profilePicture.preview, a data URL) when present, else
-                falls back to the existing colored-initials treatment. */}
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-blue to-navy flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md overflow-hidden">
-              {lead.profilePicture?.preview
-                ? <img src={lead.profilePicture.preview} alt="" className="w-full h-full object-cover" />
-                : lead.name.charAt(0)}
-            </div>
-            <h1 className="text-base font-bold text-gray-900 mt-3">{leadDisplayName}</h1>
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold mt-2 ${customerTypePillStyle}`}>
-              {PIPELINE_LABEL[lead.pipeline]}
-            </span>
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold mt-2 ${stageStyle.chip}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${stageStyle.dot}`} />
-              {lead.stage}
-            </span>
-            {status !== 'Open' && (
-              <Badge variant={status === 'Won' ? 'green' : 'red'} size="sm" className="mt-2">{status}</Badge>
-            )}
+        {/* ── Tab card: nav + content ── */}
+        <div className="flex-1 min-w-0 bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+
+          {/* Tab nav */}
+          <div className="flex overflow-x-auto border-b border-surface-border scrollbar-none">
+            {TABS.map(tab => {
+              const Icon = tab.icon
+              return (
+                <button key={tab.key} onClick={() => navigate(`/sales/leads/${id}/${tab.path}`)}
+                  className={`shrink-0 flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px whitespace-nowrap
+                    ${activeTab === tab.key
+                      ? 'border-brand-blue text-brand-blue'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
+                    }`}>
+                  <Icon size={14} /> {tab.label}
+                </button>
+              )
+            })}
           </div>
 
-          <div className="border-t border-surface-border my-4" />
-
-          {/* Contact block */}
-          <div className="space-y-2.5 text-sm text-gray-700">
-            <div className="flex items-center gap-2">
-              <User size={14} className="text-gray-400 shrink-0" />
-              <span className="truncate">{lead.name}</span>
-            </div>
-            <button
-              onClick={() => openCallModal('primary')}
-              className="flex items-center gap-2 hover:text-brand-blue transition-colors w-full text-left"
-            >
-              <Phone size={14} className="text-gray-400 shrink-0" />
-              <span className="truncate">{lead.phone}</span>
-            </button>
-            {lead.email && (
-              <div className="flex items-center gap-2">
-                <Mail size={14} className="text-gray-400 shrink-0" />
-                <span className="truncate">{lead.email}</span>
-              </div>
-            )}
-            {(lead.area || lead.city) && (
-              <div className="flex items-center gap-2">
-                <MapPin size={14} className="text-gray-400 shrink-0" />
-                <span className="truncate">{[lead.area, lead.city].filter(Boolean).join(', ')}</span>
-              </div>
-            )}
-            {lead.assigned && (
-              <div className="flex items-center gap-2">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${staff?.color ?? 'bg-gray-400'}`}>
-                  {staff?.initials ?? '?'}
-                </div>
-                <span className="truncate">{lead.assigned}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="border-t border-surface-border my-4" />
-
-          {/* Sub-tabs */}
-          <div className="flex items-center gap-4 mb-3">
-            {[{ key: 'basic', label: 'Basic Details' }, { key: 'address', label: 'Address Info' }].map(t => (
-              <button key={t.key} onClick={() => setSidebarSubTab(t.key)}
-                className={`text-xs font-semibold pb-1.5 border-b-2 transition-colors ${
-                  sidebarSubTab === t.key
-                    ? 'border-brand-blue text-brand-blue'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {sidebarSubTab === 'basic' ? (
-            <div className="space-y-3">
-              <SidebarField label="Lead ID" value={lead.id} />
-              <SidebarField label="Assigned To" value={lead.assigned} />
-              <SidebarField label="Created On" value={lead.createdAt} />
-              <SidebarField label="Lead Source" value={lead.source} />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <SidebarField label="Address" value={leadAddressLine} />
-              <SidebarField label="Area" value={lead.area} />
-              <SidebarField label="Locality" value={lead.locality} />
-              <SidebarField label="Sub Locality" value={lead.subLocality} />
-              <SidebarField label="City" value={lead.city} />
-              <SidebarField label="District" value={lead.district} />
-              <SidebarField label="State" value={lead.state} />
-              <SidebarField label="Pincode" value={lead.pincode} />
-              <SidebarField label="Site Type" value={lead.siteType} />
-              <SidebarField label="Branch Code" value={lead.branchCode} />
-            </div>
-          )}
-        </div>
-
-        {/* ── MAIN CONTENT ── */}
-        <div className="flex-1 min-w-0 space-y-3">
-
-      {/* ── Tab content (each card below renders its own white background;
-          this wrapper only handles layout, not a second nested card) ── */}
+          {/* Tab content */}
+          <div className="p-5 sm:p-6">
       <div>
 
           {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
@@ -4414,8 +4371,8 @@ export default function SalesLeadDetail() {
               </Card>
             </div>
           )}
-      </div>
-
+          </div>
+          </div>
         </div>
 
         {/* ── RIGHT SIDEBAR ── */}
