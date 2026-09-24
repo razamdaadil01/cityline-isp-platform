@@ -387,7 +387,6 @@ export default function FeasibilityDetail() {
 
   const [approveForm, setApproveForm] = useState({ comment: '', fiberEstimate: '', hardware: '', installNotes: '' })
   const [rejectForm,  setRejectForm]  = useState({ reason: '', remarks: '' })
-  const [summaryForm, setSummaryForm] = useState({ estDistance: '', nearestPop: '', fiberCore: '' })
   const [segmentForm, setSegmentForm] = useState({ pathName: '', distance: '', status: 'New Build', segmentType: 'Underground Ducts', remarks: '' })
   const [editingSegmentIndex, setEditingSegmentIndex] = useState(null)
 
@@ -437,46 +436,9 @@ export default function FeasibilityDetail() {
     })
   }
 
-  // ?modal=configure-feasibility-summary opens the Configure modal for the
-  // Feasibility Summary card's editable fields — same ?modal= URL-param
-  // pattern as the Stage Fields modal above.
-  const summaryConfigOpen = searchParams.get('modal') === 'configure-feasibility-summary'
-
-  function openSummaryConfig() {
-    setSummaryForm({
-      estDistance: req.estimatedDistanceFromFiber || '',
-      nearestPop:  req.nearestPop || '',
-      fiberCore:   req.fiberCore || 'OFC 6 Core Cable',
-    })
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.set('modal', 'configure-feasibility-summary')
-      return next
-    })
-  }
-
-  function closeSummaryConfig() {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev)
-      next.delete('modal')
-      return next
-    })
-  }
-
-  function handleSummaryConfigSave() {
-    saveFeasibilityRequest({
-      ...req,
-      estimatedDistanceFromFiber: summaryForm.estDistance,
-      nearestPop: summaryForm.nearestPop,
-      fiberCore:  summaryForm.fiberCore,
-    })
-    closeSummaryConfig()
-    setToast('Feasibility summary updated')
-  }
-
   // ?modal=add-fiber-segment opens the Add/Edit Fiber Route Segment modal —
-  // same ?modal= URL-param pattern as the Stage Fields and Configure
-  // Feasibility Summary modals above. Reused for both adding a new segment
+  // same ?modal= URL-param pattern as the Stage Fields modal above. Reused
+  // for both adding a new segment
   // (editingSegmentIndex === null) and editing an existing row.
   const segmentModalOpen = searchParams.get('modal') === 'add-fiber-segment'
 
@@ -1117,11 +1079,6 @@ export default function FeasibilityDetail() {
               narrower than the main content column's old 2x2 grid. */}
           <Card
             title="Feasibility Summary"
-            headerAction={
-              <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} onClick={openSummaryConfig}>
-                Configure
-              </Button>
-            }
           >
             <div className="space-y-4">
               <SummaryBox label="Est. Distance">
@@ -1228,33 +1185,6 @@ export default function FeasibilityDetail() {
           <FormField label="Remarks" required>
             <Textarea rows={3} placeholder="Additional remarks…"
               value={rejectForm.remarks} onChange={e => setRejectForm(f => ({ ...f, remarks: e.target.value }))} />
-          </FormField>
-        </div>
-      </Modal>
-
-      {/* ── Configure Feasibility Summary Modal ─────────────────────── */}
-      <Modal
-        isOpen={summaryConfigOpen}
-        onClose={closeSummaryConfig}
-        title="Configure Feasibility Summary"
-        size="sm"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={closeSummaryConfig}>Cancel</Button>
-          <Button size="sm" onClick={handleSummaryConfigSave}>Save</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          <FormField label="Est. Distance">
-            <Input placeholder="e.g. 1.2 km"
-              value={summaryForm.estDistance} onChange={e => setSummaryForm(f => ({ ...f, estDistance: e.target.value }))} />
-          </FormField>
-          <FormField label="Nearest POP">
-            <Input placeholder="e.g. POP-Sector78-02"
-              value={summaryForm.nearestPop} onChange={e => setSummaryForm(f => ({ ...f, nearestPop: e.target.value }))} />
-          </FormField>
-          <FormField label="Fiber Core">
-            <Input placeholder="e.g. OFC 6 Core Cable"
-              value={summaryForm.fiberCore} onChange={e => setSummaryForm(f => ({ ...f, fiberCore: e.target.value }))} />
           </FormField>
         </div>
       </Modal>
