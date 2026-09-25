@@ -66,7 +66,7 @@ export default function MoveStageModal({ isOpen, onClose, lead, pipelines, onSav
   const isLost         = targetStage === 'Lost'
   const targetStageId  = findStageId(pipelines, lead?.pipeline, targetStage)
   const stageMeta      = targetStageId ? getStageMeta(targetStageId) : {}
-  const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false)
+  const stageFields    = (targetStageId ? getStageFields(targetStageId) : []).filter(f => f.active !== false).filter(f => f.id !== 's4-f7')
   const visibleFields  = stageFields.filter(f => !f.conditionalOn || fieldVals[f.conditionalOn.fieldId] === f.conditionalOn.value)
   const requiredFields = visibleFields.filter(f => f.required)
   const requiredFilled = requiredFields.every(f => isFieldFilled(f, fieldVals[f.id]))
