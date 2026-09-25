@@ -13,12 +13,11 @@ import Header from './Header'
 // have no second path segment.
 const AUTO_COLLAPSE_PATTERN = /^\/support\/tickets\/[^/]+\/[^/]+/
 
-// Lead Detail's 3-column layout (left info sidebar, main content, right
-// Installation/eKYC sidebar) also wants the extra width, but with a softer
-// touch than Ticket Detail's hard force above: it only sets `collapsed` to
-// true once on entry (a default, not a lock), so the user's own hamburger
-// toggle keeps working normally for the rest of the visit — see the effect
-// below. Matches the bare /sales/leads/:id detail route and any of its tab
+// Lead Detail sets the sidebar to *expanded* on entry (a default, not a lock)
+// so the user's own hamburger toggle keeps working normally for the rest of
+// the visit. The pre-entry state is saved and restored on exit — same
+// restore-on-exit contract Ticket Detail gets from its own (always-on) force
+// above. Matches the bare /sales/leads/:id detail route and any of its tab
 // sub-routes (/overview, /comments, /stage-history, etc.) — but not
 // /sales/leads/new (Create Lead) or /sales/leads/:id/edit (Edit Lead), which
 // are different pages that happen to share the same route prefix.
@@ -39,7 +38,7 @@ export default function Layout() {
     const onLeadDetail = LEAD_DETAIL_PATTERN.test(location.pathname)
     if (onLeadDetail && !wasOnLeadDetail.current) {
       collapsedBeforeLeadDetail.current = collapsed
-      setCollapsed(true)
+      setCollapsed(false)
     } else if (!onLeadDetail && wasOnLeadDetail.current) {
       setCollapsed(collapsedBeforeLeadDetail.current)
     }
