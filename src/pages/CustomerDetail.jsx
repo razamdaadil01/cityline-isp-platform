@@ -2132,52 +2132,93 @@ function TicketsTab({ customer }) {
 
 // ── Tab: Inventory ───────────────────────────────────────────────────────────
 
-function InventoryTab() {
+function InventoryTab({ customer }) {
+  const [assignments, setAssignments] = useState(
+    () => getActiveUserAssignmentsForCustomer(customer.id)
+  )
+  useEffect(() => {
+    setAssignments(getActiveUserAssignmentsForCustomer(customer.id))
+    return subscribeUserAssignments(() =>
+      setAssignments(getActiveUserAssignmentsForCustomer(customer.id))
+    )
+  }, [customer.id])
+
+  // Flatten one row per item per assignment; include only real fields.
+  const items = assignments.flatMap(asg =>
+    asg.items.map(it => {
+      const product = getProduct(it.productId)
+      return {
+        key: `${asg.id}-${it.productId}-${(it.serials?.[0] ?? it.macs?.[0] ?? it.productId)}`,
+        productName: it.productName,
+        productType: product?.productType ?? 'hardware',
+        serials: it.serials ?? [],
+        macs: it.macs ?? [],
+        qty: it.qty ?? 1,
+        engineerName: asg.engineerName,
+        workOrderLabel: asg.workOrderLabel,
+        assignedAt: asg.assignedAt,
+      }
+    })
+  )
+
+  if (items.length === 0) {
+    return (
+      <Card>
+        <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
+          <Cpu size={32} className="text-gray-300" />
+          <p className="text-sm font-medium text-gray-500">No hardware assigned to this customer yet</p>
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-500">{INVENTORY.length} deployed device{INVENTORY.length !== 1 ? 's' : ''}</p>
+      <p className="text-sm text-gray-500">{items.length} deployed device{items.length !== 1 ? 's' : ''}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {INVENTORY.map((item, i) => (
-          <Card key={i}>
+        {items.map(item => (
+          <Card key={item.key}>
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-navy/10 text-navy flex items-center justify-center">
                   <Cpu size={18} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{item.type}</p>
-                  <p className="text-sm font-bold text-gray-900">{item.model}</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{item.productType}</p>
+                  <p className="text-sm font-bold text-gray-900">{item.productName}</p>
                 </div>
               </div>
-              <Badge variant={item.status === 'online' ? 'green' : 'red'} dot size="sm">
-                {item.status === 'online' ? 'Online' : 'Offline'}
-              </Badge>
+              <Badge variant="green" dot size="sm">Handed Off</Badge>
             </div>
             <div className="space-y-2.5 text-sm">
+              {item.serials.length > 0 && item.serials.map((s, i) => (
+                <div key={`s-${i}`} className="flex items-start justify-between gap-4">
+                  <span className="text-gray-400 text-xs shrink-0">{item.serials.length > 1 ? `Serial ${i + 1}` : 'Serial No.'}</span>
+                  <span className="text-gray-700 font-mono text-xs text-right">{s}</span>
+                </div>
+              ))}
+              {item.macs.length > 0 && item.macs.map((m, i) => (
+                <div key={`m-${i}`} className="flex items-start justify-between gap-4">
+                  <span className="text-gray-400 text-xs shrink-0">{item.macs.length > 1 ? `MAC ${i + 1}` : 'MAC Address'}</span>
+                  <span className="text-gray-700 font-mono text-xs text-right">{m}</span>
+                </div>
+              ))}
+              {item.serials.length === 0 && item.macs.length === 0 && (
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-400 text-xs shrink-0">Qty</span>
+                  <span className="text-gray-700 text-xs text-right">{item.qty}</span>
+                </div>
+              )}
               {[
-                ['Serial No.',   item.serial],
-                ['MAC Address',  item.mac],
-                ['Port / Path',  item.port],
+                ['Work Order',   item.workOrderLabel],
+                ['Installed By', item.engineerName],
+                ['Date',         formatTicketDate(item.assignedAt)],
               ].map(([label, val]) => (
                 <div key={label} className="flex items-start justify-between gap-4">
                   <span className="text-gray-400 text-xs shrink-0">{label}</span>
-                  <span className="text-gray-700 font-mono text-xs text-right">{val}</span>
+                  <span className="text-gray-700 text-xs text-right">{val}</span>
                 </div>
               ))}
-              {item.signalRx !== null && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400 text-xs">Signal Rx</span>
-                    <span className={`font-semibold text-xs ${item.signalRx < -25 ? 'text-red-500' : item.signalRx < -20 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                      {item.signalRx} dBm
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400 text-xs">Signal Tx</span>
-                    <span className="font-semibold text-xs text-gray-700">{item.signalTx} dBm</span>
-                  </div>
-                </>
-              )}
             </div>
           </Card>
         ))}
@@ -3546,7 +3587,7 @@ export default function CustomerDetail() {
           {activeTab === 'Package Details' && <PackagesTab customer={customer} />}
           {activeTab === 'Finance'         && <FinanceTab  customer={customer} setActivityLog={setActivityLog} />}
           {activeTab === 'Tickets'         && <TicketsTab customer={customer} />}
-          {activeTab === 'Inventory'       && <InventoryTab />}
+          {activeTab === 'Inventory'       && <InventoryTab customer={customer} />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
           {activeTab === 'TR-069'          && !isIntercom && <TR069Tab customerId={id} setActivityLog={setActivityLog} />}
           {activeTab === 'Circuit Details' && isIntercom  && <CircuitDetailsTab customer={customer} />}
