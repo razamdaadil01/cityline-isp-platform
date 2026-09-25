@@ -36,6 +36,11 @@ export function markInvoicesPaid(invoiceNos) {
   notify()
 }
 
+export function updateInvoice(no, fields) {
+  _invoices = _invoices.map(i => i.no === no ? { ...i, ...fields } : i)
+  notify()
+}
+
 export function subscribeInvoices(fn) {
   _listeners.push(fn)
   return () => {
