@@ -34,7 +34,7 @@ import {
   getSettlementByCustomerId, subscribeSettlements, addSettlement, nextSettlementId,
 } from '../data/settlementStore'
 import {
-  getInvoices, subscribeInvoices, getOutstandingTotal,
+  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments } from '../data/paymentsStore'
 
@@ -1613,7 +1613,7 @@ const MOCK_PAYMENTS = [
   { id: 2, receiptNo: '117637', invoiceNo: '—',               paymentDate: '23-06-2026', date: '23-06-2026 09:55:46', mode: 'Online',      total: 1000.00, paid: 1000.00, status: 'Complete', orderNo: '94e4f91a9ab212b92cff', chequeBCh: 0, addBy: 'Preeti_TCNPL125', comment: 'Complete' },
 ]
 
-function FinanceTab({ customer }) {
+function FinanceTab({ customer, setActivityLog }) {
   const { id: customerId, subTab: subTabParam } = useParams()
   const navigate = useNavigate()
   const [invPage, setInvPage] = useState(1)
@@ -1621,6 +1621,68 @@ function FinanceTab({ customer }) {
   const [ledPage, setLedPage] = useState(1)
   const [showFailed, setShowFailed] = useState(false)
   const PER_PAGE = 5
+
+  // Invoice action menu state
+  const [invMenu, setInvMenu] = useState(null) // invoice.no or null
+  const invMenuRef = useRef(null)
+  useEffect(() => {
+    if (!invMenu) return
+    function handle(e) { if (invMenuRef.current && !invMenuRef.current.contains(e.target)) setInvMenu(null) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [invMenu])
+
+  // Credit Note modal
+  const [creditModal, setCreditModal] = useState(null) // invoice.no or null
+  const [creditForm, setCreditForm] = useState({ amount: '', reason: '' })
+
+  // Refund modal
+  const [refundModal, setRefundModal] = useState(null) // invoice.no or null
+  const [refundForm, setRefundForm] = useState({ amount: '', reason: '' })
+
+  // Invoice action toast
+  const [invToast, setInvToast] = useState(null) // { msg } or null
+  function showInvToast(msg) {
+    setInvToast({ msg })
+    setTimeout(() => setInvToast(null), 3000)
+  }
+
+  function handleEmailInvoice(inv) {
+    setInvMenu(null)
+    const now = formatActivityTime(new Date())
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: `Invoice emailed`, meta: `${inv.no} — sent to ${customer.email}` }, ...a])
+    showInvToast(`Invoice ${inv.no} emailed to ${customer.email}`)
+  }
+
+  function handleOpenCreditModal(inv) {
+    setInvMenu(null)
+    setCreditForm({ amount: '', reason: '' })
+    setCreditModal(inv.no)
+  }
+
+  function handleSaveCreditNote() {
+    if (!creditForm.amount || !creditForm.reason) return
+    updateInvoice(creditModal, { creditNote: { amount: Number(creditForm.amount), reason: creditForm.reason } })
+    const now = formatActivityTime(new Date())
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Credit note added', meta: `${creditModal} · ₹${Number(creditForm.amount).toLocaleString('en-IN')} — ${creditForm.reason}` }, ...a])
+    showInvToast(`Credit note saved for ${creditModal}`)
+    setCreditModal(null)
+  }
+
+  function handleOpenRefundModal(inv) {
+    setInvMenu(null)
+    setRefundForm({ amount: String(inv.amount), reason: '' })
+    setRefundModal(inv.no)
+  }
+
+  function handleSaveRefund() {
+    if (!refundForm.reason) return
+    updateInvoice(refundModal, { status: 'refunded' })
+    const now = formatActivityTime(new Date())
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Refund processed', meta: `${refundModal} · ₹${Number(refundForm.amount).toLocaleString('en-IN')} — ${refundForm.reason}` }, ...a])
+    showInvToast(`Refund processed for ${refundModal}`)
+    setRefundModal(null)
+  }
 
   // Phase 4 — Final Settlement summary (settlementStore.js), shown at the
   // top of this tab once generated (see CustomerDetail.jsx's "Generate
@@ -1767,7 +1829,7 @@ function FinanceTab({ customer }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/60 border-b border-surface-border">
-                  {['Invoice No', 'Package', 'Date', 'Amount', 'Status', 'PDF'].map(h => (
+                  {['Invoice No', 'Company', 'Package', 'Date', 'Amount', 'Status', 'Action'].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -1776,18 +1838,41 @@ function FinanceTab({ customer }) {
                 {invRows.map(inv => (
                   <tr key={inv.no} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{inv.no}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{customer.companyName ?? customer.plan ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{inv.pkg}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{inv.date}</td>
                     <td className="px-4 py-3 font-semibold text-gray-800">₹{inv.amount.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={inv.status === 'paid' ? 'green' : 'yellow'} size="sm" dot>
-                        {inv.status === 'paid' ? 'Paid' : 'Pending'}
+                      <Badge variant={inv.status === 'paid' ? 'green' : inv.status === 'refunded' ? 'blue' : 'yellow'} size="sm" dot>
+                        {inv.status === 'paid' ? 'Paid' : inv.status === 'refunded' ? 'Refunded' : 'Pending'}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <button className="text-xs text-brand-blue hover:underline flex items-center gap-1">
-                        <FileText size={12} /> PDF
+                    <td className="px-4 py-3 relative">
+                      <button
+                        onClick={() => setInvMenu(invMenu === inv.no ? null : inv.no)}
+                        className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                      >
+                        <MoreVertical size={14} />
                       </button>
+                      {invMenu === inv.no && (
+                        <div ref={invMenuRef} className="absolute right-4 top-10 z-20 bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44">
+                          <button onClick={() => handleEmailInvoice(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
+                            <Mail size={13} className="text-gray-400" /> Email Invoice
+                          </button>
+                          <button onClick={() => handleOpenCreditModal(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
+                            <Receipt size={13} className="text-gray-400" /> Add Credit Notes
+                          </button>
+                          <button onClick={() => handleOpenRefundModal(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
+                            <RotateCcw size={13} className="text-gray-400" /> Refund
+                          </button>
+                          <button onClick={() => { setInvMenu(null); navigate(`/customers/${customerId}/packages`) }} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
+                            <PackageSearch size={13} className="text-gray-400" /> Upgrade Package
+                          </button>
+                          <button onClick={() => { setInvMenu(null); showInvToast(`Downloading PDF for ${inv.no}…`) }} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
+                            <FileText size={13} className="text-gray-400" /> Download PDF
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1926,6 +2011,71 @@ function FinanceTab({ customer }) {
           </div>
           <Pagination page={ledPage} total={ledTotal} pages={ledPages} onPage={setLedPage} label="entries" />
         </Card>
+      )}
+
+      {/* Credit Note Modal */}
+      {creditModal && (
+        <Modal title="Add Credit Note" onClose={() => setCreditModal(null)}>
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">Invoice: <span className="font-mono font-semibold text-gray-700">{creditModal}</span></p>
+            <FormField label="Credit Amount (₹)">
+              <Input
+                type="number"
+                placeholder="Enter amount"
+                value={creditForm.amount}
+                onChange={e => setCreditForm(f => ({ ...f, amount: e.target.value }))}
+              />
+            </FormField>
+            <FormField label="Reason">
+              <Textarea
+                placeholder="Reason for credit note"
+                value={creditForm.reason}
+                onChange={e => setCreditForm(f => ({ ...f, reason: e.target.value }))}
+                rows={3}
+              />
+            </FormField>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="secondary" size="sm" onClick={() => setCreditModal(null)}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={handleSaveCreditNote} disabled={!creditForm.amount || !creditForm.reason}>Save Credit Note</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Refund Modal */}
+      {refundModal && (
+        <Modal title="Process Refund" onClose={() => setRefundModal(null)}>
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">Invoice: <span className="font-mono font-semibold text-gray-700">{refundModal}</span></p>
+            <FormField label="Refund Amount (₹)">
+              <Input
+                type="number"
+                value={refundForm.amount}
+                onChange={e => setRefundForm(f => ({ ...f, amount: e.target.value }))}
+              />
+            </FormField>
+            <FormField label="Reason">
+              <Textarea
+                placeholder="Reason for refund"
+                value={refundForm.reason}
+                onChange={e => setRefundForm(f => ({ ...f, reason: e.target.value }))}
+                rows={3}
+              />
+            </FormField>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="secondary" size="sm" onClick={() => setRefundModal(null)}>Cancel</Button>
+              <Button variant="danger" size="sm" onClick={handleSaveRefund} disabled={!refundForm.reason}>Confirm Refund</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Invoice action toast */}
+      {invToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
+          <CheckCircle size={14} className="text-green-400 shrink-0" />
+          {invToast.msg}
+        </div>
       )}
     </div>
   )
@@ -3394,7 +3544,7 @@ export default function CustomerDetail() {
         <div className="p-5 sm:p-6">
           {activeTab === 'Profile'         && <ProfileTab  customer={customer} notes={notes} setNotes={setNotes} onSendSms={() => setSmsModalOpen(true)} />}
           {activeTab === 'Package Details' && <PackagesTab customer={customer} />}
-          {activeTab === 'Finance'         && <FinanceTab  customer={customer} />}
+          {activeTab === 'Finance'         && <FinanceTab  customer={customer} setActivityLog={setActivityLog} />}
           {activeTab === 'Tickets'         && <TicketsTab customer={customer} />}
           {activeTab === 'Inventory'       && <InventoryTab />}
           {activeTab === 'Network Map'     && <NetworkMapTab customer={customer} />}
