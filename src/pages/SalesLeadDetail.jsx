@@ -862,6 +862,102 @@ function VisitInstallationModal({ isOpen, onClose, lead, linkedFeasibility, onCr
   )
 }
 
+// Searchable chip-based multi-select for the "Notify To" field, following the
+// same interaction as TechnicianMultiSelect in POPWorkOrderDetail.jsx: a trigger
+// field that shows selected users as removable chips, a type-ahead search input
+// that filters the dropdown list by name, and checkbox rows for each option.
+function NotifyMultiSelect({ staff, selected, onToggle }) {
+  const [open, setOpen]   = useState(false)
+  const [query, setQuery] = useState('')
+  const wrapRef   = useRef(null)
+  const searchRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onClickOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
+
+  function openDropdown() {
+    setOpen(true)
+    setTimeout(() => searchRef.current?.focus(), 0)
+  }
+
+  const filtered      = staff.filter(s => s.name.toLowerCase().includes(query.toLowerCase()))
+  const selectedStaff = staff.filter(s => selected.includes(s.name))
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div
+        onClick={openDropdown}
+        className="w-full min-h-[38px] px-3 py-1.5 border border-surface-border rounded-lg bg-white flex items-center flex-wrap gap-1.5 cursor-pointer hover:border-brand-blue/40 transition-colors focus-within:ring-2 focus-within:ring-brand-blue/30 focus-within:border-brand-blue"
+      >
+        {selectedStaff.length === 0 ? (
+          <span className="text-sm text-gray-400">Search and select notifiers…</span>
+        ) : (
+          selectedStaff.map(s => (
+            <span key={s.name} className="inline-flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue text-xs font-medium">
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0 ${s.color}`}>{s.initials}</div>
+              {s.name}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); onToggle(s.name) }}
+                className="text-brand-blue/60 hover:text-brand-blue transition-colors leading-none"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))
+        )}
+        <ChevronDown size={13} className={`ml-auto text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+
+      {open && (
+        <div className="absolute z-10 mt-1 w-full border border-surface-border rounded-lg bg-white shadow-lg overflow-hidden">
+          <div className="relative border-b border-surface-border">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Filter by name…"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-transparent focus:outline-none"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto divide-y divide-surface-border">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-3">No matching users</p>
+            ) : filtered.map(s => {
+              const isSelected = selected.includes(s.name)
+              return (
+                <label
+                  key={s.name}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => onToggle(s.name)}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                  />
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${s.color}`}>{s.initials}</div>
+                  <span className="text-sm text-gray-700">{s.name}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── SetFollowupModal ──────────────────────────────────────────────────────────
 
 function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
@@ -908,21 +1004,9 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
         <FormField label="Note">
           <Textarea value={form.note} onChange={e => set('note', e.target.value)} placeholder="Context for this follow-up…" rows={3} />
         </FormField>
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Notify To</p>
-          <div className="flex flex-wrap gap-2">
-            {STAFF.slice(0, 4).map(s => (
-              <button key={s.name} type="button" onClick={() => toggleNotify(s.name)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
-                  form.notifyTo.includes(s.name) ? 'border-brand-blue bg-brand-blue/10 text-brand-blue' : 'border-surface-border bg-white text-gray-600 hover:border-brand-blue/40'
-                }`}>
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${s.color}`}>{s.initials}</div>
-                {s.name}
-                {form.notifyTo.includes(s.name) && <CheckCircle2 size={12} />}
-              </button>
-            ))}
-          </div>
-        </div>
+        <FormField label="Notify To">
+          <NotifyMultiSelect staff={STAFF} selected={form.notifyTo} onToggle={toggleNotify} />
+        </FormField>
       </div>
     </Modal>
   )
