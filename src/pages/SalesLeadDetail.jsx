@@ -2387,15 +2387,15 @@ export default function SalesLeadDetail() {
   // Left sidebar's compact "Basic Details" / "Address Info" summary sub-tabs.
   const [sidebarSubTab, setSidebarSubTab] = useState('basic')
   const [searchParams, setSearchParams] = useSearchParams()
-  const moveStageOpen = searchParams.get('action') === 'move-stage'
-  const [moveStageInitial, setMoveStageInitial] = useState('')
+  const moveStageOpen   = searchParams.get('action') === 'move-stage'
+  // Target stage is encoded in the URL so copy-pasting ?action=move-stage&target=Feasibility
+  // reopens the correct modal variant on a fresh load, instead of the generic empty form.
+  const moveStageTarget = searchParams.get('target') ?? ''
 
   function openMoveStage(initial = '') {
-    setMoveStageInitial(initial)
-    setSearchParams({ action: 'move-stage' })
+    setSearchParams({ action: 'move-stage', target: initial })
   }
   function closeMoveStage() {
-    setMoveStageInitial('')
     setSearchParams({})
   }
 
@@ -4470,9 +4470,9 @@ export default function SalesLeadDetail() {
         onClose={closeMoveStage}
         lead={lead}
         pipelines={pipelines}
-        targetStage={moveStageInitial}
+        targetStage={moveStageTarget}
         onSave={handleMoveStage}
-        title={moveStageInitial === 'Feasibility' ? `Feasibility Details — ${lead?.name}` : undefined}
+        title={moveStageTarget === 'Feasibility' ? `Feasibility Details — ${lead?.name}` : undefined}
       />
       <SetFollowupModal
         isOpen={followupOpen}
