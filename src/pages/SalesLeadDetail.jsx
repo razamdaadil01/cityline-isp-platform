@@ -3357,82 +3357,70 @@ export default function SalesLeadDetail() {
               )}
             </div>
 
-            {/* Stats tiles */}
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
-                <p className="text-xs text-gray-400">Days in Stage</p>
-                <p className="text-base font-bold text-gray-800">{realDaysInStage}</p>
-              </div>
-              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
-                <p className="text-xs text-gray-400">Follow-ups</p>
-                <p className="text-sm font-bold text-gray-800">{followups.length}</p>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Action buttons row */}
-          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
-            {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
-              <Button variant="danger" size="sm" icon={<XCircle size={14} />}
-                onClick={() => openMoveStage('Lost')}>
-                Mark as Lost
-              </Button>
-            ) : (
-              <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
-                onClick={() => openLeadDetailModal('reopen-lead')}
-                className="border-amber-300 text-amber-700 hover:bg-amber-50">
-                Reopen Lead
-              </Button>
-            )}
-            <div className="relative" ref={actionsRef}>
-              <button
-                onClick={() => {
-                  const rect = actionsRef.current.getBoundingClientRect()
-                  setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
-                  setActionsOpen(v => !v)
-                }}
-                className="w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 transition-colors"
-                title="More options"
-              >
-                <MoreVertical size={16} />
-              </button>
-              {actionsOpen && (
-                <div
-                  style={{ top: actionsPos.top, right: actionsPos.right }}
-                  className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
-                >
-                  <span title={quotDisabledReason || undefined}>
-                    <button
-                      onClick={() => { openLeadDetailModal('send-quotation'); setActionsOpen(false) }}
-                      disabled={!!quotDisabledReason}
-                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
-                      <FileText size={14} className="text-gray-400 shrink-0" /> Send Quotation
-                    </button>
-                  </span>
-                  <button
-                    onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
-                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                    <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
-                  </button>
-                  <button
-                    onClick={() => { openMoveStage('Feasibility'); setActionsOpen(false) }}
-                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                    <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
-                  </button>
-                  <button
-                    onClick={() => { openLeadDetailModal('visit-installation'); setActionsOpen(false) }}
-                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                    <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
-                  </button>
-                  <button
-                    onClick={() => { openLeadDetailModal('set-followup'); setActionsOpen(false) }}
-                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                    <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
-                  </button>
-                </div>
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {lead.stage !== 'Won' && lead.stage !== 'Lost' ? (
+                <Button variant="danger" size="sm" icon={<XCircle size={14} />}
+                  onClick={() => openMoveStage('Lost')}>
+                  Mark as Lost
+                </Button>
+              ) : (
+                <Button variant="secondary" size="sm" icon={<TrendingUp size={14} />}
+                  onClick={() => openLeadDetailModal('reopen-lead')}
+                  className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                  Reopen Lead
+                </Button>
               )}
+              <div className="relative" ref={actionsRef}>
+                <button
+                  onClick={() => {
+                    const rect = actionsRef.current.getBoundingClientRect()
+                    setActionsPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+                    setActionsOpen(v => !v)
+                  }}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-surface-border bg-white text-gray-500 hover:bg-gray-50 transition-colors"
+                  title="More options"
+                >
+                  <MoreVertical size={16} />
+                </button>
+                {actionsOpen && (
+                  <div
+                    style={{ top: actionsPos.top, right: actionsPos.right }}
+                    className="fixed z-[9999] bg-white border border-surface-border rounded-xl shadow-xl overflow-hidden min-w-[210px] w-max"
+                  >
+                    <span title={quotDisabledReason || undefined}>
+                      <button
+                        onClick={() => { openLeadDetailModal('send-quotation'); setActionsOpen(false) }}
+                        disabled={!!quotDisabledReason}
+                        className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white">
+                        <FileText size={14} className="text-gray-400 shrink-0" /> Send Quotation
+                      </button>
+                    </span>
+                    <button
+                      onClick={() => { navigate(`/sales/leads/${lead.id}/edit`); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Edit3 size={14} className="text-gray-400 shrink-0" /> Edit Lead
+                    </button>
+                    <button
+                      onClick={() => { openMoveStage('Feasibility'); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Search size={14} className="text-gray-400 shrink-0" /> Check for Feasibility
+                    </button>
+                    <button
+                      onClick={() => { openLeadDetailModal('visit-installation'); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Wrench size={14} className="text-gray-400 shrink-0" /> Visit Installation
+                    </button>
+                    <button
+                      onClick={() => { openLeadDetailModal('set-followup'); setActionsOpen(false) }}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                      <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
           </div>
         </div>
       </div>
