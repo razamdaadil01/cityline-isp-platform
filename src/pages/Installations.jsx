@@ -54,6 +54,7 @@ const STATUS_BADGE = {
   'Cancelled':                   'red',
   'Pending':                     'orange',
   'In Progress':                 'navy',
+  'On Hold':                     'yellow',
 }
 
 /* ── Normalized status buckets — used only for the summary cards + status filter,
@@ -447,6 +448,8 @@ export default function Installations() {
   const [netDispatchInst,   setNetDispatchInst]   = useState(null)
   const [netCancelInst,     setNetCancelInst]     = useState(null)
   const [netCompleteInst,   setNetCompleteInst]   = useState(null)
+  const [netHoldInst,       setNetHoldInst]       = useState(null)
+  const [netHoldNote,       setNetHoldNote]       = useState('')
 
   const [netAssignForm, setNetAssignForm] = useState({ engineers: [], notes: '' })
   const [netEngSearch,  setNetEngSearch]  = useState('')
@@ -568,6 +571,13 @@ export default function Installations() {
     updateInstallationStatus(netCancelInst.id, 'Cancelled', { _note: 'Installation cancelled' })
     setNetCancelInst(null)
     setToast('Installation cancelled')
+  }
+
+  function handleNetHold() {
+    updateInstallationStatus(netHoldInst.id, 'On Hold', { _note: netHoldNote.trim() || 'Installation placed on hold' })
+    setNetHoldInst(null)
+    setNetHoldNote('')
+    setToast('Installation marked as On Hold')
   }
 
   /* ── Intercom row actions ──────────────────────────────────────────────── */
@@ -974,14 +984,6 @@ export default function Installations() {
             <span className="text-sm text-gray-700">View Details</span>
           </button>
 
-          <button
-            onClick={() => { if (netMenuInst.leadId) navigate(`/sales/leads/${netMenuInst.leadId}/overview`); setNetMenuId(null) }}
-            disabled={!netMenuInst.leadId}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${netMenuInst.leadId ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-            <List className={`w-4 h-4 flex-shrink-0 ${netMenuInst.leadId ? 'text-gray-500' : 'text-gray-400'}`} />
-            <span className={`text-sm ${netMenuInst.leadId ? 'text-gray-700' : 'text-gray-400'}`}>View Lead</span>
-          </button>
-
           <div className="my-1 border-t border-gray-100" />
 
           <button onClick={() => startAssign(netMenuInst)}
@@ -994,6 +996,13 @@ export default function Installations() {
             className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
             <RefreshCw className="w-4 h-4 text-gray-500 flex-shrink-0" />
             <span className="text-sm text-gray-700">Edit Slot / Reschedule</span>
+          </button>
+
+          <button onClick={() => { setNetHoldInst(netMenuInst); setNetHoldNote(''); setNetMenuId(null) }}
+            disabled={['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status)}
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+            <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'text-gray-400' : 'text-amber-500'}`} />
+            <span className={`text-sm ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'text-gray-400' : 'text-gray-700'}`}>Mark as Hold</span>
           </button>
 
           <button
@@ -1376,6 +1385,42 @@ export default function Installations() {
           <div className="flex items-start gap-2 text-xs text-gray-400">
             <AlertTriangle size={12} className="shrink-0 mt-0.5 text-amber-400" />
             This action cannot be undone.
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Internet Mark as Hold Confirmation ──────────────────────────── */}
+      <Modal
+        isOpen={!!netHoldInst}
+        onClose={() => setNetHoldInst(null)}
+        title="Mark as On Hold"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setNetHoldInst(null)}>Cancel</Button>
+          <Button size="sm"
+            className="bg-amber-500 hover:bg-amber-600"
+            onClick={handleNetHold}>
+            Confirm Hold
+          </Button>
+        </>}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Place <span className="font-semibold">{netHoldInst?.id}</span> on hold?
+          </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-amber-700 font-medium">{netHoldInst?.customerName}</p>
+            <p className="text-xs text-amber-600 mt-0.5">{netHoldInst?.area} · {netHoldInst?.plan}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Reason (optional)</label>
+            <textarea
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:ring-1 focus:ring-brand-blue"
+              rows={3}
+              placeholder="Add a note or reason..."
+              value={netHoldNote}
+              onChange={e => setNetHoldNote(e.target.value)}
+            />
           </div>
         </div>
       </Modal>
