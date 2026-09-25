@@ -450,6 +450,8 @@ export default function Installations() {
   const [netCompleteInst,   setNetCompleteInst]   = useState(null)
   const [netHoldInst,       setNetHoldInst]       = useState(null)
   const [netHoldNote,       setNetHoldNote]       = useState('')
+  const [netHoldFollowUp,   setNetHoldFollowUp]   = useState('')
+  const [netHoldTill,       setNetHoldTill]       = useState('')
 
   const [netAssignForm, setNetAssignForm] = useState({ engineers: [], notes: '' })
   const [netEngSearch,  setNetEngSearch]  = useState('')
@@ -574,10 +576,20 @@ export default function Installations() {
   }
 
   function handleNetHold() {
-    updateInstallationStatus(netHoldInst.id, 'On Hold', { _note: netHoldNote.trim() || 'Installation placed on hold' })
+    const extra = {
+      _note: netHoldNote.trim() || 'Installation placed on hold',
+      followUpDate: netHoldFollowUp || null,
+      holdTillDate: netHoldTill || null,
+    }
+    updateInstallationStatus(netHoldInst.id, 'On Hold', extra)
+    const parts = [`${netHoldInst.id} placed on hold`]
+    if (netHoldTill) parts.push(`until ${netHoldTill}`)
+    if (netHoldFollowUp) parts.push(`follow-up on ${netHoldFollowUp}`)
     setNetHoldInst(null)
     setNetHoldNote('')
-    setToast('Installation marked as On Hold')
+    setNetHoldFollowUp('')
+    setNetHoldTill('')
+    setToast(parts.join(', '))
   }
 
   /* ── Intercom row actions ──────────────────────────────────────────────── */
@@ -998,7 +1010,7 @@ export default function Installations() {
             <span className="text-sm text-gray-700">Edit Slot / Reschedule</span>
           </button>
 
-          <button onClick={() => { setNetHoldInst(netMenuInst); setNetHoldNote(''); setNetMenuId(null) }}
+          <button onClick={() => { setNetHoldInst(netMenuInst); setNetHoldNote(''); setNetHoldFollowUp(''); setNetHoldTill(''); setNetMenuId(null) }}
             disabled={['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status)}
             className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
             <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'text-gray-400' : 'text-amber-500'}`} />
@@ -1411,6 +1423,26 @@ export default function Installations() {
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
             <p className="text-xs text-amber-700 font-medium">{netHoldInst?.customerName}</p>
             <p className="text-xs text-amber-600 mt-0.5">{netHoldInst?.area} · {netHoldInst?.plan}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Follow-up Date (optional)</label>
+              <input
+                type="date"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand-blue"
+                value={netHoldFollowUp}
+                onChange={e => setNetHoldFollowUp(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Hold Till Date (optional)</label>
+              <input
+                type="date"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand-blue"
+                value={netHoldTill}
+                onChange={e => setNetHoldTill(e.target.value)}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Reason (optional)</label>
