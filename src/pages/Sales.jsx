@@ -32,8 +32,9 @@ import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager
 // so the table can never end up with zero identifying columns visible.
 const SALES_LEADS_COLUMNS = [
   { key: 'leadId',       label: 'Lead ID',        visible: true, defaultVisible: true },
-  { key: 'customerName', label: 'Customer Name', visible: true, defaultVisible: true, locked: true },
-  { key: 'customerType', label: 'Customer Type',  visible: true, defaultVisible: true },
+  { key: 'customerName',    label: 'Customer Name',    visible: true, defaultVisible: true, locked: true },
+  { key: 'salesExecutive', label: 'Sales Executive', visible: true, defaultVisible: true },
+  { key: 'customerType',   label: 'Customer Type',   visible: true, defaultVisible: true },
   { key: 'branch',       label: 'Branch',         visible: true, defaultVisible: true },
   { key: 'mobile',       label: 'Mobile',         visible: true, defaultVisible: true },
   { key: 'stage',        label: 'Stage',          visible: true, defaultVisible: true },
@@ -797,6 +798,7 @@ function LeadModal({ isOpen, onClose, onSave, initial, defaultPipeline, formModu
       lastActivity:     isEdit ? initial.lastActivity : 'Lead created',
       assignedInitials: staff?.initials ?? '??',
       assignedColor:    staff?.color ?? 'bg-gray-400',
+      salesExecutive:   form.assigned,
       priority:         'medium',
       ekycStatus:       isEdit ? initial.ekycStatus : null,
       hwAssigned:       isEdit ? initial.hwAssigned : null,
@@ -2202,11 +2204,12 @@ export default function Sales() {
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="rounded-xl border border-surface-border shadow-card overflow-hidden bg-white">
             <div className="overflow-x-auto">
-              <table className="text-sm table-fixed w-full" style={{ minWidth: 1250 }}>
+              <table className="text-sm table-fixed w-full" style={{ minWidth: 1390 }}>
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wide">
                     {visibleCols.has('leadId') && <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>}
                     {visibleCols.has('customerName') && <th className="px-4 py-3 text-left" style={{ width: 160 }}>Customer Name</th>}
+                    {visibleCols.has('salesExecutive') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Sales Executive</th>}
                     {visibleCols.has('customerType') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>}
                     {visibleCols.has('branch') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Branch</th>}
                     {visibleCols.has('mobile') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>}
@@ -2249,6 +2252,16 @@ export default function Sales() {
                             >
                               {lead.name}
                             </button>
+                          </td>
+                        )}
+                        {visibleCols.has('salesExecutive') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.salesExecutive || lead.assigned}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
+                                {lead.assignedInitials}
+                              </div>
+                              <span className="truncate text-xs text-gray-700">{lead.salesExecutive || lead.assigned || '—'}</span>
+                            </div>
                           </td>
                         )}
                         {visibleCols.has('customerType') && (
