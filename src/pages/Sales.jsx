@@ -33,14 +33,14 @@ import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager
 const SALES_LEADS_COLUMNS = [
   { key: 'leadId',       label: 'Lead ID',        visible: true, defaultVisible: true },
   { key: 'customerName',    label: 'Customer Name',    visible: true, defaultVisible: true, locked: true },
-  { key: 'salesExecutive', label: 'Sales Executive', visible: true, defaultVisible: true },
   { key: 'customerType',   label: 'Customer Type',   visible: true, defaultVisible: true },
-  { key: 'branch',       label: 'Branch',         visible: true, defaultVisible: true },
-  { key: 'mobile',       label: 'Mobile',         visible: true, defaultVisible: true },
-  { key: 'stage',        label: 'Stage',          visible: true, defaultVisible: true },
-  { key: 'assigned',     label: 'Assigned',       visible: true, defaultVisible: true },
-  { key: 'followUp',     label: 'Follow-up',      visible: true, defaultVisible: true },
-  { key: 'created',      label: 'Created',        visible: true, defaultVisible: true },
+  { key: 'branch',         label: 'Branch',          visible: true, defaultVisible: true },
+  { key: 'mobile',         label: 'Mobile',          visible: true, defaultVisible: true },
+  { key: 'stage',          label: 'Stage',           visible: true, defaultVisible: true },
+  { key: 'assigned',       label: 'Assigned',        visible: true, defaultVisible: true },
+  { key: 'followUp',       label: 'Follow-up',       visible: true, defaultVisible: true },
+  { key: 'salesExecutive', label: 'Sales Executive', visible: true, defaultVisible: true },
+  { key: 'created',        label: 'Created',         visible: true, defaultVisible: true },
   { key: 'actions',      label: 'Actions',        visible: true, defaultVisible: true },
 ]
 
@@ -2209,13 +2209,13 @@ export default function Sales() {
                   <tr className="border-b border-surface-border bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wide">
                     {visibleCols.has('leadId') && <th className="px-4 py-3 text-left" style={{ width: 90 }}>Lead ID</th>}
                     {visibleCols.has('customerName') && <th className="px-4 py-3 text-left" style={{ width: 160 }}>Customer Name</th>}
-                    {visibleCols.has('salesExecutive') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Sales Executive</th>}
                     {visibleCols.has('customerType') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Customer Type</th>}
                     {visibleCols.has('branch') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Branch</th>}
                     {visibleCols.has('mobile') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Mobile</th>}
                     {visibleCols.has('stage') && <th className="px-4 py-3 text-left" style={{ width: 150 }}>Stage</th>}
                     {visibleCols.has('assigned') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Assigned</th>}
                     {visibleCols.has('followUp') && <th className="px-4 py-3 text-left" style={{ width: 130 }}>Follow-up</th>}
+                    {visibleCols.has('salesExecutive') && <th className="px-4 py-3 text-left" style={{ width: 140 }}>Sales Executive</th>}
                     {visibleCols.has('created') && <th className="px-4 py-3 text-left" style={{ width: 110 }}>Created</th>}
                     {visibleCols.has('actions') && <th className="px-4 py-3 text-left" style={{ width: 100 }}>Actions</th>}
                   </tr>
@@ -2252,16 +2252,6 @@ export default function Sales() {
                             >
                               {lead.name}
                             </button>
-                          </td>
-                        )}
-                        {visibleCols.has('salesExecutive') && (
-                          <td className="px-4 py-3 overflow-hidden" title={lead.salesExecutive || lead.assigned}>
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
-                                {lead.assignedInitials}
-                              </div>
-                              <span className="truncate text-xs text-gray-700">{lead.salesExecutive || lead.assigned || '—'}</span>
-                            </div>
                           </td>
                         )}
                         {visibleCols.has('customerType') && (
@@ -2313,6 +2303,16 @@ export default function Sales() {
                               ? <span className={`text-xs font-medium ${fuOverdue ? 'text-red-500' : 'text-gray-700'}`}>{lead.followUp}{fuOverdue && ' ⚠'}</span>
                               : <span className="text-gray-300 text-xs">—</span>
                             }
+                          </td>
+                        )}
+                        {visibleCols.has('salesExecutive') && (
+                          <td className="px-4 py-3 overflow-hidden" title={lead.salesExecutive || lead.assigned}>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${lead.assignedColor}`}>
+                                {lead.assignedInitials}
+                              </div>
+                              <span className="truncate text-xs text-gray-700">{lead.salesExecutive || lead.assigned || '—'}</span>
+                            </div>
                           </td>
                         )}
                         {visibleCols.has('created') && (
