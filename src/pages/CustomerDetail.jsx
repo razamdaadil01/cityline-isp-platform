@@ -2154,8 +2154,7 @@ function InventoryTab({ customer }) {
         serials: it.serials ?? [],
         macs: it.macs ?? [],
         qty: it.qty ?? 1,
-        engineerName: asg.engineerName,
-        workOrderLabel: asg.workOrderLabel,
+        assignedBy: asg.assignedBy ?? asg.engineerName,
         assignedAt: asg.assignedAt,
       }
     })
@@ -2163,66 +2162,41 @@ function InventoryTab({ customer }) {
 
   if (items.length === 0) {
     return (
-      <Card>
-        <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
-          <Cpu size={32} className="text-gray-300" />
-          <p className="text-sm font-medium text-gray-500">No hardware assigned to this customer yet</p>
-        </div>
-      </Card>
+      <p className="text-sm text-gray-500 py-6">No hardware assigned to this customer yet</p>
     )
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">{items.length} deployed device{items.length !== 1 ? 's' : ''}</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {items.map(item => (
-          <Card key={item.key}>
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-navy/10 text-navy flex items-center justify-center">
-                  <Cpu size={18} />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">{item.productType}</p>
-                  <p className="text-sm font-bold text-gray-900">{item.productName}</p>
-                </div>
-              </div>
-              <Badge variant="green" dot size="sm">Handed Off</Badge>
-            </div>
-            <div className="space-y-2.5 text-sm">
-              {item.serials.length > 0 && item.serials.map((s, i) => (
-                <div key={`s-${i}`} className="flex items-start justify-between gap-4">
-                  <span className="text-gray-400 text-xs shrink-0">{item.serials.length > 1 ? `Serial ${i + 1}` : 'Serial No.'}</span>
-                  <span className="text-gray-700 font-mono text-xs text-right">{s}</span>
-                </div>
+      <Card padding={false}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/60 border-b border-surface-border">
+                {['Hardware Name', 'MAC Address', 'Serial No.', 'Assign By', 'Hardware Own By', 'Assigned Date', 'Status'].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {items.map(item => (
+                <tr key={item.key} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-800 whitespace-nowrap">{item.productName}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{item.macs.length > 0 ? item.macs.join(', ') : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{item.serials.length > 0 ? item.serials.join(', ') : '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{item.assignedBy}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">Cityline</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTicketDate(item.assignedAt)}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant="green" dot size="sm">Handed Off</Badge>
+                  </td>
+                </tr>
               ))}
-              {item.macs.length > 0 && item.macs.map((m, i) => (
-                <div key={`m-${i}`} className="flex items-start justify-between gap-4">
-                  <span className="text-gray-400 text-xs shrink-0">{item.macs.length > 1 ? `MAC ${i + 1}` : 'MAC Address'}</span>
-                  <span className="text-gray-700 font-mono text-xs text-right">{m}</span>
-                </div>
-              ))}
-              {item.serials.length === 0 && item.macs.length === 0 && (
-                <div className="flex items-start justify-between gap-4">
-                  <span className="text-gray-400 text-xs shrink-0">Qty</span>
-                  <span className="text-gray-700 text-xs text-right">{item.qty}</span>
-                </div>
-              )}
-              {[
-                ['Work Order',   item.workOrderLabel],
-                ['Installed By', item.engineerName],
-                ['Date',         formatTicketDate(item.assignedAt)],
-              ].map(([label, val]) => (
-                <div key={label} className="flex items-start justify-between gap-4">
-                  <span className="text-gray-400 text-xs shrink-0">{label}</span>
-                  <span className="text-gray-700 text-xs text-right">{val}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))}
-      </div>
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   )
 }
