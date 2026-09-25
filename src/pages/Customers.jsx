@@ -609,7 +609,6 @@ export default function Customers() {
                 {visibleCols.has('phone') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[120px]">Phone</th>}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[200px]">Services</th>
                 {visibleCols.has('plan') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[140px]">Plan</th>}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Radius</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[100px]">Expiry</th>
                 {visibleCols.has('status') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">Status</th>}
                 {visibleCols.has('connection') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap min-w-[130px]">Connection</th>}
@@ -676,7 +675,6 @@ export default function Customers() {
                     {visibleCols.has('plan') && (
                       <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.plan}</td>
                     )}
-                    <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{c.zone}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{c.expiry ?? '—'}</td>
                     {visibleCols.has('status') && (
                       <td className="px-4 py-3">
