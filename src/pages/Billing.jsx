@@ -29,6 +29,9 @@ const BILLING_MOCK_ROWS = [
     comment: '',
     rechargeInternet: 'success',
     rechargeOtt: 'retry',
+    rechargeIptv: 'success',
+    eInvoiceStatus: 'Generated',
+    tallyStatus: 'Synced',
   },
   {
     id: 2,
@@ -47,6 +50,9 @@ const BILLING_MOCK_ROWS = [
     comment: '',
     rechargeInternet: 'success',
     rechargeOtt: 'retry',
+    rechargeIptv: 'retry',
+    eInvoiceStatus: 'Pending',
+    tallyStatus: 'Not Synced',
   },
 ]
 
@@ -77,19 +83,23 @@ function RechargeStatusIcon({ status }) {
   )
 }
 
-function RechargeStatusMiniTable({ internet, ott }) {
+function RechargeStatusMiniTable({ internet, ott, iptv }) {
   return (
     <div className="inline-block border border-surface-border rounded-lg overflow-hidden bg-white">
-      <div className="grid grid-cols-2 bg-gray-50 border-b border-surface-border">
+      <div className="grid grid-cols-3 bg-gray-50 border-b border-surface-border">
         <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">Internet</span>
-        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center">OTT</span>
+        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">OTT</span>
+        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center">IP TV</span>
       </div>
-      <div className="grid grid-cols-2">
+      <div className="grid grid-cols-3">
         <div className="flex items-center justify-center px-2.5 py-1.5 border-r border-surface-border">
           <RechargeStatusIcon status={internet} />
         </div>
-        <div className="flex items-center justify-center px-2.5 py-1.5">
+        <div className="flex items-center justify-center px-2.5 py-1.5 border-r border-surface-border">
           <RechargeStatusIcon status={ott} />
+        </div>
+        <div className="flex items-center justify-center px-2.5 py-1.5">
+          <RechargeStatusIcon status={iptv} />
         </div>
       </div>
     </div>
@@ -362,8 +372,9 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
 }
 
 // ─── Actions Dropdown ───────────────────────────────────────────────────────
-function ActionsDropdown() {
+function ActionsDropdown({ row }) {
   const [open, setOpen] = useState(false)
+  const [statusModal, setStatusModal] = useState(null) // 'einvoice' | 'tally' | null
   const ref = useRef(null)
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -371,27 +382,86 @@ function ActionsDropdown() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
   return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="p-1.5 rounded-lg text-brand-blue hover:bg-brand-blue/10 transition-colors"
-      >
-        <MoreVertical size={15} />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-40 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
-          {['View Invoice', 'Remove', 'Email Invoice'].map(action => (
+    <>
+      <div className="relative" ref={ref}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="p-1.5 rounded-lg text-brand-blue hover:bg-brand-blue/10 transition-colors"
+        >
+          <MoreVertical size={15} />
+        </button>
+        {open && (
+          <div className="absolute right-0 z-50 mt-1 w-44 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
+            {['View Invoice', 'Remove', 'Email Invoice'].map(action => (
+              <button
+                key={action}
+                onClick={() => setOpen(false)}
+                className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
+              >
+                {action}
+              </button>
+            ))}
+            <div className="border-t border-surface-border my-1" />
             <button
-              key={action}
-              onClick={() => setOpen(false)}
+              onClick={() => { setOpen(false); setStatusModal('einvoice') }}
               className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
             >
-              {action}
+              e-Invoice Status
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => { setOpen(false); setStatusModal('tally') }}
+              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
+            >
+              Tally Status
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* e-Invoice Status Modal */}
+      {statusModal === 'einvoice' && (
+        <Modal isOpen onClose={() => setStatusModal(null)} title="e-Invoice Status">
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">Invoice No</span>
+              <span className="text-gray-800 font-semibold">{row.invoiceNo}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">Customer</span>
+              <span className="text-gray-800">{row.customerName}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">e-Invoice Status</span>
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${row.eInvoiceStatus === 'Generated' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {row.eInvoiceStatus}
+              </span>
+            </div>
+          </div>
+        </Modal>
       )}
-    </div>
+
+      {/* Tally Status Modal */}
+      {statusModal === 'tally' && (
+        <Modal isOpen onClose={() => setStatusModal(null)} title="Tally Status">
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">Invoice No</span>
+              <span className="text-gray-800 font-semibold">{row.invoiceNo}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">Customer</span>
+              <span className="text-gray-800">{row.customerName}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500 font-medium">Tally Status</span>
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${row.tallyStatus === 'Synced' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {row.tallyStatus}
+              </span>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   )
 }
 
@@ -615,7 +685,7 @@ export default function Billing() {
                         <input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => toggleRow(row.id)} className="rounded border-gray-300 cursor-pointer" />
                       </td>
                       <td className="px-6 py-3">
-                        <RechargeStatusMiniTable internet={row.rechargeInternet} ott={row.rechargeOtt} />
+                        <RechargeStatusMiniTable internet={row.rechargeInternet} ott={row.rechargeOtt} iptv={row.rechargeIptv} />
                       </td>
                       <td className="px-6 py-3">
                         <a href="#" className="text-xs text-brand-blue font-semibold hover:underline">{row.userId}({row.userLink})</a>
@@ -644,7 +714,7 @@ export default function Billing() {
                       <td className="px-6 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
                       <td className="px-6 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
                       <td className="px-6 py-3">
-                        <ActionsDropdown />
+                        <ActionsDropdown row={row} />
                       </td>
                     </tr>
                   ))}
