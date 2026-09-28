@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Search, Filter, X, ChevronDown, Boxes, AlertTriangle, UserCog, Users,
   ShieldAlert, Trash2, Eye, ChevronRight, History, Package, Download, Flag, RefreshCw,
-  ArrowLeftRight,
+  ArrowLeftRight, CheckCircle2,
 } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
@@ -19,6 +19,7 @@ import {
 import { saveReplacement } from '../../data/replacementStore'
 import { getAssignments, removeUnitFromAssignmentLine } from '../../data/assignmentStore'
 import { getScraps } from '../../data/scrapStore'
+import { saveAdjustment, getAdjustments } from '../../data/inventoryAdjustmentStore'
 import { getTickets } from '../../data/ticketsStore'
 import { exportWorkbook } from '../../utils/excelExport'
 import { logAudit } from '../../data/auditLogStore'
@@ -435,49 +436,84 @@ function ProductDetailPanel({ product, stores, onClose }) {
   )
 }
 
-// ── Report a Discrepancy ─────────────────────────────────────────────────────
-// A v1 reconciliation stub, deliberately not touching stock: it only logs
-// what a physical count found, for someone to investigate and correct
-// manually later (via a real adjustment flow, a future phase). System Qty
-// is read-only and always sourced live from inventoryLedger.js — never
-// editable here, so this can never be mistaken for an adjustment tool.
-function DiscrepancyModal({ isOpen, onClose, product, allProducts, stores }) {
+// ── Send for Repair / Scrap modal ────────────────────────────────────────────
+function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSaved }) {
+  const [type, setType] = useState('')
   const [productId, setProductId] = useState(product?.id ?? '')
   const [storeId, setStoreId] = useState('')
-  const [physicalCount, setPhysicalCount] = useState('')
-  const [notes, setNotes] = useState('')
+  const [qty, setQty] = useState('')
+  const [repairType, setRepairType] = useState('')
+  const [vendorName, setVendorName] = useState('')
+  const [issueDescription, setIssueDescription] = useState('')
+  const [expectedReturnDate, setExpectedReturnDate] = useState('')
+  const [scrapReason, setScrapReason] = useState('')
+  const [remarks, setRemarks] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (isOpen) {
+      setType('')
       setProductId(product?.id ?? '')
       setStoreId('')
-      setPhysicalCount('')
-      setNotes('')
+      setQty('')
+      setRepairType('')
+      setVendorName('')
+      setIssueDescription('')
+      setExpectedReturnDate('')
+      setScrapReason('')
+      setRemarks('')
       setError('')
     }
   }, [isOpen, product])
 
+  function handleTypeChange(newType) {
+    setType(newType)
+    setRepairType('')
+    setVendorName('')
+    setIssueDescription('')
+    setExpectedReturnDate('')
+    setScrapReason('')
+    setRemarks('')
+    setError('')
+  }
+
   if (!isOpen) return null
 
   const selectedProduct = allProducts.find(p => p.id === productId) ?? null
-  const systemQty = selectedProduct && storeId ? getProductAvailability(productId, storeId) : null
+  const availableQty = selectedProduct && storeId ? getProductAvailability(productId, storeId) : null
+  const today = new Date().toISOString().slice(0, 10)
 
   function handleSubmit() {
-    if (!productId || !storeId || physicalCount === '') { setError('Product, Store and Physical Count are required.'); return }
+    if (!productId || !storeId || qty === '') { setError('Product, Store and Quantity are required.'); return }
+    const qtyNum = Number(qty)
+    if (!qtyNum || qtyNum <= 0) { setError('Quantity must be greater than 0.'); return }
+    if (availableQty !== null && qtyNum > availableQty) { setError(`Quantity cannot exceed Available Qty (${availableQty}).`); return }
+    if (type === 'repair') {
+      if (!repairType) { setError('Repair Type is required.'); return }
+      if (repairType === 'Vendor' && !vendorName.trim()) { setError('Vendor Name is required.'); return }
+      if (!issueDescription.trim()) { setError('Issue Description is required.'); return }
+      if (expectedReturnDate && expectedReturnDate < today) { setError('Expected Return Date cannot be in the past.'); return }
+    } else {
+      if (!scrapReason) { setError('Scrap Reason is required.'); return }
+      if (scrapReason === 'Other' && !remarks.trim()) { setError('Remarks are required when Scrap Reason is "Other".'); return }
+    }
     const store = stores.find(s => s.id === storeId)
-    logAudit({
-      action: 'Edit', module: 'Inventory',
-      details: `Discrepancy reported: ${selectedProduct.name} at ${store?.storeName ?? storeId} — system ${systemQty}, physical ${physicalCount}`,
+    saveAdjustment({
+      type, productId, productName: selectedProduct.name,
+      storeId, storeName: store?.storeName ?? storeId,
+      qty: qtyNum,
+      repairType, vendorName, issueDescription, expectedReturnDate,
+      scrapReason, remarks,
     })
+    onSaved(type)
     onClose()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border sticky top-0 bg-white rounded-t-2xl z-10">
           <h2 className="text-sm font-bold text-gray-900">Send for Repair/Scrap</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
             <X size={15} />
@@ -489,32 +525,90 @@ function DiscrepancyModal({ isOpen, onClose, product, allProducts, stores }) {
               <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
             </div>
           )}
-          <FormField label="Product" required>
-            <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId('') }}>
-              <option value="">Select product…</option>
-              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <FormField label="Type" required>
+            <Select value={type} onChange={e => handleTypeChange(e.target.value)}>
+              <option value="">Select type…</option>
+              <option value="repair">Repair</option>
+              <option value="scrap">Scrap</option>
             </Select>
           </FormField>
-          <FormField label="Store" required>
-            <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
-              <option value="">Select store…</option>
-              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="System Qty" hint="Read-only — the current Available Qty from Inventory Overview">
-            <Input disabled value={systemQty == null ? '' : formatAvailableQty(selectedProduct, systemQty)} placeholder="Select a product and store" />
-          </FormField>
-          <FormField label="Physical Count" required>
-            <Input type="number" min="0" value={physicalCount} onChange={e => setPhysicalCount(e.target.value)} placeholder="Counted quantity" />
-          </FormField>
-          <FormField label="Notes" hint="Optional — context for whoever investigates this">
-            <Textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes about the discrepancy…" />
-          </FormField>
-          <p className="text-[11px] text-gray-400">This only logs a report to the Audit Log for follow-up — it does not change any stock balance.</p>
+          {type && (
+            <>
+              <FormField label="Product" required>
+                <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId('') }}>
+                  <option value="">Select product…</option>
+                  {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Store" required>
+                <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
+                  <option value="">Select store…</option>
+                  {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Available Qty" hint="Read-only — current available quantity at the selected store">
+                <Input disabled value={availableQty == null ? '' : formatAvailableQty(selectedProduct, availableQty)} placeholder="Select a product and store" />
+              </FormField>
+              <FormField label="Quantity" required>
+                <Input
+                  type="number" min="1"
+                  value={qty}
+                  onChange={e => setQty(e.target.value)}
+                  placeholder="Quantity to send"
+                />
+                {qty && Number(qty) > 0 && availableQty !== null && Number(qty) > availableQty && (
+                  <p className="text-xs text-red-600 mt-1">Cannot exceed Available Qty ({availableQty}).</p>
+                )}
+              </FormField>
+              {type === 'repair' && (
+                <>
+                  <FormField label="Repair Type" required>
+                    <Select value={repairType} onChange={e => { setRepairType(e.target.value); setVendorName('') }}>
+                      <option value="">Select repair type…</option>
+                      <option value="In-house">In-house</option>
+                      <option value="Vendor">Vendor</option>
+                    </Select>
+                  </FormField>
+                  {repairType === 'Vendor' && (
+                    <FormField label="Vendor Name" required>
+                      <Input value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="Vendor name" />
+                    </FormField>
+                  )}
+                  <FormField label="Issue Description" required>
+                    <Textarea rows={2} value={issueDescription} onChange={e => setIssueDescription(e.target.value)} placeholder="Describe the issue…" />
+                  </FormField>
+                  <FormField label="Expected Return Date">
+                    <Input type="date" min={today} value={expectedReturnDate} onChange={e => setExpectedReturnDate(e.target.value)} />
+                  </FormField>
+                </>
+              )}
+              {type === 'scrap' && (
+                <>
+                  <FormField label="Scrap Reason" required>
+                    <Select value={scrapReason} onChange={e => setScrapReason(e.target.value)}>
+                      <option value="">Select reason…</option>
+                      <option value="Damaged Beyond Repair">Damaged Beyond Repair</option>
+                      <option value="Obsolete">Obsolete</option>
+                      <option value="Physical Damage">Physical Damage</option>
+                      <option value="Water/Fire Damage">Water/Fire Damage</option>
+                      <option value="Other">Other</option>
+                    </Select>
+                  </FormField>
+                  <FormField label="Remarks" required={scrapReason === 'Other'}>
+                    <Textarea rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any remarks…" />
+                  </FormField>
+                </>
+              )}
+            </>
+          )}
         </div>
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-border bg-gray-50 rounded-b-2xl">
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-border bg-gray-50 rounded-b-2xl sticky bottom-0">
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit}>Submit Report</Button>
+          {type && (
+            <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit}>
+              {type === 'repair' ? 'Send for Repair' : 'Send to Scrap'}
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -527,6 +621,13 @@ export default function InventoryOverview() {
   const [, forceRerender] = useState(0)
   useEffect(() => subscribeInventoryLedger(() => forceRerender(n => n + 1)), [])
 
+  const [toast, setToast] = useState(null)
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
+
   const allProducts = getProducts()
   const stores = getStores()
 
@@ -537,8 +638,8 @@ export default function InventoryOverview() {
   const modal = searchParams.get('modal')
   const modalId = searchParams.get('id')
   const selectedProductId = modal === 'product-detail' ? modalId : null
-  const discrepancyOpen = modal === 'discrepancy'
-  const discrepancyProduct = discrepancyOpen && modalId ? allProducts.find(p => p.id === modalId) ?? null : null
+  const repairScrapOpen = modal === 'discrepancy'
+  const repairScrapProduct = repairScrapOpen && modalId ? allProducts.find(p => p.id === modalId) ?? null : null
 
   const [search, setSearch] = useState('')
 
@@ -628,9 +729,12 @@ export default function InventoryOverview() {
 
     const lowStockCount = allProducts.filter(p => isLowStock(p, scopedAvailability(p.id))).length
 
-    const scrapCount = getScraps().length
+    const unitScraps = getScraps().length
+    const adjs = getAdjustments()
+    const scrapCount = unitScraps + adjs.filter(a => a.type === 'scrap').reduce((s, a) => s + a.qty, 0)
+    const faultyCount = adjs.filter(a => a.type === 'repair').reduce((s, a) => s + a.qty, 0)
 
-    return { totalInventoryItems, hardwareAvailable, wireAvailable, assignedToEngineers, lowStockCount, scrapCount }
+    return { totalInventoryItems, hardwareAvailable, wireAvailable, assignedToEngineers, lowStockCount, scrapCount, faultyCount }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allBalances, scopedStoreIds, allProducts])
 
@@ -644,8 +748,11 @@ export default function InventoryOverview() {
       .map(p => {
         const availableQty = scopedAvailability(p.id)
         const engineerQty = scopedEngineerAssigned(p.id)
+        const rowAdjs = getAdjustments().filter(a => a.productId === p.id)
         const scrapQty = getScraps().filter(s => s.productId === p.id).length
-        return { product: p, availableQty, engineerQty, scrapQty, lowStock: isLowStock(p, availableQty) }
+          + rowAdjs.filter(a => a.type === 'scrap').reduce((s, a) => s + a.qty, 0)
+        const faultyQty = rowAdjs.filter(a => a.type === 'repair').reduce((s, a) => s + a.qty, 0)
+        return { product: p, availableQty, engineerQty, scrapQty, faultyQty, lowStock: isLowStock(p, availableQty) }
       })
       .filter(row => !filterLowStock || row.lowStock)
       .sort((a, b) => a.product.name.localeCompare(b.product.name))
@@ -695,7 +802,7 @@ export default function InventoryOverview() {
           { label: 'Wire Available (m)',    value: stats.wireAvailable,       icon: Package,     color: 'text-cyan-600',     bg: 'bg-cyan-50' },
           { label: 'Assigned to Engineers', value: stats.assignedToEngineers, icon: UserCog,      color: 'text-purple-600',   bg: 'bg-purple-50' },
           { label: 'Assigned to Users',     value: 0,                         icon: Users,        color: 'text-gray-400',     bg: 'bg-gray-100' },
-          { label: 'Faulty',                value: 0,                         icon: ShieldAlert,  color: 'text-gray-400',     bg: 'bg-gray-100' },
+          { label: 'Faulty',                value: stats.faultyCount,         icon: ShieldAlert,  color: stats.faultyCount > 0 ? 'text-amber-600' : 'text-gray-400', bg: stats.faultyCount > 0 ? 'bg-amber-50' : 'bg-gray-100' },
           { label: 'Scrap',                 value: stats.scrapCount,          icon: Trash2,       color: 'text-red-600',      bg: 'bg-red-50' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-surface-border shadow-card px-4 py-3 flex items-center gap-3">
@@ -877,7 +984,7 @@ export default function InventoryOverview() {
                     No products found
                   </td>
                 </tr>
-              ) : rows.map(({ product, availableQty, engineerQty, scrapQty, lowStock }) => (
+              ) : rows.map(({ product, availableQty, engineerQty, scrapQty, faultyQty, lowStock }) => (
                 <tr key={product.id} onClick={() => openProductDetail(product.id)} className="cursor-pointer hover:bg-blue-50/40 transition-colors">
                   {visibleCols.has('name') && (
                     <td className="px-4 py-3">
@@ -894,7 +1001,7 @@ export default function InventoryOverview() {
                   )}
                   {visibleCols.has('engineer') && <td className={`px-4 py-3 text-right text-xs ${engineerQty > 0 ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{engineerQty}</td>}
                   {visibleCols.has('user')     && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
-                  {visibleCols.has('damage')   && <td className="px-4 py-3 text-right text-gray-400 text-xs">0</td>}
+                  {visibleCols.has('damage')   && <td className={`px-4 py-3 text-right text-xs ${faultyQty > 0 ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>{faultyQty}</td>}
                   {visibleCols.has('scrap')    && <td className={`px-4 py-3 text-right text-xs ${scrapQty > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>{scrapQty}</td>}
                   {visibleCols.has('status') && (
                     <td className="px-4 py-3">
@@ -924,13 +1031,21 @@ export default function InventoryOverview() {
         <ProductDetailPanel product={selectedProduct} stores={stores} onClose={closeModal} />
       )}
 
-      <DiscrepancyModal
-        isOpen={discrepancyOpen}
+      <RepairScrapModal
+        isOpen={repairScrapOpen}
         onClose={closeModal}
-        product={discrepancyProduct}
+        product={repairScrapProduct}
         allProducts={allProducts}
         stores={stores}
+        onSaved={type => setToast(type === 'repair' ? 'Sent for repair — stock updated.' : 'Sent to scrap — stock updated.')}
       />
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm shadow-xl animate-fade-in">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
