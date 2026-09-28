@@ -4086,16 +4086,30 @@ function PartnerTab() {
   const [form, setForm] = useState(partnerEmptyForm)
   const [errors, setErrors] = useState({})
   const [toast, setToast] = useState('')
+  const [books, setBooks] = useState(getPriceBooks)
+  const [packages, setPackages] = useState(getPlans)
+  const [pbForm, setPbForm] = useState(pbEmptyForm)
+  const [pbErrors, setPbErrors] = useState({})
+  const [pbToast, setPbToast] = useState('')
 
-  const modalParam     = searchParams.get('modal')
-  const modalPartnerId = searchParams.get('id')
+  const modalParam       = searchParams.get('modal')
+  const modalPartnerId   = searchParams.get('id')
+  const tabParam         = searchParams.get('tab')
+  const activePartnerTab = tabParam === 'price-book' ? 'price-book' : 'partners'
+  const modalPbId        = searchParams.get('pbid')
 
   const showModal    = modalParam === 'add-partner' || modalParam === 'edit-partner'
   const modalPartner = modalParam === 'edit-partner'
     ? partners.find(p => String(p.id) === modalPartnerId) ?? null
     : null
+  const showPbModal = modalParam === 'add-price-book' || modalParam === 'edit-price-book'
+  const editingBook = modalParam === 'edit-price-book'
+    ? books.find(b => String(b.id) === modalPbId) ?? null
+    : null
 
   useEffect(() => subscribePartners(setPartners), [])
+  useEffect(() => subscribePriceBooks(setBooks), [])
+  useEffect(() => subscribePlans(() => setPackages(getPlans())), [])
 
   useEffect(() => {
     if (toast) {
@@ -4103,6 +4117,13 @@ function PartnerTab() {
       return () => clearTimeout(t)
     }
   }, [toast])
+
+  useEffect(() => {
+    if (pbToast) {
+      const t = setTimeout(() => setPbToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [pbToast])
 
   useEffect(() => {
     if (modalParam === 'add-partner') { setForm(partnerEmptyForm()); setErrors({}) }
@@ -4113,6 +4134,16 @@ function PartnerTab() {
     if (modalParam === 'edit-partner' && modalPartner) { setForm(partnerToForm(modalPartner)); setErrors({}) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalParam, modalPartnerId])
+
+  useEffect(() => {
+    if (modalParam === 'add-price-book') { setPbForm(pbEmptyForm()); setPbErrors({}) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam])
+
+  useEffect(() => {
+    if (modalParam === 'edit-price-book' && editingBook) { setPbForm(pbBookToForm(editingBook)); setPbErrors({}) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam, modalPbId])
 
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
@@ -4171,63 +4202,233 @@ function PartnerTab() {
     setPartnerStatus(partner.id, checked ? 'Active' : 'Inactive')
   }
 
+  function switchPartnerTab(t) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', t); next.delete('modal'); next.delete('id'); next.delete('pbid'); return next })
+  }
+
+  function setPbField(k, v) {
+    setPbForm(f => {
+      const next = { ...f, [k]: v }
+      if (k === 'packageId') {
+        const pkg = packages.find(p => p.id === v)
+        const pkgPrice = pkg ? pkg.price : ''
+        next.packagePrice = pkgPrice
+        next.commission = pkgPrice !== '' && next.partnerPrice !== ''
+          ? Math.max(0, Number(pkgPrice) - Number(next.partnerPrice))
+          : ''
+      }
+      if (k === 'partnerPrice') {
+        next.commission = next.packagePrice !== '' && v !== ''
+          ? Math.max(0, Number(next.packagePrice) - Number(v))
+          : ''
+      }
+      return next
+    })
+    setPbErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function openPbAdd() {
+    setPbForm(pbEmptyForm())
+    setPbErrors({})
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-price-book'); next.delete('pbid'); return next })
+  }
+
+  function openPbEdit(book) {
+    setPbForm(pbBookToForm(book))
+    setPbErrors({})
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-price-book'); next.set('pbid', String(book.id)); return next })
+  }
+
+  function closePbModal() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('pbid'); return next })
+  }
+
+  function validatePb() {
+    const errs = {}
+    if (!pbForm.bookName.trim()) errs.bookName = 'Book name is required.'
+    if (!pbForm.partnerId) errs.partnerId = 'Partner is required.'
+    if (!pbForm.packageId) errs.packageId = 'Package is required.'
+    const partnerPrice = Number(pbForm.partnerPrice)
+    const packagePrice = Number(pbForm.packagePrice)
+    if (pbForm.partnerPrice === '' || Number.isNaN(partnerPrice) || partnerPrice <= 0)
+      errs.partnerPrice = 'Partner price must be greater than 0.'
+    else if (partnerPrice > packagePrice)
+      errs.partnerPrice = 'Partner price must not exceed package price.'
+    if (pbForm.partnerId && pbForm.packageId && !errs.packageId) {
+      if (isDuplicatePriceBook(Number(pbForm.partnerId), pbForm.packageId, editingBook?.id ?? null))
+        errs.packageId = 'A price book for this partner and package already exists.'
+    }
+    return errs
+  }
+
+  function handlePbSave() {
+    const errs = validatePb()
+    if (Object.keys(errs).length > 0) { setPbErrors(errs); return }
+    savePriceBook({
+      id: editingBook?.id,
+      bookName: pbForm.bookName.trim(),
+      partnerId: Number(pbForm.partnerId),
+      packageId: pbForm.packageId,
+      packagePrice: Number(pbForm.packagePrice),
+      partnerPrice: Number(pbForm.partnerPrice),
+      commission: Number(pbForm.commission),
+      status: pbForm.status,
+    })
+    setPbToast(editingBook ? 'Price book updated successfully' : 'Price book added successfully')
+    closePbModal()
+  }
+
+  const partnerMap     = Object.fromEntries(partners.map(p => [p.id, p.name]))
+  const packageMap     = Object.fromEntries(packages.map(p => [p.id, p.name]))
+  const activePartners = partners.filter(p => p.status === 'Active')
+  const activePackages = packages.filter(p => p.status === 'Active')
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Partner</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Reseller/channel entities used under Connection Type = Partner</p>
-        </div>
-        <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Partner</Button>
-      </div>
-
+    <div>
       <div className="rounded-xl border border-surface-border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/80 border-b border-surface-border">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Partner Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Share Type</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Share Value</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Number</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {partners.map(partner => (
-              <tr key={partner.id} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3.5 font-medium text-gray-900">{partner.name}</td>
-                <td className="px-4 py-3.5">
-                  <Badge variant={PARTNER_SHARE_TYPE_VARIANT[partner.shareType] || 'gray'} size="sm">{partner.shareType}</Badge>
-                </td>
-                <td className="px-4 py-3.5 text-gray-600">{formatShareValue(partner)}</td>
-                <td className="px-4 py-3.5 font-mono text-xs text-gray-600">{partner.contactNumber}</td>
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <SysConfigToggle checked={partner.status === 'Active'} onChange={v => handleStatusToggle(partner, v)} />
-                    <span className={`text-xs font-medium whitespace-nowrap ${partner.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{partner.status}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  <button
-                    onClick={() => openEdit(partner)}
-                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {partners.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No partners added yet</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {/* Tab bar */}
+        <div className="flex border-b border-surface-border gap-6 px-5">
+          {[{ id: 'partners', label: 'Partners' }, { id: 'price-book', label: 'Package Price Book' }].map(t => (
+            <button
+              key={t.id}
+              onClick={() => switchPartnerTab(t.id)}
+              className={`pt-3 pb-2.5 text-sm font-medium transition-colors whitespace-nowrap ${
+                activePartnerTab === t.id
+                  ? 'text-brand-blue border-b-2 border-brand-blue'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
+          {activePartnerTab === 'partners' ? (
+            <>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Partner</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Reseller/channel entities used under Connection Type = Partner</p>
+              </div>
+              <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Partner</Button>
+            </>
+          ) : (
+            <>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Package Price Book</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Partner-specific package pricing and commission</p>
+              </div>
+              <Button size="sm" icon={<Plus size={14} />} onClick={openPbAdd}>Add Package Price Book</Button>
+            </>
+          )}
+        </div>
+
+        {/* Partners table */}
+        {activePartnerTab === 'partners' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-surface-border">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Partner Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Share Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Share Value</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Contact Number</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {partners.map(partner => (
+                  <tr key={partner.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3.5 font-medium text-gray-900">{partner.name}</td>
+                    <td className="px-4 py-3.5">
+                      <Badge variant={PARTNER_SHARE_TYPE_VARIANT[partner.shareType] || 'gray'} size="sm">{partner.shareType}</Badge>
+                    </td>
+                    <td className="px-4 py-3.5 text-gray-600">{formatShareValue(partner)}</td>
+                    <td className="px-4 py-3.5 font-mono text-xs text-gray-600">{partner.contactNumber}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <SysConfigToggle checked={partner.status === 'Active'} onChange={v => handleStatusToggle(partner, v)} />
+                        <span className={`text-xs font-medium whitespace-nowrap ${partner.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{partner.status}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <button
+                        onClick={() => openEdit(partner)}
+                        className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {partners.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No partners added yet</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Package Price Book table */}
+        {activePartnerTab === 'price-book' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-surface-border">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Book Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Partner</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Package</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Package Price</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Partner Price</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Commission</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {books.map(book => (
+                  <tr key={book.id} className="hover:bg-gray-50/50">
+                    <td className="px-4 py-3.5 font-medium text-gray-900 max-w-[160px] truncate" title={book.bookName}>{book.bookName}</td>
+                    <td className="px-4 py-3.5 text-gray-600 max-w-[140px] truncate" title={partnerMap[book.partnerId] ?? `Partner #${book.partnerId}`}>{partnerMap[book.partnerId] ?? `Partner #${book.partnerId}`}</td>
+                    <td className="px-4 py-3.5 text-gray-600 max-w-[140px] truncate" title={packageMap[book.packageId] ?? book.packageId}>{packageMap[book.packageId] ?? book.packageId}</td>
+                    <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">₹{Number(book.packagePrice).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">₹{Number(book.partnerPrice).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3.5 text-gray-600 whitespace-nowrap">₹{Number(book.commission).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <SysConfigToggle
+                          checked={book.status === 'Active'}
+                          onChange={v => setPriceBookStatus(book.id, v ? 'Active' : 'Inactive')}
+                        />
+                        <span className={`text-xs font-medium whitespace-nowrap ${book.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{book.status}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <button
+                        onClick={() => openPbEdit(book)}
+                        className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {books.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No price books yet</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Add / Edit modal */}
+      {/* Partner Add / Edit modal */}
       <Modal
         isOpen={showModal}
         onClose={closeModal}
@@ -4318,15 +4519,97 @@ function PartnerTab() {
         </div>
       </Modal>
 
-      {/* Success toast */}
+      {/* Package Price Book Add / Edit modal */}
+      <Modal
+        isOpen={showPbModal}
+        onClose={closePbModal}
+        title={editingBook ? `Edit Package Price Book — ${editingBook.bookName}` : 'Add Package Price Book'}
+        size="xl"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closePbModal}>Cancel</Button>
+          <Button size="sm" onClick={handlePbSave}>{editingBook ? 'Save Changes' : 'Save'}</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Book Name" required error={pbErrors.bookName}>
+              <Input placeholder="e.g. Metro Standard ONU" value={pbForm.bookName} onChange={e => setPbField('bookName', e.target.value)} />
+            </FormField>
+            <FormField label="Select Partner" required error={pbErrors.partnerId}>
+              <Select value={pbForm.partnerId} onChange={e => setPbField('partnerId', e.target.value)}>
+                <option value="">— Select partner —</option>
+                {activePartners.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-4 gap-3">
+            <FormField label="Select Package" required error={pbErrors.packageId}>
+              <Select value={pbForm.packageId} onChange={e => setPbField('packageId', e.target.value)}>
+                <option value="">— Select —</option>
+                {activePackages.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Package Price">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
+                <Input
+                  type="number"
+                  value={pbForm.packagePrice}
+                  readOnly
+                  tabIndex={-1}
+                  placeholder="Auto-filled"
+                  className="pl-7 bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+              </div>
+            </FormField>
+            <FormField label="Partner Price" required error={pbErrors.partnerPrice}>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="e.g. 450"
+                  value={pbForm.partnerPrice}
+                  onChange={e => setPbField('partnerPrice', e.target.value)}
+                  className="pl-7"
+                />
+              </div>
+            </FormField>
+            <FormField label="Your Commission">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
+                <Input
+                  type="number"
+                  value={pbForm.commission}
+                  readOnly
+                  tabIndex={-1}
+                  placeholder="Auto-calculated"
+                  className="pl-7 bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+              </div>
+            </FormField>
+          </div>
+        </div>
+      </Modal>
+
       {toast && (
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <CheckCircle2 size={16} className="shrink-0" />
           {toast}
         </div>
       )}
-
-      <PriceBookSection />
+      {pbToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {pbToast}
+        </div>
+      )}
     </div>
   )
 }
@@ -4347,273 +4630,6 @@ function pbBookToForm(book) {
     commission: book.commission,
     status: book.status,
   }
-}
-
-function PriceBookSection() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [books, setBooks] = useState(getPriceBooks)
-  const [packages, setPackages] = useState(getPlans)
-  const [allPartners, setAllPartners] = useState(getPartners)
-  const [form, setForm] = useState(pbEmptyForm)
-  const [errors, setErrors] = useState({})
-  const [toast, setToast] = useState('')
-
-  const modalParam = searchParams.get('modal')
-  const modalPbId  = searchParams.get('pbid')
-
-  const showModal   = modalParam === 'add-price-book' || modalParam === 'edit-price-book'
-  const editingBook = modalParam === 'edit-price-book'
-    ? books.find(b => String(b.id) === modalPbId) ?? null
-    : null
-
-  useEffect(() => subscribePriceBooks(setBooks), [])
-  useEffect(() => subscribePlans(() => setPackages(getPlans())), [])
-  useEffect(() => subscribePartners(setAllPartners), [])
-
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(''), 2500)
-      return () => clearTimeout(t)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    if (modalParam === 'add-price-book') { setForm(pbEmptyForm()); setErrors({}) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalParam])
-
-  useEffect(() => {
-    if (modalParam === 'edit-price-book' && editingBook) { setForm(pbBookToForm(editingBook)); setErrors({}) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalParam, modalPbId])
-
-  function setPbField(k, v) {
-    setForm(f => {
-      const next = { ...f, [k]: v }
-      if (k === 'packageId') {
-        const pkg = packages.find(p => p.id === v)
-        const pkgPrice = pkg ? pkg.price : ''
-        next.packagePrice = pkgPrice
-        next.commission = pkgPrice !== '' && next.partnerPrice !== ''
-          ? Math.max(0, Number(pkgPrice) - Number(next.partnerPrice))
-          : ''
-      }
-      if (k === 'partnerPrice') {
-        next.commission = next.packagePrice !== '' && v !== ''
-          ? Math.max(0, Number(next.packagePrice) - Number(v))
-          : ''
-      }
-      return next
-    })
-    setErrors(e => ({ ...e, [k]: undefined }))
-  }
-
-  function openPbAdd() {
-    setForm(pbEmptyForm())
-    setErrors({})
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-price-book'); next.delete('pbid'); return next })
-  }
-
-  function openPbEdit(book) {
-    setForm(pbBookToForm(book))
-    setErrors({})
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-price-book'); next.set('pbid', String(book.id)); return next })
-  }
-
-  function closePbModal() {
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('pbid'); return next })
-  }
-
-  function validatePb() {
-    const errs = {}
-    if (!form.bookName.trim()) errs.bookName = 'Book name is required.'
-    if (!form.partnerId) errs.partnerId = 'Partner is required.'
-    if (!form.packageId) errs.packageId = 'Package is required.'
-    const partnerPrice = Number(form.partnerPrice)
-    const packagePrice = Number(form.packagePrice)
-    if (form.partnerPrice === '' || Number.isNaN(partnerPrice) || partnerPrice <= 0)
-      errs.partnerPrice = 'Partner price must be greater than 0.'
-    else if (partnerPrice > packagePrice)
-      errs.partnerPrice = 'Partner price must not exceed package price.'
-    if (form.partnerId && form.packageId && !errs.packageId) {
-      if (isDuplicatePriceBook(Number(form.partnerId), form.packageId, editingBook?.id ?? null))
-        errs.packageId = 'A price book for this partner and package already exists.'
-    }
-    return errs
-  }
-
-  function handlePbSave() {
-    const errs = validatePb()
-    if (Object.keys(errs).length > 0) { setErrors(errs); return }
-    savePriceBook({
-      id: editingBook?.id,
-      bookName: form.bookName.trim(),
-      partnerId: Number(form.partnerId),
-      packageId: form.packageId,
-      packagePrice: Number(form.packagePrice),
-      partnerPrice: Number(form.partnerPrice),
-      commission: Number(form.commission),
-      status: form.status,
-    })
-    setToast(editingBook ? 'Price book updated successfully' : 'Price book added successfully')
-    closePbModal()
-  }
-
-  const partnerMap     = Object.fromEntries(allPartners.map(p => [p.id, p.name]))
-  const packageMap     = Object.fromEntries(packages.map(p => [p.id, p.name]))
-  const activePartners = allPartners.filter(p => p.status === 'Active')
-  const activePackages = packages.filter(p => p.status === 'Active')
-
-  return (
-    <div className="space-y-5 pt-2 mt-6 border-t border-surface-border">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Package Price Book</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Partner-specific package pricing and commission</p>
-        </div>
-        <Button size="sm" icon={<Plus size={14} />} onClick={openPbAdd}>Add Package Price Book</Button>
-      </div>
-
-      <div className="rounded-xl border border-surface-border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50/80 border-b border-surface-border">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Book Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Partner</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Package</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Package Price</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Partner Price</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Commission</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {books.map(book => (
-              <tr key={book.id} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3.5 font-medium text-gray-900">{book.bookName}</td>
-                <td className="px-4 py-3.5 text-gray-600">{partnerMap[book.partnerId] ?? `Partner #${book.partnerId}`}</td>
-                <td className="px-4 py-3.5 text-gray-600">{packageMap[book.packageId] ?? book.packageId}</td>
-                <td className="px-4 py-3.5 text-gray-600">₹{Number(book.packagePrice).toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3.5 text-gray-600">₹{Number(book.partnerPrice).toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3.5 text-gray-600">₹{Number(book.commission).toLocaleString('en-IN')}</td>
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <SysConfigToggle
-                      checked={book.status === 'Active'}
-                      onChange={v => setPriceBookStatus(book.id, v ? 'Active' : 'Inactive')}
-                    />
-                    <span className={`text-xs font-medium whitespace-nowrap ${book.status === 'Active' ? 'text-green-600' : 'text-gray-400'}`}>{book.status}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3.5 text-right">
-                  <button
-                    onClick={() => openPbEdit(book)}
-                    className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {books.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">No price books yet</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Add / Edit modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={closePbModal}
-        title={editingBook ? `Edit Package Price Book — ${editingBook.bookName}` : 'Add Package Price Book'}
-        size="xl"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={closePbModal}>Cancel</Button>
-          <Button size="sm" onClick={handlePbSave}>{editingBook ? 'Save Changes' : 'Save'}</Button>
-        </>}
-      >
-        <div className="space-y-4">
-          {/* Row 1: Book Name | Select Partner */}
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Book Name" required error={errors.bookName}>
-              <Input placeholder="e.g. Metro Standard ONU" value={form.bookName} onChange={e => setPbField('bookName', e.target.value)} />
-            </FormField>
-            <FormField label="Select Partner" required error={errors.partnerId}>
-              <Select value={form.partnerId} onChange={e => setPbField('partnerId', e.target.value)}>
-                <option value="">— Select partner —</option>
-                {activePartners.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
-            </FormField>
-          </div>
-
-          {/* Row 2: Select Package | Package Price | Partner Price | Commission */}
-          <div className="grid grid-cols-4 gap-3">
-            <FormField label="Select Package" required error={errors.packageId}>
-              <Select value={form.packageId} onChange={e => setPbField('packageId', e.target.value)}>
-                <option value="">— Select —</option>
-                {activePackages.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
-            </FormField>
-            <FormField label="Package Price">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
-                <Input
-                  type="number"
-                  value={form.packagePrice}
-                  readOnly
-                  tabIndex={-1}
-                  placeholder="Auto-filled"
-                  className="pl-7 bg-gray-50 text-gray-500 cursor-not-allowed"
-                />
-              </div>
-            </FormField>
-            <FormField label="Partner Price" required error={errors.partnerPrice}>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  placeholder="e.g. 450"
-                  value={form.partnerPrice}
-                  onChange={e => setPbField('partnerPrice', e.target.value)}
-                  className="pl-7"
-                />
-              </div>
-            </FormField>
-            <FormField label="Your Commission">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 pointer-events-none">₹</span>
-                <Input
-                  type="number"
-                  value={form.commission}
-                  readOnly
-                  tabIndex={-1}
-                  placeholder="Auto-calculated"
-                  className="pl-7 bg-gray-50 text-gray-500 cursor-not-allowed"
-                />
-              </div>
-            </FormField>
-          </div>
-        </div>
-      </Modal>
-
-      {toast && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
-          <CheckCircle2 size={16} className="shrink-0" />
-          {toast}
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
