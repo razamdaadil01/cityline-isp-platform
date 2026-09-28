@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams, Navigate } from 'react-router-dom'
 import {
   Save, Plus, Edit2, Trash2, Server, Key, Bell,
@@ -1609,6 +1609,49 @@ function MasterConfigTab() {
   const [landlineForm, setLandlineForm] = useState({ number: '', status: 'Available' })
   const [landlinePage, setLandlinePage] = useState(1)
 
+  // Landline detail modal (URL-driven)
+  const landlineDetailModal = modalParam === 'landline-detail'
+  const landlineDetailNum   = searchParams.get('number')
+  const landlineDetail      = landlineDetailNum ? (landlines.find(l => String(l.id) === landlineDetailNum) ?? null) : null
+  function openLandlineDetail(l) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'landline-detail'); next.set('number', String(l.id)); return next })
+  }
+  function closeLandlineDetail() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('number'); return next })
+  }
+
+  // Landline 3-dot menu + toast
+  const [llMenu,    setLlMenu]    = useState(null)
+  const llMenuRef = useRef(null)
+  useEffect(() => {
+    if (!llMenu) return
+    function handle(e) { if (llMenuRef.current && !llMenuRef.current.contains(e.target)) setLlMenu(null) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [llMenu])
+  const [llToast, setLlToast] = useState('')
+  useEffect(() => { if (!llToast) return; const t = setTimeout(() => setLlToast(''), 2500); return () => clearTimeout(t) }, [llToast])
+
+  function handleLlInactive(l) {
+    setLandlines(prev => prev.map(x => x.id === l.id ? { ...x, status: 'Inactive' } : x))
+    setLlMenu(null)
+    setLlToast(`${l.number} marked as Inactive`)
+  }
+  function handleLlBlock(l) {
+    setLandlines(prev => prev.map(x => x.id === l.id ? { ...x, status: 'Blocked' } : x))
+    setLlMenu(null)
+    setLlToast(`${l.number} marked as Blocked`)
+  }
+  function handleLlUnassign(l) {
+    const today = new Date().toISOString().slice(0, 10)
+    setLandlines(prev => prev.map(x => x.id === l.id
+      ? { ...x, status: 'Available', assignedTo: null, customer: null, assignedDate: null, removedAt: today }
+      : x
+    ))
+    setLlMenu(null)
+    setLlToast(`${l.number} unassigned — now Available`)
+  }
+
   // Static IP state
   const [staticIps, setStaticIps] = useState(MOCK_STATIC_IPS)
   const ipModal = modalParam === 'add-ip'
@@ -1809,19 +1852,50 @@ function MasterConfigTab() {
               <tbody className="divide-y divide-surface-border">
                 {landlineRows.map(l => (
                   <tr key={l.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 font-mono text-sm text-gray-800">{l.number}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => openLandlineDetail(l)}
+                        className="font-mono text-sm text-[#0A8DCD] hover:underline cursor-pointer">
+                        {l.number}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                         l.status === 'Available' ? 'bg-green-100 text-green-700' :
-                        l.status === 'Assigned'  ? 'bg-blue-100 text-blue-700'  : 'bg-gray-100 text-gray-500'
+                        l.status === 'Assigned'  ? 'bg-blue-100 text-blue-700'  :
+                        l.status === 'Inactive'  ? 'bg-amber-100 text-amber-700':
+                        l.status === 'Blocked'   ? 'bg-red-100 text-red-700'    : 'bg-gray-100 text-gray-500'
                       }`}>{l.status}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{l.assignedTo || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{l.customer || '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{l.assignedDate || '—'}</td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => setLandlines(prev => prev.filter(x => x.id !== l.id))}
-                        className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                    <td className="px-4 py-3 relative">
+                      <button onClick={() => setLlMenu(llMenu === l.id ? null : l.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                        <MoreVertical size={15} />
+                      </button>
+                      {llMenu === l.id && (
+                        <div ref={llMenuRef} className="absolute right-8 top-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44">
+                          <button onClick={() => handleLlInactive(l)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            Inactive
+                          </button>
+                          <button onClick={() => handleLlBlock(l)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                            Block
+                          </button>
+                          <button onClick={() => handleLlUnassign(l)}
+                            disabled={!l.assignedTo}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${l.assignedTo ? 'text-gray-700' : 'text-gray-400 cursor-not-allowed'}`}>
+                            Unassigned
+                          </button>
+                          <div className="my-1 border-t border-gray-100" />
+                          <button onClick={() => { setLandlines(prev => prev.filter(x => x.id !== l.id)); setLlMenu(null) }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50">
+                            Remove
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1880,6 +1954,49 @@ function MasterConfigTab() {
                   <button onClick={closeMCModal} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── Landline Detail Modal ── */}
+          {landlineDetailModal && landlineDetail && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Landline Details — {landlineDetail.number}</h2>
+                  <button onClick={closeLandlineDetail}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[
+                    { label: 'Customer ID',    value: landlineDetail.assignedTo || '—' },
+                    { label: 'Customer Name',  value: landlineDetail.customer   || '—' },
+                    { label: 'Status',         value: null },
+                    { label: 'When Added',     value: landlineDetail.addedAt    || '—' },
+                    { label: 'When Assigned',  value: landlineDetail.assignedDate || '—' },
+                    { label: 'When Removed',   value: landlineDetail.removedAt  || '—' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                      <span className="text-xs text-gray-500">{label}</span>
+                      {label === 'Status' ? (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          landlineDetail.status === 'Available' ? 'bg-green-100 text-green-700' :
+                          landlineDetail.status === 'Assigned'  ? 'bg-blue-100 text-blue-700'  :
+                          landlineDetail.status === 'Inactive'  ? 'bg-amber-100 text-amber-700':
+                          landlineDetail.status === 'Blocked'   ? 'bg-red-100 text-red-700'    : 'bg-gray-100 text-gray-500'
+                        }`}>{landlineDetail.status}</span>
+                      ) : (
+                        <span className="text-sm text-gray-700 font-medium">{value}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Landline action toast ── */}
+          {llToast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm shadow-lg z-[9999] pointer-events-none">
+              {llToast}
             </div>
           )}
         </div>
