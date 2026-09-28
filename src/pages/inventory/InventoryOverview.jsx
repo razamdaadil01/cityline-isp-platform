@@ -441,11 +441,13 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
   const [type, setType] = useState(initialType)
   const [productId, setProductId] = useState(product?.id ?? '')
   const [storeId, setStoreId] = useState('')
-  const [qty, setQty] = useState('')
-  const [repairType, setRepairType] = useState('')
-  const [vendorName, setVendorName] = useState('')
+  // qty-tracked
+  const [qtyInput, setQtyInput] = useState('')
+  // serialized
+  const [selectedUnits, setSelectedUnits] = useState([])
+  const [unitSearch, setUnitSearch] = useState('')
+  // type-specific
   const [issueDescription, setIssueDescription] = useState('')
-  const [expectedReturnDate, setExpectedReturnDate] = useState('')
   const [scrapReason, setScrapReason] = useState('')
   const [remarks, setRemarks] = useState('')
   const [error, setError] = useState('')
@@ -455,23 +457,26 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
       setType(initialType)
       setProductId(product?.id ?? '')
       setStoreId('')
-      setQty('')
-      setRepairType('')
-      setVendorName('')
+      setQtyInput('')
+      setSelectedUnits([])
+      setUnitSearch('')
       setIssueDescription('')
-      setExpectedReturnDate('')
       setScrapReason('')
       setRemarks('')
       setError('')
     }
   }, [isOpen, product, initialType])
 
+  function clearConditionalField() {
+    setQtyInput('')
+    setSelectedUnits([])
+    setUnitSearch('')
+    setError('')
+  }
+
   function handleTypeChange(newType) {
     setType(newType)
-    setRepairType('')
-    setVendorName('')
     setIssueDescription('')
-    setExpectedReturnDate('')
     setScrapReason('')
     setRemarks('')
     setError('')
@@ -481,30 +486,48 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
   if (!isOpen) return null
 
   const selectedProduct = allProducts.find(p => p.id === productId) ?? null
-  const availableQty = selectedProduct && storeId ? getProductAvailability(productId, storeId) : null
-  const today = new Date().toISOString().slice(0, 10)
+  const isSerial = !!(selectedProduct?.trackedBySerial || selectedProduct?.trackedByMac)
+  const availableUnits = isSerial && productId && storeId
+    ? getUnits({ productId, storeId, status: 'Available' })
+    : []
+  const availableQty = !isSerial && selectedProduct && storeId
+    ? getProductAvailability(productId, storeId)
+    : null
+  const unitLabel = selectedProduct?.unitType === 'Meter' ? 'm' : 'pcs'
+  const noUnitsAvailable = isSerial && selectedProduct && storeId && availableUnits.length === 0
+
+  const filteredUnits = unitSearch
+    ? availableUnits.filter(u => u.value.toLowerCase().includes(unitSearch.toLowerCase()))
+    : availableUnits
 
   function handleSubmit() {
-    if (!productId || !storeId || qty === '') { setError('Product, Store and Quantity are required.'); return }
-    const qtyNum = Number(qty)
-    if (!qtyNum || qtyNum <= 0) { setError('Quantity must be greater than 0.'); return }
-    if (availableQty !== null && qtyNum > availableQty) { setError(`Quantity cannot exceed Available Qty (${availableQty}).`); return }
+    if (!productId || !storeId) { setError('Product and Store are required.'); return }
+    if (isSerial) {
+      if (selectedUnits.length === 0) { setError('Select at least one unit.'); return }
+    } else {
+      if (qtyInput === '') { setError('Quantity is required.'); return }
+      const n = Number(qtyInput)
+      if (!n || n <= 0) { setError('Quantity must be greater than 0.'); return }
+      if (availableQty !== null && n > availableQty) { setError(`Quantity cannot exceed available (${availableQty} ${unitLabel}).`); return }
+    }
     if (type === 'repair') {
-      if (!repairType) { setError('Repair Type is required.'); return }
-      if (repairType === 'Vendor' && !vendorName.trim()) { setError('Vendor Name is required.'); return }
       if (!issueDescription.trim()) { setError('Issue Description is required.'); return }
-      if (expectedReturnDate && expectedReturnDate < today) { setError('Expected Return Date cannot be in the past.'); return }
     } else {
       if (!scrapReason) { setError('Scrap Reason is required.'); return }
       if (scrapReason === 'Other' && !remarks.trim()) { setError('Remarks are required when Scrap Reason is "Other".'); return }
     }
     const store = stores.find(s => s.id === storeId)
+    const units = isSerial
+      ? selectedUnits.map(v => availableUnits.find(u => u.value === v)).filter(Boolean).map(u => ({ value: u.value, kind: u.kind }))
+      : null
+    const qty = isSerial ? selectedUnits.length : Number(qtyInput)
     saveAdjustment({
       type, productId, productName: selectedProduct.name,
       storeId, storeName: store?.storeName ?? storeId,
-      qty: qtyNum,
-      repairType, vendorName, issueDescription, expectedReturnDate,
-      scrapReason, remarks,
+      qty, units,
+      issueDescription: type === 'repair' ? issueDescription : undefined,
+      scrapReason: type === 'scrap' ? scrapReason : undefined,
+      remarks: type === 'scrap' ? remarks : undefined,
     })
     onSaved(type)
     onClose()
@@ -526,85 +549,110 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
               <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {error}
             </div>
           )}
+
           <FormField label="Type" required>
             <Select value={type} onChange={e => handleTypeChange(e.target.value)}>
               <option value="repair">Repair</option>
               <option value="scrap">Scrap</option>
             </Select>
           </FormField>
-          {true && (
-            <>
-              <FormField label="Product" required>
-                <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId('') }}>
-                  <option value="">Select product…</option>
-                  {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Store" required>
-                <Select value={storeId} onChange={e => setStoreId(e.target.value)}>
-                  <option value="">Select store…</option>
-                  {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
-                </Select>
-              </FormField>
-              <FormField label="Available Qty" hint="Read-only — current available quantity at the selected store">
-                <Input disabled value={availableQty == null ? '' : formatAvailableQty(selectedProduct, availableQty)} placeholder="Select a product and store" />
-              </FormField>
-              <FormField label="Quantity" required>
+
+          <FormField label="Product" required>
+            <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId(''); clearConditionalField() }}>
+              <option value="">Select product…</option>
+              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </FormField>
+
+          <FormField label="Store" required>
+            <Select value={storeId} onChange={e => { setStoreId(e.target.value); clearConditionalField() }}>
+              <option value="">Select store…</option>
+              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
+            </Select>
+          </FormField>
+
+          {/* Conditional field — only shown once both Product and Store are selected */}
+          {selectedProduct && storeId && (
+            isSerial ? (
+              noUnitsAvailable ? (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                  No available units at this store.
+                </p>
+              ) : (
+                <FormField label="Serial / MAC Number" required hint={`${selectedUnits.length} selected`}>
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={unitSearch}
+                        onChange={e => setUnitSearch(e.target.value)}
+                        placeholder="Search…"
+                        className="w-full pl-8 pr-3 py-1.5 text-xs border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                      />
+                    </div>
+                    <div className="max-h-40 overflow-y-auto border border-surface-border rounded-lg divide-y divide-surface-border">
+                      {filteredUnits.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-gray-400">No units match</p>
+                      ) : filteredUnits.map(u => (
+                        <label key={u.value} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="accent-brand-blue"
+                            checked={selectedUnits.includes(u.value)}
+                            onChange={e => {
+                              if (e.target.checked) setSelectedUnits(prev => [...prev, u.value])
+                              else setSelectedUnits(prev => prev.filter(v => v !== u.value))
+                            }}
+                          />
+                          <span className="text-xs font-mono text-gray-800">{u.value}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </FormField>
+              )
+            ) : (
+              <FormField label="Quantity" required hint={`Available: ${formatAvailableQty(selectedProduct, availableQty ?? 0)}`}>
                 <Input
                   type="number" min="1"
-                  value={qty}
-                  onChange={e => setQty(e.target.value)}
-                  placeholder="Quantity to send"
+                  value={qtyInput}
+                  onChange={e => setQtyInput(e.target.value)}
+                  placeholder={`Quantity (${unitLabel})`}
                 />
-                {qty && Number(qty) > 0 && availableQty !== null && Number(qty) > availableQty && (
-                  <p className="text-xs text-red-600 mt-1">Cannot exceed Available Qty ({availableQty}).</p>
+                {qtyInput && Number(qtyInput) > 0 && availableQty !== null && Number(qtyInput) > availableQty && (
+                  <p className="text-xs text-red-600 mt-1">Cannot exceed available ({availableQty} {unitLabel}).</p>
                 )}
               </FormField>
-              {type === 'repair' && (
-                <>
-                  <FormField label="Repair Type" required>
-                    <Select value={repairType} onChange={e => { setRepairType(e.target.value); setVendorName('') }}>
-                      <option value="">Select repair type…</option>
-                      <option value="In-house">In-house</option>
-                      <option value="Vendor">Vendor</option>
-                    </Select>
-                  </FormField>
-                  {repairType === 'Vendor' && (
-                    <FormField label="Vendor Name" required>
-                      <Input value={vendorName} onChange={e => setVendorName(e.target.value)} placeholder="Vendor name" />
-                    </FormField>
-                  )}
-                  <FormField label="Issue Description" required>
-                    <Textarea rows={2} value={issueDescription} onChange={e => setIssueDescription(e.target.value)} placeholder="Describe the issue…" />
-                  </FormField>
-                  <FormField label="Expected Return Date">
-                    <Input type="date" min={today} value={expectedReturnDate} onChange={e => setExpectedReturnDate(e.target.value)} />
-                  </FormField>
-                </>
-              )}
-              {type === 'scrap' && (
-                <>
-                  <FormField label="Scrap Reason" required>
-                    <Select value={scrapReason} onChange={e => setScrapReason(e.target.value)}>
-                      <option value="">Select reason…</option>
-                      <option value="Damaged Beyond Repair">Damaged Beyond Repair</option>
-                      <option value="Obsolete">Obsolete</option>
-                      <option value="Physical Damage">Physical Damage</option>
-                      <option value="Water/Fire Damage">Water/Fire Damage</option>
-                      <option value="Other">Other</option>
-                    </Select>
-                  </FormField>
-                  <FormField label="Remarks" required={scrapReason === 'Other'}>
-                    <Textarea rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any remarks…" />
-                  </FormField>
-                </>
-              )}
+            )
+          )}
+
+          {type === 'repair' && (
+            <FormField label="Issue Description" required>
+              <Textarea rows={2} value={issueDescription} onChange={e => setIssueDescription(e.target.value)} placeholder="Describe the issue…" />
+            </FormField>
+          )}
+          {type === 'scrap' && (
+            <>
+              <FormField label="Scrap Reason" required>
+                <Select value={scrapReason} onChange={e => setScrapReason(e.target.value)}>
+                  <option value="">Select reason…</option>
+                  <option value="Damaged Beyond Repair">Damaged Beyond Repair</option>
+                  <option value="Obsolete">Obsolete</option>
+                  <option value="Physical Damage">Physical Damage</option>
+                  <option value="Water/Fire Damage">Water/Fire Damage</option>
+                  <option value="Other">Other</option>
+                </Select>
+              </FormField>
+              <FormField label="Remarks" required={scrapReason === 'Other'}>
+                <Textarea rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Any remarks…" />
+              </FormField>
             </>
           )}
         </div>
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-border bg-gray-50 rounded-b-2xl sticky bottom-0">
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit}>
+          <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit} disabled={noUnitsAvailable}>
             {type === 'repair' ? 'Send for Repair' : 'Send to Scrap'}
           </Button>
         </div>
