@@ -2673,7 +2673,7 @@ function AddCustomFieldModal({ isOpen, onClose, onSave, initial }) {
   function handleSave() {
     if (!form.label.trim()) { setLabelError('Field label is required'); return }
     onSave({ ...form, label: form.label.trim() })
-    onClose()
+    // parent's onSave handles closing via closeModal()
   }
 
   return (
@@ -2743,13 +2743,12 @@ function AddCustomFieldModal({ isOpen, onClose, onSave, initial }) {
 }
 
 function FieldConfigPanel({ type, onSwitchType, onBack }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const customerTypes = getCustomerTypes()
   const activeType = customerTypes.some(t => t.id === type) ? type : customerTypes[0]?.id
 
   const [fields, setFields] = useState(() => getFieldConfig(activeType))
   const [customFields, setCustomFields] = useState(() => getCustomFields(activeType))
-  const [addOpen, setAddOpen] = useState(false)
-  const [editingField, setEditingField] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
   useEffect(() => {
@@ -2760,6 +2759,40 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
       setCustomFields(getCustomFields(activeType))
     })
   }, [activeType])
+
+  // URL-driven modal state — modal=add-custom-field or modal=edit-custom-field&fieldId=CF-xxx
+  const modalParam  = searchParams.get('modal')
+  const fieldIdParam = searchParams.get('fieldId')
+  const addOpen     = modalParam === 'add-custom-field'
+  const editingFieldId = modalParam === 'edit-custom-field' ? fieldIdParam : null
+  const editingField   = editingFieldId ? (customFields.find(f => f.id === editingFieldId) ?? null) : null
+
+  function openAddModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-custom-field')
+      next.delete('fieldId')
+      return next
+    })
+  }
+
+  function openEditModal(cf) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit-custom-field')
+      next.set('fieldId', cf.id)
+      return next
+    })
+  }
+
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('fieldId')
+      return next
+    })
+  }
 
   function handleToggle(field, next) {
     if (field.locked) return
@@ -2773,10 +2806,10 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
   function handleSaveCustomField(data) {
     if (editingField) {
       updateCustomField(activeType, editingField.id, data)
-      setEditingField(null)
     } else {
       addCustomField(activeType, data)
     }
+    closeModal()
   }
 
   function handleDeleteConfirmed() {
@@ -2799,7 +2832,7 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
             Customer Type — control which fields are Mandatory or Optional on the Lead/Customer creation form
           </p>
         </div>
-        <Button size="sm" onClick={() => { setEditingField(null); setAddOpen(true) }}>
+        <Button size="sm" onClick={openAddModal}>
           <Plus size={14} className="mr-1" /> Add Custom Field
         </Button>
       </div>
@@ -2883,7 +2916,7 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
                 <td className="px-4 py-3.5">
                   <div className="flex items-center gap-2 justify-end">
                     <button
-                      onClick={() => { setEditingField(cf); setAddOpen(true) }}
+                      onClick={() => openEditModal(cf)}
                       className="p-1 text-gray-400 hover:text-brand-blue transition-colors rounded"
                       title="Edit field"
                     >
@@ -2912,10 +2945,10 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
         </table>
       </div>
 
-      {/* Add / Edit custom field modal */}
+      {/* Add / Edit custom field modal — URL-addressable */}
       <AddCustomFieldModal
-        isOpen={addOpen}
-        onClose={() => { setAddOpen(false); setEditingField(null) }}
+        isOpen={addOpen || !!editingField}
+        onClose={closeModal}
         onSave={handleSaveCustomField}
         initial={editingField}
       />
