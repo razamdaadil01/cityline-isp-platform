@@ -17,6 +17,7 @@ import { getUserAssignments, subscribeUserAssignments } from './userAssignmentSt
 import { getStoreTransfers, subscribeStoreTransfers } from './storeTransferStore'
 import { getRepairs, subscribeRepairs } from './repairStore'
 import { getScraps, subscribeScraps } from './scrapStore'
+import { getAdjustments, subscribeAdjustments } from './inventoryAdjustmentStore'
 
 function normalizeMatchKey(s) {
   return (s || '').trim().toLowerCase()
@@ -476,6 +477,13 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
     unit.scrappedAt = s.scrappedAt
   })
 
+  // Qty adjustments: batch repair/scrap from Send for Repair/Scrap modal.
+  // Deducts from balanceByKey for quantity-tracked stock.
+  getAdjustments().forEach(adj => {
+    const key = `${adj.productId}|${adj.storeId}`
+    balanceByKey[key] = Math.max(0, (balanceByKey[key] ?? 0) - adj.qty)
+  })
+
   return {
     balanceByKey, units, drums, movements, assignedQtyByKey, assignedQtyByEngineerKey, handedOffQtyByEngineerKey,
     assignedMetersByEngineerDrumKey, handedOffMetersByEngineerDrumKey,
@@ -688,8 +696,9 @@ export function subscribeInventoryLedger(fn) {
   const unsubStoreTransfers = subscribeStoreTransfers(() => fn())
   const unsubRepairs = subscribeRepairs(() => fn())
   const unsubScraps = subscribeScraps(() => fn())
+  const unsubAdjustments = subscribeAdjustments(() => fn())
   return () => {
     unsubPurchases(); unsubAssignments(); unsubReplacements(); unsubUserAssignments(); unsubStoreTransfers()
-    unsubRepairs(); unsubScraps()
+    unsubRepairs(); unsubScraps(); unsubAdjustments()
   }
 }
