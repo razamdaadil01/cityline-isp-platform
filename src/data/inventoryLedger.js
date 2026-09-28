@@ -477,11 +477,25 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
     unit.scrappedAt = s.scrappedAt
   })
 
-  // Qty adjustments: batch repair/scrap from Send for Repair/Scrap modal.
-  // Deducts from balanceByKey for quantity-tracked stock.
-  getAdjustments().forEach(adj => {
+  // Qty adjustments: batch repair/scrap for quantity-tracked (non-serialized)
+  // products — deduct from balanceByKey. Serialized adjustments (adj.units
+  // present) do not touch balanceByKey; their per-unit availability is tracked
+  // entirely through unit.status below.
+  getAdjustments().filter(adj => !adj.units?.length).forEach(adj => {
     const key = `${adj.productId}|${adj.storeId}`
     balanceByKey[key] = Math.max(0, (balanceByKey[key] ?? 0) - adj.qty)
+  })
+
+  // Serialized adjustments: set status on each named unit. Applied after
+  // scrapStore so a unit that was already scrapped via the old ScrapUnitModal
+  // won't have its status overwritten by a newer repair record.
+  getAdjustments().filter(adj => adj.units?.length).forEach(adj => {
+    const newStatus = adj.type === 'repair' ? 'Sent for Repair' : 'Scrapped'
+    adj.units.forEach(({ value }) => {
+      const unit = unitsByValue.get(value)
+      if (!unit || unit.productId !== adj.productId) return
+      unit.status = newStatus
+    })
   })
 
   return {
