@@ -70,9 +70,9 @@ export const MOCK_OTHER_PACKAGES = [
 ]
 
 export const MOCK_LANDLINES = [
-  { id: 1, number: '+91-120-4567890', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null },
-  { id: 2, number: '+91-120-4567891', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null },
-  { id: 3, number: '+91-120-4567892', status: 'Assigned',  assignedTo: 'LD-201', customer: 'Ramesh Nair', assignedDate: '2026-01-15' },
+  { id: 1, number: '+91-120-4567890', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null,       addedAt: '2025-06-01', removedAt: null },
+  { id: 2, number: '+91-120-4567891', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null,       addedAt: '2025-06-01', removedAt: null },
+  { id: 3, number: '+91-120-4567892', status: 'Assigned',  assignedTo: 'LD-201', customer: 'Ramesh Nair', assignedDate: '2026-01-15', addedAt: '2025-06-01', removedAt: null },
 ]
 
 export const MOCK_STATIC_IPS = [
