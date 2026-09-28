@@ -437,8 +437,8 @@ function ProductDetailPanel({ product, stores, onClose }) {
 }
 
 // ── Send for Repair / Scrap modal ────────────────────────────────────────────
-function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSaved }) {
-  const [type, setType] = useState('')
+function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSaved, initialType = 'repair', onTypeChange }) {
+  const [type, setType] = useState(initialType)
   const [productId, setProductId] = useState(product?.id ?? '')
   const [storeId, setStoreId] = useState('')
   const [qty, setQty] = useState('')
@@ -452,7 +452,7 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
 
   useEffect(() => {
     if (isOpen) {
-      setType('')
+      setType(initialType)
       setProductId(product?.id ?? '')
       setStoreId('')
       setQty('')
@@ -464,7 +464,7 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
       setRemarks('')
       setError('')
     }
-  }, [isOpen, product])
+  }, [isOpen, product, initialType])
 
   function handleTypeChange(newType) {
     setType(newType)
@@ -475,6 +475,7 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
     setScrapReason('')
     setRemarks('')
     setError('')
+    onTypeChange?.(newType)
   }
 
   if (!isOpen) return null
@@ -527,12 +528,11 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
           )}
           <FormField label="Type" required>
             <Select value={type} onChange={e => handleTypeChange(e.target.value)}>
-              <option value="">Select type…</option>
               <option value="repair">Repair</option>
               <option value="scrap">Scrap</option>
             </Select>
           </FormField>
-          {type && (
+          {true && (
             <>
               <FormField label="Product" required>
                 <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId('') }}>
@@ -604,11 +604,9 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
         </div>
         <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-border bg-gray-50 rounded-b-2xl sticky bottom-0">
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          {type && (
-            <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit}>
-              {type === 'repair' ? 'Send for Repair' : 'Send to Scrap'}
-            </Button>
-          )}
+          <Button size="sm" icon={<Flag size={14} />} onClick={handleSubmit}>
+            {type === 'repair' ? 'Send for Repair' : 'Send to Scrap'}
+          </Button>
         </div>
       </div>
     </div>
@@ -638,7 +636,8 @@ export default function InventoryOverview() {
   const modal = searchParams.get('modal')
   const modalId = searchParams.get('id')
   const selectedProductId = modal === 'product-detail' ? modalId : null
-  const repairScrapOpen = modal === 'discrepancy'
+  const repairScrapOpen = modal === 'repair' || modal === 'scrap' || modal === 'discrepancy'
+  const repairScrapInitialType = modal === 'scrap' ? 'scrap' : 'repair'
   const repairScrapProduct = repairScrapOpen && modalId ? allProducts.find(p => p.id === modalId) ?? null : null
 
   const [search, setSearch] = useState('')
@@ -673,8 +672,11 @@ export default function InventoryOverview() {
   function openProductDetail(id) {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'product-detail'); next.set('id', id); return next })
   }
-  function openDiscrepancy(product) {
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'discrepancy'); if (product) next.set('id', product.id); else next.delete('id'); return next })
+  function openRepairScrap(product, type = 'repair') {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', type); if (product) next.set('id', product.id); else next.delete('id'); return next })
+  }
+  function handleRepairScrapTypeChange(newType) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', newType); return next }, { replace: true })
   }
   function closeModal() {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
@@ -788,7 +790,7 @@ export default function InventoryOverview() {
           <p className="text-sm text-gray-500 mt-0.5">{rows.length} of {allProducts.length} products · Showing: {scopeLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => openDiscrepancy(null)}>Send for Repair/Scrap</Button>
+          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => openRepairScrap(null)}>Send for Repair/Scrap</Button>
           <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExport}>Export</Button>
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
         </div>
@@ -1014,7 +1016,7 @@ export default function InventoryOverview() {
                         <button onClick={() => openProductDetail(product.id)} title="View" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors">
                           <Eye size={14} />
                         </button>
-                        <button onClick={() => openDiscrepancy(product)} title="Send for Repair/Scrap" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <button onClick={() => openRepairScrap(product)} title="Send for Repair/Scrap" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
                           <Flag size={14} />
                         </button>
                       </div>
@@ -1037,6 +1039,8 @@ export default function InventoryOverview() {
         product={repairScrapProduct}
         allProducts={allProducts}
         stores={stores}
+        initialType={repairScrapInitialType}
+        onTypeChange={handleRepairScrapTypeChange}
         onSaved={type => setToast(type === 'repair' ? 'Sent for repair — stock updated.' : 'Sent to scrap — stock updated.')}
       />
 
