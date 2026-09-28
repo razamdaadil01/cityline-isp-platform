@@ -76,9 +76,9 @@ export const MOCK_LANDLINES = [
 ]
 
 export const MOCK_STATIC_IPS = [
-  { id: 1, ip: '103.21.58.10', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Available', assignedTo: null,     customer: null },
-  { id: 2, ip: '103.21.58.11', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Assigned',  assignedTo: 'LD-301', customer: 'Anita Sharma' },
-  { id: 3, ip: '103.21.58.12', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Available', assignedTo: null,     customer: null },
+  { id: 1, ip: '103.21.58.10', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null,         addedAt: '2025-06-01', removedAt: null },
+  { id: 2, ip: '103.21.58.11', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Assigned',  assignedTo: 'LD-301', customer: 'Anita Sharma', assignedDate: '2026-02-10', addedAt: '2025-06-01', removedAt: null },
+  { id: 3, ip: '103.21.58.12', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null,         addedAt: '2025-06-01', removedAt: null },
 ]
 
 // Flat, selectable plan shape for consumers like the Lead Detail package
