@@ -32,7 +32,10 @@ import {
   getServiceTags, subscribeServiceTags, saveServiceTag, setServiceTagStatus,
   reorderServiceTags, nextDisplayOrder, isTagNameTaken, countServiceTagsForType,
 } from '../data/serviceTags'
-import { getFieldConfig, subscribeFieldConfig, setFieldMandatory, getFieldCount } from '../data/fieldConfigStore'
+import {
+  getFieldConfig, subscribeFieldConfig, setFieldMandatory, getFieldCount,
+  getCustomFields, addCustomField, updateCustomField, deleteCustomField,
+} from '../data/fieldConfigStore'
 import {
   getCompanyEntities, subscribeCompanyEntities, saveCompanyEntity, setCompanyEntityStatus,
   isValidGstin, PG_CONNECTIONS, formatInvoiceNumber, GSP_PROVIDERS,
@@ -2649,15 +2652,113 @@ function ServiceTagsPanel({ filterType, onFilterChange, onBack }) {
   )
 }
 
+const CUSTOM_FIELD_TYPES = ['Text', 'Number', 'Email', 'Phone', 'Date', 'Dropdown', 'Checkbox', 'Textarea']
+
+function AddCustomFieldModal({ isOpen, onClose, onSave, initial }) {
+  const blank = { label: '', fieldType: 'Text', mandatory: false, placeholder: '', options: [] }
+  const [form, setForm] = useState(blank)
+  const [labelError, setLabelError] = useState('')
+
+  useEffect(() => {
+    if (isOpen) { setForm(initial ?? blank); setLabelError('') }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
+
+  function addOption() { set('options', [...(form.options ?? []), '']) }
+  function updateOption(i, v) { set('options', (form.options ?? []).map((o, idx) => idx === i ? v : o)) }
+  function removeOption(i) { set('options', (form.options ?? []).filter((_, idx) => idx !== i)) }
+
+  function handleSave() {
+    if (!form.label.trim()) { setLabelError('Field label is required'); return }
+    onSave({ ...form, label: form.label.trim() })
+    onClose()
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initial ? 'Edit Custom Field' : 'Add Custom Field'}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave}>Save Field</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Field Label" required error={labelError}>
+          <Input
+            value={form.label}
+            onChange={e => { set('label', e.target.value); setLabelError('') }}
+            placeholder="e.g. GST Number, Company Registration No."
+          />
+        </FormField>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Field Type" required>
+            <Select value={form.fieldType} onChange={e => set('fieldType', e.target.value)}>
+              {CUSTOM_FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Mandatory">
+            <div className="flex items-center gap-2 mt-1">
+              <SysConfigToggle checked={form.mandatory} onChange={v => set('mandatory', v)} />
+              <span className="text-xs text-gray-500">{form.mandatory ? 'Mandatory' : 'Optional'}</span>
+            </div>
+          </FormField>
+        </div>
+        {form.fieldType !== 'Checkbox' && (
+          <FormField label="Placeholder Text">
+            <Input
+              value={form.placeholder}
+              onChange={e => set('placeholder', e.target.value)}
+              placeholder="Hint shown inside the field"
+            />
+          </FormField>
+        )}
+        {form.fieldType === 'Dropdown' && (
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">Dropdown Options</p>
+            <div className="space-y-2">
+              {(form.options ?? []).map((opt, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input value={opt} onChange={e => updateOption(i, e.target.value)} placeholder={`Option ${i + 1}`} />
+                  <button type="button" onClick={() => removeOption(i)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={addOption} className="flex items-center gap-1.5 text-xs text-brand-blue hover:underline font-medium mt-1">
+                <Plus size={12} /> Add Option
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 function FieldConfigPanel({ type, onSwitchType, onBack }) {
   const customerTypes = getCustomerTypes()
   const activeType = customerTypes.some(t => t.id === type) ? type : customerTypes[0]?.id
 
   const [fields, setFields] = useState(() => getFieldConfig(activeType))
+  const [customFields, setCustomFields] = useState(() => getCustomFields(activeType))
+  const [addOpen, setAddOpen] = useState(false)
+  const [editingField, setEditingField] = useState(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
   useEffect(() => {
     setFields(getFieldConfig(activeType))
-    return subscribeFieldConfig(() => setFields(getFieldConfig(activeType)))
+    setCustomFields(getCustomFields(activeType))
+    return subscribeFieldConfig(() => {
+      setFields(getFieldConfig(activeType))
+      setCustomFields(getCustomFields(activeType))
+    })
   }, [activeType])
 
   function handleToggle(field, next) {
@@ -2665,17 +2766,42 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
     setFieldMandatory(activeType, field.fieldName, next)
   }
 
+  function handleCustomToggle(cf, next) {
+    updateCustomField(activeType, cf.id, { mandatory: next })
+  }
+
+  function handleSaveCustomField(data) {
+    if (editingField) {
+      updateCustomField(activeType, editingField.id, data)
+      setEditingField(null)
+    } else {
+      addCustomField(activeType, data)
+    }
+  }
+
+  function handleDeleteConfirmed() {
+    if (deleteConfirmId) deleteCustomField(activeType, deleteConfirmId)
+    setDeleteConfirmId(null)
+  }
+
+  const fieldToDelete = customFields.find(f => f.id === deleteConfirmId)
+
   return (
     <div className="space-y-5">
       <button onClick={onBack} className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-brand-blue">
         <ChevronLeft size={13} /> Back to Customer Type
       </button>
 
-      <div className="pb-4 border-b border-surface-border">
-        <h2 className="text-base font-semibold text-gray-900">Field Configuration</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Customer Type — control which fields are Mandatory or Optional on the Lead/Customer creation form
-        </p>
+      <div className="flex items-start justify-between pb-4 border-b border-surface-border">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Field Configuration</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Customer Type — control which fields are Mandatory or Optional on the Lead/Customer creation form
+          </p>
+        </div>
+        <Button size="sm" onClick={() => { setEditingField(null); setAddOpen(true) }}>
+          <Plus size={14} className="mr-1" /> Add Custom Field
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -2703,9 +2829,11 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
             <tr className="bg-gray-50/80 border-b border-surface-border">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Field Name</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Mandatory</th>
+              <th className="px-4 py-3 w-16" />
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-border">
+            {/* System fields — no edit/delete */}
             {fields.map(field => (
               <tr key={field.fieldName} className="hover:bg-gray-50/50">
                 <td className="px-4 py-3.5">
@@ -2730,11 +2858,85 @@ function FieldConfigPanel({ type, onSwitchType, onBack }) {
                     </span>
                   </div>
                 </td>
+                <td />
               </tr>
             ))}
+
+            {/* Custom fields — with edit/delete */}
+            {customFields.map(cf => (
+              <tr key={cf.id} className="hover:bg-blue-50/30 bg-blue-50/10">
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900">{cf.label}</span>
+                    <Badge variant="blue" size="sm">Custom</Badge>
+                    <span className="text-[10px] text-gray-400 font-medium">{cf.fieldType}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <SysConfigToggle checked={cf.mandatory} onChange={v => handleCustomToggle(cf, v)} />
+                    <span className={`text-xs font-medium whitespace-nowrap ${cf.mandatory ? 'text-green-600' : 'text-gray-400'}`}>
+                      {cf.mandatory ? 'Mandatory' : 'Optional'}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-3.5">
+                  <div className="flex items-center gap-2 justify-end">
+                    <button
+                      onClick={() => { setEditingField(cf); setAddOpen(true) }}
+                      className="p-1 text-gray-400 hover:text-brand-blue transition-colors rounded"
+                      title="Edit field"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(cf.id)}
+                      className="p-1 text-gray-400 hover:text-red-500 transition-colors rounded"
+                      title="Delete field"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {customFields.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-4 py-4 text-xs text-gray-400 text-center italic border-t border-surface-border border-dashed">
+                  No custom fields yet — click "+ Add Custom Field" to add one.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Add / Edit custom field modal */}
+      <AddCustomFieldModal
+        isOpen={addOpen}
+        onClose={() => { setAddOpen(false); setEditingField(null) }}
+        onSave={handleSaveCustomField}
+        initial={editingField}
+      />
+
+      {/* Delete confirmation modal */}
+      <Modal
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        title="Delete Custom Field"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+            <Button variant="danger" onClick={handleDeleteConfirmed}>Delete</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-700">
+          Are you sure you want to delete the custom field <span className="font-semibold">"{fieldToDelete?.label}"</span>? This cannot be undone.
+        </p>
+      </Modal>
     </div>
   )
 }

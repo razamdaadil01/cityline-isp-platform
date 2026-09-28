@@ -128,3 +128,39 @@ export function setFieldMandatory(customerType, fieldName, mandatory) {
       : r)
   notify()
 }
+
+// ── Custom Fields ─────────────────────────────────────────────────────────────
+// Per-customer-type array of admin-defined fields.  Shape per entry:
+//   { id, label, fieldType, mandatory, placeholder, options[] }
+
+let _customFields = { resident: [], corporate: [] }
+
+export function getCustomFields(customerType) {
+  return _customFields[customerType] ?? []
+}
+
+export function addCustomField(customerType, field) {
+  const id = `CF-${Date.now()}`
+  _customFields = {
+    ..._customFields,
+    [customerType]: [...(_customFields[customerType] ?? []), { ...field, id }],
+  }
+  notify()
+}
+
+export function updateCustomField(customerType, fieldId, updates) {
+  _customFields = {
+    ..._customFields,
+    [customerType]: (_customFields[customerType] ?? []).map(f =>
+      f.id === fieldId ? { ...f, ...updates } : f),
+  }
+  notify()
+}
+
+export function deleteCustomField(customerType, fieldId) {
+  _customFields = {
+    ..._customFields,
+    [customerType]: (_customFields[customerType] ?? []).filter(f => f.id !== fieldId),
+  }
+  notify()
+}
