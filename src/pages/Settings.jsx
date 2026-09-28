@@ -2070,7 +2070,7 @@ function MasterConfigTab() {
               </button>
               <button onClick={() => openMCModal('add-ip')}
                 className="flex items-center gap-1.5 bg-[#0A8DCD] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-600">
-                <Plus size={13} /> Add IP
+                <Plus size={13} /> Add Pool
               </button>
             </div>
           </div>
@@ -2157,7 +2157,7 @@ function MasterConfigTab() {
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                  <h2 className="font-semibold text-gray-800">Add Static IP</h2>
+                  <h2 className="font-semibold text-gray-800">Add IP Pool</h2>
                   <button onClick={closeMCModal}><X size={16} className="text-gray-400" /></button>
                 </div>
                 <div className="p-5 space-y-3">
@@ -2174,7 +2174,7 @@ function MasterConfigTab() {
                       setStaticIps(prev => [...prev, { id: Date.now(), ip: ipForm.ip, subnet: ipForm.subnet, gateway: ipForm.gateway, status: 'Available', assignedTo: null, customer: null }])
                       setIpForm({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
                       closeMCModal()
-                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add IP</button>
+                    }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Pool</button>
                   </div>
                 </div>
               </div>
