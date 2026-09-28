@@ -20,6 +20,8 @@ import { saveReplacement } from '../../data/replacementStore'
 import { getAssignments, removeUnitFromAssignmentLine } from '../../data/assignmentStore'
 import { getScraps } from '../../data/scrapStore'
 import { saveAdjustment, getAdjustments } from '../../data/inventoryAdjustmentStore'
+import { getVendors } from '../../data/vendorStore'
+import { getAllTechnicians } from '../../data/technicianHelpers'
 import { getTickets } from '../../data/ticketsStore'
 import { exportWorkbook } from '../../utils/excelExport'
 import { logAudit } from '../../data/auditLogStore'
@@ -437,6 +439,27 @@ function ProductDetailPanel({ product, stores, onClose }) {
 }
 
 // ── Send for Repair / Scrap modal ────────────────────────────────────────────
+function SegmentedControl({ options, value, onChange }) {
+  return (
+    <div className="flex gap-2">
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+            value === opt.value
+              ? 'bg-brand-blue text-white border-brand-blue'
+              : 'bg-white text-gray-600 border-surface-border hover:bg-gray-50'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSaved, initialType = 'repair', onTypeChange }) {
   const [type, setType] = useState(initialType)
   // Product is only prefilled once a Store is chosen and the product is
@@ -452,6 +475,13 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
   const [issueDescription, setIssueDescription] = useState('')
   const [scrapReason, setScrapReason] = useState('')
   const [remarks, setRemarks] = useState('')
+  // repair warranty flow
+  const [warrantyStatus, setWarrantyStatus] = useState('')
+  const [chargeType, setChargeType] = useState('')
+  const [repairAt, setRepairAt] = useState('Vendor')
+  const [vendorId, setVendorId] = useState('')
+  const [engineerId, setEngineerId] = useState('')
+  const [inHouseReason, setInHouseReason] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -467,6 +497,12 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
       setIssueDescription('')
       setScrapReason('')
       setRemarks('')
+      setWarrantyStatus('')
+      setChargeType('')
+      setRepairAt('Vendor')
+      setVendorId('')
+      setEngineerId('')
+      setInHouseReason('')
       setError('')
     }
   }, [isOpen, product, initialType])
@@ -505,11 +541,38 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
     setIssueDescription('')
     setScrapReason('')
     setRemarks('')
+    setWarrantyStatus('')
+    setChargeType('')
+    setRepairAt('Vendor')
+    setVendorId('')
+    setEngineerId('')
+    setInHouseReason('')
     setError('')
     onTypeChange?.(newType)
   }
 
+  function handleWarrantyStatusChange(newStatus) {
+    setWarrantyStatus(newStatus)
+    setChargeType('')
+    setRepairAt('Vendor')
+    setVendorId('')
+    setEngineerId('')
+    setInHouseReason('')
+    setError('')
+  }
+
+  function handleRepairAtChange(newRepairAt) {
+    setRepairAt(newRepairAt)
+    setVendorId('')
+    setEngineerId('')
+    setInHouseReason('')
+    setError('')
+  }
+
   if (!isOpen) return null
+
+  const vendors = getVendors()
+  const technicians = getAllTechnicians()
 
   const selectedProduct = allProducts.find(p => p.id === productId) ?? null
   const isSerial = !!(selectedProduct?.trackedBySerial || selectedProduct?.trackedByMac)
@@ -541,6 +604,17 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
       if (availableQty !== null && n > availableQty) { setError(`Quantity cannot exceed available (${availableQty} ${unitLabel}).`); return }
     }
     if (type === 'repair') {
+      if (!warrantyStatus) { setError('Warranty Status is required.'); return }
+      if (warrantyStatus === 'In Warranty') {
+        if (!chargeType) { setError('Charge Type is required.'); return }
+        if (repairAt === 'Vendor') {
+          if (!vendorId) { setError('Vendor Name is required.'); return }
+        } else {
+          if (!engineerId) { setError('Engineer is required.'); return }
+        }
+      } else {
+        if (!engineerId) { setError('Engineer is required.'); return }
+      }
       if (!issueDescription.trim()) { setError('Issue Description is required.'); return }
     } else {
       if (!scrapReason) { setError('Scrap Reason is required.'); return }
@@ -551,6 +625,9 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
       ? selectedUnits.map(v => availableUnits.find(u => u.value === v)).filter(Boolean).map(u => ({ value: u.value, kind: u.kind }))
       : null
     const qty = isSerial ? selectedUnits.length : Number(qtyInput)
+    const effectiveRepairAt = warrantyStatus === 'Out of Warranty' ? 'In-house' : repairAt
+    const selectedVendor = effectiveRepairAt === 'Vendor' ? vendors.find(v => v.id === vendorId) : null
+    const selectedEngineer = effectiveRepairAt === 'In-house' ? technicians.find(t => t.id === engineerId) : null
     saveAdjustment({
       type, productId, productName: selectedProduct.name,
       storeId, storeName: store?.storeName ?? storeId,
@@ -558,6 +635,14 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
       issueDescription: type === 'repair' ? issueDescription : undefined,
       scrapReason: type === 'scrap' ? scrapReason : undefined,
       remarks: type === 'scrap' ? remarks : undefined,
+      warrantyStatus: type === 'repair' ? warrantyStatus : undefined,
+      chargeType: type === 'repair' ? chargeType : undefined,
+      repairAt: type === 'repair' ? effectiveRepairAt : undefined,
+      vendorId: type === 'repair' ? vendorId : undefined,
+      vendorName: type === 'repair' ? (selectedVendor?.companyName ?? '') : undefined,
+      engineerId: type === 'repair' ? engineerId : undefined,
+      engineerName: type === 'repair' ? (selectedEngineer?.name ?? '') : undefined,
+      inHouseReason: type === 'repair' ? inHouseReason : undefined,
     })
     onSaved(type)
     onClose()
@@ -658,9 +743,83 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
           )}
 
           {type === 'repair' && (
-            <FormField label="Issue Description" required>
-              <Textarea rows={2} value={issueDescription} onChange={e => setIssueDescription(e.target.value)} placeholder="Describe the issue…" />
-            </FormField>
+            <>
+              <FormField label="Warranty Status" required>
+                <SegmentedControl
+                  value={warrantyStatus}
+                  onChange={handleWarrantyStatusChange}
+                  options={[
+                    { value: 'In Warranty', label: 'In Warranty' },
+                    { value: 'Out of Warranty', label: 'Out of Warranty' },
+                  ]}
+                />
+              </FormField>
+
+              {warrantyStatus === 'In Warranty' && (
+                <>
+                  <FormField label="Charge Type" required>
+                    <SegmentedControl
+                      value={chargeType}
+                      onChange={setChargeType}
+                      options={[
+                        { value: 'Chargeable', label: 'Chargeable' },
+                        { value: 'Non-chargeable', label: 'Non-chargeable' },
+                      ]}
+                    />
+                  </FormField>
+
+                  <FormField label="Repair At" required>
+                    <SegmentedControl
+                      value={repairAt}
+                      onChange={handleRepairAtChange}
+                      options={[
+                        { value: 'Vendor', label: 'Vendor' },
+                        { value: 'In-house', label: 'In-house' },
+                      ]}
+                    />
+                  </FormField>
+
+                  {repairAt === 'Vendor' ? (
+                    <FormField label="Vendor Name" required>
+                      <Select value={vendorId} onChange={e => setVendorId(e.target.value)}>
+                        <option value="">Select vendor…</option>
+                        {vendors.map(v => <option key={v.id} value={v.id}>{v.companyName}</option>)}
+                      </Select>
+                    </FormField>
+                  ) : (
+                    <>
+                      <FormField label="Engineer" required>
+                        <Select value={engineerId} onChange={e => setEngineerId(e.target.value)}>
+                          <option value="">Select engineer…</option>
+                          {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </Select>
+                      </FormField>
+                      <FormField label="Reason for In-house Repair" hint="Optional">
+                        <Textarea rows={2} value={inHouseReason} onChange={e => setInHouseReason(e.target.value)} placeholder="e.g., Vendor rejected the warranty claim" />
+                      </FormField>
+                    </>
+                  )}
+                </>
+              )}
+
+              {warrantyStatus === 'Out of Warranty' && (
+                <>
+                  <FormField label="Repair At">
+                    <p className="text-xs text-gray-600 bg-gray-50 border border-surface-border rounded-lg px-3 py-2">Repair At: In-house</p>
+                  </FormField>
+                  <FormField label="Engineer" required>
+                    <Select value={engineerId} onChange={e => setEngineerId(e.target.value)}>
+                      <option value="">Select engineer…</option>
+                      {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </Select>
+                  </FormField>
+                </>
+              )}
+
+              <FormField label="Issue Description" required>
+                <Textarea rows={2} value={issueDescription} onChange={e => setIssueDescription(e.target.value)} placeholder="Describe the issue…" />
+              </FormField>
+            </>
           )}
           {type === 'scrap' && (
             <>
