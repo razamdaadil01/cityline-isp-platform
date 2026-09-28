@@ -439,7 +439,9 @@ function ProductDetailPanel({ product, stores, onClose }) {
 // ── Send for Repair / Scrap modal ────────────────────────────────────────────
 function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSaved, initialType = 'repair', onTypeChange }) {
   const [type, setType] = useState(initialType)
-  const [productId, setProductId] = useState(product?.id ?? '')
+  // Product is only prefilled once a Store is chosen and the product is
+  // compatible with it (see handleStoreChange) — Store now comes first.
+  const [productId, setProductId] = useState('')
   const [storeId, setStoreId] = useState('')
   // qty-tracked
   const [qtyInput, setQtyInput] = useState('')
@@ -455,7 +457,9 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
   useEffect(() => {
     if (isOpen) {
       setType(initialType)
-      setProductId(product?.id ?? '')
+      // Product is prefilled once a Store is picked (below), not on open —
+      // Store now comes first in the flow.
+      setProductId('')
       setStoreId('')
       setQtyInput('')
       setSelectedUnits([])
@@ -472,6 +476,28 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
     setSelectedUnits([])
     setUnitSearch('')
     setError('')
+  }
+
+  function productHasStockAt(p, atStoreId) {
+    if (!p || !atStoreId) return false
+    if (p.trackedBySerial || p.trackedByMac) {
+      return getUnits({ productId: p.id, storeId: atStoreId, status: 'Available' }).length > 0
+    }
+    return getProductAvailability(p.id, atStoreId) > 0
+  }
+
+  function handleStoreChange(newStoreId) {
+    setStoreId(newStoreId)
+    clearConditionalField()
+    // Row flag prefill: the row carries no store of its own, so only
+    // auto-select the row's product once the user picks a store where it
+    // actually has stock — otherwise leave Product for them to choose.
+    setProductId(product && productHasStockAt(product, newStoreId) ? product.id : '')
+  }
+
+  function handleProductChange(newProductId) {
+    setProductId(newProductId)
+    clearConditionalField()
   }
 
   function handleTypeChange(newType) {
@@ -499,6 +525,10 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
   const filteredUnits = unitSearch
     ? availableUnits.filter(u => u.value.toLowerCase().includes(unitSearch.toLowerCase()))
     : availableUnits
+
+  // Only products with available stock at the selected store — computed
+  // once a Store is chosen (Store now comes before Product in the flow).
+  const productsAtStore = storeId ? allProducts.filter(p => productHasStockAt(p, storeId)) : []
 
   function handleSubmit() {
     if (!productId || !storeId) { setError('Product and Store are required.'); return }
@@ -557,17 +587,17 @@ function RepairScrapModal({ isOpen, onClose, product, allProducts, stores, onSav
             </Select>
           </FormField>
 
-          <FormField label="Product" required>
-            <Select value={productId} disabled={!!product} onChange={e => { setProductId(e.target.value); setStoreId(''); clearConditionalField() }}>
-              <option value="">Select product…</option>
-              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          <FormField label="Store" required>
+            <Select value={storeId} onChange={e => handleStoreChange(e.target.value)}>
+              <option value="">Select store…</option>
+              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
             </Select>
           </FormField>
 
-          <FormField label="Store" required>
-            <Select value={storeId} onChange={e => { setStoreId(e.target.value); clearConditionalField() }}>
-              <option value="">Select store…</option>
-              {stores.map(s => <option key={s.id} value={s.id}>{s.storeName}</option>)}
+          <FormField label="Product" required>
+            <Select value={productId} disabled={!storeId} onChange={e => handleProductChange(e.target.value)}>
+              <option value="">{storeId ? 'Select product…' : 'Select store first'}</option>
+              {productsAtStore.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </Select>
           </FormField>
 
