@@ -478,7 +478,7 @@ function DiscrepancyModal({ isOpen, onClose, product, allProducts, stores }) {
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border">
-          <h2 className="text-sm font-bold text-gray-900">Report a Discrepancy</h2>
+          <h2 className="text-sm font-bold text-gray-900">Send for Repair/Scrap</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
             <X size={15} />
           </button>
@@ -681,7 +681,7 @@ export default function InventoryOverview() {
           <p className="text-sm text-gray-500 mt-0.5">{rows.length} of {allProducts.length} products · Showing: {scopeLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => openDiscrepancy(null)}>Report a Discrepancy</Button>
+          <Button variant="secondary" size="sm" icon={<Flag size={14} />} onClick={() => openDiscrepancy(null)}>Send for Repair/Scrap</Button>
           <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExport}>Export</Button>
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
         </div>
@@ -907,7 +907,7 @@ export default function InventoryOverview() {
                         <button onClick={() => openProductDetail(product.id)} title="View" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors">
                           <Eye size={14} />
                         </button>
-                        <button onClick={() => openDiscrepancy(product)} title="Report a Discrepancy" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <button onClick={() => openDiscrepancy(product)} title="Send for Repair/Scrap" className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
                           <Flag size={14} />
                         </button>
                       </div>
