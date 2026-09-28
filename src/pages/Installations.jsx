@@ -426,6 +426,31 @@ export default function Installations() {
 
   const initialType = ['Internet', 'Intercom'].includes(searchParams.get('type')) ? searchParams.get('type') : 'All'
 
+  // Mark-as-Hold modal URL params — derived so deep-link works
+  const holdModalId = searchParams.get('modal') === 'mark-on-hold' ? searchParams.get('id') : null
+  const netHoldInst = holdModalId ? (internet.find(i => i.id === holdModalId) ?? null) : null
+
+  function openHoldModal(inst) {
+    setNetHoldNote('')
+    setNetHoldFollowUp('')
+    setNetHoldTill('')
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'mark-on-hold')
+      next.set('id', inst.id)
+      return next
+    })
+  }
+
+  function closeHoldModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('id')
+      return next
+    })
+  }
+
   const [search,       setSearch]       = useState('')
   const [filterType,   setFilterType]   = useState(initialType)
   const [filterStatus, setFilterStatus] = useState('')
@@ -448,7 +473,6 @@ export default function Installations() {
   const [netDispatchInst,   setNetDispatchInst]   = useState(null)
   const [netCancelInst,     setNetCancelInst]     = useState(null)
   const [netCompleteInst,   setNetCompleteInst]   = useState(null)
-  const [netHoldInst,       setNetHoldInst]       = useState(null)
   const [netHoldNote,       setNetHoldNote]       = useState('')
   const [netHoldFollowUp,   setNetHoldFollowUp]   = useState('')
   const [netHoldTill,       setNetHoldTill]       = useState('')
@@ -576,6 +600,7 @@ export default function Installations() {
   }
 
   function handleNetHold() {
+    if (!netHoldInst) return
     const extra = {
       _note: netHoldNote.trim() || 'Installation placed on hold',
       followUpDate: netHoldFollowUp || null,
@@ -585,10 +610,7 @@ export default function Installations() {
     const parts = [`${netHoldInst.id} placed on hold`]
     if (netHoldTill) parts.push(`until ${netHoldTill}`)
     if (netHoldFollowUp) parts.push(`follow-up on ${netHoldFollowUp}`)
-    setNetHoldInst(null)
-    setNetHoldNote('')
-    setNetHoldFollowUp('')
-    setNetHoldTill('')
+    closeHoldModal()
     setToast(parts.join(', '))
   }
 
@@ -1010,7 +1032,7 @@ export default function Installations() {
             <span className="text-sm text-gray-700">Edit Slot / Reschedule</span>
           </button>
 
-          <button onClick={() => { setNetHoldInst(netMenuInst); setNetHoldNote(''); setNetHoldFollowUp(''); setNetHoldTill(''); setNetMenuId(null) }}
+          <button onClick={() => { openHoldModal(netMenuInst); setNetMenuId(null) }}
             disabled={['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status)}
             className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
             <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'text-gray-400' : 'text-amber-500'}`} />
@@ -1404,11 +1426,11 @@ export default function Installations() {
       {/* ── Internet Mark as Hold Confirmation ──────────────────────────── */}
       <Modal
         isOpen={!!netHoldInst}
-        onClose={() => setNetHoldInst(null)}
+        onClose={closeHoldModal}
         title="Mark as On Hold"
         size="sm"
         footer={<>
-          <Button variant="secondary" size="sm" onClick={() => setNetHoldInst(null)}>Cancel</Button>
+          <Button variant="secondary" size="sm" onClick={closeHoldModal}>Cancel</Button>
           <Button size="sm"
             className="bg-amber-500 hover:bg-amber-600"
             onClick={handleNetHold}>
