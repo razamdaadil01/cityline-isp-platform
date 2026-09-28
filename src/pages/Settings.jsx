@@ -1659,6 +1659,62 @@ function MasterConfigTab() {
   const [ipForm, setIpForm] = useState({ ip: '', subnet: '', gateway: '', dns1: '', dns2: '' })
   const [ipPage, setIpPage] = useState(1)
 
+  // Static IP detail modal (URL-driven)
+  const ipDetailModal = modalParam === 'static-ip-detail'
+  const ipDetailKey   = searchParams.get('ip')
+  const ipDetail      = ipDetailKey ? (staticIps.find(x => x.ip === ipDetailKey) ?? null) : null
+  function openIpDetail(x) {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'static-ip-detail'); next.set('ip', x.ip); return next })
+  }
+  function closeIpDetail() {
+    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('ip'); return next })
+  }
+
+  // Static IP 3-dot menu + assign modal + toast
+  const [ipMenu,         setIpMenu]         = useState(null)
+  const ipMenuRef = useRef(null)
+  useEffect(() => {
+    if (!ipMenu) return
+    function handle(e) { if (ipMenuRef.current && !ipMenuRef.current.contains(e.target)) setIpMenu(null) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [ipMenu])
+  const [ipToast,        setIpToast]        = useState('')
+  useEffect(() => { if (!ipToast) return; const t = setTimeout(() => setIpToast(''), 2500); return () => clearTimeout(t) }, [ipToast])
+  const [ipAssignTarget, setIpAssignTarget] = useState(null)
+  const [ipAssignForm,   setIpAssignForm]   = useState({ customerId: '', customerName: '' })
+
+  function handleIpBlacklist(x) {
+    setStaticIps(prev => prev.map(r => r.id === x.id ? { ...r, status: 'Blacklisted' } : r))
+    setIpMenu(null); setIpToast(`${x.ip} marked as Blacklisted`)
+  }
+  function handleIpInactive(x) {
+    setStaticIps(prev => prev.map(r => r.id === x.id ? { ...r, status: 'Inactive' } : r))
+    setIpMenu(null); setIpToast(`${x.ip} marked as Inactive`)
+  }
+  function handleIpUnassign(x) {
+    const today = new Date().toISOString().slice(0, 10)
+    setStaticIps(prev => prev.map(r => r.id === x.id
+      ? { ...r, status: 'Available', assignedTo: null, customer: null, assignedDate: null, removedAt: today }
+      : r
+    ))
+    setIpMenu(null); setIpToast(`${x.ip} unassigned — now Available`)
+  }
+  function handleIpActivate(x) {
+    setStaticIps(prev => prev.map(r => r.id === x.id ? { ...r, status: 'Available' } : r))
+    setIpMenu(null); setIpToast(`${x.ip} reactivated — now Available`)
+  }
+  function handleIpAssignConfirm() {
+    if (!ipAssignForm.customerId || !ipAssignForm.customerName) return
+    const today = new Date().toISOString().slice(0, 10)
+    setStaticIps(prev => prev.map(r => r.id === ipAssignTarget.id
+      ? { ...r, status: 'Assigned', assignedTo: ipAssignForm.customerId, customer: ipAssignForm.customerName, assignedDate: today, removedAt: null }
+      : r
+    ))
+    setIpToast(`${ipAssignTarget.ip} assigned to ${ipAssignForm.customerName}`)
+    setIpAssignTarget(null); setIpAssignForm({ customerId: '', customerName: '' })
+  }
+
   // Sliced data for current page
   const tenureRows   = tenures.slice((tenurePage   - 1) * MC_PAGE_SIZE, tenurePage   * MC_PAGE_SIZE)
   const bwRows       = bandwidths.slice((bwPage     - 1) * MC_PAGE_SIZE, bwPage       * MC_PAGE_SIZE)
@@ -2028,20 +2084,68 @@ function MasterConfigTab() {
               <tbody className="divide-y divide-surface-border">
                 {ipRows.map(ip => (
                   <tr key={ip.id} className="hover:bg-gray-50/50">
-                    <td className="px-4 py-3 font-mono text-sm text-gray-800">{ip.ip}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => openIpDetail(ip)}
+                        className="font-mono text-sm text-[#0A8DCD] hover:underline cursor-pointer">
+                        {ip.ip}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.subnet}</td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{ip.gateway}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        ip.status === 'Available' ? 'bg-green-100 text-green-700' :
-                        ip.status === 'Assigned'  ? 'bg-blue-100 text-blue-700'  : 'bg-gray-100 text-gray-500'
+                        ip.status === 'Available'   ? 'bg-green-100 text-green-700'  :
+                        ip.status === 'Assigned'    ? 'bg-blue-100 text-blue-700'    :
+                        ip.status === 'Inactive'    ? 'bg-amber-100 text-amber-700'  :
+                        ip.status === 'Blacklisted' ? 'bg-red-100 text-red-700'      : 'bg-gray-100 text-gray-500'
                       }`}>{ip.status}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{ip.assignedTo || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{ip.customer || '—'}</td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => setStaticIps(prev => prev.filter(x => x.id !== ip.id))}
-                        className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                    <td className="px-4 py-3 relative">
+                      <button onClick={() => setIpMenu(ipMenu === ip.id ? null : ip.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                        <MoreVertical size={15} />
+                      </button>
+                      {ipMenu === ip.id && (
+                        <div ref={ipMenuRef} className="absolute right-8 top-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44">
+                          {ip.status !== 'Blacklisted' && (
+                            <button onClick={() => handleIpBlacklist(ip)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                              Blacklisted
+                            </button>
+                          )}
+                          {ip.status !== 'Inactive' && (
+                            <button onClick={() => handleIpInactive(ip)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                              Inactive
+                            </button>
+                          )}
+                          {ip.assignedTo && (
+                            <button onClick={() => handleIpUnassign(ip)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                              Unassigned
+                            </button>
+                          )}
+                          {(ip.status === 'Available' || ip.status === 'Inactive') && !ip.assignedTo && (
+                            <button onClick={() => { setIpAssignTarget(ip); setIpAssignForm({ customerId: '', customerName: '' }); setIpMenu(null) }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                              Assigned
+                            </button>
+                          )}
+                          {(ip.status === 'Blacklisted' || ip.status === 'Inactive') && (
+                            <button onClick={() => handleIpActivate(ip)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                              Active
+                            </button>
+                          )}
+                          <div className="my-1 border-t border-gray-100" />
+                          <button onClick={() => { setStaticIps(prev => prev.filter(x => x.id !== ip.id)); setIpMenu(null) }}
+                            className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50">
+                            Remove
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -2095,6 +2199,86 @@ function MasterConfigTab() {
                   <button onClick={closeMCModal} className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Close</button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── Static IP Detail Modal ── */}
+          {ipDetailModal && ipDetail && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Static IP Details — {ipDetail.ip}</h2>
+                  <button onClick={closeIpDetail}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[
+                    { label: 'Customer ID',   value: ipDetail.assignedTo  || '—' },
+                    { label: 'Customer Name', value: ipDetail.customer    || '—' },
+                    { label: 'Subnet',        value: ipDetail.subnet      || '—' },
+                    { label: 'Gateway',       value: ipDetail.gateway     || '—' },
+                    { label: 'Status',        value: null },
+                    { label: 'When Added',    value: ipDetail.addedAt     || '—' },
+                    { label: 'When Assigned', value: ipDetail.assignedDate || '—' },
+                    { label: 'When Removed',  value: ipDetail.removedAt   || '—' },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                      <span className="text-xs text-gray-500">{label}</span>
+                      {label === 'Status' ? (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          ipDetail.status === 'Available'   ? 'bg-green-100 text-green-700'  :
+                          ipDetail.status === 'Assigned'    ? 'bg-blue-100 text-blue-700'    :
+                          ipDetail.status === 'Inactive'    ? 'bg-amber-100 text-amber-700'  :
+                          ipDetail.status === 'Blacklisted' ? 'bg-red-100 text-red-700'      : 'bg-gray-100 text-gray-500'
+                        }`}>{ipDetail.status}</span>
+                      ) : (
+                        <span className="text-sm text-gray-700 font-medium font-mono">{value}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Static IP Assign Modal ── */}
+          {ipAssignTarget && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <h2 className="font-semibold text-gray-800">Assign IP — {ipAssignTarget.ip}</h2>
+                  <button onClick={() => setIpAssignTarget(null)}><X size={16} className="text-gray-400" /></button>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Customer / Lead ID *</label>
+                    <input value={ipAssignForm.customerId}
+                      onChange={e => setIpAssignForm(f => ({ ...f, customerId: e.target.value }))}
+                      placeholder="e.g. LD-301 or CUS-042" className={inp} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 mb-1 block">Customer Name *</label>
+                    <input value={ipAssignForm.customerName}
+                      onChange={e => setIpAssignForm(f => ({ ...f, customerName: e.target.value }))}
+                      placeholder="e.g. Anita Sharma" className={inp} />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={() => setIpAssignTarget(null)}
+                      className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                    <button onClick={handleIpAssignConfirm}
+                      disabled={!ipAssignForm.customerId || !ipAssignForm.customerName}
+                      className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                      Confirm Assign
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Static IP action toast ── */}
+          {ipToast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm shadow-lg z-[9999] pointer-events-none">
+              {ipToast}
             </div>
           )}
         </div>
