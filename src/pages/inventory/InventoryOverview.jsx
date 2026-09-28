@@ -30,7 +30,6 @@ const OVERVIEW_TABLE_COLUMNS = [
   { key: 'name',       label: 'Product Name',        visible: true, defaultVisible: true, locked: true },
   { key: 'sku',        label: 'SKU',                 visible: true, defaultVisible: true },
   { key: 'productType',label: 'Product Type',        visible: true, defaultVisible: true },
-  { key: 'brand',      label: 'Brand',                visible: true, defaultVisible: true },
   { key: 'available',  label: 'Available Qty',       visible: true, defaultVisible: true },
   { key: 'engineer',   label: 'Assigned to Engineer',visible: true, defaultVisible: true },
   { key: 'user',       label: 'Assigned to User',    visible: true, defaultVisible: true },
@@ -547,21 +546,20 @@ export default function InventoryOverview() {
   const [filterStore, setFilterStore] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
   const [filterProductType, setFilterProductType] = useState('')
-  const [filterBrand, setFilterBrand] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterLowStock, setFilterLowStock] = useState(false)
 
-  const EMPTY_DRAFT = { branch: '', store: '', product: '', productType: '', brand: '', status: '', lowStock: false }
+  const EMPTY_DRAFT = { branch: '', store: '', product: '', productType: '', status: '', lowStock: false }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [draft, setDraft] = useState(EMPTY_DRAFT)
 
   function openDrawer() {
-    setDraft({ branch: filterBranch, store: filterStore, product: filterProduct, productType: filterProductType, brand: filterBrand, status: filterStatus, lowStock: filterLowStock })
+    setDraft({ branch: filterBranch, store: filterStore, product: filterProduct, productType: filterProductType, status: filterStatus, lowStock: filterLowStock })
     setDrawerOpen(true)
   }
   function applyDrawer() {
     setFilterBranch(draft.branch); setFilterStore(draft.store); setFilterProduct(draft.product)
-    setFilterProductType(draft.productType); setFilterBrand(draft.brand); setFilterStatus(draft.status)
+    setFilterProductType(draft.productType); setFilterStatus(draft.status)
     setFilterLowStock(draft.lowStock)
     setDrawerOpen(false)
   }
@@ -569,7 +567,7 @@ export default function InventoryOverview() {
   function setDraftField(k, v) { setDraft(prev => ({ ...prev, [k]: v })) }
   function clearAllFilters() {
     setFilterBranch(''); setFilterStore(''); setFilterProduct(''); setFilterProductType('')
-    setFilterBrand(''); setFilterStatus(''); setFilterLowStock(false)
+    setFilterStatus(''); setFilterLowStock(false)
   }
   function openProductDetail(id) {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'product-detail'); next.set('id', id); return next })
@@ -580,12 +578,10 @@ export default function InventoryOverview() {
   function closeModal() {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
   }
-  const activeFiltersCount = [filterBranch, filterStore, filterProduct, filterProductType, filterBrand, filterStatus].filter(Boolean).length + (filterLowStock ? 1 : 0)
+  const activeFiltersCount = [filterBranch, filterStore, filterProduct, filterProductType, filterStatus].filter(Boolean).length + (filterLowStock ? 1 : 0)
 
   const branches = useMemo(() => [...new Set(stores.map(s => s.branchCode).filter(Boolean))].sort(), [stores])
   const storesInBranch = useMemo(() => filterBranch ? stores.filter(s => s.branchCode === filterBranch) : stores, [stores, filterBranch])
-  const brands = useMemo(() => [...new Set(allProducts.map(p => p.brand).filter(Boolean))].sort(), [allProducts])
-
   // Store filter narrows to one store; Branch filter (without a specific
   // store) narrows to every store under that branch; neither set aggregates
   // across all stores — the PRD's "All Stores" default view.
@@ -642,7 +638,6 @@ export default function InventoryOverview() {
     const q = search.toLowerCase().trim()
     return allProducts
       .filter(p => !filterProductType || p.productType === filterProductType)
-      .filter(p => !filterBrand || p.brand === filterBrand)
       .filter(p => !filterStatus || p.status === filterStatus)
       .filter(p => !filterProduct || p.id === filterProduct)
       .filter(p => productMatchesSearch(p, getUnits({ productId: p.id }), getDrums({ productId: p.id }), q))
@@ -655,7 +650,7 @@ export default function InventoryOverview() {
       .filter(row => !filterLowStock || row.lowStock)
       .sort((a, b) => a.product.name.localeCompare(b.product.name))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allProducts, search, filterProductType, filterBrand, filterStatus, filterProduct, filterLowStock, scopedStoreIds, allBalances])
+  }, [allProducts, search, filterProductType, filterStatus, filterProduct, filterLowStock, scopedStoreIds, allBalances])
 
   const scopeLabel = filterStore
     ? stores.find(s => s.id === filterStore)?.storeName ?? 'Selected store'
@@ -828,18 +823,6 @@ export default function InventoryOverview() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Brand</label>
-              <div className="relative">
-                <select value={draft.brand} onChange={e => setDraftField('brand', e.target.value)}
-                  className="w-full appearance-none text-sm border border-surface-border rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400/40 focus:border-purple-400 text-gray-700 cursor-pointer">
-                  <option value="">All</option>
-                  {brands.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-              </div>
-            </div>
-
-            <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Status</label>
               <div className="flex gap-4">
                 {['', 'active', 'inactive'].map(v => (
@@ -877,7 +860,6 @@ export default function InventoryOverview() {
                 {visibleCols.has('name')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[180px]">Product Name</th>}
                 {visibleCols.has('sku')         && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">SKU</th>}
                 {visibleCols.has('productType') && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Type</th>}
-                {visibleCols.has('brand')       && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Brand</th>}
                 {visibleCols.has('available')   && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Available Qty</th>}
                 {visibleCols.has('engineer')    && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Engineer</th>}
                 {visibleCols.has('user')        && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">User</th>}
@@ -904,7 +886,6 @@ export default function InventoryOverview() {
                   )}
                   {visibleCols.has('sku')         && <td className="px-4 py-3 text-gray-600 text-xs font-mono whitespace-nowrap">{product.sku || '—'}</td>}
                   {visibleCols.has('productType') && <td className="px-4 py-3 whitespace-nowrap"><Badge variant={product.productType === 'wire' ? 'orange' : 'blue'} size="sm" className="capitalize">{product.productType}</Badge></td>}
-                  {visibleCols.has('brand')       && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{product.brand || '—'}</td>}
                   {visibleCols.has('available') && (
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <span className={`font-semibold text-xs ${lowStock ? 'text-red-600' : 'text-gray-800'}`}>{formatAvailableQty(product, availableQty)}</span>
