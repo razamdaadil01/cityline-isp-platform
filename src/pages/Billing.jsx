@@ -85,20 +85,20 @@ function RechargeStatusIcon({ status }) {
 
 function RechargeStatusMiniTable({ internet, ott, iptv }) {
   return (
-    <div className="inline-block border border-surface-border rounded-lg overflow-hidden bg-white">
+    <div className="inline-block border border-surface-border rounded-lg overflow-hidden bg-white min-w-[180px]">
       <div className="grid grid-cols-3 bg-gray-50 border-b border-surface-border">
-        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">Internet</span>
-        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">OTT</span>
-        <span className="px-2.5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center">IP TV</span>
+        <span className="px-4 py-1.5 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">Internet</span>
+        <span className="px-4 py-1.5 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center border-r border-surface-border">OTT</span>
+        <span className="px-4 py-1.5 text-[9px] font-semibold text-gray-500 uppercase tracking-wide text-center">IP TV</span>
       </div>
       <div className="grid grid-cols-3">
-        <div className="flex items-center justify-center px-2.5 py-1.5 border-r border-surface-border">
+        <div className="flex items-center justify-center px-4 py-2 border-r border-surface-border">
           <RechargeStatusIcon status={internet} />
         </div>
-        <div className="flex items-center justify-center px-2.5 py-1.5 border-r border-surface-border">
+        <div className="flex items-center justify-center px-4 py-2 border-r border-surface-border">
           <RechargeStatusIcon status={ott} />
         </div>
-        <div className="flex items-center justify-center px-2.5 py-1.5">
+        <div className="flex items-center justify-center px-4 py-2">
           <RechargeStatusIcon status={iptv} />
         </div>
       </div>
@@ -662,7 +662,7 @@ export default function Billing() {
           {/* ── Table ── */}
           <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[1200px]">
+              <table className="w-full text-sm min-w-[1300px]">
                 <thead>
                   <tr className="border-b border-surface-border bg-gray-50/60">
                     <th className="px-3 py-3 w-8">
