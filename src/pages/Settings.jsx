@@ -6,7 +6,7 @@ import {
   Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, ChevronDown, Clock, AlertTriangle, Headphones, Users, Handshake,
-  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info, Package,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -52,6 +52,10 @@ import {
   MODULES, ACTIONS, buildPerms, getRoles, subscribeRoles, saveRole,
   MODULE_MICRO_PERMISSIONS, MICRO_PERMISSION_MODULES, buildMicroPerms, buildModuleMicroPerms,
 } from '../data/rolesStore'
+import {
+  getVasProducts, saveVasProduct, subscribeVasProducts, setVasProductStatus, deleteVasProduct,
+  VAS_TYPES, OTT_PLATFORMS, SUBSCRIPTION_PLANS, NUMBER_TYPES,
+} from '../data/vasStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -76,6 +80,7 @@ const SYSTEM_CONFIG_TABS = [
   { id: 'customer-type', label: 'Customer Type', icon: Users },
   { id: 'company-entity', label: 'Company / Entity', icon: Building2 },
   { id: 'partner', label: 'Partner', icon: Handshake },
+  { id: 'vas-products', label: 'VAS Products', icon: Package },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
@@ -4801,6 +4806,341 @@ function pbBookToForm(book) {
   }
 }
 
+// ── VAS Products ─────────────────────────────────────────────────────────────
+
+const VAS_TYPE_BADGE = {
+  'OTT':       'blue',
+  'IPTV':      'purple',
+  'Landline':  'green',
+  'Static IP': 'orange',
+}
+
+function vasDetails(p) {
+  if (p.type === 'OTT')       return `${p.ottPlatform} · ${p.subscriptionPlan} · ${p.validity} days`
+  if (p.type === 'IPTV')      return `${p.channelPackageName} · ${p.numberOfChannels} channels · ${p.validity} days`
+  if (p.type === 'Landline')  return `${p.numberType} · ${p.freeMinutes} free mins · ${p.validity} days`
+  if (p.type === 'Static IP') return `${p.ipAddress || 'IP TBD'} · ${p.subnetMask} · ${p.gateway}`
+  return '—'
+}
+
+function vasEmptyForm() {
+  return {
+    type: 'OTT',
+    price: '',
+    ottPlatform: 'Netflix',
+    subscriptionPlan: 'Monthly',
+    validity: '',
+    channelPackageName: '',
+    numberOfChannels: '',
+    numberType: 'Local',
+    freeMinutes: '',
+    ipAddress: '',
+    subnetMask: '',
+    gateway: '',
+  }
+}
+
+function vasToForm(p) {
+  return {
+    type: p.type,
+    price: p.price != null ? String(p.price) : '',
+    ottPlatform: p.ottPlatform || 'Netflix',
+    subscriptionPlan: p.subscriptionPlan || 'Monthly',
+    validity: p.validity != null ? String(p.validity) : '',
+    channelPackageName: p.channelPackageName || '',
+    numberOfChannels: p.numberOfChannels != null ? String(p.numberOfChannels) : '',
+    numberType: p.numberType || 'Local',
+    freeMinutes: p.freeMinutes != null ? String(p.freeMinutes) : '',
+    ipAddress: p.ipAddress || '',
+    subnetMask: p.subnetMask || '',
+    gateway: p.gateway || '',
+  }
+}
+
+function VasProductsTab() {
+  const [products, setProducts] = useState(getVasProducts)
+  const [modal, setModal] = useState(null) // null | { mode: 'add' | 'edit', product: null | {...} }
+  const [form, setForm] = useState(vasEmptyForm)
+  const [errors, setErrors] = useState({})
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [toast, setToast] = useState('')
+
+  useEffect(() => subscribeVasProducts(setProducts), [])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 2500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  function setField(k, v) {
+    setForm(f => ({ ...f, [k]: v }))
+    setErrors(e => ({ ...e, [k]: undefined }))
+  }
+
+  function changeType(t) {
+    setForm(f => ({ ...vasEmptyForm(), type: t, price: f.price }))
+    setErrors({})
+  }
+
+  function openAdd() {
+    setForm(vasEmptyForm())
+    setErrors({})
+    setModal({ mode: 'add', product: null })
+  }
+
+  function openEdit(product) {
+    setForm(vasToForm(product))
+    setErrors({})
+    setModal({ mode: 'edit', product })
+  }
+
+  function closeModal() { setModal(null) }
+
+  function validate() {
+    const errs = {}
+    const price = Number(form.price)
+    if (form.price === '' || Number.isNaN(price) || price < 0) errs.price = 'Price is required (min ₹0).'
+    if (form.type === 'OTT') {
+      const v = Number(form.validity)
+      if (form.validity === '' || Number.isNaN(v) || v < 1) errs.validity = 'Validity must be at least 1 day.'
+    } else if (form.type === 'IPTV') {
+      if (!form.channelPackageName.trim()) errs.channelPackageName = 'Channel package name is required.'
+      const n = Number(form.numberOfChannels)
+      if (form.numberOfChannels === '' || Number.isNaN(n) || n < 1) errs.numberOfChannels = 'Must be at least 1 channel.'
+      const v = Number(form.validity)
+      if (form.validity === '' || Number.isNaN(v) || v < 1) errs.validity = 'Validity must be at least 1 day.'
+    } else if (form.type === 'Landline') {
+      const fm = Number(form.freeMinutes)
+      if (form.freeMinutes === '' || Number.isNaN(fm) || fm < 0) errs.freeMinutes = 'Free minutes is required (min 0).'
+      const v = Number(form.validity)
+      if (form.validity === '' || Number.isNaN(v) || v < 1) errs.validity = 'Validity must be at least 1 day.'
+    } else if (form.type === 'Static IP') {
+      if (!form.subnetMask.trim()) errs.subnetMask = 'Subnet mask is required.'
+      if (!form.gateway.trim()) errs.gateway = 'Gateway is required.'
+    }
+    return errs
+  }
+
+  function handleSave() {
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+
+    const base = {
+      id: modal?.product?.id,
+      type: form.type,
+      price: Number(form.price),
+      status: modal?.product?.status ?? true,
+    }
+    let typeFields = {}
+    if (form.type === 'OTT') {
+      typeFields = { ottPlatform: form.ottPlatform, subscriptionPlan: form.subscriptionPlan, validity: Number(form.validity) }
+    } else if (form.type === 'IPTV') {
+      typeFields = { channelPackageName: form.channelPackageName.trim(), numberOfChannels: Number(form.numberOfChannels), validity: Number(form.validity) }
+    } else if (form.type === 'Landline') {
+      typeFields = { numberType: form.numberType, freeMinutes: Number(form.freeMinutes), validity: Number(form.validity) }
+    } else if (form.type === 'Static IP') {
+      typeFields = { ipAddress: form.ipAddress.trim(), subnetMask: form.subnetMask.trim(), gateway: form.gateway.trim() }
+    }
+
+    saveVasProduct({ ...base, ...typeFields })
+    setToast(modal?.mode === 'edit' ? 'VAS product updated successfully' : 'VAS product added successfully')
+    closeModal()
+  }
+
+  function handleDelete() {
+    if (!deleteTarget) return
+    deleteVasProduct(deleteTarget.id)
+    setToast('VAS product deleted')
+    setDeleteTarget(null)
+  }
+
+  const isEditing = modal?.mode === 'edit'
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">VAS Products</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Value Added Services offered as add-ons to customer plans</p>
+        </div>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add VAS Product</Button>
+      </div>
+
+      {toast && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-surface-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50/80 border-b border-surface-border">
+                {['VAS ID', 'Type', 'Details', 'Price', 'Status', 'Actions'].map(h => (
+                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap ${h === 'Actions' ? 'text-right' : 'text-left'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {products.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3.5 font-mono text-xs font-medium text-gray-700">{p.id}</td>
+                  <td className="px-4 py-3.5">
+                    <Badge variant={VAS_TYPE_BADGE[p.type] || 'gray'} size="sm">{p.type}</Badge>
+                  </td>
+                  <td className="px-4 py-3.5 text-gray-600 max-w-[280px] truncate" title={vasDetails(p)}>{vasDetails(p)}</td>
+                  <td className="px-4 py-3.5 text-gray-700 whitespace-nowrap">₹{Number(p.price).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <SysConfigToggle checked={p.status} onChange={v => setVasProductStatus(p.id, v)} />
+                      <span className={`text-xs font-medium whitespace-nowrap ${p.status ? 'text-green-600' : 'text-gray-400'}`}>{p.status ? 'Active' : 'Inactive'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-right">
+                    <div className="inline-flex items-center gap-0.5">
+                      <button onClick={() => openEdit(p)} className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                        <Edit2 size={13} />
+                      </button>
+                      <button onClick={() => setDeleteTarget(p)} className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {products.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                    No VAS products yet. Click '+ Add VAS Product' to get started.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Add / Edit Modal */}
+      <Modal
+        isOpen={!!modal}
+        onClose={closeModal}
+        title={isEditing ? 'Edit VAS Product' : 'Add VAS Product'}
+        size="lg"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={closeModal}>Cancel</Button>
+          <Button size="sm" onClick={handleSave}>{isEditing ? 'Save Changes' : 'Save'}</Button>
+        </>}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            {isEditing && (
+              <FormField label="VAS ID">
+                <Input value={modal?.product?.id || ''} disabled />
+              </FormField>
+            )}
+            <FormField label="VAS Type" required>
+              <Select value={form.type} onChange={e => changeType(e.target.value)}>
+                {VAS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </FormField>
+            {!isEditing && <div />}
+          </div>
+
+          <FormField label="Price (₹)" required error={errors.price}>
+            <Input type="number" min={0} step={0.01} value={form.price} onChange={e => setField('price', e.target.value)} placeholder="e.g. 299" />
+          </FormField>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Service Details</p>
+            <div className="space-y-4">
+              {form.type === 'OTT' && <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="OTT Platform" required>
+                    <Select value={form.ottPlatform} onChange={e => setField('ottPlatform', e.target.value)}>
+                      {OTT_PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Subscription Plan" required>
+                    <Select value={form.subscriptionPlan} onChange={e => setField('subscriptionPlan', e.target.value)}>
+                      {SUBSCRIPTION_PLANS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </Select>
+                  </FormField>
+                </div>
+                <FormField label="Validity (days)" required error={errors.validity}>
+                  <Input type="number" min={1} value={form.validity} onChange={e => setField('validity', e.target.value)} placeholder="e.g. 30" />
+                </FormField>
+              </>}
+
+              {form.type === 'IPTV' && <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Channel Package Name" required error={errors.channelPackageName}>
+                    <Input value={form.channelPackageName} onChange={e => setField('channelPackageName', e.target.value)} placeholder="e.g. Sports Mega Pack" />
+                  </FormField>
+                  <FormField label="Number of Channels" required error={errors.numberOfChannels}>
+                    <Input type="number" min={1} value={form.numberOfChannels} onChange={e => setField('numberOfChannels', e.target.value)} placeholder="e.g. 200" />
+                  </FormField>
+                </div>
+                <FormField label="Validity (days)" required error={errors.validity}>
+                  <Input type="number" min={1} value={form.validity} onChange={e => setField('validity', e.target.value)} placeholder="e.g. 30" />
+                </FormField>
+              </>}
+
+              {form.type === 'Landline' && <>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Number Type" required>
+                    <Select value={form.numberType} onChange={e => setField('numberType', e.target.value)}>
+                      {NUMBER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Free Minutes" required error={errors.freeMinutes}>
+                    <Input type="number" min={0} value={form.freeMinutes} onChange={e => setField('freeMinutes', e.target.value)} placeholder="e.g. 500" />
+                  </FormField>
+                </div>
+                <FormField label="Validity (days)" required error={errors.validity}>
+                  <Input type="number" min={1} value={form.validity} onChange={e => setField('validity', e.target.value)} placeholder="e.g. 30" />
+                </FormField>
+              </>}
+
+              {form.type === 'Static IP' && <>
+                <FormField label="IP Address" hint="Optional — can be assigned later">
+                  <Input value={form.ipAddress} onChange={e => setField('ipAddress', e.target.value)} placeholder="e.g. 203.0.113.10" />
+                </FormField>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Subnet Mask" required error={errors.subnetMask}>
+                    <Input value={form.subnetMask} onChange={e => setField('subnetMask', e.target.value)} placeholder="e.g. 255.255.255.0" />
+                  </FormField>
+                  <FormField label="Gateway" required error={errors.gateway}>
+                    <Input value={form.gateway} onChange={e => setField('gateway', e.target.value)} placeholder="e.g. 203.0.113.1" />
+                  </FormField>
+                </div>
+              </>}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete VAS Product"
+        size="sm"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button variant="danger" size="sm" onClick={handleDelete}>Delete</Button>
+        </>}
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete <span className="font-medium text-gray-900">{deleteTarget?.id}</span>? This action cannot be undone.
+        </p>
+      </Modal>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 // master-config and area-mapping are excluded — they use their own dedicated
@@ -4909,6 +5249,7 @@ export default function Settings() {
           {activeTab === 'customer-type'       && <CustomerTypeTab />}
           {activeTab === 'company-entity'      && <CompanyEntityTab />}
           {activeTab === 'partner'             && <PartnerTab />}
+          {activeTab === 'vas-products'        && <VasProductsTab />}
           {false && activeTab === 'landline-numbers' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
