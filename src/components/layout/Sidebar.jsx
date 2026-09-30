@@ -46,6 +46,7 @@ import {
   ListTree,
   LogOut,
   Building2,
+  CreditCard,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -79,6 +80,7 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
+  { label: 'Payments',         icon: CreditCard,      to: '/payments'                  },
   {
     label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support/dashboard',
     children: [

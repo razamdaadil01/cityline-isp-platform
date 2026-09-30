@@ -30,9 +30,15 @@ export function getOutstandingTotal() {
   return getOutstandingInvoices().reduce((sum, i) => sum + i.amount, 0)
 }
 
-export function markInvoicesPaid(invoiceNos) {
+export function markInvoicesPaid(invoiceNos, paymentMeta = {}) {
   const set = new Set(invoiceNos)
-  _invoices = _invoices.map(i => set.has(i.no) ? { ...i, status: 'paid' } : i)
+  _invoices = _invoices.map(i => set.has(i.no) ? {
+    ...i,
+    status: 'paid',
+    paidOn: paymentMeta.paymentDate || '',
+    paymentMode: paymentMeta.mode || '',
+    txnId: paymentMeta.txnId || '',
+  } : i)
   notify()
 }
 
@@ -63,10 +69,32 @@ export function addInvoice(data) {
       ? new Date(data.issueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
       : '',
     amount: data.totalAmount || 0,
+    status: data.status || 'pending',
   }
   _invoices = [..._invoices, invoice]
   notify()
   return invoice
+}
+
+export function getOverdueInvoices() {
+  const today = new Date().toISOString().split('T')[0]
+  return _invoices.filter(i => i.status === 'pending' && i.dueDate && i.dueDate < today)
+}
+
+export function getPendingInvoices() {
+  return _invoices.filter(i => i.status === 'pending')
+}
+
+export function getCollectedTotal() {
+  return _invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
+}
+
+export function getPendingTotal() {
+  return _invoices.filter(i => i.status === 'pending').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
+}
+
+export function getOverdueTotal() {
+  return getOverdueInvoices().reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
 }
 
 export function subscribeInvoices(fn) {
