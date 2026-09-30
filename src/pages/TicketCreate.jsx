@@ -11,7 +11,9 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers } from '../data/customersData'
 import {
   getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
-  getCategorySubcategories, subscribeCategorySubcategories, PRIORITIES, PRIORITY_LABEL, CONTACT_METHODS,
+  getCategorySubcategories, subscribeCategorySubcategories,
+  getCategoryStatus,
+  PRIORITIES, PRIORITY_LABEL, CONTACT_METHODS,
   AGENTS, TECHNICIANS, CLOSED_STATUSES, getSupportSettings, subscribeSupportSettings,
 } from '../data/ticketsStore'
 import { findActiveOutageForArea } from '../data/outagesStore'
@@ -194,7 +196,10 @@ export default function TicketCreate() {
 
   const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
   useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
-  const categories = useMemo(() => Object.keys(categorySubcategories), [categorySubcategories])
+  const categories = useMemo(
+    () => Object.keys(categorySubcategories).filter(c => getCategoryStatus()[c] !== false),
+    [categorySubcategories],
+  )
 
   const primaryOpenTicket = openTickets[0] ?? null
   const showDuplicateWarning = !!primaryOpenTicket && !duplicateChoice
@@ -318,7 +323,7 @@ export default function TicketCreate() {
       area: selectedCustomer.zone ?? '—',
       createdAt: now,
       updatedAt: now,
-      slaDeadline: computeSlaDeadline(now, priority),
+      slaDeadline: computeSlaDeadline(now, priority, (categorySubcategories[category] ?? []).find(s => s.name === subcategory)?.slaHours),
       outageLinked: !!linkOutage,
       outageId: linkOutage ? activeOutage.id : null,
       reopened: false,
@@ -633,7 +638,7 @@ export default function TicketCreate() {
           <FormField label="Complaint Subcategory" required>
             <Select value={subcategory} onChange={e => setSubcategory(e.target.value)} disabled={!category}>
               <option value="">{category ? 'Select subcategory…' : 'Select a category first'}</option>
-              {(categorySubcategories[category] ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+              {(categorySubcategories[category] ?? []).filter(s => s.active).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
             </Select>
           </FormField>
           <div className="col-span-2">
