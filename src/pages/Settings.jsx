@@ -19,6 +19,7 @@ import {
   getSupportSettings, saveSupportSettings,
   getTickets, subscribeTickets,
   getCategorySubcategories, saveCategorySubcategories, subscribeCategorySubcategories,
+  getCategoryStatus, saveCategoryStatus, subscribeCategoryStatus,
 } from '../data/ticketsStore'
 import { getOutageDetectionSettings, saveOutageDetectionSettings } from '../data/outagesStore'
 import { getCleaningIntervalDays, saveCleaningIntervalDays } from '../data/popAlertsStore'
@@ -58,7 +59,6 @@ const TABS = [
   { id: 'general',       label: 'General',               icon: Building2 },
   { id: 'billing',       label: 'Billing',               icon: Receipt   },
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
-  { id: 'sla-configuration', label: 'SLA Configuration',  icon: Clock     },
   { id: 'pop-alerts-configuration', label: 'POP Alerts Configuration', icon: Bell },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
   { id: 'complaint-categories', label: 'Complaint Categories', icon: Tags },
@@ -516,6 +516,9 @@ function ComplaintCategoriesTab() {
   const [categorySubcategories, setCategorySubcategories] = useState(getCategorySubcategories)
   useEffect(() => subscribeCategorySubcategories(setCategorySubcategories), [])
 
+  const [categoryStatus, setCategoryStatus] = useState(getCategoryStatus)
+  useEffect(() => subscribeCategoryStatus(setCategoryStatus), [])
+
   const [tickets, setTickets] = useState(getTickets)
   useEffect(() => subscribeTickets(setTickets), [])
 
@@ -574,6 +577,14 @@ function ComplaintCategoriesTab() {
   )
   const [renameSubError, setRenameSubError] = useState('')
 
+  // Inline SLA editing — { category, subName } | null
+  const [editingSla, setEditingSla] = useState(null)
+  const [slaInputValue, setSlaInputValue] = useState('')
+
+  // "Set same SLA for all" per-category inline row — { category, value }
+  const [bulkSla, setBulkSla] = useState({}) // { [category]: string }
+  const [bulkSlaOpen, setBulkSlaOpen] = useState({}) // { [category]: boolean }
+
   useEffect(() => {
     if (modalParam === 'add-category') { setNewCategoryName(''); setAddCategoryError('') }
   }, [modalParam])
@@ -592,7 +603,7 @@ function ComplaintCategoriesTab() {
     return tickets.filter(t => t.category === name).length
   }
   function subcategoryTicketCount(category, sub) {
-    return tickets.filter(t => t.category === category && t.subcategory === sub).length
+    return tickets.filter(t => t.category === category && t.subcategory === sub.name).length
   }
 
   function openAddCategory() { openModal('add-category') }
@@ -605,6 +616,7 @@ function ComplaintCategoriesTab() {
       return
     }
     saveCategorySubcategories({ ...categorySubcategories, [name]: [] })
+    saveCategoryStatus({ [name]: true })
     setToast('Category added successfully')
     closeModal()
   }
@@ -622,6 +634,11 @@ function ComplaintCategoriesTab() {
       const next = {}
       categories.forEach(c => { next[c === renameCategoryTarget ? name : c] = categorySubcategories[c] })
       saveCategorySubcategories(next)
+      // Carry status to the new key
+      const newStatus = { ...categoryStatus }
+      newStatus[name] = newStatus[renameCategoryTarget] ?? true
+      delete newStatus[renameCategoryTarget]
+      saveCategoryStatus(newStatus)
       setToast('Category renamed successfully')
     }
     closeModal()
@@ -636,12 +653,19 @@ function ComplaintCategoriesTab() {
     closeModal()
   }
 
+  function toggleCategoryActive(category) {
+    saveCategoryStatus({ [category]: !(categoryStatus[category] ?? true) })
+  }
+
   function handleAddSubcategory(category) {
     const name = (subInputs[category] ?? '').trim()
     if (!name) return
     const existing = categorySubcategories[category] ?? []
-    if (existing.some(s => s.toLowerCase() === name.toLowerCase())) return
-    saveCategorySubcategories({ ...categorySubcategories, [category]: [...existing, name] })
+    if (existing.some(s => s.name.toLowerCase() === name.toLowerCase())) return
+    saveCategorySubcategories({
+      ...categorySubcategories,
+      [category]: [...existing, { name, slaHours: 4, active: true }],
+    })
     setSubInputs(s => ({ ...s, [category]: '' }))
   }
 
@@ -650,12 +674,15 @@ function ComplaintCategoriesTab() {
     const name = renameSubValue.trim()
     if (!name) { setRenameSubError('Subcategory name is required.'); return }
     const list = categorySubcategories[category] ?? []
-    if (name !== oldName && list.some(s => s.toLowerCase() === name.toLowerCase())) {
+    if (name !== oldName && list.some(s => s.name.toLowerCase() === name.toLowerCase())) {
       setRenameSubError('A subcategory with this name already exists.')
       return
     }
     if (name !== oldName) {
-      saveCategorySubcategories({ ...categorySubcategories, [category]: list.map(s => s === oldName ? name : s) })
+      saveCategorySubcategories({
+        ...categorySubcategories,
+        [category]: list.map(s => s.name === oldName ? { ...s, name } : s),
+      })
       setToast('Subcategory renamed successfully')
     }
     closeModal()
@@ -664,13 +691,45 @@ function ComplaintCategoriesTab() {
   function handleDeleteSub() {
     const { category, name } = deleteSubDerived
     const list = categorySubcategories[category] ?? []
-    saveCategorySubcategories({ ...categorySubcategories, [category]: list.filter(s => s !== name) })
+    saveCategorySubcategories({ ...categorySubcategories, [category]: list.filter(s => s.name !== name) })
     setToast('Subcategory deleted successfully')
     closeModal()
   }
 
+  function startEditSla(category, subName, currentHours) {
+    setEditingSla({ category, subName })
+    setSlaInputValue(String(currentHours))
+  }
+
+  function commitEditSla() {
+    if (!editingSla) return
+    const { category, subName } = editingSla
+    const parsed = parseFloat(slaInputValue)
+    if (!Number.isFinite(parsed) || parsed < 0.5) { setEditingSla(null); return }
+    const list = categorySubcategories[category] ?? []
+    saveCategorySubcategories({
+      ...categorySubcategories,
+      [category]: list.map(s => s.name === subName ? { ...s, slaHours: parsed } : s),
+    })
+    setEditingSla(null)
+    setToast('SLA updated')
+  }
+
+  function handleBulkSlaApply(category) {
+    const parsed = parseFloat(bulkSla[category] ?? '')
+    if (!Number.isFinite(parsed) || parsed < 0.5) return
+    const list = categorySubcategories[category] ?? []
+    saveCategorySubcategories({
+      ...categorySubcategories,
+      [category]: list.map(s => ({ ...s, slaHours: parsed })),
+    })
+    setBulkSlaOpen(o => ({ ...o, [category]: false }))
+    setBulkSla(v => ({ ...v, [category]: '' }))
+    setToast('SLA applied to all subcategories')
+  }
+
   const deleteCategoryTicketCount = deleteCategoryTarget ? categoryTicketCount(deleteCategoryTarget) : 0
-  const deleteSubTicketCount = deleteSubDerived ? subcategoryTicketCount(deleteSubDerived.category, deleteSubDerived.name) : 0
+  const deleteSubTicketCount = deleteSubDerived ? subcategoryTicketCount(deleteSubDerived.category, { name: deleteSubDerived.name }) : 0
 
   return (
     <div className="space-y-5">
@@ -679,7 +738,7 @@ function ComplaintCategoriesTab() {
           <h2 className="text-base font-semibold text-gray-900">Complaint Categories</h2>
           <p className="text-xs text-gray-500 mt-1">
             Categories and subcategories offered in the Create Ticket wizard's Complaint Details step.
-            Changes here apply immediately across ticket creation, filters and reports — no reload needed.
+            Configure per-subcategory SLA windows here. Changes apply immediately — no reload needed.
           </p>
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={openAddCategory}>Add Category</Button>
@@ -696,16 +755,27 @@ function ComplaintCategoriesTab() {
         {categories.map(category => {
           const subs = categorySubcategories[category] ?? []
           const usedCount = categoryTicketCount(category)
+          const isActive = categoryStatus[category] ?? true
           return (
-            <div key={category} className="border border-surface-border rounded-xl overflow-hidden">
+            <div key={category} className={`border border-surface-border rounded-xl overflow-hidden transition-opacity ${isActive ? '' : 'opacity-60'}`}>
+              {/* Card header */}
               <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-50/80">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Tags size={14} className="text-brand-blue shrink-0" />
                   <p className="text-sm font-semibold text-gray-800 truncate">{category}</p>
                   <Badge size="sm" variant="gray">{subs.length} subcategor{subs.length === 1 ? 'y' : 'ies'}</Badge>
                   {usedCount > 0 && <Badge size="sm" variant="blue">{usedCount} ticket{usedCount > 1 ? 's' : ''}</Badge>}
+                  <Badge size="sm" variant={isActive ? 'green' : 'gray'}>{isActive ? 'Active' : 'Inactive'}</Badge>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {/* Active / Inactive toggle */}
+                  <button
+                    onClick={() => toggleCategoryActive(category)}
+                    title={isActive ? 'Deactivate category' : 'Activate category'}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${isActive ? 'bg-brand-blue' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
                   <button onClick={() => openRenameCategory(category)}
                     className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                     <Edit2 size={13} />
@@ -717,27 +787,69 @@ function ComplaintCategoriesTab() {
                 </div>
               </div>
 
+              {/* Card body — mini table */}
               <div className="p-4 space-y-3 border-t border-surface-border">
                 {subs.length === 0 ? (
                   <p className="text-xs text-gray-400">No subcategories yet.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {subs.map(sub => (
-                      <div key={sub} className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-lg border border-surface-border bg-white text-xs">
-                        <span className="text-gray-700">{sub}</span>
-                        <button onClick={() => openModal('rename-subcategory', { category, sub })}
-                          className="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
-                          <Edit2 size={11} />
-                        </button>
-                        <button onClick={() => openModal('delete-subcategory', { category, sub })}
-                          className="w-5 h-5 inline-flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="w-full">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-surface-border">
+                          <th className="text-left py-1.5 pr-4 font-medium text-gray-500 uppercase tracking-wide text-[10px]">Subcategory</th>
+                          <th className="text-left py-1.5 pr-4 font-medium text-gray-500 uppercase tracking-wide text-[10px] w-28">SLA (hrs)</th>
+                          <th className="py-1.5 font-medium text-gray-500 uppercase tracking-wide text-[10px] w-16 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subs.map(sub => (
+                          <tr key={sub.name} className="border-b border-surface-border/50 last:border-0 group">
+                            <td className="py-2 pr-4 text-gray-700">{sub.name}</td>
+                            <td className="py-2 pr-4">
+                              {editingSla?.category === category && editingSla?.subName === sub.name ? (
+                                <input
+                                  autoFocus
+                                  type="number"
+                                  min="0.5"
+                                  step="0.5"
+                                  value={slaInputValue}
+                                  onChange={e => setSlaInputValue(e.target.value)}
+                                  onBlur={commitEditSla}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') { e.preventDefault(); commitEditSla() }
+                                    if (e.key === 'Escape') { e.preventDefault(); setEditingSla(null) }
+                                  }}
+                                  className="w-20 px-2 py-0.5 text-xs border border-brand-blue rounded focus:outline-none"
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => startEditSla(category, sub.name, sub.slaHours)}
+                                  className="text-gray-700 hover:text-brand-blue hover:underline transition-colors"
+                                >
+                                  {sub.slaHours} hrs
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-2 text-right">
+                              <div className="flex items-center justify-end gap-0.5">
+                                <button onClick={() => openModal('rename-subcategory', { category, sub: sub.name })}
+                                  className="w-6 h-6 inline-flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                                  <Edit2 size={11} />
+                                </button>
+                                <button onClick={() => openModal('delete-subcategory', { category, sub: sub.name })}
+                                  className="w-6 h-6 inline-flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 
+                {/* Add subcategory row */}
                 <div className="flex items-center gap-2 pt-1">
                   <Input
                     className="max-w-xs"
@@ -750,6 +862,44 @@ function ComplaintCategoriesTab() {
                     Add
                   </Button>
                 </div>
+
+                {/* Set same SLA for all */}
+                {subs.length > 1 && (
+                  <div className="pt-1">
+                    {bulkSlaOpen[category] ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          autoFocus
+                          type="number"
+                          min="0.5"
+                          step="0.5"
+                          placeholder="hrs"
+                          value={bulkSla[category] ?? ''}
+                          onChange={e => setBulkSla(v => ({ ...v, [category]: e.target.value }))}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleBulkSlaApply(category) }
+                            if (e.key === 'Escape') { e.preventDefault(); setBulkSlaOpen(o => ({ ...o, [category]: false })) }
+                          }}
+                          className="w-20 px-2 py-1 text-xs border border-surface-border rounded focus:outline-none focus:border-brand-blue"
+                        />
+                        <Button size="xs" variant="secondary" onClick={() => handleBulkSlaApply(category)}>Apply to all</Button>
+                        <button
+                          onClick={() => setBulkSlaOpen(o => ({ ...o, [category]: false }))}
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setBulkSlaOpen(o => ({ ...o, [category]: true }))}
+                        className="text-xs text-brand-blue hover:underline"
+                      >
+                        Set same SLA for all
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -4718,7 +4868,6 @@ export default function Settings() {
           {activeTab === 'general'       && <GeneralTab />}
           {activeTab === 'billing'       && <BillingTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
-          {activeTab === 'sla-configuration' && <SlaConfigTab />}
           {activeTab === 'pop-alerts-configuration' && <PopAlertsConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
           {activeTab === 'complaint-categories' && <ComplaintCategoriesTab />}

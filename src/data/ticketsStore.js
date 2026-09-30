@@ -73,28 +73,67 @@ export function subscribeSupportSettings(fn) {
 // saves a change (rather than on next render for an unrelated reason) should
 // subscribe via subscribeCategorySubcategories() instead of relying on the
 // static import.
+// Each subcategory is { name: string, slaHours: number, active: boolean }.
+// slaHours defaults to 8 (P2 window) for all seed entries.
 export let CATEGORY_SUBCATEGORIES = {
-  Connectivity: ['No Internet', 'Intermittent Connection', 'Fiber Cut'],
-  Performance: ['Slow Speed', 'High Latency', 'OTT Buffering'],
-  Billing: ['Invoice Query', 'Payment Not Reflected', 'Plan Upgrade/Downgrade'],
-  Hardware: ['Router Issue', 'ONU/CPE Fault', 'Cabling Issue'],
-  Network: ['Outage', 'OLT Port Down', 'Backbone Issue'],
-  Installation: ['New Connection Delay', 'Relocation'],
-  Account: ['KYC Update', 'Address Change'],
+  Connectivity: [
+    { name: 'No Internet',             slaHours: 8, active: true },
+    { name: 'Intermittent Connection', slaHours: 8, active: true },
+    { name: 'Fiber Cut',               slaHours: 8, active: true },
+  ],
+  Performance: [
+    { name: 'Slow Speed',     slaHours: 8, active: true },
+    { name: 'High Latency',   slaHours: 8, active: true },
+    { name: 'OTT Buffering',  slaHours: 8, active: true },
+  ],
+  Billing: [
+    { name: 'Invoice Query',           slaHours: 8, active: true },
+    { name: 'Payment Not Reflected',   slaHours: 8, active: true },
+    { name: 'Plan Upgrade/Downgrade',  slaHours: 8, active: true },
+  ],
+  Hardware: [
+    { name: 'Router Issue',   slaHours: 8, active: true },
+    { name: 'ONU/CPE Fault',  slaHours: 8, active: true },
+    { name: 'Cabling Issue',  slaHours: 8, active: true },
+  ],
+  Network: [
+    { name: 'Outage',           slaHours: 8, active: true },
+    { name: 'OLT Port Down',    slaHours: 8, active: true },
+    { name: 'Backbone Issue',   slaHours: 8, active: true },
+  ],
+  Installation: [
+    { name: 'New Connection Delay', slaHours: 8, active: true },
+    { name: 'Relocation',           slaHours: 8, active: true },
+  ],
+  Account: [
+    { name: 'KYC Update',     slaHours: 8, active: true },
+    { name: 'Address Change', slaHours: 8, active: true },
+  ],
   // Own category rather than a subcategory under Account — Phase 1's
   // Customer Disconnection flow (CustomerDetail.jsx's Terminate action,
   // customersData.js's 'Pending Disconnection' status) auto-creates a
   // ticket here, and later phases (hardware recovery, billing settlement)
   // are expected to add their own subcategories under it rather than
   // overload Account's KYC/Address-Change scope.
-  Disconnection: ['Disconnection Request'],
-  Other: ['General Query', 'Feedback'],
+  Disconnection: [
+    { name: 'Disconnection Request', slaHours: 8, active: true },
+  ],
+  Other: [
+    { name: 'General Query', slaHours: 8, active: true },
+    { name: 'Feedback',      slaHours: 8, active: true },
+  ],
 }
 export let CATEGORIES = Object.keys(CATEGORY_SUBCATEGORIES)
 
+// Active/inactive status for top-level categories. true = active, false = inactive.
+// Seeded with all active; editable via Settings > Complaint Categories.
+export let CATEGORY_STATUS = Object.fromEntries(CATEGORIES.map(c => [c, true]))
+
 const _categorySubcategoriesListeners = []
+const _categoryStatusListeners = []
 
 function notifyCategorySubcategories() { _categorySubcategoriesListeners.forEach(fn => fn({ ...CATEGORY_SUBCATEGORIES })) }
+function notifyCategoryStatus() { _categoryStatusListeners.forEach(fn => fn({ ...CATEGORY_STATUS })) }
 
 export function getCategorySubcategories() { return { ...CATEGORY_SUBCATEGORIES } }
 
@@ -110,6 +149,22 @@ export function subscribeCategorySubcategories(fn) {
   return () => {
     const i = _categorySubcategoriesListeners.indexOf(fn)
     if (i !== -1) _categorySubcategoriesListeners.splice(i, 1)
+  }
+}
+
+export function getCategoryStatus() { return { ...CATEGORY_STATUS } }
+
+export function saveCategoryStatus(newStatus) {
+  CATEGORY_STATUS = { ...CATEGORY_STATUS, ...newStatus }
+  notifyCategoryStatus()
+  return { ...CATEGORY_STATUS }
+}
+
+export function subscribeCategoryStatus(fn) {
+  _categoryStatusListeners.push(fn)
+  return () => {
+    const i = _categoryStatusListeners.indexOf(fn)
+    if (i !== -1) _categoryStatusListeners.splice(i, 1)
   }
 }
 
@@ -191,11 +246,19 @@ export const GATED_STATUSES = ['Resolved', 'Closed', 'Reopened']
 const H = 3600000 // 1 hour in ms
 const NOW = Date.now()
 
-function slaDeadlineFor(createdAt, priority) {
-  return new Date(new Date(createdAt).getTime() + _slaHours[priority] * H).toISOString()
+function slaDeadlineFor(createdAt, priority, subcategorySlaHours) {
+  const hours = subcategorySlaHours ?? _slaHours[priority]
+  return new Date(new Date(createdAt).getTime() + hours * H).toISOString()
 }
 
 export const computeSlaDeadline = slaDeadlineFor
+
+function subcategoryHoursFor(ticket) {
+  const subs = CATEGORY_SUBCATEGORIES[ticket.category]
+  if (!subs) return null
+  const obj = subs.find(s => s.name === ticket.subcategory)
+  return obj ? obj.slaHours : null
+}
 
 // 'On Track' | 'Due Soon' | 'Breached' — 'Due Soon' = within 20% of SLA window remaining
 export function slaStatusOf(ticket) {
@@ -203,7 +266,8 @@ export function slaStatusOf(ticket) {
   const deadline = new Date(ticket.slaDeadline).getTime()
   const remaining = deadline - Date.now()
   if (remaining <= 0) return 'Breached'
-  const windowMs = _slaHours[ticket.priority] * H
+  const hours = subcategoryHoursFor(ticket) ?? _slaHours[ticket.priority]
+  const windowMs = hours * H
   if (remaining < windowMs * 0.2) return 'Due Soon'
   return 'On Track'
 }
@@ -552,7 +616,7 @@ const SEED = [
   },
 ].map(t => ({
   ...t,
-  slaDeadline: slaDeadlineFor(t.createdAt, t.priority),
+  slaDeadline: slaDeadlineFor(t.createdAt, t.priority, subcategoryHoursFor(t)),
   activityLog: t.activityLog ?? [{ time: t.createdAt, actor: 'System', action: 'Ticket created' }],
   communicationLog: t.communicationLog ?? [{ time: t.createdAt, actor: 'System', channel: 'Portal', text: 'Ticket created — notification sent to customer.' }],
   internalNotesLog: t.internalNotesLog ?? [],
@@ -671,9 +735,11 @@ export function assignTeamMembers(ids, { agents = [], teams = [] }, actor = 'Adm
 
 export function changePriority(ids, priority) {
   const idSet = new Set(ids)
-  _tickets = _tickets.map(t => idSet.has(t.id)
-    ? { ...t, priority, slaDeadline: slaDeadlineFor(t.createdAt, priority), updatedAt: new Date().toISOString() }
-    : t)
+  _tickets = _tickets.map(t => {
+    if (!idSet.has(t.id)) return t
+    const subHours = subcategoryHoursFor(t)
+    return { ...t, priority, slaDeadline: slaDeadlineFor(t.createdAt, priority, subHours), updatedAt: new Date().toISOString() }
+  })
   notify()
 }
 
