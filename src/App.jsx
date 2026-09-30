@@ -56,6 +56,7 @@ import OutageDetail from './pages/OutageDetail'
 import SupportDashboard from './pages/SupportDashboard'
 import SupportReports from './pages/SupportReports'
 import Packages from './pages/Packages'
+import Discounts from './pages/Discounts'
 import PackageAdd from './pages/PackageAdd'
 import PackageDetail from './pages/PackageDetail'
 import PackageEdit from './pages/PackageEdit'
@@ -201,6 +202,7 @@ export default function App() {
           <Route path="/support/dashboard" element={<SupportDashboard />} />
           <Route path="/support/reports" element={<SupportReports />} />
           <Route path="/packages" element={<Packages />} />
+          <Route path="/discounts" element={<Discounts />} />
           <Route path="/ott" element={<OTTManagement />} />
           <Route path="/packages/add" element={<PackageAdd />} />
           <Route path="/packages/:packageId/edit" element={<PackageEdit />} />
