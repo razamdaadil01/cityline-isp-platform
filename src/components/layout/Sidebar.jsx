@@ -47,6 +47,7 @@ import {
   LogOut,
   Building2,
   CreditCard,
+  Cpu,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -96,6 +97,7 @@ const NAV_ITEMS = [
   { label: 'IP TV',            icon: Monitor,         to: '/iptv'                       },
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
   { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
+  { label: 'TR-069 / ACS',     icon: Cpu,             to: '/network/tr069'             },
   {
     label: 'POP Management',   icon: MapPin,          to: '/network/pops',
     children: [

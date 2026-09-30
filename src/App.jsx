@@ -65,6 +65,7 @@ import OTTManagement from './pages/OTTManagement'
 import IPTVManagement from './pages/IPTVManagement'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
+import TR069Management from './pages/TR069Management'
 import POPManagement from './pages/POPManagement'
 import POPDashboard from './pages/POPDashboard'
 import POPDetail from './pages/POPDetail'
@@ -214,6 +215,7 @@ export default function App() {
           <Route path="/packages/:packageId" element={<PackageDetail />} />
           <Route path="/network" element={<Network />} />
           <Route path="/network/servers" element={<NetworkServers />} />
+          <Route path="/network/tr069"   element={<TR069Management />} />
           <Route path="/network/pops" element={<POPManagement />} />
           <Route path="/network/pops/dashboard" element={<POPDashboard />} />
           <Route path="/network/pops/new" element={<POPDetail />} />

@@ -37,6 +37,7 @@ import {
   getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments } from '../data/paymentsStore'
+import { getTr069DeviceByCustomerId } from '../data/tr069Store'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -2286,35 +2287,6 @@ function NetworkMapTab({ customer }) {
 
 // ── Tab: TR-069 ──────────────────────────────────────────────────────────────
 
-const TR069_DEVICE = {
-  model: 'TP-Link Archer C6',
-  firmware: '3.20.1 Build 210601',
-  hardware: 'TR069_v1',
-  serial: 'TPL2024WR0091',
-  mac: 'D4:AD:BD:00:11:22',
-  lastSeen: '11 Jun 2026, 10:42 AM',
-  status: 'Connected',
-  uptime: '9h 14m',
-}
-
-const TR069_WAN = {
-  ip: '10.14.22.45',
-  gateway: '10.14.0.1',
-  dnsPrimary: '8.8.8.8',
-  dnsSecondary: '8.8.4.4',
-  connectionType: 'PPPoE',
-  status: 'Connected',
-}
-
-const TR069_LAN = {
-  ip: '192.168.0.1',
-  subnet: '255.255.255.0',
-  dhcp: 'Enabled',
-  connectedDevices: 4,
-  wifi24: 'Enabled',
-  wifi5: 'Enabled',
-}
-
 // This app has no real TR-069/ACS backend — there's no device to actually
 // send these commands to. Rather than faking a success toast with zero
 // trace (the previous behavior), each action requires confirmation and,
@@ -2324,8 +2296,20 @@ const TR069_LAN = {
 // least an honest, inspectable record that a command was requested, rather
 // than a silent no-op dressed up as a real success.
 function TR069Tab({ customerId, setActivityLog }) {
+  const device = getTr069DeviceByCustomerId(customerId)
+  const navigate = useNavigate()
   const [toast, setToast] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
+
+  if (!device) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4">
+        <Cpu size={40} className="text-gray-300" />
+        <p className="text-sm text-gray-500">No CPE device linked to this customer.</p>
+        <Button size="sm" onClick={() => navigate('/network/tr069')}>Assign Device</Button>
+      </div>
+    )
+  }
 
   function showToast(msg) {
     setToast(msg)
@@ -2390,28 +2374,28 @@ function TR069Tab({ customerId, setActivityLog }) {
             <Cpu size={15} className="text-brand-blue" />
             <span className="text-sm font-semibold text-white">TR-069 Device Status</span>
           </div>
-          <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-            Connected
+          <span className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${device.status === 'Online' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full inline-block ${device.status === 'Online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+            {device.status}
           </span>
         </div>
         <div className="bg-[#0c1f38] px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
           {[
-            ['Device Model',        TR069_DEVICE.model],
-            ['Firmware Version',    TR069_DEVICE.firmware],
-            ['Hardware Version',    TR069_DEVICE.hardware],
-            ['Serial Number',       TR069_DEVICE.serial],
-            ['MAC Address',         TR069_DEVICE.mac],
-            ['Last Seen',           TR069_DEVICE.lastSeen],
+            ['Device Model',        device.model],
+            ['Firmware Version',    device.firmware],
+            ['Hardware Version',    device.hardware],
+            ['Serial Number',       device.serialNumber],
+            ['MAC Address',         device.mac],
+            ['Last Seen',           device.lastInform],
             ['Connection Status',   null],
-            ['Uptime',              TR069_DEVICE.uptime],
+            ['Uptime',              device.uptime],
           ].map(([label, val]) => (
             <div key={label}>
               <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
               {label === 'Connection Status' ? (
-                <span className="flex items-center gap-1.5 mt-0.5 text-sm text-emerald-400 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                  {TR069_DEVICE.status}
+                <span className={`flex items-center gap-1.5 mt-0.5 text-sm font-semibold ${device.status === 'Online' ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className={`w-2 h-2 rounded-full inline-block ${device.status === 'Online' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                  {device.status}
                 </span>
               ) : (
                 <p className="text-sm text-white font-mono mt-0.5">{val}</p>
@@ -2428,19 +2412,19 @@ function TR069Tab({ customerId, setActivityLog }) {
           <CardHeader title="WAN Status" />
           <div className="space-y-3">
             {[
-              ['WAN IP',          TR069_WAN.ip],
-              ['Gateway',         TR069_WAN.gateway],
-              ['DNS Primary',     TR069_WAN.dnsPrimary],
-              ['DNS Secondary',   TR069_WAN.dnsSecondary],
-              ['Connection Type', TR069_WAN.connectionType],
+              ['WAN IP',          device.ip],
+              ['Gateway',         device.gateway],
+              ['DNS Primary',     device.dnsPrimary],
+              ['DNS Secondary',   device.dnsSecondary],
+              ['Connection Type', device.connectionType],
               ['Status',          null],
             ].map(([label, val]) => (
               <div key={label} className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
                 <span className="text-xs text-gray-400">{label}</span>
                 {label === 'Status' ? (
-                  <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                    {TR069_WAN.status}
+                  <span className={`flex items-center gap-1.5 text-xs font-semibold ${device.status === 'Online' ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${device.status === 'Online' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                    {device.status}
                   </span>
                 ) : (
                   <span className="text-xs font-mono font-semibold text-gray-800">{val}</span>
@@ -2455,12 +2439,12 @@ function TR069Tab({ customerId, setActivityLog }) {
           <CardHeader title="LAN Status" />
           <div className="space-y-3">
             {[
-              ['LAN IP',             TR069_LAN.ip],
-              ['Subnet Mask',        TR069_LAN.subnet],
-              ['DHCP Status',        TR069_LAN.dhcp],
-              ['Connected Devices',  String(TR069_LAN.connectedDevices)],
-              ['WiFi 2.4GHz',        TR069_LAN.wifi24],
-              ['WiFi 5GHz',          TR069_LAN.wifi5],
+              ['LAN IP',             device.lanIp],
+              ['Subnet Mask',        device.subnet],
+              ['DHCP Status',        device.dhcp],
+              ['Connected Devices',  String(device.connectedDevices)],
+              ['WiFi 2.4GHz',        device.wifi24],
+              ['WiFi 5GHz',          device.wifi5],
             ].map(([label, val]) => (
               <div key={label} className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
                 <span className="text-xs text-gray-400">{label}</span>
