@@ -168,7 +168,7 @@ export const MODULE_MICRO_PERMISSIONS = {
     { key: 'manageNotificationTemplates',     label: 'Manage Notification Templates' },
     { key: 'manageSlaConfiguration',          label: 'Manage SLA Configuration' },
     { key: 'manageSupportConfiguration',      label: 'Manage Support Configuration' },
-    { key: 'manageComplaintCategories',       label: 'Manage Complaint Categories' },
+    { key: 'manageComplaintCategories',       label: 'Manage Escalation Matrix' },
     { key: 'manageOutageConfiguration',       label: 'Manage Outage Configuration' },
     { key: 'manageJazeServersConfiguration',  label: 'Manage Jaze Servers Configuration' },
     { key: 'manageRolesAndPermissions',       label: 'Manage Roles & Permissions' },
