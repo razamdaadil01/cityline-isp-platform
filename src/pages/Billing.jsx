@@ -13,6 +13,7 @@ import { MOCK_INVOICES, PAYMENT_HISTORY } from '../data/billingData'
 import { getInvoices, subscribeInvoices, addInvoice } from '../data/invoicesStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
+import { applyCoupon, redeemCoupon } from '../data/couponStore'
 
 const BILLING_MOCK_ROWS = [
   {
@@ -534,11 +535,12 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   function handleApplyCoupon() {
     setCouponError('')
     if (!couponInput.trim()) { setCouponError('Enter a coupon code'); return }
-    if (couponInput.trim().toUpperCase() === 'TEST10') {
-      setAppliedCoupon({ code: 'TEST10', discountType: 'percentage', discountValue: 10 })
-      setCouponError('')
+    const result = applyCoupon(couponInput.trim(), packageId, 'admin')
+    if (!result.valid) {
+      setCouponError(result.error)
     } else {
-      setCouponError('Invalid coupon code')
+      setAppliedCoupon({ code: couponInput.trim().toUpperCase(), discountType: result.discountType, discountValue: result.value })
+      setCouponError('')
     }
   }
   function handleRemoveCoupon() {
@@ -596,6 +598,9 @@ function CreateInvoiceModal({ onClose, onCreated }) {
       notes,
     })
 
+    if (appliedCoupon?.code) {
+      redeemCoupon(appliedCoupon.code, 'admin')
+    }
     onCreated(inv.no)
     onClose()
   }
