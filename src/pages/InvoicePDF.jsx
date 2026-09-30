@@ -37,7 +37,8 @@ export default function InvoicePDF() {
     )
   }
 
-  const taxable    = inv.baseAmount
+  const discountAmt = inv.discountAmount || 0
+  const taxable    = (inv.baseAmount || 0) - discountAmt
   const sgst       = Math.round(taxable * 0.09 * 100) / 100
   const cgst       = Math.round(taxable * 0.09 * 100) / 100
   const grandTotal = taxable + sgst + cgst
@@ -167,6 +168,18 @@ export default function InvoicePDF() {
         {/* ── TOTALS ── */}
         <div className="px-8 py-5 border-b border-gray-200">
           <div className="ml-auto w-72 space-y-0 text-sm">
+            <div className="flex justify-between py-2 border-b border-gray-100">
+              <span className="text-gray-600">Base Amount</span>
+              <span className="font-mono text-gray-800">₹ {fmt(inv.baseAmount || taxable + discountAmt)}</span>
+            </div>
+            {discountAmt > 0 && (
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-600">
+                  Discount{inv.couponCode ? ` (${inv.couponCode})` : ''}
+                </span>
+                <span className="font-mono text-emerald-600">-₹ {fmt(discountAmt)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-2 border-b border-gray-100">
               <span className="text-gray-600">Taxable Amount</span>
               <span className="font-mono text-gray-800">₹ {fmt(taxable)}</span>

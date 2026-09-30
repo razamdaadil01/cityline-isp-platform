@@ -4,12 +4,15 @@ import {
   Plus, Download, Search, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
   TrendingUp, Filter, History, IndianRupee, AlertCircle,
-  MoreVertical, CheckCircle2, RotateCcw,
+  MoreVertical, CheckCircle2, RotateCcw, Tag,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { MOCK_INVOICES, PAYMENT_HISTORY } from '../data/billingData'
+import { getInvoices, subscribeInvoices, addInvoice } from '../data/invoicesStore'
+import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
+import { CUSTOMERS } from '../data/customersData'
 
 const BILLING_MOCK_ROWS = [
   {
@@ -465,6 +468,387 @@ function ActionsDropdown({ row }) {
   )
 }
 
+// ─── Create Invoice Modal ───────────────────────────────────────────────────
+const today = new Date().toISOString().split('T')[0]
+const plus15 = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+function CreateInvoiceModal({ onClose, onCreated }) {
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [ddOpen, setDdOpen] = useState(false)
+  const ddRef = useRef(null)
+
+  const [packageId, setPackageId] = useState('')
+  const [selectedAddons, setSelectedAddons] = useState([])
+
+  const [billingPeriod, setBillingPeriod] = useState('')
+  const [issueDate, setIssueDate] = useState(today)
+  const [dueDate, setDueDate] = useState(plus15)
+  const [notes, setNotes] = useState('')
+
+  const [couponExpanded, setCouponExpanded] = useState(false)
+  const [couponInput, setCouponInput] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState(null)
+  const [couponError, setCouponError] = useState('')
+
+  const [errors, setErrors] = useState({})
+
+  // Close customer dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => { if (ddRef.current && !ddRef.current.contains(e.target)) setDdOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const plans = getPlans().filter(p => p.status === 'Active')
+  const selectedPlan = plans.find(p => p.id === packageId) || null
+
+  const filteredCustomers = customerSearch.trim()
+    ? CUSTOMERS.filter(c =>
+        c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+        (c.phone || '').includes(customerSearch)
+      ).slice(0, 8)
+    : []
+
+  // ── Totals ──────────────────────────────────────────────────────────────────
+  const packagePrice = selectedPlan?.price || 0
+  const addonsTotal  = MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).reduce((s, a) => s + a.price, 0)
+  const baseAmount   = packagePrice + addonsTotal
+
+  let discountAmount = 0
+  if (appliedCoupon) {
+    if (appliedCoupon.discountType === 'percentage') {
+      discountAmount = Math.round(baseAmount * appliedCoupon.discountValue / 100 * 100) / 100
+    } else {
+      discountAmount = Math.min(appliedCoupon.discountValue, baseAmount)
+    }
+  }
+  const taxableAmount = baseAmount - discountAmount
+  const cgst          = Math.round(taxableAmount * 0.09 * 100) / 100
+  const sgst          = Math.round(taxableAmount * 0.09 * 100) / 100
+  const totalAmount   = taxableAmount + cgst + sgst
+
+  const fmtAmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  // ── Coupon ──────────────────────────────────────────────────────────────────
+  function handleApplyCoupon() {
+    setCouponError('')
+    if (!couponInput.trim()) { setCouponError('Enter a coupon code'); return }
+    if (couponInput.trim().toUpperCase() === 'TEST10') {
+      setAppliedCoupon({ code: 'TEST10', discountType: 'percentage', discountValue: 10 })
+      setCouponError('')
+    } else {
+      setCouponError('Invalid coupon code')
+    }
+  }
+  function handleRemoveCoupon() {
+    setAppliedCoupon(null)
+    setCouponInput('')
+    setCouponError('')
+  }
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
+  function handleSubmit() {
+    const errs = {}
+    if (!selectedCustomer) errs.customer = 'Select a customer'
+    if (!packageId) errs.packageId = 'Select a package'
+    if (!billingPeriod.trim()) errs.billingPeriod = 'Enter billing period'
+    if (!issueDate) errs.issueDate = 'Select issue date'
+    if (!dueDate) errs.dueDate = 'Select due date'
+    if (Object.keys(errs).length) { setErrors(errs); return }
+
+    const services = []
+    if (selectedPlan) services.push({ name: selectedPlan.name, hsn: '998422', qty: 1, rate: selectedPlan.price })
+    MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).forEach(a => {
+      services.push({ name: a.name, hsn: '998422', qty: 1, rate: a.price })
+    })
+
+    const bpDisplay = billingPeriod
+      ? new Date(billingPeriod + '-01').toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+      : ''
+
+    const inv = addInvoice({
+      customerId:    selectedCustomer.id,
+      customerName:  selectedCustomer.name,
+      phone:         selectedCustomer.phone || '',
+      email:         selectedCustomer.email || '',
+      address:       [selectedCustomer.area, selectedCustomer.zone].filter(Boolean).join(', '),
+      packageId,
+      packageName:   selectedPlan?.name || '',
+      services,
+      addons:        MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)),
+      couponCode:    appliedCoupon?.code || '',
+      discountType:  appliedCoupon?.discountType || '',
+      discountValue: appliedCoupon?.discountValue || 0,
+      discountAmount,
+      baseAmount,
+      taxableAmount,
+      cgst,
+      sgst,
+      totalAmount,
+      billingPeriod: bpDisplay,
+      issueDate,
+      dueDate,
+      status:        'Unpaid',
+      paymentMode:   '',
+      txnId:         '',
+      paidOn:        '',
+      notes,
+    })
+
+    onCreated(inv.no)
+    onClose()
+  }
+
+  const inputCls = (err) => `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${err ? 'border-red-400' : 'border-surface-border'}`
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Section 1: Customer ── */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Details</h3>
+        <div className="space-y-1.5" ref={ddRef}>
+          <label className="block text-sm font-medium text-gray-700">Customer <span className="text-red-500">*</span></label>
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search by name or phone..."
+              value={selectedCustomer ? selectedCustomer.name : customerSearch}
+              onFocus={() => { if (selectedCustomer) { setSelectedCustomer(null); setCustomerSearch('') }; setDdOpen(true) }}
+              onChange={e => { setCustomerSearch(e.target.value); setDdOpen(true); setSelectedCustomer(null); setErrors(v => ({ ...v, customer: '' })) }}
+              className={inputCls(errors.customer)}
+            />
+            {ddOpen && filteredCustomers.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-surface-border rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto">
+                {filteredCustomers.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); setDdOpen(false); setErrors(v => ({ ...v, customer: '' })) }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 text-left"
+                  >
+                    <span className="text-sm font-medium text-gray-800">{c.name}</span>
+                    <span className="text-xs text-gray-400 font-mono">{c.phone} · {c.id}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {errors.customer && <p className="text-xs text-red-500">{errors.customer}</p>}
+          {selectedCustomer && (
+            <div className="grid grid-cols-3 gap-3 mt-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Phone</label>
+                <input readOnly value={selectedCustomer.phone || '—'} className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-gray-50 text-gray-600" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Zone</label>
+                <input readOnly value={selectedCustomer.zone || '—'} className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-gray-50 text-gray-600" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Area</label>
+                <input readOnly value={selectedCustomer.area || '—'} className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-gray-50 text-gray-600" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Section 2: Package & Add-ons ── */}
+      <div className="space-y-3 border-t border-surface-border pt-5">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Package & Services</h3>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700">Select Package <span className="text-red-500">*</span></label>
+          <select
+            value={packageId}
+            onChange={e => { setPackageId(e.target.value); setErrors(v => ({ ...v, packageId: '' })) }}
+            className={inputCls(errors.packageId)}
+          >
+            <option value="">— Select a package —</option>
+            {plans.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name}{p.speed ? ` · ${p.speed}` : ''} · ₹{p.price.toLocaleString('en-IN')}/mo
+              </option>
+            ))}
+          </select>
+          {errors.packageId && <p className="text-xs text-red-500">{errors.packageId}</p>}
+        </div>
+
+        {MOCK_ADDONS.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">Add-ons</label>
+            <div className="grid grid-cols-2 gap-2">
+              {MOCK_ADDONS.map(a => (
+                <label key={a.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-surface-border cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedAddons.includes(a.id)}
+                    onChange={e => setSelectedAddons(prev =>
+                      e.target.checked ? [...prev, a.id] : prev.filter(x => x !== a.id)
+                    )}
+                    className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30"
+                  />
+                  <span className="text-sm text-gray-700 flex-1">{a.name}</span>
+                  <span className="text-xs font-semibold text-gray-500">₹{a.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 3: Billing Details ── */}
+      <div className="space-y-3 border-t border-surface-border pt-5">
+        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Billing Details</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">Billing Period <span className="text-red-500">*</span></label>
+            <input
+              type="month"
+              value={billingPeriod}
+              onChange={e => { setBillingPeriod(e.target.value); setErrors(v => ({ ...v, billingPeriod: '' })) }}
+              className={inputCls(errors.billingPeriod)}
+            />
+            {errors.billingPeriod && <p className="text-xs text-red-500">{errors.billingPeriod}</p>}
+          </div>
+          <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">Issue Date <span className="text-red-500">*</span></label>
+            <input
+              type="date"
+              value={issueDate}
+              onChange={e => { setIssueDate(e.target.value); setErrors(v => ({ ...v, issueDate: '' })) }}
+              className={inputCls(errors.issueDate)}
+            />
+            {errors.issueDate && <p className="text-xs text-red-500">{errors.issueDate}</p>}
+          </div>
+          <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <label className="block text-sm font-medium text-gray-700">Due Date <span className="text-red-500">*</span></label>
+            <input
+              type="date"
+              value={dueDate}
+              min={issueDate}
+              onChange={e => { setDueDate(e.target.value); setErrors(v => ({ ...v, dueDate: '' })) }}
+              className={inputCls(errors.dueDate)}
+            />
+            {errors.dueDate && <p className="text-xs text-red-500">{errors.dueDate}</p>}
+          </div>
+          <div className="space-y-1.5 col-span-2">
+            <label className="block text-sm font-medium text-gray-700">Notes</label>
+            <textarea
+              rows={2}
+              placeholder="Optional notes..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 4: Coupon ── */}
+      <div className="border-t border-surface-border pt-5">
+        <button
+          type="button"
+          onClick={() => setCouponExpanded(v => !v)}
+          className="flex items-center gap-2 text-sm font-medium text-brand-blue hover:text-brand-blue/80 transition-colors"
+        >
+          <Tag size={14} />
+          {appliedCoupon ? `Coupon applied: ${appliedCoupon.code}` : 'Apply Coupon'}
+          <ChevronDown size={14} className={`transition-transform ${couponExpanded ? 'rotate-180' : ''}`} />
+        </button>
+        {couponExpanded && (
+          <div className="mt-3 space-y-2">
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
+                <span className="text-sm text-emerald-700 font-medium">
+                  {appliedCoupon.code} — {appliedCoupon.discountValue}{appliedCoupon.discountType === 'percentage' ? '%' : '₹'} off · Saving {fmtAmt(discountAmount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-xs text-red-500 hover:text-red-700 font-semibold ml-3"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter coupon code"
+                  value={couponInput}
+                  onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError('') }}
+                  className={`flex-1 px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${couponError ? 'border-red-400' : 'border-surface-border'}`}
+                />
+                <Button size="sm" variant="secondary" onClick={handleApplyCoupon}>Apply</Button>
+              </div>
+            )}
+            {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 5: Summary ── */}
+      {(packageId || selectedAddons.length > 0) && (
+        <div className="border border-surface-border rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-gray-50 border-b border-surface-border">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Summary</p>
+          </div>
+          <div className="px-4 py-3 space-y-1.5 text-sm">
+            {selectedPlan && (
+              <div className="flex justify-between">
+                <span className="text-gray-600 truncate pr-4">{selectedPlan.name}</span>
+                <span className="font-mono text-gray-800 shrink-0">{fmtAmt(selectedPlan.price)}</span>
+              </div>
+            )}
+            {MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).map(a => (
+              <div key={a.id} className="flex justify-between">
+                <span className="text-gray-600">{a.name}</span>
+                <span className="font-mono text-gray-800">{fmtAmt(a.price)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between pt-1.5 border-t border-surface-border">
+              <span className="text-gray-500">Base Amount</span>
+              <span className="font-mono text-gray-800">{fmtAmt(baseAmount)}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-emerald-600">Discount (coupon)</span>
+                <span className="font-mono text-emerald-600">-{fmtAmt(discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-500">Taxable Amount</span>
+              <span className="font-mono text-gray-800">{fmtAmt(taxableAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">CGST (9%)</span>
+              <span className="font-mono text-gray-800">{fmtAmt(cgst)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">SGST (9%)</span>
+              <span className="font-mono text-gray-800">{fmtAmt(sgst)}</span>
+            </div>
+            <div className="flex justify-between pt-1.5 border-t border-surface-border">
+              <span className="font-bold text-gray-900">Total Amount</span>
+              <span className="font-black font-mono text-gray-900">{fmtAmt(totalAmount)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Footer Buttons ── */}
+      <div className="flex gap-2 pt-1">
+        <Button variant="secondary" size="sm" onClick={onClose} className="flex-1">Cancel</Button>
+        <Button size="sm" onClick={handleSubmit} className="flex-1" icon={<CheckCircle size={14} />}>
+          Create Invoice
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Billing Page ──────────────────────────────────────────────────────
 export default function Billing() {
   const navigate = useNavigate()
@@ -473,7 +857,18 @@ export default function Billing() {
     : location.pathname.includes('payment-history') ? 'payment-history'
     : 'package-recharge'
   const [paymentModal, setPaymentModal] = useState(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [successToast, setSuccessToast] = useState('')
   const [selectedRows, setSelectedRows] = useState([])
+
+  // Live store invoices (new-shape, created via Create Invoice modal)
+  const [storeInvoices, setStoreInvoices] = useState(() => getInvoices().filter(i => i.packageId))
+  useEffect(() => subscribeInvoices(all => setStoreInvoices(all.filter(i => i.packageId))), [])
+
+  function handleInvoiceCreated(invoiceNo) {
+    setSuccessToast(`Invoice ${invoiceNo} created successfully.`)
+    setTimeout(() => setSuccessToast(''), 4000)
+  }
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [quickStatus, setQuickStatus] = useState('All')
   const [search, setSearch] = useState('')
@@ -519,15 +914,43 @@ export default function Billing() {
     }
   }, [])
 
+  const allRows = useMemo(() => {
+    const storeRows = storeInvoices.map(inv => ({
+      id: inv.no,
+      userId: inv.customerId,
+      userLink: 'CNPL_B2C',
+      customerName: inv.customerName,
+      invoiceNo: inv.no,
+      package: inv.packageName,
+      amount: inv.totalAmount,
+      adminAmount: inv.totalAmount,
+      resellerAmount: 0,
+      invoiceDate: inv.createdAt
+        ? new Date(inv.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })
+        : inv.issueDate,
+      durationFrom: inv.issueDate,
+      durationTo: inv.dueDate,
+      addedBy: 'Manual',
+      comment: inv.notes || '',
+      rechargeInternet: 'success',
+      rechargeOtt: 'success',
+      rechargeIptv: 'success',
+      eInvoiceStatus: 'Pending',
+      tallyStatus: 'Not Synced',
+      discountAmount: inv.discountAmount || 0,
+    }))
+    return [...storeRows, ...BILLING_MOCK_ROWS]
+  }, [storeInvoices])
+
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return BILLING_MOCK_ROWS
+    if (!search.trim()) return allRows
     const q = search.trim().toLowerCase()
-    return BILLING_MOCK_ROWS.filter(r =>
+    return allRows.filter(r =>
       r.customerName.toLowerCase().includes(q) ||
       r.userId.toLowerCase().includes(q) ||
       r.userLink.toLowerCase().includes(q)
     )
-  }, [search])
+  }, [search, allRows])
 
   // Pagination derived values for invoice tabs
   const page     = activeTab === 'tax-invoice' ? tiPage     : prPage
@@ -578,7 +1001,7 @@ export default function Billing() {
               </span>
             )}
           </button>
-          <Button size="sm" icon={<Plus size={14} />}>New Invoice</Button>
+          <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowCreateModal(true)}>New Invoice</Button>
         </div>
       </div>
 
@@ -673,7 +1096,7 @@ export default function Billing() {
                     {activeTab === 'tax-invoice' && (
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">INVOICE</th>
                     )}
-                    {['PACKAGE', 'AMOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
+                    {['PACKAGE', 'AMOUNT', 'DISCOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
                       <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -706,6 +1129,12 @@ export default function Billing() {
                       </td>
                       <td className="px-6 py-3">
                         <span className="inline-block bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded">{row.amount}</span>
+                      </td>
+                      <td className="px-6 py-3 text-xs whitespace-nowrap">
+                        {row.discountAmount > 0
+                          ? <span className="text-emerald-600 font-semibold">-₹{Number(row.discountAmount).toLocaleString('en-IN')}</span>
+                          : <span className="text-gray-400">—</span>
+                        }
                       </td>
                       <td className="px-6 py-3 text-xs text-gray-500 whitespace-nowrap">{row.invoiceDate}</td>
                       <td className="px-6 py-3 text-xs text-gray-500 whitespace-nowrap">
@@ -932,6 +1361,30 @@ export default function Billing() {
       >
         {paymentModal && <RecordPaymentModal invoice={paymentModal} onClose={() => setPaymentModal(null)} />}
       </Modal>
+
+      {/* Create Invoice Modal */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create Invoice"
+        size="lg"
+      >
+        <CreateInvoiceModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleInvoiceCreated}
+        />
+      </Modal>
+
+      {/* Success Toast */}
+      {successToast && (
+        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 bg-gray-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-2xl">
+          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          {successToast}
+          <button onClick={() => setSuccessToast('')} className="ml-2 text-white/60 hover:text-white">
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
