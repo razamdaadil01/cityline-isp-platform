@@ -41,6 +41,34 @@ export function updateInvoice(no, fields) {
   notify()
 }
 
+function generateInvoiceNo() {
+  const year = new Date().getFullYear()
+  const existing = _invoices.filter(i => i.no && i.no.startsWith(`INV-${year}-`))
+  const max = existing.reduce((m, i) => {
+    const n = parseInt(i.no.split('-')[2]) || 0
+    return Math.max(m, n)
+  }, 0)
+  return `INV-${year}-${String(max + 1).padStart(3, '0')}`
+}
+
+export function addInvoice(data) {
+  const no = generateInvoiceNo()
+  const invoice = {
+    ...data,
+    no,
+    createdAt: new Date().toISOString(),
+    // Compatibility aliases — CustomerDetail Finance tab reads inv.pkg, inv.date, inv.amount
+    pkg: data.packageName || '',
+    date: data.issueDate
+      ? new Date(data.issueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '',
+    amount: data.totalAmount || 0,
+  }
+  _invoices = [..._invoices, invoice]
+  notify()
+  return invoice
+}
+
 export function subscribeInvoices(fn) {
   _listeners.push(fn)
   return () => {
