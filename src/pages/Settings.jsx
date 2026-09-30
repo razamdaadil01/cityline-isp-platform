@@ -577,6 +577,19 @@ function ComplaintCategoriesTab() {
   )
   const [renameSubError, setRenameSubError] = useState('')
 
+  // Collapsed/expanded state — first category open, rest closed
+  const [expandedCategories, setExpandedCategories] = useState(() => {
+    const first = Object.keys(getCategorySubcategories())[0]
+    return first ? new Set([first]) : new Set()
+  })
+  function toggleExpanded(category) {
+    setExpandedCategories(prev => {
+      const next = new Set(prev)
+      next.has(category) ? next.delete(category) : next.add(category)
+      return next
+    })
+  }
+
   // Inline SLA editing — { category, subName } | null
   const [editingSla, setEditingSla] = useState(null)
   const [slaInputValue, setSlaInputValue] = useState('')
@@ -756,17 +769,23 @@ function ComplaintCategoriesTab() {
           const subs = categorySubcategories[category] ?? []
           const usedCount = categoryTicketCount(category)
           const isActive = categoryStatus[category] ?? true
+          const isExpanded = expandedCategories.has(category)
           return (
             <div key={category} className={`border border-surface-border rounded-xl overflow-hidden transition-opacity ${isActive ? '' : 'opacity-60'}`}>
-              {/* Card header */}
+              {/* Card header — clicking the left section toggles expand/collapse */}
               <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-50/80">
-                <div className="flex items-center gap-2.5 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(category)}
+                  className="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80 transition-opacity"
+                >
+                  <ChevronDown size={14} className={`text-gray-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                   <Tags size={14} className="text-brand-blue shrink-0" />
                   <p className="text-sm font-semibold text-gray-800 truncate">{category}</p>
                   <Badge size="sm" variant="gray">{subs.length} subcategor{subs.length === 1 ? 'y' : 'ies'}</Badge>
                   {usedCount > 0 && <Badge size="sm" variant="blue">{usedCount} ticket{usedCount > 1 ? 's' : ''}</Badge>}
                   <Badge size="sm" variant={isActive ? 'green' : 'gray'}>{isActive ? 'Active' : 'Inactive'}</Badge>
-                </div>
+                </button>
                 <div className="flex items-center gap-1 shrink-0">
                   {/* Active / Inactive toggle */}
                   <button
@@ -787,7 +806,9 @@ function ComplaintCategoriesTab() {
                 </div>
               </div>
 
-              {/* Card body — mini table */}
+              {/* Card body — animated expand/collapse */}
+              <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="overflow-hidden">
               <div className="p-4 space-y-3 border-t border-surface-border">
                 {subs.length === 0 ? (
                   <p className="text-xs text-gray-400">No subcategories yet.</p>
@@ -900,6 +921,8 @@ function ComplaintCategoriesTab() {
                     )}
                   </div>
                 )}
+              </div>
+              </div>
               </div>
             </div>
           )
