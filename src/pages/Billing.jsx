@@ -746,50 +746,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
         </div>
       </div>
 
-      {/* ── Section 4: Coupon ── */}
-      <div className="border-t border-surface-border pt-5">
-        <button
-          type="button"
-          onClick={() => setCouponExpanded(v => !v)}
-          className="flex items-center gap-2 text-sm font-medium text-brand-blue hover:text-brand-blue/80 transition-colors"
-        >
-          <Tag size={14} />
-          {appliedCoupon ? `Coupon applied: ${appliedCoupon.code}` : 'Apply Coupon'}
-          <ChevronDown size={14} className={`transition-transform ${couponExpanded ? 'rotate-180' : ''}`} />
-        </button>
-        {couponExpanded && (
-          <div className="mt-3 space-y-2">
-            {appliedCoupon ? (
-              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
-                <span className="text-sm text-emerald-700 font-medium">
-                  {appliedCoupon.code} — {appliedCoupon.discountValue}{appliedCoupon.discountType === 'percentage' ? '%' : '₹'} off · Saving {fmtAmt(discountAmount)}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleRemoveCoupon}
-                  className="text-xs text-red-500 hover:text-red-700 font-semibold ml-3"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter coupon code"
-                  value={couponInput}
-                  onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError('') }}
-                  className={`flex-1 px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${couponError ? 'border-red-400' : 'border-surface-border'}`}
-                />
-                <Button size="sm" variant="secondary" onClick={handleApplyCoupon}>Apply</Button>
-              </div>
-            )}
-            {couponError && <p className="text-xs text-red-500">{couponError}</p>}
-          </div>
-        )}
-      </div>
-
-      {/* ── Section 5: Summary ── */}
+      {/* ── Section 4: Invoice Summary ── */}
       {(packageId || selectedAddons.length > 0) && (
         <div className="border border-surface-border rounded-xl overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50 border-b border-surface-border">
@@ -837,6 +794,49 @@ function CreateInvoiceModal({ onClose, onCreated }) {
           </div>
         </div>
       )}
+
+      {/* ── Section 5: Coupon ── */}
+      <div className="border-t border-surface-border pt-5">
+        <button
+          type="button"
+          onClick={() => setCouponExpanded(v => !v)}
+          className="flex items-center gap-2 text-sm font-medium text-brand-blue hover:text-brand-blue/80 transition-colors"
+        >
+          <Tag size={14} />
+          {appliedCoupon ? `Coupon applied: ${appliedCoupon.code}` : 'Apply Coupon'}
+          <ChevronDown size={14} className={`transition-transform ${couponExpanded ? 'rotate-180' : ''}`} />
+        </button>
+        {couponExpanded && (
+          <div className="mt-3 space-y-2">
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
+                <span className="text-sm text-emerald-700 font-medium">
+                  {appliedCoupon.code} — {appliedCoupon.discountValue}{appliedCoupon.discountType === 'percentage' ? '%' : '₹'} off · Saving {fmtAmt(discountAmount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-xs text-red-500 hover:text-red-700 font-semibold ml-3"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter coupon code"
+                  value={couponInput}
+                  onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError('') }}
+                  className={`flex-1 px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${couponError ? 'border-red-400' : 'border-surface-border'}`}
+                />
+                <Button size="sm" variant="secondary" onClick={handleApplyCoupon}>Apply</Button>
+              </div>
+            )}
+            {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+          </div>
+        )}
+      </div>
 
       {/* ── Footer Buttons ── */}
       <div className="flex gap-2 pt-1">
