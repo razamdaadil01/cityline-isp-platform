@@ -653,7 +653,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   const inputCls = (err) => `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${err ? 'border-red-400' : 'border-surface-border'}`
 
   return (
-    <div className="space-y-6">
+    <div className="overflow-y-auto space-y-6" style={{ maxHeight: 'calc(85vh - 80px)' }}>
 
       {/* ── Section 1: Customer ── */}
       <div className="space-y-3">
