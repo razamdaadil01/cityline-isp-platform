@@ -72,6 +72,7 @@ const TABS = [
   { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
   { id: 'zone',                label: 'Radius',                icon: Map       },
   { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
+  { id: 'vas-products',        label: 'VAS Products',          icon: Package   },
 ]
 
 // System Configuration is a distinct sub-section within Settings — Customer
@@ -80,7 +81,6 @@ const SYSTEM_CONFIG_TABS = [
   { id: 'customer-type', label: 'Customer Type', icon: Users },
   { id: 'company-entity', label: 'Company / Entity', icon: Building2 },
   { id: 'partner', label: 'Partner', icon: Handshake },
-  { id: 'vas-products', label: 'VAS Products', icon: Package },
 ]
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
