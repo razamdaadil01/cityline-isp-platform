@@ -82,3 +82,20 @@ export function deleteDiscount(id) {
   _discounts = _discounts.filter(d => d.id !== id)
   notify()
 }
+
+export function getApplicableDiscount(packageId) {
+  const todayStr = new Date().toISOString().split('T')[0]
+  return _discounts.find(d => {
+    if (!d.status) return false
+    if (todayStr < d.validFrom) return false
+    if (d.validTo && todayStr > d.validTo) return false
+    if (d.maxUses > 0 && d.usedCount >= d.maxUses) return false
+    if (!d.applicablePackages.includes('all') && !d.applicablePackages.includes(packageId)) return false
+    return true
+  }) ?? null
+}
+
+export function redeemDiscount(id) {
+  _discounts = _discounts.map(d => d.id === id ? { ...d, usedCount: d.usedCount + 1 } : d)
+  notify()
+}
