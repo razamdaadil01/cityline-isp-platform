@@ -4857,13 +4857,25 @@ function vasToForm(p) {
   }
 }
 
+// type name ↔ URL param
+const VAS_TYPE_PARAM = { 'OTT': 'ott', 'IPTV': 'iptv', 'Landline': 'landline', 'Static IP': 'static-ip' }
+const VAS_PARAM_TYPE = Object.fromEntries(Object.entries(VAS_TYPE_PARAM).map(([k, v]) => [v, k]))
+
 function VasProductsTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [products, setProducts] = useState(getVasProducts)
-  const [modal, setModal] = useState(null) // null | { mode: 'add' | 'edit', product: null | {...} }
   const [form, setForm] = useState(vasEmptyForm)
   const [errors, setErrors] = useState({})
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [toast, setToast] = useState('')
+
+  const modalParam = searchParams.get('modal')
+  const vasId      = searchParams.get('id')
+  const typeParam  = searchParams.get('type')
+
+  const showModal      = modalParam === 'add-vas' || modalParam === 'edit-vas'
+  const isEditing      = modalParam === 'edit-vas'
+  const editingProduct = isEditing ? (products.find(p => p.id === vasId) ?? null) : null
 
   useEffect(() => subscribeVasProducts(setProducts), [])
 
@@ -4873,6 +4885,21 @@ function VasProductsTab() {
     return () => clearTimeout(t)
   }, [toast])
 
+  // Initialise form whenever the modal opens or the target id changes
+  useEffect(() => {
+    if (modalParam === 'add-vas') {
+      // Read type directly from URL in case replaceState updated it since last render
+      const currentType = VAS_PARAM_TYPE[new URLSearchParams(window.location.search).get('type')] || 'OTT'
+      setForm({ ...vasEmptyForm(), type: currentType })
+      setErrors({})
+    } else if (modalParam === 'edit-vas') {
+      const product = getVasProducts().find(p => p.id === vasId) ?? null
+      setForm(product ? vasToForm(product) : vasEmptyForm())
+      setErrors({})
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalParam, vasId])
+
   function setField(k, v) {
     setForm(f => ({ ...f, [k]: v }))
     setErrors(e => ({ ...e, [k]: undefined }))
@@ -4881,21 +4908,41 @@ function VasProductsTab() {
   function changeType(t) {
     setForm(f => ({ ...vasEmptyForm(), type: t, price: f.price }))
     setErrors({})
+    // replaceState: update URL without history entry or React re-render
+    const next = new URLSearchParams(window.location.search)
+    t ? next.set('type', VAS_TYPE_PARAM[t] || '') : next.delete('type')
+    window.history.replaceState(null, '', `${window.location.pathname}?${next.toString()}`)
   }
 
   function openAdd() {
-    setForm(vasEmptyForm())
-    setErrors({})
-    setModal({ mode: 'add', product: null })
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-vas')
+      next.delete('id')
+      next.set('type', VAS_TYPE_PARAM['OTT'])
+      return next
+    })
   }
 
   function openEdit(product) {
-    setForm(vasToForm(product))
-    setErrors({})
-    setModal({ mode: 'edit', product })
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit-vas')
+      next.set('id', product.id)
+      next.set('type', VAS_TYPE_PARAM[product.type] || 'ott')
+      return next
+    })
   }
 
-  function closeModal() { setModal(null) }
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('id')
+      next.delete('type')
+      return next
+    })
+  }
 
   function validate() {
     const errs = {}
@@ -4927,10 +4974,10 @@ function VasProductsTab() {
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
 
     const base = {
-      id: modal?.product?.id,
+      id: editingProduct?.id,
       type: form.type,
       price: Number(form.price),
-      status: modal?.product?.status ?? true,
+      status: editingProduct?.status ?? true,
     }
     let typeFields = {}
     if (form.type === 'OTT') {
@@ -4944,7 +4991,7 @@ function VasProductsTab() {
     }
 
     saveVasProduct({ ...base, ...typeFields })
-    setToast(modal?.mode === 'edit' ? 'VAS product updated successfully' : 'VAS product added successfully')
+    setToast(isEditing ? 'VAS product updated successfully' : 'VAS product added successfully')
     closeModal()
   }
 
@@ -4954,8 +5001,6 @@ function VasProductsTab() {
     setToast('VAS product deleted')
     setDeleteTarget(null)
   }
-
-  const isEditing = modal?.mode === 'edit'
 
   return (
     <div className="space-y-5">
@@ -5025,7 +5070,7 @@ function VasProductsTab() {
 
       {/* Add / Edit Modal */}
       <Modal
-        isOpen={!!modal}
+        isOpen={showModal}
         onClose={closeModal}
         title={isEditing ? 'Edit VAS Product' : 'Add VAS Product'}
         size="lg"
@@ -5038,11 +5083,11 @@ function VasProductsTab() {
           <div className="grid grid-cols-2 gap-4">
             {isEditing && (
               <FormField label="VAS ID">
-                <Input value={modal?.product?.id || ''} disabled />
+                <Input value={editingProduct?.id || vasId || ''} disabled />
               </FormField>
             )}
             <FormField label="VAS Type" required>
-              <Select value={form.type} onChange={e => changeType(e.target.value)}>
+              <Select value={form.type} onChange={e => changeType(e.target.value)} disabled={isEditing}>
                 {VAS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
             </FormField>
