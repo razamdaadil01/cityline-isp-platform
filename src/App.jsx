@@ -61,6 +61,7 @@ import PackageAdd from './pages/PackageAdd'
 import PackageDetail from './pages/PackageDetail'
 import PackageEdit from './pages/PackageEdit'
 import OTTManagement from './pages/OTTManagement'
+import IPTVManagement from './pages/IPTVManagement'
 import Network from './pages/Network'
 import NetworkServers from './pages/NetworkServers'
 import POPManagement from './pages/POPManagement'
@@ -204,6 +205,7 @@ export default function App() {
           <Route path="/packages" element={<Packages />} />
           <Route path="/discounts" element={<Discounts />} />
           <Route path="/ott" element={<OTTManagement />} />
+          <Route path="/iptv" element={<IPTVManagement />} />
           <Route path="/packages/add" element={<PackageAdd />} />
           <Route path="/packages/:packageId/edit" element={<PackageEdit />} />
           <Route path="/packages/:packageId/:tab" element={<PackageDetail />} />
