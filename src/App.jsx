@@ -44,6 +44,7 @@ import TechnicianDashboard from './pages/TechnicianDashboard'
 import Approvals from './pages/Approvals'
 import ApprovalDetail from './pages/ApprovalDetail'
 import Billing from './pages/Billing'
+import Payments from './pages/Payments'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
@@ -191,6 +192,7 @@ export default function App() {
           <Route path="/billing/tax-invoice" element={<Billing />} />
           <Route path="/billing/payment-history" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
+          <Route path="/payments" element={<Payments />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/support/tickets" element={<TicketList />} />

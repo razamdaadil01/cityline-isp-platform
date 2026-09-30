@@ -10,7 +10,8 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { MOCK_INVOICES, PAYMENT_HISTORY } from '../data/billingData'
-import { getInvoices, subscribeInvoices, addInvoice } from '../data/invoicesStore'
+import { getInvoices, subscribeInvoices, addInvoice, markInvoicesPaid } from '../data/invoicesStore'
+import { addPayment, nextReceiptNo } from '../data/paymentsStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
@@ -136,6 +137,29 @@ function RecordPaymentModal({ invoice, onClose }) {
       return
     }
     setError('')
+    const invoiceNo = invoice.invoiceNo || invoice.no
+    addPayment({
+      id: 'PAY-' + Date.now(),
+      customerId: invoice.customerId || '',
+      receiptNo: nextReceiptNo(),
+      invoiceNo,
+      invoiceNos: [invoiceNo],
+      paymentDate: form.date,
+      date: new Date().toLocaleString('en-IN'),
+      mode: form.mode,
+      total: Number(form.amount),
+      paid: Number(form.amount),
+      status: 'Complete',
+      orderNo: form.txnId || '—',
+      chequeBCh: 0,
+      addBy: 'Admin User',
+      comment: form.notes || 'Complete',
+    })
+    markInvoicesPaid([invoiceNo], {
+      paymentDate: form.date,
+      mode: form.mode,
+      txnId: form.txnId,
+    })
     setSuccess(true)
   }
 
@@ -633,7 +657,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
       billingPeriod: bpDisplay,
       issueDate,
       dueDate,
-      status:        'Unpaid',
+      status:        'pending',
       paymentMode:   '',
       txnId:         '',
       paidOn:        '',
@@ -1010,16 +1034,16 @@ export default function Billing() {
   const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox]
     .filter(Boolean).length + (fReseller !== 'Cityline Networks P...' ? 1 : 0)
 
-  const stats = useMemo(() => {
-    const all = MOCK_INVOICES
-    return {
-      total: all.reduce((s, i) => s + i.totalAmount, 0),
-      collected: all.filter(i => i.status === 'paid').reduce((s, i) => s + i.totalAmount, 0),
-      pending: all.filter(i => i.status === 'pending').reduce((s, i) => s + i.totalAmount, 0),
-      overdue: all.filter(i => i.status === 'overdue').reduce((s, i) => s + i.totalAmount, 0),
-      gst: all.filter(i => i.status === 'paid').reduce((s, i) => s + i.cgst + i.sgst, 0),
-    }
-  }, [])
+  const [allInvoices, setAllInvoices] = useState(() => getInvoices())
+  useEffect(() => subscribeInvoices(setAllInvoices), [])
+
+  const stats = useMemo(() => ({
+    total:     allInvoices.reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
+    collected: allInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
+    pending:   allInvoices.filter(i => i.status === 'pending').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
+    overdue:   allInvoices.filter(i => i.status === 'pending' && i.dueDate && new Date(i.dueDate) < new Date()).reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
+    gst:       allInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.cgst || 0) + (i.sgst || 0), 0),
+  }), [allInvoices])
 
   const allRows = useMemo(() => {
     const storeRows = storeInvoices.map(inv => ({
