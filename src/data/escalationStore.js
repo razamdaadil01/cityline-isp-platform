@@ -1,23 +1,9 @@
 const SEED = {
   trigger1Enabled: true,
-  trigger1Rules: [
-    { priority: 'P1', levels: [
-      { level: 1, hours: 2,  notifyUserIds: ['u3'] },
-      { level: 2, hours: 4,  notifyUserIds: ['u4'] },
-      { level: 3, hours: 8,  notifyUserIds: ['u1'] },
-    ]},
-    { priority: 'P2', levels: [
-      { level: 1, hours: 4,  notifyUserIds: ['u3'] },
-      { level: 2, hours: 8,  notifyUserIds: ['u4'] },
-      { level: 3, hours: 24, notifyUserIds: ['u1'] },
-    ]},
-    { priority: 'P3', levels: [
-      { level: 1, hours: 8,  notifyUserIds: ['u3'] },
-      { level: 2, hours: 24, notifyUserIds: ['u4'] },
-    ]},
-    { priority: 'P4', levels: [
-      { level: 1, hours: 24, notifyUserIds: ['u3'] },
-    ]},
+  trigger1Levels: [
+    { level: 1, hours: 4,  notifyUserIds: ['u3'] },
+    { level: 2, hours: 8,  notifyUserIds: ['u4'] },
+    { level: 3, hours: 24, notifyUserIds: ['u1'] },
   ],
   trigger2Enabled: true,
   trigger2TicketCount: 2,
