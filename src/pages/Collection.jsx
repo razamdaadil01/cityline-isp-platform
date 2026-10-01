@@ -569,7 +569,7 @@ export default function Collection() {
                   <input type="checkbox" checked={allSelected} onChange={toggleAll}
                     className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
                 </th>
-                {['TICKET ID / INS ID', 'ENGINEER', 'AMOUNT', 'PAID', 'DUE', 'DATE', 'ACTION'].map(h => (
+                {['TICKET ID / INS ID', 'ENGINEER', 'AMOUNT', 'PAID', 'DUE', 'DATE', 'PROOF', 'ACTION'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -577,7 +577,7 @@ export default function Collection() {
             <tbody className="divide-y divide-surface-border">
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-16 text-gray-400 text-sm">No records found.</td>
+                  <td colSpan={9} className="text-center py-16 text-gray-400 text-sm">No records found.</td>
                 </tr>
               ) : pageRows.map(r => (
                 <tr key={r.id} className="hover:bg-gray-50 transition-colors">
@@ -612,25 +612,23 @@ export default function Collection() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{fmtDate(r.date)}</td>
                   <td className="px-4 py-3">
+                    {r.paymentProof ? (
+                      <button type="button" onClick={() => setLightbox(r.paymentProof)}>
+                        <img
+                          src={r.paymentProof}
+                          alt="proof"
+                          className="w-12 h-12 rounded-lg object-cover border border-surface-border cursor-pointer hover:opacity-80 transition-opacity"
+                        />
+                      </button>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     {r.status === 'Paid' ? (
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
-                          <CheckCircle size={14} /> Paid ✓
-                        </span>
-                        {r.paymentProof && (
-                          <button
-                            type="button"
-                            onClick={() => setLightbox(r.paymentProof)}
-                            title="View payment proof"
-                          >
-                            <img
-                              src={r.paymentProof}
-                              alt="proof"
-                              className="w-10 h-10 rounded object-cover border border-surface-border hover:opacity-80 transition-opacity"
-                            />
-                          </button>
-                        )}
-                      </div>
+                      <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
+                        <CheckCircle size={14} /> Paid ✓
+                      </span>
                     ) : (
                       <button
                         onClick={() => openModal(r)}
