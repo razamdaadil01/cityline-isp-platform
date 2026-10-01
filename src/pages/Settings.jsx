@@ -65,7 +65,6 @@ import { getGeneralSettings, saveGeneralSettings, subscribeGeneralSettings } fro
 
 const TABS = [
   { id: 'general',             label: 'General',             icon: Building2     },
-  { id: 'notifications',       label: 'Notifications',       icon: Bell          },
   { id: 'support-categories',  label: 'Support Categories',  icon: Tags          },
   { id: 'escalation-matrix',   label: 'Escalation Matrix',   icon: AlertTriangle },
   { id: 'roles-permissions',   label: 'Roles & Permissions', icon: Shield        },
@@ -5760,7 +5759,6 @@ export default function Settings() {
             scroll. */}
         <div className="flex-1 min-w-0 bg-white rounded-xl shadow-card border border-surface-border p-6">
           {activeTab === 'general'       && <GeneralTab />}
-          {activeTab === 'notifications' && <Navigate to="/settings?section=general" replace />}
           {activeTab === 'support-categories' && <ComplaintCategoriesTab />}
           {activeTab === 'escalation-matrix'   && <EscalationMatrixTab />}
           {activeTab === 'roles-permissions'   && <RolesTab />}
