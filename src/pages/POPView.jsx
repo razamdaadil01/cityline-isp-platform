@@ -262,8 +262,6 @@ export default function POPView() {
               <Field label="Capacity">{pop.capacity || null}</Field>
               <Field label="Power Source">{pop.powerSource}</Field>
               <Field label="Power Backup Type">{pop.powerBackup}</Field>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <Field label="Backup Power Present">{pop.hasBackupPower ? 'Yes' : 'No'}</Field>
               {pop.hasBackupPower && (
                 <Field label="Backup Hours">
