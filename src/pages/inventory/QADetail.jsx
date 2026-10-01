@@ -314,25 +314,7 @@ export default function QADetail() {
             )}
           </div>
 
-          {/* Action buttons (bottom) */}
-          {canEdit && (
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-5 py-2 text-sm font-medium border border-surface-border rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Save Progress'}
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="px-5 py-2 text-sm font-medium bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90 transition-colors disabled:opacity-50"
-              >
-                {submitting ? 'Submitting…' : 'Submit Inspection'}
-              </button>
-            </div>
-          )}
+
         </div>
 
         {/* Right: Info + Stats */}
