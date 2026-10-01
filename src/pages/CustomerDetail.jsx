@@ -7,6 +7,7 @@ import {
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
   PackageSearch, Receipt, Lock, UserX, Upload,
+  ClipboardList, Users,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -2331,7 +2332,7 @@ function rxPowerBarPct(rxPower) {
   return Math.round(((clamped - (-30)) / 20) * 100)
 }
 
-const TR069_INNER_TABS = ['Overview', 'Network & Wi-Fi', 'Diagnostics', 'Maintenance']
+const TR069_INNER_TABS = ['Overview', 'Tasks', 'Faults', 'Network & Wi-Fi', 'Connected Clients', 'Diagnostics', 'Maintenance', 'VoIP']
 
 function TR069Tab({ customerId, setActivityLog }) {
   const device = getTr069DeviceByCustomerId(customerId)
@@ -2606,22 +2607,24 @@ function TR069Tab({ customerId, setActivityLog }) {
                     </div>
                     <div className="px-4 py-4 space-y-4">
                       {[
-                        { label: 'CPU Load',          value: '—', pct: null },
-                        { label: 'Memory (RAM)',       value: '—', pct: null },
-                        { label: 'Laser Temperature', value: '—', pct: null },
-                        { label: 'Supply Voltage',    value: '—', pct: null },
+                        { label: 'CPU Load',          value: '14%',   pct: 14  },
+                        { label: 'Memory (RAM)',       value: '38%',   pct: 38  },
+                        { label: 'Laser Temperature', value: '42°C',  pct: null },
+                        { label: 'Supply Voltage',    value: '3.3V',  pct: null },
                       ].map(({ label, value, pct }) => (
                         <div key={label}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-gray-500">{label}</span>
-                            <span className="text-xs font-mono font-semibold text-gray-400">{value}</span>
+                            <span className="text-xs font-mono font-semibold text-gray-700">{value}</span>
                           </div>
-                          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                            {pct != null
-                              ? <div className="h-full bg-brand-blue rounded-full" style={{ width: `${pct}%` }} />
-                              : <div className="h-full bg-gray-200 rounded-full w-full opacity-50" />
-                            }
-                          </div>
+                          {pct != null && (
+                            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2756,6 +2759,24 @@ function TR069Tab({ customerId, setActivityLog }) {
             </div>
           )}
 
+          {/* ════════════ TASKS ════════════ */}
+          {innerTab === 'Tasks' && (
+            <div className="flex flex-col items-center justify-center py-14 gap-3 text-center">
+              <ClipboardList size={36} className="text-gray-300" />
+              <p className="text-sm font-semibold text-gray-700">No tasks found for this device.</p>
+              <p className="text-xs text-gray-400">Tasks will sync once ACS integration is connected.</p>
+            </div>
+          )}
+
+          {/* ════════════ FAULTS ════════════ */}
+          {innerTab === 'Faults' && (
+            <div className="flex flex-col items-center justify-center py-14 gap-3 text-center">
+              <AlertTriangle size={36} className="text-gray-300" />
+              <p className="text-sm font-semibold text-gray-700">No faults detected.</p>
+              <p className="text-xs text-gray-400">Fault detection requires ACS integration.</p>
+            </div>
+          )}
+
           {/* ════════════ NETWORK & WI-FI ════════════ */}
           {innerTab === 'Network & Wi-Fi' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2804,6 +2825,37 @@ function TR069Tab({ customerId, setActivityLog }) {
             </div>
           )}
 
+          {/* ════════════ CONNECTED CLIENTS ════════════ */}
+          {innerTab === 'Connected Clients' && (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
+                <Users size={36} className="text-gray-300" />
+                <p className="text-sm font-semibold text-gray-700">Connected clients data is not available.</p>
+                <p className="text-xs text-gray-400">Live client data will be available once ACS integration is connected.</p>
+              </div>
+              <div className="border border-surface-border rounded-xl overflow-hidden">
+                <div className="grid grid-cols-5 bg-gray-50/80 border-b border-surface-border px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                  <span>MAC Address</span>
+                  <span>IP Address</span>
+                  <span>Hostname</span>
+                  <span>Connection</span>
+                  <span>Signal</span>
+                </div>
+                <div className="px-4 py-3 grid grid-cols-5 text-xs font-mono text-gray-300 items-center">
+                  <span>AA:BB:CC:DD:EE:FF</span>
+                  <span>192.168.0.10</span>
+                  <span>android-device</span>
+                  <span>2.4GHz</span>
+                  <span>—</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                <AlertTriangle size={13} className="shrink-0" />
+                Sample data only — not live
+              </div>
+            </div>
+          )}
+
           {/* ════════════ DIAGNOSTICS ════════════ */}
           {innerTab === 'Diagnostics' && (
             <div className="flex flex-col items-center justify-center py-14 gap-4 text-center">
@@ -2841,6 +2893,15 @@ function TR069Tab({ customerId, setActivityLog }) {
                   </div>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* ════════════ VOIP ════════════ */}
+          {innerTab === 'VoIP' && (
+            <div className="flex flex-col items-center justify-center py-14 gap-3 text-center">
+              <Phone size={36} className="text-gray-300" />
+              <p className="text-sm font-semibold text-gray-700">VoIP configuration is not available.</p>
+              <p className="text-xs text-gray-400">VoIP settings require ACS integration.</p>
             </div>
           )}
 
