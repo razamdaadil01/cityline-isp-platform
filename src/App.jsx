@@ -88,6 +88,8 @@ import Purchases from './pages/inventory/Purchases'
 import CreatePurchase from './pages/inventory/CreatePurchase'
 import PurchaseDetail from './pages/inventory/PurchaseDetail'
 import PurchaseInvoiceView from './pages/inventory/PurchaseInvoiceView'
+import QAInspection from './pages/inventory/QAInspection'
+import QADetail from './pages/inventory/QADetail'
 import InventoryOverview from './pages/inventory/InventoryOverview'
 import Assignments from './pages/inventory/Assignments'
 import CreateAssignment from './pages/inventory/CreateAssignment'
@@ -249,6 +251,8 @@ export default function App() {
           <Route path="/inventory/purchases/:id/edit" element={<CreatePurchase />} />
           <Route path="/inventory/purchases/:id/invoice" element={<PurchaseInvoiceView />} />
           <Route path="/inventory/purchases/:id" element={<PurchaseDetail />} />
+          <Route path="/inventory/qa" element={<QAInspection />} />
+          <Route path="/inventory/qa/:id" element={<QADetail />} />
           <Route path="/inventory/assign" element={<Assignments />} />
           <Route path="/inventory/assign/new" element={<CreateAssignment />} />
           <Route path="/inventory/assign/:id/edit" element={<CreateAssignment />} />

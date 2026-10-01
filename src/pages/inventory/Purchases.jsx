@@ -8,12 +8,13 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../../components/table/ColumnManager'
 import { getPurchases, subscribePurchases, PURCHASE_STATUSES } from '../../data/purchaseStore'
+import { getQAByPurchaseId, subscribeQARecords } from '../../data/qaStore'
 import { getPurchaseOrders, subscribePurchaseOrders, getPoTypeLabel } from '../../data/purchaseOrderStore'
 import { getVendors } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
 import { useMicroPermission } from '../../data/rolesStore'
 
-const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', Confirmed: 'green', Cancelled: 'red' }
+const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', 'QA Pending': 'yellow', Confirmed: 'green', Cancelled: 'red' }
 
 // Same colors-by-poType map as the Purchase Orders table's own Purchase
 // Type column (PurchaseOrders.jsx) — a GRN doesn't store its own type, it's
@@ -33,6 +34,7 @@ const PURCHASE_TABLE_COLUMNS = [
   { key: 'purchaseDate',   label: 'Purchase Date',    visible: true, defaultVisible: true },
   { key: 'totalValue',     label: 'Total Value',      visible: true, defaultVisible: true },
   { key: 'status',         label: 'Status',           visible: true, defaultVisible: true },
+  { key: 'qaStatus',       label: 'QA Status',        visible: true, defaultVisible: true },
   { key: 'actions',        label: 'Actions',          visible: true, defaultVisible: true },
 ]
 
@@ -41,6 +43,9 @@ export default function Purchases() {
   const navigate = useNavigate()
   const [purchases, setPurchases] = useState(getPurchases)
   useEffect(() => subscribePurchases(setPurchases), [])
+  const [qaRecords, setQaRecords] = useState(() => [])
+  useEffect(() => subscribeQARecords(setQaRecords), [])
+  const qaFor = purchaseId => qaRecords.find(r => r.purchaseId === purchaseId) ?? getQAByPurchaseId(purchaseId)
   const [pos, setPos] = useState(getPurchaseOrders)
   useEffect(() => subscribePurchaseOrders(setPos), [])
 
@@ -314,6 +319,7 @@ export default function Purchases() {
                 {visibleCols.has('purchaseDate')    && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Purchase Date</th>}
                 {visibleCols.has('totalValue')      && <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Total Value</th>}
                 {visibleCols.has('status')          && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>}
+                {visibleCols.has('qaStatus')        && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">QA Status</th>}
                 {visibleCols.has('actions')         && <th className="px-4 py-3 w-12 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>}
               </tr>
             </thead>
@@ -327,6 +333,7 @@ export default function Purchases() {
                 </tr>
               ) : filtered.map(p => {
                 const poType = poTypeFor(p.poId)
+                const qa = qaFor(p.id)
                 return (
                 <tr
                   key={p.id}
@@ -357,6 +364,13 @@ export default function Purchases() {
                       <Badge variant={STATUS_BADGE[p.status] ?? 'gray'} dot size="sm">{p.status}</Badge>
                     </td>
                   )}
+                  {visibleCols.has('qaStatus') && (
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {qa
+                        ? <Badge variant={STATUS_BADGE[qa.status] ?? 'gray'} dot size="sm">{qa.status}</Badge>
+                        : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                  )}
                   {visibleCols.has('actions') && (
                     <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
                       <button
@@ -378,6 +392,7 @@ export default function Purchases() {
       {menuId && (() => {
         const p = purchases.find(x => x.id === menuId)
         if (!p) return null
+        const qa = qaFor(p.id)
         return (
           <div
             ref={menuRef}
@@ -387,6 +402,11 @@ export default function Purchases() {
             <button onClick={() => { navigate(`/inventory/purchases/${p.id}`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
               <Eye size={13} className="text-brand-blue shrink-0" /> View Details
             </button>
+            {qa && (
+              <button onClick={() => { navigate(`/inventory/qa/${qa.id}`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                <PackageCheck size={13} className="text-emerald-600 shrink-0" /> View QA
+              </button>
+            )}
           </div>
         )
       })()}

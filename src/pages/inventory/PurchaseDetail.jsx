@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Edit2, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Edit2, CheckCircle2, AlertTriangle, ClipboardCheck } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import { getPurchase, subscribePurchases, savePurchase } from '../../data/purchaseStore'
@@ -8,8 +8,9 @@ import { getVendor } from '../../data/vendorStore'
 import { getStore } from '../../data/storeStore'
 import { getCompanyEntity } from '../../data/companyEntities'
 import { getProduct } from '../../data/productStore'
+import { getQAByPurchaseId, subscribeQARecords } from '../../data/qaStore'
 
-const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', Confirmed: 'green', Cancelled: 'red' }
+const STATUS_BADGE = { Draft: 'gray', Received: 'indigo', 'QA Pending': 'yellow', Confirmed: 'green', Cancelled: 'red' }
 const MAC_RE = /^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$/
 
 function InfoRow({ label, value }) {
@@ -41,7 +42,11 @@ export default function PurchaseDetail() {
   const navigate = useNavigate()
 
   const [, forceRerender] = useState(0)
-  useEffect(() => subscribePurchases(() => forceRerender(n => n + 1)), [])
+  useEffect(() => {
+    const unsub1 = subscribePurchases(() => forceRerender(n => n + 1))
+    const unsub2 = subscribeQARecords(() => forceRerender(n => n + 1))
+    return () => { unsub1(); unsub2() }
+  }, [])
 
   const purchase = getPurchase(id)
 
@@ -272,6 +277,47 @@ export default function PurchaseDetail() {
               <span className="text-lg font-extrabold text-brand-blue">₹{purchase.totalPurchaseValue.toLocaleString('en-IN')}</span>
             </div>
           </div>
+
+          {/* QA Inspection card */}
+          {(() => {
+            const qa = getQAByPurchaseId(purchase.id)
+            return (
+              <div className="bg-white rounded-xl border border-surface-border p-5 shadow-card">
+                <div className="flex items-center gap-2 mb-3">
+                  <ClipboardCheck size={15} className="text-brand-blue" />
+                  <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">QA Inspection</p>
+                </div>
+                {!qa ? (
+                  <p className="text-xs text-gray-400 italic">QA inspection will be created when this purchase is confirmed.</p>
+                ) : (
+                  <>
+                    <InfoRow label="QA ID" value={
+                      <Link to={`/inventory/qa/${qa.id}`} className="font-mono text-brand-blue hover:underline">{qa.id}</Link>
+                    } />
+                    <InfoRow label="Status" value={<Badge variant={STATUS_BADGE[qa.status] ?? 'gray'} dot size="sm">{qa.status}</Badge>} />
+                    <InfoRow label="Inspected By" value={qa.inspectedBy || '—'} />
+                    <InfoRow label="Inspected At" value={qa.inspectedAt ? new Date(qa.inspectedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'} />
+                    {(() => {
+                      const total = qa.items.reduce((s, it) => s + (it.receivedQty ?? 0), 0)
+                      const passed = qa.items.reduce((s, it) => s + (it.passedQty ?? 0), 0)
+                      const rate = total > 0 ? Math.round((passed / total) * 100) : 0
+                      return (
+                        <div className="mt-3 pt-3 border-t border-surface-border">
+                          <div className="flex justify-between text-xs mb-1.5">
+                            <span className="text-gray-400">Pass Rate</span>
+                            <span className={`font-semibold ${rate >= 80 ? 'text-emerald-600' : rate >= 50 ? 'text-amber-600' : 'text-red-500'}`}>{rate}%</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${rate >= 80 ? 'bg-emerald-500' : rate >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${rate}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>

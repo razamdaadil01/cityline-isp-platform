@@ -113,6 +113,7 @@ const NAV_ITEMS = [
       { label: 'Inventory Overview', icon: Layers,            to: '/inventory/overview' },
       { label: 'Purchase Orders',    icon: ClipboardList,     to: '/inventory/purchase-orders' },
       { label: 'Purchases',          icon: PackageOpen,       to: '/inventory/purchases' },
+      { label: 'QA Inspection',      icon: ClipboardCheck,    to: '/inventory/qa' },
       { label: 'Assign to Engineer', icon: UserCheck,         to: '/inventory/assign' },
       { label: 'Assign to User',     icon: UserPlus,          to: '/inventory/assign-to-user' },
       { label: 'Store Transfer',     icon: ArrowLeftRight,    to: '/inventory/store-transfer' },
