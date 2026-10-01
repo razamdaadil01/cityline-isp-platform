@@ -57,6 +57,8 @@ import {
   getVasProducts, saveVasProduct, subscribeVasProducts, setVasProductStatus, deleteVasProduct,
   VAS_TYPES, OTT_PLATFORMS, SUBSCRIPTION_PLANS, NUMBER_TYPES,
 } from '../data/vasStore'
+import { getEscalationMatrix, saveEscalationMatrix, subscribeEscalationMatrix } from '../data/escalationStore'
+import { getActiveUsers, subscribeUsers } from '../data/userStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,7 @@ const TABS = [
   { id: 'pop-alerts-configuration', label: 'POP Alerts Configuration', icon: Bell },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
   { id: 'support-categories', label: 'Support Categories', icon: Tags },
+  { id: 'escalation-matrix', label: 'Escalation Matrix', icon: AlertTriangle },
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
   { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
   { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
@@ -5188,6 +5191,416 @@ function VasProductsTab() {
   )
 }
 
+const PRIORITY_COLORS = {
+  P1: { badge: 'bg-red-100 text-red-700', label: 'P1 · Critical' },
+  P2: { badge: 'bg-orange-100 text-orange-700', label: 'P2 · High' },
+  P3: { badge: 'bg-yellow-100 text-yellow-700', label: 'P3 · Medium' },
+  P4: { badge: 'bg-green-100 text-green-700', label: 'P4 · Low' },
+}
+
+const ROLE_LABELS = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  engineer: 'Engineer',
+  support: 'Support',
+  billing: 'Billing',
+  readonly: 'Read-only',
+}
+
+function UserMultiSelect({ value, onChange, users, placeholder = 'Search users…' }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = users.filter(u =>
+    !value.includes(u.id) &&
+    u.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  function addUser(id) {
+    onChange([...value, id])
+    setSearch('')
+  }
+
+  function removeUser(id) {
+    onChange(value.filter(v => v !== id))
+  }
+
+  const selectedUsers = value.map(id => users.find(u => u.id === id)).filter(Boolean)
+
+  return (
+    <div className="relative" ref={ref}>
+      <div
+        className="min-h-[38px] flex flex-wrap gap-1.5 items-center px-2.5 py-1.5 border border-gray-200 rounded-lg bg-white cursor-text focus-within:ring-1 focus-within:ring-brand-blue focus-within:border-brand-blue"
+        onClick={() => setOpen(true)}
+      >
+        {selectedUsers.map(u => (
+          <span key={u.id} className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+            {u.name}
+            <button type="button" onClick={e => { e.stopPropagation(); removeUser(u.id) }} className="text-blue-400 hover:text-blue-700">
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        <input
+          className="flex-1 min-w-[100px] text-sm outline-none bg-transparent placeholder-gray-400"
+          placeholder={selectedUsers.length === 0 ? placeholder : ''}
+          value={search}
+          onChange={e => { setSearch(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+        />
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-400">No users found</p>
+          ) : (
+            filtered.map(u => (
+              <button
+                key={u.id}
+                type="button"
+                className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 text-left"
+                onMouseDown={e => { e.preventDefault(); addUser(u.id) }}
+              >
+                <span className="text-gray-800">{u.name}</span>
+                <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                  {ROLE_LABELS[u.role] ?? u.role}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EscalationMatrixTab() {
+  const [config, setConfig] = useState(() => getEscalationMatrix())
+  useEffect(() => subscribeEscalationMatrix(setConfig), [])
+  const [users, setUsers] = useState(() => getActiveUsers())
+  useEffect(() => subscribeUsers(setUsers), [])
+
+  const [draft, setDraft] = useState(() => getEscalationMatrix())
+  const [expanded, setExpanded] = useState({ P1: true, P2: true, P3: true, P4: true })
+  const [toast, setToast] = useState('')
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => { setDraft(config) }, [config])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  function toggleExpanded(priority) {
+    setExpanded(e => ({ ...e, [priority]: !e[priority] }))
+  }
+
+  function setTrigger1Enabled(v) {
+    setDraft(d => ({ ...d, trigger1Enabled: v }))
+  }
+
+  function setTrigger2Enabled(v) {
+    setDraft(d => ({ ...d, trigger2Enabled: v }))
+  }
+
+  function updateLevel(priority, levelIdx, patch) {
+    setDraft(d => ({
+      ...d,
+      trigger1Rules: d.trigger1Rules.map(rule =>
+        rule.priority !== priority ? rule : {
+          ...rule,
+          levels: rule.levels.map((lv, i) => i === levelIdx ? { ...lv, ...patch } : lv),
+        }
+      ),
+    }))
+    setErrors(e => { const next = { ...e }; delete next[`${priority}_${levelIdx}`]; return next })
+  }
+
+  function addLevel(priority) {
+    setDraft(d => ({
+      ...d,
+      trigger1Rules: d.trigger1Rules.map(rule =>
+        rule.priority !== priority ? rule : {
+          ...rule,
+          levels: [...rule.levels, { level: rule.levels.length + 1, hours: '', notifyUserIds: [] }],
+        }
+      ),
+    }))
+  }
+
+  function removeLevel(priority, levelIdx) {
+    setDraft(d => ({
+      ...d,
+      trigger1Rules: d.trigger1Rules.map(rule =>
+        rule.priority !== priority ? rule : {
+          ...rule,
+          levels: rule.levels.filter((_, i) => i !== levelIdx).map((lv, i) => ({ ...lv, level: i + 1 })),
+        }
+      ),
+    }))
+  }
+
+  function validate() {
+    const errs = {}
+    draft.trigger1Rules.forEach(rule => {
+      rule.levels.forEach((lv, i) => {
+        const h = Number(lv.hours)
+        if (!h || h <= 0) {
+          errs[`${rule.priority}_${i}`] = 'Hours required'
+          return
+        }
+        if (i > 0) {
+          const prevH = Number(rule.levels[i - 1].hours)
+          if (h <= prevH) {
+            errs[`${rule.priority}_${i}`] = `Must be > Level ${i} (${prevH}h)`
+          }
+        }
+        if (lv.notifyUserIds.length === 0) {
+          errs[`${rule.priority}_${i}_users`] = 'At least 1 user required'
+        }
+      })
+    })
+    if (draft.trigger2Enabled) {
+      if (!draft.trigger2TicketCount || draft.trigger2TicketCount < 1)
+        errs['t2_count'] = 'Enter a number ≥ 1'
+      if (!draft.trigger2DurationDays || draft.trigger2DurationDays < 1)
+        errs['t2_days'] = 'Enter a number ≥ 1'
+      if (draft.trigger2NotifyUserIds.length === 0)
+        errs['t2_users'] = 'At least 1 user required'
+    }
+    return errs
+  }
+
+  function handleSave() {
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(errs); return }
+    saveEscalationMatrix(draft)
+    setToast('Escalation Matrix saved successfully.')
+    setErrors({})
+  }
+
+  const t2UserNames = (draft.trigger2NotifyUserIds ?? [])
+    .map(id => users.find(u => u.id === id)?.name)
+    .filter(Boolean)
+    .join(', ') || '—'
+
+  return (
+    <div className="space-y-6">
+      <div className="pb-4 border-b border-surface-border">
+        <h2 className="text-base font-semibold text-gray-900">Escalation Matrix</h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Configure when and who gets notified when a ticket is not resolved within defined thresholds.
+        </p>
+      </div>
+
+      {/* Trigger 1 */}
+      <div className={`border rounded-xl ${draft.trigger1Enabled ? 'border-surface-border' : 'border-gray-100 bg-gray-50'}`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
+          <div>
+            <p className={`text-sm font-semibold ${draft.trigger1Enabled ? 'text-gray-900' : 'text-gray-400'}`}>
+              Trigger 1 — Time Based Escalation
+            </p>
+            <p className={`text-xs mt-0.5 ${draft.trigger1Enabled ? 'text-gray-500' : 'text-gray-400'}`}>
+              Escalate tickets that have not been resolved within a set number of hours after creation.
+            </p>
+          </div>
+          <Toggle checked={draft.trigger1Enabled} onChange={setTrigger1Enabled} />
+        </div>
+
+        <div className={`px-4 py-4 space-y-4 ${!draft.trigger1Enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+          {draft.trigger1Rules.map(rule => {
+            const isOpen = expanded[rule.priority]
+            const colors = PRIORITY_COLORS[rule.priority]
+            return (
+              <div key={rule.priority} className="border border-surface-border rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  onClick={() => toggleExpanded(rule.priority)}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colors.badge}`}>
+                      {colors.label}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {rule.levels.length} level{rule.levels.length !== 1 ? 's' : ''} configured
+                    </span>
+                  </div>
+                  <ChevronDown size={14} className={`text-gray-400 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                </button>
+
+                {isOpen && (
+                  <div className="px-3 pb-3">
+                    <table className="w-full text-sm mt-3">
+                      <thead>
+                        <tr className="text-xs text-gray-500 border-b border-surface-border">
+                          <th className="text-left pb-2 pr-4 w-20">LEVEL</th>
+                          <th className="text-left pb-2 pr-4 w-32">HOURS <span className="text-red-400">*</span></th>
+                          <th className="text-left pb-2 pr-4">NOTIFY USER(S) <span className="text-red-400">*</span></th>
+                          <th className="pb-2 w-10" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {rule.levels.map((lv, idx) => {
+                          const hoursErr = errors[`${rule.priority}_${idx}`]
+                          const usersErr = errors[`${rule.priority}_${idx}_users`]
+                          return (
+                            <tr key={idx} className="align-top">
+                              <td className="pr-4 pt-3 text-xs font-medium text-gray-700 whitespace-nowrap">
+                                Level {lv.level}
+                              </td>
+                              <td className="pr-4 pt-3">
+                                <input
+                                  type="number"
+                                  min="0.5"
+                                  step="0.5"
+                                  value={lv.hours}
+                                  onChange={e => updateLevel(rule.priority, idx, { hours: e.target.value })}
+                                  className={`w-24 px-2.5 py-1.5 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-brand-blue
+                                    ${hoursErr ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-brand-blue'}`}
+                                />
+                                {hoursErr && <p className="text-xs text-red-500 mt-1">{hoursErr}</p>}
+                              </td>
+                              <td className="pr-4 pt-3">
+                                <UserMultiSelect
+                                  value={lv.notifyUserIds}
+                                  onChange={ids => updateLevel(rule.priority, idx, { notifyUserIds: ids })}
+                                  users={users}
+                                />
+                                {usersErr && <p className="text-xs text-red-500 mt-1">{usersErr}</p>}
+                              </td>
+                              <td className="pt-3 text-right">
+                                <button
+                                  type="button"
+                                  disabled={rule.levels.length <= 1}
+                                  onClick={() => removeLevel(rule.priority, idx)}
+                                  className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  title="Remove level"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+
+                    {rule.levels.length < 4 && (
+                      <button
+                        type="button"
+                        onClick={() => addLevel(rule.priority)}
+                        className="mt-3 flex items-center gap-1.5 text-xs text-brand-blue hover:text-blue-700 font-medium"
+                      >
+                        <Plus size={13} />
+                        Add Level
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Trigger 2 */}
+      <div className={`border rounded-xl ${draft.trigger2Enabled ? 'border-surface-border' : 'border-gray-100 bg-gray-50'}`}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
+          <div>
+            <p className={`text-sm font-semibold ${draft.trigger2Enabled ? 'text-gray-900' : 'text-gray-400'}`}>
+              Trigger 2 — Repeat Ticket Escalation
+            </p>
+            <p className={`text-xs mt-0.5 ${draft.trigger2Enabled ? 'text-gray-500' : 'text-gray-400'}`}>
+              Escalate when the same customer raises multiple tickets within a short period.
+            </p>
+          </div>
+          <Toggle checked={draft.trigger2Enabled} onChange={setTrigger2Enabled} />
+        </div>
+
+        <div className={`px-4 py-4 space-y-4 ${!draft.trigger2Enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Number of Tickets from same Customer" required>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={draft.trigger2TicketCount}
+                onChange={e => setDraft(d => ({ ...d, trigger2TicketCount: Number(e.target.value) }))}
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-brand-blue
+                  ${errors.t2_count ? 'border-red-300' : 'border-gray-200 focus:border-brand-blue'}`}
+              />
+              {errors.t2_count && <p className="text-xs text-red-500 mt-1">{errors.t2_count}</p>}
+            </FormField>
+
+            <FormField label="Duration" required>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={draft.trigger2DurationDays}
+                  onChange={e => setDraft(d => ({ ...d, trigger2DurationDays: Number(e.target.value) }))}
+                  className={`w-24 px-2.5 py-1.5 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-brand-blue
+                    ${errors.t2_days ? 'border-red-300' : 'border-gray-200 focus:border-brand-blue'}`}
+                />
+                <span className="text-sm text-gray-500">Days</span>
+              </div>
+              {errors.t2_days && <p className="text-xs text-red-500 mt-1">{errors.t2_days}</p>}
+            </FormField>
+          </div>
+
+          <FormField label="Notify User(s)" required>
+            <UserMultiSelect
+              value={draft.trigger2NotifyUserIds}
+              onChange={ids => setDraft(d => ({ ...d, trigger2NotifyUserIds: ids }))}
+              users={users}
+            />
+            {errors.t2_users && <p className="text-xs text-red-500 mt-1">{errors.t2_users}</p>}
+          </FormField>
+
+          {draft.trigger2Enabled && (
+            <div className="px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-700">
+              If the same customer raises{' '}
+              <span className="font-semibold">{draft.trigger2TicketCount || '—'}</span> or more tickets within{' '}
+              <span className="font-semibold">{draft.trigger2DurationDays || '—'}</span> days, notify{' '}
+              <span className="font-semibold">{t2UserNames}</span>.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Save */}
+      {toast && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700">
+          <Check size={14} className="shrink-0" />
+          {toast}
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-surface-border space-y-3">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save Changes</Button>
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          Note: Escalation notifications are logged for configuration purposes. Live trigger wiring will be enabled in a future release.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 // master-config and area-mapping are excluded — they use their own dedicated
@@ -5212,7 +5625,7 @@ export default function Settings() {
   const sectionParam = searchParams.get('section')
 
   useEffect(() => {
-    if (sectionParam === 'complaint-categories' || sectionParam === 'escalation-matrix') {
+    if (sectionParam === 'complaint-categories') {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev)
         next.set('section', 'support-categories')
@@ -5290,6 +5703,7 @@ export default function Settings() {
           {activeTab === 'pop-alerts-configuration' && <PopAlertsConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
           {activeTab === 'support-categories' && <ComplaintCategoriesTab />}
+          {activeTab === 'escalation-matrix'   && <EscalationMatrixTab />}
           {activeTab === 'outage-configuration' && <OutageConfigTab />}
           {activeTab === 'jaze-servers'  && <JazeServersTab />}
           {activeTab === 'roles-permissions'   && <RolesTab />}
