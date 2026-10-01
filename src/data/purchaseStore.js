@@ -9,8 +9,9 @@ import { recalculatePOReceiptStatus, getPurchaseOrder } from './purchaseOrderSto
 import { markAssetsInStockForPO, confirmKitComponentsForAsset, confirmAssetDetailFieldsAtGRN } from './assetStore'
 import { logAudit } from './auditLogStore'
 import { addNotification } from './notificationStore'
+import { addQARecord } from './qaStore'
 
-export const PURCHASE_STATUSES = ['Draft', 'Received', 'Confirmed', 'Cancelled']
+export const PURCHASE_STATUSES = ['Draft', 'Received', 'QA Pending', 'Confirmed', 'Cancelled']
 
 // ── Amount math ──────────────────────────────────────────────────────────
 // Mirrors purchaseOrderStore.js's base-amount-then-GST-on-top convention:
@@ -428,83 +429,45 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
         ...data, items, ...summary,
       }
 
-  purchase = { ...purchase, status: action === 'confirm' ? 'Confirmed' : 'Draft' }
+  purchase = { ...purchase, status: action === 'confirm' ? 'QA Pending' : 'Draft' }
 
   _purchases = existing ? _purchases.map(p => p.id === purchase.id ? purchase : p) : [purchase, ..._purchases]
   notify()
 
-  if (action === 'confirm' && purchase.poId) {
-    recalculatePOReceiptStatus(purchase.poId, receivedByProductIdForPO(purchase.poId))
-    // Asset Management's own GRN linkage — see assetStore.js's own note.
-    // Standard POs (poType undefined/'Standard') never have a linked asset,
-    // so this is a no-op for the vast majority of Purchases.
-    const linkedPO = getPurchaseOrder(purchase.poId)
-    if (linkedPO?.poType === 'Asset Purchase') {
-      markAssetsInStockForPO(purchase.poId)
-      // Kit Components Received (CreatePurchase.jsx) — only for a line that
-      // was actually received this round and carries confirmed kit rows
-      // (set only for a Splicing Machine asset's receipt line, and only
-      // ever from its first/primary unit — see CreatePurchase.jsx's own
-      // requestedKitComponents() note; every other item's
-      // assetIds/kitComponents are absent, so this is a no-op for them and
-      // for every Standard PO above).
-      purchase.items.forEach(it => {
-        const assetIds = Array.isArray(it.assetIds) ? it.assetIds : []
-        if (assetIds[0] && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
-          confirmKitComponentsForAsset(assetIds[0], it.kitComponents.map(c => ({
-            id: c.id, componentType: c.componentType, componentName: c.componentName, quantity: c.quantity,
-            serialNumber: c.serialNumber, condition: c.condition,
-            receivedStatus: c.received ? 'Received' : 'Missing',
-          })))
-        }
-        // Asset detail fields reviewed/corrected at GRN (CreatePurchase.jsx's
-        // AssetUnitDetailsSection) — a PO line can now order several units
-        // (createAssetsBulk() at Add Asset time creates one real Asset
-        // record per unit, see AddAsset.jsx), so every unit slot that maps
-        // to a real asset (assetIds[i] set) gets its own corrected field
-        // set written back onto it; a slot beyond however many assets
-        // actually exist (e.g. an over-receipt past what was ordered) has
-        // no record to write into and is skipped.
-        //
-        // The canonical Serial Number the receiver types (item.serials[i]
-        // on CreatePurchase.jsx's own accordion, bound there rather than to
-        // assetFieldSets[i] — see AssetUnitDetailsSection's own note) lives
-        // on a completely separate array from assetFieldSets, so it's
-        // merged in here rather than arriving already part of it. Both
-        // arrays are resized together, to the same receivedQty, by
-        // ReceiptItemCard's own setReceivedQty() (trackedBySerial is always
-        // true for an asset line), so index i lines up the same physical
-        // unit across assetIds/assetFieldSets/serials for both a single-
-        // unit line and a multi-unit one — each serials[i] merges onto
-        // exactly the asset assetIds[i] resolves to. A blank serials[i]
-        // (an over-receipt slot with no serial entered, or none at all) is
-        // left out of the merge so it can never blank out an already-
-        // recorded serialNumber.
-        //
-        // Vendor is merged in the same way — CreatePurchase.jsx no longer
-        // renders a per-unit Vendor field at all (assetFieldSets[i] never
-        // carries a vendorId), since the vendor is already fixed once, at
-        // this same Purchase record's own top-level vendorId (set once for
-        // every line on it, at the Basic Details step) — there's no
-        // per-unit value to merge conditionally, so this always applies.
-        if (Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets)) {
-          const serials = Array.isArray(it.serials) ? it.serials : []
-          assetIds.forEach((assetId, i) => {
-            if (!assetId || !it.assetFieldSets[i]) return
-            const correctedFields = { ...it.assetFieldSets[i], vendorId: purchase.vendorId }
-            if (serials[i]?.trim()) correctedFields.serialNumber = serials[i].trim()
-            confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber: purchase.poNumber })
-          })
-        }
-      })
-    }
-  }
-
   if (action === 'confirm') {
+    // Create a QA record — stock is only released once the QA record
+    // is submitted as Passed or Partially Passed (see confirmStockFromQA).
+    const qaItems = purchase.items.map(it => ({
+      purchaseItemId: it.id,
+      productId: it.productId || '',
+      productName: it.productName || '',
+      sku: it.sku || '',
+      unit: it.unit || '',
+      receivedQty: Number(it.receivedQty) || 0,
+      passedQty: 0,
+      failedQty: 0,
+      condition: '',
+      conditionNotes: '',
+      serials: Array.isArray(it.serials) ? [...it.serials] : [],
+      macs: Array.isArray(it.macs) ? [...it.macs] : [],
+    }))
+    addQARecord({
+      purchaseId: purchase.id,
+      purchaseNumber: purchase.purchaseNumber,
+      poId: purchase.poId,
+      poNumber: purchase.poNumber,
+      vendorId: purchase.vendorId,
+      vendorName: purchase.vendorName,
+      storeId: purchase.storeId,
+      storeName: purchase.storeName,
+      purchaseDate: purchase.purchaseDate,
+      items: qaItems,
+    })
+
     const receivedUnits = purchase.items.reduce((sum, it) => sum + (Number(it.receivedQty) || 0), 0)
     logAudit({
       action: 'Edit', module: 'Inventory',
-      details: `Confirmed purchase ${purchase.purchaseNumber} — received ${receivedUnits} units`,
+      details: `Purchase ${purchase.purchaseNumber} set to QA Pending — ${receivedUnits} units awaiting inspection`,
     })
   }
 
@@ -536,6 +499,52 @@ export function savePurchase(data, { editingId = null, action = 'draft' } = {}) 
   }
 
   return purchase
+}
+
+// Called by QADetail.jsx when a QA inspection is submitted as Passed or
+// Partially Passed. Runs the stock write-back that savePurchase(confirm)
+// previously did directly, then moves the purchase from 'QA Pending' to
+// 'Confirmed' so it counts toward PO receipt reconciliation.
+export function confirmStockFromQA(purchaseId) {
+  const purchase = _purchases.find(p => p.id === purchaseId)
+  if (!purchase || purchase.status !== 'QA Pending') return
+
+  const confirmed = { ...purchase, status: 'Confirmed' }
+  _purchases = _purchases.map(p => p.id === purchaseId ? confirmed : p)
+  notify()
+
+  if (confirmed.poId) {
+    recalculatePOReceiptStatus(confirmed.poId, receivedByProductIdForPO(confirmed.poId))
+    const linkedPO = getPurchaseOrder(confirmed.poId)
+    if (linkedPO?.poType === 'Asset Purchase') {
+      markAssetsInStockForPO(confirmed.poId)
+      confirmed.items.forEach(it => {
+        const assetIds = Array.isArray(it.assetIds) ? it.assetIds : []
+        if (assetIds[0] && Number(it.receivedQty) > 0 && Array.isArray(it.kitComponents) && it.kitComponents.length > 0) {
+          confirmKitComponentsForAsset(assetIds[0], it.kitComponents.map(c => ({
+            id: c.id, componentType: c.componentType, componentName: c.componentName, quantity: c.quantity,
+            serialNumber: c.serialNumber, condition: c.condition,
+            receivedStatus: c.received ? 'Received' : 'Missing',
+          })))
+        }
+        if (Number(it.receivedQty) > 0 && Array.isArray(it.assetFieldSets)) {
+          const serials = Array.isArray(it.serials) ? it.serials : []
+          assetIds.forEach((assetId, i) => {
+            if (!assetId || !it.assetFieldSets[i]) return
+            const correctedFields = { ...it.assetFieldSets[i], vendorId: confirmed.vendorId }
+            if (serials[i]?.trim()) correctedFields.serialNumber = serials[i].trim()
+            confirmAssetDetailFieldsAtGRN(assetId, correctedFields, { poNumber: confirmed.poNumber })
+          })
+        }
+      })
+    }
+  }
+
+  const receivedUnits = confirmed.items.reduce((sum, it) => sum + (Number(it.receivedQty) || 0), 0)
+  logAudit({
+    action: 'Edit', module: 'Inventory',
+    details: `QA approved — confirmed purchase ${confirmed.purchaseNumber} with ${receivedUnits} units added to stock`,
+  })
 }
 
 // Reconcile PO receipt status against the seed's already-'Confirmed'
