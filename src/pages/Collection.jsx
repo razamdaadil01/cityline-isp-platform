@@ -6,7 +6,6 @@ import {
 } from '../data/collectionStore'
 
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'Cheque']
-const ALL_TEAMS = ['Team Alpha', 'Team Beta', 'Team Gamma', 'Team Delta', 'Team Sigma', 'Team A', 'Team B', 'Team C']
 const PAGE_SIZE = 10
 
 function fmt(n) {
@@ -98,12 +97,8 @@ function RecordPaymentModal({ record, onClose, onSave }) {
               <span className="font-medium text-gray-900">{record.customerName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Team</span>
-              <span className="text-gray-700">{record.team}</span>
-            </div>
-            <div className="flex justify-between">
               <span className="text-gray-500">Engineer</span>
-              <span className="text-gray-700">{record.engineerName}</span>
+              <span className="text-gray-700 text-right">{record.engineerName}</span>
             </div>
             <div className="border-t border-surface-border pt-2 mt-2 grid grid-cols-3 gap-2 text-center">
               <div>
@@ -215,12 +210,23 @@ function RecordPaymentModal({ record, onClose, onSave }) {
 }
 
 // ─── Filters Drawer ───────────────────────────────────────────────────────────
-function FiltersDrawer({ filters, onApply, onClose }) {
-  const [team, setTeam]       = useState(filters.team)
-  const [refType, setRefType] = useState(filters.refType)
-  const [from, setFrom]       = useState(filters.from)
-  const [to, setTo]           = useState(filters.to)
-  const [status, setStatus]   = useState(filters.status)
+function FiltersDrawer({ filters, allCollections, onApply, onClose }) {
+  const [engineer, setEngineer] = useState(filters.engineer)
+  const [engSearch, setEngSearch] = useState('')
+  const [refType, setRefType]   = useState(filters.refType)
+  const [from, setFrom]         = useState(filters.from)
+  const [to, setTo]             = useState(filters.to)
+  const [status, setStatus]     = useState(filters.status)
+
+  const allEngineers = useMemo(() => {
+    const names = new Set()
+    allCollections.forEach(c => c.engineerName.split(',').forEach(n => names.add(n.trim())))
+    return [...names].sort()
+  }, [allCollections])
+
+  const visibleEngineers = engSearch.trim()
+    ? allEngineers.filter(n => n.toLowerCase().includes(engSearch.trim().toLowerCase()))
+    : allEngineers
 
   const selCls = 'w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue'
 
@@ -234,10 +240,17 @@ function FiltersDrawer({ filters, onApply, onClose }) {
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
-            <select value={team} onChange={e => setTeam(e.target.value)} className={selCls}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Engineer</label>
+            <input
+              type="text"
+              placeholder="Search engineer…"
+              value={engSearch}
+              onChange={e => setEngSearch(e.target.value)}
+              className={selCls + ' mb-2'}
+            />
+            <select value={engineer} onChange={e => setEngineer(e.target.value)} className={selCls}>
               <option value="">All</option>
-              {ALL_TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+              {visibleEngineers.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
@@ -268,13 +281,13 @@ function FiltersDrawer({ filters, onApply, onClose }) {
         </div>
         <div className="p-5 border-t border-surface-border flex gap-2">
           <button
-            onClick={() => { setTeam(''); setRefType(''); setFrom(''); setTo(''); setStatus('') }}
+            onClick={() => { setEngineer(''); setEngSearch(''); setRefType(''); setFrom(''); setTo(''); setStatus('') }}
             className="flex-1 py-2 text-sm font-medium border border-surface-border rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Clear
           </button>
           <button
-            onClick={() => { onApply({ team, refType, from, to, status }); onClose() }}
+            onClick={() => { onApply({ engineer, refType, from, to, status }); onClose() }}
             className="flex-1 py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90 transition-colors"
           >
             Apply Filters
@@ -294,7 +307,7 @@ export default function Collection() {
 
   const [tab,        setTab]        = useState('all')     // 'all' | 'paid' | 'pending'
   const [search,     setSearch]     = useState('')
-  const [filters,    setFilters]    = useState({ team: '', refType: '', from: '', to: '', status: '' })
+  const [filters,    setFilters]    = useState({ engineer: '', refType: '', from: '', to: '', status: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [modal,      setModal]      = useState(null)      // collection record or null
   const [selected,   setSelected]   = useState(new Set())
@@ -320,12 +333,11 @@ export default function Collection() {
     if (q) rows = rows.filter(r =>
       r.customerName.toLowerCase().includes(q) ||
       r.refId.toLowerCase().includes(q) ||
-      r.team.toLowerCase().includes(q) ||
       r.engineerName.toLowerCase().includes(q)
     )
 
     // Filters
-    if (filters.team)    rows = rows.filter(r => r.team === filters.team)
+    if (filters.engineer) rows = rows.filter(r => r.engineerName.split(',').map(n => n.trim()).includes(filters.engineer))
     if (filters.refType) rows = rows.filter(r => r.refType === filters.refType)
     if (filters.status)  rows = rows.filter(r => r.status === filters.status)
     if (filters.from)    rows = rows.filter(r => r.date >= filters.from)
@@ -446,7 +458,7 @@ export default function Collection() {
                   <input type="checkbox" checked={allSelected} onChange={toggleAll}
                     className="rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
                 </th>
-                {['TICKET ID / INS ID', 'TEAM', 'AMOUNT', 'PAID', 'DUE', 'DATE', 'ACTION'].map(h => (
+                {['TICKET ID / INS ID', 'ENGINEER', 'AMOUNT', 'PAID', 'DUE', 'DATE', 'ACTION'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -473,8 +485,9 @@ export default function Collection() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{r.team}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{r.engineerName}</p>
+                    {r.engineerName.split(',').map(n => n.trim()).map((name, i) => (
+                      <p key={i} className="text-sm text-gray-900 leading-snug">{name}</p>
+                    ))}
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{fmt(r.amount)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -555,6 +568,7 @@ export default function Collection() {
       {showFilters && (
         <FiltersDrawer
           filters={filters}
+          allCollections={collections}
           onApply={f => { setFilters(f); setPage(1) }}
           onClose={() => setShowFilters(false)}
         />
