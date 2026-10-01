@@ -17,7 +17,6 @@ import {
   UsersRound,
   Shield,
   Activity,
-  Bell,
   PhoneCall,
   Layers,
   FileText,
@@ -141,7 +140,6 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Settings',         icon: Settings,        to: '/settings',          exact: true },
-  { label: 'Notifications',    icon: Bell,            to: '/notifications'                 },
 ]
 
 export default function Sidebar({ collapsed }) {

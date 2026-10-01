@@ -59,25 +59,21 @@ import {
 } from '../data/vasStore'
 import { getEscalationMatrix, saveEscalationMatrix, subscribeEscalationMatrix } from '../data/escalationStore'
 import { getActiveUsers, subscribeUsers } from '../data/userStore'
+import { getGeneralSettings, saveGeneralSettings, subscribeGeneralSettings } from '../data/generalSettingsStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'general',       label: 'General',               icon: Building2 },
-  { id: 'billing',       label: 'Billing',               icon: Receipt   },
-  { id: 'notifications', label: 'Notifications',         icon: Bell      },
-  { id: 'pop-alerts-configuration', label: 'POP Alerts Configuration', icon: Bell },
-  { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
-  { id: 'support-categories', label: 'Support Categories', icon: Tags },
-  { id: 'escalation-matrix', label: 'Escalation Matrix', icon: AlertTriangle },
-  { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
-  { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
-  { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
-  { id: 'area-mapping',        label: 'Area Mapping',          icon: MapPin    },
-  { id: 'zone',                label: 'Radius',                icon: Map       },
-  { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
-  { id: 'vas-products',        label: 'VAS Products',          icon: Package   },
-  { id: 'coupons',             label: 'Coupons',               icon: Tag       },
+  { id: 'general',             label: 'General',             icon: Building2     },
+  { id: 'notifications',       label: 'Notifications',       icon: Bell          },
+  { id: 'support-categories',  label: 'Support Categories',  icon: Tags          },
+  { id: 'escalation-matrix',   label: 'Escalation Matrix',   icon: AlertTriangle },
+  { id: 'roles-permissions',   label: 'Roles & Permissions', icon: Shield        },
+  { id: 'area-mapping',        label: 'Area Mapping',        icon: MapPin        },
+  { id: 'zone',                label: 'Radius',              icon: Map           },
+  { id: 'master-config',       label: 'Master Configuration', icon: Settings2    },
+  { id: 'vas-products',        label: 'VAS Products',        icon: Package       },
+  { id: 'coupons',             label: 'Coupons',             icon: Tag           },
 ]
 
 // System Configuration is a distinct sub-section within Settings — Customer
@@ -87,29 +83,6 @@ const SYSTEM_CONFIG_TABS = [
   { id: 'company-entity', label: 'Company / Entity', icon: Building2 },
   { id: 'partner', label: 'Partner', icon: Handshake },
 ]
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const INIT_SERVERS = [
-  { id: 1,  name: 'Mumbai-Core-01',    ip: '10.0.0.1',    port: 1812, type: 'RADIUS',   status: 'online' },
-  { id: 2,  name: 'Mumbai-Core-02',    ip: '10.0.0.2',    port: 1812, type: 'RADIUS',   status: 'online' },
-  { id: 3,  name: 'Andheri-NAS-01',   ip: '10.1.1.10',   port: 3799, type: 'NAS',      status: 'online' },
-  { id: 4,  name: 'Andheri-NAS-02',   ip: '10.1.1.11',   port: 3799, type: 'NAS',      status: 'offline' },
-  { id: 5,  name: 'Bandra-NAS-01',    ip: '10.1.2.10',   port: 3799, type: 'NAS',      status: 'online' },
-  { id: 6,  name: 'Thane-NAS-01',     ip: '10.2.0.10',   port: 3799, type: 'NAS',      status: 'online' },
-  { id: 7,  name: 'Kurla-NAS-01',     ip: '10.2.1.10',   port: 3799, type: 'NAS',      status: 'online' },
-  { id: 8,  name: 'Core-Switch-01',   ip: '192.168.1.1', port: 161,  type: 'SNMP',     status: 'online' },
-  { id: 9,  name: 'Core-Switch-02',   ip: '192.168.1.2', port: 161,  type: 'SNMP',     status: 'online' },
-  { id: 10, name: 'Auth-Server-01',   ip: '172.16.0.1',  port: 8080, type: 'Auth',     status: 'online' },
-  { id: 11, name: 'Auth-Server-02',   ip: '172.16.0.2',  port: 8080, type: 'Auth',     status: 'online' },
-  { id: 12, name: 'Billing-API-01',   ip: '172.16.1.1',  port: 9090, type: 'API',      status: 'online' },
-  { id: 13, name: 'AAA-Server-01',    ip: '10.3.0.1',    port: 1813, type: 'RADIUS',   status: 'online' },
-  { id: 14, name: 'Borivali-NAS-01',  ip: '10.3.1.10',   port: 3799, type: 'NAS',      status: 'offline' },
-  { id: 15, name: 'DHCP-Server-01',   ip: '10.0.1.1',    port: 67,   type: 'DHCP',     status: 'online' },
-  { id: 16, name: 'Monitor-Agent-01', ip: '10.0.2.1',    port: 5000, type: 'Monitor',  status: 'online' },
-]
-
-const SERVER_TYPE_VARIANT = { RADIUS: 'blue', NAS: 'green', SNMP: 'purple', Auth: 'orange', API: 'cyan', DHCP: 'yellow', Monitor: 'gray' }
 
 // Module list, role list, and per-module permissions all come from
 // rolesStore.js (imported above) — this tab used to keep its own local
@@ -170,59 +143,352 @@ function Toggle({ checked, onChange }) {
 
 // ── Tab Panels ────────────────────────────────────────────────────────────────
 
+const NOTIF_GROUPS = [
+  {
+    key: 'billing',
+    label: 'Billing Notifications',
+    events: [
+      { id: 'invoiceGenerated',      label: 'Invoice Generated'            },
+      { id: 'paymentReceived',       label: 'Payment Received'             },
+      { id: 'paymentOverdue3',       label: 'Payment Overdue (3 days)'     },
+      { id: 'paymentOverdue7',       label: 'Payment Overdue (7 days)'     },
+      { id: 'autoSuspensionWarning', label: 'Auto-suspension Warning'      },
+    ],
+  },
+  {
+    key: 'customer',
+    label: 'Customer Notifications',
+    events: [
+      { id: 'newConnectionActivated', label: 'New Connection Activated'          },
+      { id: 'serviceSuspended',       label: 'Service Suspended'                 },
+      { id: 'serviceRestored',        label: 'Service Restored'                  },
+      { id: 'planChanged',            label: 'Plan Upgraded / Downgraded'        },
+      { id: 'expiryReminder',         label: 'Expiry Reminder (3 days before)'   },
+    ],
+  },
+  {
+    key: 'support',
+    label: 'Support Notifications',
+    events: [
+      { id: 'ticketCreated',        label: 'Ticket Created'         },
+      { id: 'ticketAssigned',       label: 'Ticket Assigned'        },
+      { id: 'ticketResolved',       label: 'Ticket Resolved'        },
+      { id: 'slaBreach',            label: 'SLA Breach Alert'       },
+      { id: 'engineerTaskAssigned', label: 'Engineer Task Assigned' },
+      { id: 'cafIncompleteReminder', label: 'CAF Incomplete Reminder' },
+    ],
+  },
+]
+
 function GeneralTab() {
+  const [form, setForm] = useState(getGeneralSettings)
+  const [open, setOpen] = useState({ company: true, billing: false, support: false, outage: false, pop: false, notifications: false })
+  const [toast, setToast] = useState('')
+
+  useEffect(() => subscribeGeneralSettings(setForm), [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(''), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
+  function setField(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function toggleNotif(eventId, channel) {
+    setForm(f => ({
+      ...f,
+      notifications: {
+        ...f.notifications,
+        [eventId]: { ...f.notifications[eventId], [channel]: !f.notifications[eventId][channel] },
+      },
+    }))
+  }
+
+  function toggleSection(k) { setOpen(o => ({ ...o, [k]: !o[k] })) }
+
+  const slaP1 = Number(form.slaHoursP1), slaP2 = Number(form.slaHoursP2)
+  const slaP3 = Number(form.slaHoursP3), slaP4 = Number(form.slaHoursP4)
+  const slaAllPositive = [slaP1, slaP2, slaP3, slaP4].every(n => Number.isFinite(n) && n > 0)
+  const slaOrdered = slaAllPositive && slaP1 < slaP2 && slaP2 < slaP3 && slaP3 < slaP4
+
+  function handleSave() {
+    saveGeneralSettings(form)
+    setToast('General settings saved successfully')
+  }
+
   return (
-    <div className="space-y-5">
-      <h2 className="text-base font-semibold text-gray-900 pb-4 border-b border-surface-border">Company Information</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Company Name" required>
-          <Input defaultValue="Cityline Networks Pvt Ltd" />
-        </FormField>
-        <FormField label="Business Type">
-          <Select defaultValue="isp">
-            <option value="isp">Internet Service Provider</option>
-            <option value="cable">Cable Operator</option>
-            <option value="both">ISP + Cable</option>
-          </Select>
-        </FormField>
-        <FormField label="GST Number" required>
-          <Input defaultValue="27AABCC1234D1Z5" />
-        </FormField>
-        <FormField label="License Number">
-          <Input defaultValue="MH/ISP/2018/0042" />
-        </FormField>
-        <FormField label="Contact Email" required>
-          <Input type="email" defaultValue="admin@citylinenetworks.in" />
-        </FormField>
-        <FormField label="Support Phone">
-          <Input type="tel" defaultValue="+91 22 4567 8900" />
-        </FormField>
+    <div className="space-y-3">
+      {/* Section 1: Company Information */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('company')}>
+          <span className="text-sm font-semibold text-gray-900">Company Information</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.company ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.company ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Company Name" required>
+                  <Input value={form.companyName} onChange={e => setField('companyName', e.target.value)} />
+                </FormField>
+                <FormField label="Business Type">
+                  <Select value={form.businessType} onChange={e => setField('businessType', e.target.value)}>
+                    <option value="isp">Internet Service Provider</option>
+                    <option value="cable">Cable Operator</option>
+                    <option value="both">ISP + Cable</option>
+                  </Select>
+                </FormField>
+                <FormField label="GST Number" required>
+                  <Input value={form.gstNumber} onChange={e => setField('gstNumber', e.target.value)} />
+                </FormField>
+                <FormField label="License Number">
+                  <Input value={form.licenseNumber} onChange={e => setField('licenseNumber', e.target.value)} />
+                </FormField>
+                <FormField label="Contact Email" required>
+                  <Input type="email" value={form.contactEmail} onChange={e => setField('contactEmail', e.target.value)} />
+                </FormField>
+                <FormField label="Support Phone">
+                  <Input type="tel" value={form.supportPhone} onChange={e => setField('supportPhone', e.target.value)} />
+                </FormField>
+              </div>
+              <FormField label="Registered Address">
+                <Textarea value={form.registeredAddress} onChange={e => setField('registeredAddress', e.target.value)} />
+              </FormField>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Currency">
+                  <Select value={form.currency} onChange={e => setField('currency', e.target.value)}>
+                    <option value="inr">INR (₹)</option>
+                  </Select>
+                </FormField>
+                <FormField label="Timezone">
+                  <Select value={form.timezone} onChange={e => setField('timezone', e.target.value)}>
+                    <option value="ist">Asia/Kolkata (IST, UTC+5:30)</option>
+                  </Select>
+                </FormField>
+                <FormField label="Date Format">
+                  <Select value={form.dateFormat} onChange={e => setField('dateFormat', e.target.value)}>
+                    <option value="dmy">DD/MM/YYYY</option>
+                    <option value="mdy">MM/DD/YYYY</option>
+                    <option value="ymd">YYYY-MM-DD</option>
+                  </Select>
+                </FormField>
+                <FormField label="Language">
+                  <Select value={form.language} onChange={e => setField('language', e.target.value)}>
+                    <option value="en">English</option>
+                  </Select>
+                </FormField>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <FormField label="Registered Address">
-        <Textarea defaultValue="404, Skyline Tower, Andheri West, Mumbai - 400053, Maharashtra" />
-      </FormField>
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Currency">
-          <Select defaultValue="inr"><option value="inr">INR (₹)</option></Select>
-        </FormField>
-        <FormField label="Timezone">
-          <Select defaultValue="ist"><option value="ist">Asia/Kolkata (IST, UTC+5:30)</option></Select>
-        </FormField>
-        <FormField label="Date Format">
-          <Select defaultValue="dmy">
-            <option value="dmy">DD/MM/YYYY</option>
-            <option value="mdy">MM/DD/YYYY</option>
-            <option value="ymd">YYYY-MM-DD</option>
-          </Select>
-        </FormField>
-        <FormField label="Language">
-          <Select defaultValue="en"><option value="en">English</option></Select>
-        </FormField>
+
+      {/* Section 2: Billing */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('billing')}>
+          <span className="text-sm font-semibold text-gray-900">Billing</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.billing ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.billing ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Due Days (after billing date)">
+                  <Input type="number" value={form.dueDays} onChange={e => setField('dueDays', Number(e.target.value))} />
+                </FormField>
+                <FormField label="Late Fee (%)">
+                  <Input type="number" value={form.lateFeePercent} onChange={e => setField('lateFeePercent', Number(e.target.value))} />
+                </FormField>
+                <FormField label="GST Rate (%)">
+                  <Select value={form.gstRate} onChange={e => setField('gstRate', Number(e.target.value))}>
+                    <option value={18}>18% (Standard)</option>
+                    <option value={12}>12%</option>
+                    <option value={5}>5%</option>
+                    <option value={0}>0% (Exempt)</option>
+                  </Select>
+                </FormField>
+                <FormField label="Payment Gateway">
+                  <Select value={form.paymentGateway} onChange={e => setField('paymentGateway', e.target.value)}>
+                    <option value="razorpay">Razorpay</option>
+                    <option value="paytm">Paytm</option>
+                    <option value="stripe">Stripe</option>
+                  </Select>
+                </FormField>
+              </div>
+              <FormField label="Invoice Footer Note">
+                <Textarea rows={2} value={form.invoiceFooterNote} onChange={e => setField('invoiceFooterNote', e.target.value)} />
+              </FormField>
+              <div className="space-y-2">
+                {[
+                  { key: 'autoGenerateInvoices', label: 'Auto-generate monthly invoices', desc: 'Invoices generated automatically on billing date' },
+                  { key: 'sendInvoiceWhatsapp',  label: 'Send invoice via WhatsApp',      desc: 'WhatsApp invoice PDF to customer on generation' },
+                  { key: 'autoSuspendOnOverdue', label: 'Auto-suspend on overdue',        desc: 'Suspend service after 15 days of non-payment'  },
+                  { key: 'proratedBilling',      label: 'Prorated billing for new joins', desc: 'Charge proportional amount for partial months'  },
+                ].map(({ key, label, desc }) => (
+                  <div key={key} className="flex items-start justify-between p-3 rounded-lg border border-surface-border">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                    </div>
+                    <Toggle checked={form[key]} onChange={v => setField(key, v)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
-        <Button variant="secondary" size="sm">Cancel</Button>
-        <Button size="sm" icon={<Save size={14} />}>Save Changes</Button>
+
+      {/* Section 3: Support Rules */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('support')}>
+          <span className="text-sm font-semibold text-gray-900">Support Rules</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.support ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.support ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              <div className="flex items-start justify-between p-3 rounded-lg border border-surface-border">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Allow Multiple Open Complaints per Customer</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Off (default): creating a new ticket while an open one exists is blocked unless the agent gives a reason. On: agents can create additional tickets freely, no reason required.</p>
+                </div>
+                <Toggle checked={form.allowMultipleOpenComplaints} onChange={v => setField('allowMultipleOpenComplaints', v)} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-800 mb-3">SLA Response Windows (hours)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[['slaHoursP1', 'P1 — Critical'], ['slaHoursP2', 'P2 — High'], ['slaHoursP3', 'P3 — Medium'], ['slaHoursP4', 'P4 — Low']].map(([k, label]) => (
+                    <FormField key={k} label={label}>
+                      <Input type="number" min="0" step="0.5" value={form[k]} onChange={e => setField(k, e.target.value)} />
+                    </FormField>
+                  ))}
+                </div>
+                {!slaAllPositive && (
+                  <div className="flex items-start gap-2 mt-2 px-3 py-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                    Each priority needs a positive number of hours.
+                  </div>
+                )}
+                {slaAllPositive && !slaOrdered && (
+                  <div className="flex items-start gap-2 mt-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                    P1 is usually shortest and P4 longest (P1 &lt; P2 &lt; P3 &lt; P4). That ordering isn't enforced — just flagging it in case it's unintentional.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Section 4: Outage Detection */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('outage')}>
+          <span className="text-sm font-semibold text-gray-900">Outage Detection</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.outage ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.outage ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              <p className="text-xs text-gray-500">Thresholds for detecting a possible network outage from a burst of tickets on the same NAS Port.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Ticket Count Threshold">
+                  <Select value={form.outageTicketThreshold} onChange={e => setField('outageTicketThreshold', Number(e.target.value))}>
+                    {TICKET_COUNT_THRESHOLD_OPTIONS.map(n => <option key={n} value={n}>{n} tickets</option>)}
+                  </Select>
+                </FormField>
+                <FormField label="Time Window (minutes)">
+                  <Input type="number" min="1" value={form.outageTimeWindowMinutes} onChange={e => setField('outageTimeWindowMinutes', e.target.value)} />
+                </FormField>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 5: POP Alerts */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('pop')}>
+          <span className="text-sm font-semibold text-gray-900">POP Alerts</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.pop ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.pop ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              <p className="text-xs text-gray-500">Set how many days may pass since a POP equipment item's Last Cleaning Date before a "Cleaning Due" alert is raised.</p>
+              <FormField label="Cleaning Due Interval (days)">
+                <Input type="number" min="1" value={form.cleaningIntervalDays} onChange={e => setField('cleaningIntervalDays', e.target.value)} className="max-w-xs" />
+              </FormField>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 6: Notifications */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('notifications')}>
+          <span className="text-sm font-semibold text-gray-900">Notifications</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.notifications ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.notifications ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="WhatsApp Business Number">
+                  <Input value={form.whatsappBusinessNumber} onChange={e => setField('whatsappBusinessNumber', e.target.value)} />
+                </FormField>
+                <FormField label="SMS Provider">
+                  <Select value={form.smsProvider} onChange={e => setField('smsProvider', e.target.value)}>
+                    <option value="msg91">MSG91</option>
+                    <option value="twilio">Twilio</option>
+                    <option value="fast2sms">Fast2SMS</option>
+                  </Select>
+                </FormField>
+              </div>
+              {NOTIF_GROUPS.map(group => (
+                <div key={group.key} className="rounded-xl border border-surface-border overflow-hidden">
+                  <div className="grid grid-cols-[1fr_80px_64px_88px] bg-gray-50/80 border-b border-surface-border px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <span>{group.label}</span>
+                    <span className="text-center">Email</span>
+                    <span className="text-center">SMS</span>
+                    <span className="text-center">WhatsApp</span>
+                  </div>
+                  <div className="divide-y divide-surface-border">
+                    {group.events.map(ev => (
+                      <div key={ev.id} className="grid grid-cols-[1fr_80px_64px_88px] items-center px-4 py-3 hover:bg-gray-50/50">
+                        <span className="text-sm text-gray-700">{ev.label}</span>
+                        <div className="flex justify-center">
+                          <Toggle checked={form.notifications[ev.id]?.email ?? false} onChange={() => toggleNotif(ev.id, 'email')} />
+                        </div>
+                        <div className="flex justify-center">
+                          <Toggle checked={form.notifications[ev.id]?.sms ?? false} onChange={() => toggleNotif(ev.id, 'sms')} />
+                        </div>
+                        <div className="flex justify-center">
+                          <Toggle checked={form.notifications[ev.id]?.whatsapp ?? false} onChange={() => toggleNotif(ev.id, 'whatsapp')} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-2 flex justify-end">
+        <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>Save All Changes</Button>
+      </div>
+
+      {toast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <CheckCircle2 size={16} className="shrink-0" />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
@@ -1131,147 +1397,6 @@ function OutageConfigTab() {
       <div className="pt-4 border-t border-surface-border flex justify-end gap-3">
         <Button size="sm" icon={<Save size={14} />} onClick={handleSave} disabled={!valid}>Save</Button>
       </div>
-    </div>
-  )
-}
-
-function ServerCard({ server, onEdit, onDelete }) {
-  return (
-    <div className="bg-white rounded-xl border border-surface-border p-4 hover:border-brand-blue/30 hover:shadow-sm transition-all">
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-9 h-9 bg-navy/5 rounded-lg flex items-center justify-center">
-          <Server size={16} className="text-navy" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${server.status === 'online' ? 'bg-green-500' : 'bg-red-400'}`} />
-          <span className={`text-xs font-medium ${server.status === 'online' ? 'text-green-600' : 'text-red-500'}`}>
-            {server.status === 'online' ? 'Online' : 'Offline'}
-          </span>
-        </div>
-      </div>
-      <p className="text-sm font-semibold text-gray-900 truncate">{server.name}</p>
-      <p className="text-xs text-gray-500 mt-0.5 font-mono">{server.ip}:{server.port}</p>
-      <div className="mt-2 flex items-center justify-between">
-        <Badge variant={SERVER_TYPE_VARIANT[server.type] || 'gray'} size="sm">{server.type}</Badge>
-        <div className="flex gap-0.5">
-          <button onClick={() => onEdit(server)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
-            <Edit2 size={13} />
-          </button>
-          <button onClick={() => onDelete(server.id)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function JazeServersTab() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [servers, setServers] = useState(INIT_SERVERS)
-  const [form, setForm] = useState({ name: '', ip: '', port: '', type: 'RADIUS' })
-
-  const modalParam = searchParams.get('modal')
-  const modalId    = searchParams.get('id')
-
-  const editServer = modalParam === 'edit-server'
-    ? servers.find(s => String(s.id) === modalId) ?? null
-    : null
-  const showAdd = modalParam === 'add-server'
-
-  function openAdd() {
-    setForm({ name: '', ip: '', port: '', type: 'RADIUS' })
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'add-server'); next.delete('id'); return next })
-  }
-
-  function openEdit(sv) {
-    setForm({ name: sv.name, ip: sv.ip, port: sv.port, type: sv.type })
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'edit-server'); next.set('id', String(sv.id)); return next })
-  }
-
-  function closeServerModal() {
-    setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('id'); return next })
-    setForm({ name: '', ip: '', port: '', type: 'RADIUS' })
-  }
-
-  useEffect(() => {
-    if (modalParam === 'edit-server' && editServer) {
-      setForm({ name: editServer.name, ip: editServer.ip, port: editServer.port, type: editServer.type })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalParam, modalId])
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  const handleSave = () => {
-    if (editServer) {
-      setServers(s => s.map(x => x.id === editServer.id ? { ...editServer, ...form } : x))
-    } else {
-      setServers(s => [...s, { ...form, id: Date.now(), status: 'online' }])
-    }
-    closeServerModal()
-  }
-
-  const handleDelete = (id) => setServers(s => s.filter(x => x.id !== id))
-
-  const onlineCount = servers.filter(s => s.status === 'online').length
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-border">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Jaze ISP Manager — Servers</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {onlineCount} of {servers.length} servers online
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />}>Test All</Button>
-          <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>
-            Add Server
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-3">
-        {servers.map(sv => (
-          <ServerCard key={sv.id} server={sv} onEdit={openEdit} onDelete={handleDelete} />
-        ))}
-      </div>
-
-      {/* Add / Edit modal */}
-      <Modal
-        isOpen={showAdd || !!editServer}
-        onClose={closeServerModal}
-        title={editServer ? `Edit Server — ${editServer.name}` : 'Add Jaze Server'}
-        size="sm"
-        footer={<>
-          <Button variant="secondary" size="sm" onClick={closeServerModal}>Cancel</Button>
-          <Button size="sm" icon={<Save size={14} />} onClick={handleSave}>
-            {editServer ? 'Save Changes' : 'Add Server'}
-          </Button>
-        </>}>
-        <div className="space-y-4">
-          <FormField label="Server Name" required>
-            <Input placeholder="e.g. Mumbai-Core-01" value={form.name} onChange={e => set('name', e.target.value)} />
-          </FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="IP Address" required>
-              <Input placeholder="10.0.0.1" value={form.ip} onChange={e => set('ip', e.target.value)} />
-            </FormField>
-            <FormField label="Port" required>
-              <Input type="number" placeholder="1812" value={form.port} onChange={e => set('port', e.target.value)} />
-            </FormField>
-          </div>
-          <FormField label="Server Type">
-            <Select value={form.type} onChange={e => set('type', e.target.value)}>
-              {['RADIUS', 'NAS', 'SNMP', 'Auth', 'API', 'DHCP', 'Monitor'].map(t => <option key={t}>{t}</option>)}
-            </Select>
-          </FormField>
-        </div>
-      </Modal>
     </div>
   )
 }
@@ -5635,14 +5760,9 @@ export default function Settings() {
             scroll. */}
         <div className="flex-1 min-w-0 bg-white rounded-xl shadow-card border border-surface-border p-6">
           {activeTab === 'general'       && <GeneralTab />}
-          {activeTab === 'billing'       && <BillingTab />}
-          {activeTab === 'notifications' && <NotificationsTab />}
-          {activeTab === 'pop-alerts-configuration' && <PopAlertsConfigTab />}
-          {activeTab === 'support-configuration' && <SupportConfigTab />}
+          {activeTab === 'notifications' && <Navigate to="/settings?section=general" replace />}
           {activeTab === 'support-categories' && <ComplaintCategoriesTab />}
           {activeTab === 'escalation-matrix'   && <EscalationMatrixTab />}
-          {activeTab === 'outage-configuration' && <OutageConfigTab />}
-          {activeTab === 'jaze-servers'  && <JazeServersTab />}
           {activeTab === 'roles-permissions'   && <RolesTab />}
           {activeTab === 'zone'                && <ZoneTab />}
           {activeTab === 'master-config'       && <MasterConfigTab />}
