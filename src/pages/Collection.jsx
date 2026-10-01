@@ -272,6 +272,29 @@ function RecordPaymentModal({ record, onClose, onSave }) {
   )
 }
 
+// ─── Lightbox ────────────────────────────────────────────────────────────────
+function Lightbox({ src, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+      >
+        <X size={20} />
+      </button>
+      <img
+        src={src}
+        alt="Payment proof"
+        className="max-w-2xl w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  )
+}
+
 // ─── Filters Drawer ───────────────────────────────────────────────────────────
 function FiltersDrawer({ filters, allCollections, onApply, onClose }) {
   const [engineer, setEngineer] = useState(filters.engineer)
@@ -380,6 +403,7 @@ export default function Collection() {
   const [filters,    setFilters]    = useState({ engineer: '', refType: '', from: '', to: '', status: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [selected,   setSelected]   = useState(new Set())
+  const [lightbox,   setLightbox]   = useState(null)  // data URL or null
   const [page,       setPage]       = useState(1)
   const [perPage,    setPerPage]    = useState(10)
 
@@ -589,19 +613,24 @@ export default function Collection() {
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{fmtDate(r.date)}</td>
                   <td className="px-4 py-3">
                     {r.status === 'Paid' ? (
-                      <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
-                        <CheckCircle size={14} /> Paid ✓
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
+                          <CheckCircle size={14} /> Paid ✓
+                        </span>
                         {r.paymentProof && (
                           <button
                             type="button"
-                            onClick={() => window.open(r.paymentProof, '_blank')}
+                            onClick={() => setLightbox(r.paymentProof)}
                             title="View payment proof"
-                            className="ml-1 text-gray-400 hover:text-brand-blue transition-colors"
                           >
-                            <Paperclip size={13} />
+                            <img
+                              src={r.paymentProof}
+                              alt="proof"
+                              className="w-10 h-10 rounded object-cover border border-surface-border hover:opacity-80 transition-opacity"
+                            />
                           </button>
                         )}
-                      </span>
+                      </div>
                     ) : (
                       <button
                         onClick={() => openModal(r)}
@@ -670,6 +699,9 @@ export default function Collection() {
           onClose={() => setShowFilters(false)}
         />
       )}
+
+      {/* Proof Lightbox */}
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   )
 }
