@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Boxes, FileText, Wrench, Plus, MoreVertical,
-  LayoutDashboard,
+  LayoutDashboard, Server,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -31,9 +31,10 @@ const PRIORITY_BADGE = { Critical: 'red', High: 'orange', Medium: 'yellow', Low:
 const SLA_BADGE = { 'On Track': 'green', 'Due Soon': 'yellow', Breached: 'red', Met: 'gray' }
 
 const TABS = [
-  { id: 'overview',     label: 'Overview',     icon: LayoutDashboard },
-  { id: 'work-orders',  label: 'Work Orders',  icon: Wrench          },
-  { id: 'inventory',    label: 'Inventory',    icon: Boxes           },
+  { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
+  { id: 'equipment',   label: 'Equipment',   icon: Server          },
+  { id: 'inventory',   label: 'Inventory',   icon: Boxes           },
+  { id: 'work-orders', label: 'Work Orders', icon: Wrench          },
 ]
 
 function Field({ label, children }) {
@@ -293,106 +294,59 @@ export default function POPView() {
             </div>
           )}
 
-          {/* Equipment */}
-          <div className="space-y-3 pt-4 border-t border-surface-border">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Equipment</h3>
-            <div className="border border-surface-border rounded-xl overflow-hidden">
+        </div>
+      )}
+
+      {/* ── Tab: Equipment ───────────────────────────────────────────── */}
+      {activeTab === 'equipment' && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">{equipment.length} item{equipment.length === 1 ? '' : 's'}</p>
+          <div className="bg-white rounded-xl shadow-card border border-surface-border overflow-hidden">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50/60 border-b border-surface-border">
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Type</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Label</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">IP Address</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Model</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Ports</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Used</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Status</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Customers / VLAN</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Label</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">IP Address</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Model</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Ports</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-20">Used</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Customers / VLAN</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-24 whitespace-nowrap">Linked WOs</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {equipment.map(eq => (
-                    <tr key={eq.id} className="hover:bg-gray-50/40">
-                      <td className="px-3 py-2 text-xs font-medium text-gray-700">{eq.type}</td>
-                      <td className="px-3 py-2 text-gray-800">
-                        {eq.label || <span className="text-gray-300">Untitled</span>}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs text-gray-600">{eq.ip || '—'}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{eq.model || '—'}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{eq.ports ?? '—'}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">{eq.portsUsed ?? '—'}</td>
-                      <td className="px-3 py-2 text-xs text-gray-700">{eq.status}</td>
-                      <td className="px-3 py-2 text-xs text-gray-600">
-                        {eq.type === 'OLT' ? (eq.customers ?? '—') : (eq.vlan || '—')}
-                      </td>
-                    </tr>
-                  ))}
-                  {equipment.length === 0 && (
+                  {equipment.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-3 py-8 text-center text-xs text-gray-400">
+                      <td colSpan={9} className="px-4 py-14 text-center text-sm text-gray-400">
+                        <Server size={32} className="mx-auto mb-2 text-gray-200" />
                         No equipment on record.
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Inventory Details */}
-          <div className="space-y-3 pt-4 border-t border-surface-border">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Inventory Details</h3>
-            <div className="border border-surface-border rounded-xl overflow-hidden overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50/60 border-b border-surface-border">
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[140px]">Item</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[140px]">Category</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[180px]">Serial Number</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Qty</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[110px]">Install Date</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[110px]">Last Cleaning</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[120px]">Last Maintenance</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[150px]">Warranty/AMC Expiry</th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[110px]">Condition</th>
-                    <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[120px]">Linked WOs</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-border">
-                  {equipment.map(eq => {
-                    const warranty = equipmentWarrantyStatus(eq)
+                  ) : equipment.map(eq => {
                     const linkedCount = getWorkOrdersForEquipment(pop.id, eq.id).length
                     return (
-                      <tr key={eq.id} className="hover:bg-gray-50/40">
-                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
-                          <span className="font-medium">{eq.label || <span className="text-gray-300">Untitled</span>}</span>
-                          {eq.type && <span className="block text-xs text-gray-400">{eq.type}</span>}
+                      <tr key={eq.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="px-4 py-3 text-xs font-medium text-gray-700">{eq.type}</td>
+                        <td className="px-4 py-3 text-gray-800">
+                          {eq.label || <span className="text-gray-300">Untitled</span>}
                         </td>
-                        <td className="px-3 py-2">
-                          <Badge variant={ITEM_CATEGORY_BADGE[eq.itemCategory] ?? 'gray'} size="sm">
-                            {eq.itemCategory ?? '—'}
-                          </Badge>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{eq.ip || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{eq.model || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{eq.ports ?? '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{eq.portsUsed ?? '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-700">{eq.status}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">
+                          {eq.type === 'OLT' ? (eq.customers ?? '—') : (eq.vlan || '—')}
                         </td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-600">{eq.serialNumber || '—'}</td>
-                        <td className="px-3 py-2 text-xs text-gray-600 text-center">{eq.quantity ?? 1}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{eq.installDate || '—'}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{eq.lastCleaningDate ?? '—'}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{eq.lastMaintenanceDate ?? '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <p className="text-xs text-gray-500">{eq.warrantyAmcExpiry || '—'}</p>
-                          <Badge variant={WARRANTY_BADGE[warranty]} size="sm" className="mt-0.5">{warranty}</Badge>
-                        </td>
-                        <td className="px-3 py-2">
-                          <Badge variant={CONDITION_BADGE[eq.condition] ?? 'gray'} dot size="sm">
-                            {eq.condition ?? '—'}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-4 py-3 text-center">
                           <button
                             type="button"
                             onClick={() => setLinkedFor(eq)}
                             disabled={linkedCount === 0}
-                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors ${
+                            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full transition-colors ${
                               linkedCount === 0
                                 ? 'text-gray-300 cursor-default'
                                 : 'text-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 cursor-pointer'
@@ -404,13 +358,6 @@ export default function POPView() {
                       </tr>
                     )
                   })}
-                  {equipment.length === 0 && (
-                    <tr>
-                      <td colSpan={10} className="px-3 py-8 text-center text-xs text-gray-400">
-                        No equipment on record.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
