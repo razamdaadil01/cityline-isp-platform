@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { X, Search, Download, CheckCircle, AlertTriangle, RotateCcw, RefreshCw, AlertOctagon, Zap, Cpu, Wifi, WifiOff, UserX } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, Download, CheckCircle, Cpu, Wifi, WifiOff, UserX } from 'lucide-react'
 import {
   getTr069Devices, subscribeTr069Devices,
-  updateTr069Device,
 } from '../data/tr069Store'
-import { getAllCustomers } from '../data/customersData'
 import { logAudit } from '../data/auditLogStore'
 import { exportCsv } from '../utils/csvExport'
 
@@ -32,47 +31,19 @@ function rxColor(v) {
   return 'text-red-500'
 }
 
-const ACTIONS = [
-  { label: 'Reboot Device',        icon: <RotateCcw size={14} />,    cls: 'bg-amber-500 hover:bg-amber-600 text-white',            q: "Reboot this CPE device?" },
-  { label: 'Re-push PPPoE Config', icon: <RefreshCw size={14} />,    cls: 'bg-[#0A8DCD] hover:bg-[#0878b0] text-white',           q: 'Re-push the PPPoE configuration to this device?' },
-  { label: 'Factory Reset',        icon: <AlertOctagon size={14} />, cls: 'bg-red-500 hover:bg-red-600 text-white',                q: 'Factory reset this device? This would normally wipe all settings.' },
-  { label: 'Fetch Live Stats',     icon: <Zap size={14} />,          cls: 'bg-emerald-500 hover:bg-emerald-600 text-white',        q: 'Fetch live stats from this device?' },
-]
-
-function LabelValue({ label, value, mono, colorClass }) {
-  return (
-    <div className="flex items-start justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
-      <span className="text-xs text-gray-500 shrink-0">{label}</span>
-      <span className={`text-xs font-semibold text-right ${mono ? 'font-mono' : ''} ${colorClass || 'text-gray-800'}`}>{value ?? '—'}</span>
-    </div>
-  )
-}
-
 export default function TR069Management() {
-  const [devices, setDevices]         = useState(getTr069Devices)
-  const [search, setSearch]           = useState('')
-  const [tab, setTab]                 = useState('All Devices')
-  const [page, setPage]               = useState(1)
-  const [selected, setSelected]       = useState(null)
-  const [panelTab, setPanelTab]       = useState('Overview')
-  const [confirmAction, setConfirmAction] = useState(null)
-  const [assignOpen, setAssignOpen]   = useState(false)
-  const [unassignOpen, setUnassignOpen] = useState(false)
-  const [assignSearch, setAssignSearch] = useState('')
-  const [toast, setToast]             = useState(null)
+  const navigate = useNavigate()
+  const [devices, setDevices] = useState(getTr069Devices)
+  const [search, setSearch]   = useState('')
+  const [tab, setTab]         = useState('All Devices')
+  const [page, setPage]       = useState(1)
+  const [toast, setToast]     = useState(null)
 
   useEffect(() => subscribeTr069Devices(setDevices), [])
 
-  useEffect(() => {
-    if (selected) {
-      const updated = devices.find(d => d.id === selected.id)
-      if (updated) setSelected(updated)
-    }
-  }, [devices]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const totalDevices   = devices.length
-  const onlineCount    = devices.filter(d => d.status === 'Online').length
-  const offlineCount   = devices.filter(d => d.status === 'Offline').length
+  const totalDevices    = devices.length
+  const onlineCount     = devices.filter(d => d.status === 'Online').length
+  const offlineCount    = devices.filter(d => d.status === 'Offline').length
   const unassignedCount = devices.filter(d => d.customerId === '').length
 
   const tabFiltered = devices.filter(d => {
@@ -100,8 +71,6 @@ export default function TR069Management() {
   function changeTab(t) { setTab(t); setPage(1) }
   function changeSearch(v) { setSearch(v); setPage(1) }
 
-  function openPanel(device) { setSelected(device); setPanelTab('Overview') }
-
   function showToast(msg) {
     setToast(msg)
     setTimeout(() => setToast(null), 3500)
@@ -116,53 +85,12 @@ export default function TR069Management() {
     logAudit({ module: 'Network', action: 'Export', details: `Exported ${filtered.length} TR-069 devices` })
   }
 
-  function handleConfirmAction() {
-    const a = confirmAction
-    setConfirmAction(null)
-    logAudit({ module: 'Network', action: 'Edit', details: `${a.label} command logged for device ${selected?.serialNumber} (no ACS integration)` })
-    showToast(`${a.label} logged — no ACS integration to actually reach the device yet.`)
-  }
-
-  function handleAssign(customer) {
-    if (!selected) return
-    updateTr069Device(selected.id, {
-      customerId:   customer.id,
-      customerName: customer.name,
-      userId:       customer.id,
-    })
-    logAudit({ module: 'Network', action: 'Edit', details: `Device ${selected.serialNumber} assigned to ${customer.name} (${customer.id})` })
-    setAssignOpen(false)
-    setAssignSearch('')
-    showToast(`Device assigned to ${customer.name}`)
-  }
-
-  function handleUnassign() {
-    if (!selected) return
-    updateTr069Device(selected.id, {
-      customerId:   '',
-      customerName: 'Unassigned Device',
-      userId:       '—',
-    })
-    logAudit({ module: 'Network', action: 'Edit', details: `Device ${selected.serialNumber} unassigned` })
-    setUnassignOpen(false)
-    showToast('Device unassigned')
-  }
-
-  const allCustomers = getAllCustomers()
-  const filteredCustomers = allCustomers.filter(c =>
-    !assignSearch ||
-    c.name.toLowerCase().includes(assignSearch.toLowerCase()) ||
-    c.id.toLowerCase().includes(assignSearch.toLowerCase())
-  )
-
   const STAT_CARDS = [
     { label: 'Total Devices', value: totalDevices,    color: 'text-[#0A8DCD]',  bg: 'bg-blue-50',    icon: <Cpu size={18} /> },
     { label: 'Online',        value: onlineCount,     color: 'text-emerald-600', bg: 'bg-emerald-50', icon: <Wifi size={18} /> },
     { label: 'Offline',       value: offlineCount,    color: 'text-red-500',     bg: 'bg-red-50',     icon: <WifiOff size={18} /> },
     { label: 'Unassigned',    value: unassignedCount, color: 'text-amber-500',   bg: 'bg-amber-50',   icon: <UserX size={18} /> },
   ]
-
-  const PANEL_TABS = ['Overview', 'WAN', 'LAN', 'Actions']
 
   return (
     <div className="p-6 space-y-5">
@@ -255,7 +183,7 @@ export default function TR069Management() {
                     <td className="px-4 py-3 text-xs text-gray-500">{start + i + 1}</td>
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => openPanel(d)}
+                        onClick={() => navigate(`/network/tr069/${d.id}`)}
                         className="font-mono text-xs text-[#0A8DCD] font-semibold hover:underline whitespace-nowrap"
                       >
                         {d.serialNumber}
@@ -319,269 +247,6 @@ export default function TR069Management() {
             </div>
           </div>
         </div>
-
-      {/* Device Detail Drawer */}
-      {selected && (
-        <>
-          {/* Overlay */}
-          <div
-            className="fixed inset-0 bg-black/40 z-40"
-            onClick={() => setSelected(null)}
-          />
-
-          {/* Drawer */}
-          <div className="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 translate-x-0">
-
-            {/* Drawer Header */}
-            <div className="flex items-start justify-between px-5 py-4 border-b border-gray-200 shrink-0">
-              <div className="min-w-0">
-                <p className="text-sm font-mono font-bold text-[#0A8DCD] truncate">{selected.serialNumber}</p>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${selected.status === 'Online' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                    {selected.status}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 ml-3 shrink-0">
-                {selected.customerId ? (
-                  <button
-                    onClick={() => setUnassignOpen(true)}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
-                  >
-                    Unassign
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setAssignOpen(true); setAssignSearch('') }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[#0A8DCD] text-[#0A8DCD] hover:bg-blue-50 transition-colors whitespace-nowrap"
-                  >
-                    Assign to Customer
-                  </button>
-                )}
-                <button
-                  onClick={() => setSelected(null)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-
-            {/* Inner Tab Bar */}
-            <div className="flex border-b border-gray-200 shrink-0">
-              {PANEL_TABS.map(t => (
-                <button
-                  key={t}
-                  onClick={() => setPanelTab(t)}
-                  className={`flex-1 py-2.5 text-xs font-medium border-b-2 transition-colors -mb-px ${
-                    panelTab === t
-                      ? 'border-[#0A8DCD] text-[#0A8DCD]'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-5">
-              {panelTab === 'Overview' && (
-                <div>
-                  <LabelValue label="Model"       value={selected.model} />
-                  <LabelValue label="Firmware"    value={selected.firmware} mono />
-                  <LabelValue label="Hardware"    value={selected.hardware} mono />
-                  <LabelValue label="MAC Address" value={selected.mac} mono />
-                  <LabelValue label="Last Seen"   value={formatLastInform(selected.lastInform)} />
-                  <LabelValue label="Uptime"      value={selected.uptime} />
-                  <LabelValue label="IP Address"  value={selected.ip} mono />
-                  <LabelValue label="SSID"        value={selected.ssid} />
-                  <LabelValue
-                    label="RX Power"
-                    value={selected.rxPower != null ? `${selected.rxPower} dBm` : '—'}
-                    mono
-                    colorClass={rxColor(selected.rxPower)}
-                  />
-                  {selected.customerId && (
-                    <LabelValue label="Customer" value={selected.customerName} />
-                  )}
-                </div>
-              )}
-
-              {panelTab === 'WAN' && (
-                <div>
-                  <LabelValue label="WAN IP"          value={selected.ip} mono />
-                  <LabelValue label="Gateway"         value={selected.gateway} mono />
-                  <LabelValue label="DNS Primary"     value={selected.dnsPrimary} mono />
-                  <LabelValue label="DNS Secondary"   value={selected.dnsSecondary} mono />
-                  <LabelValue label="Connection Type" value={selected.connectionType} />
-                  <LabelValue
-                    label="Status"
-                    value={selected.status}
-                    colorClass={selected.status === 'Online' ? 'text-emerald-600' : 'text-red-500'}
-                  />
-                </div>
-              )}
-
-              {panelTab === 'LAN' && (
-                <div>
-                  <LabelValue label="LAN IP"            value={selected.lanIp} mono />
-                  <LabelValue label="Subnet Mask"       value={selected.subnet} mono />
-                  <LabelValue
-                    label="DHCP"
-                    value={selected.dhcp}
-                    colorClass={selected.dhcp === 'Enabled' ? 'text-emerald-600' : 'text-gray-800'}
-                  />
-                  <LabelValue label="Connected Devices" value={String(selected.connectedDevices)} colorClass="text-[#0A8DCD]" />
-                  <LabelValue
-                    label="WiFi 2.4GHz"
-                    value={selected.wifi24}
-                    colorClass={selected.wifi24 === 'Enabled' ? 'text-emerald-600' : 'text-gray-500'}
-                  />
-                  <LabelValue
-                    label="WiFi 5GHz"
-                    value={selected.wifi5}
-                    colorClass={selected.wifi5 === 'Enabled' ? 'text-emerald-600' : 'text-gray-500'}
-                  />
-                </div>
-              )}
-
-              {panelTab === 'Actions' && (
-                <div>
-                  <p className="text-xs text-gray-400 mb-4">Send a command to this CPE device via TR-069.</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {ACTIONS.map(a => (
-                      <button
-                        key={a.label}
-                        onClick={() => setConfirmAction(a)}
-                        className={`inline-flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-xs font-medium transition-colors ${a.cls}`}
-                      >
-                        {a.icon}
-                        <span className="text-center leading-tight">{a.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Confirm Action Modal */}
-      {confirmAction && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">{confirmAction.label}</h2>
-              <button onClick={() => setConfirmAction(null)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-gray-600">{confirmAction.q}</p>
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                No ACS backend connected. Confirming logs this command to the Audit Log — it is not actually sent to a device.
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setConfirmAction(null)}
-                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmAction}
-                  className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium hover:bg-[#0878b0] flex items-center justify-center gap-2"
-                >
-                  <CheckCircle size={14} /> Confirm
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Assign to Customer Modal */}
-      {assignOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Assign to Customer</h2>
-              <button onClick={() => setAssignOpen(false)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  autoFocus
-                  value={assignSearch}
-                  onChange={e => setAssignSearch(e.target.value)}
-                  placeholder="Search customer…"
-                  className="pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm w-full bg-white focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
-                />
-              </div>
-              <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
-                {filteredCustomers.length === 0 ? (
-                  <p className="px-4 py-6 text-xs text-center text-gray-400">No customers found</p>
-                ) : filteredCustomers.slice(0, 50).map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleAssign(c)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{c.name}</p>
-                      <p className="text-xs text-gray-400 font-mono">{c.id}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {c.status}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setAssignOpen(false)}
-                className="w-full py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Unassign Confirm Modal */}
-      {unassignOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h2 className="font-semibold text-gray-800">Unassign Device</h2>
-              <button onClick={() => setUnassignOpen(false)}><X size={16} className="text-gray-400" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-gray-600">
-                Remove the assignment of device{' '}
-                <span className="font-mono font-semibold text-[#0A8DCD]">{selected?.serialNumber}</span>{' '}
-                from customer <strong>{selected?.customerName}</strong>?
-              </p>
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setUnassignOpen(false)}
-                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUnassign}
-                  className="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
-                >
-                  Unassign
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
