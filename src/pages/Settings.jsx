@@ -5191,13 +5191,6 @@ function VasProductsTab() {
   )
 }
 
-const PRIORITY_COLORS = {
-  P1: { badge: 'bg-red-100 text-red-700', label: 'P1 · Critical' },
-  P2: { badge: 'bg-orange-100 text-orange-700', label: 'P2 · High' },
-  P3: { badge: 'bg-yellow-100 text-yellow-700', label: 'P3 · Medium' },
-  P4: { badge: 'bg-green-100 text-green-700', label: 'P4 · Low' },
-}
-
 const ROLE_LABELS = {
   super_admin: 'Super Admin',
   admin: 'Admin',
@@ -5290,7 +5283,6 @@ function EscalationMatrixTab() {
   useEffect(() => subscribeUsers(setUsers), [])
 
   const [draft, setDraft] = useState(() => getEscalationMatrix())
-  const [expanded, setExpanded] = useState({ P1: true, P2: true, P3: true, P4: true })
   const [toast, setToast] = useState('')
   const [errors, setErrors] = useState({})
 
@@ -5303,10 +5295,6 @@ function EscalationMatrixTab() {
     }
   }, [toast])
 
-  function toggleExpanded(priority) {
-    setExpanded(e => ({ ...e, [priority]: !e[priority] }))
-  }
-
   function setTrigger1Enabled(v) {
     setDraft(d => ({ ...d, trigger1Enabled: v }))
   }
@@ -5315,62 +5303,39 @@ function EscalationMatrixTab() {
     setDraft(d => ({ ...d, trigger2Enabled: v }))
   }
 
-  function updateLevel(priority, levelIdx, patch) {
+  function updateLevel(idx, patch) {
     setDraft(d => ({
       ...d,
-      trigger1Rules: d.trigger1Rules.map(rule =>
-        rule.priority !== priority ? rule : {
-          ...rule,
-          levels: rule.levels.map((lv, i) => i === levelIdx ? { ...lv, ...patch } : lv),
-        }
-      ),
+      trigger1Levels: d.trigger1Levels.map((lv, i) => i === idx ? { ...lv, ...patch } : lv),
     }))
-    setErrors(e => { const next = { ...e }; delete next[`${priority}_${levelIdx}`]; return next })
+    setErrors(e => { const next = { ...e }; delete next[`t1_${idx}`]; delete next[`t1_${idx}_users`]; return next })
   }
 
-  function addLevel(priority) {
+  function addLevel() {
     setDraft(d => ({
       ...d,
-      trigger1Rules: d.trigger1Rules.map(rule =>
-        rule.priority !== priority ? rule : {
-          ...rule,
-          levels: [...rule.levels, { level: rule.levels.length + 1, hours: '', notifyUserIds: [] }],
-        }
-      ),
+      trigger1Levels: [...d.trigger1Levels, { level: d.trigger1Levels.length + 1, hours: '', notifyUserIds: [] }],
     }))
   }
 
-  function removeLevel(priority, levelIdx) {
+  function removeLevel(idx) {
     setDraft(d => ({
       ...d,
-      trigger1Rules: d.trigger1Rules.map(rule =>
-        rule.priority !== priority ? rule : {
-          ...rule,
-          levels: rule.levels.filter((_, i) => i !== levelIdx).map((lv, i) => ({ ...lv, level: i + 1 })),
-        }
-      ),
+      trigger1Levels: d.trigger1Levels.filter((_, i) => i !== idx).map((lv, i) => ({ ...lv, level: i + 1 })),
     }))
   }
 
   function validate() {
     const errs = {}
-    draft.trigger1Rules.forEach(rule => {
-      rule.levels.forEach((lv, i) => {
-        const h = Number(lv.hours)
-        if (!h || h <= 0) {
-          errs[`${rule.priority}_${i}`] = 'Hours required'
-          return
-        }
-        if (i > 0) {
-          const prevH = Number(rule.levels[i - 1].hours)
-          if (h <= prevH) {
-            errs[`${rule.priority}_${i}`] = `Must be > Level ${i} (${prevH}h)`
-          }
-        }
-        if (lv.notifyUserIds.length === 0) {
-          errs[`${rule.priority}_${i}_users`] = 'At least 1 user required'
-        }
-      })
+    draft.trigger1Levels.forEach((lv, i) => {
+      const h = Number(lv.hours)
+      if (!h || h <= 0) {
+        errs[`t1_${i}`] = 'Hours required'
+      } else if (i > 0) {
+        const prevH = Number(draft.trigger1Levels[i - 1].hours)
+        if (h <= prevH) errs[`t1_${i}`] = `Must be > Level ${i} (${prevH}h)`
+      }
+      if (lv.notifyUserIds.length === 0) errs[`t1_${i}_users`] = 'At least 1 user required'
     })
     if (draft.trigger2Enabled) {
       if (!draft.trigger2TicketCount || draft.trigger2TicketCount < 1)
@@ -5419,100 +5384,72 @@ function EscalationMatrixTab() {
           <Toggle checked={draft.trigger1Enabled} onChange={setTrigger1Enabled} />
         </div>
 
-        <div className={`px-4 py-4 space-y-4 ${!draft.trigger1Enabled ? 'opacity-40 pointer-events-none' : ''}`}>
-          {draft.trigger1Rules.map(rule => {
-            const isOpen = expanded[rule.priority]
-            const colors = PRIORITY_COLORS[rule.priority]
-            return (
-              <div key={rule.priority} className="border border-surface-border rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors"
-                  onClick={() => toggleExpanded(rule.priority)}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colors.badge}`}>
-                      {colors.label}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {rule.levels.length} level{rule.levels.length !== 1 ? 's' : ''} configured
-                    </span>
-                  </div>
-                  <ChevronDown size={14} className={`text-gray-400 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
-                </button>
-
-                {isOpen && (
-                  <div className="px-3 pb-3">
-                    <table className="w-full text-sm mt-3">
-                      <thead>
-                        <tr className="text-xs text-gray-500 border-b border-surface-border">
-                          <th className="text-left pb-2 pr-4 w-20">LEVEL</th>
-                          <th className="text-left pb-2 pr-4 w-32">HOURS <span className="text-red-400">*</span></th>
-                          <th className="text-left pb-2 pr-4">NOTIFY USER(S) <span className="text-red-400">*</span></th>
-                          <th className="pb-2 w-10" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {rule.levels.map((lv, idx) => {
-                          const hoursErr = errors[`${rule.priority}_${idx}`]
-                          const usersErr = errors[`${rule.priority}_${idx}_users`]
-                          return (
-                            <tr key={idx} className="align-top">
-                              <td className="pr-4 pt-3 text-xs font-medium text-gray-700 whitespace-nowrap">
-                                Level {lv.level}
-                              </td>
-                              <td className="pr-4 pt-3">
-                                <input
-                                  type="number"
-                                  min="0.5"
-                                  step="0.5"
-                                  value={lv.hours}
-                                  onChange={e => updateLevel(rule.priority, idx, { hours: e.target.value })}
-                                  className={`w-24 px-2.5 py-1.5 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-brand-blue
-                                    ${hoursErr ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-brand-blue'}`}
-                                />
-                                {hoursErr && <p className="text-xs text-red-500 mt-1">{hoursErr}</p>}
-                              </td>
-                              <td className="pr-4 pt-3">
-                                <UserMultiSelect
-                                  value={lv.notifyUserIds}
-                                  onChange={ids => updateLevel(rule.priority, idx, { notifyUserIds: ids })}
-                                  users={users}
-                                />
-                                {usersErr && <p className="text-xs text-red-500 mt-1">{usersErr}</p>}
-                              </td>
-                              <td className="pt-3 text-right">
-                                <button
-                                  type="button"
-                                  disabled={rule.levels.length <= 1}
-                                  onClick={() => removeLevel(rule.priority, idx)}
-                                  className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                  title="Remove level"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-
-                    {rule.levels.length < 4 && (
+        <div className={`px-4 py-4 ${!draft.trigger1Enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 border-b border-surface-border">
+                <th className="text-left pb-2 pr-4 w-20">LEVEL</th>
+                <th className="text-left pb-2 pr-4 w-32">HOURS <span className="text-red-400">*</span></th>
+                <th className="text-left pb-2 pr-4">NOTIFY USER(S) <span className="text-red-400">*</span></th>
+                <th className="pb-2 w-10" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {draft.trigger1Levels.map((lv, idx) => {
+                const hoursErr = errors[`t1_${idx}`]
+                const usersErr = errors[`t1_${idx}_users`]
+                return (
+                  <tr key={idx} className="align-top">
+                    <td className="pr-4 pt-3 text-xs font-medium text-gray-700 whitespace-nowrap">
+                      Level {lv.level}
+                    </td>
+                    <td className="pr-4 pt-3">
+                      <input
+                        type="number"
+                        min="0.5"
+                        step="0.5"
+                        value={lv.hours}
+                        onChange={e => updateLevel(idx, { hours: e.target.value })}
+                        className={`w-24 px-2.5 py-1.5 text-sm border rounded-lg outline-none focus:ring-1 focus:ring-brand-blue
+                          ${hoursErr ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-brand-blue'}`}
+                      />
+                      {hoursErr && <p className="text-xs text-red-500 mt-1">{hoursErr}</p>}
+                    </td>
+                    <td className="pr-4 pt-3">
+                      <UserMultiSelect
+                        value={lv.notifyUserIds}
+                        onChange={ids => updateLevel(idx, { notifyUserIds: ids })}
+                        users={users}
+                      />
+                      {usersErr && <p className="text-xs text-red-500 mt-1">{usersErr}</p>}
+                    </td>
+                    <td className="pt-3 text-right">
                       <button
                         type="button"
-                        onClick={() => addLevel(rule.priority)}
-                        className="mt-3 flex items-center gap-1.5 text-xs text-brand-blue hover:text-blue-700 font-medium"
+                        disabled={draft.trigger1Levels.length <= 1}
+                        onClick={() => removeLevel(idx)}
+                        className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Remove level"
                       >
-                        <Plus size={13} />
-                        Add Level
+                        <Trash2 size={13} />
                       </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+
+          {draft.trigger1Levels.length < 4 && (
+            <button
+              type="button"
+              onClick={addLevel}
+              className="mt-3 flex items-center gap-1.5 text-xs text-brand-blue hover:text-blue-700 font-medium"
+            >
+              <Plus size={13} />
+              Add Level
+            </button>
+          )}
         </div>
       </div>
 
