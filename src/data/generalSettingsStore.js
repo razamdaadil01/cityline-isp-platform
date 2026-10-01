@@ -32,6 +32,14 @@ let _settings = {
   outageTicketThreshold: 5,
   outageTimeWindowMinutes: 60,
   cleaningIntervalDays: 60,
+  inventorySettings: {
+    entityId: 'ENT-001',
+    requirePOApproval: false,
+    allowHardwareOutsidePO: false,
+    poTerms: 'Payment due within agreed terms. Goods must match PO specification.',
+    defaultGST: 18,
+    poNumberFormat: 'CITY/PO/{YYYY}/{00001}',
+  },
   whatsappBusinessNumber: '+91 98765 43210',
   smsProvider: 'msg91',
   notifications: {

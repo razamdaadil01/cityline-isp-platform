@@ -39,7 +39,7 @@ import {
   getCustomFields, addCustomField, updateCustomField, deleteCustomField,
 } from '../data/fieldConfigStore'
 import {
-  getCompanyEntities, subscribeCompanyEntities, saveCompanyEntity, setCompanyEntityStatus,
+  getCompanyEntities, getActiveCompanyEntities, subscribeCompanyEntities, saveCompanyEntity, setCompanyEntityStatus,
   isValidGstin, PG_CONNECTIONS, formatInvoiceNumber, GSP_PROVIDERS,
 } from '../data/companyEntities'
 import {
@@ -60,6 +60,7 @@ import {
 import { getEscalationMatrix, saveEscalationMatrix, subscribeEscalationMatrix } from '../data/escalationStore'
 import { getActiveUsers, subscribeUsers } from '../data/userStore'
 import { getGeneralSettings, saveGeneralSettings, subscribeGeneralSettings } from '../data/generalSettingsStore'
+import { getInventorySettings, saveInventorySettings, formatPoNumber } from '../data/inventorySettingsStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -181,10 +182,23 @@ const NOTIF_GROUPS = [
 
 function GeneralTab() {
   const [form, setForm] = useState(getGeneralSettings)
-  const [open, setOpen] = useState({ company: true, billing: false, support: false, outage: false, pop: false, notifications: false })
+  const [open, setOpen] = useState({ company: true, billing: false, support: false, outage: false, pop: false, inventory: false, notifications: false })
   const [toast, setToast] = useState('')
 
+  const _firstEntityId = () => {
+    const entities = getActiveCompanyEntities()
+    return entities.length > 0 ? entities[0].id : null
+  }
+  const [invEntityId, setInvEntityId] = useState(_firstEntityId)
+  const [invForm, setInvForm] = useState(() => invEntityId ? getInventorySettings(invEntityId) : {
+    poApprovalRequired: false, allowOutsidePOHardware: false, poTerms: '', defaultGstPercent: 18, poNumberFormat: 'CITY/PO/{YYYY}/{00001}',
+  })
+
   useEffect(() => subscribeGeneralSettings(setForm), [])
+
+  useEffect(() => {
+    if (invEntityId) setInvForm(getInventorySettings(invEntityId))
+  }, [invEntityId])
 
   useEffect(() => {
     if (toast) {
@@ -212,8 +226,19 @@ function GeneralTab() {
   const slaAllPositive = [slaP1, slaP2, slaP3, slaP4].every(n => Number.isFinite(n) && n > 0)
   const slaOrdered = slaAllPositive && slaP1 < slaP2 && slaP2 < slaP3 && slaP3 < slaP4
 
+  function setInvField(k, v) { setInvForm(f => ({ ...f, [k]: v })) }
+
   function handleSave() {
     saveGeneralSettings(form)
+    if (invEntityId) {
+      saveInventorySettings(invEntityId, {
+        poApprovalRequired: invForm.poApprovalRequired,
+        allowOutsidePOHardware: invForm.allowOutsidePOHardware,
+        poTerms: (invForm.poTerms ?? '').trim(),
+        defaultGstPercent: Number(invForm.defaultGstPercent),
+        poNumberFormat: (invForm.poNumberFormat ?? '').trim(),
+      })
+    }
     setToast('General settings saved successfully')
   }
 
@@ -426,7 +451,72 @@ function GeneralTab() {
         </div>
       </div>
 
-      {/* Section 6: Notifications */}
+      {/* Section 6: Inventory & Procurement */}
+      <div className="border border-surface-border rounded-xl overflow-hidden">
+        <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('inventory')}>
+          <span className="text-sm font-semibold text-gray-900">Inventory &amp; Procurement</span>
+          <ChevronDown size={15} className={`text-gray-400 transition-transform ${open.inventory ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-[grid-template-rows] duration-200 ${open.inventory ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-5 py-5 space-y-4">
+              {/* Entity selector */}
+              {(() => {
+                const entities = getActiveCompanyEntities()
+                return entities.length > 1 ? (
+                  <FormField label="Company / Entity">
+                    <Select value={invEntityId ?? ''} onChange={e => setInvEntityId(e.target.value)}>
+                      {entities.map(en => (
+                        <option key={en.id} value={en.id}>{en.name}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                ) : null
+              })()}
+
+              {/* PO approval toggle */}
+              <div className="flex items-center justify-between py-2 border-b border-surface-border">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Require PO Approval</p>
+                  <p className="text-xs text-gray-500 mt-0.5">New purchase orders must be approved before being sent to suppliers.</p>
+                </div>
+                <Toggle checked={invForm.poApprovalRequired} onChange={v => setInvField('poApprovalRequired', v)} />
+              </div>
+
+              {/* Allow hardware outside PO toggle */}
+              <div className="flex items-center justify-between py-2 border-b border-surface-border">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Allow Hardware Outside PO</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Allow hardware items to be added to inventory without a linked purchase order.</p>
+                </div>
+                <Toggle checked={invForm.allowOutsidePOHardware} onChange={v => setInvField('allowOutsidePOHardware', v)} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Default GST % */}
+                <FormField label="Default GST (%)">
+                  <Input type="number" min="0" max="100" value={invForm.defaultGstPercent} onChange={e => setInvField('defaultGstPercent', e.target.value)} />
+                </FormField>
+
+                {/* PO number format */}
+                <FormField label="PO Number Format">
+                  <Input value={invForm.poNumberFormat} onChange={e => setInvField('poNumberFormat', e.target.value)} placeholder="CITY/PO/{YYYY}/{00001}" />
+                  {invForm.poNumberFormat.trim() && (
+                    <p className="mt-1 text-xs text-gray-400">Preview: <span className="font-mono text-brand-blue">{formatPoNumber(invForm.poNumberFormat, 1)}</span></p>
+                  )}
+                </FormField>
+              </div>
+
+              {/* PO Terms */}
+              <FormField label="PO Terms">
+                <Textarea value={invForm.poTerms} onChange={e => setInvField('poTerms', e.target.value)} rows={3} placeholder="Payment due within agreed terms. Goods must match PO specification." />
+              </FormField>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 7: Notifications */}
       <div className="border border-surface-border rounded-xl overflow-hidden">
         <button type="button" className="w-full flex items-center justify-between px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors" onClick={() => toggleSection('notifications')}>
           <span className="text-sm font-semibold text-gray-900">Notifications</span>

@@ -80,7 +80,6 @@ import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
 import VendorList from './pages/inventory/VendorList'
 import VendorDetail from './pages/inventory/VendorDetail'
 import StoreList from './pages/inventory/StoreList'
-import InventorySettings from './pages/inventory/InventorySettings'
 import PurchaseOrders from './pages/inventory/PurchaseOrders'
 import CreatePO from './pages/inventory/CreatePO'
 import PODetail from './pages/inventory/PODetail'
@@ -239,7 +238,7 @@ export default function App() {
           <Route path="/inventory/vendors/:id" element={<VendorDetail />} />
           <Route path="/inventory/vendors/:id/:tab" element={<VendorDetail />} />
           <Route path="/inventory/stores" element={<StoreList />} />
-          <Route path="/inventory/settings" element={<InventorySettings />} />
+          <Route path="/inventory/settings" element={<Navigate to="/settings?section=general" replace />} />
           <Route path="/inventory/purchase-orders" element={<PurchaseOrders />} />
           <Route path="/inventory/purchase-orders/new" element={<CreatePO />} />
           <Route
