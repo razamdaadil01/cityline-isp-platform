@@ -15,7 +15,6 @@ import { addPayment, nextReceiptNo } from '../data/paymentsStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
-import { getApplicableDiscount, redeemDiscount } from '../data/discountStore'
 
 const BILLING_MOCK_ROWS = [
   {
@@ -517,10 +516,6 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponError, setCouponError] = useState('')
 
-  const [appliedDiscount, setAppliedDiscount] = useState(null)
-  const [discountSuggestion, setDiscountSuggestion] = useState(null) // discount object to suggest
-  const [discountDismissed, setDiscountDismissed] = useState(false)
-
   const [errors, setErrors] = useState({})
 
   // Close customer dropdown on outside click
@@ -529,18 +524,6 @@ function CreateInvoiceModal({ onClose, onCreated }) {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
-
-  // Re-check discount suggestion whenever package changes
-  useEffect(() => {
-    setAppliedDiscount(null)
-    setDiscountDismissed(false)
-    if (packageId) {
-      const d = getApplicableDiscount(packageId)
-      setDiscountSuggestion(d)
-    } else {
-      setDiscountSuggestion(null)
-    }
-  }, [packageId])
 
   const plans = getPlans().filter(p => p.status === 'Active')
   const selectedPlan = plans.find(p => p.id === packageId) || null
@@ -558,13 +541,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   const baseAmount   = packagePrice + addonsTotal
 
   let discountAmount = 0
-  if (appliedDiscount) {
-    if (appliedDiscount.discountType === 'percentage') {
-      discountAmount = Math.round(packagePrice * appliedDiscount.discountValue / 100)
-    } else {
-      discountAmount = Math.min(appliedDiscount.discountValue, packagePrice)
-    }
-  } else if (appliedCoupon) {
+  if (appliedCoupon) {
     if (appliedCoupon.discountType === 'percentage') {
       discountAmount = Math.round(baseAmount * appliedCoupon.discountValue / 100 * 100) / 100
     } else {
@@ -577,24 +554,6 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   const totalAmount   = taxableAmount + cgst + sgst
 
   const fmtAmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  // ── Discount ─────────────────────────────────────────────────────────────────
-  function handleApplyDiscount() {
-    if (!discountSuggestion) return
-    const amt = discountSuggestion.discountType === 'percentage'
-      ? Math.round(packagePrice * discountSuggestion.value / 100)
-      : Math.min(discountSuggestion.value, packagePrice)
-    setAppliedDiscount({
-      discountId: discountSuggestion.id,
-      discountName: discountSuggestion.name,
-      discountType: discountSuggestion.discountType,
-      discountValue: discountSuggestion.value,
-      discountAmount: amt,
-    })
-  }
-  function handleRemoveDiscount() {
-    setAppliedDiscount(null)
-  }
 
   // ── Coupon ──────────────────────────────────────────────────────────────────
   function handleApplyCoupon() {
@@ -645,9 +604,9 @@ function CreateInvoiceModal({ onClose, onCreated }) {
       services,
       addons:        MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)),
       couponCode:    appliedCoupon?.code || '',
-      discountType:  appliedDiscount?.discountType || appliedCoupon?.discountType || '',
-      discountValue: appliedDiscount?.discountValue || appliedCoupon?.discountValue || 0,
-      discountName:  appliedDiscount?.discountName || '',
+      discountType:  appliedCoupon?.discountType || '',
+      discountValue: appliedCoupon?.discountValue || 0,
+      discountName:  '',
       discountAmount,
       baseAmount,
       taxableAmount,
@@ -664,9 +623,6 @@ function CreateInvoiceModal({ onClose, onCreated }) {
       notes,
     })
 
-    if (appliedDiscount?.discountId) {
-      redeemDiscount(appliedDiscount.discountId)
-    }
     if (appliedCoupon?.code) {
       redeemCoupon(appliedCoupon.code, 'admin')
     }
@@ -747,53 +703,6 @@ function CreateInvoiceModal({ onClose, onCreated }) {
             ))}
           </select>
           {errors.packageId && <p className="text-xs text-red-500">{errors.packageId}</p>}
-
-          {/* Discount suggestion banner */}
-          {discountSuggestion && !appliedDiscount && !appliedCoupon && !discountDismissed && (
-            <div className="flex items-center justify-between gap-3 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2.5 mt-1.5">
-              <span className="text-sm text-sky-800">
-                🏷️ <span className="font-semibold">'{discountSuggestion.name}'</span> applicable —{' '}
-                {discountSuggestion.discountType === 'percentage'
-                  ? `${discountSuggestion.value}% off`
-                  : `₹${discountSuggestion.value} off`}. Apply?
-              </span>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleApplyDiscount}
-                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors"
-                >
-                  Apply Discount
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDiscountDismissed(true)}
-                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-white border border-sky-300 text-sky-700 hover:bg-sky-50 transition-colors"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Applied discount badge */}
-          {appliedDiscount && (
-            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mt-1.5">
-              <span className="text-sm text-emerald-700 font-medium">
-                ✓ Discount applied: {appliedDiscount.discountName} —{' '}
-                {appliedDiscount.discountType === 'percentage'
-                  ? `${appliedDiscount.discountValue}%`
-                  : `₹${appliedDiscount.discountValue}`} off
-              </span>
-              <button
-                type="button"
-                onClick={handleRemoveDiscount}
-                className="text-xs text-red-500 hover:text-red-700 font-semibold ml-3"
-              >
-                Remove
-              </button>
-            </div>
-          )}
         </div>
 
         {MOCK_ADDONS.length > 0 && (
@@ -892,9 +801,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
             </div>
             {discountAmount > 0 && (
               <div className="flex justify-between">
-                <span className="text-emerald-600">
-                  {appliedDiscount ? `Discount (${appliedDiscount.discountName})` : 'Discount (coupon)'}
-                </span>
+                <span className="text-emerald-600">Discount (coupon)</span>
                 <span className="font-mono text-emerald-600">-{fmtAmt(discountAmount)}</span>
               </div>
             )}
@@ -923,21 +830,15 @@ function CreateInvoiceModal({ onClose, onCreated }) {
         <div className="relative group/coupon">
           <button
             type="button"
-            disabled={!!appliedDiscount}
-            onClick={() => { if (!appliedDiscount) setCouponExpanded(v => !v) }}
-            className={`flex items-center gap-2 text-sm font-medium transition-colors ${appliedDiscount ? 'text-gray-300 cursor-not-allowed' : 'text-brand-blue hover:text-brand-blue/80'}`}
+            onClick={() => setCouponExpanded(v => !v)}
+            className="flex items-center gap-2 text-sm font-medium transition-colors text-brand-blue hover:text-brand-blue/80"
           >
             <Tag size={14} />
             {appliedCoupon ? `Coupon applied: ${appliedCoupon.code}` : 'Apply Coupon'}
             <ChevronDown size={14} className={`transition-transform ${couponExpanded ? 'rotate-180' : ''}`} />
           </button>
-          {appliedDiscount && (
-            <div className="absolute left-0 top-full mt-1 whitespace-nowrap text-xs bg-gray-800 text-white px-2 py-1 rounded opacity-0 group-hover/coupon:opacity-100 pointer-events-none z-10 transition-opacity">
-              Remove the discount to apply a coupon instead
-            </div>
-          )}
         </div>
-        {!appliedDiscount && couponExpanded && (
+        {couponExpanded && (
           <div className="mt-3 space-y-2">
             {appliedCoupon ? (
               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2.5">
