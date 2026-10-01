@@ -304,6 +304,7 @@ export default function App() {
           <Route path="/settings/area-mapping/locality" element={<AreaMapping />} />
           <Route path="/settings/area-mapping/sub-locality" element={<AreaMapping />} />
           <Route path="/notification-settings" element={<NotificationSettings />} />
+          <Route path="/notifications" element={<Navigate to="/settings?section=general" replace />} />
           <Route path="/resellers" element={<Resellers />} />
           <Route path="/resellers/:id" element={<ResellerDetail />} />
           <Route path="/users" element={<UserManagement />} />
