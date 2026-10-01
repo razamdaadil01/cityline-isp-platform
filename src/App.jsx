@@ -74,7 +74,6 @@ import POPView from './pages/POPView'
 import POPWorkOrders from './pages/POPWorkOrders'
 import POPWorkOrderDetail from './pages/POPWorkOrderDetail'
 import POPWorkOrderView from './pages/POPWorkOrderView'
-import POPInventory from './pages/POPInventory'
 import POPReports from './pages/POPReports'
 import ProductList from './pages/inventory/ProductList'
 import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
@@ -224,14 +223,17 @@ export default function App() {
           <Route path="/network/pops" element={<POPManagement />} />
           <Route path="/network/pops/dashboard" element={<POPDashboard />} />
           <Route path="/network/pops/new" element={<POPDetail />} />
-          <Route path="/network/pops/work-orders" element={<POPWorkOrders />} />
+          <Route path="/network/pops/work-orders" element={<Navigate to="/network/pops" replace />} />
           <Route path="/network/pops/work-orders/new" element={<POPWorkOrderDetail />} />
           <Route path="/network/pops/work-orders/:id" element={<POPWorkOrderView />} />
           <Route path="/network/pops/work-orders/:id/edit" element={<POPWorkOrderDetail />} />
           <Route path="/network/pops/reports" element={<POPReports />} />
-          <Route path="/network/pops/:id/inventory" element={<POPInventory />} />
           <Route path="/network/pops/:id/edit" element={<POPDetail />} />
-          <Route path="/network/pops/:id" element={<POPView />} />
+          <Route path="/network/pops/:id/overview" element={<POPView />} />
+          <Route path="/network/pops/:id/work-orders" element={<POPView />} />
+          <Route path="/network/pops/:id/inventory" element={<POPView />} />
+          <Route path="/network/pops/:id/reports" element={<POPView />} />
+          <Route path="/network/pops/:id" element={<Navigate to="overview" replace />} />
           <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
           <Route path="/inventory/overview" element={<InventoryOverview />} />
           <Route path="/inventory/products" element={<ProductList />} />
