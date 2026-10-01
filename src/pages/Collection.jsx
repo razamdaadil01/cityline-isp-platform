@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Download, SlidersHorizontal, X, CheckCircle, IndianRupee, Clock, ChevronDown } from 'lucide-react'
 import {
-  getCollections, subscribeCollections, updateCollection,
+  getCollections, subscribeCollections, updateCollection, getCollection,
   getTotalAmount, getTotalReceived, getTotalPending,
 } from '../data/collectionStore'
 
@@ -305,14 +306,38 @@ export default function Collection() {
   const [totalReceived, setTotalReceived] = useState(getTotalReceived)
   const [totalPending,  setTotalPending]  = useState(getTotalPending)
 
+  const [searchParams, setSearchParams] = useSearchParams()
+  const modalParam = searchParams.get('modal')
+  const idParam    = searchParams.get('id')
+  const modal = modalParam === 'record-payment' && idParam
+    ? (getCollection(idParam) ?? null)
+    : null
+
   const [tab,        setTab]        = useState('all')     // 'all' | 'paid' | 'pending'
   const [search,     setSearch]     = useState('')
   const [filters,    setFilters]    = useState({ engineer: '', refType: '', from: '', to: '', status: '' })
   const [showFilters, setShowFilters] = useState(false)
-  const [modal,      setModal]      = useState(null)      // collection record or null
   const [selected,   setSelected]   = useState(new Set())
   const [page,       setPage]       = useState(1)
   const [perPage,    setPerPage]    = useState(10)
+
+  function openModal(record) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'record-payment')
+      next.set('id', record.id)
+      return next
+    }, { replace: true })
+  }
+
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('id')
+      return next
+    }, { replace: true })
+  }
 
   useEffect(() => subscribeCollections(records => {
     setCollections(records)
@@ -507,7 +532,7 @@ export default function Collection() {
                       </span>
                     ) : (
                       <button
-                        onClick={() => setModal(r)}
+                        onClick={() => openModal(r)}
                         className="px-3 py-1.5 text-xs font-semibold border border-brand-blue text-brand-blue rounded-lg hover:bg-brand-blue hover:text-white transition-colors whitespace-nowrap"
                       >
                         Record Payment
@@ -559,8 +584,8 @@ export default function Collection() {
       {modal && (
         <RecordPaymentModal
           record={modal}
-          onClose={() => setModal(null)}
-          onSave={(id, fields) => { handleSavePayment(id, fields); setModal(null) }}
+          onClose={closeModal}
+          onSave={(id, fields) => { handleSavePayment(id, fields); closeModal() }}
         />
       )}
 
