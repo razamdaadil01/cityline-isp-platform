@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Edit2, Boxes, FileText, Wrench, Plus, MoreVertical,
-  LayoutDashboard, ClipboardList, BarChart2,
+  LayoutDashboard,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -12,7 +12,7 @@ import {
 } from '../data/popStore'
 import {
   getWorkOrdersForEquipment, getWorkOrdersForPOP, subscribeWorkOrders,
-  slaStatusOf, WORK_ORDER_CATEGORIES, WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES,
+  slaStatusOf,
 } from '../data/workOrderStore'
 import { getAllTechnicians } from '../data/technicianHelpers'
 import { getUsers } from '../data/userStore'
@@ -34,7 +34,6 @@ const TABS = [
   { id: 'overview',     label: 'Overview',     icon: LayoutDashboard },
   { id: 'work-orders',  label: 'Work Orders',  icon: Wrench          },
   { id: 'inventory',    label: 'Inventory',    icon: Boxes           },
-  { id: 'reports',      label: 'Reports',      icon: BarChart2       },
 ]
 
 function Field({ label, children }) {
@@ -120,26 +119,6 @@ export default function POPView() {
   function goTab(tabId) {
     navigate(`/network/pops/${pop.id}/${tabId}`)
   }
-
-  // ── Reports stats ────────────────────────────────────────────────────────
-  const reportStats = useMemo(() => {
-    const total = workOrders.length
-    const open = workOrders.filter(w => !['Resolved', 'Closed'].includes(w.status)).length
-    const completed = workOrders.filter(w => ['Resolved', 'Closed'].includes(w.status)).length
-    const breached = workOrders.filter(w => slaStatusOf(w) === 'Breached').length
-    const completedWithTat = workOrders.filter(w => w.resolvedAt && w.createdAt && ['Resolved', 'Closed'].includes(w.status))
-    const avgTat = completedWithTat.length > 0
-      ? (completedWithTat.reduce((sum, w) => {
-          const days = (new Date(w.resolvedAt) - new Date(w.createdAt)) / (1000 * 60 * 60 * 24)
-          return sum + days
-        }, 0) / completedWithTat.length).toFixed(1)
-      : null
-    const byStatus = WORK_ORDER_STATUSES.map(s => ({
-      status: s,
-      count: workOrders.filter(w => w.status === s).length,
-    }))
-    return { total, open, completed, breached, avgTat, byStatus }
-  }, [workOrders])
 
   return (
     <div className="p-6 pb-10">
@@ -585,100 +564,6 @@ export default function POPView() {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Tab: Reports ──────────────────────────────────────────────── */}
-      {activeTab === 'reports' && (
-        <div className="space-y-5">
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[
-              { label: 'Total Work Orders',    value: reportStats.total,    color: 'text-gray-800'    },
-              { label: 'Open Work Orders',      value: reportStats.open,     color: 'text-blue-600'    },
-              { label: 'Completed',             value: reportStats.completed, color: 'text-green-600'  },
-              { label: 'SLA Breached',          value: reportStats.breached, color: 'text-red-600'     },
-              { label: 'Avg TAT (days)',        value: reportStats.avgTat != null ? reportStats.avgTat : '—', color: 'text-gray-700' },
-            ].map(card => (
-              <div key={card.label} className="bg-white rounded-xl border border-surface-border shadow-card p-4">
-                <p className="text-xs text-gray-500 font-medium">{card.label}</p>
-                <p className={`text-2xl font-bold mt-1 ${card.color}`}>{card.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Status breakdown */}
-          <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Work Order Status Breakdown</h3>
-            <div className="space-y-3">
-              {reportStats.byStatus.map(({ status, count }) => {
-                const pct = reportStats.total > 0 ? Math.round((count / reportStats.total) * 100) : 0
-                const variant = WO_STATUS_BADGE[status] ?? 'gray'
-                const barColor = {
-                  blue: 'bg-blue-500', indigo: 'bg-indigo-500', orange: 'bg-orange-500',
-                  yellow: 'bg-yellow-400', green: 'bg-green-500', gray: 'bg-gray-300',
-                }[variant] ?? 'bg-gray-300'
-                return (
-                  <div key={status} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-600 w-24 shrink-0">{status}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div className={`${barColor} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-500 w-8 text-right">{count}</span>
-                  </div>
-                )
-              })}
-              {reportStats.total === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">No work orders yet.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Work order list grouped by status */}
-          {reportStats.total > 0 && (
-            <div className="space-y-4">
-              {WORK_ORDER_STATUSES.filter(s => workOrders.some(w => w.status === s)).map(status => (
-                <div key={status} className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
-                  <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60 flex items-center gap-2">
-                    <Badge variant={WO_STATUS_BADGE[status] ?? 'gray'} dot size="sm">{status}</Badge>
-                    <span className="text-xs text-gray-500">{workOrders.filter(w => w.status === status).length} work order{workOrders.filter(w => w.status === status).length === 1 ? '' : 's'}</span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <tbody className="divide-y divide-surface-border">
-                        {workOrders.filter(w => w.status === status).map(wo => {
-                          const sla = slaStatusOf(wo)
-                          return (
-                            <tr
-                              key={wo.id}
-                              onClick={() => navigate(`/network/pops/work-orders/${wo.id}`)}
-                              className="cursor-pointer hover:bg-gray-50/70 transition-colors"
-                            >
-                              <td className="px-4 py-3 font-mono text-xs text-gray-700 whitespace-nowrap w-32">{wo.id}</td>
-                              <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{wo.category}</td>
-                              <td className="px-4 py-3">
-                                <Badge variant={PRIORITY_BADGE[wo.priority] ?? 'gray'} size="sm">{wo.priority}</Badge>
-                              </td>
-                              <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                                {formatDateTime(wo.slaDate)}
-                                <Badge variant={SLA_BADGE[sla]} size="sm" className="ml-2">{sla}</Badge>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="text-right">
-            <Link to="/network/pops/reports" className="text-sm text-brand-blue hover:underline">
-              View Full Reports →
-            </Link>
           </div>
         </div>
       )}
