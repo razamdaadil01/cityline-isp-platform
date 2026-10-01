@@ -119,6 +119,7 @@ const NAV_ITEMS = [
       { label: 'Assign to User',     icon: UserPlus,          to: '/inventory/assign-to-user' },
       { label: 'Store Transfer',     icon: ArrowLeftRight,    to: '/inventory/store-transfer' },
       { label: 'Asset Management',   icon: HardDrive,         to: '/assets' },
+      { label: 'Stock Verification', icon: ShieldCheck,       to: '/inventory/stock-verification' },
       { heading: 'Configuration' },
       { label: 'Product Management', icon: Tag,               to: '/inventory/products' },
       { label: 'Product Taxonomy',   icon: ListTree,           to: '/inventory/product-taxonomy' },
