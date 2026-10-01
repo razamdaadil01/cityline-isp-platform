@@ -1,15 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
-  Plus, Pencil, Trash2, Copy, Check, Percent, IndianRupee,
+  Plus, Pencil, Trash2, Copy, Check,
   Tag, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
-import {
-  getDiscounts, subscribeDiscounts, saveDiscount,
-  setDiscountStatus, deleteDiscount,
-} from '../data/discountStore'
 import {
   getCoupons, subscribeCoupons, saveCoupon,
   setCouponStatus, deleteCoupon, applyCoupon as validateCoupon,
@@ -25,21 +20,6 @@ function fmtDate(d) {
 
 function isExpired(validTo) {
   return validTo && today > validTo
-}
-
-function TypeBadge({ discountType, value }) {
-  if (discountType === 'percentage') {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-        <Percent size={10} />{value}%
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-      <IndianRupee size={10} />₹{value}
-    </span>
-  )
 }
 
 function PackageNames({ applicablePackages, plans }) {
@@ -101,120 +81,6 @@ function PackageMultiSelect({ value, onChange, plans }) {
         </label>
       ))}
     </div>
-  )
-}
-
-// ─── Discount Modal ─────────────────────────────────────────────────────────
-function DiscountModal({ existing, onClose, plans }) {
-  const [name, setName] = useState(existing?.name ?? '')
-  const [discountType, setDiscountType] = useState(existing?.discountType ?? 'percentage')
-  const [value, setValue] = useState(existing?.value ?? '')
-  const [applicablePackages, setApplicablePackages] = useState(existing?.applicablePackages ?? ['all'])
-  const [validFrom, setValidFrom] = useState(existing?.validFrom ?? today)
-  const [validTo, setValidTo] = useState(existing?.validTo ?? '')
-  const [noExpiry, setNoExpiry] = useState(!existing?.validTo)
-  const [maxUses, setMaxUses] = useState(existing?.maxUses ?? 0)
-  const [unlimited, setUnlimited] = useState(!existing?.maxUses)
-  const [errors, setErrors] = useState({})
-
-  function validate() {
-    const e = {}
-    if (!name.trim()) e.name = 'Required'
-    if (!value || Number(value) <= 0) e.value = 'Must be > 0'
-    if (!applicablePackages.length) e.packages = 'Select at least one'
-    if (!validFrom) e.validFrom = 'Required'
-    if (!noExpiry && validTo && validTo <= validFrom) e.validTo = 'Must be after Valid From'
-    return e
-  }
-
-  function handleSave() {
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
-    saveDiscount({
-      ...(existing || {}),
-      name: name.trim(),
-      discountType,
-      value: Number(value),
-      applicablePackages,
-      validFrom,
-      validTo: noExpiry ? '' : validTo,
-      maxUses: unlimited ? 0 : Number(maxUses),
-      usedCount: existing?.usedCount ?? 0,
-      status: existing?.status ?? true,
-    })
-    onClose()
-  }
-
-  const inputCls = (err) => `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue ${err ? 'border-red-400' : 'border-surface-border'}`
-
-  return (
-    <Modal isOpen onClose={onClose} title={existing ? 'Edit Discount' : 'Add Discount'}>
-      <div className="space-y-4 py-1">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Discount Name <span className="text-red-500">*</span></label>
-          <input value={name} onChange={e => { setName(e.target.value); setErrors(v => ({ ...v, name: '' })) }} className={inputCls(errors.name)} placeholder="e.g. Diwali Offer" />
-          {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Discount Type <span className="text-red-500">*</span></label>
-          <div className="flex gap-4">
-            {['percentage', 'flat'].map(t => (
-              <label key={t} className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" checked={discountType === t} onChange={() => setDiscountType(t)} className="text-brand-blue focus:ring-brand-blue/30" />
-                <span className="text-sm text-gray-700">{t === 'percentage' ? 'Percentage' : 'Flat Amount'}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Value <span className="text-red-500">*</span>
-            <span className="text-gray-400 font-normal ml-1">({discountType === 'percentage' ? '%' : '₹'})</span>
-          </label>
-          <input type="number" min="0.01" step="0.01" value={value} onChange={e => { setValue(e.target.value); setErrors(v => ({ ...v, value: '' })) }} className={inputCls(errors.value)} placeholder="0" />
-          {errors.value && <p className="text-xs text-red-500 mt-1">{errors.value}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Applicable Packages <span className="text-red-500">*</span></label>
-          <PackageMultiSelect value={applicablePackages} onChange={setApplicablePackages} plans={plans} />
-          {errors.packages && <p className="text-xs text-red-500 mt-1">{errors.packages}</p>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Valid From <span className="text-red-500">*</span></label>
-            <input type="date" value={validFrom} onChange={e => { setValidFrom(e.target.value); setErrors(v => ({ ...v, validFrom: '' })) }} className={inputCls(errors.validFrom)} />
-            {errors.validFrom && <p className="text-xs text-red-500 mt-1">{errors.validFrom}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Valid To</label>
-            <input type="date" value={validTo} disabled={noExpiry} onChange={e => { setValidTo(e.target.value); setErrors(v => ({ ...v, validTo: '' })) }} className={inputCls(errors.validTo)} />
-            {errors.validTo && <p className="text-xs text-red-500 mt-1">{errors.validTo}</p>}
-          </div>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer -mt-1">
-          <input type="checkbox" checked={noExpiry} onChange={e => { setNoExpiry(e.target.checked); if (e.target.checked) setValidTo('') }} className="rounded border-gray-300 text-brand-blue" />
-          <span className="text-sm text-gray-600">No expiry</span>
-        </label>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Max Uses</label>
-          <input type="number" min="0" value={maxUses} disabled={unlimited} onChange={e => setMaxUses(e.target.value)} className={inputCls(false)} placeholder="0" />
-          <label className="flex items-center gap-2 cursor-pointer mt-1.5">
-            <input type="checkbox" checked={unlimited} onChange={e => { setUnlimited(e.target.checked); if (e.target.checked) setMaxUses(0) }} className="rounded border-gray-300 text-brand-blue" />
-            <span className="text-sm text-gray-600">Unlimited uses</span>
-          </label>
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <Button variant="secondary" size="sm" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button size="sm" onClick={handleSave} className="flex-1">Save</Button>
-        </div>
-      </div>
-    </Modal>
   )
 }
 
@@ -377,97 +243,6 @@ function DeleteConfirm({ label, onConfirm, onCancel }) {
   )
 }
 
-// ─── Discounts Tab ───────────────────────────────────────────────────────────
-function DiscountsTab({ plans }) {
-  const [discounts, setDiscounts] = useState(getDiscounts)
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [deleting, setDeleting] = useState(null)
-
-  useEffect(() => subscribeDiscounts(setDiscounts), [])
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">{discounts.length} discount{discounts.length !== 1 ? 's' : ''}</p>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditing(null); setShowModal(true) }}>
-          Add Discount
-        </Button>
-      </div>
-
-      {discounts.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm">No discounts yet.</div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-surface-border">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-surface-border">
-              <tr>
-                {['DISCOUNT NAME', 'TYPE', 'VALUE', 'APPLICABLE PACKAGES', 'VALIDITY', 'USES', 'STATUS', 'ACTIONS'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border bg-white">
-              {discounts.map(d => (
-                <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{d.name}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${d.discountType === 'percentage' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {d.discountType === 'percentage' ? '%' : '₹'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-gray-700">
-                    {d.discountType === 'percentage' ? `${d.value}%` : `₹${d.value}`}
-                  </td>
-                  <td className="px-4 py-3 max-w-xs">
-                    <PackageNames applicablePackages={d.applicablePackages} plans={plans} />
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <ValidityCell validFrom={d.validFrom} validTo={d.validTo} />
-                  </td>
-                  <td className="px-4 py-3 font-mono text-gray-600 whitespace-nowrap">
-                    {d.usedCount} / {d.maxUses === 0 ? '∞' : d.maxUses}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => setDiscountStatus(d.id, !d.status)}
-                      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${d.status ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                    >
-                      {d.status ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
-                      {d.status ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => { setEditing(d); setShowModal(true) }} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors" title="Edit">
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => setDeleting(d)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {showModal && (
-        <DiscountModal existing={editing} onClose={() => setShowModal(false)} plans={plans} />
-      )}
-      {deleting && (
-        <DeleteConfirm
-          label={deleting.name}
-          onConfirm={() => { deleteDiscount(deleting.id); setDeleting(null) }}
-          onCancel={() => setDeleting(null)}
-        />
-      )}
-    </div>
-  )
-}
-
 // ─── Coupons Tab ─────────────────────────────────────────────────────────────
 function CouponsTab({ plans }) {
   const [coupons, setCoupons] = useState(getCoupons)
@@ -594,49 +369,17 @@ function CouponsTab({ plans }) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function Discounts() {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') === 'coupons' ? 'coupons' : 'discounts'
   const plans = getPlans().filter(p => p.serviceType === 'Bandwidth' && p.status === 'Active')
-
-  function setTab(t) {
-    setSearchParams({ tab: t })
-  }
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Discounts &amp; Coupons</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Manage package-level discounts and coupon codes</p>
+        <h1 className="text-xl font-bold text-gray-900">Coupons</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Manage coupon codes</p>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-surface-border">
-        <div className="flex gap-1">
-          {[{ id: 'discounts', label: 'Discounts' }, { id: 'coupons', label: 'Coupons' }].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setTab(tab.id)}
-              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                activeTab === tab.id
-                  ? 'border-brand-blue text-brand-blue'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div>
-        {activeTab === 'discounts' ? (
-          <DiscountsTab plans={plans} />
-        ) : (
-          <CouponsTab plans={plans} />
-        )}
-      </div>
+      <CouponsTab plans={plans} />
     </div>
   )
 }
