@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {
-  Search, Download, ChevronDown, MoreVertical,
+  Search, Download, ChevronDown, MoreVertical, SlidersHorizontal, X,
 } from 'lucide-react'
 import { getAssignments, subscribeAssignments } from '../../data/assignmentStore'
 import { getUserAssignments, subscribeUserAssignments } from '../../data/userAssignmentStore'
@@ -193,64 +193,159 @@ function ActionsMenu({ row, onAction }) {
   )
 }
 
-// ─── Searchable engineer dropdown ─────────────────────────────────────────────
-function EngineerFilter({ value, options, onChange }) {
-  const [open, setOpen] = useState(false)
-  const [q, setQ] = useState('')
-  const ref = useRef(null)
+// ─── Filters side drawer ──────────────────────────────────────────────────────
+function FiltersDrawer({ open, onClose, engineerOptions, onApply, onClear, initial }) {
+  const [dateFrom,        setDateFrom]        = useState(initial.dateFrom)
+  const [dateTo,          setDateTo]          = useState(initial.dateTo)
+  const [filterType,      setFilterType]      = useState(initial.filterType)
+  const [filterOwnership, setFilterOwnership] = useState(initial.filterOwnership)
+  const [filterEngineer,  setFilterEngineer]  = useState(initial.filterEngineer)
+  const [engQ,            setEngQ]            = useState('')
 
+  // Sync draft state when drawer opens with current applied values
   useEffect(() => {
-    if (!open) return
-    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [open])
+    if (open) {
+      setDateFrom(initial.dateFrom)
+      setDateTo(initial.dateTo)
+      setFilterType(initial.filterType)
+      setFilterOwnership(initial.filterOwnership)
+      setFilterEngineer(initial.filterEngineer)
+      setEngQ('')
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = options.filter(o => o.toLowerCase().includes(q.toLowerCase()))
+  const filteredEngineers = engineerOptions.filter(o => o.toLowerCase().includes(engQ.toLowerCase()))
+
+  function handleApply() {
+    onApply({ dateFrom, dateTo, filterType, filterOwnership, filterEngineer })
+    onClose()
+  }
+
+  function handleClear() {
+    setDateFrom(''); setDateTo(''); setFilterType(''); setFilterOwnership(''); setFilterEngineer('')
+    onClear()
+    onClose()
+  }
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="h-9 px-3 pr-8 border border-surface-border rounded-lg text-sm text-gray-700 bg-white hover:border-gray-400 transition-colors text-left min-w-[150px] relative"
-      >
-        <span className="truncate">{value || 'All Engineers'}</span>
-        <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-      </button>
+    <>
+      {/* Backdrop */}
       {open && (
-        <div className="absolute left-0 top-full mt-1 bg-white border border-surface-border rounded-xl shadow-lg z-20 w-56 py-1">
-          <div className="px-2 pt-2 pb-1">
+        <div
+          className="fixed inset-0 z-40 bg-black/20"
+          onClick={onClose}
+        />
+      )}
+      {/* Drawer */}
+      <div className={`
+        fixed top-0 right-0 h-full w-80 bg-white z-50 shadow-2xl flex flex-col
+        transition-transform duration-300
+        ${open ? 'translate-x-0' : 'translate-x-full'}
+      `}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-border shrink-0">
+          <h2 className="text-base font-semibold text-gray-900">Filters</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-surface-hover transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date From</label>
             <input
-              autoFocus
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder="Search engineer..."
-              className="w-full h-8 px-2.5 border border-surface-border rounded-lg text-xs focus:outline-none focus:border-brand-blue"
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue w-full"
             />
           </div>
-          <div className="max-h-48 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => { onChange(''); setOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-surface-hover ${!value ? 'font-semibold' : ''}`}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue w-full"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</label>
+            <select
+              value={filterType}
+              onChange={e => setFilterType(e.target.value)}
+              className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue bg-white w-full"
             >
-              All Engineers
-            </button>
-            {filtered.map(eng => (
+              <option value="">All Types</option>
+              <option value="Hardware">Hardware</option>
+              <option value="Wire">Wire</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Ownership</label>
+            <select
+              value={filterOwnership}
+              onChange={e => setFilterOwnership(e.target.value)}
+              className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue bg-white w-full"
+            >
+              <option value="">All Ownership</option>
+              {OWNERSHIP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Engineer</label>
+            <input
+              value={engQ}
+              onChange={e => setEngQ(e.target.value)}
+              placeholder="Search engineer..."
+              className="h-8 px-2.5 border border-surface-border rounded-lg text-xs focus:outline-none focus:border-brand-blue w-full"
+            />
+            <div className="border border-surface-border rounded-lg overflow-hidden max-h-44 overflow-y-auto">
               <button
-                key={eng}
                 type="button"
-                onClick={() => { onChange(eng); setOpen(false) }}
-                className={`w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-surface-hover ${value === eng ? 'font-semibold' : ''}`}
+                onClick={() => setFilterEngineer('')}
+                className={`w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-surface-hover border-b border-surface-border transition-colors ${!filterEngineer ? 'bg-surface-hover font-semibold' : ''}`}
               >
-                {eng}
+                All Engineers
               </button>
-            ))}
+              {filteredEngineers.map(eng => (
+                <button
+                  key={eng}
+                  type="button"
+                  onClick={() => setFilterEngineer(eng)}
+                  className={`w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-surface-hover border-b border-surface-border last:border-0 transition-colors ${filterEngineer === eng ? 'bg-surface-hover font-semibold' : ''}`}
+                >
+                  {eng}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* Footer */}
+        <div className="shrink-0 px-5 py-4 border-t border-surface-border flex gap-3">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="flex-1 h-9 rounded-xl border border-surface-border text-sm font-medium text-gray-600 hover:bg-surface-hover transition-colors"
+          >
+            Clear All
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            className="flex-1 h-9 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:bg-brand-blue/90 transition-colors"
+          >
+            Apply Filters
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -316,13 +411,21 @@ export default function StockVerification() {
     return [...set].sort()
   }, [rows])
 
-  // Filter state — applied live on every change
-  const [search,          setSearch]          = useState('')
-  const [dateFrom,        setDateFrom]        = useState('')
-  const [dateTo,          setDateTo]          = useState('')
-  const [filterType,      setFilterType]      = useState('')
-  const [filterOwnership, setFilterOwnership] = useState('')
-  const [filterEngineer,  setFilterEngineer]  = useState('')
+  // Search bar (live)
+  const [search, setSearch] = useState('')
+
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // Applied filters (committed when user clicks Apply Filters)
+  const [applied, setApplied] = useState({
+    dateFrom: '', dateTo: '', filterType: '', filterOwnership: '', filterEngineer: '',
+  })
+
+  const activeFilterCount = [
+    applied.dateFrom, applied.dateTo, applied.filterType,
+    applied.filterOwnership, applied.filterEngineer,
+  ].filter(Boolean).length
 
   // Toast
   const [toast, setToast] = useState('')
@@ -336,9 +439,13 @@ export default function StockVerification() {
   const [page,     setPage]     = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  function clearFilters() {
-    setSearch(''); setDateFrom(''); setDateTo('')
-    setFilterType(''); setFilterOwnership(''); setFilterEngineer('')
+  function handleApplyFilters(values) {
+    setApplied(values)
+    setPage(1)
+  }
+
+  function handleClearFilters() {
+    setApplied({ dateFrom: '', dateTo: '', filterType: '', filterOwnership: '', filterEngineer: '' })
     setPage(1)
   }
 
@@ -349,10 +456,11 @@ export default function StockVerification() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
+    const { dateFrom, dateTo, filterType, filterOwnership, filterEngineer } = applied
     return rows.filter(r => {
-      if (dateFrom      && r.date < dateFrom)          return false
-      if (dateTo        && r.date > dateTo)            return false
-      if (filterType    && r.type !== filterType)      return false
+      if (dateFrom       && r.date < dateFrom)           return false
+      if (dateTo         && r.date > dateTo)             return false
+      if (filterType     && r.type !== filterType)       return false
       if (filterOwnership && r.ownership !== filterOwnership) return false
       if (filterEngineer  && r.engineer !== filterEngineer)   return false
       if (q) {
@@ -368,7 +476,7 @@ export default function StockVerification() {
       }
       return true
     })
-  }, [rows, search, dateFrom, dateTo, filterType, filterOwnership, filterEngineer])
+  }, [rows, search, applied])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -391,17 +499,37 @@ export default function StockVerification() {
           {toast}
         </div>
       )}
+      {/* Drawer */}
+      <FiltersDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        engineerOptions={engineerOptions}
+        onApply={handleApplyFilters}
+        onClear={handleClearFilters}
+        initial={applied}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Stock Verification</h1>
-        <button
-          type="button"
-          onClick={() => exportCSV(filtered)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-border bg-white text-sm font-medium text-gray-700 hover:bg-surface-hover transition-colors shadow-sm"
-        >
-          <Download size={15} />
-          Download as Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-border bg-white text-sm font-medium text-gray-700 hover:bg-surface-hover transition-colors shadow-sm"
+          >
+            <SlidersHorizontal size={15} />
+            {activeFilterCount > 0 ? `Filters · ${activeFilterCount}` : 'Filters'}
+          </button>
+          <button
+            type="button"
+            onClick={() => exportCSV(filtered)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-border bg-white text-sm font-medium text-gray-700 hover:bg-surface-hover transition-colors shadow-sm"
+          >
+            <Download size={15} />
+            Download as Excel
+          </button>
+        </div>
       </div>
 
       {/* Search bar */}
@@ -413,64 +541,6 @@ export default function StockVerification() {
           placeholder="Search assignment number, engineer, product, serial/MAC, user..."
           className="w-full h-10 pl-10 pr-4 border border-surface-border rounded-xl text-sm focus:outline-none focus:border-brand-blue transition-colors"
         />
-      </div>
-
-      {/* Filter row */}
-      <div className="flex flex-wrap items-end gap-3 bg-white border border-surface-border rounded-xl p-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500">Date From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-            className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500">Date To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => { setDateTo(e.target.value); setPage(1) }}
-            className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500">Type</label>
-          <select
-            value={filterType}
-            onChange={e => { setFilterType(e.target.value); setPage(1) }}
-            className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue bg-white"
-          >
-            <option value="">All Types</option>
-            <option value="Hardware">Hardware</option>
-            <option value="Wire">Wire</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500">Ownership</label>
-          <select
-            value={filterOwnership}
-            onChange={e => { setFilterOwnership(e.target.value); setPage(1) }}
-            className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue bg-white"
-          >
-            <option value="">All Ownership</option>
-            {OWNERSHIP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500">Engineer</label>
-          <EngineerFilter value={filterEngineer} options={engineerOptions} onChange={v => { setFilterEngineer(v); setPage(1) }} />
-        </div>
-        <div className="flex items-end ml-auto">
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-sm text-brand-blue hover:underline font-medium"
-          >
-            Clear filters
-          </button>
-        </div>
       </div>
 
       {/* Table */}
