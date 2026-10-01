@@ -96,6 +96,7 @@ import Assignments from './pages/inventory/Assignments'
 import CreateAssignment from './pages/inventory/CreateAssignment'
 import AssignToUser from './pages/inventory/AssignToUser'
 import CreateUserAssignment from './pages/inventory/CreateUserAssignment'
+import StockVerification from './pages/inventory/StockVerification'
 import StoreTransfer from './pages/inventory/StoreTransfer'
 import CreateStoreTransfer from './pages/inventory/CreateStoreTransfer'
 import DeliveryChallanView from './pages/inventory/DeliveryChallanView'
@@ -261,6 +262,7 @@ export default function App() {
           <Route path="/inventory/assign-to-user" element={<AssignToUser />} />
           <Route path="/inventory/assign-to-user/new" element={<CreateUserAssignment />} />
           <Route path="/inventory/assign-to-user/:id/edit" element={<CreateUserAssignment />} />
+          <Route path="/inventory/stock-verification" element={<StockVerification />} />
           <Route path="/inventory/store-transfer" element={<StoreTransfer />} />
           <Route path="/inventory/store-transfer/new" element={<CreateStoreTransfer />} />
           <Route path="/inventory/store-transfer/:id/edit" element={<CreateStoreTransfer />} />
