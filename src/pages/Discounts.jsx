@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Pencil, Trash2, Copy, Check,
   Tag, ToggleLeft, ToggleRight,
@@ -246,12 +247,46 @@ function DeleteConfirm({ label, onConfirm, onCancel }) {
 // ─── Coupons Tab ─────────────────────────────────────────────────────────────
 function CouponsTab({ plans }) {
   const [coupons, setCoupons] = useState(getCoupons)
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [copied, setCopied] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => subscribeCoupons(setCoupons), [])
+
+  const modalParam = searchParams.get('modal')
+  const codeParam = searchParams.get('code')
+
+  const showModal = modalParam === 'add-coupon' || modalParam === 'edit-coupon'
+  const editing = modalParam === 'edit-coupon'
+    ? getCoupons().find(c => c.code === codeParam) ?? null
+    : null
+
+  function openAddModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'add-coupon')
+      next.delete('code')
+      return next
+    }, { replace: true })
+  }
+
+  function openEditModal(c) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('modal', 'edit-coupon')
+      next.set('code', c.code)
+      return next
+    }, { replace: true })
+  }
+
+  function closeModal() {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('modal')
+      next.delete('code')
+      return next
+    }, { replace: true })
+  }
 
   function handleCopy(code) {
     navigator.clipboard.writeText(code).catch(() => {})
@@ -263,7 +298,7 @@ function CouponsTab({ plans }) {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">{coupons.length} coupon{coupons.length !== 1 ? 's' : ''}</p>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => { setEditing(null); setShowModal(true) }}>
+        <Button size="sm" icon={<Plus size={14} />} onClick={openAddModal}>
           Add Coupon
         </Button>
       </div>
@@ -326,7 +361,7 @@ function CouponsTab({ plans }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => { setEditing(c); setShowModal(true) }} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors" title="Edit">
+                      <button onClick={() => openEditModal(c)} className="p-1.5 rounded-lg text-gray-400 hover:text-brand-blue hover:bg-blue-50 transition-colors" title="Edit">
                         <Pencil size={14} />
                       </button>
                       <div className="relative group/del">
@@ -354,7 +389,7 @@ function CouponsTab({ plans }) {
       )}
 
       {showModal && (
-        <CouponModal existing={editing} onClose={() => setShowModal(false)} plans={plans} />
+        <CouponModal existing={editing} onClose={closeModal} plans={plans} />
       )}
       {deleting && (
         <DeleteConfirm
