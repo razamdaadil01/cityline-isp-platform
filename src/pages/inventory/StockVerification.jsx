@@ -469,7 +469,6 @@ export default function StockVerification() {
           <table className="w-full text-sm">
             <thead className="bg-surface-muted border-b border-surface-border">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">S.NO</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Engineer</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
@@ -483,16 +482,13 @@ export default function StockVerification() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-16 text-center text-gray-400 text-sm">
+                  <td colSpan={8} className="px-4 py-16 text-center text-gray-400 text-sm">
                     No records found
                   </td>
                 </tr>
-              ) : paged.map((r, idx) => {
-                const globalIdx = (currentPage - 1) * pageSize + idx + 1
-
+              ) : paged.map(r => {
                 return (
                   <tr key={r.id} className="hover:bg-surface-hover/40 transition-colors">
-                    <td className="px-4 py-3 text-gray-500 text-xs">{globalIdx}</td>
                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.date || '—'}</td>
                     <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap">{r.engineer}</td>
                     <td className="px-4 py-3">
