@@ -229,10 +229,7 @@ export default function App() {
           <Route path="/network/pops/work-orders/:id/edit" element={<POPWorkOrderDetail />} />
           <Route path="/network/pops/reports" element={<POPReports />} />
           <Route path="/network/pops/:id/edit" element={<POPDetail />} />
-          <Route path="/network/pops/:id/overview" element={<POPView />} />
-          <Route path="/network/pops/:id/work-orders" element={<POPView />} />
-          <Route path="/network/pops/:id/inventory" element={<POPView />} />
-          <Route path="/network/pops/:id/reports" element={<POPView />} />
+          <Route path="/network/pops/:id/:tab" element={<POPView />} />
           <Route path="/network/pops/:id" element={<Navigate to="overview" replace />} />
           <Route path="/inventory" element={<Navigate to="/inventory/products" replace />} />
           <Route path="/inventory/overview" element={<InventoryOverview />} />
