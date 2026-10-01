@@ -280,30 +280,6 @@ function GeneralTab() {
               <FormField label="Registered Address">
                 <Textarea value={form.registeredAddress} onChange={e => setField('registeredAddress', e.target.value)} />
               </FormField>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Currency">
-                  <Select value={form.currency} onChange={e => setField('currency', e.target.value)}>
-                    <option value="inr">INR (₹)</option>
-                  </Select>
-                </FormField>
-                <FormField label="Timezone">
-                  <Select value={form.timezone} onChange={e => setField('timezone', e.target.value)}>
-                    <option value="ist">Asia/Kolkata (IST, UTC+5:30)</option>
-                  </Select>
-                </FormField>
-                <FormField label="Date Format">
-                  <Select value={form.dateFormat} onChange={e => setField('dateFormat', e.target.value)}>
-                    <option value="dmy">DD/MM/YYYY</option>
-                    <option value="mdy">MM/DD/YYYY</option>
-                    <option value="ymd">YYYY-MM-DD</option>
-                  </Select>
-                </FormField>
-                <FormField label="Language">
-                  <Select value={form.language} onChange={e => setField('language', e.target.value)}>
-                    <option value="en">English</option>
-                  </Select>
-                </FormField>
-              </div>
             </div>
           </div>
         </div>
