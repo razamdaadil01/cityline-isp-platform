@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  ArrowLeft, Edit2, Boxes, FileText, Wrench, Plus, MoreVertical,
-  LayoutDashboard, Server,
+  Edit2, Boxes, FileText, Wrench, Plus, MoreVertical,
+  LayoutDashboard, Server, Layers,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -51,6 +51,12 @@ function formatDateTime(iso) {
   return new Date(iso).toLocaleString('en-IN', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
   })
+}
+
+function popInitials(name) {
+  const words = (name ?? '').trim().split(/\s+/)
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
+  return (name ?? '').slice(0, 2).toUpperCase()
 }
 
 export default function POPView() {
@@ -123,49 +129,71 @@ export default function POPView() {
 
   return (
     <div className="p-6 pb-10">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/network/pops')}
-            className="w-9 h-9 flex items-center justify-center rounded-xl border border-surface-border bg-white hover:bg-gray-50 text-gray-500 transition-colors"
-          >
-            <ArrowLeft size={16} />
+      {/* ── Header card ── */}
+      <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-navy via-brand-blue to-brand-orange" />
+        <div className="px-5 lg:px-6 pt-3 pb-3 flex items-center gap-1.5 text-[12px]">
+          <button onClick={() => navigate('/network/pops')} className="text-gray-400 hover:underline transition-colors">
+            POP Management
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-gray-900">{pop.name}</h1>
-              <Badge variant={STATUS_BADGE[pop.status] ?? 'gray'} dot size="sm">{pop.status}</Badge>
-            </div>
-            <p className="text-xs text-gray-500 mt-0.5">
-              <span className="font-mono font-semibold text-brand-blue">{pop.id}</span>
-              {pop.lastCleaningDate && (
-                <span className="text-gray-400"> · Last cleaned {pop.lastCleaningDate}</span>
-              )}
-            </p>
-          </div>
+          <span className="text-gray-300">›</span>
+          <button onClick={() => navigate('/network/pops')} className="text-gray-400 hover:underline transition-colors">
+            POP List
+          </button>
+          <span className="text-gray-300">›</span>
+          <span className="text-gray-500 truncate">{pop.name}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={<Boxes size={14} />}
-            onClick={() => goTab('inventory')}
-          >
-            View Inventory
-          </Button>
-          <Button
-            size="sm"
-            icon={<Edit2 size={14} />}
-            onClick={() => navigate(`/network/pops/${pop.id}/edit`)}
-          >
-            Edit POP
-          </Button>
+        <div className="border-t border-surface-border" />
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-5">
+            {/* Avatar */}
+            <div className="w-16 h-16 rounded-2xl bg-brand-blue flex items-center justify-center text-white text-2xl font-bold shrink-0 shadow-md">
+              {popInitials(pop.name)}
+            </div>
+            {/* Core info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h1 className="text-xl font-bold text-gray-900">{pop.name}</h1>
+                <Badge variant={STATUS_BADGE[pop.status] ?? 'gray'} dot>{pop.status}</Badge>
+                <Badge variant={POP_TYPE_BADGE[pop.popType] ?? 'gray'} size="sm">{pop.popType ?? '—'}</Badge>
+              </div>
+              <p className="text-sm text-gray-500">
+                <span className="font-mono font-semibold text-brand-blue">{pop.id}</span>
+              </p>
+            </div>
+            {/* Stat cards */}
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
+                <p className="text-xs text-gray-400">Work Orders</p>
+                <p className="text-base font-bold text-gray-800">{workOrders.length}</p>
+              </div>
+              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
+                <p className="text-xs text-gray-400">Equipment</p>
+                <p className="text-base font-bold text-gray-800">{equipment.length}</p>
+              </div>
+              <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
+                <p className="text-xs text-gray-400">Category</p>
+                <p className="text-sm font-bold text-gray-800">{pop.category ?? '—'}</p>
+              </div>
+            </div>
+          </div>
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-surface-border">
+            <Button size="sm" icon={<Edit2 size={13} />} onClick={() => navigate(`/network/pops/${pop.id}/edit`)}>
+              Edit POP
+            </Button>
+            <Button variant="secondary" size="sm" icon={<Plus size={13} />} onClick={() => navigate(`/network/pops/work-orders/new?popId=${pop.id}`)}>
+              Add Work Order
+            </Button>
+            <Button variant="secondary" size="sm" icon={<Layers size={13} />} onClick={() => goTab('inventory')}>
+              View Full Inventory
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 mb-5 border-b border-surface-border">
+      <div className="flex gap-1 mt-5 mb-5 border-b border-surface-border">
         {TABS.map(t => {
           const Icon = t.icon
           const active = activeTab === t.id
