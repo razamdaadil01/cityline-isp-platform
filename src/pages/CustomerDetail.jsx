@@ -38,6 +38,9 @@ import {
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments } from '../data/paymentsStore'
 import { getTr069DeviceByCustomerId } from '../data/tr069Store'
+import {
+  LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip as RechartTooltip,
+} from 'recharts'
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
@@ -2288,18 +2291,54 @@ function NetworkMapTab({ customer }) {
 // ── Tab: TR-069 ──────────────────────────────────────────────────────────────
 
 // This app has no real TR-069/ACS backend — there's no device to actually
-// send these commands to. Rather than faking a success toast with zero
-// trace (the previous behavior), each action requires confirmation and,
-// once confirmed, is logged to this customer's Activity Log and the global
-// Audit Log — same as every other real state-changing action on this page
-// (Suspend/Terminate/Schedule Recovery/Generate Settlement) — so there's at
-// least an honest, inspectable record that a command was requested, rather
-// than a silent no-op dressed up as a real success.
+// send these commands to. Each action requires confirmation and, once
+// confirmed, is logged to this customer's Activity Log and the global Audit
+// Log — so there's at least an honest, inspectable record that a command was
+// requested, rather than a silent no-op dressed up as a real success.
+
+function rxPowerSignal(rxPower) {
+  if (rxPower > -20) return { label: 'Good',     color: 'text-emerald-600', dot: 'bg-emerald-500' }
+  if (rxPower >= -25) return { label: 'Warning',  color: 'text-amber-500',   dot: 'bg-amber-400'   }
+  return                     { label: 'Critical', color: 'text-red-500',     dot: 'bg-red-400'     }
+}
+
+function rxLineColor(rxPower) {
+  if (rxPower > -27) return '#16a34a'
+  if (rxPower >= -30) return '#f59e0b'
+  return '#ef4444'
+}
+
+function formatLastInform(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (isNaN(d)) return iso
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const dd  = String(d.getDate()).padStart(2, '0')
+  const mon = months[d.getMonth()]
+  const hh  = String(d.getHours()).padStart(2, '0')
+  const mm  = String(d.getMinutes()).padStart(2, '0')
+  return `${dd} ${mon}, ${hh}:${mm}`
+}
+
+// Generates 24-point stub optical signal data flat at rxPower
+function buildOpticalChartData(rxPower) {
+  return Array.from({ length: 24 }, (_, i) => ({ hour: i, dBm: rxPower }))
+}
+
+// Marker position on signal bar: maps [-10, -30] → [100%, 0%]
+function rxPowerBarPct(rxPower) {
+  const clamped = Math.max(-30, Math.min(-10, rxPower))
+  return Math.round(((clamped - (-30)) / 20) * 100)
+}
+
+const TR069_INNER_TABS = ['Overview', 'Network & Wi-Fi', 'Diagnostics', 'Maintenance']
+
 function TR069Tab({ customerId, setActivityLog }) {
   const device = getTr069DeviceByCustomerId(customerId)
   const navigate = useNavigate()
-  const [toast, setToast] = useState(null)
+  const [toast, setToast]               = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
+  const [innerTab, setInnerTab]           = useState('Overview')
 
   if (!device) {
     return (
@@ -2316,31 +2355,46 @@ function TR069Tab({ customerId, setActivityLog }) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // ── Remote action definitions (shared across Header buttons + Maintenance tab)
   const actions = [
     {
       label: 'Reboot Device',
       icon: <RotateCcw size={14} />,
+      iconLg: <RotateCcw size={20} />,
       style: 'bg-amber-500 hover:bg-amber-600 text-white',
+      desc: 'Restart the CPE and reconnect to ACS.',
       question: "Reboot the customer's CPE device?",
     },
     {
       label: 'Re-push PPPoE Config',
       icon: <RefreshCw size={14} />,
+      iconLg: <RefreshCw size={20} />,
       style: 'bg-brand-blue hover:bg-blue-700 text-white',
+      desc: 'Re-provision PPPoE credentials to the device.',
       question: 'Re-push the PPPoE configuration to this device?',
     },
     {
       label: 'Factory Reset',
       icon: <AlertOctagon size={14} />,
+      iconLg: <AlertOctagon size={20} />,
       style: 'bg-red-500 hover:bg-red-600 text-white',
+      desc: 'Wipe all device settings and restore factory defaults.',
       question: "Factory reset the customer's device? This would normally wipe all device settings.",
     },
     {
       label: 'Fetch Live Stats',
       icon: <Zap size={14} />,
+      iconLg: <Zap size={20} />,
       style: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+      desc: 'Pull current RX power, uptime, and connected clients.',
       question: 'Fetch live stats from this device?',
     },
+  ]
+
+  // Header-only stub actions (Refresh, Connection Request)
+  const headerStubActions = [
+    { label: 'Refresh',            icon: <RotateCcw size={13} />, question: 'Refresh device data from ACS?' },
+    { label: 'Connection Request', icon: <Activity  size={13} />, question: 'Send a connection request to the device?' },
   ]
 
   function handleConfirmAction() {
@@ -2357,126 +2411,443 @@ function TR069Tab({ customerId, setActivityLog }) {
     showToast(`${action.label} logged to Activity — no ACS integration to actually reach the device yet.`)
   }
 
+  const signal      = rxPowerSignal(device.rxPower)
+  const chartData   = buildOpticalChartData(device.rxPower)
+  const lineColor   = rxLineColor(device.rxPower)
+  const barPct      = rxPowerBarPct(device.rxPower)
+  const isOnline    = device.status === 'Online'
+
+  // ── Field-row helper used in WAN / LAN / identity cards
+  function FieldRow({ label, children }) {
+    return (
+      <div className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
+        <span className="text-xs text-gray-400">{label}</span>
+        <span className="text-xs font-mono font-semibold text-gray-800">{children}</span>
+      </div>
+    )
+  }
+
+  // ── Simple label-value grid row used in bottom identity cards
+  function GridField({ label, value }) {
+    return (
+      <div>
+        <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+        <p className="text-sm font-mono font-semibold text-gray-800 truncate">{value ?? '—'}</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-5">
-      {/* Toast */}
+    <div className="space-y-4">
+
+      {/* ── Toast ── */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-fade-in">
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-2">
           <CheckCircle size={15} className="text-emerald-400 shrink-0" />
           {toast}
         </div>
       )}
 
-      {/* Section 1 — Device Info */}
-      <div className="rounded-xl overflow-hidden border border-navy/30">
-        <div className="bg-navy px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Cpu size={15} className="text-brand-blue" />
-            <span className="text-sm font-semibold text-white">TR-069 Device Status</span>
-          </div>
-          <span className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${device.status === 'Online' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full inline-block ${device.status === 'Online' ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-            {device.status}
-          </span>
-        </div>
-        <div className="bg-[#0c1f38] px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-          {[
-            ['Device Model',        device.model],
-            ['Firmware Version',    device.firmware],
-            ['Hardware Version',    device.hardware],
-            ['Serial Number',       device.serialNumber],
-            ['MAC Address',         device.mac],
-            ['Last Seen',           device.lastInform],
-            ['Connection Status',   null],
-            ['Uptime',              device.uptime],
-          ].map(([label, val]) => (
-            <div key={label}>
-              <p className="text-xs text-gray-400 font-medium tracking-wide">{label}</p>
-              {label === 'Connection Status' ? (
-                <span className={`flex items-center gap-1.5 mt-0.5 text-sm font-semibold ${device.status === 'Online' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  <span className={`w-2 h-2 rounded-full inline-block ${device.status === 'Online' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                  {device.status}
-                </span>
-              ) : (
-                <p className="text-sm text-white font-mono mt-0.5">{val}</p>
-              )}
+      {/* ── 1. Header bar ── */}
+      <div className="bg-white border border-surface-border rounded-xl shadow-card px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          {/* Left: identity */}
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <span className="text-lg font-bold text-gray-900 font-mono">{device.serialNumber}</span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                isOnline
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-red-50 text-red-600 border-red-200'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`} />
+                {device.status.toUpperCase()}
+              </span>
             </div>
-          ))}
+            <p className="text-xs text-gray-500">
+              {device.model} · {device.hardware} · OUI: <span className="font-mono">{device.mac}</span>
+            </p>
+          </div>
+          {/* Right: action buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            {headerStubActions.map(a => (
+              <button
+                key={a.label}
+                onClick={() => setConfirmAction(a)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                {a.icon}{a.label}
+              </button>
+            ))}
+            <button
+              onClick={() => setConfirmAction(actions[0])}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <RotateCcw size={13} />Reboot
+            </button>
+            <button
+              onClick={() => setConfirmAction(actions[2])}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <AlertOctagon size={13} />Factory Reset
+            </button>
+            <button
+              onClick={() => setConfirmAction(actions[3])}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-brand-blue/30 text-xs font-medium text-brand-blue hover:bg-brand-blue/5 transition-colors"
+            >
+              <Zap size={13} />Fetch Live Stats
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Section 2 — WAN / LAN */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* WAN */}
-        <Card>
-          <CardHeader title="WAN Status" />
-          <div className="space-y-3">
-            {[
-              ['WAN IP',          device.ip],
-              ['Gateway',         device.gateway],
-              ['DNS Primary',     device.dnsPrimary],
-              ['DNS Secondary',   device.dnsSecondary],
-              ['Connection Type', device.connectionType],
-              ['Status',          null],
-            ].map(([label, val]) => (
-              <div key={label} className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
-                <span className="text-xs text-gray-400">{label}</span>
-                {label === 'Status' ? (
-                  <span className={`flex items-center gap-1.5 text-xs font-semibold ${device.status === 'Online' ? 'text-emerald-600' : 'text-red-500'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${device.status === 'Online' ? 'bg-emerald-500' : 'bg-red-400'}`} />
-                    {device.status}
-                  </span>
-                ) : (
-                  <span className="text-xs font-mono font-semibold text-gray-800">{val}</span>
-                )}
-              </div>
-            ))}
+      {/* ── 2. Stat cards row ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'ONT Uptime',         value: device.uptime,                  icon: <Clock size={15} className="text-brand-blue" />   },
+          { label: 'Connected Clients',  value: String(device.connectedDevices), icon: <Wifi size={15} className="text-emerald-500" />   },
+          { label: 'Data Traffic Today', value: '—',                             icon: <Activity size={15} className="text-purple-500" /> },
+          { label: 'Last Inform',        value: formatLastInform(device.lastInform), icon: <Signal size={15} className="text-amber-500" /> },
+        ].map(({ label, value, icon }) => (
+          <div key={label} className="bg-white border border-surface-border rounded-xl shadow-card px-4 py-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center shrink-0">{icon}</div>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-400 truncate">{label}</p>
+              <p className="text-sm font-bold text-gray-800 font-mono truncate">{value}</p>
+            </div>
           </div>
-        </Card>
-
-        {/* LAN */}
-        <Card>
-          <CardHeader title="LAN Status" />
-          <div className="space-y-3">
-            {[
-              ['LAN IP',             device.lanIp],
-              ['Subnet Mask',        device.subnet],
-              ['DHCP Status',        device.dhcp],
-              ['Connected Devices',  String(device.connectedDevices)],
-              ['WiFi 2.4GHz',        device.wifi24],
-              ['WiFi 5GHz',          device.wifi5],
-            ].map(([label, val]) => (
-              <div key={label} className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
-                <span className="text-xs text-gray-400">{label}</span>
-                <span className={`text-xs font-semibold ${
-                  val === 'Enabled' ? 'text-emerald-600' :
-                  label === 'Connected Devices' ? 'text-brand-blue' :
-                  'text-gray-800'
-                } font-mono`}>{val}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        ))}
       </div>
 
-      {/* Section 3 — Remote Actions */}
-      <Card>
-        <CardHeader title="Remote Actions" subtitle="Commands sent directly to the CPE via TR-069" />
-        <div className="flex flex-wrap gap-3">
-          {actions.map(action => (
+      {/* ── 3. Nested tabs ── */}
+      <div className="bg-white border border-surface-border rounded-xl shadow-card overflow-hidden">
+        {/* Tab bar */}
+        <div className="flex border-b border-surface-border px-4 pt-3 gap-1">
+          {TR069_INNER_TABS.map(t => (
             <button
-              key={action.label}
-              onClick={() => setConfirmAction(action)}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${action.style}`}
+              key={t}
+              onClick={() => setInnerTab(t)}
+              className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors ${
+                innerTab === t
+                  ? 'text-brand-blue border-b-2 border-brand-blue -mb-px bg-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
-              {action.icon}
-              {action.label}
+              {t}
             </button>
           ))}
         </div>
-      </Card>
 
-      {/* Confirm modal — see the note at the top of this component */}
+        <div className="p-5">
+
+          {/* ════════════ OVERVIEW ════════════ */}
+          {innerTab === 'Overview' && (
+            <div className="space-y-4">
+
+              {/* Top two-column row */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+                {/* LEFT COLUMN */}
+                <div className="space-y-4">
+
+                  {/* Card A — Optical Signal Health */}
+                  <div className="border border-surface-border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                      <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Optical Signal Health</span>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Live Link
+                      </span>
+                    </div>
+                    <div className="px-4 py-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">RX Optical Power</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold font-mono text-gray-800">{device.rxPower} dBm</span>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            signal.label === 'Good'     ? 'bg-emerald-50 text-emerald-700' :
+                            signal.label === 'Warning'  ? 'bg-amber-50 text-amber-700' :
+                                                          'bg-red-50 text-red-600'
+                          }`}>{signal.label}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">TX Laser Power</span>
+                        <span className="text-sm font-mono font-semibold text-gray-700">1.4 dBm</span>
+                      </div>
+                      {/* Signal level bar */}
+                      <div>
+                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                          <span>Critical (-30)</span><span>Good (-10)</span>
+                        </div>
+                        <div className="relative h-3 rounded-full overflow-hidden" style={{ background: 'linear-gradient(to right, #ef4444 0%, #f59e0b 40%, #22c55e 100%)' }}>
+                          <div
+                            className="absolute top-0 bottom-0 w-2 -ml-1 rounded-full bg-white border-2 border-gray-800 shadow"
+                            style={{ left: `${barPct}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Distance</span>
+                        <span className="text-sm font-mono font-semibold text-gray-700">~0.0 km</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card B — System Health */}
+                  <div className="border border-surface-border rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                      <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">System Health</span>
+                      <button
+                        onClick={() => showToast('Polling device… (no ACS connected)')}
+                        className="text-xs font-medium text-brand-blue border border-brand-blue/30 px-2.5 py-1 rounded-lg hover:bg-brand-blue/5 transition-colors"
+                      >
+                        Poll TR-069
+                      </button>
+                    </div>
+                    <div className="px-4 py-4 space-y-4">
+                      {[
+                        { label: 'CPU Load',          value: '—', pct: null },
+                        { label: 'Memory (RAM)',       value: '—', pct: null },
+                        { label: 'Laser Temperature', value: '—', pct: null },
+                        { label: 'Supply Voltage',    value: '—', pct: null },
+                      ].map(({ label, value, pct }) => (
+                        <div key={label}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-gray-500">{label}</span>
+                            <span className="text-xs font-mono font-semibold text-gray-400">{value}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            {pct != null
+                              ? <div className="h-full bg-brand-blue rounded-full" style={{ width: `${pct}%` }} />
+                              : <div className="h-full bg-gray-200 rounded-full w-full opacity-50" />
+                            }
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN */}
+                <div className="space-y-4">
+
+                  {/* Card C — 24-Hour Optical Signal Performance */}
+                  <div className="border border-surface-border rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 mb-2">24-Hour Optical Signal Performance</p>
+                      <div className="flex items-center gap-4 text-[10px] text-gray-400">
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />Optimal (&lt;27 dBm)</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />Warning (27-30 dBm)</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />Critical (&gt;30 dBm)</span>
+                      </div>
+                    </div>
+                    <div className="px-2 pt-3 pb-2">
+                      <ResponsiveContainer width="100%" height={160}>
+                        <LineChart data={chartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+                          <XAxis dataKey="hour" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval={3} />
+                          <YAxis
+                            domain={[-35, -15]}
+                            tick={{ fontSize: 9, fill: '#94a3b8' }}
+                            tickLine={false}
+                            axisLine={false}
+                            tickFormatter={v => `${v}`}
+                            width={30}
+                          />
+                          <RechartTooltip
+                            contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff' }}
+                            formatter={v => [`${v} dBm`, 'RX Power']}
+                            labelFormatter={h => `Hour ${h}:00`}
+                          />
+                          <ReferenceLine y={-27} stroke="#22c55e" strokeDasharray="4 3" strokeWidth={1} />
+                          <ReferenceLine y={-30} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1} />
+                          <Line type="monotone" dataKey="dBm" stroke={lineColor} strokeWidth={2} dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="px-4 pb-3 text-[10px] text-gray-400 flex gap-4 flex-wrap">
+                      <span>Signal stability: <span className="text-gray-600 font-medium">Stable</span></span>
+                      <span>Max: <span className="font-mono text-gray-600">{device.rxPower} dBm</span></span>
+                      <span>Min: <span className="font-mono text-gray-600">{device.rxPower} dBm</span></span>
+                    </div>
+                  </div>
+
+                  {/* Card D — Wi-Fi Radios */}
+                  <div className="border border-surface-border rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                      <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Wi-Fi Radios</span>
+                    </div>
+                    <div className="px-4 py-4">
+                      {device.wifi24 === 'Disabled' && device.wifi5 === 'Disabled' ? (
+                        <p className="text-xs text-gray-400 py-2">No active Wi-Fi SSIDs reported.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500">WiFi 2.4GHz</span>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              device.wifi24 === 'Enabled' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
+                            }`}>{device.wifi24}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500">WiFi 5GHz</span>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              device.wifi5 === 'Enabled' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'
+                            }`}>{device.wifi5}</span>
+                          </div>
+                          <div className="flex items-center justify-between border-t border-surface-border pt-3">
+                            <span className="text-xs text-gray-500">SSID</span>
+                            <span className="text-xs font-mono font-semibold text-gray-800">{device.ssid}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom 3-column row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                {/* Card E — Device Identity */}
+                <div className="border border-surface-border rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Device Identity</span>
+                  </div>
+                  <div className="px-4 py-4 grid grid-cols-1 gap-3">
+                    <GridField label="Device Model"    value={device.model} />
+                    <GridField label="Hardware Version" value={device.hardware} />
+                    <GridField label="Firmware"        value={device.firmware} />
+                    <GridField label="Serial Number"   value={device.serialNumber} />
+                    <GridField label="MAC Address"     value={device.mac} />
+                  </div>
+                </div>
+
+                {/* Card F — Broadband & IP */}
+                <div className="border border-surface-border rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Broadband &amp; IP</span>
+                  </div>
+                  <div className="px-4 py-4 grid grid-cols-1 gap-3">
+                    <GridField label="WAN IP"          value={device.ip} />
+                    <GridField label="Gateway"         value={device.gateway} />
+                    <GridField label="DNS Primary"     value={device.dnsPrimary} />
+                    <GridField label="DNS Secondary"   value={device.dnsSecondary} />
+                    <GridField label="Connection Type" value={device.connectionType} />
+                  </div>
+                </div>
+
+                {/* Card G — Subscriber Link */}
+                <div className="border border-surface-border rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">Subscriber Link</span>
+                  </div>
+                  <div className="px-4 py-4 grid grid-cols-1 gap-3">
+                    <GridField label="Customer"      value={device.customerName} />
+                    <GridField label="User ID"       value={device.userId} />
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">Status</p>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                      }`}>{device.status}</span>
+                    </div>
+                    <GridField label="Product Class" value={device.productClass} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════ NETWORK & WI-FI ════════════ */}
+          {innerTab === 'Network & Wi-Fi' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* WAN Status */}
+              <div className="border border-surface-border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">WAN Status</span>
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  <FieldRow label="WAN IP">{device.ip}</FieldRow>
+                  <FieldRow label="Gateway">{device.gateway}</FieldRow>
+                  <FieldRow label="DNS Primary">{device.dnsPrimary}</FieldRow>
+                  <FieldRow label="DNS Secondary">{device.dnsSecondary}</FieldRow>
+                  <FieldRow label="Connection Type">{device.connectionType}</FieldRow>
+                  <div className="flex items-center justify-between border-b border-surface-border pb-2.5 last:border-0 last:pb-0">
+                    <span className="text-xs text-gray-400">Status</span>
+                    <span className={`flex items-center gap-1.5 text-xs font-semibold ${isOnline ? 'text-emerald-600' : 'text-red-500'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                      {device.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {/* LAN Status */}
+              <div className="border border-surface-border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-surface-border bg-gray-50/60">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-500">LAN Status</span>
+                </div>
+                <div className="px-4 py-4 space-y-3">
+                  <FieldRow label="LAN IP">{device.lanIp}</FieldRow>
+                  <FieldRow label="Subnet Mask">{device.subnet}</FieldRow>
+                  <FieldRow label="DHCP Status">
+                    <span className={device.dhcp === 'Enabled' ? 'text-emerald-600' : undefined}>{device.dhcp}</span>
+                  </FieldRow>
+                  <FieldRow label="Connected Devices">
+                    <span className="text-brand-blue">{String(device.connectedDevices)}</span>
+                  </FieldRow>
+                  <FieldRow label="WiFi 2.4GHz">
+                    <span className={device.wifi24 === 'Enabled' ? 'text-emerald-600' : undefined}>{device.wifi24}</span>
+                  </FieldRow>
+                  <FieldRow label="WiFi 5GHz">
+                    <span className={device.wifi5 === 'Enabled' ? 'text-emerald-600' : undefined}>{device.wifi5}</span>
+                  </FieldRow>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════ DIAGNOSTICS ════════════ */}
+          {innerTab === 'Diagnostics' && (
+            <div className="flex flex-col items-center justify-center py-14 gap-4 text-center">
+              <Server size={36} className="text-gray-300" />
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-1">Diagnostics tools will be available once ACS integration is connected.</p>
+                <p className="text-xs text-gray-400">These tools require a live TR-069/ACS backend to communicate with the device.</p>
+              </div>
+              <div className="flex gap-3 mt-2">
+                <button disabled className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-300 cursor-not-allowed">
+                  <Activity size={14} />Run Ping Test
+                </button>
+                <button disabled className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-300 cursor-not-allowed">
+                  <Zap size={14} />Run Speed Test
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ════════════ MAINTENANCE ════════════ */}
+          {innerTab === 'Maintenance' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {actions.map(action => (
+                <button
+                  key={action.label}
+                  onClick={() => setConfirmAction(action)}
+                  className="group flex items-start gap-4 p-4 rounded-xl border border-surface-border hover:border-gray-300 hover:shadow-card-hover bg-white transition-all text-left"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white ${action.style.split(' ')[0]}`}>
+                    {action.iconLg}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 mb-0.5">{action.label}</p>
+                    <p className="text-xs text-gray-400">{action.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* ── Confirm modal — keep all existing logic unchanged ── */}
       <Modal
         isOpen={!!confirmAction}
         onClose={() => setConfirmAction(null)}
