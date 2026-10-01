@@ -92,7 +92,6 @@ const NAV_ITEMS = [
     ],
   },
   { label: 'Packages',         icon: Boxes,           to: '/packages'                  },
-  { label: 'Discounts & Coupons', icon: Tag,          to: '/discounts'                 },
   { label: 'OTT',              icon: Tv2,             to: '/ott'                        },
   { label: 'IP TV',            icon: Monitor,         to: '/iptv'                       },
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },

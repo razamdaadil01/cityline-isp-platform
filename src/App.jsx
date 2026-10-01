@@ -208,7 +208,7 @@ export default function App() {
           <Route path="/support/dashboard" element={<SupportDashboard />} />
           <Route path="/support/reports" element={<SupportReports />} />
           <Route path="/packages" element={<Packages />} />
-          <Route path="/discounts" element={<Discounts />} />
+          <Route path="/discounts" element={<Navigate to="/settings?section=discounts-coupons" replace />} />
           <Route path="/ott" element={<OTTManagement />} />
           <Route path="/iptv" element={<IPTVManagement />} />
           <Route path="/packages/add" element={<PackageAdd />} />

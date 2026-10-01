@@ -6,8 +6,9 @@ import {
   Webhook, Phone, Globe, MapPin, Map,
   MoreVertical, Eye, EyeOff, Download, Upload, X, Settings2,
   ChevronLeft, ChevronRight, ChevronDown, Clock, AlertTriangle, Headphones, Users, Handshake,
-  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info, Package,
+  Tags, ListChecks, GripVertical, Lock, CheckCircle2, Hash, Wifi, Info, Package, Tag,
 } from 'lucide-react'
+import Discounts from './Discounts'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -73,6 +74,7 @@ const TABS = [
   { id: 'zone',                label: 'Radius',                icon: Map       },
   { id: 'master-config',       label: 'Master Configuration',  icon: Settings2 },
   { id: 'vas-products',        label: 'VAS Products',          icon: Package   },
+  { id: 'discounts-coupons',   label: 'Discounts & Coupons',   icon: Tag       },
 ]
 
 // System Configuration is a distinct sub-section within Settings — Customer
@@ -5219,9 +5221,14 @@ export default function Settings() {
     }
   }, [sectionParam, setSearchParams])
 
+  const tabParam = searchParams.get('tab')
   const activeTab = tab !== undefined
     ? 'master-config'
-    : (sectionParam && ALL_SETTINGS_SECTION_IDS.has(sectionParam) ? sectionParam : 'general')
+    : sectionParam && ALL_SETTINGS_SECTION_IDS.has(sectionParam)
+      ? sectionParam
+      : (!sectionParam && (tabParam === 'discounts' || tabParam === 'coupons'))
+        ? 'discounts-coupons'
+        : 'general'
 
   function selectSection(id) {
     if (id === 'master-config') { navigate('/settings/master-config/tenure'); return }
@@ -5295,6 +5302,7 @@ export default function Settings() {
           {activeTab === 'company-entity'      && <CompanyEntityTab />}
           {activeTab === 'partner'             && <PartnerTab />}
           {activeTab === 'vas-products'        && <VasProductsTab />}
+          {activeTab === 'discounts-coupons'   && <div className="-m-6"><Discounts /></div>}
           {false && activeTab === 'landline-numbers' && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
