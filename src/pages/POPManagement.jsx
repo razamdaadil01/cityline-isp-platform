@@ -110,7 +110,7 @@ export default function POPManagement() {
                 return (
                 <tr
                   key={pop.id}
-                  onClick={() => navigate(`/network/pops/${pop.id}`)}
+                  onClick={() => navigate(`/network/pops/${pop.id}/overview`)}
                   className="cursor-pointer hover:bg-gray-50/70 transition-colors"
                 >
                   <td className="px-4 py-3">
