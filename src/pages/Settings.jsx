@@ -66,7 +66,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications',         icon: Bell      },
   { id: 'pop-alerts-configuration', label: 'POP Alerts Configuration', icon: Bell },
   { id: 'support-configuration', label: 'Support Configuration', icon: Headphones },
-  { id: 'escalation-matrix', label: 'Escalation Matrix', icon: Tags },
+  { id: 'support-categories', label: 'Support Categories', icon: Tags },
   { id: 'outage-configuration', label: 'Outage Configuration', icon: AlertTriangle },
   { id: 'jaze-servers',  label: 'Jaze Servers',          icon: Server    },
   { id: 'roles-permissions',   label: 'Roles & Permissions',   icon: Shield    },
@@ -755,7 +755,7 @@ function ComplaintCategoriesTab() {
     <div className="space-y-5">
       <div className="flex items-center justify-between pb-4 border-b border-surface-border">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Escalation Matrix</h2>
+          <h2 className="text-base font-semibold text-gray-900">Support Categories</h2>
         </div>
         <Button size="sm" icon={<Plus size={14} />} onClick={openAddCategory}>Add Category</Button>
       </div>
@@ -5212,10 +5212,10 @@ export default function Settings() {
   const sectionParam = searchParams.get('section')
 
   useEffect(() => {
-    if (sectionParam === 'complaint-categories') {
+    if (sectionParam === 'complaint-categories' || sectionParam === 'escalation-matrix') {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev)
-        next.set('section', 'escalation-matrix')
+        next.set('section', 'support-categories')
         return next
       }, { replace: true })
     }
@@ -5289,7 +5289,7 @@ export default function Settings() {
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'pop-alerts-configuration' && <PopAlertsConfigTab />}
           {activeTab === 'support-configuration' && <SupportConfigTab />}
-          {activeTab === 'escalation-matrix' && <ComplaintCategoriesTab />}
+          {activeTab === 'support-categories' && <ComplaintCategoriesTab />}
           {activeTab === 'outage-configuration' && <OutageConfigTab />}
           {activeTab === 'jaze-servers'  && <JazeServersTab />}
           {activeTab === 'roles-permissions'   && <RolesTab />}
