@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Download, SlidersHorizontal, X, CheckCircle, IndianRupee, Clock, ChevronDown } from 'lucide-react'
+import { Download, SlidersHorizontal, X, CheckCircle, IndianRupee, Clock, ChevronDown, UploadCloud, Paperclip } from 'lucide-react'
 import {
   getCollections, subscribeCollections, updateCollection, getCollection,
   getTotalAmount, getTotalReceived, getTotalPending,
@@ -40,8 +40,33 @@ function RecordPaymentModal({ record, onClose, onSave }) {
   const [mode, setMode]       = useState('')
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10))
   const [remarks, setRemarks] = useState('')
+  const [proof, setProof]     = useState(null)   // { file, preview, dataUrl }
+  const [proofError, setProofError] = useState('')
   const [errors, setErrors]   = useState({})
   const [saved, setSaved]     = useState(false)
+
+  const ACCEPTED = ['image/jpeg', 'image/png', 'application/pdf']
+  const MAX_BYTES = 5 * 1024 * 1024
+
+  function handleProofFile(file) {
+    if (!file) return
+    if (!ACCEPTED.includes(file.type)) {
+      setProofError('Only JPG, PNG, or PDF files are allowed')
+      return
+    }
+    if (file.size > MAX_BYTES) {
+      setProofError('File must be 5MB or smaller')
+      return
+    }
+    setProofError('')
+    const reader = new FileReader()
+    reader.onload = e => {
+      const dataUrl = e.target.result
+      const preview = file.type.startsWith('image/') ? dataUrl : null
+      setProof({ file, preview, dataUrl })
+    }
+    reader.readAsDataURL(file)
+  }
 
   function validate() {
     const e = {}
@@ -66,6 +91,7 @@ function RecordPaymentModal({ record, onClose, onSave }) {
       status: newStatus,
       paymentMode: mode,
       remarks,
+      paymentProof: proof ? proof.dataUrl : '',
     })
     setSaved(true)
     setTimeout(onClose, 1200)
@@ -183,6 +209,42 @@ function RecordPaymentModal({ record, onClose, onSave }) {
                   placeholder="Optional notes..."
                   className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none"
                 />
+              </div>
+
+              {/* Payment Proof */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Proof</label>
+                <p className="text-xs text-gray-400 mb-2">Upload receipt or payment screenshot (JPG, PNG, PDF — max 5MB)</p>
+                {!proof ? (
+                  <label className="flex flex-col items-center justify-center gap-2 w-full py-5 border-2 border-dashed border-surface-border rounded-xl cursor-pointer hover:border-brand-blue hover:bg-blue-50/40 transition-colors">
+                    <UploadCloud size={22} className="text-gray-400" />
+                    <span className="text-sm text-gray-500">Click to upload or drag & drop</span>
+                    <input
+                      type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden"
+                      onChange={e => handleProofFile(e.target.files?.[0])}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => { e.preventDefault(); handleProofFile(e.dataTransfer.files?.[0]) }}
+                    />
+                  </label>
+                ) : (
+                  <div className="relative flex items-center gap-3 p-3 border border-surface-border rounded-xl bg-gray-50">
+                    {proof.preview ? (
+                      <img src={proof.preview} alt="proof" className="w-14 h-14 object-cover rounded-lg shrink-0 border border-surface-border" />
+                    ) : (
+                      <div className="w-14 h-14 flex items-center justify-center rounded-lg bg-white border border-surface-border shrink-0">
+                        <Paperclip size={20} className="text-gray-400" />
+                      </div>
+                    )}
+                    <span className="text-sm text-gray-700 truncate flex-1">{proof.file.name}</span>
+                    <button
+                      type="button" onClick={() => setProof(null)}
+                      className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                {proofError && <p className="text-xs text-red-500 mt-1">{proofError}</p>}
               </div>
             </>
           )}
@@ -529,6 +591,16 @@ export default function Collection() {
                     {r.status === 'Paid' ? (
                       <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
                         <CheckCircle size={14} /> Paid ✓
+                        {r.paymentProof && (
+                          <button
+                            type="button"
+                            onClick={() => window.open(r.paymentProof, '_blank')}
+                            title="View payment proof"
+                            className="ml-1 text-gray-400 hover:text-brand-blue transition-colors"
+                          >
+                            <Paperclip size={13} />
+                          </button>
+                        )}
                       </span>
                     ) : (
                       <button
