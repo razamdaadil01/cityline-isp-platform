@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Search, Download, ChevronDown, MoreVertical,
 } from 'lucide-react'
@@ -140,10 +139,9 @@ function OwnershipCell({ value, onChange }) {
 }
 
 // ─── Three-dot actions menu ───────────────────────────────────────────────────
-function ActionsMenu({ row }) {
+function ActionsMenu({ row, onAction }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
-  const navigate = useNavigate()
 
   useEffect(() => {
     if (!open) return
@@ -152,11 +150,8 @@ function ActionsMenu({ row }) {
     return () => document.removeEventListener('mousedown', handle)
   }, [open])
 
-  function viewAssignment() {
-    const path = row.source === 'engineer'
-      ? `/inventory/assign/${row.sourceId}`
-      : `/inventory/assign-to-user/${row.sourceId}`
-    navigate(path)
+  function act(ownership, message) {
+    onAction(row.id, ownership, message)
     setOpen(false)
   }
 
@@ -170,13 +165,27 @@ function ActionsMenu({ row }) {
         <MoreVertical size={15} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 bg-white border border-surface-border rounded-xl shadow-lg z-20 min-w-[160px] py-1">
+        <div className="absolute right-0 top-full mt-1 bg-white border border-surface-border rounded-xl shadow-lg z-20 min-w-[180px] py-1">
           <button
             type="button"
-            onClick={viewAssignment}
+            onClick={() => act('Company', 'Marked as returned to engineer')}
             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-surface-hover transition-colors"
           >
-            View Assignment
+            Back to Engineer
+          </button>
+          <button
+            type="button"
+            onClick={() => act('Company', 'Marked as returned to store')}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-surface-hover transition-colors"
+          >
+            Back to Store
+          </button>
+          <button
+            type="button"
+            onClick={() => act('Customer', 'Marked as approved')}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-surface-hover transition-colors"
+          >
+            Approved
           </button>
         </div>
       )}
@@ -307,42 +316,45 @@ export default function StockVerification() {
     return [...set].sort()
   }, [rows])
 
-  // Filter state
+  // Filter state — applied live on every change
   const [search,          setSearch]          = useState('')
   const [dateFrom,        setDateFrom]        = useState('')
   const [dateTo,          setDateTo]          = useState('')
   const [filterType,      setFilterType]      = useState('')
   const [filterOwnership, setFilterOwnership] = useState('')
   const [filterEngineer,  setFilterEngineer]  = useState('')
-  // Applied filters (only committed on "Search" click)
-  const [applied, setApplied] = useState({
-    search: '', dateFrom: '', dateTo: '', type: '', ownership: '', engineer: '',
-  })
+
+  // Toast
+  const [toast, setToast] = useState('')
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(''), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   // Pagination
   const [page,     setPage]     = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  function applyFilters() {
-    setApplied({ search, dateFrom, dateTo, type: filterType, ownership: filterOwnership, engineer: filterEngineer })
+  function clearFilters() {
+    setSearch(''); setDateFrom(''); setDateTo('')
+    setFilterType(''); setFilterOwnership(''); setFilterEngineer('')
     setPage(1)
   }
 
-  function resetFilters() {
-    setSearch(''); setDateFrom(''); setDateTo('')
-    setFilterType(''); setFilterOwnership(''); setFilterEngineer('')
-    setApplied({ search: '', dateFrom: '', dateTo: '', type: '', ownership: '', engineer: '' })
-    setPage(1)
+  function handleAction(id, ownership, message) {
+    setRowOwnership(id, ownership)
+    setToast(message)
   }
 
   const filtered = useMemo(() => {
-    const q = applied.search.toLowerCase()
+    const q = search.toLowerCase()
     return rows.filter(r => {
-      if (applied.dateFrom && r.date < applied.dateFrom) return false
-      if (applied.dateTo   && r.date > applied.dateTo)   return false
-      if (applied.type     && r.type !== applied.type)   return false
-      if (applied.ownership && r.ownership !== applied.ownership) return false
-      if (applied.engineer && r.engineer !== applied.engineer) return false
+      if (dateFrom      && r.date < dateFrom)          return false
+      if (dateTo        && r.date > dateTo)            return false
+      if (filterType    && r.type !== filterType)      return false
+      if (filterOwnership && r.ownership !== filterOwnership) return false
+      if (filterEngineer  && r.engineer !== filterEngineer)   return false
       if (q) {
         const serialMatch = r.serials.some(s => s.toLowerCase().includes(q))
         const macMatch    = r.macs.some(m => m.toLowerCase().includes(q))
@@ -356,7 +368,7 @@ export default function StockVerification() {
       }
       return true
     })
-  }, [rows, applied])
+  }, [rows, search, dateFrom, dateTo, filterType, filterOwnership, filterEngineer])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -373,6 +385,12 @@ export default function StockVerification() {
 
   return (
     <div className="p-6 space-y-5">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Stock Verification</h1>
@@ -391,8 +409,7 @@ export default function StockVerification() {
         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') applyFilters() }}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
           placeholder="Search assignment number, engineer, product, serial/MAC, user..."
           className="w-full h-10 pl-10 pr-4 border border-surface-border rounded-xl text-sm focus:outline-none focus:border-brand-blue transition-colors"
         />
@@ -405,7 +422,7 @@ export default function StockVerification() {
           <input
             type="date"
             value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
+            onChange={e => { setDateFrom(e.target.value); setPage(1) }}
             className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue"
           />
         </div>
@@ -414,7 +431,7 @@ export default function StockVerification() {
           <input
             type="date"
             value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
+            onChange={e => { setDateTo(e.target.value); setPage(1) }}
             className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue"
           />
         </div>
@@ -422,7 +439,7 @@ export default function StockVerification() {
           <label className="text-xs font-medium text-gray-500">Type</label>
           <select
             value={filterType}
-            onChange={e => setFilterType(e.target.value)}
+            onChange={e => { setFilterType(e.target.value); setPage(1) }}
             className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue bg-white"
           >
             <option value="">All Types</option>
@@ -434,7 +451,7 @@ export default function StockVerification() {
           <label className="text-xs font-medium text-gray-500">Ownership</label>
           <select
             value={filterOwnership}
-            onChange={e => setFilterOwnership(e.target.value)}
+            onChange={e => { setFilterOwnership(e.target.value); setPage(1) }}
             className="h-9 px-3 border border-surface-border rounded-lg text-sm focus:outline-none focus:border-brand-blue bg-white"
           >
             <option value="">All Ownership</option>
@@ -443,22 +460,15 @@ export default function StockVerification() {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-500">Engineer</label>
-          <EngineerFilter value={filterEngineer} options={engineerOptions} onChange={setFilterEngineer} />
+          <EngineerFilter value={filterEngineer} options={engineerOptions} onChange={v => { setFilterEngineer(v); setPage(1) }} />
         </div>
-        <div className="flex items-end gap-2 ml-auto">
+        <div className="flex items-end ml-auto">
           <button
             type="button"
-            onClick={applyFilters}
-            className="h-9 px-5 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:bg-brand-blue/90 transition-colors"
+            onClick={clearFilters}
+            className="text-sm text-brand-blue hover:underline font-medium"
           >
-            Search
-          </button>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="h-9 px-4 rounded-xl border border-surface-border text-sm font-medium text-gray-600 hover:bg-surface-hover transition-colors"
-          >
-            Reset
+            Clear filters
           </button>
         </div>
       </div>
@@ -519,7 +529,7 @@ export default function StockVerification() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <ActionsMenu row={r} />
+                      <ActionsMenu row={r} onAction={handleAction} />
                     </td>
                   </tr>
                 )
