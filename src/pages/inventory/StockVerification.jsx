@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Search, Download, ChevronDown, MoreVertical, X,
+  Search, Download, ChevronDown, MoreVertical,
 } from 'lucide-react'
 import { getAssignments, subscribeAssignments } from '../../data/assignmentStore'
 import { getUserAssignments, subscribeUserAssignments } from '../../data/userAssignmentStore'
@@ -469,15 +469,11 @@ export default function StockVerification() {
           <table className="w-full text-sm">
             <thead className="bg-surface-muted border-b border-surface-border">
               <tr>
-                <th className="px-4 py-3 text-left">
-                  <input type="checkbox" className="rounded border-gray-300" />
-                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">S.NO</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Engineer</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Serial/MAC No.</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">User</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ownership</th>
@@ -487,28 +483,15 @@ export default function StockVerification() {
             <tbody className="divide-y divide-surface-border">
               {paged.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-16 text-center text-gray-400 text-sm">
+                  <td colSpan={9} className="px-4 py-16 text-center text-gray-400 text-sm">
                     No records found
                   </td>
                 </tr>
               ) : paged.map((r, idx) => {
                 const globalIdx = (currentPage - 1) * pageSize + idx + 1
-                const serialDisplay = r.serials.length
-                  ? <>
-                      <span className="font-mono">{r.serials[0]}</span>
-                      {r.serials.length > 1 && (
-                        <span className="ml-1 text-gray-400 text-xs">+{r.serials.length - 1} more</span>
-                      )}
-                    </>
-                  : r.macs.length
-                    ? <span className="font-mono">{r.macs[0]}</span>
-                    : <span className="text-gray-400">—</span>
 
                 return (
                   <tr key={r.id} className="hover:bg-surface-hover/40 transition-colors">
-                    <td className="px-4 py-3">
-                      <input type="checkbox" className="rounded border-gray-300" />
-                    </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{globalIdx}</td>
                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.date || '—'}</td>
                     <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap">{r.engineer}</td>
@@ -519,9 +502,6 @@ export default function StockVerification() {
                     </td>
                     <td className="px-4 py-3 text-gray-900 max-w-[200px]">
                       <p className="truncate">{r.product}</p>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 text-xs whitespace-nowrap">
-                      {serialDisplay}
                     </td>
                     <td className="px-4 py-3">
                       {r.user === '—' ? (
