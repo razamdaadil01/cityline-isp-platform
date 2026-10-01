@@ -76,16 +76,17 @@ function RecordPaymentModal({ record, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border shrink-0">
           <h2 className="text-base font-bold text-gray-900">Record Collection Payment</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
             <X size={16} />
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 p-6 space-y-5">
           {/* Summary */}
           <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
             <div className="flex justify-between">
@@ -187,25 +188,27 @@ function RecordPaymentModal({ record, onClose, onSave }) {
                   className="w-full px-3 py-2 text-sm border border-surface-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none"
                 />
               </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button" onClick={onClose}
-                  className="flex-1 py-2 text-sm font-medium border border-surface-border rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button" onClick={handleSave}
-                  className="flex-1 py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
             </>
           )}
         </div>
+
+        {/* Footer — sticky, hidden after save */}
+        {!saved && (
+          <div className="shrink-0 px-6 py-4 border-t border-surface-border flex gap-2">
+            <button
+              type="button" onClick={onClose}
+              className="flex-1 py-2 text-sm font-medium border border-surface-border rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button" onClick={handleSave}
+              className="flex-1 py-2 text-sm font-semibold bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90 transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
