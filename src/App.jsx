@@ -45,6 +45,7 @@ import Approvals from './pages/Approvals'
 import ApprovalDetail from './pages/ApprovalDetail'
 import Billing from './pages/Billing'
 import Payments from './pages/Payments'
+import Collection from './pages/Collection'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
 import TicketDetail from './pages/TicketDetail'
@@ -196,6 +197,7 @@ export default function App() {
           <Route path="/billing/payment-history" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
           <Route path="/payments" element={<Payments />} />
+          <Route path="/collection" element={<Collection />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/ticket/:id" element={<TicketDetail />} />
           <Route path="/support/tickets" element={<TicketList />} />

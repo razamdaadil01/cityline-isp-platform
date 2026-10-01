@@ -48,6 +48,7 @@ import {
   Building2,
   CreditCard,
   Cpu,
+  Wallet,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -82,6 +83,7 @@ const NAV_ITEMS = [
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
   { label: 'Payments',         icon: CreditCard,      to: '/payments'                  },
+  { label: 'Collection',       icon: Wallet,          to: '/collection'                },
   {
     label: 'Support & Tickets',icon: HeadphonesIcon,  to: '/support/dashboard',
     children: [
