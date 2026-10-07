@@ -47,6 +47,7 @@ import {
   CreditCard,
   Cpu,
   Wallet,
+  GitBranch,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -97,6 +98,7 @@ const NAV_ITEMS = [
   { label: 'Network',          icon: Network,         to: '/network',      exact: true  },
   { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
   { label: 'TR-069 / ACS',     icon: Cpu,             to: '/network/tr069'             },
+  { label: 'Fibre Network',    icon: GitBranch,       to: '/network/fibre'             },
   {
     label: 'POP Management',   icon: MapPin,          to: '/network/pops',
     children: [
