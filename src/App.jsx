@@ -80,6 +80,15 @@ import FibreNetwork from './pages/FibreNetwork'
 import NetworkHierarchy from './pages/NetworkHierarchy'
 import NetworkHierarchyRegion from './pages/NetworkHierarchyRegion'
 import NetworkHierarchySite from './pages/NetworkHierarchySite'
+
+function OLTDetailPlaceholder() {
+  return (
+    <div className="p-6">
+      <p className="text-sm text-gray-500">OLT Detail coming soon</p>
+    </div>
+  )
+}
+
 import ProductList from './pages/inventory/ProductList'
 import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
 import VendorList from './pages/inventory/VendorList'
@@ -230,6 +239,7 @@ export default function App() {
           <Route path="/network/hierarchy" element={<NetworkHierarchy />} />
           <Route path="/network/hierarchy/:regionId" element={<NetworkHierarchyRegion />} />
           <Route path="/network/hierarchy/sites/:siteId" element={<NetworkHierarchySite />} />
+          <Route path="/network/hierarchy/olts/:oltId" element={<OLTDetailPlaceholder />} />
           <Route path="/network/pops" element={<POPManagement />} />
           <Route path="/network/pops/dashboard" element={<POPDashboard />} />
           <Route path="/network/pops/new" element={<POPDetail />} />
