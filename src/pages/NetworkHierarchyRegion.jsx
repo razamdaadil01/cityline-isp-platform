@@ -243,7 +243,7 @@ export default function NetworkHierarchyRegion() {
                           <Badge color={STATUS_BADGE[site.status] ?? 'gray'}>{site.status}</Badge>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-xs text-brand-blue font-medium cursor-default">View →</span>
+                          <button onClick={() => navigate('/network/hierarchy/sites/' + site.id)} className="text-xs text-brand-blue font-medium hover:underline cursor-pointer">View →</button>
                         </td>
                       </tr>
                     )
