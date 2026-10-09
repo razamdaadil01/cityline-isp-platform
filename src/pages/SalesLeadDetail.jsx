@@ -3273,6 +3273,9 @@ export default function SalesLeadDetail() {
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
     })
 
+    const customerObj = buildCustomerFromLead(lead)
+    addCustomer(customerObj)
+
     setActivationData({ customerId, username, pppoePassword, appPassword, plan: lead.plan ?? '100 Mbps Home', customerName: lead.name })
     openLeadDetailModal('activation-payment')
   }
