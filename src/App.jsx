@@ -77,6 +77,7 @@ import POPWorkOrderDetail from './pages/POPWorkOrderDetail'
 import POPWorkOrderView from './pages/POPWorkOrderView'
 import POPReports from './pages/POPReports'
 import FibreNetwork from './pages/FibreNetwork'
+import NetworkHierarchy from './pages/NetworkHierarchy'
 import ProductList from './pages/inventory/ProductList'
 import ProductTaxonomy from './pages/inventory/ProductTaxonomy'
 import VendorList from './pages/inventory/VendorList'
@@ -224,6 +225,8 @@ export default function App() {
           <Route path="/network/tr069/:id"      element={<TR069Detail />} />
           <Route path="/network/tr069/:id/:tab" element={<TR069Detail />} />
           <Route path="/network/fibre" element={<FibreNetwork />} />
+          <Route path="/network/hierarchy" element={<NetworkHierarchy />} />
+          <Route path="/network/hierarchy/:regionId" element={<Navigate to="/network/hierarchy" replace />} />
           <Route path="/network/pops" element={<POPManagement />} />
           <Route path="/network/pops/dashboard" element={<POPDashboard />} />
           <Route path="/network/pops/new" element={<POPDetail />} />

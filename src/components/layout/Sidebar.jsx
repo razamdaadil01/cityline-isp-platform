@@ -99,6 +99,7 @@ const NAV_ITEMS = [
   { label: 'Jaze Servers',     icon: Server,          to: '/network/servers'           },
   { label: 'TR-069 / ACS',     icon: Cpu,             to: '/network/tr069'             },
   { label: 'Fibre Network',    icon: GitBranch,       to: '/network/fibre'             },
+  { label: 'Site Manager',     icon: Layers,          to: '/network/hierarchy'         },
   {
     label: 'POP Management',   icon: MapPin,          to: '/network/pops',
     children: [
