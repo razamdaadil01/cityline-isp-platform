@@ -12,7 +12,8 @@ import PackageSelectionStep from '../components/customer-type/PackageSelectionSt
 import { getCustomerTypes } from '../data/customerTypes'
 import { getFieldConfig, subscribeFieldConfig } from '../data/fieldConfigStore'
 import { getServiceTagsForType } from '../data/serviceTags'
-import { getLeads, saveLead, nextSalesLeadId } from '../data/leadsStore'
+import { getLeads, saveLead, nextSalesLeadId, peekNextLeadId } from '../data/leadsStore'
+import { getCurrentUser } from '../data/sessionStore'
 import { getFeasibilityRequests, subscribeFeasibility } from '../data/feasibilityStore'
 import { saveFollowup } from '../data/followupStore'
 import { getPlans } from '../data/packagesStore'
@@ -419,10 +420,11 @@ export default function SalesNewLead({ lead = null } = {}) {
         : (customerTypes[0]?.id ?? 'resident'))
   const isCorporate = customerType === 'corporate'
 
-  // Generated once per mount using whichever Customer Type is resolved above
-  // at that point — same one-shot lazy-init behavior as before, just now
-  // parameterized so the id's prefix/format matches the type being created.
-  const [leadId] = useState(() => lead?.id ?? nextSalesLeadId(customerType))
+  // Preview-only: peek the next ID without burning the sequence counter.
+  // The real ID is issued by nextSalesLeadId() inside submitResident/
+  // submitCorporate at the moment the form is actually saved, so switching
+  // Customer Type tabs or abandoning the form never wastes a sequence number.
+  const leadId = lead?.id ?? peekNextLeadId(customerType)
 
   // On first load, if there's no (or an invalid) ?customerType= param,
   // default to Residential and write it into the URL via a history replace
@@ -621,10 +623,10 @@ export default function SalesNewLead({ lead = null } = {}) {
     if (!followUp.date || !followUp.time) return false
     return new Date(`${followUp.date}T${followUp.time}`) > new Date()
   }
-  function submitFollowUp(leadName, phone, assignedTo, stage, pipelineLabel) {
+  function submitFollowUp(id, leadName, phone, assignedTo, stage, pipelineLabel) {
     if (followUp.enabled && followUp.date) {
       saveFollowup({
-        id: `FU-${Date.now()}`, leadId, leadName, customer: leadName, pipeline: pipelineLabel,
+        id: `FU-${Date.now()}`, leadId: id, leadName, customer: leadName, pipeline: pipelineLabel,
         phone, date: followUp.date, time: followUp.time, note: followUp.notes,
         stage, assignedTo: assignedTo || '', notifyTo: followUp.notify, priority: 'medium', status: 'Pending',
       })
@@ -636,8 +638,9 @@ export default function SalesNewLead({ lead = null } = {}) {
 
   const hasDuplicate = (phoneDup && phoneContinued) || (altPhoneDup && altPhoneContinued)
   function activityLogForDuplicate() {
+    const userName = getCurrentUser()?.name ?? 'System'
     return hasDuplicate
-      ? [{ id: Date.now(), icon: '⚠️', text: 'Created despite duplicate mobile number warning', user: 'Admin User', time: 'just now' }]
+      ? [{ id: Date.now(), icon: '⚠️', text: 'Created despite duplicate mobile number warning', user: userName, time: 'just now' }]
       : []
   }
 
@@ -721,8 +724,9 @@ export default function SalesNewLead({ lead = null } = {}) {
   }
 
   function saveEdit(payload) {
+    const userName = getCurrentUser()?.name ?? 'System'
     const activityEntry = {
-      id: Date.now(), icon: '✏️', text: 'Lead details updated by Admin User', user: 'Admin User', time: 'just now',
+      id: Date.now(), icon: '✏️', text: `Lead details updated by ${userName}`, user: userName, time: 'just now',
     }
     saveLead({
       ...lead,
@@ -737,9 +741,11 @@ export default function SalesNewLead({ lead = null } = {}) {
     const payload = residentPayload()
     if (isEdit) { saveEdit(payload); return }
 
+    const actualLeadId = nextSalesLeadId(customerType)
     const today = new Date().toISOString().slice(0, 10)
+    const userName = getCurrentUser()?.name ?? 'System'
     saveLead({
-      id: leadId,
+      id: actualLeadId,
       customerType: 'Resident',
       pipeline: 'B2C',
       stage: 'New Inquiry',
@@ -751,21 +757,23 @@ export default function SalesNewLead({ lead = null } = {}) {
       ekycStatus: null,
       hwAssigned: null,
       createdAt: today,
-      createdBy: 'Admin User',
-      stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: 'Admin User', fields: {} }],
+      createdBy: userName,
+      stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: userName, fields: {} }],
       activityLog: activityLogForDuplicate(),
     })
-    submitFollowUp(payload.name, rForm.primaryNumber, rForm.salesExecutive, 'New Inquiry', 'Residential')
-    navigate(`/sales/leads/${leadId}`)
+    submitFollowUp(actualLeadId, payload.name, rForm.primaryNumber, rForm.salesExecutive, 'New Inquiry', 'Residential')
+    navigate(`/sales/leads/${actualLeadId}`)
   }
 
   function submitCorporate() {
     const payload = corporatePayload()
     if (isEdit) { saveEdit(payload); return }
 
+    const actualLeadId = nextSalesLeadId(customerType)
     const today = new Date().toISOString().slice(0, 10)
+    const userName = getCurrentUser()?.name ?? 'System'
     saveLead({
-      id: leadId,
+      id: actualLeadId,
       customerType: 'Corporate',
       pipeline: 'Enterprise',
       stage: 'New Inquiry Filed',
@@ -777,12 +785,12 @@ export default function SalesNewLead({ lead = null } = {}) {
       ekycStatus: null,
       hwAssigned: null,
       createdAt: today,
-      createdBy: 'Admin User',
-      stageHistory: [{ stage: 'New Inquiry Filed', date: today, movedBy: 'Admin User', fields: {} }],
+      createdBy: userName,
+      stageHistory: [{ stage: 'New Inquiry Filed', date: today, movedBy: userName, fields: {} }],
       activityLog: activityLogForDuplicate(),
     })
-    submitFollowUp(cForm.legalName || cForm.contactPersonName, cForm.primaryNumber, cForm.assignedTo, 'New Inquiry Filed', 'Enterprise')
-    navigate(`/sales/leads/${leadId}`)
+    submitFollowUp(actualLeadId, cForm.legalName || cForm.contactPersonName, cForm.primaryNumber, cForm.assignedTo, 'New Inquiry Filed', 'Enterprise')
+    navigate(`/sales/leads/${actualLeadId}`)
   }
 
   function handleSubmit() {

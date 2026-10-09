@@ -139,6 +139,14 @@ export function getNextLeadIdSequence(id) {
   return nextSeq
 }
 
+// Non-mutating read: returns the sequence number getNextLeadIdSequence() would
+// issue next without advancing the counter. Use only for display previews.
+export function peekNextLeadIdSequence(id) {
+  const type = getCustomerType(id)
+  if (!type) return null
+  return (type.lastIssuedSequence ?? (Number(type.startingNumber) - 1)) + 1
+}
+
 // ── Customer ID config ───────────────────────────────────────────────────
 
 export function saveCustomerIdConfig(id, { prefix, includeYear, startingNumber, sequencePadding }) {
