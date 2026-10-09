@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, MapPin, Server, Zap, Cpu } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import hierarchyStore, { OLT_TYPES, OLT_PORT_COUNTS, OLT_STATUSES } from '../data/hierarchyStore'
+import hierarchyStore, { OLT_TYPES, OLT_STATUSES } from '../data/hierarchyStore'
 
 const STATUS_BADGE = {
   Active: 'green', Inactive: 'gray', 'Under Construction': 'yellow', Decommissioned: 'red',
 }
 const OLT_STATUS_BADGE = { Active: 'green', Inactive: 'gray', Maintenance: 'yellow' }
 
-const VP_STATUS_STYLE = {
+const VP_CHIP = {
   Available: 'bg-emerald-100 text-emerald-700',
   'In-Use':  'bg-blue-100 text-blue-700',
   Vacant:    'bg-gray-100 text-gray-500',
@@ -19,13 +19,14 @@ const VP_STATUS_STYLE = {
 
 const TABS = ['Locations & OLTs', 'Port Map', 'Details']
 
-const LOC_FORM_DEFAULTS  = { name: '', description: '' }
-const OLT_FORM_DEFAULTS  = { name: '', type: 'GPON', portCount: 8, model: '', serialNumber: '', locationId: '' }
+const LOC_DEFAULTS  = { name: '', address: '', latitude: '', longitude: '' }
+const OLT_DEFAULTS  = { name: '', type: 'GPON', portCount: 8, status: 'Active' }
 
 export default function NetworkHierarchySite() {
   const { siteId } = useParams()
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
 
+  // ── Store subscription ──────────────────────────────────────────────────────
   const [snap, setSnap] = useState(() => ({
     regions:      hierarchyStore.getRegions(),
     siteGroups:   hierarchyStore.getSiteGroups(),
@@ -40,82 +41,110 @@ export default function NetworkHierarchySite() {
 
   useEffect(() => hierarchyStore.subscribe(setSnap), [])
 
-  const { regions, siteGroups, sites, locations, olts, ponPorts, fatBoxes, virtualPorts } = snap
+  const { regions, siteGroups, sites, locations, olts, ponPorts, splitters, fatBoxes, virtualPorts } = snap
 
-  const site       = sites.find(s => s.id === siteId)
-  const siteGroup  = site ? siteGroups.find(sg => sg.id === site.siteGroupId) : null
-  const region     = siteGroup ? regions.find(r => r.id === siteGroup.regionId) : null
+  // ── Derived hierarchy lookups ───────────────────────────────────────────────
+  const site      = sites.find(s => s.id === siteId)
+  const siteGroup = site ? siteGroups.find(sg => sg.id === site.siteGroupId) : null
+  const region    = siteGroup ? regions.find(r => r.id === siteGroup.regionId) : null
 
   const siteLocations = locations.filter(l => l.siteId === siteId)
   const siteLocIds    = siteLocations.map(l => l.id)
   const siteOLTs      = olts.filter(o => siteLocIds.includes(o.locationId))
+  const siteOLTIds    = siteOLTs.map(o => o.id)
 
-  // Port Map data: all VPs under this site
-  const siteOLTIds   = siteOLTs.map(o => o.id)
-  const sitePonPorts = ponPorts.filter(p => siteOLTIds.includes(p.oltId))
-  const sitePonIds   = sitePonPorts.map(p => p.id)
-  // S1 splitters under these PON ports
-  const s1Ids = snap.splitters.filter(s => s.level === 'S1' && sitePonIds.includes(s.ponPortId)).map(s => s.id)
-  // S2 splitters under these S1s
-  const s2Ids = snap.splitters.filter(s => s.level === 'S2' && s1Ids.includes(s.parentSplitterId)).map(s => s.id)
-  const allSplitterIds = [...s1Ids, ...s2Ids]
-  const siteFATBoxes  = fatBoxes.filter(f => allSplitterIds.includes(f.splitterId))
-  const siteFATIds    = siteFATBoxes.map(f => f.id)
-  const siteVPs       = virtualPorts.filter(v => siteFATIds.includes(v.fatBoxId))
+  // Stats
+  const sitePonPorts     = ponPorts.filter(p => siteOLTIds.includes(p.oltId))
+  const sitePonIds       = sitePonPorts.map(p => p.id)
+  const s1Ids            = splitters.filter(s => s.level === 'S1' && sitePonIds.includes(s.ponPortId)).map(s => s.id)
+  const s2Ids            = splitters.filter(s => s.level === 'S2' && s1Ids.includes(s.parentSplitterId)).map(s => s.id)
+  const allSplitterIds   = [...s1Ids, ...s2Ids]
+  const siteFATBoxes     = fatBoxes.filter(f => allSplitterIds.includes(f.splitterId))
+  const siteFATIds       = siteFATBoxes.map(f => f.id)
+  const siteVPs          = virtualPorts.filter(v => siteFATIds.includes(v.fatBoxId))
+  const availableCount   = siteVPs.filter(v => v.status === 'Available').length
+  const inUseCount       = siteVPs.filter(v => v.status === 'In-Use').length
 
-  // ── Tabs ───────────────────────────────────────────────────────────────────
+  // ── Port Map: flatten with context labels ───────────────────────────────────
+  const portMapRows = useMemo(() => {
+    const rows = []
+    for (const loc of siteLocations) {
+      const locOLTs = olts.filter(o => o.locationId === loc.id)
+      for (const olt of locOLTs) {
+        const oltPons = ponPorts.filter(p => p.oltId === olt.id)
+        for (const ponPort of oltPons) {
+          const s1List = splitters.filter(s => s.level === 'S1' && s.ponPortId === ponPort.id)
+          for (const s1 of s1List) {
+            const s2List = splitters.filter(s => s.level === 'S2' && s.parentSplitterId === s1.id)
+            for (const s2 of s2List) {
+              const fats = fatBoxes.filter(f => f.splitterId === s2.id)
+              for (const fat of fats) {
+                const vps = virtualPorts.filter(v => v.fatBoxId === fat.id)
+                for (const vp of vps) {
+                  rows.push({
+                    ...vp,
+                    fatBoxName: fat.name,
+                    oltName:    olt.name,
+                    locName:    loc.name,
+                  })
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return rows
+  }, [siteLocations, olts, ponPorts, splitters, fatBoxes, virtualPorts])
+
+  // ── Tabs ────────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(0)
 
-  // ── Add Location modal ─────────────────────────────────────────────────────
+  // ── Add Location modal ──────────────────────────────────────────────────────
   const [showAddLoc, setShowAddLoc] = useState(false)
-  const [locForm, setLocForm]       = useState(LOC_FORM_DEFAULTS)
+  const [locForm, setLocForm]       = useState(LOC_DEFAULTS)
   const [locErrors, setLocErrors]   = useState({})
 
-  function openAddLoc() { setLocForm(LOC_FORM_DEFAULTS); setLocErrors({}); setShowAddLoc(true) }
+  function openAddLoc() { setLocForm(LOC_DEFAULTS); setLocErrors({}); setShowAddLoc(true) }
   function closeAddLoc() { setShowAddLoc(false) }
 
   function handleSaveLoc() {
     if (!locForm.name.trim()) { setLocErrors({ name: 'Name is required' }); return }
-    hierarchyStore.saveLocation({ name: locForm.name.trim(), description: locForm.description.trim(), siteId })
+    const payload = { name: locForm.name.trim(), siteId }
+    if (locForm.address.trim())   payload.address   = locForm.address.trim()
+    if (locForm.latitude.trim())  payload.latitude  = locForm.latitude.trim()
+    if (locForm.longitude.trim()) payload.longitude = locForm.longitude.trim()
+    hierarchyStore.saveLocation(payload)
     setShowAddLoc(false)
   }
 
-  // ── Add OLT modal ──────────────────────────────────────────────────────────
-  const [showAddOLT, setShowAddOLT]         = useState(false)
-  const [oltLocId, setOltLocId]             = useState('')
-  const [oltForm, setOltForm]               = useState(OLT_FORM_DEFAULTS)
-  const [oltErrors, setOltErrors]           = useState({})
+  // ── Add OLT modal ───────────────────────────────────────────────────────────
+  const [showAddOLT, setShowAddOLT] = useState(false)
+  const [addOLTLocId, setAddOLTLocId] = useState('')
+  const [oltForm, setOltForm]         = useState(OLT_DEFAULTS)
+  const [oltErrors, setOltErrors]     = useState({})
 
   function openAddOLT(locationId) {
-    setOltLocId(locationId)
-    setOltForm({ ...OLT_FORM_DEFAULTS, locationId })
+    setAddOLTLocId(locationId)
+    setOltForm(OLT_DEFAULTS)
     setOltErrors({})
     setShowAddOLT(true)
   }
   function closeAddOLT() { setShowAddOLT(false) }
 
-  function validateOLT() {
-    const e = {}
-    if (!oltForm.name.trim()) e.name = 'Name is required'
-    if (!oltForm.locationId)  e.locationId = 'Location is required'
-    return e
-  }
-
   function handleSaveOLT() {
-    const e = validateOLT()
-    if (Object.keys(e).length) { setOltErrors(e); return }
+    if (!oltForm.name.trim()) { setOltErrors({ name: 'Name is required' }); return }
     hierarchyStore.saveOLT({
-      name:         oltForm.name.trim(),
-      type:         oltForm.type,
-      portCount:    Number(oltForm.portCount),
-      model:        oltForm.model.trim(),
-      serialNumber: oltForm.serialNumber.trim(),
-      locationId:   oltForm.locationId,
-      status:       'Active',
+      name:       oltForm.name.trim(),
+      type:       oltForm.type,
+      portCount:  Number(oltForm.portCount),
+      status:     oltForm.status,
+      locationId: addOLTLocId,
     })
     setShowAddOLT(false)
   }
 
+  // ── 404 fallback ─────────────────────────────────────────────────────────────
   if (!site) {
     return (
       <div className="p-6">
@@ -147,12 +176,6 @@ export default function NetworkHierarchySite() {
             </button>
           </>
         )}
-        {siteGroup && (
-          <>
-            <span>/</span>
-            <span className="text-gray-500">{siteGroup.name}</span>
-          </>
-        )}
         <span>/</span>
         <span className="text-gray-600 font-medium">{site.name}</span>
       </div>
@@ -169,10 +192,29 @@ export default function NetworkHierarchySite() {
         </div>
         {site.address && (
           <p className="text-sm text-gray-500 mt-1 flex items-center gap-1.5">
-            <MapPin size={13} className="text-gray-400 shrink-0" />
-            {site.address}
+            <MapPin size={13} className="text-gray-400 shrink-0" /> {site.address}
           </p>
         )}
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Locations',       value: siteLocations.length, color: 'bg-brand-blue', icon: Cpu   },
+          { label: 'OLTs',            value: siteOLTs.length,      color: 'bg-teal-500',   icon: Server },
+          { label: 'Available Ports', value: availableCount,        color: 'bg-emerald-600',icon: Zap   },
+          { label: 'In-Use Ports',    value: inUseCount,            color: 'bg-blue-500',   icon: Zap   },
+        ].map(({ label, value, color, icon: Icon }) => (
+          <div key={label} className="bg-white rounded-xl border border-surface-border p-3 flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+              <Icon size={15} className="text-white" />
+            </div>
+            <div>
+              <p className="text-xl font-bold text-gray-900">{value}</p>
+              <p className="text-[11px] text-gray-500">{label}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Tab bar */}
@@ -192,7 +234,7 @@ export default function NetworkHierarchySite() {
         ))}
       </div>
 
-      {/* ── TAB 1: Locations & OLTs ──────────────────────────────────────────── */}
+      {/* ── TAB 1: Locations & OLTs ─────────────────────────────────────────── */}
       {activeTab === 0 && (
         <div className="space-y-6">
           <div className="flex justify-end">
@@ -202,97 +244,97 @@ export default function NetworkHierarchySite() {
           {siteLocations.length === 0 ? (
             <div className="bg-white rounded-xl border border-surface-border py-14 text-center">
               <Server size={32} className="mx-auto mb-2 text-gray-200" />
-              <p className="text-sm text-gray-400">No locations yet — add one to start placing OLTs</p>
+              <p className="text-sm text-gray-400">No locations yet</p>
             </div>
-          ) : (
-            siteLocations.map(loc => {
-              const locOLTs = olts.filter(o => o.locationId === loc.id)
-              return (
-                <div key={loc.id} className="space-y-3">
-                  {/* Location header */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                        <Cpu size={14} className="text-teal-500" />
-                        {loc.name}
-                        <span className="text-[10px] font-mono text-gray-400">{loc.id}</span>
-                      </h3>
-                      {loc.description && (
-                        <p className="text-xs text-gray-500 mt-0.5 ml-5">{loc.description}</p>
-                      )}
-                    </div>
-                    <Button size="xs" icon={<Plus size={12} />} onClick={() => openAddOLT(loc.id)}>
-                      Add OLT
-                    </Button>
-                  </div>
-
-                  {locOLTs.length === 0 ? (
-                    <div className="bg-gray-50 rounded-lg py-6 text-center border border-dashed border-gray-200">
-                      <p className="text-xs text-gray-400">No OLTs in this location</p>
-                    </div>
-                  ) : (
-                    <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-surface-border bg-gray-50/60">
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">OLT Name</th>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ports</th>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                            <th className="px-4 py-2.5 w-28 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surface-border">
-                          {locOLTs.map(olt => {
-                            const oltPorts = ponPorts.filter(p => p.oltId === olt.id)
-                            const usedPorts = oltPorts.filter(p => p.status === 'In-Use').length
-                            return (
-                              <tr key={olt.id} className="hover:bg-gray-50/60 transition-colors">
-                                <td className="px-4 py-3">
-                                  <p className="font-medium text-gray-800">{olt.name}</p>
-                                  {olt.model && <p className="text-xs text-gray-400">{olt.model}</p>}
-                                  <p className="text-[10px] text-gray-400 font-mono">{olt.id}</p>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-blue/10 text-brand-blue font-mono">
-                                    {olt.type}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-xs text-gray-700">
-                                  {usedPorts}/{olt.portCount} used
-                                </td>
-                                <td className="px-4 py-3">
-                                  <Badge color={OLT_STATUS_BADGE[olt.status] ?? 'gray'}>{olt.status}</Badge>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <button
-                                    onClick={() => setActiveTab(1)}
-                                    className="text-xs font-medium text-brand-blue hover:underline"
-                                  >
-                                    View Ports →
-                                  </button>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+          ) : siteLocations.map(loc => {
+            const locOLTs = olts.filter(o => o.locationId === loc.id)
+            return (
+              <div key={loc.id} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <Cpu size={14} className="text-teal-500 shrink-0" />
+                    {loc.name}
+                    <span className="text-[10px] font-mono text-gray-400">{loc.id}</span>
+                  </h3>
+                  <Button size="xs" icon={<Plus size={12} />} onClick={() => openAddOLT(loc.id)}>
+                    Add OLT
+                  </Button>
                 </div>
-              )
-            })
-          )}
+
+                {locOLTs.length === 0 ? (
+                  <div className="bg-gray-50 rounded-lg py-5 text-center border border-dashed border-gray-200">
+                    <p className="text-xs text-gray-400">No OLTs in this location</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-surface-border bg-gray-50/60">
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ports</th>
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                          <th className="px-4 py-2.5 w-28 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-border">
+                        {locOLTs.map(olt => {
+                          const oltPorts = ponPorts.filter(p => p.oltId === olt.id)
+                          const usedPorts = oltPorts.filter(p => p.status === 'In-Use').length
+                          const pct = olt.portCount > 0 ? Math.round((usedPorts / olt.portCount) * 100) : 0
+                          return (
+                            <tr key={olt.id} className="hover:bg-gray-50/60 transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-gray-800">{olt.name}</p>
+                                <p className="text-[10px] text-gray-400 font-mono">{olt.id}</p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-blue/10 text-brand-blue font-mono">
+                                  {olt.type}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 min-w-[120px]">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-gray-600">{usedPorts}/{olt.portCount}</span>
+                                </div>
+                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-yellow-400' : 'bg-emerald-500'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge color={OLT_STATUS_BADGE[olt.status] ?? 'gray'}>{olt.status}</Badge>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => navigate(`/network/hierarchy/olts/${olt.id}`)}
+                                  className="text-xs font-medium text-brand-blue hover:underline"
+                                >
+                                  View Ports →
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {/* ── TAB 2: Port Map ───────────────────────────────────────────────────── */}
+      {/* ── TAB 2: Port Map ──────────────────────────────────────────────────── */}
       {activeTab === 1 && (
         <div>
-          {siteVPs.length === 0 ? (
+          {portMapRows.length === 0 ? (
             <div className="bg-white rounded-xl border border-surface-border py-14 text-center">
               <Zap size={32} className="mx-auto mb-2 text-gray-200" />
-              <p className="text-sm text-gray-400">No virtual ports found — add OLTs and FAT boxes first</p>
+              <p className="text-sm text-gray-400">No virtual ports found for this site</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-surface-border overflow-hidden">
@@ -301,33 +343,34 @@ export default function NetworkHierarchySite() {
                   <tr className="border-b border-surface-border bg-gray-50/60">
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">FAT Box</th>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Port #</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">OLT</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                     <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Customer ID</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {siteVPs.map(vp => {
-                    const fat = siteFATBoxes.find(f => f.id === vp.fatBoxId)
-                    return (
-                      <tr key={vp.id} className="hover:bg-gray-50/40 transition-colors">
-                        <td className="px-4 py-2.5">
-                          <p className="font-medium text-gray-800 text-xs">{fat?.name ?? vp.fatBoxId}</p>
-                          <p className="text-[10px] text-gray-400 font-mono">{vp.fatBoxId}</p>
-                        </td>
-                        <td className="px-4 py-2.5 text-sm font-mono text-gray-700">
-                          #{String(vp.portNumber).padStart(2, '0')}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${VP_STATUS_STYLE[vp.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                            {vp.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">
-                          {vp.customerId ?? '—'}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {portMapRows.map(row => (
+                    <tr key={row.id} className="hover:bg-gray-50/40 transition-colors">
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium text-xs text-gray-800">{row.fatBoxName}</p>
+                        <p className="text-[10px] text-gray-400 font-mono">{row.fatBoxId}</p>
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-sm text-gray-700">
+                        #{String(row.portNumber).padStart(2, '0')}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{row.oltName}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600">{row.locName}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${VP_CHIP[row.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">
+                        {row.customerId ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -335,7 +378,7 @@ export default function NetworkHierarchySite() {
         </div>
       )}
 
-      {/* ── TAB 3: Details ────────────────────────────────────────────────────── */}
+      {/* ── TAB 3: Details ───────────────────────────────────────────────────── */}
       {activeTab === 2 && (
         <div className="bg-white rounded-xl border border-surface-border divide-y divide-surface-border">
           {[
@@ -343,8 +386,6 @@ export default function NetworkHierarchySite() {
             { label: 'Name',           value: site.name },
             { label: 'Address',        value: site.address || '—' },
             { label: 'Coordinates',    value: site.geo ? `${site.geo.lat}, ${site.geo.lng}` : '—' },
-            { label: 'Site Group',     value: siteGroup ? `${siteGroup.name} (${siteGroup.id})` : '—' },
-            { label: 'Region',         value: region ? `${region.name} (${region.code})` : '—' },
             { label: 'Linked Project', value: site.siteProjectId || '—' },
             { label: 'Status',         value: site.status },
             { label: 'Created',        value: site.createdAt || '—' },
@@ -372,14 +413,33 @@ export default function NetworkHierarchySite() {
               {locErrors.name && <p className="text-xs text-red-500 mt-1">{locErrors.name}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Description</label>
-              <textarea
-                value={locForm.description}
-                onChange={e => setLocForm(f => ({ ...f, description: e.target.value }))}
-                rows={3}
-                placeholder="Optional notes…"
-                className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Address</label>
+              <input
+                value={locForm.address}
+                onChange={e => setLocForm(f => ({ ...f, address: e.target.value }))}
+                placeholder="e.g. Block A, 3rd Floor"
+                className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Latitude</label>
+                <input
+                  value={locForm.latitude}
+                  onChange={e => setLocForm(f => ({ ...f, latitude: e.target.value }))}
+                  placeholder="e.g. 28.4744"
+                  className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Longitude</label>
+                <input
+                  value={locForm.longitude}
+                  onChange={e => setLocForm(f => ({ ...f, longitude: e.target.value }))}
+                  placeholder="e.g. 77.5040"
+                  className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                />
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="secondary" size="sm" onClick={closeAddLoc}>Cancel</Button>
@@ -391,7 +451,7 @@ export default function NetworkHierarchySite() {
 
       {/* Add OLT modal */}
       {showAddOLT && (
-        <Modal title="Add OLT" onClose={closeAddOLT} size="md">
+        <Modal title="Add OLT" onClose={closeAddOLT} size="sm">
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
@@ -403,8 +463,7 @@ export default function NetworkHierarchySite() {
               />
               {oltErrors.name && <p className="text-xs text-red-500 mt-1">{oltErrors.name}</p>}
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Type</label>
                 <select
@@ -417,55 +476,29 @@ export default function NetworkHierarchySite() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Port Count</label>
-                <select
+                <input
+                  type="number"
+                  min={1}
+                  max={64}
                   value={oltForm.portCount}
-                  onChange={e => setOltForm(f => ({ ...f, portCount: Number(e.target.value) }))}
+                  onChange={e => setOltForm(f => ({ ...f, portCount: e.target.value }))}
                   className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-                >
-                  {OLT_PORT_COUNTS.map(c => <option key={c} value={c}>{c} ports</option>)}
-                </select>
+                />
               </div>
             </div>
-
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Model</label>
-              <input
-                value={oltForm.model}
-                onChange={e => setOltForm(f => ({ ...f, model: e.target.value }))}
-                placeholder="e.g. Syrotech SY-GPON-1040"
-                className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Serial Number</label>
-              <input
-                value={oltForm.serialNumber}
-                onChange={e => setOltForm(f => ({ ...f, serialNumber: e.target.value }))}
-                placeholder="e.g. SY20240001"
-                className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Location <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Status</label>
               <select
-                value={oltForm.locationId}
-                onChange={e => setOltForm(f => ({ ...f, locationId: e.target.value }))}
+                value={oltForm.status}
+                onChange={e => setOltForm(f => ({ ...f, status: e.target.value }))}
                 className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
               >
-                <option value="">— Select —</option>
-                {siteLocations.map(l => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
+                {OLT_STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
-              {oltErrors.locationId && <p className="text-xs text-red-500 mt-1">{oltErrors.locationId}</p>}
             </div>
-
             <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-              PON ports will be auto-generated based on the selected port count.
+              PON ports will be auto-generated from the port count.
             </p>
-
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="secondary" size="sm" onClick={closeAddOLT}>Cancel</Button>
               <Button size="sm" onClick={handleSaveOLT}>Save & Generate Ports</Button>
