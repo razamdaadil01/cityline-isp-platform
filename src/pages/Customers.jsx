@@ -346,7 +346,6 @@ export default function Customers() {
             <Button variant="secondary" size="sm" icon={<Download size={14} />} onClick={handleExportAll}>Export</Button>
           )}
           <ColumnManager columns={tableColumns} onChange={setTableColumns} />
-          <Button size="sm" icon={<UserPlus size={14} />} onClick={() => navigate('/customers/new')}>Add Customer</Button>
         </div>
       </div>
 
