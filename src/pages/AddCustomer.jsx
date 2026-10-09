@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import Badge from '../components/ui/Badge'
 import { addCustomer, getNextCustomerId } from '../data/customersData'
+import hierarchyStore from '../data/hierarchyStore'
 import { getStores } from '../data/storeStore'
 import { getActivePartners } from '../data/partners'
 
@@ -141,6 +142,7 @@ export default function AddCustomer() {
   const [otpError,   setOtpError]   = useState('')
 
   const [docs, setDocs] = useState({ aadhaarFront: null, aadhaarBack: null, photo: null, gstCert: null })
+  const [feasibility, setFeasibility] = useState(null)
 
   const [submitted, setSubmitted] = useState(false)
   const [cafNo,     setCafNo]     = useState('')
@@ -308,6 +310,7 @@ export default function AddCustomer() {
     setStep(1)
     setForm(INIT_FORM)
     setDocs({ aadhaarFront: null, aadhaarBack: null, photo: null, gstCert: null })
+    setFeasibility(null)
     setOtpSent(false)
     setOtpValue('')
     setOtpError('')
@@ -526,12 +529,35 @@ export default function AddCustomer() {
                   hint="Level 1 — Network coverage area">
                   <Select
                     value={form.area}
-                    onChange={e => { set('area', e.target.value); set('subArea', '') }}
+                    onChange={e => {
+                      const val = e.target.value
+                      set('area', val)
+                      set('subArea', '')
+                      setFeasibility(val ? hierarchyStore.checkPortAvailability(val) : null)
+                    }}
                     error={errors.area}
                   >
                     <option value="">Select Area</option>
                     {Object.keys(AREAS_MAP).map(a => <option key={a}>{a}</option>)}
                   </Select>
+                  {feasibility !== null && (
+                    feasibility.available ? (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                        <CheckCircle2 size={13} className="shrink-0" />
+                        Network Available — Ports available in this area.
+                        {feasibility.regionName && (
+                          <span className="text-emerald-600 font-normal">
+                            &nbsp;({feasibility.regionName}{feasibility.siteName ? `, ${feasibility.siteName}` : ''})
+                          </span>
+                        )}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <AlertCircle size={13} className="shrink-0" />
+                        No Available Ports — Customer can be added but service may be delayed.
+                      </p>
+                    )
+                  )}
                 </FormField>
 
                 {/* Level 2 – Sub-Area */}
