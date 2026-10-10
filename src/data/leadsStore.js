@@ -1,4 +1,5 @@
 import { getCustomerType, formatLeadId, getNextLeadIdSequence, peekNextLeadIdSequence } from './customerTypes'
+import { logAudit } from './auditLogStore'
 
 const INIT_LEADS = [
   { id: 'LD-201', pipeline: 'B2C', name: 'Ramesh Nair', phone: '9876001122', email: '', area: 'Koramangala', source: 'Website', stage: 'New Inquiry', plan: '100 Mbps Home', assigned: 'Arjun Kumar', salesExecutive: 'Arjun Kumar', assignedInitials: 'AK', assignedColor: 'bg-brand-blue', daysInStage: 2, lastActivity: 'Form submitted', followUp: '2026-05-08', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-17', address: '12, Brigade Road', city: 'Bangalore', pincode: '560001', state: 'Karnataka', district: 'Bangalore Urban', locality: 'Koramangala', subLocality: '4th Block', siteType: 'FTTH', branchCode: 'CNPL-KOR-01', alternateMobile: '', createdBy: 'Arjun Kumar' },
@@ -38,10 +39,28 @@ export function saveLead(lead) {
   const exists = _leads.find(l => l.id === lead.id)
   if (exists) {
     _leads = _leads.map(l => l.id === lead.id ? lead : l)
+    if (exists.stage !== lead.stage && lead.stage) {
+      if (lead.stage === 'Lost') {
+        const reason = lead.stageFields?.Lost?.['lost-reason'] || lead.stageFields?.Lost?.reason || ''
+        logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) marked Lost${reason ? ` — ${reason}` : ''}` })
+      } else {
+        logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) stage: ${exists.stage} → ${lead.stage}` })
+      }
+    }
   } else {
     _leads = [lead, ..._leads]
   }
   _listeners.forEach(fn => fn([..._leads]))
+}
+
+export function canMoveLeadToStage(lead, targetStage) {
+  if (lead.pipeline === 'B2C' && targetStage === 'Won') {
+    return { allowed: false, reason: 'Won is set automatically when installation is completed.' }
+  }
+  if (lead.pipeline === 'B2C' && targetStage === 'Installation Visit' && lead.feasibilityStatus !== 'Approved') {
+    return { allowed: false, reason: 'Feasibility must be approved first.' }
+  }
+  return { allowed: true, reason: '' }
 }
 
 export function subscribeLeads(fn) {

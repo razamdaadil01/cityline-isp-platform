@@ -14,7 +14,7 @@ import AssignEngineerModal from '../components/feasibility/AssignEngineerModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
-import { logAudit } from '../data/auditLogStore'
+
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
@@ -654,7 +654,6 @@ export default function FeasibilityDetail() {
       approvedAt:       now,
       _note: 'Feasibility approved',
     })
-    logAudit({ module: 'Feasibility', action: 'Edit', details: `Feasibility ${req.id} approved for ${req.customerName} (Lead: ${req.leadId})` })
     closeApprove()
     setToast('Feasibility approved successfully')
   }
@@ -685,7 +684,6 @@ export default function FeasibilityDetail() {
       rejectedAt:       now,
       _note: `Rejected — ${rejectForm.reason}`,
     })
-    logAudit({ module: 'Feasibility', action: 'Edit', details: `Feasibility ${req.id} rejected for ${req.customerName} — ${rejectForm.reason}` })
     closeReject()
     setToast('Feasibility rejected')
   }

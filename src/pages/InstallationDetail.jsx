@@ -920,7 +920,7 @@ export default function InstallationDetail() {
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setDispatchOpen(false)}>Cancel</Button>
           <Button size="sm" className="bg-orange-600 hover:bg-orange-700"
-            onClick={() => { doStatus('Dispatched', { _note: 'Hardware collected — team dispatched' }); logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${inst.id} status: Hardware Collection Pending → Dispatched` }); setDispatchOpen(false) }}>
+            onClick={() => { doStatus('Dispatched', { _note: 'Hardware collected — team dispatched' }); setDispatchOpen(false) }}>
             <Truck size={13} className="mr-1" /> Confirm — Dispatch
           </Button>
         </>}
@@ -940,7 +940,7 @@ export default function InstallationDetail() {
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setProgressOpen(false)}>Cancel</Button>
           <Button size="sm" className="bg-amber-600 hover:bg-amber-700"
-            onClick={() => { doStatus('In Progress', { _note: 'Installation in progress' }); logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${inst.id} status: Dispatched → In Progress` }); setProgressOpen(false) }}>
+            onClick={() => { doStatus('In Progress', { _note: 'Installation in progress' }); setProgressOpen(false) }}>
             <Play size={13} className="mr-1" /> Mark In Progress
           </Button>
         </>}
@@ -962,10 +962,8 @@ export default function InstallationDetail() {
               } else if (result?.id) {
                 setToast(`Installation completed — Customer record created: ${result.id}`)
                 setCompletedCustomerId(result.id)
-                logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${inst.id} completed — Customer ${result.id} created for ${inst.customerName}` })
               } else {
                 setToast('Installation marked as Completed')
-                logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${inst.id} status: In Progress → Completed` })
               }
             }}>
             <CheckCircle2 size={13} className="mr-1" /> Mark Completed
@@ -985,7 +983,7 @@ export default function InstallationDetail() {
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setFailOpen(false)}>Cancel</Button>
           <Button size="sm" className="bg-red-600 hover:bg-red-700"
-            onClick={() => { doStatus('Failed', { _note: 'Installation failed' }); logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${inst.id} status: In Progress → Failed` }); setFailOpen(false) }}>
+            onClick={() => { doStatus('Failed', { _note: 'Installation failed' }); setFailOpen(false) }}>
             <XCircle size={13} className="mr-1" /> Mark Failed
           </Button>
         </>}
@@ -1004,7 +1002,7 @@ export default function InstallationDetail() {
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setCancelOpen(false)}>Keep Installation</Button>
           <Button size="sm" className="bg-red-600 hover:bg-red-700"
-            onClick={() => { doStatus('Cancelled', { _note: 'Installation cancelled' }); logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${inst.id} cancelled for ${inst.customerName}` }); setCancelOpen(false) }}>
+            onClick={() => { doStatus('Cancelled', { _note: 'Installation cancelled' }); setCancelOpen(false) }}>
             Confirm Cancellation
           </Button>
         </>}
