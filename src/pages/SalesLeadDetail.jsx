@@ -10,7 +10,7 @@ import {
   UploadCloud, FileSignature, Shield, Award,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
-import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
+import { getLeads, saveLead, subscribeLeads, canMoveLeadToStage } from '../data/leadsStore'
 import { findEkycRecord } from '../data/ekycRecordsStore'
 import { saveFeasibilityRequest, getFeasibilityRequests, subscribeFeasibility, updateFeasibilityStatus } from '../data/feasibilityStore'
 import {
@@ -2992,23 +2992,11 @@ export default function SalesLeadDetail() {
   }
 
   function handleMoveStage(targetStage, fieldVals, fuData) {
-    // Won is set exclusively by the Installation → Completed flow (Path B).
-    // Block any attempt to manually move a B2C lead to Won from this page.
-    if (targetStage === 'Won' && lead.pipeline === 'B2C') {
-      setFeasGateToast('Won is set automatically when installation is completed.')
+    const gate = canMoveLeadToStage(lead, targetStage)
+    if (!gate.allowed) {
+      setFeasGateToast(gate.reason)
       setTimeout(() => setFeasGateToast(null), 4000)
       return
-    }
-
-    // Feasibility gate: B2C leads must have an Approved feasibility record
-    // before moving to Installation Visit or beyond.
-    if (lead.pipeline === 'B2C' && targetStage === 'Installation Visit') {
-      const feasStatus = linkedFeasibility?.feasibilityStatus
-      if (feasStatus !== 'Approved') {
-        setFeasGateToast('Feasibility must be Approved before moving to Installation Visit.')
-        setTimeout(() => setFeasGateToast(null), 4000)
-        return
-      }
     }
 
     // Enterprise Won → create installation record so Path B can convert it.

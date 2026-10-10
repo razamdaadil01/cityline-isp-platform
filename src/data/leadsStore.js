@@ -53,6 +53,16 @@ export function saveLead(lead) {
   _listeners.forEach(fn => fn([..._leads]))
 }
 
+export function canMoveLeadToStage(lead, targetStage) {
+  if (lead.pipeline === 'B2C' && targetStage === 'Won') {
+    return { allowed: false, reason: 'Won is set automatically when installation is completed.' }
+  }
+  if (lead.pipeline === 'B2C' && targetStage === 'Installation Visit' && lead.feasibilityStatus !== 'Approved') {
+    return { allowed: false, reason: 'Feasibility must be approved first.' }
+  }
+  return { allowed: true, reason: '' }
+}
+
 export function subscribeLeads(fn) {
   _listeners.push(fn)
   return () => {

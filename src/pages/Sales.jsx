@@ -12,7 +12,7 @@ import {
 import * as XLSX from 'xlsx'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
-import { getLeads, saveLead as saveLeadToStore, subscribeLeads } from '../data/leadsStore'
+import { getLeads, saveLead as saveLeadToStore, subscribeLeads, canMoveLeadToStage } from '../data/leadsStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
 import { getStageFields, getStageMeta } from '../data/stageFieldsStore'
@@ -1644,6 +1644,7 @@ export default function Sales() {
   const [showExportMenu, setShowExportMenu]     = useState(false)
   const [exportToast, setExportToast]           = useState('')
   const [wonBlockedNotice, setWonBlockedNotice] = useState('')
+  const [stageGateToast, setStageGateToast]     = useState(null)
   const [pipelineDropdownOpen, setPipelineDropdownOpen] = useState(false)
   const [callToast, setCallToast]               = useState(null)
   const [drawerOpen, setDrawerOpen]             = useState(false)
@@ -1776,6 +1777,16 @@ export default function Sales() {
         const isLostDrop = targetStage === 'Lost' || dropSC?.statusType === 'Lost'
         if (isLostDrop) {
           openMoveStageModal(lead.id, targetStage)
+          setDraggingId(null)
+          setDragOverStage(null)
+          return
+        }
+
+        // Gate: block stage moves not allowed by policy
+        const dragGate = canMoveLeadToStage(lead, targetStage)
+        if (!dragGate.allowed) {
+          setStageGateToast(dragGate.reason)
+          setTimeout(() => setStageGateToast(null), 4000)
           setDraggingId(null)
           setDragOverStage(null)
           return
@@ -1945,6 +1956,14 @@ export default function Sales() {
         <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-amber-500 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
           <AlertTriangle size={16} className="shrink-0" />
           {wonBlockedNotice}
+        </div>
+      )}
+
+      {/* ── Stage-gate toast ────────────────────────────────────────────── */}
+      {stageGateToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-amber-500 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <AlertTriangle size={16} className="shrink-0" />
+          {stageGateToast}
         </div>
       )}
 
@@ -2522,6 +2541,13 @@ export default function Sales() {
             initialStage={moveStageInitial}
             onClose={closeLeadModal}
             onMove={(targetStage, fieldVals, fuData) => {
+              const moveGate = canMoveLeadToStage(msLead, targetStage)
+              if (!moveGate.allowed) {
+                setStageGateToast(moveGate.reason)
+                setTimeout(() => setStageGateToast(null), 4000)
+                closeLeadModal()
+                return
+              }
               const updatedLead = {
                 ...msLead,
                 stage: targetStage,
