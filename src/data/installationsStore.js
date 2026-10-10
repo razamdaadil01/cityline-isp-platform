@@ -1,6 +1,8 @@
 import { getLeads, saveLead } from './leadsStore'
 import { addCustomer } from './customersData'
 import { buildCustomerFromLead } from './leadConversion'
+import { getFeasibilityRequests } from './feasibilityStore'
+import { getPPPoEId, getAppPassword, applyPattern, buildCredentialTokens } from './customerTypes'
 
 // userId bridges each entry to userStore.js's canonical Technician roster
 // (role='engineer' users — see that file's INITIAL_USERS comment).
@@ -465,29 +467,60 @@ export function updateInstallationStatus(id, status, extra = {}) {
   return createdCustomer
 }
 
-// Lead -> Won and Lead -> Customer only ever happen this way now — the moment
+// Lead -> Won and Lead -> Customer only ever happen this way — the moment
 // an installation linked to a lead is marked Completed (whether from the
 // Installation List's bulk action or Installation Detail's status action;
-// both funnel through this same function). Manually setting a lead's stage
-// to Won from the Sales pages was removed. Guarded by
+// both funnel through this same function). Guarded by
 // lead.convertedToCustomerId so re-toggling an installation's status
 // Completed -> something else -> Completed again never creates a second
 // customer record for the same lead.
 function convertLeadToCustomer(leadId, by) {
   const lead = getLeads().find(l => l.id === leadId)
   if (!lead || lead.convertedToCustomerId) return null
+
+  const inst = _installations.find(i => i.leadId === leadId)
+  const feasibility = getFeasibilityRequests().find(f => f.leadId === leadId)
+  const isCorporate = lead.pipeline === 'Enterprise'
+  const typeId = isCorporate ? 'corporate' : 'resident'
+
+  // Resolve connection.type: feasibility record (written when lead moves to
+  // Feasibility stage) wins; then the installation record's connectionType;
+  // then the lead's own siteType.
+  const connectionType = feasibility?.connectionType || inst?.connectionType || lead.siteType || ''
+
   const customer = buildCustomerFromLead(lead)
-  addCustomer(customer)
+  const customerWithConn = {
+    ...customer,
+    connection: { ...customer.connection, type: connectionType },
+  }
+
+  const customerLike = { name: customerWithConn.name, id: customerWithConn.id }
+  const pppoeUsername = getPPPoEId(customerLike, typeId)
+  const pppoePassword = applyPattern('{customerid}#Pass', buildCredentialTokens(customerLike))
+  const appPassword   = getAppPassword(customerLike, typeId)
+
+  const finalCustomer = {
+    ...customerWithConn,
+    pppoeUsername,
+    radius: {
+      ...(customerWithConn.radius ?? {}),
+      pppoeUsername,
+      pppoePassword,
+      appPassword,
+    },
+  }
+
+  addCustomer(finalCustomer)
   const now = new Date().toISOString().split('T')[0]
   saveLead({
     ...lead,
     stage: 'Won',
     daysInStage: 0,
     lastActivity: 'Installation completed — converted to customer',
-    convertedToCustomerId: customer.id,
+    convertedToCustomerId: finalCustomer.id,
     stageHistory: [...(lead.stageHistory ?? []), { stage: 'Won', date: now, movedBy: by || 'Admin', fields: {} }],
   })
-  return customer
+  return finalCustomer
 }
 
 export function subscribeInstallations(fn) {
