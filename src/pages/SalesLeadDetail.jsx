@@ -7,7 +7,7 @@ import {
   CheckCircle, Send, Loader2,
   Wrench, Wifi, Package, CreditCard, Copy, AlertTriangle, Zap, Smartphone,
   Fingerprint, Search, FileText, PhoneCall, X, Trash2, Download, MoreVertical, RotateCcw, Banknote,
-  UploadCloud, FileSignature, Shield,
+  UploadCloud, FileSignature, Shield, Award,
   // Eye, // PROFORMA INVOICE — disabled; only used by the commented-out PI "View" buttons below.
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
@@ -21,6 +21,7 @@ import { MOCK_PLANS, SERVICE_BADGE, BILLING_TYPES, MOCK_ADDONS } from '../data/p
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
+import { logAudit } from '../data/auditLogStore'
 import { getCompanyEntity, getCompanyEntities } from '../data/companyEntities'
 import { getPartner } from '../data/partners'
 import { getCustomerType } from '../data/customerTypes'
@@ -2993,7 +2994,11 @@ export default function SalesLeadDetail() {
   function handleMoveStage(targetStage, fieldVals, fuData) {
     // Won is set exclusively by the Installation → Completed flow (Path B).
     // Block any attempt to manually move a B2C lead to Won from this page.
-    if (targetStage === 'Won' && lead.pipeline === 'B2C') return
+    if (targetStage === 'Won' && lead.pipeline === 'B2C') {
+      setFeasGateToast('Won is set automatically when installation is completed.')
+      setTimeout(() => setFeasGateToast(null), 4000)
+      return
+    }
 
     // Feasibility gate: B2C leads must have an Approved feasibility record
     // before moving to Installation Visit or beyond.
@@ -3010,8 +3015,9 @@ export default function SalesLeadDetail() {
     if (targetStage === 'Won' && lead.pipeline === 'Enterprise') {
       const existing = getInstallations().find(i => i.leadId === lead.id)
       if (!existing) {
+        const newInstId = nextInstallationId()
         saveInstallation({
-          id: nextInstallationId(),
+          id: newInstId,
           leadId: lead.id,
           customerName: lead.name,
           area: lead.area ?? '',
@@ -3020,6 +3026,7 @@ export default function SalesLeadDetail() {
           createdAt: TODAY,
           createdBy: lead.assigned ?? 'Admin',
         })
+        logAudit({ module: 'Installations', action: 'Create', details: `Installation ${newInstId} created for Enterprise lead ${lead.id} (${lead.name}) moved to Won` })
       }
     }
 
@@ -3048,6 +3055,12 @@ export default function SalesLeadDetail() {
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
     }
     saveLead(updatedLead)
+    if (targetStage === 'Lost') {
+      const lostReason = fieldVals['lost-reason'] || fieldVals['reason'] || ''
+      logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) marked Lost${lostReason ? ` — ${lostReason}` : ''}` })
+    } else {
+      logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) stage: ${lead.stage} → ${targetStage}` })
+    }
     if (targetStage === 'Feasibility') {
       const existing = getFeasibilityRequests().find(r => r.leadId === lead.id)
       saveFeasibilityRequest({
@@ -3067,6 +3080,7 @@ export default function SalesLeadDetail() {
         customerRequirementNotes: fieldVals['s4-f6'] || existing?.customerRequirementNotes || '',
         assignedBranch:           fieldVals['s4-f7'] || existing?.assignedBranch || '',
       })
+      logAudit({ module: 'Feasibility', action: 'Create', details: `Feasibility requested for lead ${lead.id} (${lead.name})` })
     }
     if (fuData?.date) {
       saveFollowup({ id: `FU-${Date.now()}`, leadId: lead.id, leadName: lead.name, phone: lead.phone, date: fuData.date, time: fuData.time, note: fuData.note, stage: targetStage, assignedTo: lead.assigned, notifyTo: fuData.notifyTo, priority: lead.priority ?? 'medium', status: 'Pending' })
@@ -3224,6 +3238,7 @@ export default function SalesLeadDetail() {
       cableLength:  hwFormData.cableLength,
       drumNumber:   hwFormData.drumNumber,
     })
+    logAudit({ module: 'Sales', action: 'Edit', details: `Hardware confirmed for lead ${lead.id} (${lead.name}) — ${hwFormData.deviceType || 'device'} ${hwFormData.deviceModel || ''}`.trim() })
 
     // Advance lead to 'Installation Visit' only if still at an earlier stage
     const B2C_STAGES = ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost']
@@ -3469,6 +3484,22 @@ export default function SalesLeadDetail() {
                       className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
                       <Bell size={14} className="text-gray-400 shrink-0" /> Add Follow-up
                     </button>
+                    {lead.stage !== 'Won' && lead.stage !== 'Lost' && lead.pipeline === 'B2C' && (
+                      <span title="Won is set automatically when installation is completed.">
+                        <button
+                          disabled
+                          className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-400 whitespace-nowrap cursor-not-allowed opacity-50 hover:bg-white">
+                          <Award size={14} className="text-gray-300 shrink-0" /> Mark as Won
+                        </button>
+                      </span>
+                    )}
+                    {lead.stage !== 'Won' && lead.stage !== 'Lost' && lead.pipeline === 'Enterprise' && (
+                      <button
+                        onClick={() => { openMoveStage('Won'); setActionsOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap">
+                        <Award size={14} className="text-emerald-500 shrink-0" /> Mark as Won
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

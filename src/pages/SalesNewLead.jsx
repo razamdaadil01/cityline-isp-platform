@@ -18,6 +18,7 @@ import { getFeasibilityRequests, subscribeFeasibility } from '../data/feasibilit
 import { saveFollowup } from '../data/followupStore'
 import { getPlans } from '../data/packagesStore'
 import { GSTIN_REGEX } from '../data/companyEntities'
+import { logAudit } from '../data/auditLogStore'
 import { lookupGstin } from '../data/gstLookup'
 
 // ── Edit-mode locked Pipeline/Stage pill styling ──────────────────────────────
@@ -734,6 +735,7 @@ export default function SalesNewLead({ lead = null } = {}) {
       lastActivity: 'Lead details updated',
       activityLog: [activityEntry, ...(lead.activityLog ?? [])],
     })
+    logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) details updated by ${userName}` })
     navigate(`/sales/leads/${leadId}`)
   }
 
@@ -761,6 +763,7 @@ export default function SalesNewLead({ lead = null } = {}) {
       stageHistory: [{ stage: 'New Inquiry', date: today, movedBy: userName, fields: {} }],
       activityLog: activityLogForDuplicate(),
     })
+    logAudit({ module: 'Sales', action: 'Create', details: `Residential lead ${actualLeadId} created for ${payload.name} by ${userName}` })
     submitFollowUp(actualLeadId, payload.name, rForm.primaryNumber, rForm.salesExecutive, 'New Inquiry', 'Residential')
     navigate(`/sales/leads/${actualLeadId}`)
   }
@@ -789,6 +792,7 @@ export default function SalesNewLead({ lead = null } = {}) {
       stageHistory: [{ stage: 'New Inquiry Filed', date: today, movedBy: userName, fields: {} }],
       activityLog: activityLogForDuplicate(),
     })
+    logAudit({ module: 'Sales', action: 'Create', details: `Enterprise lead ${actualLeadId} created for ${payload.name ?? cForm.legalName} by ${userName}` })
     submitFollowUp(actualLeadId, cForm.legalName || cForm.contactPersonName, cForm.primaryNumber, cForm.assignedTo, 'New Inquiry Filed', 'Enterprise')
     navigate(`/sales/leads/${actualLeadId}`)
   }
