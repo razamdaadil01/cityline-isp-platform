@@ -3,6 +3,7 @@ import { addCustomer } from './customersData'
 import { buildCustomerFromLead } from './leadConversion'
 import { getFeasibilityRequests } from './feasibilityStore'
 import { getPPPoEId, getAppPassword, applyPattern, buildCredentialTokens } from './customerTypes'
+import { logAudit } from './auditLogStore'
 
 // userId bridges each entry to userStore.js's canonical Technician roster
 // (role='engineer' users — see that file's INITIAL_USERS comment).
@@ -515,6 +516,7 @@ function convertLeadToCustomer(leadId, by) {
   }
 
   addCustomer(finalCustomer)
+  logAudit({ module: 'Customers', action: 'Create', details: `Customer ${finalCustomer.id} created from lead ${lead.id} (${lead.name}) via installation completion` })
   const now = new Date().toISOString().split('T')[0]
   saveLead({
     ...lead,

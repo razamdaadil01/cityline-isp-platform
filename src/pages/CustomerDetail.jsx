@@ -7,7 +7,7 @@ import {
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
   PackageSearch, Receipt, Lock, UserX, Upload,
-  ClipboardList, Users, CheckCircle2, CreditCard, Send,
+  ClipboardList, Users, CheckCircle2, CreditCard, Send, BookOpen,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -1284,11 +1284,14 @@ const EMPTY_SVC_FORM = { serviceType: 'Broadband', packageLabel: '', amount: '',
 
 function PackagesTab({ customer }) {
   const [view, setView] = useState('table')
-  // Falls back to the shared PACKAGES mock for customers that have never
-  // had a real service added — customer.packages stays null until
-  // handleAddService() below persists a genuine per-customer list via
-  // updateCustomer(), same pattern as address/connection/sales.
-  const [packages, setPackages] = useState(customer.packages ?? PACKAGES)
+  // Falls back to the shared PACKAGES mock for seed customers that have never
+  // had a real service added. For converted customers (sourceLeadId set),
+  // starts with an empty list so pre-activation package info shows instead.
+  // customer.packages stays null until handleAddService() below persists a
+  // genuine per-customer list via updateCustomer().
+  const [packages, setPackages] = useState(
+    customer.packages ?? (customer.sourceLeadId ? [] : PACKAGES)
+  )
   const [pkgMenu, setPkgMenu] = useState(null)
   const pkgMenuRef = useRef(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -1367,6 +1370,31 @@ function PackagesTab({ customer }) {
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg">
           <CheckCircle size={15} /> Service added successfully
         </div>
+      )}
+
+      {/* Pre-activation package info (converted customers awaiting activation) */}
+      {packages.length === 0 && (customer.selectedPackage || customer.bandwidthPackage) && (
+        <Card>
+          <div className="flex items-start gap-3 p-1">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+              <PackageSearch size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Pre-activation Package</p>
+              <p className="text-sm text-gray-600 mt-0.5">{customer.plan || '—'}</p>
+              <p className="text-xs text-gray-400 mt-1">Package will be activated after account activation.</p>
+            </div>
+          </div>
+        </Card>
+      )}
+      {packages.length === 0 && !customer.selectedPackage && !customer.bandwidthPackage && customer.sourceLeadId && (
+        <Card>
+          <div className="text-center py-8">
+            <PackageSearch size={28} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-sm font-medium text-gray-500">No packages yet</p>
+            <p className="text-xs text-gray-400 mt-1">Services will appear here after activation.</p>
+          </div>
+        </Card>
       )}
 
       {/* Toolbar */}
@@ -1703,8 +1731,13 @@ function FinanceTab({ customer, setActivityLog }) {
 
   // Invoices — real, mutable store (invoicesStore.js) so Add Payment's
   // Submit action (markInvoicesPaid()) is reflected here live.
-  const [invoices, setInvoices] = useState(() => getInvoices())
-  useEffect(() => subscribeInvoices(setInvoices), [])
+  // Converted customers (sourceLeadId set) start with an empty list — no
+  // shared mock invoices from the seed store; real invoices appear once generated.
+  const [invoices, setInvoices] = useState(() => customer.sourceLeadId ? [] : getInvoices())
+  useEffect(() => {
+    if (customer.sourceLeadId) return
+    return subscribeInvoices(setInvoices)
+  }, [customer.id])
 
   // Real payments recorded via Add Payment, merged on top of the pre-existing
   // MOCK_PAYMENTS seed rows below.
@@ -1742,15 +1775,18 @@ function FinanceTab({ customer, setActivityLog }) {
     exportCsv(`${customer.id}_invoices_${new Date().toISOString().slice(0, 10)}.csv`, rows)
   }
 
-  const allPayments = [...realPayments, ...MOCK_PAYMENTS]
+  // Converted customers show only real payments; seed customers get the
+  // MOCK_PAYMENTS prepended to fill the demo view.
+  const allPayments = customer.sourceLeadId ? realPayments : [...realPayments, ...MOCK_PAYMENTS]
   const filteredPayments = showFailed ? allPayments.filter(p => p.status === 'Failed') : allPayments
   const payTotal = filteredPayments.length
   const payPages = Math.max(1, Math.ceil(payTotal / PER_PAGE))
   const payRows  = filteredPayments.slice((payPage - 1) * PER_PAGE, payPage * PER_PAGE)
 
-  const ledTotal = LEDGER.length
+  const activeLedger = customer.sourceLeadId ? [] : LEDGER
+  const ledTotal = activeLedger.length
   const ledPages = Math.ceil(ledTotal / PER_PAGE)
-  const ledRows  = LEDGER.slice((ledPage - 1) * PER_PAGE, ledPage * PER_PAGE)
+  const ledRows  = activeLedger.slice((ledPage - 1) * PER_PAGE, ledPage * PER_PAGE)
 
   function Pagination({ page, total, pages, onPage, label }) {
     const from = (page - 1) * PER_PAGE + 1
@@ -1831,9 +1867,16 @@ function FinanceTab({ customer, setActivityLog }) {
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Invoices</h3>
-            <Button variant="secondary" size="xs" icon={<Download size={12} />} onClick={handleExportInvoices}>Export</Button>
+            {invoices.length > 0 && <Button variant="secondary" size="xs" icon={<Download size={12} />} onClick={handleExportInvoices}>Export</Button>}
           </div>
-          <div className="overflow-x-auto">
+          {invoices.length === 0 && (
+            <div className="text-center py-10">
+              <Receipt size={28} className="mx-auto text-gray-200 mb-3" />
+              <p className="text-sm font-medium text-gray-500">No invoices yet</p>
+              <p className="text-xs text-gray-400 mt-1">Invoices will appear here once generated.</p>
+            </div>
+          )}
+          {invoices.length > 0 && <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -1886,8 +1929,8 @@ function FinanceTab({ customer, setActivityLog }) {
                 ))}
               </tbody>
             </table>
-          </div>
-          <Pagination page={invPage} total={invTotal} pages={invPages} onPage={setInvPage} label="invoices" />
+          </div>}
+          {invoices.length > 0 && <Pagination page={invPage} total={invTotal} pages={invPages} onPage={setInvPage} label="invoices" />}
         </Card>
       )}
 
@@ -1909,8 +1952,17 @@ function FinanceTab({ customer, setActivityLog }) {
             </div>
           </div>
 
+          {/* Empty state for converted customers with no payments */}
+          {allPayments.length === 0 && (
+            <div className="text-center py-10">
+              <CreditCard size={28} className="mx-auto text-gray-200 mb-3" />
+              <p className="text-sm font-medium text-gray-500">No payments yet</p>
+              <p className="text-xs text-gray-400 mt-1">Payments will appear here after activation.</p>
+            </div>
+          )}
+
           {/* Table */}
-          <div className="overflow-x-auto">
+          {allPayments.length > 0 && <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -1952,10 +2004,10 @@ function FinanceTab({ customer, setActivityLog }) {
                 )}
               </tbody>
             </table>
-          </div>
+          </div>}
 
           {/* Bottom pagination row */}
-          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-between gap-4">
+          {allPayments.length > 0 && <div className="px-5 py-3 border-t border-surface-border flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <label className="text-xs text-gray-500">Records per page</label>
               <select className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none">
@@ -1979,7 +2031,7 @@ function FinanceTab({ customer, setActivityLog }) {
               <button onClick={() => setPayPage(p => Math.min(payPages, p + 1))} disabled={payPage === payPages}
                 className="px-2.5 py-1 text-xs rounded border border-surface-border text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
             </div>
-          </div>
+          </div>}
         </Card>
       )}
 
@@ -1989,7 +2041,14 @@ function FinanceTab({ customer, setActivityLog }) {
           <div className="px-5 py-4 border-b border-surface-border">
             <h3 className="text-sm font-semibold text-gray-800">Account Ledger</h3>
           </div>
-          <div className="overflow-x-auto">
+          {activeLedger.length === 0 && (
+            <div className="text-center py-10">
+              <BookOpen size={28} className="mx-auto text-gray-200 mb-3" />
+              <p className="text-sm font-medium text-gray-500">No ledger entries yet</p>
+              <p className="text-xs text-gray-400 mt-1">Ledger entries will appear here after activation.</p>
+            </div>
+          )}
+          {activeLedger.length > 0 && <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/60 border-b border-surface-border">
@@ -2016,8 +2075,8 @@ function FinanceTab({ customer, setActivityLog }) {
                 ))}
               </tbody>
             </table>
-          </div>
-          <Pagination page={ledPage} total={ledTotal} pages={ledPages} onPage={setLedPage} label="entries" />
+          </div>}
+          {activeLedger.length > 0 && <Pagination page={ledPage} total={ledTotal} pages={ledPages} onPage={setLedPage} label="entries" />}
         </Card>
       )}
 
@@ -3433,26 +3492,34 @@ function ActivityTab({ activity }) {
       <div className="px-5 py-4 border-b border-surface-border">
         <h3 className="text-sm font-semibold text-gray-800">Audit Trail</h3>
       </div>
-      <div className="divide-y divide-surface-border">
-        {activity.map((entry, i) => (
-          <div key={i} className="px-5 py-3.5 flex items-start gap-4 hover:bg-gray-50/50">
-            <div className="shrink-0 w-5 h-5 rounded-full bg-brand-blue/10 flex items-center justify-center mt-0.5">
-              <Activity size={10} className="text-brand-blue" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="text-sm font-medium text-gray-800">{entry.event}</span>
-                {entry.meta && <span className="text-xs text-gray-400">— {entry.meta}</span>}
+      {activity.length === 0 ? (
+        <div className="text-center py-10">
+          <Activity size={28} className="mx-auto text-gray-200 mb-3" />
+          <p className="text-sm font-medium text-gray-500">No activity yet</p>
+          <p className="text-xs text-gray-400 mt-1">Activity will be recorded here as actions are taken.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-surface-border">
+          {activity.map((entry, i) => (
+            <div key={i} className="px-5 py-3.5 flex items-start gap-4 hover:bg-gray-50/50">
+              <div className="shrink-0 w-5 h-5 rounded-full bg-brand-blue/10 flex items-center justify-center mt-0.5">
+                <Activity size={10} className="text-brand-blue" />
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-gray-400">{entry.time}</span>
-                <span className="text-gray-300">·</span>
-                <span className="text-xs font-medium text-gray-500">{entry.actor}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-sm font-medium text-gray-800">{entry.event}</span>
+                  {entry.meta && <span className="text-xs text-gray-400">— {entry.meta}</span>}
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-gray-400">{entry.time}</span>
+                  <span className="text-gray-300">·</span>
+                  <span className="text-xs font-medium text-gray-500">{entry.actor}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }
@@ -3756,7 +3823,7 @@ export default function CustomerDetail() {
   const [statusOverride, setStatusOverride] = useState(null)
   const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | 'inactive' | null
   const [reactivateModalOpen, setReactivateModalOpen] = useState(false)
-  const [activityLog, setActivityLog] = useState(ACTIVITY)
+  const [activityLog, setActivityLog] = useState(() => customer.sourceLeadId ? [] : ACTIVITY)
   const displayStatus = statusOverride ?? customer.status
   // Badge-only — 'expired' is a display derivation (effectiveStatus(), see
   // customersData.js), never the stored status value itself, so every
@@ -3827,7 +3894,8 @@ export default function CustomerDetail() {
 
   useEffect(() => {
     setStatusOverride(null)
-    setActivityLog(ACTIVITY)
+    const nextCustomer = getAllCustomers().find(c => c.id === id)
+    setActivityLog(nextCustomer?.sourceLeadId ? [] : ACTIVITY)
   }, [id])
 
   useEffect(() => {

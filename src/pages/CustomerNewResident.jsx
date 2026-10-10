@@ -10,6 +10,7 @@ import ConnectionTypeStep, { EMPTY_CONNECTION_TYPE, isConnectionTypeValid } from
 import AddressSectionStep, { EMPTY_ADDRESS_SECTION, isAddressSectionValid, isPackageStepBlocked } from '../components/customer-type/AddressSectionStep'
 import PackageSelectionStep from '../components/customer-type/PackageSelectionStep'
 import { getFieldConfig, subscribeFieldConfig } from '../data/fieldConfigStore'
+import { logAudit } from '../data/auditLogStore'
 import { getServiceTagsForType } from '../data/serviceTags'
 import { saveLead, nextSalesLeadId } from '../data/leadsStore'
 import { getFeasibilityRequests, subscribeFeasibility } from '../data/feasibilityStore'
@@ -176,6 +177,7 @@ export default function CustomerNewResident() {
       activityLog: [],
     }
     saveLead(newLead)
+    logAudit({ module: 'Sales', action: 'Create', details: `Residential lead ${leadId} created for ${name} via resident creation form` })
     navigate(`/sales/leads/${leadId}`)
   }
 
