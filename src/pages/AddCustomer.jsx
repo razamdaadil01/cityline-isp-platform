@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import Badge from '../components/ui/Badge'
 import { addCustomer, getNextCustomerId } from '../data/customersData'
+import { logAudit } from '../data/auditLogStore'
 import { computeExpiry } from '../utils/customerUtils'
 import hierarchyStore from '../data/hierarchyStore'
 import { getStores } from '../data/storeStore'
@@ -298,6 +299,7 @@ export default function AddCustomer() {
     }
 
     addCustomer(newCustomer)
+    logAudit({ module: 'Customers', action: 'Create', details: `Customer ${newCustomer.id} (${fullName}) created via Add Customer wizard` })
     setCustomerId(newCustomer.id)
     setCafNo(caf)
     setSubmitted(true)

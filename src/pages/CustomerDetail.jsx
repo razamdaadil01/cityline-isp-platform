@@ -18,7 +18,7 @@ import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/custom
 import { exportCsv } from '../utils/csvExport'
 import { computeExpiry } from '../utils/customerUtils'
 import { getPPPoEId, getAppPassword, getCustomerType } from '../data/customerTypes'
-import { logAudit } from '../data/auditLogStore'
+import { logAudit, getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
 import {
   getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
   subscribeTickets, CATEGORY_SUBCATEGORIES, TECHNICIANS,
@@ -404,6 +404,12 @@ const STATUS_CFG = {
 const SUSPEND_REASONS = ['Non-payment', 'Customer request', 'Other']
 const TERMINATE_REASONS = ['Customer request', 'Relocation', 'Service dissatisfaction', 'Non-payment', 'Other']
 const INACTIVE_REASONS = ['Customer request', 'Non-renewal', 'Line dormant', 'Other']
+
+function formatAuditTimestamp(ts) {
+  if (!ts) return ''
+  const d = new Date(ts.replace(' ', 'T'))
+  return isNaN(d.getTime()) ? ts.slice(0, 16) : formatActivityTime(d)
+}
 
 function formatActivityTime(d) {
   const day = String(d.getDate()).padStart(2, '0')
@@ -3824,6 +3830,8 @@ export default function CustomerDetail() {
   const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | 'inactive' | null
   const [reactivateModalOpen, setReactivateModalOpen] = useState(false)
   const [activityLog, setActivityLog] = useState(() => customer.sourceLeadId ? [] : ACTIVITY)
+  const [auditLogs, setAuditLogs] = useState(() => getAuditLogs())
+  useEffect(() => subscribeAuditLogs(setAuditLogs), [])
   const displayStatus = statusOverride ?? customer.status
   // Badge-only — 'expired' is a display derivation (effectiveStatus(), see
   // customersData.js), never the stored status value itself, so every
@@ -3943,6 +3951,7 @@ export default function CustomerDetail() {
         addBy: 'Admin',
         comment: 'Activation payment',
       })
+      logAudit({ module: 'Customers', action: 'Edit', details: `Activation payment ₹${Number(credentials.amount).toLocaleString('en-IN')} collected for customer ${id} via ${credentials.mode}` })
     }
     updateCustomer(id, { status: 'active', activationDate: today, expiry })
     setStatusOverride('active')
@@ -4337,7 +4346,18 @@ export default function CustomerDetail() {
           {activeTab === 'TR-069'          && !isIntercom && <TR069Tab customerId={id} setActivityLog={setActivityLog} />}
           {activeTab === 'Circuit Details' && isIntercom  && <CircuitDetailsTab customer={customer} />}
           {activeTab === 'Recordings'      && <RecordingsTab />}
-          {activeTab === 'Activity Logs'   && <ActivityTab activity={activityLog} />}
+          {activeTab === 'Activity Logs'   && <ActivityTab activity={
+            customer.sourceLeadId
+              ? auditLogs
+                  .filter(e => e.details?.includes(id) || e.details?.includes(customer.sourceLeadId))
+                  .map(e => ({
+                    time: formatAuditTimestamp(e.timestamp),
+                    actor: (e.user || 'System').replace(/@.*$/, ''),
+                    event: e.details,
+                    meta: `${e.module} · ${e.action}`,
+                  }))
+              : activityLog
+          } />}
         </div>
       </div>
 

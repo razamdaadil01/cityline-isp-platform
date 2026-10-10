@@ -1,4 +1,5 @@
 import { getLeads, saveLead } from './leadsStore'
+import { logAudit } from './auditLogStore'
 
 export const FEASIBILITY_ENGINEERS = [
   { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'  },
@@ -181,6 +182,15 @@ export function updateFeasibilityStatus(id, status, extra = {}) {
     return updatedRequest
   })
   notify()
+
+  if (updatedRequest) {
+    if (status === 'Approved') {
+      logAudit({ module: 'Feasibility', action: 'Edit', details: `Feasibility ${id} approved for ${updatedRequest.customerName} (Lead: ${updatedRequest.leadId})` })
+    } else if (status === 'Rejected') {
+      const reason = extra.rejectionReason || ''
+      logAudit({ module: 'Feasibility', action: 'Edit', details: `Feasibility ${id} rejected for ${updatedRequest.customerName}${reason ? ` — ${reason}` : ''}` })
+    }
+  }
 
   // Mirror feasibilityStatus onto the linked lead and advance B2C leads to
   // 'Installation Visit' when Approved (if they haven't already passed it).

@@ -3055,12 +3055,6 @@ export default function SalesLeadDetail() {
       activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
     }
     saveLead(updatedLead)
-    if (targetStage === 'Lost') {
-      const lostReason = fieldVals['lost-reason'] || fieldVals['reason'] || ''
-      logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) marked Lost${lostReason ? ` — ${lostReason}` : ''}` })
-    } else {
-      logAudit({ module: 'Sales', action: 'Edit', details: `Lead ${lead.id} (${lead.name}) stage: ${lead.stage} → ${targetStage}` })
-    }
     if (targetStage === 'Feasibility') {
       const existing = getFeasibilityRequests().find(r => r.leadId === lead.id)
       saveFeasibilityRequest({

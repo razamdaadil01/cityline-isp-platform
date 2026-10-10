@@ -452,6 +452,7 @@ export function updateInstallationStatus(id, status, extra = {}) {
     }
   }
 
+  const prevInst = _installations.find(i => i.id === id)
   let createdCustomer = null
 
   _installations = _installations.map(inst => {
@@ -465,6 +466,15 @@ export function updateInstallationStatus(id, status, extra = {}) {
     return { ...inst, status, ...patch, timeline: [...(inst.timeline || []), entry] }
   })
   notify()
+
+  if (prevInst) {
+    if (createdCustomer) {
+      logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${id} completed — Customer ${createdCustomer.id} created for ${prevInst.customerName}` })
+    } else {
+      logAudit({ module: 'Installations', action: 'Edit', details: `Installation ${id} status: ${prevInst.status} → ${status}` })
+    }
+  }
+
   return createdCustomer
 }
 
