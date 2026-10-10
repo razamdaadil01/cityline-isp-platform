@@ -54,6 +54,7 @@ const STATUS_CFG = {
   // CUSTOMER_STATUSES) — kept visually distinct from 'suspended'.
   'Pending Disconnection': { variant: 'orange', label: 'Pending Disconnection' },
   'Disconnected':          { variant: 'black',  label: 'Disconnected' },
+  'Pending Activation':    { variant: 'blue',   label: 'Pending Activation' },
 }
 
 // This module (and its filters/status tabs below) is scoped to core ISP
@@ -70,7 +71,7 @@ const ENGINEERS  = ['Arjun Kumar','Preethi Nair','Suresh Babu','Kiran Desai','Vi
 const PARTNERS   = ['CityLink Franchise - Andheri','NetPoint Partners - Bandra','Speedy Net - Thane','ConnectPro - Powai']
 
 const PAGE_SIZE = 25
-const STATUS_TABS = ['All','Active','Suspended','Inactive','Expired','Pending Disconnection','Disconnected']
+const STATUS_TABS = ['All','Active','Pending Activation','Suspended','Inactive','Expired','Pending Disconnection','Disconnected']
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 

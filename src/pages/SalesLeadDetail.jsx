@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { getLeads, saveLead, subscribeLeads } from '../data/leadsStore'
 import { findEkycRecord } from '../data/ekycRecordsStore'
-import { saveFeasibilityRequest, getFeasibilityRequests, subscribeFeasibility } from '../data/feasibilityStore'
+import { saveFeasibilityRequest, getFeasibilityRequests, subscribeFeasibility, updateFeasibilityStatus } from '../data/feasibilityStore'
 import {
   getInstallations, subscribeInstallations, saveInstallation, nextInstallationId,
   FIELD_ENGINEERS, INSTALLATION_TEAMS,
@@ -2469,6 +2469,9 @@ export default function SalesLeadDetail() {
   const [elapsed, setElapsed]                     = useState(0)
   const [activationData, setActivationData]       = useState(null)
 
+  // Feasibility gate toast
+  const [feasGateToast, setFeasGateToast] = useState(null)
+
   // Quotation state
   const [quotationToast, setQuotationToast] = useState(null)
 
@@ -2992,6 +2995,34 @@ export default function SalesLeadDetail() {
     // Block any attempt to manually move a B2C lead to Won from this page.
     if (targetStage === 'Won' && lead.pipeline === 'B2C') return
 
+    // Feasibility gate: B2C leads must have an Approved feasibility record
+    // before moving to Installation Visit or beyond.
+    if (lead.pipeline === 'B2C' && targetStage === 'Installation Visit') {
+      const feasStatus = linkedFeasibility?.feasibilityStatus
+      if (feasStatus !== 'Approved') {
+        setFeasGateToast('Feasibility must be Approved before moving to Installation Visit.')
+        setTimeout(() => setFeasGateToast(null), 4000)
+        return
+      }
+    }
+
+    // Enterprise Won → create installation record so Path B can convert it.
+    if (targetStage === 'Won' && lead.pipeline === 'Enterprise') {
+      const existing = getInstallations().find(i => i.leadId === lead.id)
+      if (!existing) {
+        saveInstallation({
+          id: nextInstallationId(),
+          leadId: lead.id,
+          customerName: lead.name,
+          area: lead.area ?? '',
+          timeline: [{ status: 'Scheduled', date: TODAY, by: lead.assigned ?? 'Admin', note: 'Auto-created when lead moved to Won' }],
+          status: 'Scheduled',
+          createdAt: TODAY,
+          createdBy: lead.assigned ?? 'Admin',
+        })
+      }
+    }
+
     const filledCount = Object.values(fieldVals).filter(Boolean).length
     const newHistoryEntry = {
       stage: targetStage,
@@ -3160,6 +3191,14 @@ export default function SalesLeadDetail() {
   function handleHardwareConfirm(hwFormData) {
     // Enterprise has no Installation Visit stage — hardware confirm is B2C only.
     if (lead.pipeline === 'Enterprise') return
+
+    // Feasibility gate: must be Approved before assigning hardware.
+    const feasStatus = linkedFeasibility?.feasibilityStatus
+    if (feasStatus !== 'Approved') {
+      setFeasGateToast('Feasibility must be Approved before assigning hardware.')
+      setTimeout(() => setFeasGateToast(null), 4000)
+      return
+    }
 
     const TODAY_ISO = new Date().toISOString().split('T')[0]
 
@@ -3469,6 +3508,14 @@ export default function SalesLeadDetail() {
         </div>
       )}
 
+      {/* Feasibility gate toast */}
+      {feasGateToast && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2.5 bg-amber-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none">
+          <AlertTriangle size={16} className="shrink-0" />
+          {feasGateToast}
+        </div>
+      )}
+
       {/* ── Converted from Intercom banner ── */}
       {lead.sourceType === 'Intercom Conversion' && lead.convertedFromIntercomId && (
         <div className="bg-cyan-50 border border-cyan-200 rounded-xl px-5 py-3 flex items-center gap-3">
@@ -3482,6 +3529,27 @@ export default function SalesLeadDetail() {
               {lead.convertedFromIntercomId}
             </button>
           </p>
+        </div>
+      )}
+
+      {/* Feasibility Rejected banner */}
+      {lead.pipeline === 'B2C' && linkedFeasibility?.feasibilityStatus === 'Rejected' && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-800">Feasibility Rejected</p>
+            <p className="text-xs text-red-600 mt-0.5">This lead cannot proceed to Installation Visit until feasibility is re-approved.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" variant="danger" onClick={() => openMoveStage('Lost')}>Mark Lost</Button>
+            <Button size="sm" variant="secondary" onClick={() => {
+              const existing = getFeasibilityRequests().find(r => r.leadId === lead.id)
+              if (existing) {
+                updateFeasibilityStatus(existing.id, 'Pending', { _note: 'Re-requested by agent' })
+              }
+              saveLead({ ...lead, feasibilityStatus: 'Pending', lastActivity: 'Feasibility re-requested' })
+            }}>Request Feasibility Again</Button>
+          </div>
         </div>
       )}
 

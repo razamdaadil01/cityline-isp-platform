@@ -113,6 +113,8 @@ function buildUnifiedRows(internet, intercom) {
     leadId:           inst.leadId ?? null,
     leadHref:         inst.leadId ? `/sales/leads/${inst.leadId}/overview` : null,
     detailHref:       `/installations/${inst.id}`,
+    customerId:       inst.customerId ?? null,
+    customerHref:     inst.customerId ? `/customers/${inst.customerId}/profile` : null,
     customerName:     inst.customerName,
     mobile:           inst.mobile || inst.customerPhone || '—',
     area:             inst.area || '—',
@@ -1085,6 +1087,18 @@ export default function Installations() {
               Mark Cancelled
             </span>
           </button>
+
+          {netMenuInst.status === 'Completed' && netMenuInst.customerId && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                onClick={() => { navigate(`/customers/${netMenuInst.customerId}/profile`); setNetMenuId(null) }}
+                className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                <ArrowRight className="w-4 h-4 flex-shrink-0 text-brand-blue" />
+                <span className="text-sm text-brand-blue font-medium">Go to Customer</span>
+              </button>
+            </>
+          )}
         </div>
       )}
 

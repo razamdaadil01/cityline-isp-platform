@@ -95,6 +95,7 @@ function computeServiceMix(activeCustomers) {
 const STAT_CARD_META = [
   { key: 'totalCustomers',    label: 'Total Customers',      icon: <Users size={20} />,         iconBg: 'bg-brand-blue/10',    iconColor: 'text-brand-blue' },
   { key: 'activeConnections', label: 'Active Connections',   icon: <Wifi size={20} />,          iconBg: 'bg-emerald-100',      iconColor: 'text-emerald-600' },
+  { key: 'pendingActivation', label: 'Pending Activation',   icon: <Clock size={20} />,         iconBg: 'bg-blue-100',         iconColor: 'text-blue-600' },
   { key: 'inactiveSuspended', label: 'Inactive / Suspended', icon: <XCircle size={20} />,       iconBg: 'bg-red-100',          iconColor: 'text-red-500' },
   { key: 'todaysCollection',  label: "Today's Collection",   icon: <IndianRupee size={20} />,   iconBg: 'bg-amber-100',        iconColor: 'text-amber-600' },
   { key: 'openTickets',       label: 'Open Tickets',         icon: <AlertTriangle size={20} />, iconBg: 'bg-brand-orange/10',  iconColor: 'text-brand-orange' },
@@ -441,6 +442,7 @@ export default function Dashboard() {
   const statValues = useMemo(() => ({
     totalCustomers: customers.length,
     activeConnections: activeCustomers.length,
+    pendingActivation: customers.filter(c => effectiveStatus(c) === 'Pending Activation').length,
     inactiveSuspended: customers.filter(c => ['inactive', 'suspended'].includes(effectiveStatus(c))).length,
     todaysCollection: payments
       .filter(p => p.paymentDate === todayDMY)

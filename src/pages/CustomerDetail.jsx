@@ -7,7 +7,7 @@ import {
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
   PackageSearch, Receipt, Lock, UserX, Upload,
-  ClipboardList, Users,
+  ClipboardList, Users, CheckCircle2, CreditCard, Send,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -16,7 +16,8 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/customersData'
 import { exportCsv } from '../utils/csvExport'
-import { getPPPoEId, getAppPassword } from '../data/customerTypes'
+import { computeExpiry } from '../utils/customerUtils'
+import { getPPPoEId, getAppPassword, getCustomerType } from '../data/customerTypes'
 import { logAudit } from '../data/auditLogStore'
 import {
   getTickets, saveTicket, nextTicketNumber, computeSlaDeadline,
@@ -37,7 +38,7 @@ import {
 import {
   getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
 } from '../data/invoicesStore'
-import { getPaymentsForCustomer, subscribePayments } from '../data/paymentsStore'
+import { getPaymentsForCustomer, subscribePayments, addPayment, nextReceiptNo } from '../data/paymentsStore'
 import { getTr069DeviceByCustomerId } from '../data/tr069Store'
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip as RechartTooltip,
@@ -262,7 +263,7 @@ function makeCustomerFromBase(id) {
       jazeUserId: base.radius?.jazeUserId ?? idSlug,
       pppoeUsername: base.pppoeUsername ?? base.radius?.pppoeUsername ?? getPPPoEId({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       pppoePassword: base.radius?.pppoePassword ?? '—',
-      appPassword: base.radius?.appPassword ?? getAppPassword({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
+      appPassword: base.radius?.appPassword ?? '—',
       nas: 'NAS-01',
       interface: '—',
       ipAddress: '—',
@@ -397,6 +398,7 @@ const STATUS_CFG = {
   // request is still in flight, black for the final closed state.
   'Pending Disconnection': { variant: 'orange', label: 'Pending Disconnection' },
   'Disconnected':          { variant: 'black',  label: 'Disconnected' },
+  'Pending Activation':    { variant: 'blue',   label: 'Pending Activation' },
 }
 
 const SUSPEND_REASONS = ['Non-payment', 'Customer request', 'Other']
@@ -3455,6 +3457,231 @@ function ActivityTab({ activity }) {
   )
 }
 
+// ── ActivationPaymentModal ───────────────────────────────────────────────────
+
+function ActivationPaymentModal({ isOpen, onClose, customer, data, onPaymentConfirmed }) {
+  const [paymentType, setPaymentType] = useState('received')
+  const [form, setForm] = useState({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
+  const [copied, setCopied] = useState(null)
+  const [advancePaymentNotRequired, setAdvancePaymentNotRequired] = useState(false)
+  const [manualUsername, setManualUsername] = useState('')
+  const [manualAppPassword, setManualAppPassword] = useState('')
+
+  useEffect(() => {
+    if (isOpen) {
+      setPaymentType('received')
+      setForm({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
+      setCopied(null)
+      setAdvancePaymentNotRequired(false)
+      setManualUsername(data?.username ?? '')
+      setManualAppPassword(data?.appPassword ?? '')
+    }
+  }, [isOpen, data])
+
+  const amountMissing = !advancePaymentNotRequired && !form.amount.trim()
+
+  const customerTypeId = customer?.customerType === 'Corporate' ? 'corporate' : 'resident'
+  const customerType = getCustomerType(customerTypeId)
+  const pppoeMode = customerType?.pppoeIdConfig?.mode ?? 'auto'
+  const appPasswordMode = customerType?.appPasswordConfig?.mode ?? 'auto'
+
+  function handleCopy(text, key) {
+    navigator.clipboard?.writeText(text).catch(() => {})
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  const credentialItems = [
+    { key: 'customerId',    label: 'Customer ID',    value: data?.customerId,   editable: false },
+    { key: 'plan',          label: 'Plan',           value: data?.plan,         editable: false },
+    { key: 'username',      label: 'PPPoE Username', value: pppoeMode === 'manual' ? manualUsername : data?.username, editable: pppoeMode === 'manual', onChange: setManualUsername },
+    { key: 'pppoePassword', label: 'PPPoE Password', value: data?.pppoePassword, editable: false },
+    { key: 'appPassword',   label: 'App Password',   value: appPasswordMode === 'manual' ? manualAppPassword : data?.appPassword, editable: appPasswordMode === 'manual', onChange: setManualAppPassword },
+  ]
+
+  const finalCredentials = {
+    username: pppoeMode === 'manual' ? manualUsername : data?.username,
+    appPassword: appPasswordMode === 'manual' ? manualAppPassword : data?.appPassword,
+    amount: form.amount,
+    mode: form.mode,
+    reference: form.reference,
+    advancePaymentNotRequired,
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Activate Customer Account" size="lg">
+      <div className="space-y-5">
+        <div className="bg-navy/5 border border-navy/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Wifi size={13} className="text-navy" />
+            <p className="text-xs font-bold text-navy uppercase tracking-wider">Account Credentials</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {credentialItems.map(({ key, label, value, editable, onChange }) => (
+              <div key={key} className="bg-white rounded-lg border border-surface-border p-3">
+                <p className="text-[10px] text-gray-400 mb-1">{label}</p>
+                {editable ? (
+                  <input
+                    value={value ?? ''}
+                    onChange={e => onChange(e.target.value)}
+                    placeholder={`Enter ${label}`}
+                    className="w-full text-sm font-mono font-bold text-gray-900 bg-transparent border-b border-dashed border-gray-300 focus:border-brand-blue outline-none"
+                  />
+                ) : (
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-sm font-mono font-bold text-gray-900 truncate">{value ?? '—'}</p>
+                    <button onClick={() => handleCopy(value ?? '', label)} className="shrink-0 text-gray-400 hover:text-brand-blue transition-colors">
+                      {copied === label ? <CheckCircle size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <CreditCard size={13} className="text-gray-500" />
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Status</p>
+          </div>
+          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+            <input type="checkbox" checked={advancePaymentNotRequired}
+              onChange={e => setAdvancePaymentNotRequired(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue/30" />
+            <span className="text-sm text-gray-700">Advance Payment Not Required</span>
+          </label>
+
+          <div className="space-y-3">
+            <div
+              onClick={() => setPaymentType('received')}
+              className={`border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'received' ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:border-brand-blue/30'}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${paymentType === 'received' ? 'border-brand-blue' : 'border-gray-300'}`}>
+                  {paymentType === 'received' && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Payment Already Received</p>
+                  <p className="text-xs text-gray-500">Customer has paid in advance</p>
+                  {paymentType === 'received' && (
+                    <div className="mt-3 space-y-3" onClick={e => e.stopPropagation()}>
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField label="Amount Paid" required={!advancePaymentNotRequired}>
+                          <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" disabled={advancePaymentNotRequired} />
+                        </FormField>
+                        <FormField label="Payment Mode">
+                          <Select value={form.mode} onChange={e => setForm(p => ({ ...p, mode: e.target.value }))}>
+                            {['Cash', 'UPI', 'Bank Transfer', 'Cheque'].map(m => <option key={m}>{m}</option>)}
+                          </Select>
+                        </FormField>
+                      </div>
+                      <FormField label="Reference Number">
+                        <Input value={form.reference} onChange={e => setForm(p => ({ ...p, reference: e.target.value }))} placeholder="Transaction ID or Cheque no." />
+                      </FormField>
+                      <Button className="w-full" icon={<CheckCircle2 size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(finalCredentials)}>
+                        Confirm Activation
+                      </Button>
+                      {amountMissing && (
+                        <p className="text-xs text-red-500">Amount is required, or check "Advance Payment Not Required" above.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div
+              onClick={() => setPaymentType('pending')}
+              className={`border rounded-xl p-4 cursor-pointer transition-all ${paymentType === 'pending' ? 'border-brand-blue bg-brand-blue/5' : 'border-surface-border hover:border-brand-blue/30'}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${paymentType === 'pending' ? 'border-brand-blue' : 'border-gray-300'}`}>
+                  {paymentType === 'pending' && <div className="w-2 h-2 rounded-full bg-brand-blue" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Payment Pending</p>
+                  <p className="text-xs text-gray-500">Activate now, collect payment later</p>
+                  {paymentType === 'pending' && (
+                    <div className="mt-3 space-y-3" onClick={e => e.stopPropagation()}>
+                      <FormField label="Amount Due" required={!advancePaymentNotRequired}>
+                        <Input type="number" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="e.g. 3500" disabled={advancePaymentNotRequired} />
+                      </FormField>
+                      <Button className="w-full" icon={<Send size={14} />} disabled={amountMissing} onClick={() => onPaymentConfirmed(finalCredentials)}>
+                        Activate Account
+                      </Button>
+                      {amountMissing && (
+                        <p className="text-xs text-red-500">Amount is required, or check "Advance Payment Not Required" above.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ── ActivationSuccessModal ───────────────────────────────────────────────────
+
+function ActivationSuccessModal({ isOpen, onClose, data }) {
+  const [copied, setCopied] = useState(null)
+
+  function handleCopy(text, key) {
+    navigator.clipboard?.writeText(text).catch(() => {})
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Activation Complete" size="lg"
+      footer={
+        <div className="flex gap-3 w-full">
+          <Button variant="secondary" className="flex-1" icon={<MessageSquare size={14} />}>
+            Send via WhatsApp
+          </Button>
+          <Button variant="secondary" className="flex-1" icon={<Mail size={14} />}>
+            Send via Email
+          </Button>
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      }
+    >
+      <div className="space-y-5">
+        <div className="text-center py-4">
+          <div className="text-5xl mb-3">🎉</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Internet Service Activated!</h2>
+          <p className="text-sm text-gray-500">The customer's internet service is now live.</p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+          <div className="space-y-3">
+            {[
+              { label: 'Customer ID',    value: data?.customerId },
+              { label: 'PPPoE Username', value: data?.username },
+              { label: 'PPPoE Password', value: data?.pppoePassword },
+              { label: 'App Password',   value: data?.appPassword },
+              { label: 'Plan',           value: data?.plan },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-xs font-medium text-emerald-700">{label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono font-bold text-emerald-900">{value ?? '—'}</span>
+                  <button onClick={() => handleCopy(value ?? '', label)} className="text-emerald-600 hover:text-emerald-800 transition-colors">
+                    {copied === label ? <CheckCircle size={13} /> : <Copy size={13} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function CustomerDetail() {
@@ -3593,6 +3820,10 @@ export default function CustomerDetail() {
   const [disconnectModalOpen, setDisconnectModalOpen] = useState(false)
   const [smsModalOpen, setSmsModalOpen] = useState(false)
   const [smsToast, setSmsToast] = useState(null)
+  const [activationModalOpen, setActivationModalOpen] = useState(false)
+  const [activationSuccessData, setActivationSuccessData] = useState(null)
+
+  const isPendingActivation = displayStatus === 'Pending Activation'
 
   useEffect(() => {
     setStatusOverride(null)
@@ -3619,6 +3850,45 @@ export default function CustomerDetail() {
     logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} reactivated (Suspended → Active)` })
     setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer reactivated', meta: 'Status set back to Active' }, ...a])
     setReactivateModalOpen(false)
+  }
+
+  function handleActivateCustomer(credentials) {
+    const today = new Date().toISOString().slice(0, 10)
+    const expiry = computeExpiry(today, customer.selectedPackage ?? customer.bandwidthPackage)
+    if (!credentials.advancePaymentNotRequired && credentials.amount) {
+      const dateOnly = today.split('-').reverse().join('-')
+      const timeStr = new Date().toLocaleTimeString('en-GB')
+      addPayment({
+        id: `PAY-${Date.now()}`,
+        customerId: id,
+        receiptNo: nextReceiptNo(),
+        invoiceNo: '—',
+        invoiceNos: [],
+        paymentDate: dateOnly,
+        date: `${dateOnly} ${timeStr}`,
+        mode: credentials.mode,
+        total: Number(credentials.amount),
+        paid: Number(credentials.amount),
+        status: 'Complete',
+        orderNo: credentials.reference || '—',
+        chequeBCh: 0,
+        addBy: 'Admin',
+        comment: 'Activation payment',
+      })
+    }
+    updateCustomer(id, { status: 'active', activationDate: today, expiry })
+    setStatusOverride('active')
+    logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} activated (Pending Activation → Active)` })
+    const now = formatActivityTime(new Date())
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Customer activated', meta: 'Status: Pending Activation → Active' }, ...a])
+    setActivationModalOpen(false)
+    setActivationSuccessData({
+      customerId: id,
+      username: credentials.username ?? customer.radius?.pppoeUsername,
+      pppoePassword: customer.radius?.pppoePassword ?? '—',
+      appPassword: credentials.appPassword ?? customer.radius?.appPassword ?? '—',
+      plan: customer.plan,
+    })
   }
 
   function handleSendSms(message) {
@@ -3953,6 +4223,22 @@ export default function CustomerDetail() {
         </div>
       </div>
 
+      {/* ── Pending Activation banner ── */}
+      {isPendingActivation && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Clock size={18} className="text-blue-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Account Pending Activation</p>
+              <p className="text-xs text-blue-700 mt-0.5">This customer's internet service has not been activated yet. Complete activation to make the account live.</p>
+            </div>
+          </div>
+          <Button size="sm" icon={<Zap size={13} />} onClick={() => setActivationModalOpen(true)}>
+            Activate Now
+          </Button>
+        </div>
+      )}
+
       {/* ── Tabs ── */}
       <div className="bg-white rounded-xl border border-surface-border shadow-card overflow-hidden">
         {/* Tab nav */}
@@ -4042,6 +4328,24 @@ export default function CustomerDetail() {
         settlement={settlement}
         onClose={() => setDisconnectModalOpen(false)}
         onConfirm={handleMarkDisconnected}
+      />
+      <ActivationPaymentModal
+        isOpen={activationModalOpen}
+        onClose={() => setActivationModalOpen(false)}
+        customer={customer}
+        data={{
+          customerId: id,
+          plan: customer.plan,
+          username: customer.radius?.pppoeUsername,
+          pppoePassword: customer.radius?.pppoePassword ?? '—',
+          appPassword: customer.radius?.appPassword ?? '—',
+        }}
+        onPaymentConfirmed={handleActivateCustomer}
+      />
+      <ActivationSuccessModal
+        isOpen={!!activationSuccessData}
+        onClose={() => setActivationSuccessData(null)}
+        data={activationSuccessData}
       />
     </div>
   )

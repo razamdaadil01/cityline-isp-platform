@@ -107,7 +107,7 @@ export const CUSTOMERS = [
 // (later phases) haven't completed yet. 'Disconnected' is the final closed
 // state — later phases will insert hardware-recovery/settlement gates in
 // front of it, but for now it's reachable directly too.
-export const CUSTOMER_STATUSES = ['active', 'suspended', 'inactive', 'expired', 'Pending Disconnection', 'Disconnected']
+export const CUSTOMER_STATUSES = ['active', 'suspended', 'inactive', 'expired', 'Pending Disconnection', 'Disconnected', 'Pending Activation']
 
 // CAF (Customer Application Form) compliance status — a separate lifecycle
 // from the connection status above (a customer can be 'active' with a
