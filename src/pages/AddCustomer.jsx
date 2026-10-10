@@ -8,6 +8,7 @@ import Button from '../components/ui/Button'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import Badge from '../components/ui/Badge'
 import { addCustomer, getNextCustomerId } from '../data/customersData'
+import { computeExpiry } from '../utils/customerUtils'
 import hierarchyStore from '../data/hierarchyStore'
 import { getStores } from '../data/storeStore'
 import { getActivePartners } from '../data/partners'
@@ -211,12 +212,8 @@ export default function AddCustomer() {
     const today = new Date()
     const displayDate = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
-    // 30-day validity from install date, matching PACKAGES' mock validity
-    // convention elsewhere on Customer Detail — the closest this app gets to
-    // a real "plan expiry" without a billing engine behind it.
-    const expiryDate = new Date(form.installDate)
-    expiryDate.setDate(expiryDate.getDate() + 30)
-    const expiry = expiryDate.toISOString().slice(0, 10)
+    // Batch 3 will move expiry start to activation date.
+    const expiry = computeExpiry(form.installDate, plan)
 
     const year = today.getFullYear()
     const seq  = String(Math.floor(Math.random() * 99999)).padStart(5, '0')
@@ -261,6 +258,7 @@ export default function AddCustomer() {
       // Real signal from Step 4's Aadhaar eKYC + document uploads — actual
       // file content isn't persisted anywhere in this app yet (no working
       // document storage/viewer exists), so only metadata is kept here.
+      ekycStatus: form.aadhaarVerified ? 'Completed' : 'Pending',
       aadhaarVerified: form.aadhaarVerified,
       kycDocuments: {
         aadhaarFront: docs.aadhaarFront ? { name: docs.aadhaarFront.name, type: docs.aadhaarFront.type } : null,

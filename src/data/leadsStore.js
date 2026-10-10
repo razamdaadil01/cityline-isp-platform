@@ -1,4 +1,4 @@
-import { getCustomerType, formatLeadId, getNextLeadIdSequence } from './customerTypes'
+import { getCustomerType, formatLeadId, getNextLeadIdSequence, peekNextLeadIdSequence } from './customerTypes'
 
 const INIT_LEADS = [
   { id: 'LD-201', pipeline: 'B2C', name: 'Ramesh Nair', phone: '9876001122', email: '', area: 'Koramangala', source: 'Website', stage: 'New Inquiry', plan: '100 Mbps Home', assigned: 'Arjun Kumar', salesExecutive: 'Arjun Kumar', assignedInitials: 'AK', assignedColor: 'bg-brand-blue', daysInStage: 2, lastActivity: 'Form submitted', followUp: '2026-05-08', priority: 'high', ekycStatus: null, hwAssigned: null, createdAt: '2026-05-17', address: '12, Brigade Road', city: 'Bangalore', pincode: '560001', state: 'Karnataka', district: 'Bangalore Urban', locality: 'Koramangala', subLocality: '4th Block', siteType: 'FTTH', branchCode: 'CNPL-KOR-01', alternateMobile: '', createdBy: 'Arjun Kumar' },
@@ -62,5 +62,17 @@ export function nextSalesLeadId(customerTypeId = 'resident') {
     return `LD-${(nums.length ? Math.max(...nums) : 0) + 1}`
   }
   const seq = getNextLeadIdSequence(customerTypeId)
+  return formatLeadId(type, seq)
+}
+
+// Non-mutating: returns the ID nextSalesLeadId() would issue next without
+// advancing the sequence. Use only for display-only ID previews in forms.
+export function peekNextLeadId(customerTypeId = 'resident') {
+  const type = getCustomerType(customerTypeId)
+  if (!type) {
+    const nums = _leads.map(l => l.id.match(/^LD-(\d+)$/)).filter(Boolean).map(m => Number(m[1]))
+    return `LD-${(nums.length ? Math.max(...nums) : 0) + 1}`
+  }
+  const seq = peekNextLeadIdSequence(customerTypeId)
   return formatLeadId(type, seq)
 }
