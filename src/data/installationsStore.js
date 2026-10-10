@@ -438,13 +438,13 @@ export function updateInstallationStatus(id, status, extra = {}) {
   const { _by, _note, ...cleanExtra } = extra
 
   // eKYC gate: enforce that ekycStatus === 'Completed' on the linked lead
-  // before allowing Installation Done, mirroring the Feasibility-approval
-  // gate that blocks Package Selection until feasibility is approved (BR-14).
+  // before allowing Installation Done for B2C/Resident leads.
+  // Enterprise (Corporate) leads use a different KYC path and are exempt.
   if (status === 'Completed') {
     const inst = _installations.find(i => i.id === id)
     if (inst?.leadId) {
       const lead = getLeads().find(l => l.id === inst.leadId)
-      if (lead && lead.ekycStatus !== 'Completed') {
+      if (lead && lead.pipeline !== 'Enterprise' && lead.ekycStatus !== 'Completed') {
         // Gate rejected — do not change the installation status.
         return { ekycBlocked: true, reason: 'eKYC must be completed for this lead before marking the installation as done.' }
       }
@@ -480,6 +480,10 @@ function convertLeadToCustomer(leadId, by) {
 
   const inst = _installations.find(i => i.leadId === leadId)
   const feasibility = getFeasibilityRequests().find(f => f.leadId === leadId)
+
+  // Block conversion if feasibility was explicitly Rejected for B2C leads.
+  if (lead.pipeline !== 'Enterprise' && feasibility?.feasibilityStatus === 'Rejected') return null
+
   const isCorporate = lead.pipeline === 'Enterprise'
   const typeId = isCorporate ? 'corporate' : 'resident'
 

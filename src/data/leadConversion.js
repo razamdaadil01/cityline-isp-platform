@@ -27,7 +27,7 @@ export function buildCustomerFromLead(lead) {
     profilePicture: lead.profilePicture,
     customerType: isCorporate ? 'Corporate' : 'Residential',
     sourceLeadId: lead.id,
-    status: 'active',
+    status: 'Pending Activation',
     plan: lead.plan,
     services: lead.serviceTags ?? [],
     zone: lead.branchCode || lead.area,
@@ -86,8 +86,8 @@ export function buildCustomerFromLead(lead) {
     // 'Pending' otherwise — agent fills the rest post-conversion.
     cafStatus: (lead.ekycStatus === 'Completed' || (lead.kycDocs && Object.values(lead.kycDocs).some(Boolean)))
       ? 'Submitted' : 'Pending',
-    // Batch 3 will move expiry start to activation date.
-    expiry: computeExpiry(new Date().toISOString().slice(0, 10), lead.selectedPackage),
+    expiry: null,
+    activationDate: null,
     // The Lead's Own/Partner ownership & billing-party data
     // (ConnectionTypeStep, captured by both Resident and Corporate Create
     // Lead forms) — previously dropped entirely on conversion. Distinct

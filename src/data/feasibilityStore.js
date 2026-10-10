@@ -1,3 +1,5 @@
+import { getLeads, saveLead } from './leadsStore'
+
 export const FEASIBILITY_ENGINEERS = [
   { name: 'Arjun Kumar',   initials: 'AK', color: 'bg-brand-blue'  },
   { name: 'Preethi Nair',  initials: 'PN', color: 'bg-purple-500'  },
@@ -164,6 +166,8 @@ export function saveFeasibilityRequest(req) {
 
 export function updateFeasibilityStatus(id, status, extra = {}) {
   const now = new Date().toLocaleString('sv-SE', { hour12: false }).slice(0, 16).replace('T', ' ')
+  const today = now.slice(0, 10)
+  let updatedRequest = null
   _requests = _requests.map(r => {
     if (r.id !== id) return r
     const timelineEntry = {
@@ -173,14 +177,32 @@ export function updateFeasibilityStatus(id, status, extra = {}) {
       note: extra._note || `Status changed to ${status}`,
     }
     const { _by, _note, ...cleanExtra } = extra
-    return {
-      ...r,
-      feasibilityStatus: status,
-      ...cleanExtra,
-      timeline: [...(r.timeline || []), timelineEntry],
-    }
+    updatedRequest = { ...r, feasibilityStatus: status, ...cleanExtra, timeline: [...(r.timeline || []), timelineEntry] }
+    return updatedRequest
   })
   notify()
+
+  // Mirror feasibilityStatus onto the linked lead and advance B2C leads to
+  // 'Installation Visit' when Approved (if they haven't already passed it).
+  if (updatedRequest?.leadId) {
+    const B2C_STAGES = ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost']
+    const lead = getLeads().find(l => l.id === updatedRequest.leadId)
+    if (lead && lead.pipeline === 'B2C') {
+      const currentIdx = B2C_STAGES.indexOf(lead.stage)
+      const visitIdx = B2C_STAGES.indexOf('Installation Visit')
+      const shouldAdvance = status === 'Approved' && currentIdx >= 0 && currentIdx < visitIdx
+      saveLead({
+        ...lead,
+        feasibilityStatus: status,
+        ...(shouldAdvance ? {
+          stage: 'Installation Visit',
+          daysInStage: 0,
+          lastActivity: 'Feasibility approved — moved to Installation Visit',
+          stageHistory: [...(lead.stageHistory ?? []), { stage: 'Installation Visit', date: today, movedBy: extra._by || 'Admin', fields: {} }],
+        } : {}),
+      })
+    }
+  }
 }
 
 export function subscribeFeasibility(fn) {

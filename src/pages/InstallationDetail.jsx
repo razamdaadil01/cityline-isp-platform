@@ -129,7 +129,8 @@ function Toast({ msg, onDone }) {
 /* ── Assign Team Modal ──────────────────────────────────────────── */
 
 function AssignTeamModal({ isOpen, onClose, inst, onSave }) {
-  const [form, setForm] = useState({ team: '', engineers: [], date: '', slot: 'Morning', notes: '' })
+  const [form, setForm] = useState({ team: '', engineers: [], date: '', slot: 'Morning', notes: '', reason: '' })
+  const isReassign = !!(inst?.assignedTeam)
 
   useEffect(() => {
     if (isOpen && inst) {
@@ -139,6 +140,7 @@ function AssignTeamModal({ isOpen, onClose, inst, onSave }) {
         date:      inst.slotDate || '',
         slot:      inst.slot || 'Morning',
         notes:     '',
+        reason:    '',
       })
     }
   }, [isOpen, inst])
@@ -150,30 +152,52 @@ function AssignTeamModal({ isOpen, onClose, inst, onSave }) {
     }))
   }
 
+  const canSave = form.team && form.engineers.length > 0 && form.date && (!isReassign || form.reason.trim())
+
+  function handleSave() {
+    const historyEntry = {
+      previousTeam: inst.assignedTeam,
+      previousEngineers: inst.engineerName,
+      newTeam: form.team,
+      newEngineers: form.engineers.join(', '),
+      reason: form.reason.trim(),
+      date: TODAY,
+      by: 'Admin',
+    }
+    onSave({
+      ...inst,
+      assignedTeam: form.team,
+      engineerName: form.engineers.join(', '),
+      slotDate:     form.date,
+      slot:         form.slot,
+      status:       inst.status === 'Scheduled' ? 'Assigned' : inst.status,
+      ...(isReassign ? { reassignmentHistory: [...(inst.reassignmentHistory || []), historyEntry] } : {}),
+      timeline: [...(inst.timeline || []), {
+        status: inst.status === 'Scheduled' ? 'Assigned' : inst.status,
+        date: TODAY, by: 'Admin',
+        note: isReassign
+          ? `Reassigned to ${form.team} — ${form.engineers.join(', ')} (Reason: ${form.reason.trim()})`
+          : `Assigned to ${form.team} — ${form.engineers.join(', ')}`,
+      }],
+    })
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Assign Team — ${inst?.id}`} size="sm"
+    <Modal isOpen={isOpen} onClose={onClose} title={isReassign ? `Reassign Team — ${inst?.id}` : `Assign Team — ${inst?.id}`} size="sm"
       footer={<>
         <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm"
-          disabled={!form.team || form.engineers.length === 0 || !form.date}
-          onClick={() => onSave({
-            ...inst,
-            assignedTeam: form.team,
-            engineerName: form.engineers.join(', '),
-            slotDate:     form.date,
-            slot:         form.slot,
-            status:       inst.status === 'Scheduled' ? 'Assigned' : inst.status,
-            timeline: [...(inst.timeline || []), {
-              status: inst.status === 'Scheduled' ? 'Assigned' : inst.status,
-              date: TODAY, by: 'Admin',
-              note: `Assigned to ${form.team} — ${form.engineers.join(', ')}`,
-            }],
-          })}>
-          Assign Team
+        <Button size="sm" disabled={!canSave} onClick={handleSave}>
+          {isReassign ? 'Reassign Team' : 'Assign Team'}
         </Button>
       </>}
     >
       <div className="space-y-4">
+        {isReassign && (
+          <FormField label="Reason for Reassignment" required>
+            <Textarea rows={2} placeholder="Why is this team being reassigned?"
+              value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
+          </FormField>
+        )}
         <FormField label="Installation Team" required>
           <Select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))}>
             <option value="">Select team…</option>
@@ -420,6 +444,7 @@ export default function InstallationDetail() {
   const [cancelOpen,    setCancelOpen]    = useState(false)
   const [dispatchOpen,  setDispatchOpen]  = useState(false)
   const [progressOpen,  setProgressOpen]  = useState(false)
+  const [completedCustomerId, setCompletedCustomerId] = useState(null)
 
   useEffect(() => subscribeInstallations(setInstallations), [])
 
@@ -659,6 +684,25 @@ export default function InstallationDetail() {
                   <InfoCell key={i} label="Assigned By" value={`${t.by} · ${formatDate(t.date)}`} />
                 ))}
               </div>
+              {inst.reassignmentHistory?.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Reassignment History</p>
+                  <div className="space-y-3">
+                    {inst.reassignmentHistory.map((h, i) => (
+                      <div key={i} className="bg-gray-50 rounded-lg px-3 py-2.5 text-xs text-gray-700">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-medium text-gray-900">{h.previousTeam} → {h.newTeam}</span>
+                          <span className="text-gray-400 shrink-0">{h.date} · {h.by}</span>
+                        </div>
+                        {h.previousEngineers && (
+                          <div className="text-gray-500 mb-1">Engineers: {h.previousEngineers} → {h.newEngineers}</div>
+                        )}
+                        <div className="text-gray-600 italic">Reason: {h.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -903,8 +947,11 @@ export default function InstallationDetail() {
               setCompleteOpen(false)
               if (result?.ekycBlocked) {
                 setToast(`Cannot complete: ${result.reason}`)
+              } else if (result?.id) {
+                setToast(`Installation completed — Customer record created: ${result.id}`)
+                setCompletedCustomerId(result.id)
               } else {
-                setToast(result ? `Installation completed — Customer record created: ${result.id}` : 'Installation marked as Completed')
+                setToast('Installation marked as Completed')
               }
             }}>
             <CheckCircle2 size={13} className="mr-1" /> Mark Completed
@@ -962,6 +1009,22 @@ export default function InstallationDetail() {
       </Modal>
 
       {toast && <Toast msg={toast} onDone={() => setToast('')} />}
+      {completedCustomerId && (
+        <div className="fixed bottom-6 right-6 z-50 bg-white border border-emerald-200 rounded-xl shadow-xl px-4 py-3 flex items-center gap-3">
+          <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+          <span className="text-sm text-gray-700">Customer record created</span>
+          <Link
+            to={`/customers/${completedCustomerId}/profile`}
+            className="text-sm font-semibold text-brand-blue hover:underline"
+            onClick={() => setCompletedCustomerId(null)}
+          >
+            Go to customer →
+          </Link>
+          <button onClick={() => setCompletedCustomerId(null)} className="text-gray-400 hover:text-gray-600 ml-1">
+            <XCircle size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
