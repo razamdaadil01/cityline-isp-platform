@@ -615,6 +615,7 @@ function LeadCard({ lead, onDragStart, onDragEnd, isDragging, onEdit, onEkyc, on
   return (
     <div
       draggable
+      data-lead-card={lead.id}
       onDragStart={e => onDragStart(e, lead.id)}
       onDragEnd={onDragEnd}
       className={`bg-white rounded-xl border border-surface-border p-4 shadow-card cursor-grab active:cursor-grabbing select-none transition-all ${
@@ -2413,6 +2414,7 @@ export default function Sales() {
 
             return (
               <div key={stageId}
+                data-kanban-stage={stageId}
                 className={`flex flex-col rounded-xl border transition-all duration-150 ${style.colBg} ${style.border} ${
                   isOver ? 'ring-2 ring-brand-blue/50 scale-[1.01]' : ''
                 }`}
