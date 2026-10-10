@@ -23,9 +23,7 @@ import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
 import { getCompanyEntity, getCompanyEntities } from '../data/companyEntities'
 import { getPartner } from '../data/partners'
-import { addCustomer, getNextCustomerId } from '../data/customersData'
-import { buildCustomerFromLead } from '../data/leadConversion'
-import { getCustomerType, getPPPoEId, getAppPassword, applyPattern, buildCredentialTokens } from '../data/customerTypes'
+import { getCustomerType } from '../data/customerTypes'
 import { displayFieldValue } from '../components/ui/DynamicFieldInput'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
@@ -337,10 +335,8 @@ function HardwareAssignmentModal({ isOpen, onClose, lead, onConfirm }) {
             <p className="text-xs font-semibold text-amber-800 mb-2.5">This will:</p>
             <div className="space-y-2">
               {[
-                'Link device to customer account',
-                'Generate PPPoE credentials',
-                'Mark lead as Won',
-                'Create customer account',
+                'Save hardware assignment to installation record',
+                'Move lead to Installation Visit stage',
               ].map(item => (
                 <div key={item} className="flex items-center gap-2 text-xs text-amber-700">
                   <CheckCircle size={12} className="text-amber-600 shrink-0" />
@@ -1007,96 +1003,6 @@ function SetFollowupModal({ isOpen, onClose, lead, onSave }) {
         <FormField label="Notify To">
           <NotifyMultiSelect staff={STAFF} selected={form.notifyTo} onToggle={toggleNotify} />
         </FormField>
-      </div>
-    </Modal>
-  )
-}
-
-// ── WonConversionModal ────────────────────────────────────────────────────────
-
-function WonConversionModal({ isOpen, onClose, lead, onConfirm }) {
-  const [loading, setLoading] = useState(false)
-
-  function handleConfirm() {
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      const docs = lead?.kycDocs ?? {}
-      const kycComplete = ['aadhaar', 'panCard', 'customerPhoto'].every(k => docs[k])
-      const customer = buildCustomerFromLead(lead)
-      addCustomer(customer)
-      onConfirm({
-        customerName: customer.name,
-        customerId:   customer.id,
-        ticketId:     `TK-${2880 + Math.floor(Math.random() * 50)}`,
-        kycStatus:    kycComplete ? 'Completed' : 'Pending',
-      })
-    }, 1400)
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Mark as Won?" size="sm"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button
-            icon={loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-            onClick={handleConfirm}
-            disabled={loading}
-          >
-            {loading ? 'Converting…' : 'Confirm & Convert'}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <p className="text-sm text-gray-600 font-medium">This will automatically:</p>
-        <div className="space-y-2.5">
-          {['Create customer record', 'Trigger CAF form', 'Check KYC status', 'Create installation ticket'].map(item => (
-            <div key={item} className="flex items-center gap-3 text-sm text-gray-700">
-              <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
-                <CheckCircle size={12} className="text-emerald-600" />
-              </div>
-              {item}
-            </div>
-          ))}
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-function WonSuccessModal({ isOpen, onClose, lead, data }) {
-  const navigate = useNavigate()
-  const cards = [
-    { title: 'Customer Created',    desc: `${data?.customerName ?? ''} — ${data?.customerId ?? ''}`,   action: 'View Customer', bg: 'bg-blue-50 border-blue-200'    },
-    { title: 'CAF Form',            desc: 'Ready to fill',                                              action: 'Open CAF',      bg: 'bg-purple-50 border-purple-200' },
-    { title: 'KYC Status',          desc: data?.kycStatus === 'Completed' ? 'Completed ✅' : 'Pending ⚠️', action: data?.kycStatus === 'Completed' ? 'View KYC' : 'Complete KYC', bg: data?.kycStatus === 'Completed' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200' },
-    { title: 'Installation Ticket', desc: `#${data?.ticketId ?? ''} Created`,                           action: 'View Ticket',   bg: 'bg-orange-50 border-orange-200' },
-  ]
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Conversion Complete" size="lg"
-      footer={<Button onClick={onClose}>Done</Button>}
-    >
-      <div className="text-center py-3 mb-5 border-b border-surface-border">
-        <div className="text-4xl mb-2">🎉</div>
-        <h2 className="text-lg font-bold text-gray-900">Lead Converted Successfully!</h2>
-        <p className="text-sm text-gray-500 mt-1">{lead?.name} has been marked as Won and a customer record created.</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {cards.map(card => (
-          <div key={card.title} className={`border rounded-xl p-4 ${card.bg}`}>
-            <p className="font-semibold text-sm text-gray-900 mb-1">{card.title}</p>
-            <p className="text-xs text-gray-600 mb-3 break-words">{card.desc}</p>
-            <Button
-              variant="secondary" size="sm" className="w-full"
-              onClick={card.title === 'Customer Created' ? () => navigate(`/customers/${data?.customerId}/profile`) : undefined}
-            >
-              {card.action}
-            </Button>
-          </div>
-        ))}
       </div>
     </Modal>
   )
@@ -3082,6 +2988,10 @@ export default function SalesLeadDetail() {
   }
 
   function handleMoveStage(targetStage, fieldVals, fuData) {
+    // Won is set exclusively by the Installation → Completed flow (Path B).
+    // Block any attempt to manually move a B2C lead to Won from this page.
+    if (targetStage === 'Won' && lead.pipeline === 'B2C') return
+
     const filledCount = Object.values(fieldVals).filter(Boolean).length
     const newHistoryEntry = {
       stage: targetStage,
@@ -3248,36 +3158,53 @@ export default function SalesLeadDetail() {
 
 
   function handleHardwareConfirm(hwFormData) {
-    // TODO: existing customers keep their original Customer ID / PPPoE
-    // credentials; only new customer creation (this Won-conversion flow)
-    // uses the Customer Type-configured generators below.
-    const customerTypeId = lead.pipeline === 'Enterprise' ? 'corporate' : 'resident'
-    const customerId = getNextCustomerId(customerTypeId)
-    const customerLike = { name: lead.name, id: customerId }
-    const username = getPPPoEId(customerLike, customerTypeId)
-    // PPPoE Password isn't one of the 3 configurable ID types in
-    // customerTypes.js (Customer ID / PPPoE ID / App Password) — it's a
-    // simple locally-generated starting value, freely editable afterwards
-    // from the Customer Profile page's Connection Details card.
-    const pppoePassword = applyPattern('{customerid}#Pass', buildCredentialTokens(customerLike))
-    const appPassword = getAppPassword(customerLike, customerTypeId)
+    // Enterprise has no Installation Visit stage — hardware confirm is B2C only.
+    if (lead.pipeline === 'Enterprise') return
 
-    const newHistoryEntry = { stage: 'Won', date: TODAY, movedBy: lead.assigned ?? 'Arjun Kumar', fields: {} }
-    const newActivityEntry = { id: Date.now(), icon: '🏆', text: 'Installation completed — Lead marked as Won', user: lead.assigned ?? 'Arjun Kumar', time: 'just now' }
-    saveLead({
-      ...lead,
-      stage: 'Won',
-      daysInStage: 0,
-      lastActivity: 'Installation completed',
-      stageHistory: [...(lead.stageHistory ?? []), newHistoryEntry],
-      activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
+    const TODAY_ISO = new Date().toISOString().split('T')[0]
+
+    // Find or create the installation record for this lead
+    const existing = getInstallations().find(i => i.leadId === lead.id)
+    const inst = existing ?? {
+      id: nextInstallationId(),
+      leadId: lead.id,
+      customerName: lead.name,
+      area: lead.area ?? '',
+      timeline: [],
+      status: 'Scheduled',
+    }
+
+    saveInstallation({
+      ...inst,
+      deviceType:   hwFormData.deviceType,
+      deviceModel:  hwFormData.deviceModel,
+      serialNumber: hwFormData.serialNumber,
+      macAddress:   hwFormData.macAddress,
+      condition:    hwFormData.condition,
+      cableType:    hwFormData.cableType,
+      cableLength:  hwFormData.cableLength,
+      drumNumber:   hwFormData.drumNumber,
     })
 
-    const customerObj = buildCustomerFromLead(lead)
-    addCustomer(customerObj)
+    // Advance lead to 'Installation Visit' only if still at an earlier stage
+    const B2C_STAGES = ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost']
+    const currentIdx = B2C_STAGES.indexOf(lead.stage)
+    const installIdx = B2C_STAGES.indexOf('Installation Visit')
+    if (currentIdx < installIdx) {
+      const newHistoryEntry = { stage: 'Installation Visit', date: TODAY_ISO, movedBy: lead.assigned ?? 'Arjun Kumar', fields: {} }
+      const newActivityEntry = { id: Date.now(), icon: '🔧', text: 'Hardware assigned — Lead moved to Installation Visit', user: lead.assigned ?? 'Arjun Kumar', time: 'just now' }
+      saveLead({
+        ...lead,
+        stage: 'Installation Visit',
+        daysInStage: 0,
+        lastActivity: 'Hardware assigned',
+        stageHistory: [...(lead.stageHistory ?? []), newHistoryEntry],
+        activityLog: [newActivityEntry, ...(lead.activityLog ?? [])],
+      })
+    }
 
-    setActivationData({ customerId, username, pppoePassword, appPassword, plan: lead.plan ?? '100 Mbps Home', customerName: lead.name })
-    openLeadDetailModal('activation-payment')
+    // Batch 3: activation payment modal moves to post-conversion
+    // (after installation is marked Completed via Path B).
   }
 
   const mentionFiltered = STAFF.filter(s => s.name.toLowerCase().includes(mentionQ))

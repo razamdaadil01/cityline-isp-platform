@@ -254,12 +254,13 @@ function makeCustomerFromBase(id) {
     // value (Connection Details' Edit form writes one via updateCustomer())
     // over the deterministic getPPPoEId()/getAppPassword() default — the
     // same "override wins, else compute/default" pattern connection/sales/
-    // address already use above. pppoeUsername/nas/interface/ipAddress/
-    // macAddress aren't editable anywhere on this page, so they stay
-    // recomputed/hardcoded as before.
+    // address already use above. pppoeUsername prefers the value stored on
+    // the customer (written at conversion time by installationsStore.js
+    // convertLeadToCustomer), falling back to recomputing — so manually
+    // created customers and any record missing the stored value still work.
     radius: {
       jazeUserId: base.radius?.jazeUserId ?? idSlug,
-      pppoeUsername: getPPPoEId({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
+      pppoeUsername: base.pppoeUsername ?? base.radius?.pppoeUsername ?? getPPPoEId({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       pppoePassword: base.radius?.pppoePassword ?? '—',
       appPassword: base.radius?.appPassword ?? getAppPassword({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       nas: 'NAS-01',
