@@ -413,6 +413,40 @@ async function assignHardware(page, leadId, serial, mac) {
   await page.waitForTimeout(500)
 }
 
+/**
+ * Drive an installation from Scheduled (no team) to Dispatched (with team) via the UI.
+ * Assign Team from detail → Move to HW Collection from list ⋮ → Move to Dispatch from list ⋮.
+ * canComplete requires assignedTeam set AND status Dispatched/In Progress.
+ * Returns the list-row locator so callers can proceed to Mark Completed.
+ */
+async function driveInstallationToDispatched(page, insId, scheduledDate = '2026-10-14') {
+  await spaNavigate(page, `/installations/${insId}`)
+  await page.locator('button:has-text("Assign Team")').first().click()
+  await expect(page.locator('h2:has-text("Assign Team")')).toBeVisible({ timeout: 5000 })
+  await page.locator('select').filter({ has: page.locator('option:has-text("Select team…")') }).selectOption('Team Alpha')
+  await page.locator('label:has-text("Arjun Kumar") input[type="checkbox"]').check()
+  await page.locator('input[type="date"]').fill(scheduledDate)
+  await page.locator('button:has-text("Assign Team")').last().click()
+  await page.waitForTimeout(500)
+
+  await spaNavigate(page, '/installations')
+  const insRow = page.locator('tr').filter({ hasText: insId }).first()
+
+  await insRow.locator('button').last().click()
+  await page.locator('button:has-text("Move to Hardware Collection")').click()
+  await expect(page.locator('h2:has-text("Move to Hardware Collection")')).toBeVisible({ timeout: 5000 })
+  await page.locator('button:has-text("Confirm")').last().click()
+  await page.waitForTimeout(500)
+
+  await insRow.locator('button').last().click()
+  await page.locator('button:has-text("Move to Dispatch")').click()
+  await expect(page.locator('h2:has-text("Confirm Dispatch")')).toBeVisible({ timeout: 5000 })
+  await page.locator('button:has-text("Confirm — Dispatch")').click()
+  await page.waitForTimeout(500)
+
+  return insRow
+}
+
 /** Find the installation ID for a given lead in the /installations list. */
 async function findInstallationIdForLead(page, leadId) {
   await spaNavigate(page, '/installations')
@@ -626,34 +660,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
 
     await shot(page, 6, '06a-dashboard-before')
 
-    // Navigate to installations — drive through state machine before completing
-    // Batch 6: canComplete requires assignedTeam + Dispatched/In Progress status
-    await spaNavigate(page, `/installations/${state.insId1}`)
-
-    // Assign Team from detail (sets assignedTeam field needed for canComplete)
-    await page.locator('button:has-text("Assign Team")').first().click()
-    await expect(page.locator('h2:has-text("Assign Team")')).toBeVisible({ timeout: 5000 })
-    await page.locator('select').filter({ has: page.locator('option:has-text("Select team…")') }).selectOption('Team Alpha')
-    await page.locator('label:has-text("Arjun Kumar") input[type="checkbox"]').check()
-    await page.locator('input[type="date"]').fill('2026-10-14')
-    await page.locator('button:has-text("Assign Team")').last().click()
-    await page.waitForTimeout(500)
-
-    // Move to Hardware Collection then Dispatch from list ⋮
-    await spaNavigate(page, '/installations')
-    const insRow = page.locator('tr').filter({ hasText: state.insId1 }).first()
-    await insRow.locator('button').last().click()
-    await page.locator('button:has-text("Move to Hardware Collection")').click()
-    await expect(page.locator('h2:has-text("Move to Hardware Collection")')).toBeVisible({ timeout: 5000 })
-    await page.locator('button:has-text("Confirm")').last().click()
-    await page.waitForTimeout(500)
-
-    await insRow.locator('button').last().click()
-    await page.locator('button:has-text("Move to Dispatch")').click()
-    await expect(page.locator('h2:has-text("Confirm Dispatch")')).toBeVisible({ timeout: 5000 })
-    await page.locator('button:has-text("Confirm — Dispatch")').click()
-    await page.waitForTimeout(500)
-
+    // Drive state machine: Assign Team → HW Collection → Dispatch → Mark Completed
+    const insRow = await driveInstallationToDispatched(page, state.insId1, '2026-10-14')
     // Now Dispatched + team → canComplete=true → Mark Completed enabled
     await insRow.locator('button').last().click()
     await page.locator('button:has-text("Mark Completed")').first().click()
@@ -948,30 +956,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     await shot(page, 12, '12a3-no-mark-completed-scheduled-detail')
 
     // ── Drive through UI: Assign Team (detail) → HW Collection (list) → Dispatch (list) ─
-    // Assign Team from InstallationDetail sets assignedTeam field (used by canComplete check)
-    await page.locator('button:has-text("Assign Team")').first().click()
-    await expect(page.locator('h2:has-text("Assign Team")')).toBeVisible({ timeout: 5000 })
-    await page.locator('select').filter({ has: page.locator('option:has-text("Select team…")') }).selectOption('Team Alpha')
-    await page.locator('label:has-text("Arjun Kumar") input[type="checkbox"]').check()
-    await page.locator('input[type="date"]').fill('2026-10-15')
-    await page.locator('button:has-text("Assign Team")').last().click()
-    await page.waitForTimeout(500)
+    await driveInstallationToDispatched(page, state.insId12, '2026-10-15')
     await shot(page, 12, '12b-team-assigned')
-
-    // Move to Hardware Collection from list ⋮
-    await spaNavigate(page, '/installations')
-    await ins12Row.locator('button').last().click()
-    await page.locator('button:has-text("Move to Hardware Collection")').click()
-    await expect(page.locator('h2:has-text("Move to Hardware Collection")')).toBeVisible({ timeout: 5000 })
-    await page.locator('button:has-text("Confirm")').last().click()
-    await page.waitForTimeout(500)
-
-    // Move to Dispatch from list ⋮
-    await ins12Row.locator('button').last().click()
-    await page.locator('button:has-text("Move to Dispatch")').click()
-    await expect(page.locator('h2:has-text("Confirm Dispatch")')).toBeVisible({ timeout: 5000 })
-    await page.locator('button:has-text("Confirm — Dispatch")').click()
-    await page.waitForTimeout(500)
     await shot(page, 12, '12c-install-dispatched')
 
     // Now: Dispatched + team → canComplete=true → Mark Completed enabled
@@ -1166,9 +1152,10 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
 
   // ── Step 15 ─────────────────────────────────────────────────────────────────
   test('Step 15 — Complete corporate installation; assert customer created; GST/PAN/legal name on profile', async () => {
-    await spaNavigate(page, '/installations')
+    // Enterprise installs have no eKYC gate — drive state machine then Mark Completed directly
+    const corp14Row = await driveInstallationToDispatched(page, state.insId14, '2026-10-15')
+    await shot(page, 15, '15a-corp-install-dispatched')
 
-    const corp14Row = page.locator('tr').filter({ hasText: state.insId14 }).first()
     await corp14Row.locator('button').last().click()
     await page.locator('button:has-text("Mark Completed")').first().click()
 
@@ -1176,33 +1163,24 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     await page.locator('button:has-text("Mark Completed")').last().click()
 
     await expect(page.locator('text=Installation completed')).toBeVisible({ timeout: 5000 })
-    await shot(page, 15, '15a-corp-installation-completed')
+    await shot(page, 15, '15b-corp-installation-completed')
 
-    // Go to Customer
     await corp14Row.locator('button').last().click()
     await expect(page.locator('button:has-text("Go to Customer")')).toBeVisible({ timeout: 5000 })
-    // Batch 6: dropdown threshold fixed — normal click should work
     await page.locator('button:has-text("Go to Customer")').click()
     await page.waitForURL('**/customers/**/profile', { timeout: 10000 })
 
     state.customerId14 = page.url().match(/\/customers\/([^/]+)\/profile/)?.[1]
     expect(state.customerId14).toBeTruthy()
 
-    await shot(page, 15, '15b-corp-customer-profile')
+    await shot(page, 15, '15c-corp-customer-profile')
 
-    // Assert GST number visible
     await expect(page.locator('text=27AABCU9603R1ZM').first()).toBeVisible({ timeout: 5000 })
-
-    // Assert PAN visible
     await expect(page.locator('text=AABCU9603R').first()).toBeVisible({ timeout: 5000 })
-
-    // Assert Legal Name visible
     await expect(page.locator('text=Cityline Networks Pvt Ltd').first()).toBeVisible({ timeout: 5000 })
-
-    // No eKYC error (Enterprise leads skip eKYC gate)
     await expect(page.locator('text=eKYC must be completed')).not.toBeVisible()
 
-    await shot(page, 15, '15c-corp-gst-pan-visible')
+    await shot(page, 15, '15d-corp-gst-pan-visible')
   })
 
   // ── Step 16 ─────────────────────────────────────────────────────────────────
