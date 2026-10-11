@@ -1,4 +1,4 @@
---- run start 2026-10-11T05:11:13.553Z ---
+--- run start 2026-10-11T06:04:09.814Z ---
 [billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
 [lead-store-diag] {"area":"Noida","areaType":"string","state":"Uttar Pradesh","district":"Gautam Buddha Nagar","locality":"Sector 62","addressType":"object"}
 [pre-feasibility-diag] {"leadArea":"Noida","leadAreaType":"string","existingFR":"none"}
@@ -7,27 +7,18 @@
 [nav] after feasibility nav: http://localhost:5173/sales/feasibility-requests
 [body-text] 
     CitylineNetworks Pvt LtdDashboardCustomersInstallationsTechniciansApprovalsSales & LeadsFollow-upsFeasibility RequestsProposalsAnalyticsIntercomBilling & InvoicePaymentsCollectionSupport & TicketsPackagesOTTIP TVNetworkJaze ServersTR-069 / ACSFibre NetworkSite ManagerPOP ManagementInventoryProjectsResellersBandwidthReportsAudit LogUser ManagementSettingsADAdmin Useradmin@cityline.in311 Oct 2026ADAdminFeasibility RequestsLeads requiring feasibility check for unmapped or new areas6Total Reque
-[pageerror] customer is not defined
-[pageerror] customer is not defined
-[console.error] The above error occurred in the <ProfileTab> component:
-
-    at ProfileTab (http://localhost:5173/src/pages/CustomerDetail.jsx:791:33)
-    at div
-    at div
-    at div
-    at CustomerDetail (http://localhost:5173/src/pages/CustomerDetail.jsx:8214:31)
-    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=5a27cc6e:4131:5)
-    at Outlet (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=5a27cc6e:4537:26)
-    at main
-    at div
-    at div
-    at Layout (http://localhost:5173/src/components/layout/Layout.jsx:26:37)
-    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=5a27cc6e:4131:5)
-    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=5a27cc6e:4601:5)
-    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=5a27cc6e:4544:15)
-    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=5a27cc6e:5290:5)
-    at App
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-[pageerror] customer is not defined
+[billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
+[billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
+[pre-feasibility-diag] {"leadArea":"Noida","leadAreaType":"string","existingFR":"none"}
+[post-feasibility-diag] [{"id":"FR-001","leadId":"LD-301","areaType":"string","area":"Noida"},{"id":"FR-002","leadId":"LD-302","areaType":"string","area":"Ghaziabad"},{"id":"FR-003","leadId":"LD-303","areaType":"string","area":"Bangalore"},{"id":"FR-004","leadId":"LD-304","areaType":"string","area":"Noida Extension"},{"id":"FR-005","leadId":"LD-305","areaType":"string","area":"Indirapuram"},{"id":"FR-006","leadId":"RES-LD-2026-001","areaType":"string","area":"Noida"},{"id":"FR-007","leadId":"RES-LD-2026-002","areaType":"string","area":"Noida"},{"id":"FR-008","leadId":"RES-LD-2026-003","areaType":"string","area":"Noida"}]
+[nav] before feasibility nav: http://localhost:5173/sales/leads/RES-LD-2026-003
+[nav] after feasibility nav: http://localhost:5173/sales/feasibility-requests
+[body-text] 
+    CitylineNetworks Pvt LtdDashboardCustomersInstallationsTechniciansApprovalsSales & LeadsFollow-upsFeasibility RequestsProposalsAnalyticsIntercomBilling & InvoicePaymentsCollectionSupport & TicketsPackagesOTTIP TVNetworkJaze ServersTR-069 / ACSFibre NetworkSite ManagerPOP ManagementInventoryProjectsResellersBandwidthReportsAudit LogUser ManagementSettingsADAdmin Useradmin@cityline.in311 Oct 2026ADAdminFeasibility RequestsLeads requiring feasibility check for unmapped or new areas8Total Reque
+[billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
+[pre-feasibility-diag] {"leadArea":"Noida","leadAreaType":"string","existingFR":"none"}
+[post-feasibility-diag] [{"id":"FR-001","leadId":"LD-301","areaType":"string","area":"Noida"},{"id":"FR-002","leadId":"LD-302","areaType":"string","area":"Ghaziabad"},{"id":"FR-003","leadId":"LD-303","areaType":"string","area":"Bangalore"},{"id":"FR-004","leadId":"LD-304","areaType":"string","area":"Noida Extension"},{"id":"FR-005","leadId":"LD-305","areaType":"string","area":"Indirapuram"},{"id":"FR-006","leadId":"RES-LD-2026-001","areaType":"string","area":"Noida"},{"id":"FR-007","leadId":"RES-LD-2026-002","areaType":"string","area":"Noida"},{"id":"FR-008","leadId":"RES-LD-2026-003","areaType":"string","area":"Noida"},{"id":"FR-009","leadId":"RES-LD-2026-004","areaType":"string","area":"Noida"}]
+[nav] before feasibility nav: http://localhost:5173/sales/leads/RES-LD-2026-004
+[nav] after feasibility nav: http://localhost:5173/sales/feasibility-requests
+[body-text] 
+    CitylineNetworks Pvt LtdDashboardCustomersInstallationsTechniciansApprovalsSales & LeadsFollow-upsFeasibility RequestsProposalsAnalyticsIntercomBilling & InvoicePaymentsCollectionSupport & TicketsPackagesOTTIP TVNetworkJaze ServersTR-069 / ACSFibre NetworkSite ManagerPOP ManagementInventoryProjectsResellersBandwidthReportsAudit LogUser ManagementSettingsADAdmin Useradmin@cityline.in311 Oct 2026ADAdminFeasibility RequestsLeads requiring feasibility check for unmapped or new areas9Total Reque
