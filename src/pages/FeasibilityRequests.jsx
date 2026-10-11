@@ -265,7 +265,7 @@ export default function FeasibilityRequests() {
 
   function openMenu(e, id) {
     const rect = e.currentTarget.getBoundingClientRect()
-    const top = window.innerHeight - rect.bottom < 160 ? rect.top - 164 : rect.bottom + 4
+    const top = window.innerHeight - rect.bottom < 288 ? Math.max(4, rect.top - 292) : rect.bottom + 4
     setMenuPos({ top, right: window.innerWidth - rect.right })
     setMenuId(id)
   }
@@ -458,7 +458,7 @@ export default function FeasibilityRequests() {
                       {visibleCols.has('address') && (
                         <td className="px-4 py-3 max-w-[220px] truncate" title={r.completeAddress || [r.subLocalityName, r.localityName, r.area].filter(Boolean).join(', ')}>
                           <span className="text-xs text-gray-700">
-                            {r.completeAddress || [r.subLocalityName, r.localityName, r.area].filter(Boolean).join(', ') || '—'}
+                            {typeof r.completeAddress === 'string' ? r.completeAddress : [r.subLocalityName, r.localityName, r.area].filter(Boolean).join(', ') || '—'}
                           </span>
                         </td>
                       )}

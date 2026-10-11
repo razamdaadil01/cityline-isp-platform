@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx'
 import { getFormModules, subscribeFormModules } from '../data/customFormStore'
 import { saveFollowup } from '../data/followupStore'
 import { getLeads, saveLead as saveLeadToStore, subscribeLeads, canMoveLeadToStage } from '../data/leadsStore'
+import { getFeasibilityRequests } from '../data/feasibilityStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getSalesPermission, subscribeSalesPermission, CURRENT_USER } from '../data/salesPermissionStore'
 import { getStageFields, getStageMeta } from '../data/stageFieldsStore'
@@ -1784,7 +1785,7 @@ export default function Sales() {
         }
 
         // Gate: block stage moves not allowed by policy
-        const dragGate = canMoveLeadToStage(lead, targetStage)
+        const dragGate = canMoveLeadToStage(lead, targetStage, { feasibilityRequests: getFeasibilityRequests() })
         if (!dragGate.allowed) {
           setStageGateToast(dragGate.reason)
           setTimeout(() => setStageGateToast(null), 4000)
@@ -2543,7 +2544,7 @@ export default function Sales() {
             initialStage={moveStageInitial}
             onClose={closeLeadModal}
             onMove={(targetStage, fieldVals, fuData) => {
-              const moveGate = canMoveLeadToStage(msLead, targetStage)
+              const moveGate = canMoveLeadToStage(msLead, targetStage, { feasibilityRequests: getFeasibilityRequests() })
               if (!moveGate.allowed) {
                 setStageGateToast(moveGate.reason)
                 setTimeout(() => setStageGateToast(null), 4000)

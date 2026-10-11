@@ -2992,7 +2992,7 @@ export default function SalesLeadDetail() {
   }
 
   function handleMoveStage(targetStage, fieldVals, fuData) {
-    const gate = canMoveLeadToStage(lead, targetStage)
+    const gate = canMoveLeadToStage(lead, targetStage, { feasibilityRequests })
     if (!gate.allowed) {
       setFeasGateToast(gate.reason)
       setTimeout(() => setFeasGateToast(null), 4000)
@@ -3221,6 +3221,9 @@ export default function SalesLeadDetail() {
       drumNumber:   hwFormData.drumNumber,
     })
     logAudit({ module: 'Sales', action: 'Edit', details: `Hardware confirmed for lead ${lead.id} (${lead.name}) — ${hwFormData.deviceType || 'device'} ${hwFormData.deviceModel || ''}`.trim() })
+    closeLeadDetailModal()
+    setLinkToast('Hardware confirmed — installation record created.')
+    setTimeout(() => setLinkToast(null), 3000)
 
     // Advance lead to 'Installation Visit' only if still at an earlier stage
     const B2C_STAGES = ['New Inquiry', 'Follow-up', 'Feasibility', 'Installation Visit', 'Won', 'Lost']
@@ -3475,13 +3478,38 @@ export default function SalesLeadDetail() {
                         </button>
                       </span>
                     )}
-                    {lead.stage !== 'Won' && lead.stage !== 'Lost' && lead.pipeline === 'Enterprise' && (
-                      <button
-                        onClick={() => { openMoveStage('Won'); setActionsOpen(false) }}
-                        className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap">
-                        <Award size={14} className="text-emerald-500 shrink-0" /> Mark as Won
-                      </button>
-                    )}
+                    {lead.stage !== 'Won' && lead.stage !== 'Lost' && lead.pipeline === 'Enterprise' && (() => {
+                      const ENT_STAGES = ['New Inquiry Filed', 'Discussion', 'Follow-up', 'Proposal']
+                      const curIdx = ENT_STAGES.indexOf(lead.stage)
+                      const nextStage = ENT_STAGES[curIdx + 1]
+                      const canWin = lead.stage === 'Proposal'
+                      return (
+                        <>
+                          {nextStage && (
+                            <button
+                              onClick={() => { openMoveStage(nextStage); setActionsOpen(false) }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                              <ChevronRight size={14} className="text-gray-400 shrink-0" /> Move to {nextStage}
+                            </button>
+                          )}
+                          {canWin ? (
+                            <button
+                              onClick={() => { openMoveStage('Won'); setActionsOpen(false) }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors whitespace-nowrap">
+                              <Award size={14} className="text-emerald-500 shrink-0" /> Mark as Won
+                            </button>
+                          ) : (
+                            <span title="Mark as Won is available only from the Proposal stage.">
+                              <button
+                                disabled
+                                className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-400 whitespace-nowrap cursor-not-allowed opacity-50 hover:bg-white">
+                                <Award size={14} className="text-gray-300 shrink-0" /> Mark as Won
+                              </button>
+                            </span>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 )}
               </div>

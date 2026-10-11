@@ -8,7 +8,7 @@ import {
 import {
   getInstallations as getInternetInstallations,
   subscribeInstallations as subscribeInternetInstallations,
-  updateInstallationStatus, FIELD_ENGINEERS,
+  updateInstallationStatus, FIELD_ENGINEERS, getAllowedInstallationActions,
 } from '../data/installationsStore'
 import { getFeasibilityRequest } from '../data/feasibilityStore'
 import {
@@ -498,7 +498,7 @@ export default function Installations() {
   function openNetMenu(e, id) {
     e.stopPropagation()
     const rect = e.currentTarget.getBoundingClientRect()
-    const top = window.innerHeight - rect.bottom < 240 ? rect.top - 244 : rect.bottom + 4
+    const top = window.innerHeight - rect.bottom < 340 ? Math.max(4, rect.top - 344) : rect.bottom + 4
     setNetMenuPos({ top, right: window.innerWidth - rect.right })
     setIcMenuId(null)
     setNetMenuId(id)
@@ -632,7 +632,8 @@ export default function Installations() {
   function openIcMenu(e, id) {
     e.stopPropagation()
     const rect = e.currentTarget.getBoundingClientRect()
-    setIcMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    const icTop = window.innerHeight - rect.bottom < 140 ? Math.max(4, rect.top - 144) : rect.bottom + 4
+    setIcMenuPos({ top: icTop, right: window.innerWidth - rect.right })
     setNetMenuId(null)
     setIcMenuId(id)
   }
@@ -709,8 +710,10 @@ export default function Installations() {
     { key: 'Cancelled',   label: 'Cancelled',    value: counts.Cancelled,   color: 'text-red-500',     bg: 'bg-red-50',      icon: XCircle       },
   ]
 
-  const netMenuDisabledHw   = netMenuInst && ['Completed', 'Cancelled', 'Hardware Collection Pending', 'Dispatched'].includes(netMenuInst.status)
-  const netMenuDisabledDone = netMenuInst && ['Completed', 'Cancelled'].includes(netMenuInst.status)
+  const netMenuDisabledHw      = netMenuInst && ['Completed', 'Cancelled', 'Hardware Collection Pending', 'Dispatched'].includes(netMenuInst.status)
+  const netMenuActions         = netMenuInst ? getAllowedInstallationActions(netMenuInst) : null
+  const netMenuDisabledDone    = netMenuInst && !netMenuActions?.canComplete
+  const netMenuDisabledCancel  = netMenuInst && !netMenuActions?.canCancel
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
@@ -1080,10 +1083,10 @@ export default function Installations() {
 
           <button
             onClick={() => { setNetCancelInst(netMenuInst); setNetMenuId(null) }}
-            disabled={netMenuDisabledDone}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${netMenuDisabledDone ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-            <XCircle className={`w-4 h-4 flex-shrink-0 ${netMenuDisabledDone ? 'text-gray-400' : 'text-red-500'}`} />
-            <span className={`text-sm ${netMenuDisabledDone ? 'text-gray-400' : 'text-gray-700'}`}>
+            disabled={netMenuDisabledCancel}
+            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${netMenuDisabledCancel ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+            <XCircle className={`w-4 h-4 flex-shrink-0 ${netMenuDisabledCancel ? 'text-gray-400' : 'text-red-500'}`} />
+            <span className={`text-sm ${netMenuDisabledCancel ? 'text-gray-400' : 'text-gray-700'}`}>
               Mark Cancelled
             </span>
           </button>

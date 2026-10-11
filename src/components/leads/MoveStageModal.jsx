@@ -47,7 +47,9 @@ export default function MoveStageModal({ isOpen, onClose, lead, pipelines, onSav
       setFieldVals(targetStage === 'Feasibility' && lead ? {
         's4-f1': lead.locality ?? lead.area ?? '',
         's4-f2': lead.subLocality ?? '',
-        's4-f3': lead.address ?? '',
+        's4-f3': typeof lead.address === 'object'
+          ? [lead.address?.installation?.line1, lead.address?.installation?.line2, lead.address?.installation?.area, lead.address?.installation?.city, lead.address?.installation?.state, lead.address?.installation?.pincode].filter(Boolean).join(', ')
+          : (lead.address ?? ''),
         's4-f4': lead.landmark ?? '',
         's4-f5': ['FTTH', 'Sector', 'Village'].includes(lead.siteType) ? lead.siteType : '',
         's4-f6': lead.customerRequirement ?? '',

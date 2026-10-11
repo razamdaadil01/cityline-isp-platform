@@ -53,12 +53,20 @@ export function saveLead(lead) {
   _listeners.forEach(fn => fn([..._leads]))
 }
 
-export function canMoveLeadToStage(lead, targetStage) {
+export function canMoveLeadToStage(lead, targetStage, opts = {}) {
+  const { feasibilityRequests } = opts
   if (lead.pipeline === 'B2C' && targetStage === 'Won') {
     return { allowed: false, reason: 'Won is set automatically when installation is completed.' }
   }
-  if (lead.pipeline === 'B2C' && targetStage === 'Installation Visit' && lead.feasibilityStatus !== 'Approved') {
-    return { allowed: false, reason: 'Feasibility must be approved first.' }
+  if (lead.pipeline === 'B2C' && targetStage === 'Installation Visit') {
+    const feasApproved = lead.feasibilityStatus === 'Approved' ||
+      feasibilityRequests?.find(r => r.leadId === lead.id)?.feasibilityStatus === 'Approved'
+    if (!feasApproved) {
+      return { allowed: false, reason: 'Feasibility must be approved first.' }
+    }
+  }
+  if (lead.pipeline === 'Enterprise' && targetStage === 'Won' && lead.stage !== 'Proposal') {
+    return { allowed: false, reason: 'Mark as Won is only available from the Proposal stage.' }
   }
   return { allowed: true, reason: '' }
 }

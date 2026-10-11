@@ -295,6 +295,9 @@ function makeCustomerFromBase(id) {
       documents: base.kyc?.documents ?? {},
     },
     notes: base.notes ?? '',
+    selectedPackage: base.selectedPackage ?? null,
+    bandwidthPackage: base.bandwidthPackage ?? null,
+    activationDate: base.activationDate ?? null,
   }
 }
 
@@ -1063,6 +1066,8 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
               <InfoField label="Billing Account Manager" value={sales.billingAccountManager} />
               <InfoField label="Installation By"         value={sales.installationBy} />
               <InfoField label="Registration Date/Time"  value={sales.registrationDate} />
+              <InfoField label="Activation Date"         value={customer.activationDate ?? '—'} />
+              <InfoField label="Expiry Date"             value={customer.expiry ?? '—'} />
               <InfoField label="Due Days"                value={sales.dueDays != null ? `${sales.dueDays} day${sales.dueDays !== 1 ? 's' : ''}` : '—'} />
               <InfoField label="Lead Source"             value={sales.leadSource} />
               {/* Note: this is the Lead's Own/Partner ownership & billing-party
@@ -1386,7 +1391,10 @@ function PackagesTab({ customer }) {
               <PackageSearch size={16} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-800">Pre-activation Package</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-gray-800">Pre-activation Package</p>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Pending activation</span>
+              </div>
               <p className="text-sm text-gray-600 mt-0.5">{customer.plan || '—'}</p>
               <p className="text-xs text-gray-400 mt-1">Package will be activated after account activation.</p>
             </div>
@@ -4350,12 +4358,31 @@ export default function CustomerDetail() {
             customer.sourceLeadId
               ? auditLogs
                   .filter(e => e.details?.includes(id) || e.details?.includes(customer.sourceLeadId))
-                  .map(e => ({
-                    time: formatAuditTimestamp(e.timestamp),
-                    actor: (e.user || 'System').replace(/@.*$/, ''),
-                    event: e.details,
-                    meta: `${e.module} · ${e.action}`,
-                  }))
+                  .map(e => {
+                    const d = e.details ?? ''
+                    const m = e.module ?? ''
+                    const a = e.action ?? ''
+                    let label = d
+                    if (m === 'Sales' && a === 'Create') label = 'Lead Created'
+                    else if (m === 'Sales' && a === 'Edit' && d.includes('stage:')) {
+                      const match = d.match(/stage:\s*(.+?)\s*→\s*(.+)/)
+                      label = match ? `Stage Changed: ${match[1]} → ${match[2]}` : 'Stage Changed'
+                    }
+                    else if (m === 'Sales' && a === 'Edit' && d.includes('Hardware confirmed')) label = 'Hardware Confirmed'
+                    else if (m === 'Feasibility' && d.toLowerCase().includes('approved')) label = 'Feasibility Approved'
+                    else if (m === 'Feasibility' && d.toLowerCase().includes('rejected')) label = 'Feasibility Rejected'
+                    else if (m === 'Installations' && d.includes('completed — Customer')) label = 'Installation Completed'
+                    else if (m === 'Installations' && a === 'Edit') label = 'Installation Updated'
+                    else if (m === 'Customers' && d.includes('activated')) label = 'Service Activated'
+                    else if (m === 'Customers' && d.includes('created')) label = 'Customer Created'
+                    else if (m === 'Customers' && a === 'Edit') label = 'Customer Updated'
+                    return {
+                      time: formatAuditTimestamp(e.timestamp),
+                      actor: (e.user || 'System').replace(/@.*$/, ''),
+                      event: label,
+                      meta: d !== label ? d : `${m} · ${a}`,
+                    }
+                  })
               : activityLog
           } />}
         </div>
