@@ -1066,8 +1066,8 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
               <InfoField label="Billing Account Manager" value={sales.billingAccountManager} />
               <InfoField label="Installation By"         value={sales.installationBy} />
               <InfoField label="Registration Date/Time"  value={sales.registrationDate} />
-              <InfoField label="Activation Date"         value={customer.activationDate ?? '—'} />
-              <InfoField label="Expiry Date"             value={customer.expiry ?? '—'} />
+              <InfoField label="Activation Date"         value={cust.activationDate ?? '—'} />
+              <InfoField label="Expiry Date"             value={cust.expiry ?? '—'} />
               <InfoField label="Due Days"                value={sales.dueDays != null ? `${sales.dueDays} day${sales.dueDays !== 1 ? 's' : ''}` : '—'} />
               <InfoField label="Lead Source"             value={sales.leadSource} />
               {/* Note: this is the Lead's Own/Partner ownership & billing-party
