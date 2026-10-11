@@ -1318,7 +1318,7 @@ export default function SalesNewLead({ lead = null } = {}) {
             title={!canSubmit ? (packageBlocked ? 'Package Selection is blocked until Feasibility is approved' : 'Complete all mandatory fields to create this lead') : undefined}
             onClick={() => !canSubmit && setAttempted(true)}
           >
-            <Button icon={<Check size={14} />} onClick={handleSubmit} disabled={!canSubmit}>{isEdit ? 'Save Changes' : 'Create Lead'}</Button>
+            <Button icon={<Check size={14} />} onClick={handleSubmit} disabled={!canSubmit} className={!canSubmit ? '!bg-gray-300 !text-gray-500 !shadow-none' : ''}>{isEdit ? 'Save Changes' : 'Create Lead'}</Button>
           </span>
         </div>
       </div>

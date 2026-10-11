@@ -538,6 +538,11 @@ export default function InstallationDetail() {
         <button onClick={() => setProgressOpen(true)} className={actionBtnCls('amber')}>
           <Play size={13} /> Mark In Progress
         </button>
+        {inst.assignedTeam && (
+          <button onClick={() => setCompleteOpen(true)} className={actionBtnCls('green')}>
+            <CheckCircle2 size={13} /> Mark Completed
+          </button>
+        )}
         <button onClick={() => setReschedOpen(true)} className={actionBtnCls('yellow')}>
           <RefreshCw size={13} /> Reschedule
         </button>

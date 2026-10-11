@@ -418,6 +418,21 @@ function notify() { _listeners.forEach(fn => fn([..._installations])) }
 
 export function getInstallations() { return [..._installations] }
 
+export function getAllowedInstallationActions(installation) {
+  const s = installation?.status ?? ''
+  const hasteam = !!installation?.assignedTeam
+  return {
+    canComplete:         hasteam && ['Dispatched', 'In Progress'].includes(s),
+    canCancel:           !['Completed', 'Cancelled'].includes(s),
+    canReschedule:       !['Completed', 'Cancelled'].includes(s),
+    canAssignTeam:       ['Scheduled', 'Assigned', 'Rescheduled'].includes(s),
+    canMoveToHwCollection: s === 'Assigned',
+    canDispatch:         s === 'Hardware Collection Pending',
+    canMarkInProgress:   s === 'Dispatched',
+    isFinal:             ['Completed', 'Cancelled'].includes(s),
+  }
+}
+
 export function saveInstallation(inst) {
   const exists = _installations.find(i => i.id === inst.id)
   if (exists) {
@@ -443,10 +458,13 @@ export function updateInstallationStatus(id, status, extra = {}) {
   // Enterprise (Corporate) leads use a different KYC path and are exempt.
   if (status === 'Completed') {
     const inst = _installations.find(i => i.id === id)
+    const actions = getAllowedInstallationActions(inst)
+    if (!actions.canComplete) {
+      return { blocked: true, reason: inst?.assignedTeam ? 'Installation must be Dispatched or In Progress before marking as Completed.' : 'A team must be assigned before marking the installation as Completed.' }
+    }
     if (inst?.leadId) {
       const lead = getLeads().find(l => l.id === inst.leadId)
       if (lead && lead.pipeline !== 'Enterprise' && lead.ekycStatus !== 'Completed') {
-        // Gate rejected — do not change the installation status.
         return { ekycBlocked: true, reason: 'eKYC must be completed for this lead before marking the installation as done.' }
       }
     }
