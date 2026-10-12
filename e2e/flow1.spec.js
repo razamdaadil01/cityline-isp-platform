@@ -87,7 +87,8 @@ async function spaNavigate(page, path) {
       await page.waitForTimeout(400)
     }
     // Open ⋮ menu for this installation row, then click View Details
-    await page.locator('tr').filter({ hasText: insId }).first().locator('button').last().click()
+    await page.locator('tr').filter({ hasText: insId }).first().locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await page.locator('button:has-text("View Details")').click()
     await page.waitForTimeout(400)
     return
@@ -247,6 +248,18 @@ async function spaNavigate(page, path) {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Wait for the RowActionMenu portal to finish positioning (invisible → visible).
+ * Must be called after clicking a ⋮ trigger and before clicking any menu item.
+ * The portal renders initially with visibility:hidden, then useLayoutEffect
+ * positions it and flips visibility:visible. Waiting for the visible state
+ * ensures the menu is fully positioned before Playwright fires the next click. */
+async function waitForPortalMenu(page) {
+  await page.waitForSelector('body > div[style*="position: fixed"]', {
+    state: 'visible',
+    timeout: 5000,
+  })
+}
+
 /** Fill a complete Resident lead form and return the preview ID from the subtitle. */
 async function fillResidentLead(page, opts = {}) {
   const {
@@ -384,9 +397,9 @@ async function moveToFeasibilityAndApprove(page, leadId) {
 
   // Find row for this lead and open ⋮
   const frRow = page.locator('tr').filter({ hasText: leadId }).first()
-  await frRow.locator('button').last().click({ timeout: 15000 })
+  await frRow.locator('td:last-child button').click({ timeout: 15000 })
 
-  // Batch 6: dropdown threshold fixed (160→288px) — normal click should work
+  await waitForPortalMenu(page)
   await page.locator('button:has-text("Approve")').click()
 
   // Approve modal
@@ -432,13 +445,15 @@ async function driveInstallationToDispatched(page, insId, scheduledDate = '2026-
   await spaNavigate(page, '/installations')
   const insRow = page.locator('tr').filter({ hasText: insId }).first()
 
-  await insRow.locator('button').last().click()
+  await insRow.locator('td:last-child button').click()
+  await waitForPortalMenu(page)
   await page.locator('button:has-text("Move to Hardware Collection")').click()
   await expect(page.locator('h2:has-text("Move to Hardware Collection")')).toBeVisible({ timeout: 5000 })
   await page.locator('button:has-text("Confirm")').last().click()
   await page.waitForTimeout(500)
 
-  await insRow.locator('button').last().click()
+  await insRow.locator('td:last-child button').click()
+  await waitForPortalMenu(page)
   await page.locator('button:has-text("Move to Dispatch")').click()
   await expect(page.locator('h2:has-text("Confirm Dispatch")')).toBeVisible({ timeout: 5000 })
   await page.locator('button:has-text("Confirm — Dispatch")').click()
@@ -638,7 +653,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
 
     // Assert NO customer created yet (customer URL would require activation step)
     // The Go to Customer button should not be present in the dropdown for a Scheduled/In-Progress install
-    await newInsRow.locator('button').last().click()
+    await newInsRow.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     const goToCustomerBtn = page.locator('button:has-text("Go to Customer")')
     await expect(goToCustomerBtn).not.toBeVisible()
     await page.keyboard.press('Escape')
@@ -663,7 +679,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     // Drive state machine: Assign Team → HW Collection → Dispatch → Mark Completed
     const insRow = await driveInstallationToDispatched(page, state.insId1, '2026-10-14')
     // Now Dispatched + team → canComplete=true → Mark Completed enabled
-    await insRow.locator('button').last().click()
+    await insRow.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await page.locator('button:has-text("Mark Completed")').first().click()
     await shot(page, 6, '06b-mark-completed-dropdown')
 
@@ -676,7 +693,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     await shot(page, 6, '06c-installation-completed-toast')
 
     // Re-open ⋮ → Go to Customer appears
-    await insRow.locator('button').last().click()
+    await insRow.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await expect(page.locator('button:has-text("Go to Customer")')).toBeVisible({ timeout: 5000 })
     await shot(page, 6, '06d-go-to-customer-visible')
 
@@ -842,7 +860,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     await spaNavigate(page, '/sales/feasibility-requests')
 
     const frRow = page.locator('tr').filter({ hasText: state.leadId11 }).first()
-    await frRow.locator('button').last().click()
+    await frRow.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await page.locator('button:has-text("Reject")').click()
 
     await expect(page.locator(`h2:has-text("Reject Feasibility")`)).toBeVisible({ timeout: 5000 })
@@ -941,7 +960,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     // ── Assert Mark Completed NOT available when Scheduled with no team ──────
     // canComplete requires assignedTeam set AND status Dispatched/In Progress;
     // at Scheduled+no-team both conditions fail → button is disabled in list ⋮
-    await ins12Row.locator('button').last().click()
+    await ins12Row.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     const mcInMenu = page.locator('button:has-text("Mark Completed")').first()
     await expect(mcInMenu).toBeVisible({ timeout: 5000 })
     await expect(mcInMenu).toBeDisabled()
@@ -962,7 +982,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
 
     // Now: Dispatched + team → canComplete=true → Mark Completed enabled
     // Try Mark Completed from list ⋮ → eKYC blocked toast
-    await ins12Row.locator('button').last().click()
+    await ins12Row.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await page.locator('button:has-text("Mark Completed")').first().click()
 
     // Modal opens — click confirm
@@ -1143,7 +1164,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     state.insId14 = corp14InsMatch[0]
 
     // Assert NO customer created yet
-    await corp14Row.locator('button').last().click()
+    await corp14Row.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await expect(page.locator('button:has-text("Go to Customer")')).not.toBeVisible()
     await page.keyboard.press('Escape')
 
@@ -1156,7 +1178,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     const corp14Row = await driveInstallationToDispatched(page, state.insId14, '2026-10-15')
     await shot(page, 15, '15a-corp-install-dispatched')
 
-    await corp14Row.locator('button').last().click()
+    await corp14Row.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await page.locator('button:has-text("Mark Completed")').first().click()
 
     await expect(page.locator('h2:has-text("Mark as Completed")')).toBeVisible({ timeout: 5000 })
@@ -1165,7 +1188,8 @@ test.describe.serial('Flow 1: Full ISP Lead-to-Activation Lifecycle', () => {
     await expect(page.locator('text=Installation completed')).toBeVisible({ timeout: 5000 })
     await shot(page, 15, '15b-corp-installation-completed')
 
-    await corp14Row.locator('button').last().click()
+    await corp14Row.locator('td:last-child button').click()
+    await waitForPortalMenu(page)
     await expect(page.locator('button:has-text("Go to Customer")')).toBeVisible({ timeout: 5000 })
     await page.locator('button:has-text("Go to Customer")').click()
     await page.waitForURL('**/customers/**/profile', { timeout: 10000 })
