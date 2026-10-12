@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2,
+  Plus, Search, Filter, X, ChevronDown, Edit2,
   CheckCircle2, XCircle, Package, Boxes, Hash, ScanLine, Info,
 } from 'lucide-react'
+import RowActionMenu from '../../components/common/RowActionMenu'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
@@ -700,24 +701,6 @@ export default function ProductList() {
   const editing = modalParam === 'edit' ? products.find(p => p.id === editIdParam) ?? null : null
   const modalOpen = modalParam === 'add' || (modalParam === 'edit' && !!editing)
 
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
-
   const [filterProductType, setFilterProductType] = useState('')
   const [filterCategoryId, setFilterCategoryId] = useState('')
   const [filterSubcategoryId, setFilterSubcategoryId] = useState('')
@@ -802,7 +785,6 @@ export default function ProductList() {
       next.delete('type')
       return next
     })
-    setMenuId(null)
   }
   function closeModal() {
     setSearchParams(prev => {
@@ -815,7 +797,6 @@ export default function ProductList() {
   }
   function toggleStatus(product) {
     setProductStatus(product.id, product.status === 'active' ? 'inactive' : 'active')
-    setMenuId(null)
   }
 
   return (
@@ -958,13 +939,24 @@ export default function ProductList() {
                     </td>
                   )}
                   {visibleCols.has('actions') && (
-                    <td className="px-4 py-3 w-12 text-center">
-                      <button
-                        onClick={e => openMenu(e, p.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === p.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                    <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
+                      <RowActionMenu
+                        className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                       >
-                        <MoreVertical size={15} />
-                      </button>
+                        {canEdit && (
+                          <button onClick={() => openEdit(p)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button onClick={() => toggleStatus(p)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            {p.status === 'active'
+                              ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
+                              : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
+                          </button>
+                        )}
+                      </RowActionMenu>
                     </td>
                   )}
                 </tr>
@@ -973,31 +965,6 @@ export default function ProductList() {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const product = products.find(p => p.id === menuId)
-        if (!product) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            {canEdit && (
-              <button onClick={() => openEdit(product)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-                <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-              </button>
-            )}
-            {canEdit && (
-              <button onClick={() => toggleStatus(product)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-                {product.status === 'active'
-                  ? <><XCircle size={13} className="text-red-400 shrink-0" /> Deactivate</>
-                  : <><CheckCircle2 size={13} className="text-emerald-500 shrink-0" /> Activate</>}
-              </button>
-            )}
-          </div>
-        )
-      })()}
 
       <AddEditProductModal isOpen={modalOpen} onClose={closeModal} editing={editing} />
     </div>

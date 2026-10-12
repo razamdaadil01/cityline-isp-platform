@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, MoreVertical, Edit2, Trash2, Wrench } from 'lucide-react'
+import { Plus, Search, X, Edit2, Trash2, Wrench } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -41,24 +42,7 @@ export default function POPWorkOrders() {
   const [fPriority, setFPriority] = useState('')
   const [fStatus, setFStatus] = useState('')
 
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -174,12 +158,17 @@ export default function POPWorkOrders() {
                       <Badge variant={SLA_BADGE[sla]} size="sm" className="mt-0.5">{sla}</Badge>
                     </td>
                     <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={e => openMenu(e, wo.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === wo.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                      <RowActionMenu
+                        className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                       >
-                        <MoreVertical size={15} />
-                      </button>
+                        <button onClick={() => navigate(`/network/pops/work-orders/${wo.id}/edit`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                          <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                        </button>
+                        <button onClick={() => setDeleteTarget(wo)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 size={13} className="text-red-400 shrink-0" /> Delete
+                        </button>
+                      </RowActionMenu>
                     </td>
                   </tr>
                 )
@@ -188,31 +177,6 @@ export default function POPWorkOrders() {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const wo = workOrders.find(w => w.id === menuId)
-        if (!wo) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            <button
-              onClick={() => { navigate(`/network/pops/work-orders/${wo.id}/edit`); setMenuId(null) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button
-              onClick={() => { setDeleteTarget(wo); setMenuId(null) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <Trash2 size={13} className="text-red-400 shrink-0" /> Delete
-            </button>
-          </div>
-        )
-      })()}
 
       <Modal
         isOpen={!!deleteTarget}

@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Search, X, MoreVertical, ClipboardCheck, Clock, CheckCircle, XCircle, Eye, PackageOpen,
+  Search, X, ClipboardCheck, Clock, CheckCircle, XCircle, Eye, PackageOpen,
 } from 'lucide-react'
+import RowActionMenu from '../../components/common/RowActionMenu'
 import Badge from '../../components/ui/Badge'
 import { getQARecords, subscribeQARecords, QA_STATUSES } from '../../data/qaStore'
 
@@ -24,24 +25,6 @@ export default function QAInspection() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [page, setPage] = useState(1)
-
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const stats = useMemo(() => ({
     total: records.length,
@@ -180,12 +163,17 @@ export default function QAInspection() {
                     <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status}</Badge>
                   </td>
                   <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={e => openMenu(e, r.id)}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                    <RowActionMenu
+                      className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                     >
-                      <MoreVertical size={15} />
-                    </button>
+                      <button onClick={() => navigate(`/inventory/qa/${r.id}`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <Eye size={13} className="text-brand-blue shrink-0" /> Inspect
+                      </button>
+                      <button onClick={() => navigate(`/inventory/purchases/${r.purchaseId}`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <PackageOpen size={13} className="text-gray-400 shrink-0" /> View Purchase
+                      </button>
+                    </RowActionMenu>
                   </td>
                 </tr>
               ))}
@@ -215,31 +203,6 @@ export default function QAInspection() {
         </div>
       </div>
 
-      {/* Actions menu */}
-      {menuId && (() => {
-        const r = records.find(x => x.id === menuId)
-        if (!r) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            <button
-              onClick={() => { navigate(`/inventory/qa/${r.id}`); setMenuId(null) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Eye size={13} className="text-brand-blue shrink-0" /> Inspect
-            </button>
-            <button
-              onClick={() => { navigate(`/inventory/purchases/${r.purchaseId}`); setMenuId(null) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <PackageOpen size={13} className="text-gray-400 shrink-0" /> View Purchase
-            </button>
-          </div>
-        )
-      })()}
     </div>
   )
 }

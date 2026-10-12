@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  Edit2, Boxes, FileText, Wrench, Plus, MoreVertical,
+  Edit2, Boxes, FileText, Wrench, Plus,
   LayoutDashboard, Server, Layers,
 } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -73,26 +74,6 @@ export default function POPView() {
     setWorkOrders(getWorkOrdersForPOP(pop.id))
     return subscribeWorkOrders(() => setWorkOrders(getWorkOrdersForPOP(pop.id)))
   }, [pop?.id])
-
-  const [woMenuId, setWoMenuId] = useState(null)
-  const [woMenuPos, setWoMenuPos] = useState({ top: 0, right: 0 })
-  const woMenuRef = useRef(null)
-
-  useEffect(() => {
-    if (!woMenuId) return
-    function handleClick(e) {
-      if (woMenuRef.current && !woMenuRef.current.contains(e.target)) setWoMenuId(null)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [woMenuId])
-
-  function openWoMenu(e, woId) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setWoMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setWoMenuId(woId)
-  }
 
   const users = getUsers()
   const technicianNames = ids => (ids ?? []).map(uid => users.find(u => u.id === uid)?.name ?? uid).join(', ') || '—'
@@ -449,12 +430,14 @@ export default function POPView() {
                           <Badge variant={SLA_BADGE[sla]} size="sm" className="mt-0.5">{sla}</Badge>
                         </td>
                         <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={e => openWoMenu(e, wo.id)}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${woMenuId === wo.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                          <RowActionMenu
+                            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                            activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                           >
-                            <MoreVertical size={15} />
-                          </button>
+                            <button onClick={() => navigate(`/network/pops/work-orders/${wo.id}/edit`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                            </button>
+                          </RowActionMenu>
                         </td>
                       </tr>
                     )
@@ -540,26 +523,6 @@ export default function POPView() {
           </div>
         </div>
       )}
-
-      {/* ── Work Orders context menu ──────────────────────────────────── */}
-      {woMenuId && (() => {
-        const wo = workOrders.find(w => w.id === woMenuId)
-        if (!wo) return null
-        return (
-          <div
-            ref={woMenuRef}
-            style={{ position: 'fixed', top: woMenuPos.top, right: woMenuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            <button
-              onClick={() => { navigate(`/network/pops/work-orders/${wo.id}/edit`); setWoMenuId(null) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-          </div>
-        )
-      })()}
 
       {/* ── Linked equipment WOs modal ────────────────────────────────── */}
       <Modal

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MapContainer, TileLayer, Popup, Polyline, CircleMarker, Marker } from 'react-leaflet'
 import L from 'leaflet'
@@ -8,8 +8,9 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png'
 import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import {
   GitBranch, CheckCircle, AlertTriangle, MapPin, Plus, Search, X,
-  ChevronDown, MoreVertical, Edit2, Trash2, Eye, Filter,
+  ChevronDown, Edit2, Trash2, Eye, Filter,
 } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -217,28 +218,11 @@ function RoutesTab({ routes, setTab }) {
   const [fCableType, setFCableType] = useState('')
   const [fCoreCount, setFCoreCount] = useState('')
   const [fStatus, setFStatus] = useState('')
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_ROUTE_FORM)
   const [errors, setErrors] = useState({})
-
-  useEffect(() => {
-    if (!menuId) return
-    function handle(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -265,7 +249,6 @@ function RoutesTab({ routes, setTab }) {
     })
     setErrors({})
     setEditOpen(true)
-    setMenuId(null)
   }
 
   function validate() {
@@ -368,9 +351,20 @@ function RoutesTab({ routes, setTab }) {
                     <Badge variant={ROUTE_STATUS_BADGE[route.status] ?? 'gray'} dot size="sm">{route.status}</Badge>
                   </td>
                   <td className="px-4 py-3 w-12 text-center">
-                    <button onClick={e => openMenu(e, route.id)} className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === route.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
-                      <MoreVertical size={15} />
-                    </button>
+                    <RowActionMenu
+                      className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
+                    >
+                      <button onClick={() => openEdit(route)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                      </button>
+                      <button onClick={() => setTab('overview')} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <MapPin size={13} className="text-gray-400 shrink-0" /> View on Map
+                      </button>
+                      <button onClick={() => setDeleteTarget(route)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                        <Trash2 size={13} className="text-red-400 shrink-0" /> Delete
+                      </button>
+                    </RowActionMenu>
                   </td>
                 </tr>
               ))}
@@ -378,24 +372,6 @@ function RoutesTab({ routes, setTab }) {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const route = routes.find(r => r.id === menuId)
-        if (!route) return null
-        return (
-          <div ref={menuRef} style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }} className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44">
-            <button onClick={() => openEdit(route)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button onClick={() => { setTab('overview'); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <MapPin size={13} className="text-gray-400 shrink-0" /> View on Map
-            </button>
-            <button onClick={() => { setDeleteTarget(route); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
-              <Trash2 size={13} className="text-red-400 shrink-0" /> Delete
-            </button>
-          </div>
-        )
-      })()}
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title={editTarget ? 'Edit Route' : 'Add Fibre Route'} size="lg"
         footer={<><Button variant="secondary" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button><Button size="sm" onClick={handleSave}>{editTarget ? 'Save Changes' : 'Add Route'}</Button></>}>
@@ -483,28 +459,11 @@ function InfraTab({ infraPoints, routes }) {
   const [showFilters, setShowFilters] = useState(false)
   const [fType, setFType] = useState('')
   const [fStatus, setFStatus] = useState('')
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_INFRA_FORM)
   const [errors, setErrors] = useState({})
-
-  useEffect(() => {
-    if (!menuId) return
-    function handle(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -530,7 +489,6 @@ function InfraTab({ infraPoints, routes }) {
     })
     setErrors({})
     setEditOpen(true)
-    setMenuId(null)
   }
 
   function validate() {
@@ -622,9 +580,18 @@ function InfraTab({ infraPoints, routes }) {
                     <td className="px-4 py-3"><Badge variant={INFRA_STATUS_BADGE[pt.status] ?? 'gray'} dot size="sm">{pt.status}</Badge></td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(pt.lastInspected)}</td>
                     <td className="px-4 py-3 w-12 text-center">
-                      <button onClick={e => openMenu(e, pt.id)} className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === pt.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
-                        <MoreVertical size={15} />
-                      </button>
+                      <RowActionMenu
+                        className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
+                        menuClassName="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-40"
+                      >
+                        <button onClick={() => openEdit(pt)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                          <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                        </button>
+                        <button onClick={() => setDeleteTarget(pt)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                          <Trash2 size={13} className="text-red-400 shrink-0" /> Delete
+                        </button>
+                      </RowActionMenu>
                     </td>
                   </tr>
                 )
@@ -633,21 +600,6 @@ function InfraTab({ infraPoints, routes }) {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const pt = infraPoints.find(p => p.id === menuId)
-        if (!pt) return null
-        return (
-          <div ref={menuRef} style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }} className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-40">
-            <button onClick={() => openEdit(pt)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button onClick={() => { setDeleteTarget(pt); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
-              <Trash2 size={13} className="text-red-400 shrink-0" /> Delete
-            </button>
-          </div>
-        )
-      })()}
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title={editTarget ? 'Edit Infrastructure Point' : 'Add Infrastructure Point'} size="lg"
         footer={<><Button variant="secondary" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button><Button size="sm" onClick={handleSave}>{editTarget ? 'Save Changes' : 'Add Point'}</Button></>}>
@@ -731,9 +683,6 @@ function FaultsTab({ faults, routes, engineers }) {
   const [fStatus, setFStatus] = useState('')
   const [fDateFrom, setFDateFrom] = useState('')
   const [fDateTo, setFDateTo] = useState('')
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportForm, setReportForm] = useState(EMPTY_FAULT_FORM)
   const [reportErrors, setReportErrors] = useState({})
@@ -742,20 +691,6 @@ function FaultsTab({ faults, routes, engineers }) {
   const [updateForm, setUpdateForm] = useState({ status: '', resolvedAt: '', notes: '', assignedTo: '' })
   const [assignTarget, setAssignTarget] = useState(null)
   const [assignEngineer, setAssignEngineer] = useState('')
-
-  useEffect(() => {
-    if (!menuId) return
-    function handle(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const faultStats = useMemo(() => ({
     open: faults.filter(f => f.status === 'Open').length,
@@ -801,7 +736,6 @@ function FaultsTab({ faults, routes, engineers }) {
       notes: fault.notes ?? '',
       assignedTo: fault.assignedTo ?? '',
     })
-    setMenuId(null)
   }
 
   function handleUpdate() {
@@ -905,9 +839,26 @@ function FaultsTab({ faults, routes, engineers }) {
                   <td className="px-4 py-3 text-gray-600 text-xs">{fault.assignedTo || <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-3"><Badge variant={FAULT_STATUS_BADGE[fault.status] ?? 'gray'} dot size="sm">{fault.status}</Badge></td>
                   <td className="px-4 py-3 w-12 text-center">
-                    <button onClick={e => openMenu(e, fault.id)} className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === fault.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}>
-                      <MoreVertical size={15} />
-                    </button>
+                    <RowActionMenu
+                      className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
+                      menuClassName="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
+                    >
+                      <button onClick={() => setViewTarget(fault)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <Eye size={13} className="text-gray-400 shrink-0" /> View Details
+                      </button>
+                      <button onClick={() => openUpdate(fault)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <Edit2 size={13} className="text-gray-400 shrink-0" /> Update Status
+                      </button>
+                      <button onClick={() => { setAssignTarget(fault); setAssignEngineer(fault.assignedTo ?? '') }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <MapPin size={13} className="text-gray-400 shrink-0" /> Assign Engineer
+                      </button>
+                      {fault.status !== 'Resolved' && (
+                        <button onClick={() => updateFibreFault(fault.id, { status: 'Resolved', resolvedAt: new Date().toISOString() })} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-emerald-600 hover:bg-emerald-50 transition-colors">
+                          <CheckCircle size={13} className="text-emerald-400 shrink-0" /> Mark Resolved
+                        </button>
+                      )}
+                    </RowActionMenu>
                   </td>
                 </tr>
               ))}
@@ -915,29 +866,6 @@ function FaultsTab({ faults, routes, engineers }) {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const fault = faults.find(f => f.id === menuId)
-        if (!fault) return null
-        return (
-          <div ref={menuRef} style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }} className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48">
-            <button onClick={() => { setViewTarget(fault); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Eye size={13} className="text-gray-400 shrink-0" /> View Details
-            </button>
-            <button onClick={() => openUpdate(fault)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Update Status
-            </button>
-            <button onClick={() => { setAssignTarget(fault); setAssignEngineer(fault.assignedTo ?? ''); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <MapPin size={13} className="text-gray-400 shrink-0" /> Assign Engineer
-            </button>
-            {fault.status !== 'Resolved' && (
-              <button onClick={() => { updateFibreFault(fault.id, { status: 'Resolved', resolvedAt: new Date().toISOString() }); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-emerald-600 hover:bg-emerald-50 transition-colors">
-                <CheckCircle size={13} className="text-emerald-400 shrink-0" /> Mark Resolved
-              </button>
-            )}
-          </div>
-        )
-      })()}
 
       {/* Report Fault modal */}
       <Modal isOpen={reportOpen} onClose={() => setReportOpen(false)} title="Report Fault" size="lg"

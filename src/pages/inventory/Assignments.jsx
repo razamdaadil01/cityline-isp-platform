@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Plus, Search, Filter, X, ChevronDown, MoreVertical, Edit2, RotateCcw, UserCog,
+  Plus, Search, Filter, X, ChevronDown, Edit2, RotateCcw, UserCog,
   CalendarDays, Users, ClipboardList, AlertTriangle, Wrench, Trash2,
 } from 'lucide-react'
+import RowActionMenu from '../../components/common/RowActionMenu'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -275,24 +276,6 @@ export default function Assignments() {
   const [assignments, setAssignments] = useState(getAssignments)
   useEffect(() => subscribeAssignments(setAssignments), [])
 
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
-
   // "Back to Store" reverses one line — removing it from the assignment's
   // hardwareLines/wireLines is all that's needed since inventoryLedger.js's
   // computeLedger() derives unit status/balances purely from current
@@ -306,7 +289,6 @@ export default function Assignments() {
 
   function openModal(name, key) {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', name); next.set('key', key); return next })
-    setMenuId(null)
   }
   function closeModal() {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('key'); return next })
@@ -588,12 +570,52 @@ export default function Assignments() {
                   )}
                   {visibleCols.has('actions') && (
                     <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={e => openMenu(e, r.key)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.key ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                      >
-                        <MoreVertical size={15} />
-                      </button>
+                      {(() => {
+                        const alreadyWithUser = r.status === 'Assigned to User'
+                        const isSerialMacTracked = r.lineKind === 'hardware' && r.serialMacDrumLabel !== '—'
+                        const canActOnUnit = isSerialMacTracked && !alreadyWithUser
+                        const repairDisabledReason = alreadyWithUser
+                          ? 'Already handed off to a user — cannot send for repair'
+                          : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
+                        const scrapDisabledReason = alreadyWithUser
+                          ? 'Already handed off to a user — cannot scrap'
+                          : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
+                        return (
+                          <RowActionMenu
+                            menuClassName="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                            activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
+                          >
+                            <button onClick={() => navigate(`/inventory/assign/${r.assignmentId}/edit`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                            </button>
+                            <button
+                              onClick={() => { if (alreadyWithUser) return; openModal('return-line', r.key) }}
+                              disabled={alreadyWithUser}
+                              title={alreadyWithUser ? 'Already handed off to a user — cannot return to store' : undefined}
+                              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${alreadyWithUser ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+                            >
+                              <RotateCcw size={13} className={alreadyWithUser ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Store
+                            </button>
+                            <button
+                              onClick={() => { if (!canActOnUnit) return; openSendForRepair(r) }}
+                              disabled={!canActOnUnit}
+                              title={repairDisabledReason}
+                              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canActOnUnit ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
+                            >
+                              <Wrench size={13} className={canActOnUnit ? 'text-brand-orange shrink-0' : 'text-gray-300 shrink-0'} /> Send for Repair
+                            </button>
+                            <button
+                              onClick={() => { if (!canActOnUnit) return; openScrap(r) }}
+                              disabled={!canActOnUnit}
+                              title={scrapDisabledReason}
+                              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canActOnUnit ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
+                            >
+                              <Trash2 size={13} className={canActOnUnit ? 'text-red-500 shrink-0' : 'text-gray-300 shrink-0'} /> Scrap
+                            </button>
+                          </RowActionMenu>
+                        )
+                      })()}
                     </td>
                   )}
                 </tr>
@@ -602,61 +624,6 @@ export default function Assignments() {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const row = rows.find(r => r.key === menuId)
-        if (!row) return null
-        const alreadyWithUser = row.status === 'Assigned to User'
-        // Only a hardware line with a real serial/MAC identity has a
-        // discrete unit to send to a vendor — a quantity-tracked hardware
-        // line or any wire line (drum meterage) has no such identity (per
-        // repairStore.js's own value/kind-per-unit shape), and a unit
-        // already handed off to a user is gone the same way it is for
-        // "Back to Store" above.
-        const isSerialMacTracked = row.lineKind === 'hardware' && row.serialMacDrumLabel !== '—'
-        const canActOnUnit = isSerialMacTracked && !alreadyWithUser
-        const repairDisabledReason = alreadyWithUser
-          ? 'Already handed off to a user — cannot send for repair'
-          : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
-        const scrapDisabledReason = alreadyWithUser
-          ? 'Already handed off to a user — cannot scrap'
-          : !isSerialMacTracked ? 'Only available for serial/MAC-tracked units' : undefined
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
-          >
-            <button onClick={() => { navigate(`/inventory/assign/${row.assignmentId}/edit`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button
-              onClick={() => { if (alreadyWithUser) return; openModal('return-line', row.key) }}
-              disabled={alreadyWithUser}
-              title={alreadyWithUser ? 'Already handed off to a user — cannot return to store' : undefined}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${alreadyWithUser ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
-            >
-              <RotateCcw size={13} className={alreadyWithUser ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Store
-            </button>
-            <button
-              onClick={() => { if (!canActOnUnit) return; openSendForRepair(row) }}
-              disabled={!canActOnUnit}
-              title={repairDisabledReason}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canActOnUnit ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
-            >
-              <Wrench size={13} className={canActOnUnit ? 'text-brand-orange shrink-0' : 'text-gray-300 shrink-0'} /> Send for Repair
-            </button>
-            <button
-              onClick={() => { if (!canActOnUnit) return; openScrap(row) }}
-              disabled={!canActOnUnit}
-              title={scrapDisabledReason}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${canActOnUnit ? 'text-gray-700 hover:bg-gray-50' : 'text-gray-300 cursor-not-allowed'}`}
-            >
-              <Trash2 size={13} className={canActOnUnit ? 'text-red-500 shrink-0' : 'text-gray-300 shrink-0'} /> Scrap
-            </button>
-          </div>
-        )
-      })()}
 
       <Modal
         isOpen={!!returnTarget}
