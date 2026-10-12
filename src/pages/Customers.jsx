@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   UserPlus, Download, Filter, ChevronLeft, ChevronRight,
-  Search, X, ChevronDown, Users, MoreVertical, Eye, Edit2,
+  Search, X, ChevronDown, Users, Eye, Edit2,
 } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
@@ -136,26 +137,8 @@ export default function Customers() {
   const [statusTab,       setStatusTab]       = useState('All')
   const [selected,        setSelected]        = useState(new Set())
   const [page,            setPage]            = useState(1)
-  const [menuId,          setMenuId]          = useState(null)
-  const [menuPos,         setMenuPos]         = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
   const [tableColumns, setTableColumns] = useColumnPrefs('columnPrefs:customerTable', CUSTOMER_TABLE_COLUMNS)
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   // Applied filters (drive the table)
   const [filterService,   setFilterService]   = useState('')
@@ -686,14 +669,22 @@ export default function Customers() {
                     )}
                     {visibleCols.has('actions') && (
                       <td className="px-4 py-3 w-12 text-center" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={e => openMenu(e, c.id)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${
-                            menuId === c.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                          }`}
+                        <RowActionMenu
+                          className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                          activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                         >
-                          <MoreVertical size={15} />
-                        </button>
+                          <button
+                            onClick={() => navigate(`/customers/${c.id}`)}
+                            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Eye size={13} className="text-brand-blue shrink-0" /> View Details
+                          </button>
+                          <button
+                            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit Profile
+                          </button>
+                        </RowActionMenu>
                       </td>
                     )}
                   </tr>
@@ -747,27 +738,6 @@ export default function Customers() {
         </div>
       </div>
 
-      {/* ── 3-dot dropdown portal ── */}
-      {menuId && (
-        <div
-          ref={menuRef}
-          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-          className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-        >
-          <button
-            onClick={() => { navigate(`/customers/${menuId}`); setMenuId(null) }}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Eye size={13} className="text-brand-blue shrink-0" /> View Details
-          </button>
-          <button
-            onClick={() => setMenuId(null)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit Profile
-          </button>
-        </div>
-      )}
     </div>
   )
 }

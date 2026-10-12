@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   List, Clock, CheckCircle2, XCircle, Loader2,
-  Search, MoreVertical, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench, Edit2, Phone,
+  Search, X, UserCheck, SlidersHorizontal, Plus, Trash2, Wrench, Edit2, Phone,
 } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -69,7 +70,6 @@ function Toast({ msg, onDone }) {
 /* ── Main component ──────────────────────────────────────────── */
 export default function FeasibilityRequests() {
   const navigate = useNavigate()
-  const menuRef  = useRef(null)
 
   const [requests, setRequests] = useState(getFeasibilityRequests())
   const [searchParams, setSearchParams] = useSearchParams()
@@ -163,9 +163,6 @@ export default function FeasibilityRequests() {
     filterBranch,
   ].filter(Boolean).length
 
-  // Menu
-  const [menuId,  setMenuId]  = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
 
   // ?modal=edit-feasibility|assign-engineer|hardware-requirements|
   // approve-feasibility|reject-feasibility&requestId=... — same ?modal=
@@ -200,7 +197,6 @@ export default function FeasibilityRequests() {
   const [toast, setToast] = useState('')
 
   function openRowModal(modal, req) {
-    setMenuId(null)
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.set('modal', modal)
@@ -255,20 +251,6 @@ export default function FeasibilityRequests() {
   }
 
   useEffect(() => subscribeFeasibility(setRequests), [])
-
-  useEffect(() => {
-    if (!menuId) return
-    function onDown(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const top = window.innerHeight - rect.bottom < 288 ? Math.max(4, rect.top - 292) : rect.bottom + 4
-    setMenuPos({ top, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   function startAssign(req)         { openRowModal('assign-engineer', req) }
   function startHwRequirements(req) { openRowModal('hardware-requirements', req) }
@@ -340,8 +322,6 @@ export default function FeasibilityRequests() {
   const totalPages = Math.max(1, Math.ceil(visible.length / pageSize))
   const safePage   = Math.min(page, totalPages)
   const paged      = visible.slice((safePage - 1) * pageSize, safePage * pageSize)
-
-  const menuReq = requests.find(r => r.id === menuId) ?? null
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
@@ -517,14 +497,46 @@ export default function FeasibilityRequests() {
                         </td>
                       )}
                       {visibleCols.has('actions') && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <button
-                            onClick={e => { e.stopPropagation(); openMenu(e, r.id) }}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                              menuId === r.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-                            }`}>
-                            <MoreVertical size={15} />
-                          </button>
+                        <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          <RowActionMenu menuClassName="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]">
+                            <button onClick={() => startEdit(r)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <Edit2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700">Edit</span>
+                            </button>
+                            <button onClick={() => navigate(`/sales/feasibility-requests/${r.id}`)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700">View Details</span>
+                            </button>
+                            <button onClick={() => navigate(`/sales/leads/${r.leadId}/overview`)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <List className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700">View Lead</span>
+                            </button>
+                            <button onClick={() => startAssign(r)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <UserCheck className="w-4 h-4 text-brand-blue flex-shrink-0" />
+                              <span className="text-sm text-gray-700">Assign Engineer</span>
+                            </button>
+                            <button onClick={() => startHwRequirements(r)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <Wrench className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700">Add Hardware Requirements</span>
+                            </button>
+                            <div className="my-1 border-t border-gray-100" />
+                            <button onClick={() => startApprove(r)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700">Approve</span>
+                            </button>
+                            <div className="my-1 border-t border-gray-100" />
+                            <button onClick={() => startReject(r)}
+                              className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                              <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                              <span className="text-sm text-gray-700">Reject</span>
+                            </button>
+                          </RowActionMenu>
                         </td>
                       )}
                     </tr>
@@ -571,53 +583,6 @@ export default function FeasibilityRequests() {
           )}
         </div>
       </div>
-
-      {/* ⋮ Dropdown portal */}
-      {menuReq && (
-        <div
-          ref={menuRef}
-          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-          className="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]"
-        >
-          <button onClick={() => startEdit(menuReq)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <Edit2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">Edit</span>
-          </button>
-          <button onClick={() => { navigate(`/sales/feasibility-requests/${menuReq.id}`); setMenuId(null) }}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">View Details</span>
-          </button>
-          <button onClick={() => { navigate(`/sales/leads/${menuReq.leadId}/overview`); setMenuId(null) }}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <List className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">View Lead</span>
-          </button>
-          <button onClick={() => startAssign(menuReq)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <UserCheck className="w-4 h-4 text-brand-blue flex-shrink-0" />
-            <span className="text-sm text-gray-700">Assign Engineer</span>
-          </button>
-          <button onClick={() => startHwRequirements(menuReq)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <Wrench className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">Add Hardware Requirements</span>
-          </button>
-          <div className="my-1 border-t border-gray-100" />
-          <button onClick={() => startApprove(menuReq)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">Approve</span>
-          </button>
-          <div className="my-1 border-t border-gray-100" />
-          <button onClick={() => startReject(menuReq)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">Reject</span>
-          </button>
-        </div>
-      )}
 
       {/* Edit modal */}
       <Modal

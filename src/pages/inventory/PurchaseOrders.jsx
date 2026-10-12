@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Plus, Search, Filter, X, ChevronDown, Eye, Bell, CheckCircle2, ClipboardList, MoreVertical,
+  Plus, Search, Filter, X, ChevronDown, Eye, Bell, CheckCircle2, ClipboardList,
 } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -14,6 +14,7 @@ import { getVendors, getContacts } from '../../data/vendorStore'
 import { getStores } from '../../data/storeStore'
 import { useMicroPermission } from '../../data/rolesStore'
 import { logAudit } from '../../data/auditLogStore'
+import RowActionMenu from '../../components/common/RowActionMenu'
 
 const STATUS_BADGE = {
   Draft: 'gray',
@@ -136,7 +137,6 @@ export default function PurchaseOrders() {
 
   function openRemind(po) {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'remind-po'); next.set('id', po.id); return next })
-    setMenuId(null)
   }
   function openPoType() {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'po-type'); next.delete('id'); return next })
@@ -150,25 +150,6 @@ export default function PurchaseOrders() {
     const t = setTimeout(() => setToast(''), 2500)
     return () => clearTimeout(t)
   }, [toast])
-
-  // ── 3-dot Actions menu — same pattern as Customers.jsx/Assignments.jsx ──
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
@@ -419,14 +400,19 @@ export default function PurchaseOrders() {
                   {visibleCols.has('createdBy')     && <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{po.createdBy}</td>}
                   {visibleCols.has('actions') && (
                     <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={e => openMenu(e, po.id)}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${
-                          menuId === po.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                        }`}
+                      <RowActionMenu
+                        className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                        activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                       >
-                        <MoreVertical size={15} />
-                      </button>
+                        <button onClick={() => navigate(`/inventory/purchase-orders/${po.id}`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                          <Eye size={13} className="text-brand-blue shrink-0" /> View
+                        </button>
+                        {canEdit && (
+                          <button onClick={() => openRemind(po)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            <Bell size={13} className="text-gray-400 shrink-0" /> Remind
+                          </button>
+                        )}
+                      </RowActionMenu>
                     </td>
                   )}
                 </tr>
@@ -435,33 +421,6 @@ export default function PurchaseOrders() {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const menuPO = filtered.find(p => p.id === menuId)
-        if (!menuPO) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-          >
-            <button
-              onClick={() => { navigate(`/inventory/purchase-orders/${menuPO.id}`); setMenuId(null) }}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Eye size={13} className="text-brand-blue shrink-0" /> View
-            </button>
-            {canEdit && (
-              <button
-                onClick={() => openRemind(menuPO)}
-                className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Bell size={13} className="text-gray-400 shrink-0" /> Remind
-              </button>
-            )}
-          </div>
-        )
-      })()}
 
       <PurchaseOrderTypeModal isOpen={typeModalOpen} onClose={closeModal} />
 

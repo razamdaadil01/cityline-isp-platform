@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Download, Search, Filter, X, ChevronDown, Users, Activity,
-  Ban, UserX, MoreVertical, Eye, Edit2, PowerOff,
+  Ban, UserX, Eye, Edit2, PowerOff,
 } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 
@@ -52,48 +53,16 @@ export function subscribeIntercomCustomers(fn) {
   }
 }
 
-// ── Actions Menu ───────────────────────────────────────────────────────────────
-
-function ActionsMenu({ customer, pos, onView, onEdit, onSuspend, onTerminate }) {
-  return (
-    <div
-      style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
-      className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-    >
-      <button onClick={() => onView(customer)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-        <Eye size={13} className="text-brand-blue shrink-0" /> View
-      </button>
-      <button onClick={() => onEdit(customer)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-        <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-      </button>
-      <div className="my-1 border-t border-surface-border" />
-      <button onClick={() => onSuspend(customer)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-amber-600 hover:bg-amber-50 transition-colors">
-        <Ban size={13} className="shrink-0" /> Suspend
-      </button>
-      <button onClick={() => onTerminate(customer)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
-        <UserX size={13} className="shrink-0" /> Terminate
-      </button>
-    </div>
-  )
-}
-
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function IntercomCustomers() {
   const navigate = useNavigate()
-  const menuRef = useRef(null)
 
   const [customers, setCustomers] = useState(getIntercomCustomersList())
   useEffect(() => subscribeIntercomCustomers(setCustomers), [])
 
   const [search, setSearch] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
@@ -106,20 +75,6 @@ export default function IntercomCustomers() {
 
   const EMPTY_DRAFT = { status: '', zone: '', project: '', area: '', dateFrom: '', dateTo: '' }
   const [draft, setDraft] = useState(EMPTY_DRAFT)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
 
   function openDrawer() {
     setDraft({
@@ -175,12 +130,8 @@ export default function IntercomCustomers() {
     inactive:  customers.filter(c => c.status === 'inactive').length,
   }), [customers])
 
-  const menuCustomer = customers.find(c => c.id === menuId) ?? null
-
-  function handleView(c) { navigate(`/intercom/customers/${c.id}`); setMenuId(null) }
-  function handleEdit(c) { navigate(`/intercom/customers/${c.id}`); setMenuId(null) }
-  function handleSuspend() { setMenuId(null) }
-  function handleTerminate() { setMenuId(null) }
+  function handleView(c) { navigate(`/intercom/customers/${c.id}`) }
+  function handleEdit(c) { navigate(`/intercom/customers/${c.id}`) }
 
   return (
     <div className="p-6 space-y-5">
@@ -344,14 +295,26 @@ export default function IntercomCustomers() {
                         <Badge variant={cfg.variant} dot size="sm">{cfg.label}</Badge>
                       </td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={e => openMenu(e, c.id)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                            menuId === c.id ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                          }`}
+                        <RowActionMenu
+                          className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                          activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors bg-gray-100 text-gray-700"
                         >
-                          <MoreVertical size={15} />
-                        </button>
+                          <button onClick={() => handleView(c)}
+                            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            <Eye size={13} className="text-brand-blue shrink-0" /> View
+                          </button>
+                          <button onClick={() => handleEdit(c)}
+                            className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                          </button>
+                          <div className="my-1 border-t border-surface-border" />
+                          <button className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-amber-600 hover:bg-amber-50 transition-colors">
+                            <Ban size={13} className="shrink-0" /> Suspend
+                          </button>
+                          <button className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                            <UserX size={13} className="shrink-0" /> Terminate
+                          </button>
+                        </RowActionMenu>
                       </td>
                     </tr>
                   )
@@ -394,20 +357,6 @@ export default function IntercomCustomers() {
           </div>
         </div>
       </div>
-
-      {/* ── 3-dot dropdown portal ──────────────────────────────────────────── */}
-      {menuCustomer && (
-        <div ref={menuRef}>
-          <ActionsMenu
-            customer={menuCustomer}
-            pos={menuPos}
-            onView={handleView}
-            onEdit={handleEdit}
-            onSuspend={handleSuspend}
-            onTerminate={handleTerminate}
-          />
-        </div>
-      )}
 
       {/* ── Filter Drawer ────────────────────────────────────────────────────── */}
       <div className={`fixed top-14 left-0 right-0 bottom-0 z-50 transition-opacity duration-300 ${drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>

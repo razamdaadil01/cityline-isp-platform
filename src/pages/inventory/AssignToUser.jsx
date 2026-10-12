@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Search, MoreVertical, Edit2, Undo2, Users, CalendarDays, UserCog, ClipboardList, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Edit2, Undo2, Users, CalendarDays, UserCog, ClipboardList, AlertTriangle } from 'lucide-react'
+import RowActionMenu from '../../components/common/RowActionMenu'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -94,24 +95,6 @@ export default function AssignToUser() {
   const [assignments, setAssignments] = useState(getUserAssignments)
   useEffect(() => subscribeUserAssignments(setAssignments), [])
 
-  const [menuId, setMenuId] = useState(null)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!menuId) return
-    function handleClick(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuId(null) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuId])
-
-  function openMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    setMenuId(id)
-  }
-
   // "Reverse Handoff" undoes one line — removing it from the assignment's
   // own `items` array is all that's needed since inventoryLedger.js's
   // computeLedger() derives every unit's status/held balance purely from
@@ -125,7 +108,6 @@ export default function AssignToUser() {
   function openReverse(row) {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('modal', 'reverse-handoff'); next.set('key', row.key); return next })
     setReverseError('')
-    setMenuId(null)
   }
   function closeReverse() {
     setSearchParams(prev => { const next = new URLSearchParams(prev); next.delete('modal'); next.delete('key'); return next })
@@ -249,13 +231,24 @@ export default function AssignToUser() {
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_BADGE[r.status] ?? 'gray'} dot size="sm">{r.status}</Badge>
                   </td>
-                  <td className="px-4 py-3 w-16 text-center">
-                    <button
-                      onClick={e => openMenu(e, r.key)}
-                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto ${menuId === r.key ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                  <td className="px-4 py-3 w-16 text-center" onClick={e => e.stopPropagation()}>
+                    <RowActionMenu
+                      menuClassName="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      activeClassName="w-7 h-7 flex items-center justify-center rounded-lg transition-colors mx-auto bg-gray-100 text-gray-700"
                     >
-                      <MoreVertical size={15} />
-                    </button>
+                      <button onClick={() => navigate(`/inventory/assign-to-user/${r.assignmentId}/edit`)} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                        <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                      </button>
+                      <button
+                        onClick={() => { if (!r.reversible) return; openReverse(r) }}
+                        disabled={!r.reversible}
+                        title={!r.reversible ? 'This unit has already moved on with the user — cannot reverse' : undefined}
+                        className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!r.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
+                      >
+                        <Undo2 size={13} className={!r.reversible ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Engineer
+                      </button>
+                    </RowActionMenu>
                   </td>
                 </tr>
               ))}
@@ -263,30 +256,6 @@ export default function AssignToUser() {
           </table>
         </div>
       </div>
-
-      {menuId && (() => {
-        const row = rows.find(r => r.key === menuId)
-        if (!row) return null
-        return (
-          <div
-            ref={menuRef}
-            style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
-            className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-48"
-          >
-            <button onClick={() => { navigate(`/inventory/assign-to-user/${row.assignmentId}/edit`); setMenuId(null) }} className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-              <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-            </button>
-            <button
-              onClick={() => { if (!row.reversible) return; openReverse(row) }}
-              disabled={!row.reversible}
-              title={!row.reversible ? 'This unit has already moved on with the user — cannot reverse' : undefined}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors ${!row.reversible ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'}`}
-            >
-              <Undo2 size={13} className={!row.reversible ? 'text-gray-300 shrink-0' : 'text-emerald-500 shrink-0'} /> Back to Engineer
-            </button>
-          </div>
-        )
-      })()}
 
       <Modal
         isOpen={!!reverseTarget}

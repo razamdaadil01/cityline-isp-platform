@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   CalendarDays, Clock, UserCheck, Loader2, CheckCircle2, RefreshCw, XCircle,
-  Search, Wrench, ChevronDown, MoreVertical, Users, Package, Truck, Eye, List,
+  Search, Wrench, ChevronDown, Users, Package, Truck, Eye,
   ArrowRight, AlertTriangle, X, Plus, Trash2, Edit2, UserCog, Phone,
 } from 'lucide-react'
+import RowActionMenu from '../components/common/RowActionMenu'
 import {
   getInstallations as getInternetInstallations,
   subscribeInstallations as subscribeInternetInstallations,
@@ -175,34 +176,6 @@ function Toast({ msg, onDone }) {
     <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-gray-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-xl">
       <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
       {msg}
-    </div>
-  )
-}
-
-/* ── Intercom Actions Menu (ported as-is from the original Intercom Installations page) ── */
-function IntercomActionsMenu({ order, pos, onView, onAssign, onEdit, onCancel }) {
-  return (
-    <div
-      style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }}
-      className="bg-white rounded-xl border border-surface-border shadow-xl py-1 w-44"
-    >
-      <button onClick={() => onView(order)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-        <Eye size={13} className="text-brand-blue shrink-0" /> View
-      </button>
-      <button onClick={() => onAssign(order)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-        <UserCog size={13} className="text-emerald-500 shrink-0" /> Assign Engineer
-      </button>
-      <button onClick={() => onEdit(order)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
-        <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
-      </button>
-      <div className="my-1 border-t border-surface-border" />
-      <button onClick={() => onCancel(order)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
-        <XCircle size={13} className="shrink-0" /> Cancel
-      </button>
     </div>
   )
 }
@@ -465,10 +438,6 @@ export default function Installations() {
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   /* ── Internet (Sales & Leads) row actions ──────────────────────────────── */
-  const netMenuRef = useRef(null)
-  const [netMenuId,  setNetMenuId]  = useState(null)
-  const [netMenuPos, setNetMenuPos] = useState({ top: 0, right: 0 })
-
   const [netAssignInst,     setNetAssignInst]     = useState(null)
   const [netRescheduleInst, setNetRescheduleInst] = useState(null)
   const [netHwCollectInst,  setNetHwCollectInst]  = useState(null)
@@ -488,24 +457,6 @@ export default function Installations() {
     date: '', slot: 'Morning', reason: '', remarks: '',
   })
 
-  useEffect(() => {
-    if (!netMenuId) return
-    function onDown(e) { if (netMenuRef.current && !netMenuRef.current.contains(e.target)) setNetMenuId(null) }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [netMenuId])
-
-  function openNetMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    const top = window.innerHeight - rect.bottom < 340 ? Math.max(4, rect.top - 344) : rect.bottom + 4
-    setNetMenuPos({ top, right: window.innerWidth - rect.right })
-    setIcMenuId(null)
-    setNetMenuId(id)
-  }
-
-  const netMenuInst = internet.find(i => i.id === netMenuId) ?? null
-
   function startAssign(inst) {
     const existing = inst.engineerName ? inst.engineerName.split(', ').filter(Boolean) : []
     setNetAssignForm({ engineers: existing, notes: '' })
@@ -519,7 +470,6 @@ export default function Installations() {
     setNetHwToggle(preHw.length > 0 || preWire.length > 0)
 
     setNetAssignInst(inst)
-    setNetMenuId(null)
   }
 
   function handleNetAssign() {
@@ -553,7 +503,6 @@ export default function Installations() {
   function startReschedule(inst) {
     setNetRescheduleForm({ date: inst.slotDate || '', slot: inst.slot || 'Morning', reason: '', remarks: '' })
     setNetRescheduleInst(inst)
-    setNetMenuId(null)
   }
 
   function handleReschedule() {
@@ -617,33 +566,7 @@ export default function Installations() {
   }
 
   /* ── Intercom row actions ──────────────────────────────────────────────── */
-  const icMenuRef = useRef(null)
-  const [icMenuId,  setIcMenuId]  = useState(null)
-  const [icMenuPos, setIcMenuPos] = useState({ top: 0, right: 0 })
   const [icAssignOrder, setIcAssignOrder] = useState(null)
-
-  useEffect(() => {
-    if (!icMenuId) return
-    function onDown(e) { if (icMenuRef.current && !icMenuRef.current.contains(e.target)) setIcMenuId(null) }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [icMenuId])
-
-  function openIcMenu(e, id) {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    const icTop = window.innerHeight - rect.bottom < 140 ? Math.max(4, rect.top - 144) : rect.bottom + 4
-    setIcMenuPos({ top: icTop, right: window.innerWidth - rect.right })
-    setNetMenuId(null)
-    setIcMenuId(id)
-  }
-
-  const icMenuOrder = intercom.find(o => o.id === icMenuId) ?? null
-
-  function handleIcView(o)   { navigate(`/intercom/installations/${o.id}`); setIcMenuId(null) }
-  function handleIcAssign(o) { setIcAssignOrder(o); setIcMenuId(null) }
-  function handleIcEdit()    { setIcMenuId(null) }
-  function handleIcCancel()  { setIcMenuId(null) }
 
   function handleIcAssignSubmit({ engineers, hwItems, wireItems }) {
     updateIntercomInstallation(icAssignOrder.id, {
@@ -709,11 +632,6 @@ export default function Installations() {
     { key: 'Rescheduled', label: 'Rescheduled',  value: counts.Rescheduled, color: 'text-yellow-600',  bg: 'bg-yellow-50',   icon: RefreshCw     },
     { key: 'Cancelled',   label: 'Cancelled',    value: counts.Cancelled,   color: 'text-red-500',     bg: 'bg-red-50',      icon: XCircle       },
   ]
-
-  const netMenuDisabledHw      = netMenuInst && ['Completed', 'Cancelled', 'Hardware Collection Pending', 'Dispatched'].includes(netMenuInst.status)
-  const netMenuActions         = netMenuInst ? getAllowedInstallationActions(netMenuInst) : null
-  const netMenuDisabledDone    = netMenuInst && !netMenuActions?.canComplete
-  const netMenuDisabledCancel  = netMenuInst && !netMenuActions?.canCancel
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
@@ -945,24 +863,112 @@ export default function Installations() {
 
                       {/* ACTIONS */}
                       {visibleCols.has('actions') && (
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {row.type === 'Internet' ? (
-                            <button
-                              onClick={e => openNetMenu(e, row.workOrderId)}
-                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                                netMenuId === row.workOrderId ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-                              }`}>
-                              <MoreVertical size={15} />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={e => openIcMenu(e, row.workOrderId)}
-                              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${
-                                icMenuId === row.workOrderId ? 'bg-gray-100 text-gray-700' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
-                              }`}>
-                              <MoreVertical size={15} />
-                            </button>
-                          )}
+                        <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          {row.type === 'Internet' ? (() => {
+                            const inst = internet.find(i => i.id === row.workOrderId)
+                            if (!inst) return null
+                            const instActions      = getAllowedInstallationActions(inst)
+                            const disabledHw       = ['Completed', 'Cancelled', 'Hardware Collection Pending', 'Dispatched'].includes(inst.status)
+                            const disabledDone     = !instActions?.canComplete
+                            const disabledCancel   = !instActions?.canCancel
+                            return (
+                              <RowActionMenu menuClassName="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]">
+                                <button onClick={() => navigate(`/installations/${inst.id}`)}
+                                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                  <Eye className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                  <span className="text-sm text-gray-700">View Details</span>
+                                </button>
+
+                                <div className="my-1 border-t border-gray-100" />
+
+                                <button onClick={() => startAssign(inst)}
+                                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                  <Users className="w-4 h-4 text-brand-blue flex-shrink-0" />
+                                  <span className="text-sm text-gray-700">Assign Team</span>
+                                </button>
+
+                                <button onClick={() => startReschedule(inst)}
+                                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                  <RefreshCw className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                  <span className="text-sm text-gray-700">Edit Slot / Reschedule</span>
+                                </button>
+
+                                <button onClick={() => openHoldModal(inst)}
+                                  disabled={['Completed', 'Cancelled', 'On Hold'].includes(inst.status)}
+                                  className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${['Completed', 'Cancelled', 'On Hold'].includes(inst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${['Completed', 'Cancelled', 'On Hold'].includes(inst.status) ? 'text-gray-400' : 'text-amber-500'}`} />
+                                  <span className={`text-sm ${['Completed', 'Cancelled', 'On Hold'].includes(inst.status) ? 'text-gray-400' : 'text-gray-700'}`}>Mark as Hold</span>
+                                </button>
+
+                                <button onClick={() => setNetHwCollectInst(inst)}
+                                  disabled={disabledHw}
+                                  className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${disabledHw ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <Package className={`w-4 h-4 flex-shrink-0 ${disabledHw ? 'text-gray-400' : 'text-gray-500'}`} />
+                                  <span className={`text-sm ${disabledHw ? 'text-gray-400' : 'text-gray-700'}`}>Move to Hardware Collection</span>
+                                </button>
+
+                                <button onClick={() => setNetDispatchInst(inst)}
+                                  disabled={inst.status !== 'Hardware Collection Pending'}
+                                  className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${inst.status !== 'Hardware Collection Pending' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <Truck className={`w-4 h-4 flex-shrink-0 ${inst.status !== 'Hardware Collection Pending' ? 'text-gray-400' : 'text-gray-500'}`} />
+                                  <span className={`text-sm ${inst.status !== 'Hardware Collection Pending' ? 'text-gray-400' : 'text-gray-700'}`}>Move to Dispatch</span>
+                                </button>
+
+                                <div className="my-1 border-t border-gray-100" />
+
+                                <button onClick={() => setNetCompleteInst(inst)}
+                                  disabled={disabledDone}
+                                  className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${disabledDone ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${disabledDone ? 'text-gray-400' : 'text-emerald-500'}`} />
+                                  <span className={`text-sm ${disabledDone ? 'text-gray-400' : 'text-gray-700'}`}>Mark Completed</span>
+                                </button>
+
+                                <div className="my-1 border-t border-gray-100" />
+
+                                <button onClick={() => setNetCancelInst(inst)}
+                                  disabled={disabledCancel}
+                                  className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${disabledCancel ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <XCircle className={`w-4 h-4 flex-shrink-0 ${disabledCancel ? 'text-gray-400' : 'text-red-500'}`} />
+                                  <span className={`text-sm ${disabledCancel ? 'text-gray-400' : 'text-gray-700'}`}>Mark Cancelled</span>
+                                </button>
+
+                                {inst.status === 'Completed' && inst.customerId && (
+                                  <>
+                                    <div className="my-1 border-t border-gray-100" />
+                                    <button onClick={() => navigate(`/customers/${inst.customerId}/profile`)}
+                                      className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                                      <ArrowRight className="w-4 h-4 flex-shrink-0 text-brand-blue" />
+                                      <span className="text-sm text-brand-blue font-medium">Go to Customer</span>
+                                    </button>
+                                  </>
+                                )}
+                              </RowActionMenu>
+                            )
+                          })() : (() => {
+                            const icOrder = intercom.find(o => o.id === row.workOrderId)
+                            if (!icOrder) return null
+                            return (
+                              <RowActionMenu>
+                                <button onClick={() => navigate(`/intercom/installations/${icOrder.id}`)}
+                                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                                  <Eye size={13} className="text-brand-blue shrink-0" /> View
+                                </button>
+                                <button onClick={() => setIcAssignOrder(icOrder)}
+                                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                                  <UserCog size={13} className="text-emerald-500 shrink-0" /> Assign Engineer
+                                </button>
+                                <button
+                                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                                  <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit
+                                </button>
+                                <div className="my-1 border-t border-surface-border" />
+                                <button
+                                  className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                                  <XCircle size={13} className="shrink-0" /> Cancel
+                                </button>
+                              </RowActionMenu>
+                            )
+                          })()}
                         </td>
                       )}
                     </tr>
@@ -1009,101 +1015,6 @@ export default function Installations() {
           )}
         </div>
       </div>
-
-      {/* ── Internet (Sales & Leads) ⋮ dropdown ─────────────────────────────── */}
-      {netMenuInst && (
-        <div
-          ref={netMenuRef}
-          style={{ position: 'fixed', top: netMenuPos.top, right: netMenuPos.right, zIndex: 9999 }}
-          className="bg-white rounded-lg border border-gray-100 shadow-lg py-1 min-w-[220px]"
-        >
-          <button onClick={() => { navigate(`/installations/${netMenuInst.id}`); setNetMenuId(null) }}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <Eye className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">View Details</span>
-          </button>
-
-          <div className="my-1 border-t border-gray-100" />
-
-          <button onClick={() => startAssign(netMenuInst)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <Users className="w-4 h-4 text-brand-blue flex-shrink-0" />
-            <span className="text-sm text-gray-700">Assign Team</span>
-          </button>
-
-          <button onClick={() => startReschedule(netMenuInst)}
-            className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-            <RefreshCw className="w-4 h-4 text-gray-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700">Edit Slot / Reschedule</span>
-          </button>
-
-          <button onClick={() => { openHoldModal(netMenuInst); setNetMenuId(null) }}
-            disabled={['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status)}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-            <AlertTriangle className={`w-4 h-4 flex-shrink-0 ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'text-gray-400' : 'text-amber-500'}`} />
-            <span className={`text-sm ${['Completed', 'Cancelled', 'On Hold'].includes(netMenuInst.status) ? 'text-gray-400' : 'text-gray-700'}`}>Mark as Hold</span>
-          </button>
-
-          <button
-            onClick={() => { setNetHwCollectInst(netMenuInst); setNetMenuId(null) }}
-            disabled={netMenuDisabledHw}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${netMenuDisabledHw ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-            <Package className={`w-4 h-4 flex-shrink-0 ${netMenuDisabledHw ? 'text-gray-400' : 'text-gray-500'}`} />
-            <span className={`text-sm ${netMenuDisabledHw ? 'text-gray-400' : 'text-gray-700'}`}>
-              Move to Hardware Collection
-            </span>
-          </button>
-
-          <button
-            onClick={() => { setNetDispatchInst(netMenuInst); setNetMenuId(null) }}
-            disabled={netMenuInst.status !== 'Hardware Collection Pending'}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${
-              netMenuInst.status !== 'Hardware Collection Pending' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-            <Truck className={`w-4 h-4 flex-shrink-0 ${
-              netMenuInst.status !== 'Hardware Collection Pending' ? 'text-gray-400' : 'text-gray-500'}`} />
-            <span className={`text-sm ${
-              netMenuInst.status !== 'Hardware Collection Pending' ? 'text-gray-400' : 'text-gray-700'}`}>
-              Move to Dispatch
-            </span>
-          </button>
-
-          <div className="my-1 border-t border-gray-100" />
-
-          <button
-            onClick={() => { setNetCompleteInst(netMenuInst); setNetMenuId(null) }}
-            disabled={netMenuDisabledDone}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${netMenuDisabledDone ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-            <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${netMenuDisabledDone ? 'text-gray-400' : 'text-emerald-500'}`} />
-            <span className={`text-sm ${netMenuDisabledDone ? 'text-gray-400' : 'text-gray-700'}`}>
-              Mark Completed
-            </span>
-          </button>
-
-          <div className="my-1 border-t border-gray-100" />
-
-          <button
-            onClick={() => { setNetCancelInst(netMenuInst); setNetMenuId(null) }}
-            disabled={netMenuDisabledCancel}
-            className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 ${netMenuDisabledCancel ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-            <XCircle className={`w-4 h-4 flex-shrink-0 ${netMenuDisabledCancel ? 'text-gray-400' : 'text-red-500'}`} />
-            <span className={`text-sm ${netMenuDisabledCancel ? 'text-gray-400' : 'text-gray-700'}`}>
-              Mark Cancelled
-            </span>
-          </button>
-
-          {netMenuInst.status === 'Completed' && netMenuInst.customerId && (
-            <>
-              <div className="my-1 border-t border-gray-100" />
-              <button
-                onClick={() => { navigate(`/customers/${netMenuInst.customerId}/profile`); setNetMenuId(null) }}
-                className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                <ArrowRight className="w-4 h-4 flex-shrink-0 text-brand-blue" />
-                <span className="text-sm text-brand-blue font-medium">Go to Customer</span>
-              </button>
-            </>
-          )}
-        </div>
-      )}
 
       {/* ── Internet Assign Team Modal ───────────────────────────────────── */}
       <Modal
@@ -1495,20 +1406,6 @@ export default function Installations() {
           </div>
         </div>
       </Modal>
-
-      {/* ── Intercom ⋮ dropdown ──────────────────────────────────────────── */}
-      {icMenuOrder && (
-        <div ref={icMenuRef}>
-          <IntercomActionsMenu
-            order={icMenuOrder}
-            pos={icMenuPos}
-            onView={handleIcView}
-            onAssign={handleIcAssign}
-            onEdit={handleIcEdit}
-            onCancel={handleIcCancel}
-          />
-        </div>
-      )}
 
       <IntercomAssignEngineerModal
         isOpen={!!icAssignOrder}
