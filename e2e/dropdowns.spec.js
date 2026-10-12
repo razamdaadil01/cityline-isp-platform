@@ -12,9 +12,13 @@ test.describe.serial('RowActionMenu — viewport containment', () => {
 
   /** Wait for the RowActionMenu portal to finish positioning, then return its locator.
    * The portal renders with visibility:hidden first, then useLayoutEffect positions
-   * it and sets visibility:visible. The brief pause lets that second render complete. */
+   * it and sets visibility:visible. Waiting for a button to be visible ensures the
+   * portal is fully positioned before we evaluate its contents. */
   async function waitForMenu(page) {
-    await page.waitForTimeout(200)
+    await page.waitForSelector('body > div[style*="position: fixed"] button', {
+      state: 'visible',
+      timeout: 5000,
+    })
     return page.locator('body > div[style*="position: fixed"]').last()
   }
 
@@ -28,6 +32,10 @@ test.describe.serial('RowActionMenu — viewport containment', () => {
     const count = await rows.count()
     if (count === 0) throw new Error('No data rows with action button found')
     const trigger = rows.last().locator('td:last-child button')
+    // Pre-scroll into view so trigger.click() fires no post-click scroll events.
+    // The RowActionMenu scroll listener (window, capture) fires AFTER setOpen(true),
+    // which would close the portal — this avoids that race.
+    await trigger.scrollIntoViewIfNeeded()
     await trigger.click()
     return waitForMenu(page)
   }
