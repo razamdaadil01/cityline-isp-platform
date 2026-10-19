@@ -17,6 +17,7 @@ export function buildCustomerFromLead(lead) {
   const installation = lead.address?.sameAsBilling ? billing : (lead.address?.installation ?? {})
   const feasibility  = getFeasibilityRequests().find(f => f.leadId === lead.id)
   const isCorporate  = lead.pipeline === 'Enterprise'
+  const pkg          = lead.selectedPackage ?? lead.bandwidthPackage ?? null
 
   return {
     id: getNextCustomerId(isCorporate ? 'corporate' : 'resident'),
@@ -74,6 +75,18 @@ export function buildCustomerFromLead(lead) {
     connection: { type: lead.siteType || '' },
     selectedPackage: lead.selectedPackage ?? null,
     bandwidthPackage: lead.bandwidthPackage ?? null,
+    subscription: pkg ? {
+      packageId: pkg.id ?? null,
+      packageName: pkg.name ?? null,
+      tenureDays: pkg.tenures?.[0]?.days ?? 30,
+      price: pkg.tenures?.[0]?.price ?? pkg.price ?? 0,
+      gstRate: pkg.gstRate ?? 18,
+      hsnSac: pkg.hsnSac ?? '998422',
+      startDate: null,
+      expiry: null,
+      status: 'Pending Activation',
+      addons: [],
+    } : null,
     ekycStatus: lead.ekycStatus ?? null,
     aadhaarVerified: lead.ekycStatus === 'Completed',
     kycDocuments: {

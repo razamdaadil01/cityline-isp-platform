@@ -81,6 +81,16 @@ export const MOCK_STATIC_IPS = [
   { id: 3, ip: '103.21.58.12', subnet: '255.255.255.0', gateway: '103.21.58.1', status: 'Available', assignedTo: null,     customer: null,          assignedDate: null,         addedAt: '2025-06-01', removedAt: null },
 ]
 
+// Maps a tenure name to days. Uses MOCK_TENURES as the source of truth;
+// 12 months = 365 days, additional months beyond 12 are each 30 days.
+function tenureToDays(tenureName) {
+  const t = MOCK_TENURES.find(t => t.name === tenureName)
+  if (!t) return 30
+  if (t.months === 12) return 365
+  if (t.months > 12) return 365 + (t.months - 12) * 30
+  return t.months * 30
+}
+
 // Flat, selectable plan shape for consumers like the Lead Detail package
 // assignment flow (PackageSelectModal / package cards) — the admin
 // MOCK_BW_PACKAGES/MOCK_OTHER_PACKAGES shape stores multiple tenure/price
@@ -98,7 +108,7 @@ function bwPackageToPlan(p) {
     tenure: row?.tenure ?? null,
     speed: row?.bandwidth ?? null,
     price: row?.price ?? 0,
-    validity: null,
+    validity: null, // deprecated — use tenures[i].days instead
     server: null,
     packageType: p.zone === 'Enterprise' ? 'Private' : 'Standard',
     offer: p.offer,
@@ -109,6 +119,10 @@ function bwPackageToPlan(p) {
     staticIp: !!p.staticIp,
     zone: p.zone,
     status: p.status,
+    // All tenure/price rows — billing foundation (BATCH F2-1 Step 1)
+    tenures: p.rows.map(r => ({ label: r.tenure, days: tenureToDays(r.tenure), price: r.price })),
+    gstRate: 18, // confirm with CA — 18% standard rate for internet/telecom services
+    hsnSac: '998422', // SAC for internet access services — confirm SAC code with CA
   }
 }
 
@@ -120,13 +134,17 @@ function otherPackageToPlan(p) {
     billingType: 'Monthly',
     speed: null,
     price: p.price,
-    validity: null,
+    validity: null, // deprecated — use tenures[0].days instead
     server: null,
     packageType: 'Standard',
     offer: false,
     ottBundle: false,
     zone: p.zone,
     status: p.status,
+    // Billing foundation fields (BATCH F2-1 Step 1)
+    tenures: [{ label: '1 Month', days: 30, price: p.price }],
+    gstRate: 18, // confirm with CA
+    hsnSac: '998422', // SAC for internet access services — confirm with CA
   }
 }
 

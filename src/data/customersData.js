@@ -54,7 +54,7 @@ import { hasSettlementForCustomer } from './settlementStore'
 // case for an ISP — and only set on a handful, split across both seeded
 // partners.js records, standing in for customers who signed up through
 // that specific channel.
-export const CUSTOMERS = [
+const _RAW_CUSTOMERS = [
   { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2027-05-31', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved', createdOn: '25 May 2025', storeId: 'STR-002' },
   { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East',   area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-09-20', services: ['Broadband'], cafStatus: 'Rejected', createdOn: '15 Nov 2024', storeId: 'STR-003' },
   { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon',      area: 'Goregaon',     network: 'OLT-GG-01', expiry: '2026-04-15', services: ['Broadband', 'Intercom'], cafStatus: 'Approved', createdOn: '10 Mar 2024', storeId: 'STR-001' },
@@ -96,6 +96,37 @@ export const CUSTOMERS = [
   // CustomerDetail.jsx's Terminate → Schedule Hardware Recovery flow first.
   { id: 'RES-2026-0030', name: 'Ramesh Iyengar',    phone: '9445012378', plan: 'FTTH 100Mbps',    status: 'Pending Disconnection', zone: 'Andheri East',  area: 'Andheri',      network: 'OLT-AE-02', expiry: '2026-05-15', services: ['Broadband'], cafStatus: 'Approved', createdOn: '10 May 2024', storeId: 'STR-002' },
 ]
+
+// Monthly price lookup by plan name — used only for seed data; real customers
+// set price via the package selected at activation (customer.subscription).
+const _PLAN_PRICE = {
+  'FTTH 40Mbps': 499, 'FTTH 100Mbps': 899, 'FTTH 200Mbps': 1499, 'FTTH 500Mbps': 3999,
+  'FTTH 1Gbps': 7999, 'FTTB 50Mbps': 599, 'FTTB 100Mbps': 999, 'Wireless 10Mbps': 299,
+  'Wireless 25Mbps': 399, 'Wireless 50Mbps': 549, 'ILL 10Mbps': 4999, 'ILL 100Mbps': 14999,
+  'ILL 500Mbps': 49999, 'P2P 100Mbps': 9999, 'P2P 1Gbps': 29999, 'P2P 2Gbps': 49999,
+  'P2P 10Gbps': 149999, 'Intercom Basic': 199,
+}
+
+function _seedSubscription(c) {
+  if (!c.plan) return null
+  return {
+    packageId: null,
+    packageName: c.plan,
+    tenureDays: 30,
+    price: _PLAN_PRICE[c.plan] ?? 0,
+    gstRate: 18,
+    hsnSac: '998422',
+    startDate: null,
+    expiry: c.expiry ?? null,
+    status: c.status ?? null,
+    addons: [],
+  }
+}
+
+export const CUSTOMERS = _RAW_CUSTOMERS.map(c => ({
+  ...c,
+  subscription: c.subscription ?? _seedSubscription(c),
+}))
 
 // ── Status values ─────────────────────────────────────────────────────────────
 // Core ISP customer status lifecycle (RES-/ENT- customers only — Intercom
