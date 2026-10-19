@@ -1,8 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { AlertTriangle, Printer } from 'lucide-react'
 import Button from '../components/ui/Button'
-import { MOCK_INVOICES, COMPANY_INFO, amountInWords } from '../data/billingData'
+import { amountInWords } from '../data/billingData'
 import { getCompanyEntity } from '../data/companyEntities'
+import { getInvoices } from '../data/invoicesStore'
+import { CUSTOMERS } from '../data/customersData'
 
 const fmt = (n) => Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -25,9 +27,9 @@ const STATUS_BADGE = {
 export default function InvoicePDF() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const inv = MOCK_INVOICES.find(i => i.invoiceNo === decodeURIComponent(id))
+  const rawInv = getInvoices().find(i => i.no === decodeURIComponent(id))
 
-  if (!inv) {
+  if (!rawInv) {
     return (
       <div className="p-10 flex flex-col items-center justify-center gap-4 text-center">
         <AlertTriangle size={40} className="text-amber-400" />
@@ -37,16 +39,38 @@ export default function InvoicePDF() {
     )
   }
 
+  // Normalise invoicesStore format to InvoicePDF rendering shape
+  const cust = CUSTOMERS.find(c => c.id === rawInv.customerId)
+  const inv = {
+    invoiceNo:       rawInv.no,
+    customerId:      rawInv.customerId,
+    customerName:    cust?.name ?? rawInv.customerName ?? '—',
+    address:         cust?.address?.billingAddress ?? cust?.address?.installAddress ?? '—',
+    phone:           cust?.phone ?? '—',
+    email:           cust?.email ?? null,
+    issueDate:       rawInv.date || rawInv.issueDate,
+    dueDate:         rawInv.dueDate,
+    status:          rawInv.status,
+    companyEntityId: rawInv.entityId,
+    discountAmount:  rawInv.discountAmount || 0,
+    baseAmount:      (rawInv.taxableAmount || 0) + (rawInv.discountAmount || 0),
+    couponCode:      rawInv.couponCode,
+    billingPeriod:   rawInv.billingPeriod,
+    services: (rawInv.lines || []).map(l => ({
+      name: l.description,
+      hsn:  l.hsnSac || '998422',
+      rate: l.unitPrice,
+      qty:  l.quantity,
+    })),
+  }
+
   const discountAmt = inv.discountAmount || 0
   const taxable    = (inv.baseAmount || 0) - discountAmt
-  const sgst       = Math.round(taxable * 0.09 * 100) / 100
-  const cgst       = Math.round(taxable * 0.09 * 100) / 100
-  const grandTotal = taxable + sgst + cgst
+  const sgst       = rawInv.sgst ?? Math.round(taxable * 0.09 * 100) / 100
+  const cgst       = rawInv.cgst ?? Math.round(taxable * 0.09 * 100) / 100
+  const grandTotal = rawInv.totalAmount || (taxable + sgst + cgst)
   const badge      = STATUS_BADGE[inv.status] ?? STATUS_BADGE.pending
-  // "Description of Service" always shows svc.name regardless of this
-  // setting — showPackageNameOnInvoice (default true) instead controls
-  // whether an extra HSN Code column is shown alongside it. See
-  // companyEntities.js / Settings.jsx's Company/Entity form.
+  // showPackageNameOnInvoice controls whether the HSN Code column appears
   const entity        = getCompanyEntity(inv.companyEntityId)
   const showHsnColumn = !(entity?.showPackageNameOnInvoice ?? true)
 

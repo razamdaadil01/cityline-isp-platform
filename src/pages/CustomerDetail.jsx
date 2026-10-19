@@ -35,6 +35,7 @@ import { getProduct } from '../data/productStore'
 import {
   getSettlementByCustomerId, subscribeSettlements, addSettlement, nextSettlementId,
 } from '../data/settlementStore'
+import { computeCustomerLedger } from '../utils/ledgerUtils'
 import {
   getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
 } from '../data/invoicesStore'
@@ -105,8 +106,6 @@ const MOCK_CUSTOMERS = {
     },
     payment: {
       mode: 'NEFT / Bank Transfer',
-      advanceDeposit: 2000,
-      creditLimit: 5000,
       billingCycle: '1st of every month',
       installationAmount: 1000,
       securityDeposit: 1000,
@@ -340,15 +339,6 @@ function computeHardwarePenaltyDefault(recovery) {
   if (recovery.status === 'partial_recovery') return Math.round(totalValue / 2)
   return 0 // 'completed' — nothing missing or damaged
 }
-
-const LEDGER = [
-  { date: '01 May 2026', description: 'Invoice #INV-2026-0451',     type: 'debit',  amount: 1499, balance: 1200 },
-  { date: '28 Apr 2026', description: 'Payment received — NEFT',    type: 'credit', amount: 1499, balance: 2699 },
-  { date: '01 Apr 2026', description: 'Invoice #INV-2026-0312',     type: 'debit',  amount: 1499, balance: 1200 },
-  { date: '30 Mar 2026', description: 'Payment received — NEFT',    type: 'credit', amount: 1499, balance: 2699 },
-  { date: '01 Mar 2026', description: 'Invoice #INV-2026-0189',     type: 'debit',  amount: 1499, balance: 1200 },
-  { date: '27 Feb 2026', description: 'Advance deposit adjustment', type: 'credit', amount: 500,  balance: 2699 },
-]
 
 const INVENTORY = [
   { type: 'ONU / ONT', model: 'ZTE F670L',   serial: 'ZTEGCB3A12F4', mac: 'A4:C3:F0:11:22:33', signalRx: -18.4, signalTx: 2.1, port: 'OLT-AW-01 / PON-3 / Port-12', status: 'online' },
@@ -1643,11 +1633,6 @@ const FINANCE_SUB_TABS = [
   { label: 'Account Ledger', slug: 'ledger'    },
 ]
 
-const MOCK_PAYMENTS = [
-  { id: 1, receiptNo: '117644', invoiceNo: 'B2C/26-27/5523', paymentDate: '23-06-2026', date: '23-06-2026 14:45:08', mode: 'Android App', total: 2360.00, paid: 2360.00, status: 'Complete', orderNo: '1fb368b6934f7839488a', chequeBCh: 0, addBy: '5000022335',  comment: 'Complete' },
-  { id: 2, receiptNo: '117637', invoiceNo: '—',               paymentDate: '23-06-2026', date: '23-06-2026 09:55:46', mode: 'Online',      total: 1000.00, paid: 1000.00, status: 'Complete', orderNo: '94e4f91a9ab212b92cff', chequeBCh: 0, addBy: 'Preeti_TCNPL125', comment: 'Complete' },
-]
-
 function FinanceTab({ customer, setActivityLog }) {
   const { id: customerId, subTab: subTabParam } = useParams()
   const navigate = useNavigate()
@@ -1728,18 +1713,11 @@ function FinanceTab({ customer, setActivityLog }) {
     return subscribeSettlements(() => setSettlement(getSettlementByCustomerId(customer.id)))
   }, [customer.id])
 
-  // Invoices — real, mutable store (invoicesStore.js) so Add Payment's
-  // Submit action (markInvoicesPaid()) is reflected here live.
-  // Converted customers (sourceLeadId set) start with an empty list — no
-  // shared mock invoices from the seed store; real invoices appear once generated.
-  const [invoices, setInvoices] = useState(() => customer.sourceLeadId ? [] : getInvoices())
+  const [invoices, setInvoices] = useState(() => getInvoices().filter(i => i.customerId === customer.id))
   useEffect(() => {
-    if (customer.sourceLeadId) return
-    return subscribeInvoices(setInvoices)
+    return subscribeInvoices(all => setInvoices(all.filter(i => i.customerId === customer.id)))
   }, [customer.id])
 
-  // Real payments recorded via Add Payment, merged on top of the pre-existing
-  // MOCK_PAYMENTS seed rows below.
   const [realPayments, setRealPayments] = useState(() => getPaymentsForCustomer(customer.id))
   useEffect(() => {
     setRealPayments(getPaymentsForCustomer(customer.id))
@@ -1766,23 +1744,22 @@ function FinanceTab({ customer, setActivityLog }) {
   function handleExportInvoices() {
     const rows = invoices.map(inv => ({
       'Invoice No': inv.no,
-      'Package': inv.pkg,
-      'Date': inv.date,
-      'Amount': inv.amount,
+      'Package': inv.packageName ?? inv.pkg ?? '—',
+      'Date': inv.issueDate ?? inv.date ?? '—',
+      'Amount': inv.totalAmount ?? inv.amount ?? 0,
       'Status': inv.status === 'paid' ? 'Paid' : 'Pending',
     }))
     exportCsv(`${customer.id}_invoices_${new Date().toISOString().slice(0, 10)}.csv`, rows)
   }
 
-  // Converted customers show only real payments; seed customers get the
-  // MOCK_PAYMENTS prepended to fill the demo view.
-  const allPayments = customer.sourceLeadId ? realPayments : [...realPayments, ...MOCK_PAYMENTS]
+  const allPayments = realPayments
   const filteredPayments = showFailed ? allPayments.filter(p => p.status === 'Failed') : allPayments
   const payTotal = filteredPayments.length
   const payPages = Math.max(1, Math.ceil(payTotal / PER_PAGE))
   const payRows  = filteredPayments.slice((payPage - 1) * PER_PAGE, payPage * PER_PAGE)
 
-  const activeLedger = customer.sourceLeadId ? [] : LEDGER
+  const ledgerData = computeCustomerLedger(customer.id)
+  const activeLedger = ledgerData.entries
   const ledTotal = activeLedger.length
   const ledPages = Math.ceil(ledTotal / PER_PAGE)
   const ledRows  = activeLedger.slice((ledPage - 1) * PER_PAGE, ledPage * PER_PAGE)
@@ -1844,6 +1821,28 @@ function FinanceTab({ customer, setActivityLog }) {
         </Card>
       )}
 
+      {/* Finance Summary Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-xl p-4 border border-surface-border shadow-card">
+          <p className="text-xs text-gray-500 font-medium">Outstanding</p>
+          <p className={`text-xl font-bold mt-1 ${ledgerData.outstanding > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+            ₹{ledgerData.outstanding.toLocaleString('en-IN')}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-surface-border shadow-card">
+          <p className="text-xs text-gray-500 font-medium">Credit Balance</p>
+          <p className="text-xl font-bold mt-1 text-brand-blue">
+            ₹{(customer.creditBalance ?? 0).toLocaleString('en-IN')}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-surface-border shadow-card">
+          <p className="text-xs text-gray-500 font-medium">Total Paid</p>
+          <p className="text-xl font-bold mt-1 text-emerald-600">
+            ₹{ledgerData.totalPaid.toLocaleString('en-IN')}
+          </p>
+        </div>
+      </div>
+
       {/* Sub-tab bar */}
       <div className="flex border-b border-surface-border gap-6">
         {FINANCE_SUB_TABS.map(t => (
@@ -1889,9 +1888,9 @@ function FinanceTab({ customer, setActivityLog }) {
                   <tr key={inv.no} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{inv.no}</td>
                     <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{customer.companyName ?? customer.plan ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">{inv.pkg}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{inv.date}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800">₹{inv.amount.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{inv.packageName ?? inv.pkg ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{inv.issueDate ?? inv.date ?? '—'}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">₹{(inv.totalAmount ?? inv.amount ?? 0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">
                       <Badge variant={inv.status === 'paid' ? 'green' : inv.status === 'refunded' ? 'blue' : 'yellow'} size="sm" dot>
                         {inv.status === 'paid' ? 'Paid' : inv.status === 'refunded' ? 'Refunded' : 'Pending'}
@@ -4181,8 +4180,8 @@ export default function CustomerDetail() {
               {/* Outstanding dues */}
               <div className="text-center px-4 py-2 rounded-lg border border-surface-border bg-surface">
                 <p className="text-xs text-gray-400">Outstanding</p>
-                <p className={`text-base font-bold ${customer.outstandingDues > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  ₹{customer.outstandingDues.toLocaleString('en-IN')}
+                <p className={`text-base font-bold ${getOutstandingTotal(customer.id) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  ₹{getOutstandingTotal(customer.id).toLocaleString('en-IN')}
                 </p>
               </div>
               {/* eKYC */}
