@@ -15,6 +15,7 @@ import { addPayment, nextReceiptNo } from '../data/paymentsStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
+import { computeGst } from '../utils/customerUtils'
 
 const BILLING_MOCK_ROWS = [
   {
@@ -504,6 +505,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   const ddRef = useRef(null)
 
   const [packageId, setPackageId] = useState('')
+  const [tenureIndex, setTenureIndex] = useState(0)
   const [selectedAddons, setSelectedAddons] = useState([])
 
   const [billingPeriod, setBillingPeriod] = useState('')
@@ -527,6 +529,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
 
   const plans = getPlans().filter(p => p.status === 'Active')
   const selectedPlan = plans.find(p => p.id === packageId) || null
+  const selectedTenure = selectedPlan?.tenures?.[tenureIndex] ?? null
 
   const filteredCustomers = customerSearch.trim()
     ? CUSTOMERS.filter(c =>
@@ -536,7 +539,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
     : []
 
   // ── Totals ──────────────────────────────────────────────────────────────────
-  const packagePrice = selectedPlan?.price || 0
+  const packagePrice = selectedTenure?.price ?? selectedPlan?.price ?? 0
   const addonsTotal  = MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).reduce((s, a) => s + a.price, 0)
   const baseAmount   = packagePrice + addonsTotal
 
@@ -549,9 +552,10 @@ function CreateInvoiceModal({ onClose, onCreated }) {
     }
   }
   const taxableAmount = baseAmount - discountAmount
-  const cgst          = Math.round(taxableAmount * 0.09 * 100) / 100
-  const sgst          = Math.round(taxableAmount * 0.09 * 100) / 100
-  const totalAmount   = taxableAmount + cgst + sgst
+  const gstRate       = selectedPlan?.gstRate ?? 18
+  const entityState   = '27'
+  const customerState = selectedCustomer?.address?.billingState ?? '27'
+  const { cgst, sgst, igst, total: totalAmount } = computeGst(taxableAmount, gstRate, entityState, customerState)
 
   const fmtAmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -584,7 +588,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     const services = []
-    if (selectedPlan) services.push({ name: selectedPlan.name, hsn: '998422', qty: 1, rate: selectedPlan.price })
+    if (selectedPlan) services.push({ name: selectedPlan.name, hsn: selectedPlan.hsnSac ?? '998422', qty: 1, rate: packagePrice })
     MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).forEach(a => {
       services.push({ name: a.name, hsn: '998422', qty: 1, rate: a.price })
     })
@@ -595,6 +599,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
 
     const inv = addInvoice({
       customerId:    selectedCustomer.id,
+      entityId:      1,
       customerName:  selectedCustomer.name,
       phone:         selectedCustomer.phone || '',
       email:         selectedCustomer.email || '',
@@ -612,6 +617,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
       taxableAmount,
       cgst,
       sgst,
+      igst,
       totalAmount,
       billingPeriod: bpDisplay,
       issueDate,
@@ -692,18 +698,33 @@ function CreateInvoiceModal({ onClose, onCreated }) {
           <label className="block text-sm font-medium text-gray-700">Select Package <span className="text-red-500">*</span></label>
           <select
             value={packageId}
-            onChange={e => { setPackageId(e.target.value); setErrors(v => ({ ...v, packageId: '' })) }}
+            onChange={e => { setPackageId(e.target.value); setTenureIndex(0); setErrors(v => ({ ...v, packageId: '' })) }}
             className={inputCls(errors.packageId)}
           >
             <option value="">— Select a package —</option>
             {plans.map(p => (
               <option key={p.id} value={p.id}>
-                {p.name}{p.speed ? ` · ${p.speed}` : ''} · ₹{p.price.toLocaleString('en-IN')}/mo
+                {p.name}{p.speed ? ` · ${p.speed}` : ''} · ₹{(p.tenures?.[0]?.price ?? p.price).toLocaleString('en-IN')}/mo
               </option>
             ))}
           </select>
           {errors.packageId && <p className="text-xs text-red-500">{errors.packageId}</p>}
         </div>
+
+        {selectedPlan && (selectedPlan.tenures?.length ?? 0) > 1 && (
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-700">Tenure</label>
+            <select
+              value={tenureIndex}
+              onChange={e => setTenureIndex(Number(e.target.value))}
+              className={inputCls(false)}
+            >
+              {selectedPlan.tenures.map((t, i) => (
+                <option key={i} value={i}>{t.label} · ₹{t.price.toLocaleString('en-IN')}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {MOCK_ADDONS.length > 0 && (
           <div className="space-y-1.5">
@@ -785,8 +806,8 @@ function CreateInvoiceModal({ onClose, onCreated }) {
           <div className="px-4 py-3 space-y-1.5 text-sm">
             {selectedPlan && (
               <div className="flex justify-between">
-                <span className="text-gray-600 truncate pr-4">{selectedPlan.name}</span>
-                <span className="font-mono text-gray-800 shrink-0">{fmtAmt(selectedPlan.price)}</span>
+                <span className="text-gray-600 truncate pr-4">{selectedPlan.name}{selectedTenure?.label ? ` · ${selectedTenure.label}` : ''}</span>
+                <span className="font-mono text-gray-800 shrink-0">{fmtAmt(packagePrice)}</span>
               </div>
             )}
             {MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).map(a => (
@@ -809,14 +830,24 @@ function CreateInvoiceModal({ onClose, onCreated }) {
               <span className="text-gray-500">Taxable Amount</span>
               <span className="font-mono text-gray-800">{fmtAmt(taxableAmount)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">CGST (9%)</span>
-              <span className="font-mono text-gray-800">{fmtAmt(cgst)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">SGST (9%)</span>
-              <span className="font-mono text-gray-800">{fmtAmt(sgst)}</span>
-            </div>
+            {cgst > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">CGST ({gstRate / 2}%)</span>
+                <span className="font-mono text-gray-800">{fmtAmt(cgst)}</span>
+              </div>
+            )}
+            {sgst > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">SGST ({gstRate / 2}%)</span>
+                <span className="font-mono text-gray-800">{fmtAmt(sgst)}</span>
+              </div>
+            )}
+            {igst > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">IGST ({gstRate}%)</span>
+                <span className="font-mono text-gray-800">{fmtAmt(igst)}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-1.5 border-t border-surface-border">
               <span className="font-bold text-gray-900">Total Amount</span>
               <span className="font-black font-mono text-gray-900">{fmtAmt(totalAmount)}</span>

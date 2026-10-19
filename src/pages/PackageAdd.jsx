@@ -59,6 +59,8 @@ export default function PackageAdd() {
   const [landline, setLandline] = useState(false)
   const [offer, setOffer] = useState(false)
   const [active, setActive] = useState(true)
+  const [gstRate, setGstRate] = useState(18)
+  const [hsnSac, setHsnSac] = useState('998422')
 
   const addRow = () => setBwRows(r => [...r, { ...EMPTY_ROW }])
   const removeRow = i => setBwRows(r => r.filter((_, idx) => idx !== i))
@@ -301,6 +303,29 @@ export default function PackageAdd() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">{active ? 'Active' : 'Inactive'}</span>
                 <Toggle value={active} onChange={setActive} />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-3 space-y-3">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">Tax &amp; Compliance</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">GST Rate (%)</label>
+                <input
+                  type="number" min="0" max="100" step="0.01"
+                  value={gstRate}
+                  onChange={e => setGstRate(Number(e.target.value))}
+                  className={inp}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">HSN / SAC Code</label>
+                <input
+                  type="text"
+                  value={hsnSac}
+                  onChange={e => setHsnSac(e.target.value)}
+                  className={inp}
+                  placeholder="e.g. 998422"
+                />
               </div>
             </div>
 

@@ -8,15 +8,54 @@
 // this only makes the shared list a real, mutable store instead of a dead
 // local const, so Add Payment's Submit action can actually mark an invoice
 // Paid and have it persist/reflect live everywhere this data is read.
+import { getNextInvoiceNumber } from './companyEntities'
 
+// GST breakdown for seed invoices: 18% intra-state (CGST 9% + SGST 9%)
+// For ₹1499 total: taxable = 1270.34, cgst = sgst = 114.33
+// For ₹999 total:  taxable = 847.46,  cgst = sgst = 76.27  (rounding: sum = 1000)
 let _invoices = [
-  { no: 'INV-2026-0451', pkg: 'Broadband + Landline + OTT', date: '01 May 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0312', pkg: 'Broadband + Landline + OTT', date: '01 Apr 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0189', pkg: 'Broadband + Landline + OTT', date: '01 Mar 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0088', pkg: 'Broadband + Landline + OTT', date: '01 Feb 2026', amount: 1499, status: 'paid' },
-  { no: 'INV-2026-0052', pkg: 'Broadband',                   date: '01 Jan 2026', amount: 999,  status: 'paid' },
-  { no: 'INV-2025-0987', pkg: 'Broadband',                   date: '01 Dec 2025', amount: 999,  status: 'paid' },
-  { no: 'INV-2026-0512', pkg: 'Broadband + Landline + OTT',  date: '01 Jun 2026', amount: 1499, status: 'pending' },
+  { no: 'INV-2026-0451', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband + Landline + OTT', packageName: 'Broadband + Landline + OTT',
+    date: '01 May 2026', issueDate: '2026-05-01', dueDate: '2026-05-08',
+    lines: [{ description: 'Broadband + Landline + OTT', quantity: 1, unitPrice: 1270.34, amount: 1270.34, hsnSac: '998422' }],
+    taxableAmount: 1270.34, cgst: 114.33, sgst: 114.33, igst: 0,
+    amount: 1499, totalAmount: 1499, status: 'paid' },
+  { no: 'INV-2026-0312', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband + Landline + OTT', packageName: 'Broadband + Landline + OTT',
+    date: '01 Apr 2026', issueDate: '2026-04-01', dueDate: '2026-04-08',
+    lines: [{ description: 'Broadband + Landline + OTT', quantity: 1, unitPrice: 1270.34, amount: 1270.34, hsnSac: '998422' }],
+    taxableAmount: 1270.34, cgst: 114.33, sgst: 114.33, igst: 0,
+    amount: 1499, totalAmount: 1499, status: 'paid' },
+  { no: 'INV-2026-0189', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband + Landline + OTT', packageName: 'Broadband + Landline + OTT',
+    date: '01 Mar 2026', issueDate: '2026-03-01', dueDate: '2026-03-08',
+    lines: [{ description: 'Broadband + Landline + OTT', quantity: 1, unitPrice: 1270.34, amount: 1270.34, hsnSac: '998422' }],
+    taxableAmount: 1270.34, cgst: 114.33, sgst: 114.33, igst: 0,
+    amount: 1499, totalAmount: 1499, status: 'paid' },
+  { no: 'INV-2026-0088', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband + Landline + OTT', packageName: 'Broadband + Landline + OTT',
+    date: '01 Feb 2026', issueDate: '2026-02-01', dueDate: '2026-02-08',
+    lines: [{ description: 'Broadband + Landline + OTT', quantity: 1, unitPrice: 1270.34, amount: 1270.34, hsnSac: '998422' }],
+    taxableAmount: 1270.34, cgst: 114.33, sgst: 114.33, igst: 0,
+    amount: 1499, totalAmount: 1499, status: 'paid' },
+  { no: 'INV-2026-0052', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband', packageName: 'Broadband',
+    date: '01 Jan 2026', issueDate: '2026-01-01', dueDate: '2026-01-08',
+    lines: [{ description: 'Broadband', quantity: 1, unitPrice: 847.46, amount: 847.46, hsnSac: '998422' }],
+    taxableAmount: 847.46, cgst: 76.27, sgst: 76.27, igst: 0,
+    amount: 999, totalAmount: 999, status: 'paid' },
+  { no: 'INV-2025-0987', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband', packageName: 'Broadband',
+    date: '01 Dec 2025', issueDate: '2025-12-01', dueDate: '2025-12-08',
+    lines: [{ description: 'Broadband', quantity: 1, unitPrice: 847.46, amount: 847.46, hsnSac: '998422' }],
+    taxableAmount: 847.46, cgst: 76.27, sgst: 76.27, igst: 0,
+    amount: 999, totalAmount: 999, status: 'paid' },
+  { no: 'INV-2026-0512', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
+    pkg: 'Broadband + Landline + OTT', packageName: 'Broadband + Landline + OTT',
+    date: '01 Jun 2026', issueDate: '2026-06-01', dueDate: '2026-06-08',
+    lines: [{ description: 'Broadband + Landline + OTT', quantity: 1, unitPrice: 1270.34, amount: 1270.34, hsnSac: '998422' }],
+    taxableAmount: 1270.34, cgst: 114.33, sgst: 114.33, igst: 0,
+    amount: 1499, totalAmount: 1499, status: 'pending' },
 ]
 const _listeners = []
 
@@ -47,6 +86,7 @@ export function updateInvoice(no, fields) {
   notify()
 }
 
+// deprecated — use getNextInvoiceNumber(entityId) from companyEntities when entityId is known
 function generateInvoiceNo() {
   const year = new Date().getFullYear()
   const existing = _invoices.filter(i => i.no && i.no.startsWith(`INV-${year}-`))
@@ -58,7 +98,9 @@ function generateInvoiceNo() {
 }
 
 export function addInvoice(data) {
-  const no = generateInvoiceNo()
+  const no = data.entityId
+    ? getNextInvoiceNumber(data.entityId)
+    : generateInvoiceNo()
   const invoice = {
     ...data,
     no,

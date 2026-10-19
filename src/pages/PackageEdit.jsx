@@ -56,6 +56,8 @@ export default function PackageEdit() {
   const [landline, setLandline] = useState(pkg.landline || false)
   const [offer, setOffer] = useState(pkg.offer || false)
   const [active, setActive] = useState(pkg.status === 'Active')
+  const [gstRate, setGstRate] = useState(pkg.gstRate ?? 18)
+  const [hsnSac, setHsnSac] = useState(pkg.hsnSac ?? '998422')
 
   const step1Valid = zone && pkgType && pkgName.trim()
   const step2Valid = pkgType === 'Bandwidth'
@@ -281,6 +283,28 @@ export default function PackageEdit() {
                 <Toggle value={active} onChange={setActive} />
               </div>
             </div>
+            <div className="border-t border-gray-100 pt-4 space-y-3">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Tax &amp; Compliance</p>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">GST Rate (%)</label>
+                <input
+                  type="number" min="0" max="100" step="0.01"
+                  value={gstRate}
+                  onChange={e => setGstRate(Number(e.target.value))}
+                  className={inp}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">HSN / SAC Code</label>
+                <input
+                  type="text"
+                  value={hsnSac}
+                  onChange={e => setHsnSac(e.target.value)}
+                  className={inp}
+                  placeholder="e.g. 998422"
+                />
+              </div>
+            </div>
             <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm border border-gray-200">
               <p className="font-semibold text-gray-700 mb-3">Summary</p>
               {[
@@ -291,6 +315,8 @@ export default function PackageEdit() {
                 ['Landline', landline ? 'Yes' : 'No'],
                 ['Offer', offer ? 'Yes' : 'No'],
                 ['Status', active ? 'Active' : 'Inactive'],
+                ['GST Rate', `${gstRate}%`],
+                ['HSN / SAC', hsnSac],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-gray-500">{k}</span>

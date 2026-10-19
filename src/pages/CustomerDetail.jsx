@@ -16,7 +16,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/customersData'
 import { exportCsv } from '../utils/csvExport'
-import { computeExpiry } from '../utils/customerUtils'
+import { computeExpiry, getCustomerSubscription } from '../utils/customerUtils'
 import { getPPPoEId, getAppPassword, getCustomerType } from '../data/customerTypes'
 import { logAudit, getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
 import {
@@ -297,6 +297,7 @@ function makeCustomerFromBase(id) {
     notes: base.notes ?? '',
     selectedPackage: base.selectedPackage ?? null,
     bandwidthPackage: base.bandwidthPackage ?? null,
+    subscription: base.subscription ?? null,
     activationDate: base.activationDate ?? null,
   }
 }
@@ -331,8 +332,9 @@ const PACKAGES = [
 // monthly amount" this app has, so it's used as the pro-rata base per the
 // task's own fallback ("simple day-based proration... as a reasonable
 // default") rather than inventing a new one.
-function computeProRataCharge(today = new Date()) {
-  const monthlyAmount = PACKAGES.find(p => p.type === 'Broadband')?.amount ?? 0
+function computeProRataCharge(customer, today = new Date()) {
+  const sub = getCustomerSubscription(customer)
+  const monthlyAmount = sub?.price ?? PACKAGES.find(p => p.type === 'Broadband')?.amount ?? 0
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   const dayOfMonth = today.getDate()
   return Math.round((monthlyAmount / daysInMonth) * dayOfMonth * 100) / 100
@@ -1331,8 +1333,9 @@ function PackagesTab({ customer }) {
   function handleAddService() {
     const style = SERVICE_STYLES[form.serviceType] ?? SERVICE_STYLES.Broadband
     const Icon  = SERVICE_ICONS[form.serviceType] ?? Wifi
+    const validity = getCustomerSubscription(customer)?.tenureDays ?? 30
     const start = new Date(form.startDate)
-    const end   = new Date(start); end.setDate(end.getDate() + 30)
+    const end   = new Date(start); end.setDate(end.getDate() + validity)
     const fmt   = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     const newPkg = {
       type: form.serviceType,
@@ -1341,7 +1344,7 @@ function PackagesTab({ customer }) {
       iconColor: style.iconColor,
       plan: form.packageLabel,
       speed: '—',
-      validity: 30,
+      validity,
       daysUsed: 0,
       amount: Number(form.amount),
       startDate: fmt(start),
@@ -3399,7 +3402,7 @@ function GenerateSettlementModal({ isOpen, customer, recovery, onClose, onSubmit
   if (!isOpen) return null
 
   const outstanding = customer.outstandingDues ?? 0
-  const proRata = computeProRataCharge()
+  const proRata = computeProRataCharge(customer)
   const securityDeposit = customer.payment?.securityDeposit ?? 0
   const total = Math.round((outstanding + proRata + hardwarePenalty - securityDeposit) * 100) / 100
   const recoveryCfg = recovery ? (RECOVERY_STATUS_CFG[recovery.status] ?? RECOVERY_STATUS_CFG.pending) : null
@@ -3961,7 +3964,24 @@ export default function CustomerDetail() {
       })
       logAudit({ module: 'Customers', action: 'Edit', details: `Activation payment ₹${Number(credentials.amount).toLocaleString('en-IN')} collected for customer ${id} via ${credentials.mode}` })
     }
-    updateCustomer(id, { status: 'active', activationDate: today, expiry })
+    const activatingPkg = customer.selectedPackage ?? customer.bandwidthPackage ?? null
+    updateCustomer(id, {
+      status: 'active',
+      activationDate: today,
+      expiry,
+      subscription: {
+        packageId: activatingPkg?.id ?? null,
+        packageName: activatingPkg?.name ?? customer.plan ?? null,
+        tenureDays: activatingPkg?.tenures?.[0]?.days ?? 30,
+        price: activatingPkg?.tenures?.[0]?.price ?? activatingPkg?.price ?? 0,
+        gstRate: activatingPkg?.gstRate ?? 18,
+        hsnSac: activatingPkg?.hsnSac ?? '998422',
+        startDate: today,
+        expiry,
+        status: 'active',
+        addons: [],
+      },
+    })
     setStatusOverride('active')
     logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} activated (Pending Activation → Active)` })
     const now = formatActivityTime(new Date())
