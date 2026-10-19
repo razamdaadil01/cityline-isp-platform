@@ -3779,7 +3779,7 @@ const CE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function ceEmptyForm() {
   return {
-    name: '', gstin: '', email: '', address: '', logoUrl: '',
+    name: '', gstin: '', state: '', email: '', address: '', logoUrl: '',
     bankName: '', accountNo: '', ifsc: '', branch: '',
     pgId: '', pgConnection: PG_CONNECTIONS[0], status: 'Active',
     invoicePrefix: 'CL-INV', includeYearInNumber: true, startingNumber: '1', sequencePadding: '4',
@@ -3794,7 +3794,7 @@ function ceEmptyForm() {
 
 function ceToForm(entity) {
   return {
-    name: entity.name, gstin: entity.gstin, email: entity.email, address: entity.address,
+    name: entity.name, gstin: entity.gstin, state: entity.state ?? '', email: entity.email, address: entity.address,
     logoUrl: entity.logoUrl ?? '',
     bankName: entity.bank?.bankName || '', accountNo: entity.bank?.accountNo || '',
     ifsc: entity.bank?.ifsc || '', branch: entity.bank?.branch || '',
@@ -3910,6 +3910,7 @@ function CompanyEntityFormPage({ entity, onCancel, onSaved }) {
       id: entity?.id,
       name: form.name.trim(),
       gstin: form.gstin.trim().toUpperCase(),
+      state: form.state.trim().toUpperCase(),
       email: form.email.trim(),
       address: form.address.trim(),
       logoUrl: form.logoUrl.trim(),
@@ -3976,6 +3977,15 @@ function CompanyEntityFormPage({ entity, onCancel, onSaved }) {
               value={form.gstin}
               maxLength={15}
               onChange={e => setField('gstin', e.target.value.toUpperCase())}
+              className="font-mono uppercase"
+            />
+          </FormField>
+          <FormField label="State" hint="2-letter state code, e.g. MH — leave blank to derive from GSTIN">
+            <Input
+              placeholder="MH"
+              value={form.state}
+              maxLength={2}
+              onChange={e => setField('state', e.target.value.toUpperCase())}
               className="font-mono uppercase"
             />
           </FormField>

@@ -5,7 +5,7 @@ import {
   Clock, AlertTriangle, X,
 } from 'lucide-react'
 import {
-  getPayments, subscribePayments, addPayment, nextReceiptNo,
+  getPayments, subscribePayments, addPayment, nextReceiptNo, verifyPayment, rejectPayment,
 } from '../data/paymentsStore'
 import {
   getInvoices, subscribeInvoices,
@@ -231,6 +231,8 @@ function AllPaymentsTab() {
   const [filterTo, setFilterTo]   = useState('')
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 10
+  const [rejectModal, setRejectModal] = useState(null) // { paymentId }
+  const [rejectReason, setRejectReason] = useState('')
 
   const filtered = useMemo(() => {
     let rows = [...payments]
@@ -306,6 +308,7 @@ function AllPaymentsTab() {
           <option value="All">All Statuses</option>
           <option>Complete</option>
           <option>Failed</option>
+          <option>Pending Verification</option>
         </select>
         <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setPage(1) }}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30 text-gray-500" />
@@ -341,7 +344,7 @@ function AllPaymentsTab() {
                   <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.total.toFixed(2)}</td>
                   <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.paid.toFixed(2)}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${pay.status === 'Complete' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${pay.status === 'Complete' ? 'bg-green-100 text-green-700' : pay.status === 'Pending Verification' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>
                       {pay.status}
                     </span>
                   </td>
@@ -351,6 +354,10 @@ function AllPaymentsTab() {
                     <ThreeDotMenu items={[
                       { label: 'View Details', onClick: () => {} },
                       { label: 'Download Receipt', onClick: () => {} },
+                      ...(pay.status === 'Pending Verification' ? [
+                        { label: 'Verify Payment', onClick: () => { verifyPayment(pay.id); setPayments(getPayments()) } },
+                        { label: 'Reject Payment', onClick: () => { setRejectReason(''); setRejectModal({ paymentId: pay.id }) } },
+                      ] : []),
                     ]} />
                   </td>
                 </tr>
@@ -377,6 +384,32 @@ function AllPaymentsTab() {
           </div>
         </div>
       </div>
+
+      {/* Reject Payment Modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-bold text-gray-900">Reject Payment</h2>
+            <p className="text-sm text-gray-600">Provide a reason for rejection (optional).</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              rows={3}
+              placeholder="Reason for rejection..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+            />
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setRejectModal(null)}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => {
+                rejectPayment(rejectModal.paymentId, rejectReason.trim() || 'Rejected')
+                setPayments(getPayments())
+                setRejectModal(null)
+              }} className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

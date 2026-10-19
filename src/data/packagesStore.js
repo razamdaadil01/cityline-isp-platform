@@ -61,12 +61,125 @@ export const MOCK_BW_PACKAGES = [
     ],
     editable: true, landline: true, staticIp: true, offer: false, status: 'Active',
   },
+  {
+    id: 'BWP-004', type: 'Bandwidth', name: 'FTTB 50Mbps', zone: 'Residential',
+    code: 'FTTB50', radiusId: 'RAD-4004',
+    rows: [
+      { bandwidth: '50 Mbps', jazeId: 60, tenure: '1 Month', price: 599,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-005', type: 'Bandwidth', name: 'Wireless 25Mbps', zone: 'Residential',
+    code: 'WLESS25', radiusId: 'RAD-5005',
+    rows: [
+      { bandwidth: '25 Mbps', jazeId: 61, tenure: '1 Month', price: 399,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-006', type: 'Bandwidth', name: 'ILL 10Mbps', zone: 'Enterprise',
+    code: 'ILL10', radiusId: 'RAD-6006',
+    rows: [
+      { bandwidth: '10 Mbps', jazeId: 62, tenure: '1 Month', price: 4999,  ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-007', type: 'Bandwidth', name: 'FTTH 40Mbps', zone: 'Residential',
+    code: 'FTTH40', radiusId: 'RAD-7007',
+    rows: [
+      { bandwidth: '40 Mbps', jazeId: 63, tenure: '1 Month', price: 499,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-008', type: 'Bandwidth', name: 'Wireless 10Mbps', zone: 'Residential',
+    code: 'WLESS10', radiusId: 'RAD-8008',
+    rows: [
+      { bandwidth: '10 Mbps', jazeId: 64, tenure: '1 Month', price: 299,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-009', type: 'Bandwidth', name: 'FTTH 500Mbps', zone: 'Residential',
+    code: 'FTTH500', radiusId: 'RAD-9009',
+    rows: [
+      { bandwidth: '500 Mbps', jazeId: 65, tenure: '1 Month', price: 3999,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-010', type: 'Bandwidth', name: 'FTTH 1Gbps', zone: 'Residential',
+    code: 'FTTH1G', radiusId: 'RAD-1010',
+    rows: [
+      { bandwidth: '1 Gbps', jazeId: 66, tenure: '1 Month', price: 7999,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-011', type: 'Bandwidth', name: 'ILL 100Mbps', zone: 'Enterprise',
+    code: 'ILL100', radiusId: 'RAD-1011',
+    rows: [
+      { bandwidth: '100 Mbps', jazeId: 67, tenure: '1 Month', price: 14999, ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-012', type: 'Bandwidth', name: 'ILL 500Mbps', zone: 'Enterprise',
+    code: 'ILL500', radiusId: 'RAD-1012',
+    rows: [
+      { bandwidth: '500 Mbps', jazeId: 68, tenure: '1 Month', price: 49999, ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-013', type: 'Bandwidth', name: 'P2P 100Mbps', zone: 'Enterprise',
+    code: 'P2P100', radiusId: 'RAD-1013',
+    rows: [
+      { bandwidth: '100 Mbps', jazeId: 69, tenure: '1 Month', price: 9999,  ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-014', type: 'Bandwidth', name: 'P2P 1Gbps', zone: 'Enterprise',
+    code: 'P2P1G', radiusId: 'RAD-1014',
+    rows: [
+      { bandwidth: '1 Gbps', jazeId: 70, tenure: '1 Month', price: 29999,  ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-015', type: 'Bandwidth', name: 'P2P 2Gbps', zone: 'Enterprise',
+    code: 'P2P2G', radiusId: 'RAD-1015',
+    rows: [
+      { bandwidth: '2 Gbps', jazeId: 71, tenure: '1 Month', price: 49999,  ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-016', type: 'Bandwidth', name: 'P2P 10Gbps', zone: 'Enterprise',
+    code: 'P2P10G', radiusId: 'RAD-1016',
+    rows: [
+      { bandwidth: '10 Gbps', jazeId: 72, tenure: '1 Month', price: 149999, ott: 'None' },
+    ],
+    boundPackages: [], editable: true, landline: false, staticIp: true, offer: false, status: 'Active',
+  },
+  {
+    id: 'BWP-017', type: 'Bandwidth', name: 'Wireless 50Mbps', zone: 'Residential',
+    code: 'WLESS50', radiusId: 'RAD-1017',
+    rows: [
+      { bandwidth: '50 Mbps', jazeId: 73, tenure: '1 Month', price: 549,  ott: 'None' },
+    ],
+    boundPackages: [], editable: false, landline: false, staticIp: false, offer: false, status: 'Active',
+  },
 ]
 
 export const MOCK_OTHER_PACKAGES = [
   { id: 'OTH-001', type: 'Other', name: 'ONU Installation Charges', zone: 'Residential', bindPackage: null,        price: 500, separateInvoice: true,  status: 'Active' },
   { id: 'OTH-002', type: 'Other', name: 'Static IP Package',        zone: 'Both',        bindPackage: null,        price: 200, separateInvoice: true,  status: 'Active' },
   { id: 'OTH-003', type: 'Other', name: 'Router Rental',            zone: 'Residential', bindPackage: 'Sonic 100', price: 150, separateInvoice: false, status: 'Active' },
+  { id: 'OTH-010', type: 'Other', name: 'Intercom Basic',           zone: 'Residential', bindPackage: null,        price: 199, separateInvoice: false, status: 'Active' },
 ]
 
 export const MOCK_LANDLINES = [
