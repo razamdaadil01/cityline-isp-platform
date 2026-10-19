@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, CheckCircle } from 'lucide-react'
 import { getOutstandingInvoices } from '../data/invoicesStore'
 import { recordPayment } from '../data/paymentsStore'
 import { logAudit } from '../data/auditLogStore'
@@ -124,6 +124,14 @@ export default function AddPayment() {
             <input type="number" value={form.amount}
               onChange={e => setForm(f => ({ ...f, amount: e.target.value, fullAmount: false }))}
               className={inp} />
+            {Number(form.amount) > dueAmount && (
+              <div className="flex items-center gap-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+                <p className="text-xs text-emerald-700">
+                  Extra ₹{(Number(form.amount) - dueAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} will be added to customer credit
+                </p>
+              </div>
+            )}
             <label className="flex items-center gap-1.5 mt-2 cursor-pointer">
               <input type="checkbox" checked={form.fullAmount}
                 onChange={e => setForm(f => ({ ...f, fullAmount: e.target.checked, amount: e.target.checked ? String(dueAmount) : f.amount }))}

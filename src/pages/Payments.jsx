@@ -2,15 +2,14 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   CreditCard, Search, Download, Eye, MoreVertical, CheckCircle,
-  Clock, AlertTriangle, X,
+  Clock, AlertTriangle, X, CheckCircle2,
 } from 'lucide-react'
 import {
-  getPayments, subscribePayments, addPayment, nextReceiptNo, verifyPayment, rejectPayment,
+  getPayments, subscribePayments, recordPayment, nextReceiptNo, verifyPayment, rejectPayment,
 } from '../data/paymentsStore'
 import {
   getInvoices, subscribeInvoices,
   getCollectedTotal, getPendingTotal, getOverdueTotal,
-  markInvoicesPaid,
 } from '../data/invoicesStore'
 
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'IMPS', 'Cheque', 'Razorpay']
@@ -51,8 +50,9 @@ function exportCsv(filename, rows) {
 // ── Shared Record Payment Modal ───────────────────────────────────────────────
 function RecordPaymentModal({ invoice, onClose, onSuccess }) {
   const todayStr = today()
+  const amountDue = (invoice.totalAmount || invoice.amount || 0) - (invoice.amountPaid || 0)
   const [form, setForm] = useState({
-    amount: invoice.totalAmount || invoice.amount || 0,
+    amount: amountDue,
     mode: 'Cash',
     txnId: '',
     date: todayStr,
@@ -63,6 +63,8 @@ function RecordPaymentModal({ invoice, onClose, onSuccess }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSubmit = () => {
+    const amt = Number(form.amount)
+    if (!amt || amt <= 0) { setError('Enter a valid amount.'); return }
     if (!form.date) { setError('Payment date is required.'); return }
     if (!form.txnId && form.mode !== 'Cash') {
       setError('Transaction ID is required for ' + form.mode + ' payments.')
@@ -70,26 +72,16 @@ function RecordPaymentModal({ invoice, onClose, onSuccess }) {
     }
     setError('')
     const invoiceNo = invoice.no || invoice.invoiceNo
-    const receipt = nextReceiptNo()
-    addPayment({
-      id: 'PAY-' + Date.now(),
+    const payment = recordPayment({
       customerId: invoice.customerId || '',
-      receiptNo: receipt,
-      invoiceNo,
-      invoiceNos: [invoiceNo],
-      paymentDate: form.date,
-      date: new Date().toLocaleString('en-IN'),
+      amount: amt,
       mode: form.mode,
-      total: Number(form.amount),
-      paid: Number(form.amount),
-      status: 'Complete',
-      orderNo: form.txnId || '—',
-      chequeBCh: 0,
-      addBy: 'Admin User',
-      comment: form.notes || 'Complete',
+      invoiceNos: [invoiceNo],
+      txnId: form.txnId || undefined,
+      date: form.date,
+      notes: form.notes || 'Complete',
     })
-    markInvoicesPaid([invoiceNo], { paymentDate: form.date, mode: form.mode, txnId: form.txnId })
-    onSuccess(receipt)
+    onSuccess(payment.receiptNo)
   }
 
   return (
@@ -120,7 +112,7 @@ function RecordPaymentModal({ invoice, onClose, onSuccess }) {
             </div>
             <div className="flex justify-between text-sm border-t border-gray-200 pt-1.5 mt-1">
               <span className="text-gray-500 font-medium">Amount Due</span>
-              <span className="font-bold text-gray-900 text-base">{fmt(invoice.totalAmount || invoice.amount || 0)}</span>
+              <span className="font-bold text-gray-900 text-base">{fmt(amountDue)}</span>
             </div>
           </div>
 
@@ -131,17 +123,23 @@ function RecordPaymentModal({ invoice, onClose, onSuccess }) {
             </div>
           )}
 
-          {/* Amount (read-only) */}
+          {/* Amount (editable, partial allowed) */}
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Amount <span className="text-red-500">*</span></label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-              <input type="number" value={form.amount} readOnly
-                className="w-full pl-7 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed" />
+              <input type="number" value={form.amount}
+                onChange={e => { set('amount', e.target.value); setError('') }}
+                className="w-full pl-7 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30" />
             </div>
-            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-              <AlertTriangle size={11} /> Partial payment is not accepted. Full amount required.
-            </p>
+            {Number(form.amount) > amountDue && (
+              <div className="flex items-center gap-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+                <p className="text-xs text-emerald-700">
+                  Extra {fmt(Number(form.amount) - amountDue)} will be added to customer credit
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Mode */}

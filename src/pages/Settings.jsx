@@ -316,6 +316,9 @@ function GeneralTab() {
                     <option value="stripe">Stripe</option>
                   </Select>
                 </FormField>
+                <FormField label="Activation / Installation Fee (₹)">
+                  <Input type="number" min="0" value={form.activationFee ?? 0} onChange={e => setField('activationFee', Number(e.target.value))} />
+                </FormField>
               </div>
               <FormField label="Invoice Footer Note">
                 <Textarea rows={2} value={form.invoiceFooterNote} onChange={e => setField('invoiceFooterNote', e.target.value)} />
