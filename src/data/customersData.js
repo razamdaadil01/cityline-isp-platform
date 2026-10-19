@@ -107,10 +107,19 @@ const _PLAN_PRICE = {
   'P2P 10Gbps': 149999, 'Intercom Basic': 199,
 }
 
+// packagesStore plan ID lookup for plans that match by speed (100 Mbps → BWP-001,
+// 200 Mbps → BWP-002). Plans without a speed-matched entry keep packageId: null
+// and fall back to _PLAN_PRICE for the monthly amount.
+const _PLAN_ID = {
+  'FTTH 100Mbps': 'BWP-001',
+  'FTTB 100Mbps': 'BWP-001',
+  'FTTH 200Mbps': 'BWP-002',
+}
+
 function _seedSubscription(c) {
   if (!c.plan) return null
   return {
-    packageId: null,
+    packageId: _PLAN_ID[c.plan] ?? null,
     packageName: c.plan,
     tenureDays: 30,
     price: _PLAN_PRICE[c.plan] ?? 0,
