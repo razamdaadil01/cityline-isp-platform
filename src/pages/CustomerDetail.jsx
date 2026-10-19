@@ -16,7 +16,7 @@ import Modal from '../components/ui/Modal'
 import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/customersData'
 import { exportCsv } from '../utils/csvExport'
-import { computeExpiry, getCustomerSubscription } from '../utils/customerUtils'
+import { computeExpiry, getCustomerSubscription, computeGst } from '../utils/customerUtils'
 import { getPPPoEId, getAppPassword, getCustomerType } from '../data/customerTypes'
 import { logAudit, getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
 import {
@@ -37,10 +37,13 @@ import {
 } from '../data/settlementStore'
 import { computeCustomerLedger } from '../utils/ledgerUtils'
 import {
-  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
+  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments, recordPayment } from '../data/paymentsStore'
 import { getPlans } from '../data/packagesStore'
+import { getCompanyEntity, getEntityState } from '../data/companyEntities'
+import { getGeneralSettings } from '../data/generalSettingsStore'
+import { renewSubscription, changePlan } from '../utils/subscriptionUtils'
 import { getTr069DeviceByCustomerId } from '../data/tr069Store'
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip as RechartTooltip,
@@ -1283,6 +1286,18 @@ function PackagesTab({ customer }) {
   const [form, setForm] = useState(EMPTY_SVC_FORM)
   const [toast, setToast] = useState(false)
 
+  // Renew modal
+  const [showRenewModal, setShowRenewModal] = useState(false)
+  const [renewPkg, setRenewPkg] = useState(null) // the pkg being renewed
+  const [renewForm, setRenewForm] = useState({ mode: 'Cash', txnId: '', collectPayment: true })
+  const [renewResult, setRenewResult] = useState(null)
+
+  // Modify modal
+  const [showModifyModal, setShowModifyModal] = useState(false)
+  const [modifyPkg, setModifyPkg] = useState(null)
+  const [modifyPlanId, setModifyPlanId] = useState('')
+  const [modifyResult, setModifyResult] = useState(null)
+
   useEffect(() => {
     if (!pkgMenu) return
     function handle(e) { if (pkgMenuRef.current && !pkgMenuRef.current.contains(e.target)) setPkgMenu(null) }
@@ -1348,6 +1363,28 @@ function PackagesTab({ customer }) {
       setForm({ ...EMPTY_SVC_FORM, packageLabel: firstPkg?.label ?? '', amount: firstPkg?.amount ?? '' })
     }
   }, [showAddModal])
+
+  function handleRenew() {
+    const sub = getCustomerSubscription(customer)
+    if (!sub) return
+    const tenureDays = sub.tenureDays || 30
+    const price = sub.price || 0
+    const result = renewSubscription(customer.id, {
+      tenureDays,
+      paymentCollected: renewForm.collectPayment,
+      paymentDetails: renewForm.collectPayment ? { amount: price, mode: renewForm.mode, txnId: renewForm.txnId } : {},
+    })
+    setRenewResult(result)
+  }
+
+  function handleModify() {
+    if (!modifyPlanId) return
+    const sub = getCustomerSubscription(customer)
+    const newPlan = getPlans().find(p => p.id === modifyPlanId)
+    const tenureDays = newPlan?.tenures?.[0]?.days || sub?.tenureDays || 30
+    const result = changePlan(customer.id, { newPackageId: modifyPlanId, tenureDays })
+    setModifyResult(result)
+  }
 
   return (
     <div className="space-y-4">
@@ -1469,8 +1506,8 @@ function PackagesTab({ customer }) {
 
                 </div>
                 <div className="flex gap-2 mt-4 pt-4 border-t border-surface-border">
-                  <Button variant="secondary" size="xs" className="flex-1">Renew</Button>
-                  <Button variant="ghost"     size="xs" className="flex-1">Modify</Button>
+                  <Button variant="secondary" size="xs" className="flex-1" onClick={() => { setRenewPkg(pkg); setRenewResult(null); setRenewForm({ mode: 'Cash', txnId: '', collectPayment: true }); setShowRenewModal(true) }}>Renew</Button>
+                  <Button variant="ghost"     size="xs" className="flex-1" onClick={() => { setModifyPkg(pkg); setModifyResult(null); setModifyPlanId(''); setShowModifyModal(true) }}>Modify</Button>
                 </div>
               </Card>
             )
@@ -1536,10 +1573,10 @@ function PackagesTab({ customer }) {
                             ref={pkgMenuRef}
                             className="absolute right-4 top-10 z-20 bg-white rounded-xl border border-surface-border shadow-xl py-1 w-36"
                           >
-                            <button onClick={() => setPkgMenu(null)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            <button onClick={() => { setPkgMenu(null); setRenewPkg(pkg); setRenewResult(null); setRenewForm({ mode: 'Cash', txnId: '', collectPayment: true }); setShowRenewModal(true) }} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
                               Renew
                             </button>
-                            <button onClick={() => setPkgMenu(null)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
+                            <button onClick={() => { setPkgMenu(null); setModifyPkg(pkg); setModifyResult(null); setModifyPlanId(''); setShowModifyModal(true) }} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">
                               Modify
                             </button>
                           </div>
@@ -1553,6 +1590,153 @@ function PackagesTab({ customer }) {
           </div>
         </div>
       )}
+
+      {/* ── Subscription History Timeline (D3) ── */}
+      {(() => {
+        const sub = getCustomerSubscription(customer)
+        const history = sub?.history
+        if (!history || history.length === 0) return null
+        return (
+          <div className="bg-white rounded-xl border border-surface-border shadow-card p-5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Subscription History</p>
+            <ol className="relative border-l border-gray-200 space-y-4 pl-5">
+              {[...history].reverse().map((h, i) => (
+                <li key={i} className="relative">
+                  <div className="absolute -left-[21px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white bg-brand-blue" />
+                  <div className="flex flex-wrap items-start justify-between gap-1">
+                    <div>
+                      <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-1 ${h.type === 'renewal' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {h.type === 'renewal' ? 'Renewal' : 'Plan Change'}
+                      </span>
+                      {h.type === 'renewal' && (
+                        <p className="text-xs text-gray-700">{h.from} → {h.to} ({h.tenureDays}d)</p>
+                      )}
+                      {h.type === 'plan_change' && (
+                        <p className="text-xs text-gray-700">{h.fromPackage} → {h.toPackage}{h.creditGiven > 0 ? ` | Credit: ₹${h.creditGiven.toLocaleString('en-IN')}` : ''}</p>
+                      )}
+                      <p className="text-[10px] text-gray-400 mt-0.5">Invoice: {h.invoiceNo} · {h.date} · {h.by}</p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )
+      })()}
+
+      {/* ── Renew Modal ── */}
+      <Modal isOpen={showRenewModal} onClose={() => { setShowRenewModal(false); setRenewResult(null) }} title="Renew Subscription" size="sm">
+        {renewResult ? (
+          <div className="text-center py-4 space-y-3">
+            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle size={24} className="text-emerald-600" />
+            </div>
+            <p className="text-sm font-semibold text-gray-900">Renewed Successfully</p>
+            <p className="text-xs text-gray-500">New expiry: <span className="font-semibold text-gray-800">{renewResult.newExpiry}</span></p>
+            <p className="text-xs text-gray-500">Invoice: <span className="font-mono text-brand-blue">{renewResult.invoice?.no}</span></p>
+            {renewResult.hasUnpaid && (
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-left">
+                <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700">Customer has other unpaid invoices pending.</p>
+              </div>
+            )}
+            <Button size="sm" onClick={() => { setShowRenewModal(false); setRenewResult(null) }}>Close</Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {(() => {
+              const sub = getCustomerSubscription(customer)
+              if (!sub) return <p className="text-sm text-gray-500">No active subscription found.</p>
+              const today = new Date().toISOString().slice(0, 10)
+              const isActive = sub.expiry && sub.expiry >= today
+              const startFrom = isActive ? sub.expiry : today
+              return (
+                <>
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-500">Plan</span><span className="font-medium text-gray-800">{sub.packageName}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Tenure</span><span className="font-medium text-gray-800">{sub.tenureDays} days</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Starts from</span><span className="font-medium text-gray-800">{startFrom}</span></div>
+                    <div className="flex justify-between text-base border-t border-gray-200 pt-1.5 mt-1"><span className="font-semibold text-gray-700">Amount</span><span className="font-bold text-gray-900">₹{(sub.price || 0).toLocaleString('en-IN')}</span></div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={renewForm.collectPayment} onChange={e => setRenewForm(f => ({ ...f, collectPayment: e.target.checked }))} className="w-4 h-4 accent-brand-blue" />
+                    <span className="text-sm text-gray-700">Collect payment now</span>
+                  </label>
+                  {renewForm.collectPayment && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Payment Mode</label>
+                        <select value={renewForm.mode} onChange={e => setRenewForm(f => ({ ...f, mode: e.target.value }))} className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white">
+                          {['Cash','UPI','NEFT','IMPS','Cheque'].map(m => <option key={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Transaction ID (optional)</label>
+                        <input type="text" value={renewForm.txnId} onChange={e => setRenewForm(f => ({ ...f, txnId: e.target.value }))} placeholder="Txn / Cheque No." className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-3">
+                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowRenewModal(false)}>Cancel</Button>
+                    <Button size="sm" className="flex-1" onClick={handleRenew}>Renew</Button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Modify Plan Modal ── */}
+      <Modal isOpen={showModifyModal} onClose={() => { setShowModifyModal(false); setModifyResult(null) }} title="Change Plan" size="sm">
+        {modifyResult ? (
+          <div className="text-center py-4 space-y-3">
+            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle size={24} className="text-emerald-600" />
+            </div>
+            <p className="text-sm font-semibold text-gray-900">Plan Changed Successfully</p>
+            <p className="text-xs text-gray-500">New expiry: <span className="font-semibold text-gray-800">{modifyResult.newExpiry}</span></p>
+            <p className="text-xs text-gray-500">Invoice: <span className="font-mono text-brand-blue">{modifyResult.invoice?.no}</span></p>
+            {modifyResult.unusedValue > 0 && (
+              <p className="text-xs text-emerald-600">₹{modifyResult.unusedValue.toLocaleString('en-IN')} credit added from old plan's unused days.</p>
+            )}
+            <Button size="sm" onClick={() => { setShowModifyModal(false); setModifyResult(null) }}>Close</Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {(() => {
+              const sub = getCustomerSubscription(customer)
+              const plans = getPlans()
+              const today = new Date().toISOString().slice(0, 10)
+              const oldExpiry = sub?.expiry || today
+              const remainingDays = Math.max(0, Math.floor((new Date(oldExpiry) - new Date(today)) / 86400000))
+              const unusedValue = sub ? parseFloat(((sub.price / (sub.tenureDays || 30)) * remainingDays).toFixed(2)) : 0
+              return (
+                <>
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-xs text-gray-600">
+                    <p>Current plan: <span className="font-semibold text-gray-800">{sub?.packageName || '—'}</span></p>
+                    <p>Remaining days: <span className="font-semibold text-gray-800">{remainingDays}</span></p>
+                    {unusedValue > 0 && <p className="text-emerald-600">Unused credit: <span className="font-semibold">₹{unusedValue.toLocaleString('en-IN')}</span> will be applied to new invoice.</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Select New Plan</label>
+                    <select value={modifyPlanId} onChange={e => setModifyPlanId(e.target.value)} className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 bg-white">
+                      <option value="">— Select a plan —</option>
+                      {plans.filter(p => p.id !== sub?.packageId).map(p => (
+                        <option key={p.id} value={p.id}>{p.name} — ₹{p.tenures?.[0]?.price || 0}/mo</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowModifyModal(false)}>Cancel</Button>
+                    <Button size="sm" className="flex-1" onClick={handleModify} disabled={!modifyPlanId}>Change Plan</Button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        )}
+      </Modal>
 
       {/* ── Add Service Modal ── */}
       <Modal
@@ -3922,7 +4106,10 @@ export default function CustomerDetail() {
 
   function handleActivateCustomer(credentials) {
     const today = new Date().toISOString().slice(0, 10)
-    const expiry = computeExpiry(today, customer.selectedPackage ?? customer.bandwidthPackage)
+    const activatingPkg = customer.selectedPackage ?? customer.bandwidthPackage ?? null
+    const expiry = computeExpiry(today, activatingPkg)
+
+    // Step 1: record activation payment → goes to creditBalance
     if (!credentials.advancePaymentNotRequired && credentials.amount) {
       recordPayment({
         customerId: id,
@@ -3934,23 +4121,77 @@ export default function CustomerDetail() {
       })
       logAudit({ module: 'Customers', action: 'Edit', details: `Activation payment ₹${Number(credentials.amount).toLocaleString('en-IN')} collected for customer ${id} via ${credentials.mode}` })
     }
-    const activatingPkg = customer.selectedPackage ?? customer.bandwidthPackage ?? null
+
+    // Step 2: create subscription invoice
+    const tenureDays = activatingPkg?.tenures?.[0]?.days ?? 30
+    const planPrice = activatingPkg?.tenures?.[0]?.price ?? activatingPkg?.price ?? 0
+    const gstRate = activatingPkg?.gstRate ?? 18
+    const hsnSac = activatingPkg?.hsnSac ?? '998422'
+    const settings = getGeneralSettings()
+    const activationFee = settings.activationFee || 0
+
+    const entityId = customer.ownership?.entityId ?? customer.entityId ?? 1
+    const entity = getCompanyEntity(entityId)
+    const entityState = getEntityState(entity)
+    const customerState = customer.gstState || customer.address?.state || ''
+
+    const lines = [
+      {
+        description: activatingPkg?.name ?? customer.plan ?? 'Internet Service',
+        quantity: 1,
+        unitPrice: planPrice,
+        amount: planPrice,
+        hsnSac,
+      },
+    ]
+    if (activationFee > 0) {
+      lines.push({
+        description: 'Activation / Installation Fee',
+        quantity: 1,
+        unitPrice: activationFee,
+        amount: activationFee,
+        hsnSac: '998421',
+      })
+    }
+
+    const taxable = lines.reduce((s, l) => s + l.amount, 0)
+    const gst = computeGst(taxable, gstRate, entityState, customerState)
+    const billingPeriod = `${today} – ${expiry}`
+
+    addInvoice({
+      customerId: id,
+      entityId,
+      packageId: activatingPkg?.id ?? null,
+      packageName: activatingPkg?.name ?? customer.plan ?? null,
+      issueDate: today,
+      dueDate: today,
+      billingPeriod,
+      lines,
+      taxableAmount: taxable,
+      cgst: gst.cgst,
+      sgst: gst.sgst,
+      igst: gst.igst,
+      totalAmount: gst.total,
+      status: 'pending',
+    })
+
+    const activationSub = {
+      packageId: activatingPkg?.id ?? null,
+      packageName: activatingPkg?.name ?? customer.plan ?? null,
+      tenureDays,
+      price: planPrice,
+      gstRate,
+      hsnSac,
+      startDate: today,
+      expiry,
+      status: 'active',
+      addons: [],
+    }
     updateCustomer(id, {
       status: 'active',
       activationDate: today,
       expiry,
-      subscription: {
-        packageId: activatingPkg?.id ?? null,
-        packageName: activatingPkg?.name ?? customer.plan ?? null,
-        tenureDays: activatingPkg?.tenures?.[0]?.days ?? 30,
-        price: activatingPkg?.tenures?.[0]?.price ?? activatingPkg?.price ?? 0,
-        gstRate: activatingPkg?.gstRate ?? 18,
-        hsnSac: activatingPkg?.hsnSac ?? '998422',
-        startDate: today,
-        expiry,
-        status: 'active',
-        addons: [],
-      },
+      subscription: activationSub,
     })
     setStatusOverride('active')
     logAudit({ module: 'Customers', action: 'Edit', details: `Customer ${id} activated (Pending Activation → Active)` })

@@ -14,6 +14,7 @@ let _settings = {
   dueDays: 7,
   lateFeePercent: 2,
   gstRate: 18,
+  activationFee: 0,
   paymentGateway: 'razorpay',
   invoiceFooterNote: 'Thank you for choosing Cityline Networks. For support, call 022-4567-8900.',
   autoGenerateInvoices: true,

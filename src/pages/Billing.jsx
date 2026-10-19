@@ -17,6 +17,7 @@ import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
 import { computeGst } from '../utils/customerUtils'
 import { getCompanyEntity, getActiveCompanyEntities, getEntityState } from '../data/companyEntities'
+import { renewSubscription } from '../utils/subscriptionUtils'
 
 
 const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
@@ -352,7 +353,7 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
 }
 
 // ─── Actions Dropdown ───────────────────────────────────────────────────────
-function ActionsDropdown({ row, onToast }) {
+function ActionsDropdown({ row, onToast, onRenew }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [statusModal, setStatusModal] = useState(null) // 'einvoice' | 'tally' | null
@@ -409,6 +410,14 @@ function ActionsDropdown({ row, onToast }) {
             >
               Email Invoice
             </button>
+            {onRenew && (
+              <button
+                onClick={() => { setOpen(false); onRenew(row) }}
+                className="w-full text-left px-4 py-2 text-brand-blue hover:bg-brand-blue/10 transition-colors text-xs font-medium"
+              >
+                Renew Subscription
+              </button>
+            )}
             <div className="border-t border-surface-border my-1" />
             <button
               onClick={() => { setOpen(false); setStatusModal('einvoice') }}
@@ -956,14 +965,18 @@ export default function Billing() {
   const [fReseller, setFReseller] = useState('Cityline Networks P...')
   const [fDiscount, setFDiscount] = useState('')
   const [fBox, setFBox] = useState('')
+  const [fEntity, setFEntity] = useState('')
+  const [renewRow, setRenewRow] = useState(null)
+  const [renewDone, setRenewDone] = useState(null)
 
   const clearAllFilters = () => {
     setFDateFrom(''); setFDateTo(''); setFCreatedBy('')
     setFZone(''); setFStatus(''); setFPackage(''); setFRechargeStatus('')
     setFArea(''); setFReseller('Cityline Networks P...'); setFDiscount(''); setFBox('')
+    setFEntity('')
   }
 
-  const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox]
+  const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox, fEntity]
     .filter(Boolean).length + (fReseller !== 'Cityline Networks P...' ? 1 : 0)
 
   // All payments for Payment History tab
@@ -1013,6 +1026,7 @@ export default function Billing() {
       eInvoiceStatus: 'Pending',
       tallyStatus: 'Not Synced',
       discountAmount: inv.discountAmount || 0,
+      entityId: inv.entityId ?? null,
     }))
   }, [storeInvoices])
 
@@ -1032,6 +1046,8 @@ export default function Billing() {
     if (fDateTo)   rows = rows.filter(r => r.durationFrom <= fDateTo)
     // Package filter
     if (fPackage) rows = rows.filter(r => r.package === fPackage)
+    // Entity filter
+    if (fEntity) rows = rows.filter(r => String(r.entityId) === fEntity)
     // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -1042,7 +1058,7 @@ export default function Billing() {
       )
     }
     return rows
-  }, [search, quickStatus, fStatus, fDateFrom, fDateTo, fPackage, allRows])
+  }, [search, quickStatus, fStatus, fDateFrom, fDateTo, fPackage, fEntity, allRows])
 
   const stats = useMemo(() => ({
     total:     filteredRows.reduce((s, r) => s + (r.amount || 0), 0),
@@ -1243,7 +1259,7 @@ export default function Billing() {
                       <td className="px-6 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
                       <td className="px-6 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
                       <td className="px-6 py-3">
-                        <ActionsDropdown row={row} onToast={showToast} />
+                        <ActionsDropdown row={row} onToast={showToast} onRenew={activeTab === 'package-recharge' ? (r) => { setRenewRow(r); setRenewDone(null) } : undefined} />
                       </td>
                     </tr>
                   ))}
@@ -1380,6 +1396,20 @@ export default function Billing() {
               </div>
             </div>
 
+            {/* Company Entity */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Company Entity</label>
+              <div className="relative">
+                <select value={fEntity} onChange={e => setFEntity(e.target.value)} className={drawerSelectCls}>
+                  <option value="">All Entities</option>
+                  {getActiveCompanyEntities().map(e => (
+                    <option key={e.id} value={String(e.id)}>{e.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+
             {/* Recharge Status */}
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recharge Status</label>
@@ -1477,6 +1507,42 @@ export default function Billing() {
           onCreated={handleInvoiceCreated}
         />
       </Modal>
+
+      {/* Renew Subscription Modal (package-recharge tab) */}
+      {renewRow && (
+        <Modal isOpen onClose={() => { setRenewRow(null); setRenewDone(null) }} title="Renew Subscription" size="sm">
+          {renewDone ? (
+            <div className="space-y-4 py-2">
+              <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-3">
+                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">Renewed successfully</p>
+                  <p className="text-xs text-emerald-700 mt-0.5">Invoice {renewDone.invoice?.no} · New expiry: {renewDone.newExpiry}</p>
+                </div>
+              </div>
+              {renewDone.hasUnpaid && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Note: this customer has other unpaid invoices.
+                </p>
+              )}
+              <Button size="sm" className="w-full" onClick={() => { setRenewRow(null); setRenewDone(null) }}>Close</Button>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-gray-700">Renew subscription for <span className="font-semibold text-brand-blue">{renewRow.customerId}</span>?</p>
+              <p className="text-xs text-gray-500">Package: {renewRow.package}</p>
+              <div className="flex gap-2 pt-1">
+                <Button variant="secondary" size="sm" onClick={() => setRenewRow(null)} className="flex-1">Cancel</Button>
+                <Button size="sm" className="flex-1" onClick={() => {
+                  const result = renewSubscription(renewRow.customerId, {})
+                  if (result.error) { showToast(result.error); setRenewRow(null) }
+                  else setRenewDone(result)
+                }}>Confirm Renew</Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
 
       {/* Success Toast */}
       {successToast && (
