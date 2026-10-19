@@ -9,59 +9,15 @@ import {
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import { MOCK_INVOICES, PAYMENT_HISTORY } from '../data/billingData'
-import { getInvoices, subscribeInvoices, addInvoice } from '../data/invoicesStore'
-import { addPayment, nextReceiptNo, recordPayment } from '../data/paymentsStore'
+import { getInvoices, subscribeInvoices, addInvoice, updateInvoice } from '../data/invoicesStore'
+import { addPayment, nextReceiptNo, recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
+import { logAudit } from '../data/auditLogStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
 import { computeGst } from '../utils/customerUtils'
 import { getCompanyEntity, getActiveCompanyEntities, getEntityState } from '../data/companyEntities'
 
-const BILLING_MOCK_ROWS = [
-  {
-    id: 1,
-    userId: 'E1901_GV',
-    userLink: 'CNPL_B2C',
-    customerName: 'Accenture',
-    invoiceNo: 'B2C/26-27/5650',
-    package: 'SuperSonic_300M_1M_Cityline Platinum',
-    amount: 1032,
-    adminAmount: 1032,
-    resellerAmount: 0,
-    invoiceDate: '25-06-2026 14:00:06',
-    durationFrom: '27-06-2026',
-    durationTo: '26-07-2026',
-    addedBy: 'E1901_GV',
-    comment: '',
-    rechargeInternet: 'success',
-    rechargeOtt: 'retry',
-    rechargeIptv: 'success',
-    eInvoiceStatus: 'Generated',
-    tallyStatus: 'Synced',
-  },
-  {
-    id: 2,
-    userId: '5000022361',
-    userLink: 'CNPL_B2C',
-    customerName: 'Dinesh',
-    invoiceNo: 'B2C/26-27/5649',
-    package: 'Sonic_150M_12M_Gold',
-    amount: 6372,
-    adminAmount: 6372,
-    resellerAmount: 0,
-    invoiceDate: '25-06-2026 13:49:52',
-    durationFrom: '25-06-2026',
-    durationTo: '25-06-2027',
-    addedBy: '5000022361',
-    comment: '',
-    rechargeInternet: 'success',
-    rechargeOtt: 'retry',
-    rechargeIptv: 'retry',
-    eInvoiceStatus: 'Pending',
-    tallyStatus: 'Not Synced',
-  },
-]
 
 const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
 const STATUS_LABELS = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
@@ -116,8 +72,9 @@ function RechargeStatusMiniTable({ internet, ott, iptv }) {
 // ─── Record Payment Modal ───────────────────────────────────────────────────
 function RecordPaymentModal({ invoice, onClose }) {
   const today = new Date().toISOString().split('T')[0]
+  const amountDue = invoice.totalAmount - (invoice.amountPaid || 0)
   const [form, setForm] = useState({
-    amount: invoice.totalAmount,
+    amount: amountDue,
     mode: 'UPI',
     txnId: '',
     date: today,
@@ -189,7 +146,7 @@ function RecordPaymentModal({ invoice, onClose }) {
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-500">Amount Due</p>
-            <p className="text-lg font-bold text-gray-900 mt-0.5">{fmt(invoice.totalAmount)}</p>
+            <p className="text-lg font-bold text-gray-900 mt-0.5">{fmt(amountDue)}</p>
           </div>
         </div>
       </div>
@@ -216,6 +173,14 @@ function RecordPaymentModal({ invoice, onClose }) {
             className="w-full pl-7 pr-4 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
           />
         </div>
+        {Number(form.amount) > amountDue && (
+          <div className="flex items-center gap-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+            <p className="text-xs text-emerald-700">
+              Extra {fmt(Number(form.amount) - amountDue)} will be added to customer credit
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Mode */}
@@ -387,15 +352,34 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
 }
 
 // ─── Actions Dropdown ───────────────────────────────────────────────────────
-function ActionsDropdown({ row }) {
+function ActionsDropdown({ row, onToast }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [statusModal, setStatusModal] = useState(null) // 'einvoice' | 'tally' | null
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  function handleRemove() {
+    setOpen(false)
+    if ((row.amountPaid || 0) > 0) {
+      onToast('Cannot remove: this invoice has recorded payments.')
+      return
+    }
+    setConfirmRemove(true)
+  }
+
+  function doRemove() {
+    updateInvoice(row.id, { status: 'cancelled' })
+    logAudit({ module: 'Billing', action: 'Edit', details: `Invoice ${row.invoiceNo} cancelled by admin` })
+    setConfirmRemove(false)
+    onToast(`Invoice ${row.invoiceNo} cancelled.`)
+  }
+
   return (
     <>
       <div className="relative" ref={ref}>
@@ -407,15 +391,24 @@ function ActionsDropdown({ row }) {
         </button>
         {open && (
           <div className="absolute right-0 z-50 mt-1 w-44 bg-white border border-surface-border rounded-xl shadow-lg py-1 text-sm">
-            {['View Invoice', 'Remove', 'Email Invoice'].map(action => (
-              <button
-                key={action}
-                onClick={() => setOpen(false)}
-                className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
-              >
-                {action}
-              </button>
-            ))}
+            <button
+              onClick={() => { setOpen(false); navigate(`/billing/invoice/${encodeURIComponent(row.invoiceNo)}`) }}
+              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
+            >
+              View Invoice
+            </button>
+            <button
+              onClick={handleRemove}
+              className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 transition-colors text-xs"
+            >
+              Remove
+            </button>
+            <button
+              onClick={() => { setOpen(false); onToast('Email sending not connected (demo)') }}
+              className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors text-xs"
+            >
+              Email Invoice
+            </button>
             <div className="border-t border-surface-border my-1" />
             <button
               onClick={() => { setOpen(false); setStatusModal('einvoice') }}
@@ -432,6 +425,22 @@ function ActionsDropdown({ row }) {
           </div>
         )}
       </div>
+
+      {/* Confirm Remove Modal */}
+      {confirmRemove && (
+        <Modal isOpen onClose={() => setConfirmRemove(false)} title="Cancel Invoice">
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-gray-700">
+              Cancel invoice <span className="font-mono font-semibold text-brand-blue">{row.invoiceNo}</span>?
+              The invoice will be marked as cancelled and cannot be recovered.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button variant="secondary" size="sm" onClick={() => setConfirmRemove(false)} className="flex-1">Back</Button>
+              <Button size="sm" onClick={doRemove} className="flex-1 !bg-red-600 hover:!bg-red-700 !border-red-600">Cancel Invoice</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* e-Invoice Status Modal */}
       {statusModal === 'einvoice' && (
@@ -911,12 +920,16 @@ export default function Billing() {
   const [successToast, setSuccessToast] = useState('')
   const [selectedRows, setSelectedRows] = useState([])
 
-  // Live store invoices (new-shape, created via Create Invoice modal)
-  const [storeInvoices, setStoreInvoices] = useState(() => getInvoices().filter(i => i.packageId))
-  useEffect(() => subscribeInvoices(all => setStoreInvoices(all.filter(i => i.packageId))), [])
+  // Live store invoices — all invoices from the store
+  const [storeInvoices, setStoreInvoices] = useState(getInvoices)
+  useEffect(() => subscribeInvoices(setStoreInvoices), [])
 
   function handleInvoiceCreated(invoiceNo) {
-    setSuccessToast(`Invoice ${invoiceNo} created successfully.`)
+    showToast(`Invoice ${invoiceNo} created successfully.`)
+  }
+
+  function showToast(msg) {
+    setSuccessToast(msg)
     setTimeout(() => setSuccessToast(''), 4000)
   }
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -953,26 +966,38 @@ export default function Billing() {
   const filterCount = [fDateFrom, fDateTo, fCreatedBy, fZone, fStatus, fPackage, fRechargeStatus, fArea, fDiscount, fBox]
     .filter(Boolean).length + (fReseller !== 'Cityline Networks P...' ? 1 : 0)
 
-  const [allInvoices, setAllInvoices] = useState(() => getInvoices())
-  useEffect(() => subscribeInvoices(setAllInvoices), [])
+  // All payments for Payment History tab
+  const [allPayments, setAllPayments] = useState(getPayments)
+  useEffect(() => subscribePayments(setAllPayments), [])
 
-  const stats = useMemo(() => ({
-    total:     allInvoices.reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
-    collected: allInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
-    pending:   allInvoices.filter(i => i.status === 'pending').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
-    overdue:   allInvoices.filter(i => i.status === 'pending' && i.dueDate && new Date(i.dueDate) < new Date()).reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0),
-    gst:       allInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.cgst || 0) + (i.sgst || 0), 0),
-  }), [allInvoices])
+  const normalizedPayments = useMemo(() => {
+    const custMap = Object.fromEntries(CUSTOMERS.map(c => [c.id, c.name]))
+    return allPayments.map(p => ({
+      id: p.id,
+      invoiceNo: p.invoiceNo || (p.invoiceNos?.[0] ?? '—'),
+      customerName: custMap[p.customerId] || p.customerId || '—',
+      amount: p.paid ?? p.total ?? 0,
+      mode: p.mode || '—',
+      txnId: p.chequeBCh || p.txnId || '—',
+      date: p.paymentDate || (p.date ? p.date.slice(0, 10) : '—'),
+      recordedBy: p.addBy || 'System',
+    }))
+  }, [allPayments])
 
   const allRows = useMemo(() => {
-    const storeRows = storeInvoices.map(inv => ({
+    return storeInvoices.map(inv => ({
       id: inv.no,
       userId: inv.customerId,
+      customerId: inv.customerId,
       userLink: 'CNPL_B2C',
       customerName: inv.customerName,
       invoiceNo: inv.no,
       package: inv.packageName,
       amount: inv.totalAmount,
+      amountPaid: inv.amountPaid || 0,
+      cgst: inv.cgst || 0,
+      sgst: inv.sgst || 0,
+      status: inv.status,
       adminAmount: inv.totalAmount,
       resellerAmount: 0,
       invoiceDate: inv.createdAt
@@ -989,18 +1014,43 @@ export default function Billing() {
       tallyStatus: 'Not Synced',
       discountAmount: inv.discountAmount || 0,
     }))
-    return [...storeRows, ...BILLING_MOCK_ROWS]
   }, [storeInvoices])
 
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return allRows
-    const q = search.trim().toLowerCase()
-    return allRows.filter(r =>
-      r.customerName.toLowerCase().includes(q) ||
-      r.userId.toLowerCase().includes(q) ||
-      r.userLink.toLowerCase().includes(q)
-    )
-  }, [search, allRows])
+    let rows = allRows
+    // Quick status filter
+    if (quickStatus !== 'All') {
+      const qs = quickStatus.toLowerCase()
+      rows = rows.filter(r => r.status === qs)
+    }
+    // Drawer status filter
+    if (fStatus) {
+      rows = rows.filter(r => r.status === fStatus.toLowerCase())
+    }
+    // Date range filter (durationFrom = inv.issueDate as YYYY-MM-DD)
+    if (fDateFrom) rows = rows.filter(r => r.durationFrom >= fDateFrom)
+    if (fDateTo)   rows = rows.filter(r => r.durationFrom <= fDateTo)
+    // Package filter
+    if (fPackage) rows = rows.filter(r => r.package === fPackage)
+    // Search
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      rows = rows.filter(r =>
+        (r.customerName || '').toLowerCase().includes(q) ||
+        (r.userId || '').toLowerCase().includes(q) ||
+        (r.invoiceNo || '').toLowerCase().includes(q)
+      )
+    }
+    return rows
+  }, [search, quickStatus, fStatus, fDateFrom, fDateTo, fPackage, allRows])
+
+  const stats = useMemo(() => ({
+    total:     filteredRows.reduce((s, r) => s + (r.amount || 0), 0),
+    collected: filteredRows.filter(r => r.status === 'paid').reduce((s, r) => s + (r.amount || 0), 0),
+    pending:   filteredRows.filter(r => r.status === 'pending' || r.status === 'partially_paid').reduce((s, r) => s + (r.amount || 0), 0),
+    overdue:   filteredRows.filter(r => r.status === 'overdue').reduce((s, r) => s + (r.amount || 0), 0),
+    gst:       filteredRows.filter(r => r.status === 'paid').reduce((s, r) => s + (r.cgst || 0) + (r.sgst || 0), 0),
+  }), [filteredRows])
 
   // Pagination derived values for invoice tabs
   const page     = activeTab === 'tax-invoice' ? tiPage     : prPage
@@ -1012,9 +1062,9 @@ export default function Billing() {
   const pagedRows   = filteredRows.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   // Payment History pagination
-  const phTotalPages = Math.max(1, Math.ceil(PAYMENT_HISTORY.length / phPageSize))
+  const phTotalPages = Math.max(1, Math.ceil(normalizedPayments.length / phPageSize))
   const phSafePage   = Math.min(phPage, phTotalPages)
-  const pagedPayments = PAYMENT_HISTORY.slice((phSafePage - 1) * phPageSize, phSafePage * phPageSize)
+  const pagedPayments = normalizedPayments.slice((phSafePage - 1) * phPageSize, phSafePage * phPageSize)
 
   const allSelected = selectedRows.length === pagedRows.length && pagedRows.length > 0
   const toggleAll = () => setSelectedRows(allSelected ? [] : pagedRows.map(r => r.id))
@@ -1098,7 +1148,7 @@ export default function Billing() {
       {activeTab === 'payment-history' ? (
         <PaymentHistory
           payments={pagedPayments}
-          allPayments={PAYMENT_HISTORY}
+          allPayments={normalizedPayments}
           page={phSafePage} totalPages={phTotalPages} pageSize={phPageSize}
           setPage={setPhPage} setPageSize={setPhPageSize}
         />
@@ -1193,7 +1243,7 @@ export default function Billing() {
                       <td className="px-6 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
                       <td className="px-6 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
                       <td className="px-6 py-3">
-                        <ActionsDropdown row={row} />
+                        <ActionsDropdown row={row} onToast={showToast} />
                       </td>
                     </tr>
                   ))}
@@ -1321,7 +1371,10 @@ export default function Billing() {
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Select Package</label>
               <div className="relative">
                 <select value={fPackage} onChange={e => setFPackage(e.target.value)} className={drawerSelectCls}>
-                  <option value="">Please Select</option>
+                  <option value="">All Packages</option>
+                  {getPlans().map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
                 </select>
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>

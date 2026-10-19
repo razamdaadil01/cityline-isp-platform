@@ -3,9 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { Download, SlidersHorizontal, X, CheckCircle, IndianRupee, Clock, ChevronDown, UploadCloud, Paperclip } from 'lucide-react'
 import {
   getCollections, subscribeCollections, updateCollection, getCollection,
-  getTotalAmount, getTotalReceived, getTotalPending,
 } from '../data/collectionStore'
-import { recordPayment } from '../data/paymentsStore'
+import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
 
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'Cheque']
 const PAGE_SIZE = 10
@@ -73,7 +72,6 @@ function RecordPaymentModal({ record, onClose, onSave }) {
     const e = {}
     const n = Number(amount)
     if (!amount || isNaN(n) || n <= 0) e.amount = 'Enter a valid amount'
-    else if (n > record.due) e.amount = `Cannot exceed due amount ₹${record.due}`
     if (!mode) e.mode = 'Select payment mode'
     if (!date) e.date = 'Required'
     return e
@@ -157,12 +155,20 @@ function RecordPaymentModal({ record, onClose, onSave }) {
                   Amount to Collect <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number" min="1" max={record.due} step="1"
+                  type="number" min="1" step="1"
                   value={amount}
                   onChange={e => { setAmount(e.target.value); setErrors(v => ({ ...v, amount: '' })) }}
                   className={inputCls(errors.amount)}
                 />
                 {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
+                {Number(amount) > record.due && record.due > 0 && (
+                  <div className="flex items-center gap-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                    <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+                    <p className="text-xs text-emerald-700">
+                      Extra {fmt(Number(amount) - record.due)} will be added to customer credit
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Payment Mode */}
@@ -386,11 +392,22 @@ function FiltersDrawer({ filters, allCollections, onApply, onClose }) {
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+function computeCollectionTotals(payments) {
+  const collPays = payments.filter(p => p.source === 'collection')
+  return collPays.reduce((s, p) => s + (p.paid ?? p.amount ?? 0), 0)
+}
+
 export default function Collection() {
   const [collections, setCollections] = useState(getCollections)
-  const [totalAmount,   setTotalAmount]   = useState(getTotalAmount)
-  const [totalReceived, setTotalReceived] = useState(getTotalReceived)
-  const [totalPending,  setTotalPending]  = useState(getTotalPending)
+  const [totalAmount, setTotalAmount] = useState(() =>
+    getCollections().reduce((s, c) => s + c.amount, 0)
+  )
+  const [totalReceived, setTotalReceived] = useState(() => computeCollectionTotals(getPayments()))
+  const [totalPending,  setTotalPending]  = useState(() => {
+    const received = computeCollectionTotals(getPayments())
+    const total = getCollections().reduce((s, c) => s + c.amount, 0)
+    return Math.max(0, total - received)
+  })
 
   const [searchParams, setSearchParams] = useSearchParams()
   const modalParam = searchParams.get('modal')
@@ -429,9 +446,14 @@ export default function Collection() {
   useEffect(() => subscribeCollections(records => {
     setCollections(records)
     setTotalAmount(records.reduce((s, c) => s + c.amount, 0))
-    setTotalReceived(records.reduce((s, c) => s + c.paid, 0))
-    setTotalPending(records.reduce((s, c) => s + c.due, 0))
   }), [])
+
+  useEffect(() => subscribePayments(payments => {
+    const received = computeCollectionTotals(payments)
+    const total = collections.reduce((s, c) => s + c.amount, 0)
+    setTotalReceived(received)
+    setTotalPending(Math.max(0, total - received))
+  }), [collections])
 
   const filtered = useMemo(() => {
     let rows = collections
@@ -641,6 +663,10 @@ export default function Collection() {
                     {r.status === 'Paid' ? (
                       <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
                         <CheckCircle size={14} /> Paid ✓
+                      </span>
+                    ) : !r.customerId ? (
+                      <span className="text-xs text-amber-600 font-medium">
+                        Link to a customer first
                       </span>
                     ) : (
                       <button
