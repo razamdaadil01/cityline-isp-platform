@@ -19,6 +19,26 @@ export function isValidGstin(gstin) {
   return GSTIN_REGEX.test((gstin || '').trim().toUpperCase())
 }
 
+// GST state code map — GSTIN first 2 digits → 2-letter state abbreviation.
+// Used by getEntityState() and by Billing.jsx's GST computation to determine
+// intra-state (CGST+SGST) vs inter-state (IGST) treatment.
+export const GST_STATE_CODES = {
+  '01':'JK','02':'HP','03':'PB','04':'CH','05':'UT','06':'HR','07':'DL','08':'RJ',
+  '09':'UP','10':'BR','11':'SK','12':'AR','13':'NL','14':'MN','15':'MZ','16':'TR',
+  '17':'ML','18':'AS','19':'WB','20':'JH','21':'OD','22':'CG','23':'MP','24':'GJ',
+  '25':'DD','26':'DN','27':'MH','28':'AP','29':'KA','30':'GA','31':'LD','32':'KL',
+  '33':'TN','34':'PY','35':'AN','36':'TS','37':'AP',
+}
+
+// Returns the 2-letter state code for an entity: explicit state field wins,
+// then falls back to GSTIN prefix lookup (e.g. '27' → 'MH').
+export function getEntityState(entity) {
+  if (!entity) return ''
+  if (entity.state) return entity.state
+  const prefix = (entity.gstin || '').slice(0, 2)
+  return GST_STATE_CODES[prefix] || ''
+}
+
 // Invoice numbering is configured per entity (PRD: "In company give a
 // invoice number configuration") rather than as a single global setting —
 // see Settings.jsx's CompanyEntityTab "Invoice Numbering" accordion.
@@ -29,8 +49,8 @@ let _companyEntities = [
     id: 1,
     name: 'Cityline Networks Pvt Ltd',
     gstin: '27AABCU9603R1ZM',
-    // State code derived from GSTIN prefix '27' = Maharashtra
-    state: 'MH',
+    // TODO: set explicit state if GSTIN prefix lookup is insufficient; getEntityState() derives it from GSTIN
+    state: '',
     email: 'accounts@citylinenetworks.in',
     address: '404, Skyline Tower, Andheri West, Mumbai - 400053, Maharashtra',
     // Plain string URL, optional — same shape as productStore.js's imageUrl.
@@ -95,7 +115,7 @@ let _companyEntities = [
     id: 2,
     name: 'Cityline Fiber Solutions LLP',
     gstin: '27AAFCC5678E1ZS',
-    state: 'MH',
+    state: '',
     email: 'billing@citylinefiber.in',
     address: '12, Business Bay, Bandra Kurla Complex, Mumbai - 400051, Maharashtra',
     logoUrl: '',

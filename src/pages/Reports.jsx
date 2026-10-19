@@ -10,7 +10,7 @@ import { exportCsv } from '../utils/csvExport'
 // that thin real data rather than inventing rows to fill it out — see each
 // builder function's own comment for specifics.
 import { getPayments } from '../data/paymentsStore'
-import { getInvoices, getOutstandingInvoices } from '../data/invoicesStore'
+import { getInvoices, getOutstandingInvoicesAll } from '../data/invoicesStore'
 import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueStats'
 import { computeCollectionByMonth } from '../utils/collectionStats'
 import { getAllCustomers, effectiveStatus } from '../data/customersData'
@@ -67,7 +67,7 @@ function buildCollectionReportRows() {
 // anywhere in this app's data yet. Exports the real outstanding invoices
 // exactly as they are rather than inventing either field.
 function buildOverdueReportRows() {
-  return getOutstandingInvoices().map(inv => ({
+  return getOutstandingInvoicesAll().map(inv => ({
     'Invoice No.': inv.no, Package: inv.pkg, 'Issue Date': inv.date,
     'Amount (₹)': inv.amount, Status: inv.status,
   }))

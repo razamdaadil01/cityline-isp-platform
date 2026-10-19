@@ -9,6 +9,7 @@
 // local const, so Add Payment's Submit action can actually mark an invoice
 // Paid and have it persist/reflect live everywhere this data is read.
 import { getNextInvoiceNumber } from './companyEntities'
+import { getCustomer, updateCustomer } from './customersData'
 
 // GST breakdown for seed invoices: 18% intra-state (CGST 9% + SGST 9%).
 // All amounts follow the pattern: taxable = total/1.18 rounded to 2dp;
@@ -229,10 +230,18 @@ function notify() { _listeners.forEach(fn => fn([..._invoices])) }
 
 export function getInvoices() { return [..._invoices] }
 
-export function getOutstandingInvoices() { return _invoices.filter(i => i.status !== 'paid') }
+export function getOutstandingInvoicesAll() { return _invoices.filter(i => i.status !== 'paid') }
 
-export function getOutstandingTotal() {
-  return getOutstandingInvoices().reduce((sum, i) => sum + i.amount, 0)
+export function getOutstandingTotalAll() {
+  return getOutstandingInvoicesAll().reduce((sum, i) => sum + i.amount, 0)
+}
+
+export function getOutstandingInvoices(customerId) {
+  return _invoices.filter(i => i.customerId === customerId && i.status !== 'paid')
+}
+
+export function getOutstandingTotal(customerId) {
+  return getOutstandingInvoices(customerId).reduce((sum, i) => sum + (i.totalAmount || i.amount || 0), 0)
 }
 
 export function markInvoicesPaid(invoiceNos, paymentMeta = {}) {
@@ -256,17 +265,31 @@ export function addInvoice(data) {
   if (!data.customerId) return { error: 'customerId required' }
   const entityId = data.entityId ?? 1
   const no = getNextInvoiceNumber(entityId)
+
+  const customer = getCustomer(data.customerId)
+  const credit = customer?.creditBalance || 0
+  const invoiceAmount = data.totalAmount || 0
+  let creditApplied = 0
+  let invoiceStatus = data.status || 'pending'
+  if (credit > 0) {
+    creditApplied = Math.min(credit, invoiceAmount)
+    updateCustomer(data.customerId, { creditBalance: credit - creditApplied })
+    if (creditApplied >= invoiceAmount) invoiceStatus = 'paid'
+  }
+
   const invoice = {
     ...data,
     no,
     createdAt: new Date().toISOString(),
+    creditApplied,
+    amountPaid: creditApplied,
     // Compatibility aliases — CustomerDetail Finance tab reads inv.pkg, inv.date, inv.amount
     pkg: data.packageName || '',
     date: data.issueDate
       ? new Date(data.issueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
       : '',
     amount: data.totalAmount || 0,
-    status: data.status || 'pending',
+    status: invoiceStatus,
   }
   _invoices = [..._invoices, invoice]
   notify()

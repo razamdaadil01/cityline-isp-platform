@@ -10,13 +10,13 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { MOCK_INVOICES, PAYMENT_HISTORY } from '../data/billingData'
-import { getInvoices, subscribeInvoices, addInvoice, markInvoicesPaid } from '../data/invoicesStore'
-import { addPayment, nextReceiptNo } from '../data/paymentsStore'
+import { getInvoices, subscribeInvoices, addInvoice } from '../data/invoicesStore'
+import { addPayment, nextReceiptNo, recordPayment } from '../data/paymentsStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
 import { computeGst } from '../utils/customerUtils'
-import { getCompanyEntity } from '../data/companyEntities'
+import { getCompanyEntity, getActiveCompanyEntities, getEntityState } from '../data/companyEntities'
 
 const BILLING_MOCK_ROWS = [
   {
@@ -129,8 +129,9 @@ function RecordPaymentModal({ invoice, onClose }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSubmit = () => {
-    if (Number(form.amount) < invoice.totalAmount) {
-      setError(`Partial payment not allowed. Full amount ₹${invoice.totalAmount.toLocaleString('en-IN')} must be paid at once.`)
+    const amt = Number(form.amount)
+    if (!amt || amt <= 0) {
+      setError('Enter a valid amount.')
       return
     }
     if (!form.txnId && form.mode !== 'Cash') {
@@ -139,27 +140,14 @@ function RecordPaymentModal({ invoice, onClose }) {
     }
     setError('')
     const invoiceNo = invoice.invoiceNo || invoice.no
-    addPayment({
-      id: 'PAY-' + Date.now(),
+    recordPayment({
       customerId: invoice.customerId || '',
-      receiptNo: nextReceiptNo(),
-      invoiceNo,
+      amount: amt,
+      mode: form.mode,
       invoiceNos: [invoiceNo],
-      paymentDate: form.date,
-      date: new Date().toLocaleString('en-IN'),
-      mode: form.mode,
-      total: Number(form.amount),
-      paid: Number(form.amount),
-      status: 'Complete',
-      orderNo: form.txnId || '—',
-      chequeBCh: 0,
-      addBy: 'Admin User',
-      comment: form.notes || 'Complete',
-    })
-    markInvoicesPaid([invoiceNo], {
-      paymentDate: form.date,
-      mode: form.mode,
       txnId: form.txnId,
+      date: form.date,
+      notes: form.notes || 'Complete',
     })
     setSuccess(true)
   }
@@ -228,9 +216,6 @@ function RecordPaymentModal({ invoice, onClose }) {
             className="w-full pl-7 pr-4 py-2 text-sm border border-surface-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
           />
         </div>
-        <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-          <AlertTriangle size={11} /> Partial payment is not accepted. Full amount required.
-        </p>
       </div>
 
       {/* Mode */}
@@ -554,7 +539,8 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   }
   const taxableAmount = baseAmount - discountAmount
   const gstRate       = selectedPlan?.gstRate ?? 18
-  const entityState   = getCompanyEntity(1)?.state ?? getCompanyEntity(1)?.gstin?.slice(0, 2) ?? '27'
+  const _custEntity   = getActiveCompanyEntities().find(e => e.name === selectedCustomer?.ownership?.entity) ?? getCompanyEntity(1)
+  const entityState   = getEntityState(_custEntity)
   const customerState = selectedCustomer?.address?.installState ?? selectedCustomer?.address?.billingState ?? entityState
   const { cgst, sgst, igst, total: totalAmount } = computeGst(taxableAmount, gstRate, entityState, customerState)
 
@@ -600,7 +586,7 @@ function CreateInvoiceModal({ onClose, onCreated }) {
 
     const inv = addInvoice({
       customerId:    selectedCustomer.id,
-      entityId:      1,
+      entityId:      _custEntity?.id ?? 1,
       customerName:  selectedCustomer.name,
       phone:         selectedCustomer.phone || '',
       email:         selectedCustomer.email || '',

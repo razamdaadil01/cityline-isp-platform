@@ -38,7 +38,7 @@ import {
 import {
   getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
 } from '../data/invoicesStore'
-import { getPaymentsForCustomer, subscribePayments, addPayment, nextReceiptNo } from '../data/paymentsStore'
+import { getPaymentsForCustomer, subscribePayments, recordPayment } from '../data/paymentsStore'
 import { getPlans } from '../data/packagesStore'
 import { getTr069DeviceByCustomerId } from '../data/tr069Store'
 import {
@@ -1944,7 +1944,7 @@ function FinanceTab({ customer, setActivityLog }) {
               Display Failed Payments
             </label>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">₹{getOutstandingTotal().toLocaleString('en-IN')}</span></span>
+              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">₹{getOutstandingTotal(id).toLocaleString('en-IN')}</span></span>
               <button onClick={() => navigate(`/customers/${customerId}/finance/payments/add`)} className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
                 <span>+</span> Add Payment
               </button>
@@ -3805,7 +3805,7 @@ export default function CustomerDetail() {
     // customer for now — but it's live-computed instead of the hardcoded
     // 0/1200 the two source objects above carry, so it actually reflects
     // payments recorded via Add Payment (markInvoicesPaid()) on remount.
-    outstandingDues: getOutstandingTotal(),
+    outstandingDues: getOutstandingTotal(id),
   }
   const isIntercom = id.startsWith('INC')
   const tabs = isIntercom ? TABS.map(t => t === 'TR-069' ? 'Circuit Details' : t) : TABS
@@ -3925,24 +3925,13 @@ export default function CustomerDetail() {
     const today = new Date().toISOString().slice(0, 10)
     const expiry = computeExpiry(today, customer.selectedPackage ?? customer.bandwidthPackage)
     if (!credentials.advancePaymentNotRequired && credentials.amount) {
-      const dateOnly = today.split('-').reverse().join('-')
-      const timeStr = new Date().toLocaleTimeString('en-GB')
-      addPayment({
-        id: `PAY-${Date.now()}`,
+      recordPayment({
         customerId: id,
-        receiptNo: nextReceiptNo(),
-        invoiceNo: '—',
-        invoiceNos: [],
-        paymentDate: dateOnly,
-        date: `${dateOnly} ${timeStr}`,
+        amount: Number(credentials.amount),
         mode: credentials.mode,
-        total: Number(credentials.amount),
-        paid: Number(credentials.amount),
-        status: 'Complete',
-        orderNo: credentials.reference || '—',
-        chequeBCh: 0,
-        addBy: 'Admin',
-        comment: 'Activation payment',
+        txnId: credentials.reference || undefined,
+        notes: 'Activation payment',
+        source: 'activation',
       })
       logAudit({ module: 'Customers', action: 'Edit', details: `Activation payment ₹${Number(credentials.amount).toLocaleString('en-IN')} collected for customer ${id} via ${credentials.mode}` })
     }

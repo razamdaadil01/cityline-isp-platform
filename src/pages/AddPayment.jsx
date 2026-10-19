@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
-import { getOutstandingInvoices, markInvoicesPaid } from '../data/invoicesStore'
-import { addPayment, nextReceiptNo } from '../data/paymentsStore'
+import { getOutstandingInvoices } from '../data/invoicesStore'
+import { recordPayment } from '../data/paymentsStore'
 import { logAudit } from '../data/auditLogStore'
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
@@ -16,7 +16,7 @@ export default function AddPayment() {
   // Invoices are still a single shared list, not per-customer (see
   // invoicesStore.js's comment) — same pre-existing limitation as the rest
   // of Finance's mock data. This is every currently-outstanding invoice.
-  const [outstandingInvoices] = useState(() => getOutstandingInvoices())
+  const [outstandingInvoices] = useState(() => getOutstandingInvoices(customerId))
   const [selected, setSelected] = useState(() => new Set(outstandingInvoices.map(inv => inv.no)))
   const dueAmount = outstandingInvoices
     .filter(inv => selected.has(inv.no))
@@ -41,34 +41,19 @@ export default function AddPayment() {
     const amountPaid = Number(form.amount) || 0
     const selectedNos = outstandingInvoices.filter(inv => selected.has(inv.no)).map(inv => inv.no)
 
-    if (selectedNos.length > 0) markInvoicesPaid(selectedNos)
-
-    const now = new Date()
-    const dateOnly = now.toLocaleDateString('en-GB').split('/').join('-')
-    const timeStr = now.toLocaleTimeString('en-GB')
-
-    const payment = addPayment({
-      id: `PAY-${Date.now()}`,
+    const payment = recordPayment({
       customerId,
-      receiptNo: nextReceiptNo(),
-      invoiceNo: selectedNos.join(', ') || '—',
-      invoiceNos: selectedNos,
-      paymentDate: dateOnly,
-      date: `${dateOnly} ${timeStr}`,
+      amount: amountPaid,
       mode: form.mode,
-      total: amountPaid,
-      paid: amountPaid,
-      status: 'Complete',
-      orderNo: form.txn || '—',
-      chequeBCh: 0,
-      addBy: 'Admin User',
-      comment: form.comment.trim() || 'Complete',
+      invoiceNos: selectedNos.length > 0 ? selectedNos : undefined,
+      txnId: form.txn || undefined,
+      notes: form.comment.trim() || 'Complete',
     })
 
     logAudit({
       module: 'Customers',
       action: 'Edit',
-      details: `Payment of ₹${amountPaid.toLocaleString('en-IN')} recorded via ${form.mode} for customer ${customerId}${selectedNos.length ? ` — settled ${selectedNos.join(', ')}` : ''} (Receipt ${payment.receiptNo})`,
+      details: `Payment of ₹${amountPaid.toLocaleString('en-IN')} recorded via ${form.mode} for customer ${customerId}${selectedNos.length ? ` — settled ${selectedNos.join(', ')}` : ''} (Receipt ${payment?.receiptNo ?? ''})`,
     })
 
     navigate(`/customers/${customerId}/finance/payments`)

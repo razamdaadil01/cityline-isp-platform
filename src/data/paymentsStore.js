@@ -1,3 +1,6 @@
+import { getInvoices, updateInvoice } from './invoicesStore'
+import { getCustomer, updateCustomer } from './customersData'
+
 // Real payment records — Add Payment's Submit action writes here; Finance
 // tab's Payments sub-tab merges these (real, customer-specific) on top of
 // its own pre-existing MOCK_PAYMENTS seed rows. Mirrors the module-level
@@ -105,4 +108,111 @@ export function nextReceiptNo() {
   const nums = _payments.map(p => Number(p.receiptNo)).filter(Number.isFinite)
   const next = (nums.length ? Math.max(...nums) : 117644) + 1
   return String(next)
+}
+
+// Central payment path — allocates amount across oldest-outstanding invoices
+// first (or specific invoiceNos when provided). Overpayment goes to customer
+// creditBalance. Returns the created payment record.
+export function recordPayment({
+  customerId, amount, mode, invoiceNos, txnId, date, notes, source, status,
+}) {
+  const amountPaid = Number(amount) || 0
+  const payStatus = status || 'Complete'
+
+  // Only allocate when Complete (not Pending Verification)
+  const applicableNos = []
+  if (payStatus === 'Complete' && amountPaid > 0) {
+    const allInvoices = getInvoices().filter(i => i.customerId === customerId && i.status !== 'paid')
+    const targetInvoices = invoiceNos && invoiceNos.length > 0
+      ? allInvoices.filter(i => invoiceNos.includes(i.no))
+      : allInvoices.sort((a, b) => (a.issueDate || '').localeCompare(b.issueDate || ''))
+
+    let remaining = amountPaid
+    for (const inv of targetInvoices) {
+      if (remaining <= 0) break
+      const alreadyPaid = inv.amountPaid || 0
+      const invTotal = inv.totalAmount || inv.amount || 0
+      const stillDue = invTotal - alreadyPaid
+      if (stillDue <= 0) continue
+      const applying = Math.min(remaining, stillDue)
+      const newPaid = alreadyPaid + applying
+      const newStatus = newPaid >= invTotal ? 'paid' : 'partially_paid'
+      updateInvoice(inv.no, { amountPaid: newPaid, status: newStatus })
+      remaining -= applying
+      applicableNos.push(inv.no)
+    }
+
+    if (remaining > 0) {
+      const customer = getCustomer(customerId)
+      const current = customer?.creditBalance || 0
+      updateCustomer(customerId, { creditBalance: current + remaining })
+    }
+  }
+
+  const now = new Date()
+  const dateOnly = date || now.toLocaleDateString('en-GB').split('/').join('-')
+  const timeStr = now.toLocaleTimeString('en-GB')
+  const payment = {
+    id: `PAY-${Date.now()}`,
+    customerId,
+    receiptNo: nextReceiptNo(),
+    invoiceNo: applicableNos.join(', ') || (invoiceNos ? invoiceNos.join(', ') : '—'),
+    invoiceNos: applicableNos.length > 0 ? applicableNos : (invoiceNos || []),
+    paymentDate: dateOnly,
+    date: `${dateOnly} ${timeStr}`,
+    mode: mode || 'Cash',
+    total: amountPaid,
+    paid: amountPaid,
+    status: payStatus,
+    orderNo: txnId || '—',
+    chequeBCh: 0,
+    addBy: 'Admin User',
+    comment: notes || payStatus,
+    source: source || 'manual',
+  }
+  addPayment(payment)
+  return payment
+}
+
+export function verifyPayment(paymentId) {
+  const payment = _payments.find(p => p.id === paymentId)
+  if (!payment || payment.status !== 'Pending Verification') return null
+  const updated = { ...payment, status: 'Complete' }
+  _payments = _payments.map(p => p.id === paymentId ? updated : p)
+
+  // Allocate now that it's verified
+  const { customerId, total, invoiceNos: originalNos } = payment
+  const allInvoices = getInvoices().filter(i => i.customerId === customerId && i.status !== 'paid')
+  const targetInvoices = originalNos && originalNos.length > 0
+    ? allInvoices.filter(i => originalNos.includes(i.no))
+    : allInvoices.sort((a, b) => (a.issueDate || '').localeCompare(b.issueDate || ''))
+
+  let remaining = total
+  for (const inv of targetInvoices) {
+    if (remaining <= 0) break
+    const alreadyPaid = inv.amountPaid || 0
+    const invTotal = inv.totalAmount || inv.amount || 0
+    const stillDue = invTotal - alreadyPaid
+    if (stillDue <= 0) continue
+    const applying = Math.min(remaining, stillDue)
+    const newPaid = alreadyPaid + applying
+    updateInvoice(inv.no, { amountPaid: newPaid, status: newPaid >= invTotal ? 'paid' : 'partially_paid' })
+    remaining -= applying
+  }
+  if (remaining > 0) {
+    const customer = getCustomer(customerId)
+    updateCustomer(customerId, { creditBalance: (customer?.creditBalance || 0) + remaining })
+  }
+
+  notify()
+  return updated
+}
+
+export function rejectPayment(paymentId, reason) {
+  _payments = _payments.map(p =>
+    p.id === paymentId && p.status === 'Pending Verification'
+      ? { ...p, status: 'Failed', rejectReason: reason || '' }
+      : p
+  )
+  notify()
 }

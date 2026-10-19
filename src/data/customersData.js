@@ -111,9 +111,13 @@ const _PLAN_PRICE = {
 // 200 Mbps → BWP-002). Plans without a speed-matched entry keep packageId: null
 // and fall back to _PLAN_PRICE for the monthly amount.
 const _PLAN_ID = {
-  'FTTH 100Mbps': 'BWP-001',
-  'FTTB 100Mbps': 'BWP-001',
-  'FTTH 200Mbps': 'BWP-002',
+  'FTTH 40Mbps': 'BWP-007', 'FTTH 100Mbps': 'BWP-001', 'FTTH 200Mbps': 'BWP-002',
+  'FTTH 500Mbps': 'BWP-009', 'FTTH 1Gbps': 'BWP-010',
+  'FTTB 50Mbps': 'BWP-004', 'FTTB 100Mbps': 'BWP-001',
+  'Wireless 10Mbps': 'BWP-008', 'Wireless 25Mbps': 'BWP-005', 'Wireless 50Mbps': 'BWP-017',
+  'ILL 10Mbps': 'BWP-006', 'ILL 100Mbps': 'BWP-011', 'ILL 500Mbps': 'BWP-012',
+  'P2P 100Mbps': 'BWP-013', 'P2P 1Gbps': 'BWP-014', 'P2P 2Gbps': 'BWP-015',
+  'P2P 10Gbps': 'BWP-016', 'Intercom Basic': 'OTH-010',
 }
 
 function _seedSubscription(c) {
@@ -245,6 +249,8 @@ export function updateCustomer(id, patch) {
 export function getAllCustomers() {
   return [..._addedCustomers, ...CUSTOMERS].map(c => _overrides[c.id] ? { ...c, ..._overrides[c.id] } : c)
 }
+
+export function getCustomer(id) { return getAllCustomers().find(c => c.id === id) ?? null }
 
 export function nextIntercomCustomerId() {
   const year = new Date().getFullYear()

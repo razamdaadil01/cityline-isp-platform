@@ -18,7 +18,7 @@ import { getPayments, subscribePayments } from '../data/paymentsStore'
 import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../data/ticketsStore'
 import { getLeads, subscribeLeads } from '../data/leadsStore'
 import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/outagesStore'
-import { getOutstandingInvoices, getOutstandingTotal, subscribeInvoices } from '../data/invoicesStore'
+import { getOutstandingInvoicesAll, getOutstandingTotalAll, subscribeInvoices } from '../data/invoicesStore'
 import { getJazeServers, subscribeJazeServers } from '../data/jazeServerStore'
 import { exportCsv } from '../utils/csvExport'
 import { computeRevenueByMonth } from '../utils/revenueStats'
@@ -412,11 +412,11 @@ export default function Dashboard() {
   // the raw store — subscribeInvoices()'s payload is the raw invoice list,
   // so both are re-read fresh on every notification rather than derived
   // from that payload here.
-  const [outstandingInvoices, setOutstandingInvoices] = useState(getOutstandingInvoices)
-  const [outstandingTotal, setOutstandingTotal] = useState(getOutstandingTotal)
+  const [outstandingInvoices, setOutstandingInvoices] = useState(getOutstandingInvoicesAll)
+  const [outstandingTotal, setOutstandingTotal] = useState(getOutstandingTotalAll)
   useEffect(() => subscribeInvoices(() => {
-    setOutstandingInvoices(getOutstandingInvoices())
-    setOutstandingTotal(getOutstandingTotal())
+    setOutstandingInvoices(getOutstandingInvoicesAll())
+    setOutstandingTotal(getOutstandingTotalAll())
   }), [])
 
   const [jazeServers, setJazeServers] = useState(getJazeServers)
@@ -535,8 +535,8 @@ export default function Dashboard() {
     setTickets(getTickets())
     setLeads(getLeads())
     setOutages(getOutages())
-    setOutstandingInvoices(getOutstandingInvoices())
-    setOutstandingTotal(getOutstandingTotal())
+    setOutstandingInvoices(getOutstandingInvoicesAll())
+    setOutstandingTotal(getOutstandingTotalAll())
     setJazeServers(getJazeServers())
     setTimeout(() => {
       setRefreshing(false)

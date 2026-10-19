@@ -5,6 +5,7 @@ import {
   getCollections, subscribeCollections, updateCollection, getCollection,
   getTotalAmount, getTotalReceived, getTotalPending,
 } from '../data/collectionStore'
+import { recordPayment } from '../data/paymentsStore'
 
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'Cheque']
 const PAGE_SIZE = 10
@@ -476,6 +477,18 @@ export default function Collection() {
   }
 
   function handleSavePayment(id, fields) {
+    const rec = getCollection(id)
+    if (rec?.customerId) {
+      const collected = fields.paid - rec.paid
+      recordPayment({
+        customerId: rec.customerId,
+        amount: collected,
+        mode: fields.paymentMode,
+        notes: fields.remarks || 'Collection payment',
+        status: 'Pending Verification',
+        source: 'collection',
+      })
+    }
     updateCollection(id, fields)
   }
 
