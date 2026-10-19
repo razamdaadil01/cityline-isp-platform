@@ -29,6 +29,8 @@ let _companyEntities = [
     id: 1,
     name: 'Cityline Networks Pvt Ltd',
     gstin: '27AABCU9603R1ZM',
+    // State code derived from GSTIN prefix '27' = Maharashtra
+    state: 'MH',
     email: 'accounts@citylinenetworks.in',
     address: '404, Skyline Tower, Andheri West, Mumbai - 400053, Maharashtra',
     // Plain string URL, optional — same shape as productStore.js's imageUrl.
@@ -93,6 +95,7 @@ let _companyEntities = [
     id: 2,
     name: 'Cityline Fiber Solutions LLP',
     gstin: '27AAFCC5678E1ZS',
+    state: 'MH',
     email: 'billing@citylinefiber.in',
     address: '12, Business Bay, Bandra Kurla Complex, Mumbai - 400051, Maharashtra',
     logoUrl: '',

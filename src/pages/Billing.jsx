@@ -16,6 +16,7 @@ import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
 import { computeGst } from '../utils/customerUtils'
+import { getCompanyEntity } from '../data/companyEntities'
 
 const BILLING_MOCK_ROWS = [
   {
@@ -553,8 +554,8 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   }
   const taxableAmount = baseAmount - discountAmount
   const gstRate       = selectedPlan?.gstRate ?? 18
-  const entityState   = '27'
-  const customerState = selectedCustomer?.address?.billingState ?? '27'
+  const entityState   = getCompanyEntity(1)?.state ?? getCompanyEntity(1)?.gstin?.slice(0, 2) ?? '27'
+  const customerState = selectedCustomer?.address?.installState ?? selectedCustomer?.address?.billingState ?? entityState
   const { cgst, sgst, igst, total: totalAmount } = computeGst(taxableAmount, gstRate, entityState, customerState)
 
   const fmtAmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

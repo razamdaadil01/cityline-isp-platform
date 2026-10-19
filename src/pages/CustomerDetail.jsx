@@ -39,6 +39,7 @@ import {
   getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments, addPayment, nextReceiptNo } from '../data/paymentsStore'
+import { getPlans } from '../data/packagesStore'
 import { getTr069DeviceByCustomerId } from '../data/tr069Store'
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip as RechartTooltip,
@@ -304,37 +305,10 @@ function makeCustomerFromBase(id) {
 
 // ── Per-tab mock data ────────────────────────────────────────────────────────
 
-const PACKAGES = [
-  {
-    type: 'Broadband', icon: Wifi, iconBg: 'bg-brand-blue/10', iconColor: 'text-brand-blue',
-    plan: 'FTTH 100Mbps', speed: '100 / 100 Mbps', validity: 30, daysUsed: 22, amount: 899,
-    startDate: '01 May 2026', endDate: '31 May 2026', jazePkgId: 'JPKG-BB-100-M',
-    status: 'active',
-  },
-  {
-    type: 'Landline', icon: Phone, iconBg: 'bg-navy/10', iconColor: 'text-navy',
-    plan: 'Unlimited Local + STD', speed: '—', validity: 30, daysUsed: 22, amount: 299,
-    startDate: '01 May 2026', endDate: '31 May 2026', jazePkgId: 'JPKG-LL-UNL-M',
-    status: 'active',
-  },
-  {
-    type: 'OTT', icon: Activity, iconBg: 'bg-purple-100', iconColor: 'text-purple-700',
-    plan: 'OTT Premium (Netflix + Prime)', speed: '4K Streaming', validity: 30, daysUsed: 22, amount: 199,
-    startDate: '01 May 2026', endDate: '31 May 2026', jazePkgId: 'JPKG-OTT-PREM-M',
-    status: 'active',
-  },
-]
-
 // ── Phase 4 — Final Settlement calculation helpers ──────────────────────────
-// PACKAGES above has no real per-customer plan-amount concept (it's the
-// same static mock for every customer, like the rest of Package Details) —
-// its Broadband entry's `amount` is the closest thing to "the plan's
-// monthly amount" this app has, so it's used as the pro-rata base per the
-// task's own fallback ("simple day-based proration... as a reasonable
-// default") rather than inventing a new one.
 function computeProRataCharge(customer, today = new Date()) {
   const sub = getCustomerSubscription(customer)
-  const monthlyAmount = sub?.price ?? PACKAGES.find(p => p.type === 'Broadband')?.amount ?? 0
+  const monthlyAmount = sub?.price ?? 0
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
   const dayOfMonth = today.getDate()
   return Math.round((monthlyAmount / daysInMonth) * dayOfMonth * 100) / 100
@@ -1272,14 +1246,26 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
 
 // ── Tab: Package Details ─────────────────────────────────────────────────────
 
-const SERVICE_PACKAGES = {
-  Broadband:    [{ label: 'FTTH 100Mbps', amount: 899 }, { label: 'FTTH 200Mbps', amount: 1299 }, { label: 'FTTH 500Mbps', amount: 1799 }, { label: 'Wireless 25Mbps', amount: 499 }],
-  Landline:     [{ label: 'Unlimited Local + STD', amount: 299 }, { label: 'Local Only', amount: 149 }, { label: 'Premium Voice Bundle', amount: 399 }],
-  OTT:          [{ label: 'OTT Premium (Netflix + Prime)', amount: 199 }, { label: 'Basic OTT', amount: 99 }, { label: 'Sports Pack', amount: 149 }],
-  ILL:          [{ label: 'ILL 10Mbps', amount: 4999 }, { label: 'ILL 50Mbps', amount: 9999 }, { label: 'ILL 100Mbps', amount: 14999 }],
-  Intercom:     [{ label: 'Intercom Basic', amount: 199 }, { label: 'Intercom Unlimited', amount: 349 }],
-  'Business BB':[{ label: 'Business 100Mbps', amount: 1499 }, { label: 'Business 200Mbps', amount: 2499 }, { label: 'Business 500Mbps', amount: 3999 }],
+// Builds Add Service modal options from packagesStore + static fallback lists.
+// Bandwidth plans in packagesStore drive Broadband/ILL; Landline/OTT/Intercom
+// are static because those service types are not in packagesStore yet.
+function _buildServicePackages() {
+  const bwPlans = getPlans().filter(p => p.serviceType === 'Bandwidth' && p.status === 'Active')
+  const toEntry = p => ({ label: p.name, amount: p.tenures?.[0]?.price ?? p.price ?? 0, planId: p.id })
+  const resPlans = bwPlans.filter(p => p.zone !== 'Enterprise' && !/\bill\b/i.test(p.name))
+  const illPlans = bwPlans.filter(p => p.zone === 'Enterprise' || /\bill\b/i.test(p.name))
+  return {
+    Broadband: resPlans.length ? resPlans.map(toEntry)
+      : [{ label: 'FTTH 100Mbps', amount: 899 }, { label: 'FTTH 200Mbps', amount: 1499 }, { label: 'FTTH 500Mbps', amount: 3999 }, { label: 'Wireless 25Mbps', amount: 499 }],
+    Landline:  [{ label: 'Unlimited Local + STD', amount: 299 }, { label: 'Local Only', amount: 149 }, { label: 'Premium Voice Bundle', amount: 399 }],
+    OTT:       [{ label: 'OTT Premium (Netflix + Prime)', amount: 199 }, { label: 'Basic OTT', amount: 99 }, { label: 'Sports Pack', amount: 149 }],
+    ILL: illPlans.length ? illPlans.map(toEntry)
+      : [{ label: 'ILL 10Mbps', amount: 4999 }, { label: 'ILL 50Mbps', amount: 9999 }, { label: 'ILL 100Mbps', amount: 14999 }],
+    Intercom:     [{ label: 'Intercom Basic', amount: 199 }, { label: 'Intercom Unlimited', amount: 349 }],
+    'Business BB': [{ label: 'Business 100Mbps', amount: 1499 }, { label: 'Business 200Mbps', amount: 2499 }, { label: 'Business 500Mbps', amount: 3999 }],
+  }
 }
+const SERVICE_PACKAGES = _buildServicePackages()
 
 const SERVICE_ICONS = { Broadband: Wifi, Landline: Phone, OTT: Activity, ILL: Activity, Intercom: Phone, 'Business BB': Wifi }
 const SERVICE_STYLES = {
@@ -1297,14 +1283,10 @@ const EMPTY_SVC_FORM = { serviceType: 'Broadband', packageLabel: '', amount: '',
 
 function PackagesTab({ customer }) {
   const [view, setView] = useState('table')
-  // Falls back to the shared PACKAGES mock for seed customers that have never
-  // had a real service added. For converted customers (sourceLeadId set),
-  // starts with an empty list so pre-activation package info shows instead.
-  // customer.packages stays null until handleAddService() below persists a
-  // genuine per-customer list via updateCustomer().
-  const [packages, setPackages] = useState(
-    customer.packages ?? (customer.sourceLeadId ? [] : PACKAGES)
-  )
+  // customer.packages is null until handleAddService() persists a real per-customer list.
+  // Pre-activation info (selectedPackage/bandwidthPackage) is shown in a separate
+  // section below for converted leads awaiting activation.
+  const [packages, setPackages] = useState(customer.packages ?? [])
   const [pkgMenu, setPkgMenu] = useState(null)
   const pkgMenuRef = useRef(null)
   const [showAddModal, setShowAddModal] = useState(false)
