@@ -1,4 +1,4 @@
---- flow2 run 2026-10-20T06:27:24.755Z ---
+--- flow2 run 2026-10-20T06:54:34.398Z ---
 [step01] activationFee set to 500
 [FINDING-02] PackageAdd handleSubmit stub: package not saved
 [step03] customerId3=RES-2026-0031
@@ -15,29 +15,8 @@
 [FINDING-05] Invoice not partially_paid after AddPayment in step05; invoice was already Paid from step04 (activation payment exceeded invoice total) → ₹300 goes to creditBalance
 [step06] totalInvoice=590 alreadyPaid=1300 remaining=0 extraCredit=400
 [FINDING-06] Payments PendingTab excludes partially_paid invoices (only shows status=pending)
+[step06] paidVisible=true
 [step06] credit notice: Extra ₹400.00 will be added to customer credit
-[pageerror] id is not defined
-[pageerror] id is not defined
-[console.error] The above error occurred in the <FinanceTab> component:
-
-    at FinanceTab (http://localhost:5173/src/pages/CustomerDetail.jsx:3947:23)
-    at div
-    at div
-    at div
-    at CustomerDetail (http://localhost:5173/src/pages/CustomerDetail.jsx:8788:36)
-    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7f601a31:4131:5)
-    at Outlet (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7f601a31:4537:26)
-    at main
-    at div
-    at div
-    at Layout (http://localhost:5173/src/components/layout/Layout.jsx:26:37)
-    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7f601a31:4131:5)
-    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7f601a31:4601:5)
-    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7f601a31:4544:15)
-    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=7f601a31:5290:5)
-    at App
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-[pageerror] id is not defined
-[step06] "Paid" badge not visible on Finance Invoices tab; Finance tab may not have navigated to Invoices sub-tab correctly
+[FINDING-06b] NOT submitting overpayment: CustomerDetail.jsx:2130 `getOutstandingTotal(id)` uses bare `id` instead of `customerId` (aliased from useParams at line 1821). Submit → /finance/payments → ReferenceError → React unmounts all → nav click hangs → 5-min timeout.
+[step06] creditBalance block: Outstanding₹0Credit Balance₹0Total Paid₹1,000
+[step07] customer selected

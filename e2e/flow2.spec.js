@@ -744,6 +744,13 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
     const toastVisible = await toast.count() > 0
     if (toastVisible) await expect(toast.first()).toBeVisible({ timeout: 3000 })
 
+    // Close modal if still open — modal backdrop blocks subsequent nav clicks
+    // (backdrop: 'absolute inset-0 bg-black/40 backdrop-blur-sm' covers sidebar nav)
+    await page.locator('button:has-text("Close"), button:has-text("Done"), button:has-text("OK")').first()
+      .click({ timeout: 3000 }).catch(() => {})
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(400)
+
     // Verify credit was applied: navigate to customer Finance → Invoices, find newest invoice
     await spaNavigate(page, `/customers/${state.customerId3}/finance`)
     const invoicesBtn = page.locator('button:has-text("Invoices")')
@@ -795,6 +802,12 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
     await page.locator('button:has-text("Save")').click()
     await page.waitForTimeout(500)
     await shot(page, 8, '08d-after-save')
+
+    // Close modal if still open (backdrop blocks nav clicks)
+    await page.locator('button:has-text("Close"), button:has-text("Done"), button:has-text("OK")').first()
+      .click({ timeout: 3000 }).catch(() => {})
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(400)
 
     // Navigate to Payments page to find the new Pending Verification payment
     await spaNavigate(page, '/payments')
