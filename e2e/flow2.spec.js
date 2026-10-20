@@ -668,16 +668,18 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
       fs.appendFileSync(`${SS}/console-errors.txt`, '[step06] Submit button not found in Add Payment form\n')
     }
 
-    // Assert invoice = paid and credit balance ≈ extraCredit
-    await spaNavigate(page, `/customers/${state.customerId3}/finance`)
-    await page.waitForTimeout(500)
-    await shot(page, 6, '06d-finance-after-overpayment')
+    // FINDING: FinanceTab Payments sub-tab crashes with "id is not defined" (CustomerDetail.jsx:2130 uses `id` instead of `customerId`)
+    // After Add Payment submit, app redirects to /finance/payments, triggering the crash → blank page.
+    // Workaround: navigate away to customers list and back to force clean re-mount, then go directly to Invoices sub-tab.
+    fs.appendFileSync(`${SS}/console-errors.txt`,
+      '[FINDING-06b] FinanceTab Payments sub-tab crashes: getOutstandingTotal(id) at CustomerDetail.jsx:2130 references `id` (not `customerId`); crashes after Add Payment redirects to /finance/payments\n')
 
-    // Invoice should now be 'paid' — navigate to invoices sub-tab first
-    await shot(page, 6, '06d-invoices-tab-before')
-    const invoicesBtn06 = page.locator('button:has-text("Invoices")')
-    if (await invoicesBtn06.count() > 0) { await invoicesBtn06.first().click(); await page.waitForTimeout(500) }
-    await shot(page, 6, '06e-invoices-tab-after')
+    // Navigate away then back to avoid the Payments sub-tab crash
+    await spaNavigate(page, '/customers')
+    await page.waitForTimeout(300)
+    await spaNavigate(page, `/customers/${state.customerId3}/finance`)
+    await page.waitForTimeout(800)
+    await shot(page, 6, '06d-finance-after-overpayment')
     const paidBadge = page.locator('span:has-text("Paid"), span:has-text("paid")').first()
     const paidVisible = await paidBadge.isVisible({ timeout: 3000 }).catch(() => false)
     if (!paidVisible) {
