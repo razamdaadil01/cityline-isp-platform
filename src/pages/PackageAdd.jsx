@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { FormField, Input, Select } from '../components/ui/FormInputs'
+import { savePlan } from '../data/packagesStore'
+import { logAudit } from '../data/auditLogStore'
 
 const BANDWIDTHS = ['50 Mbps', '100 Mbps', '150 Mbps', '200 Mbps', '300 Mbps', '500 Mbps', '1 Gbps']
 const TENURES = ['1 Month', '3 Months', '6 Months', '1 Year', '12+1', '12+2']
@@ -73,6 +75,30 @@ export default function PackageAdd() {
   )
 
   function handleSubmit() {
+    const tenures = planType === 'Bandwidth'
+      ? bwRows.map(r => ({ tenure: r.tenure, price: Number(r.price), bandwidth: r.bandwidth, jazeId: r.jazeId, ott: r.ott }))
+      : [{ tenure: billingType, price: Number(price) }]
+
+    const plan = {
+      name: pkgName.trim(),
+      type: planType === 'Bandwidth' ? 'Bandwidth' : 'Other',
+      zone,
+      tenures,
+      price: planType === 'Bandwidth' ? Number(bwRows[0]?.price || 0) : Number(price),
+      rows: planType === 'Bandwidth' ? bwRows.map(r => ({ ...r })) : undefined,
+      bindBw,
+      bindPackage: bindPkg || null,
+      separateInvoice,
+      editable,
+      landline,
+      offer,
+      status: active ? 'Active' : 'Inactive',
+      gstRate,
+      hsnSac,
+    }
+
+    savePlan(plan)
+    logAudit({ action: 'Package Created', module: 'Packages', details: `Plan "${plan.name}" created` })
     navigate('/packages')
   }
 

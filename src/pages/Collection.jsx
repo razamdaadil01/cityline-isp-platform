@@ -412,9 +412,11 @@ export default function Collection() {
   const [searchParams, setSearchParams] = useSearchParams()
   const modalParam = searchParams.get('modal')
   const idParam    = searchParams.get('id')
-  const modal = modalParam === 'record-payment' && idParam
+  const urlModal = modalParam === 'record-payment' && idParam
     ? (getCollection(idParam) ?? null)
     : null
+  const [modalRecord, setModalRecord] = useState(null)
+  const modal = urlModal ?? modalRecord
 
   const [tab,        setTab]        = useState('all')     // 'all' | 'paid' | 'pending'
   const [search,     setSearch]     = useState('')
@@ -426,6 +428,7 @@ export default function Collection() {
   const [perPage,    setPerPage]    = useState(10)
 
   function openModal(record) {
+    setModalRecord(record)
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.set('modal', 'record-payment')
@@ -435,6 +438,7 @@ export default function Collection() {
   }
 
   function closeModal() {
+    setModalRecord(null)
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.delete('modal')

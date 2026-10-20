@@ -280,5 +280,6 @@ let _plans = [...MOCK_PLANS]
 const _subs = new Set()
 export function getPlans() { return _plans }
 export function savePlan(plan) { _plans = [{ ...plan, id: plan.id || `PKG-${Date.now()}` }, ..._plans]; _subs.forEach(fn => fn()) }
+export function updatePlan(plan) { _plans = _plans.map(p => p.id === plan.id ? { ...p, ...plan } : p); _subs.forEach(fn => fn()) }
 export function updatePlanStatus(id, status) { _plans = _plans.map(p => p.id === id ? { ...p, status } : p); _subs.forEach(fn => fn()) }
 export function subscribePlans(fn) { _subs.add(fn); return () => _subs.delete(fn) }

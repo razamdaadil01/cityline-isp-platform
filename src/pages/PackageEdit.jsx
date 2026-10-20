@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Wifi, Package, CheckCircle, Plus, Trash2 } from 'lucide-react'
-import { MOCK_BANDWIDTHS, MOCK_TENURES, MOCK_OTT, MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES } from '../data/packagesStore'
+import { MOCK_BANDWIDTHS, MOCK_TENURES, MOCK_OTT, MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES, updatePlan, getPlans } from '../data/packagesStore'
+import { logAudit } from '../data/auditLogStore'
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
 
@@ -20,7 +21,35 @@ export default function PackageEdit() {
   const { packageId } = useParams()
   const navigate = useNavigate()
 
-  const pkg = [...MOCK_BW_PACKAGES, ...MOCK_OTHER_PACKAGES].find(p => p.id === packageId)
+  const pkg = getPlans().find(p => p.id === packageId) || [...MOCK_BW_PACKAGES, ...MOCK_OTHER_PACKAGES].find(p => p.id === packageId)
+
+  const isBw = pkg?.type === 'Bandwidth'
+  const EMPTY_ROW = { bandwidth: '', jazeId: '', tenure: '', price: '', ott: 'None' }
+
+  const [step, setStep] = useState(0)
+  const [toast, setToast] = useState(false)
+
+  // Step 1
+  const [zone, setZone] = useState(pkg?.zone || '')
+  const [pkgType, setPkgType] = useState(pkg?.type || '')
+  const [pkgName, setPkgName] = useState(pkg?.name || '')
+
+  // Step 2 — bandwidth
+  const [bwRows, setBwRows] = useState(isBw && pkg?.rows?.length ? pkg.rows.map(r => ({ ...r })) : [{ ...EMPTY_ROW }])
+
+  // Step 2 — other
+  const [bound, setBound] = useState(!!(pkg?.bindPackage))
+  const [bindPkg, setBindPkg] = useState(pkg?.bindPackage || '')
+  const [othPrice, setOthPrice] = useState(pkg?.price ? String(pkg.price) : '')
+  const [separateInvoice, setSeparateInvoice] = useState(pkg?.separateInvoice || false)
+
+  // Step 3
+  const [editable, setEditable] = useState(pkg?.editable || false)
+  const [landline, setLandline] = useState(pkg?.landline || false)
+  const [offer, setOffer] = useState(pkg?.offer || false)
+  const [active, setActive] = useState(pkg?.status === 'Active')
+  const [gstRate, setGstRate] = useState(pkg?.gstRate ?? 18)
+  const [hsnSac, setHsnSac] = useState(pkg?.hsnSac ?? '998422')
 
   if (!pkg) {
     return (
@@ -30,34 +59,6 @@ export default function PackageEdit() {
       </div>
     )
   }
-
-  const isBw = pkg.type === 'Bandwidth'
-  const EMPTY_ROW = { bandwidth: '', jazeId: '', tenure: '', price: '', ott: 'None' }
-
-  const [step, setStep] = useState(0)
-  const [toast, setToast] = useState(false)
-
-  // Step 1
-  const [zone, setZone] = useState(pkg.zone || '')
-  const [pkgType, setPkgType] = useState(pkg.type || '')
-  const [pkgName, setPkgName] = useState(pkg.name || '')
-
-  // Step 2 — bandwidth
-  const [bwRows, setBwRows] = useState(isBw && pkg.rows?.length ? pkg.rows.map(r => ({ ...r })) : [{ ...EMPTY_ROW }])
-
-  // Step 2 — other
-  const [bound, setBound] = useState(!!(pkg.bindPackage))
-  const [bindPkg, setBindPkg] = useState(pkg.bindPackage || '')
-  const [othPrice, setOthPrice] = useState(pkg.price ? String(pkg.price) : '')
-  const [separateInvoice, setSeparateInvoice] = useState(pkg.separateInvoice || false)
-
-  // Step 3
-  const [editable, setEditable] = useState(pkg.editable || false)
-  const [landline, setLandline] = useState(pkg.landline || false)
-  const [offer, setOffer] = useState(pkg.offer || false)
-  const [active, setActive] = useState(pkg.status === 'Active')
-  const [gstRate, setGstRate] = useState(pkg.gstRate ?? 18)
-  const [hsnSac, setHsnSac] = useState(pkg.hsnSac ?? '998422')
 
   const step1Valid = zone && pkgType && pkgName.trim()
   const step2Valid = pkgType === 'Bandwidth'
@@ -69,6 +70,28 @@ export default function PackageEdit() {
   const updateRow = (i, field, val) => setBwRows(r => r.map((row, idx) => idx === i ? { ...row, [field]: val } : row))
 
   const handleSave = () => {
+    const tenures = pkgType === 'Bandwidth'
+      ? bwRows.map(r => ({ tenure: r.tenure, price: Number(r.price), bandwidth: r.bandwidth, jazeId: r.jazeId, ott: r.ott }))
+      : [{ tenure: 'Monthly', price: Number(othPrice) }]
+
+    updatePlan({
+      id: packageId,
+      name: pkgName.trim(),
+      type: pkgType,
+      zone,
+      tenures,
+      price: pkgType === 'Bandwidth' ? Number(bwRows[0]?.price || 0) : Number(othPrice),
+      rows: pkgType === 'Bandwidth' ? bwRows.map(r => ({ ...r })) : undefined,
+      bindPackage: bound ? bindPkg : null,
+      separateInvoice,
+      editable,
+      landline,
+      offer,
+      status: active ? 'Active' : 'Inactive',
+      gstRate,
+      hsnSac,
+    })
+    logAudit({ action: 'Package Updated', module: 'Packages', details: `Plan "${pkgName}" updated` })
     setToast(true)
     setTimeout(() => { navigate(`/packages/${packageId}`) }, 1500)
   }

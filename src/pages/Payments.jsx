@@ -421,7 +421,7 @@ function PendingTab({ onRecordPayment }) {
   const [overdueOnly, setOverdueOnly] = useState(false)
 
   const pending = useMemo(() => {
-    let rows = invoices.filter(i => i.status === 'pending')
+    let rows = invoices.filter(i => i.status === 'pending' || i.status === 'partially_paid')
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       rows = rows.filter(i => (i.no || '').toLowerCase().includes(q) || (i.customerName || '').toLowerCase().includes(q))
@@ -430,7 +430,11 @@ function PendingTab({ onRecordPayment }) {
     return rows
   }, [invoices, search, overdueOnly])
 
-  const pendingTotal = pending.reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
+  const pendingTotal = pending.reduce((s, i) => {
+    const paid = i.amountPaid || 0
+    const total = i.totalAmount || i.amount || 0
+    return s + Math.max(0, total - paid)
+  }, 0)
 
   return (
     <div className="space-y-4">
@@ -455,7 +459,7 @@ function PendingTab({ onRecordPayment }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                {['Invoice No', 'Customer', 'Package', 'Issue Date', 'Due Date', 'Amount', 'Days Overdue', 'Actions'].map(h => (
+                {['Invoice No', 'Customer', 'Package', 'Issue Date', 'Due Date', 'Amount', 'Paid', 'Balance', 'Days Overdue', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -463,16 +467,26 @@ function PendingTab({ onRecordPayment }) {
             <tbody className="divide-y divide-gray-100">
               {pending.map(inv => {
                 const days = daysSince(inv.dueDate)
+                const total = inv.totalAmount || inv.amount || 0
+                const paid  = inv.amountPaid || 0
+                const balance = Math.max(0, total - paid)
                 return (
                   <tr key={inv.no} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-[#0A8DCD] font-semibold whitespace-nowrap">{inv.no}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-[#0A8DCD] font-semibold whitespace-nowrap">
+                      {inv.no}
+                      {inv.status === 'partially_paid' && (
+                        <span className="ml-1.5 px-1 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-medium">partial</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{inv.customerName || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-600">{inv.pkg || inv.packageName || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{inv.date || inv.issueDate || '—'}</td>
                     <td className="px-4 py-3 text-xs whitespace-nowrap">
                       <span className={days ? 'text-red-600 font-semibold' : 'text-gray-600'}>{inv.dueDate || '—'}</span>
                     </td>
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{(inv.totalAmount || inv.amount || 0).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{total.toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-xs text-green-700 whitespace-nowrap">{paid > 0 ? `₹${paid.toLocaleString('en-IN')}` : '—'}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-red-600 whitespace-nowrap">₹{balance.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-xs whitespace-nowrap">
                       {days ? <span className="text-red-600 font-semibold">{days} days</span> : <span className="text-gray-400">—</span>}
                     </td>
