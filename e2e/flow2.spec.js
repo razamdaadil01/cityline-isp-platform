@@ -401,9 +401,9 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
     const insTrig = page.locator('tr').filter({ hasText: insId3 }).first().locator('td:last-child button')
     await insTrig.scrollIntoViewIfNeeded(); await insTrig.click()
     await waitForPortalMenu(page)
-    await page.locator('button:has-text("Mark Completed")').click()
+    await page.locator('button:has-text("Mark Completed")').first().click()
     await expect(page.locator('h2:has-text("Mark as Completed")')).toBeVisible({ timeout: 5000 })
-    await page.locator('button:has-text("Confirm")').last().click()
+    await page.locator('button:has-text("Mark Completed")').last().click()
     await expect(page.locator('text=Installation completed')).toBeVisible({ timeout: 8000 })
 
     // Go to Customer
