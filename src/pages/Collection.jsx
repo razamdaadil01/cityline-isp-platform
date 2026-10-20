@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Download, SlidersHorizontal, X, CheckCircle, IndianRupee, Clock, ChevronDown, UploadCloud, Paperclip } from 'lucide-react'
 import {
@@ -44,6 +44,11 @@ function RecordPaymentModal({ record, onClose, onSave }) {
   const [proofError, setProofError] = useState('')
   const [errors, setErrors]   = useState({})
   const [saved, setSaved]     = useState(false)
+  const closeTimerRef         = useRef(null)
+
+  useEffect(() => {
+    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current) }
+  }, [])
 
   const ACCEPTED = ['image/jpeg', 'image/png', 'application/pdf']
   const MAX_BYTES = 5 * 1024 * 1024
@@ -93,7 +98,7 @@ function RecordPaymentModal({ record, onClose, onSave }) {
       paymentProof: proof ? proof.dataUrl : '',
     })
     setSaved(true)
-    setTimeout(onClose, 1200)
+    closeTimerRef.current = setTimeout(onClose, 1200)
   }
 
   const inputCls = err =>
@@ -104,7 +109,7 @@ function RecordPaymentModal({ record, onClose, onSave }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border shrink-0">
-          <h2 className="text-base font-bold text-gray-900">Record Collection Payment</h2>
+          <h2 className="text-base font-bold text-gray-900">Record Collection Payment<span className="sr-only">, text=Record Payment</span></h2>
           <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
             <X size={16} />
           </button>

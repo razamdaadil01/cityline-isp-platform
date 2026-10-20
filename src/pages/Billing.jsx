@@ -20,8 +20,8 @@ import { getCompanyEntity, getActiveCompanyEntities, getEntityState } from '../d
 import { renewSubscription } from '../utils/subscriptionUtils'
 
 
-const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
-const STATUS_LABELS = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
+const STATUS_VARIANT = { paid: 'green', partially_paid: 'orange', pending: 'yellow', overdue: 'red', cancelled: 'red', refunded: 'blue' }
+const STATUS_LABELS = { paid: 'Paid', partially_paid: 'Partially Paid', pending: 'Pending', overdue: 'Overdue', cancelled: 'Cancelled', refunded: 'Refunded' }
 const MODE_VARIANT = { Cash: 'green', UPI: 'blue', NEFT: 'navy', IMPS: 'purple', Cheque: 'orange', Razorpay: 'cyan' }
 const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'IMPS', 'Cheque', 'Razorpay']
 const SERVICE_TYPES = ['All', 'FTTH', 'FTTB', 'Wireless', 'P2P', 'ILL']

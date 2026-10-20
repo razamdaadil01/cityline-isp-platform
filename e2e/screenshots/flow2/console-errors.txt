@@ -1,6 +1,20 @@
---- flow2 run 2026-10-20T17:30:31.911Z ---
+--- flow2 run 2026-10-20T19:19:08.514Z ---
 [step01] activationFee set to 500
 [step02] Sonic Flow 500 created and visible
 [step03] customerId3=RES-2026-0031
 [step04] expected: taxable=1399 igst=251.82 total=1650.82
 [step04] actual invoice total from UI: ₹1650.82 (expected ₹1650.82)
+[step05] totalInvoice=1650.82 newOutstanding=350.82
+[step06] totalInvoice=1650.82 alreadyPaid=1300 remaining=350.82 extraCredit=49.18
+[step06] credit notice: Extra ₹49.18 will be added to customer credit
+[step06] creditBalance block: Outstanding₹0Credit Balance₹0Total Paid₹1,700
+[step07] creditBalance after invoice creation: Outstanding₹0Credit Balance₹0Total Paid₹1,700
+[step08] first collection row: INS-001InstallationKaran Mehta₹999₹999—01 Sept 2026— Paid ✓
+[step08] collCustId: null
+[step08] pending-ver row: 117682RES-2026-0003—20-10-2026Cash₹500.00₹500.00Pending Verification—Admin User
+[step09] verified payment; Outstanding reduced
+[step11] success text: Renewed Successfully, text=renewed successfully
+expected expiry: 2026-12-19
+[step12] renew result: Renewed successfullyInvoice CL-INV-2026-0003 · New expiry: 2026-11-19
+expectedExpiry: 2026-11-19
+[step13] remainingDays=60 unusedValue=1798 newTotal=1768.82 creditApplied=1768.82

@@ -20,7 +20,7 @@ export default function AddPayment() {
   const [selected, setSelected] = useState(() => new Set(outstandingInvoices.map(inv => inv.no)))
   const dueAmount = outstandingInvoices
     .filter(inv => selected.has(inv.no))
-    .reduce((sum, inv) => sum + inv.amount, 0)
+    .reduce((sum, inv) => sum + Math.max(0, (inv.totalAmount || inv.amount || 0) - (inv.amountPaid || 0)), 0)
 
   const [form, setForm] = useState({ mode: 'Cash', amount: String(dueAmount), txn: '', comment: '', sms: true, fullAmount: true, proof: null })
 
@@ -32,7 +32,7 @@ export default function AddPayment() {
     else next.add(no)
     setSelected(next)
     if (form.fullAmount) {
-      const newDue = outstandingInvoices.filter(inv => next.has(inv.no)).reduce((sum, inv) => sum + inv.amount, 0)
+      const newDue = outstandingInvoices.filter(inv => next.has(inv.no)).reduce((sum, inv) => sum + Math.max(0, (inv.totalAmount || inv.amount || 0) - (inv.amountPaid || 0)), 0)
       setForm(f => ({ ...f, amount: String(newDue) }))
     }
   }

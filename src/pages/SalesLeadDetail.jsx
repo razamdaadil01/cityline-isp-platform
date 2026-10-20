@@ -64,7 +64,6 @@ const STAGE_STYLES = {
   'Proposal':              { chip: 'bg-teal-100 text-teal-700',      dot: 'bg-teal-500'    },
 }
 
-const PLANS = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
 
 function getFieldLabel(pipelines, pipelineKey, stageName, fieldId) {
   const stageId = findStageId(pipelines, pipelineKey, stageName)

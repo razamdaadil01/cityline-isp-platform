@@ -19,9 +19,12 @@ const TERMS = [
 ]
 
 const STATUS_BADGE = {
-  paid:    { label: 'Paid',    cls: 'bg-emerald-100 text-emerald-700 border border-emerald-300' },
-  pending: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 border border-amber-300' },
-  overdue: { label: 'Overdue', cls: 'bg-red-100 text-red-700 border border-red-300' },
+  paid:           { label: 'Paid',           cls: 'bg-emerald-100 text-emerald-700 border border-emerald-300' },
+  partially_paid: { label: 'Partially Paid', cls: 'bg-orange-100 text-orange-700 border border-orange-300' },
+  pending:        { label: 'Pending',        cls: 'bg-amber-100 text-amber-700 border border-amber-300' },
+  overdue:        { label: 'Overdue',        cls: 'bg-red-100 text-red-700 border border-red-300' },
+  cancelled:      { label: 'Cancelled',      cls: 'bg-red-100 text-red-700 border border-red-300' },
+  refunded:       { label: 'Refunded',       cls: 'bg-blue-100 text-blue-700 border border-blue-300' },
 }
 
 export default function InvoicePDF() {

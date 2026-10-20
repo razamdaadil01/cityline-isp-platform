@@ -20,6 +20,7 @@ import { getStageFields, getStageMeta } from '../data/stageFieldsStore'
 import { getCustomerTypes, subscribeCustomerTypes } from '../data/customerTypes'
 import { addCustomer } from '../data/customersData'
 import { buildCustomerFromLead } from '../data/leadConversion'
+import { getPlans } from '../data/packagesStore'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
@@ -164,7 +165,7 @@ const EQUIPMENT = [
   { id: 'EQ-106', name: 'Media Converter – 1Gbps',      category: 'Switch', stock: 7  },
 ]
 
-const PLANS   = ['50 Mbps Starter', '100 Mbps Home', '200 Mbps Pro', '500 Mbps Ultra']
+const PLANS   = [...new Set(getPlans().map(p => p.name))]
 const AREAS   = ['Koramangala', 'Indiranagar', 'Whitefield', 'HSR Layout', 'Electronic City', 'Marathahalli', 'BTM Layout']
 const SOURCES = ['Walk-in', 'Referral', 'Website', 'Cold Call', 'Social Media']
 

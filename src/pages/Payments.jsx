@@ -224,7 +224,7 @@ function AllPaymentsTab() {
 
   const [search, setSearch]     = useState('')
   const [filterMode, setFilterMode] = useState('All')
-  const [filterStatus, setFilterStatus] = useState('All')
+  const [filterStatus, setFilterStatus] = useState('')
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo]   = useState('')
   const [page, setPage] = useState(1)
@@ -244,7 +244,7 @@ function AllPaymentsTab() {
       )
     }
     if (filterMode !== 'All') rows = rows.filter(p => p.mode === filterMode)
-    if (filterStatus !== 'All') rows = rows.filter(p => p.status === filterStatus)
+    if (filterStatus !== '') rows = rows.filter(p => p.status === filterStatus)
     if (filterFrom) rows = rows.filter(p => {
       const d = p.paymentDate?.split('-').reverse().join('-')
       return d >= filterFrom
@@ -303,7 +303,7 @@ function AllPaymentsTab() {
         </select>
         <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30 text-gray-600">
-          <option value="All">All Statuses</option>
+          <option value="">All Statuses</option>
           <option>Complete</option>
           <option>Failed</option>
           <option>Pending Verification</option>
@@ -424,7 +424,7 @@ function PendingTab({ onRecordPayment }) {
     let rows = invoices.filter(i => i.status === 'pending' || i.status === 'partially_paid')
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      rows = rows.filter(i => (i.no || '').toLowerCase().includes(q) || (i.customerName || '').toLowerCase().includes(q))
+      rows = rows.filter(i => (i.no || '').toLowerCase().includes(q) || (i.customerName || '').toLowerCase().includes(q) || (i.customerId || '').toLowerCase().includes(q))
     }
     if (overdueOnly) rows = rows.filter(i => i.dueDate && i.dueDate < today())
     return rows
@@ -478,7 +478,10 @@ function PendingTab({ onRecordPayment }) {
                         <span className="ml-1.5 px-1 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-medium">partial</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">{inv.customerName || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">
+                      <div>{inv.customerName || '—'}</div>
+                      {inv.customerId && <div className="text-gray-400 text-[10px]">{inv.customerId}</div>}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-600">{inv.pkg || inv.packageName || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{inv.date || inv.issueDate || '—'}</td>
                     <td className="px-4 py-3 text-xs whitespace-nowrap">

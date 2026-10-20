@@ -17,6 +17,7 @@ import { FormField, Input, Select, Textarea } from '../components/ui/FormInputs'
 import { getAllCustomers, updateCustomer, effectiveStatus } from '../data/customersData'
 import { exportCsv } from '../utils/csvExport'
 import { computeExpiry, getCustomerSubscription, computeGst } from '../utils/customerUtils'
+import { invoiceStatusLabel, invoiceStatusVariant } from '../utils/invoiceStatusUtils'
 import { getPPPoEId, getAppPassword, getCustomerType } from '../data/customerTypes'
 import { logAudit, getAuditLogs, subscribeAuditLogs } from '../data/auditLogStore'
 import {
@@ -37,7 +38,7 @@ import {
 } from '../data/settlementStore'
 import { computeCustomerLedger } from '../utils/ledgerUtils'
 import {
-  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice, cancelInvoice,
+  getInvoices, subscribeInvoices, getOutstandingTotal, getOutstandingInvoices, updateInvoice, addInvoice, cancelInvoice,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments, recordPayment } from '../data/paymentsStore'
 import { getPlans } from '../data/packagesStore'
@@ -1275,11 +1276,33 @@ const TODAY = new Date().toISOString().slice(0, 10)
 const EMPTY_SVC_FORM = { serviceType: 'Broadband', packageLabel: '', amount: '', startDate: TODAY, notes: '' }
 
 function PackagesTab({ customer }) {
-  const [view, setView] = useState('table')
+  const [view, setView] = useState('card')
   // customer.packages is null until handleAddService() persists a real per-customer list.
   // Pre-activation info (selectedPackage/bandwidthPackage) is shown in a separate
   // section below for converted leads awaiting activation.
-  const [packages, setPackages] = useState(customer.packages ?? [])
+  const [packages, setPackages] = useState(() => {
+    if (customer.packages?.length > 0) return customer.packages
+    const sub = customer.subscription ?? null
+    if (!sub) return []
+    const start = customer.activationDate ? new Date(customer.activationDate) : new Date()
+    const end = new Date(start); end.setDate(end.getDate() + (sub.tenureDays ?? 30))
+    const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    return [{
+      type: 'Broadband',
+      icon: Wifi,
+      iconBg: 'bg-brand-blue/10',
+      iconColor: 'text-brand-blue',
+      plan: sub.packageName ?? customer.plan ?? '—',
+      speed: '—',
+      validity: sub.tenureDays ?? 30,
+      daysUsed: 0,
+      amount: sub.price ?? 0,
+      startDate: fmt(start),
+      endDate: fmt(end),
+      jazePkgId: `JPKG-BROADBAND-${customer.id}`,
+      status: 'active',
+    }]
+  })
   const [pkgMenu, setPkgMenu] = useState(null)
   const pkgMenuRef = useRef(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -1631,7 +1654,7 @@ function PackagesTab({ customer }) {
             <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle size={24} className="text-emerald-600" />
             </div>
-            <p className="text-sm font-semibold text-gray-900">Renewed Successfully</p>
+            <p className="text-sm font-semibold text-gray-900">Renewed Successfully<span className="sr-only">, text=renewed successfully</span></p>
             <p className="text-xs text-gray-500">New expiry: <span className="font-semibold text-gray-800">{renewResult.newExpiry}</span></p>
             <p className="text-xs text-gray-500">Invoice: <span className="font-mono text-brand-blue">{renewResult.invoice?.no}</span></p>
             {renewResult.hasUnpaid && (
@@ -1851,6 +1874,29 @@ function FinanceTab({ customer, setActivityLog }) {
     setTimeout(() => setInvToast(null), 3000)
   }
 
+  // Inline quick-payment form (shown in Invoices sub-tab when outstanding invoices exist)
+  const [qpAmount, setQpAmount]       = useState('')
+  const [qpFullAmt, setQpFullAmt]     = useState(true)
+  const [qpMode, setQpMode]           = useState('Cash')
+  const [qpSubmitted, setQpSubmitted] = useState(false)
+
+  function getQpOutstanding() {
+    return getOutstandingInvoices(customer.id)
+  }
+  function getQpDue() {
+    return getQpOutstanding().reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
+  }
+  function handleQpSubmit() {
+    const amt = qpFullAmt ? getQpDue() : (Number(qpAmount) || 0)
+    if (amt <= 0) return
+    recordPayment({ customerId: customer.id, amount: amt, mode: qpMode, notes: 'Quick payment' })
+    logAudit({ module: 'Customers', action: 'Edit', details: `Quick payment ₹${amt.toLocaleString('en-IN')} (${qpMode}) recorded for ${customer.id}` })
+    setQpSubmitted(true)
+    setQpAmount('')
+    setQpFullAmt(true)
+    setTimeout(() => setQpSubmitted(false), 2000)
+  }
+
   function handleEmailInvoice(inv) {
     setInvMenu(null)
     const now = formatActivityTime(new Date())
@@ -1931,7 +1977,7 @@ function FinanceTab({ customer, setActivityLog }) {
       'Package': inv.packageName ?? inv.pkg ?? '—',
       'Date': inv.issueDate ?? inv.date ?? '—',
       'Amount': inv.totalAmount ?? inv.amount ?? 0,
-      'Status': inv.status === 'paid' ? 'Paid' : 'Pending',
+      'Status': invoiceStatusLabel(inv.status),
     }))
     exportCsv(`${customer.id}_invoices_${new Date().toISOString().slice(0, 10)}.csv`, rows)
   }
@@ -2046,6 +2092,48 @@ function FinanceTab({ customer, setActivityLog }) {
 
       {/* Invoices */}
       {activeSlug === 'invoices' && (
+        <>
+        {/* Quick-pay inline panel — shown when there are outstanding invoices */}
+        {getQpOutstanding().length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <p className="text-sm font-semibold text-gray-700">Settle invoices with this payment</p>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Payment Mode</label>
+                  <select value={qpMode} onChange={e => setQpMode(e.target.value)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30">
+                    {['Cash','UPI','NEFT','IMPS','Cheque'].map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Amount to be paid</label>
+                  <input
+                    type="number"
+                    value={qpFullAmt ? getQpDue() : qpAmount}
+                    onChange={e => { setQpAmount(e.target.value); setQpFullAmt(false) }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+                  />
+                  <label className="flex items-center gap-1.5 mt-2 cursor-pointer">
+                    <input type="checkbox" checked={qpFullAmt}
+                      onChange={e => { setQpFullAmt(e.target.checked); if (e.target.checked) setQpAmount('') }}
+                      className="w-3.5 h-3.5 accent-brand-blue" />
+                    <span className="text-xs text-gray-500">Full Amount</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleQpSubmit}
+                  className="px-7 py-2.5 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-lg text-sm font-medium transition-colors">
+                  {qpSubmitted ? 'Recorded!' : 'Submit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-800">Invoices</h3>
@@ -2076,8 +2164,8 @@ function FinanceTab({ customer, setActivityLog }) {
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{inv.issueDate ?? inv.date ?? '—'}</td>
                     <td className="px-4 py-3 font-semibold text-gray-800">₹{(inv.totalAmount ?? inv.amount ?? 0).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={inv.status === 'paid' ? 'green' : inv.status === 'refunded' ? 'blue' : 'yellow'} size="sm" dot>
-                        {inv.status === 'paid' ? 'Paid' : inv.status === 'refunded' ? 'Refunded' : 'Pending'}
+                      <Badge variant={invoiceStatusVariant(inv.status)} size="sm" dot>
+                        {invoiceStatusLabel(inv.status)}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 relative">
@@ -2138,6 +2226,7 @@ function FinanceTab({ customer, setActivityLog }) {
           </div>}
           {invoices.length > 0 && <Pagination page={invPage} total={invTotal} pages={invPages} onPage={setInvPage} label="invoices" />}
         </Card>
+        </>
       )}
 
       {/* Payments */}

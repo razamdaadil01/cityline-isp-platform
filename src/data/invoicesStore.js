@@ -16,6 +16,13 @@ import { getCustomer, updateCustomer } from './customersData'
 // cgst = sgst = taxable*0.09 rounded to 2dp; totalAmount = face value.
 // Minor rounding differences (±₹1) are expected and match the pre-existing pattern.
 let _invoices = [
+  // ── RES-2026-0008 (Sunita Joshi — FTTH 40Mbps, ₹499/mo, expired) ─────────
+  { no: 'INV-2026-1032', customerId: 'RES-2026-0008', entityId: 1, packageId: 'BWP-007',
+    customerName: 'Sunita Joshi',
+    pkg: 'FTTH 40Mbps', packageName: 'FTTH 40Mbps',
+    date: '01 Apr 2026', issueDate: '2026-04-01', dueDate: '2026-04-08',
+    lines: [{ description: 'FTTH 40Mbps', quantity: 1, unitPrice: 422.88, amount: 422.88, hsnSac: '998422' }],
+    taxableAmount: 422.88, cgst: 38.06, sgst: 38.06, igst: 0, amount: 499, totalAmount: 499, status: 'overdue' },
   // ── RES-2026-0001 (Rajan Mehta — FTTH 100Mbps, ₹999/mo) ──────────────────
   { no: 'INV-2025-0987', customerId: 'RES-2026-0001', entityId: 1, packageId: 'BWP-001',
     pkg: 'FTTH 100Mbps', packageName: 'FTTH 100Mbps',
@@ -275,6 +282,7 @@ export function addInvoice(data) {
     creditApplied = Math.min(credit, invoiceAmount)
     updateCustomer(data.customerId, { creditBalance: credit - creditApplied })
     if (creditApplied >= invoiceAmount) invoiceStatus = 'paid'
+    else if (creditApplied > 0) invoiceStatus = 'partially_paid'
   }
 
   const invoice = {

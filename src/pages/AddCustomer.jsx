@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, MapPin, Wifi, FileText, CheckCircle2, ChevronLeft, ChevronRight,
@@ -13,6 +13,7 @@ import { computeExpiry } from '../utils/customerUtils'
 import hierarchyStore from '../data/hierarchyStore'
 import { getStores } from '../data/storeStore'
 import { getActivePartners } from '../data/partners'
+import { getPlans, subscribePlans } from '../data/packagesStore'
 
 // ── Static data ──────────────────────────────────────────────────────────────
 
@@ -24,12 +25,6 @@ const STEPS = [
   { id: 5, label: 'Review', icon: CheckCircle2 },
 ]
 
-const PLANS = [
-  { id: 'p1', name: '50 Mbps Starter',  speed: '50 / 25 Mbps',   price: 499,  fup: '100 GB FUP', best: false },
-  { id: 'p2', name: '100 Mbps Home',    speed: '100 / 50 Mbps',  price: 799,  fup: '200 GB FUP', best: true  },
-  { id: 'p3', name: '200 Mbps Pro',     speed: '200 / 100 Mbps', price: 1199, fup: 'Unlimited',  best: false },
-  { id: 'p4', name: '500 Mbps Ultra',   speed: '500 / 500 Mbps', price: 1999, fup: 'Unlimited',  best: false },
-]
 
 const AREAS_MAP = {
   'Koramangala':   ['1st Block', '2nd Block', '3rd Block', '4th Block', '5th Block'],
@@ -51,7 +46,7 @@ const INIT_FORM = {
   companyName: '', gstNo: '', poNumber: '',
   area: '', subArea: '', boxNo: '', street: '', building: '', zone: '', landmark: '', pincode: '',
   storeId: '', partnerId: '',
-  planId: '', installDate: '', staticIp: false, routerModel: '',
+  planId: '', tenureIdx: 0, installDate: '', staticIp: false, routerModel: '',
   aadhaarNo: '', aadhaarVerified: false, panNo: '',
 }
 
@@ -150,6 +145,9 @@ export default function AddCustomer() {
   const [cafNo,     setCafNo]     = useState('')
   const [customerId, setCustomerId] = useState('')
 
+  const [plans, setPlans] = useState(() => getPlans().filter(p => p.status === 'Active' && p.serviceType === 'Bandwidth'))
+  useEffect(() => subscribePlans(() => setPlans(getPlans().filter(p => p.status === 'Active' && p.serviceType === 'Bandwidth'))), [])
+
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
     setErrors(e => { const n = { ...e }; delete n[field]; return n })
@@ -206,7 +204,9 @@ export default function AddCustomer() {
   }
 
   function handleSubmit() {
-    const plan = PLANS.find(p => p.id === form.planId)
+    const plan = plans.find(p => p.id === form.planId)
+    const tenures = plan?.tenures ?? []
+    const tenure = tenures[form.tenureIdx ?? 0] ?? tenures[0]
     const isCorporate = ctype === 'B2B'
     const fullName = `${form.firstName} ${form.lastName}`.trim()
     const addressLine = [form.building, form.street].filter(Boolean).join(', ') || undefined
@@ -296,6 +296,15 @@ export default function AddCustomer() {
         remark: form.poNumber ? `PO Number: ${form.poNumber}` : '',
       },
       createdOn: displayDate,
+      selectedPackage: plan ? { packageId: plan.id } : undefined,
+      subscription: plan ? {
+        packageId:   plan.id,
+        packageName: plan.name,
+        price:       tenure?.price ?? plan.price ?? 0,
+        tenureDays:  tenure?.days ?? 30,
+        gstRate:     plan.gstRate ?? 18,
+        hsnSac:      plan.hsnSac ?? '998422',
+      } : undefined,
     }
 
     addCustomer(newCustomer)
@@ -319,7 +328,7 @@ export default function AddCustomer() {
 
   // ── Success screen ──────────────────────────────────────────────────────────
   if (submitted) {
-    const plan = PLANS.find(p => p.id === form.planId)
+    const plan = plans.find(p => p.id === form.planId)
     return (
       <div className="p-6 flex justify-center">
         <div className="w-full max-w-lg mt-6 bg-white rounded-2xl shadow-card border border-surface-border p-10 text-center">
@@ -364,7 +373,7 @@ export default function AddCustomer() {
   }
 
   const subAreas    = AREAS_MAP[form.area] ?? []
-  const selectedPlan = PLANS.find(p => p.id === form.planId)
+  const selectedPlan = plans.find(p => p.id === form.planId)
   // Real stores/partners (storeStore.js/partners.js) — every customer is
   // assigned a servicing store (required, same as Area/Zone); a partner is
   // only set when this customer actually came through a reseller, so it's
@@ -682,40 +691,64 @@ export default function AddCustomer() {
                 </div>
               )}
 
+              {plans.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-6">No active bandwidth plans found. Add plans in Packages.</p>
+              )}
               <div className="grid grid-cols-2 gap-4">
-                {PLANS.map(plan => (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => set('planId', plan.id)}
-                    className={`relative text-left rounded-xl border-2 p-5 transition-all focus:outline-none ${
-                      form.planId === plan.id
-                        ? 'border-brand-blue bg-brand-blue/5 shadow-md'
-                        : 'border-surface-border bg-white hover:border-brand-blue/40 hover:shadow-sm'
-                    }`}
-                  >
-                    {plan.best && (
-                      <span className="absolute top-3 right-3 bg-brand-blue text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                        POPULAR
-                      </span>
-                    )}
-                    {form.planId === plan.id && (
-                      <div className="absolute top-3 left-3 w-5 h-5 bg-brand-blue rounded-full flex items-center justify-center">
-                        <Check size={11} className="text-white" />
+                {plans.map(plan => {
+                  const basePrice = plan.tenures?.[0]?.price ?? plan.price ?? 0
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => { set('planId', plan.id); set('tenureIdx', 0) }}
+                      className={`relative text-left rounded-xl border-2 p-5 transition-all focus:outline-none ${
+                        form.planId === plan.id
+                          ? 'border-brand-blue bg-brand-blue/5 shadow-md'
+                          : 'border-surface-border bg-white hover:border-brand-blue/40 hover:shadow-sm'
+                      }`}
+                    >
+                      {form.planId === plan.id && (
+                        <div className="absolute top-3 left-3 w-5 h-5 bg-brand-blue rounded-full flex items-center justify-center">
+                          <Check size={11} className="text-white" />
+                        </div>
+                      )}
+                      <div className={form.planId === plan.id ? 'pl-7' : ''}>
+                        <p className="font-bold text-gray-900">{plan.name}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">{plan.speed ?? '—'}</p>
+                        <div className="mt-3 flex items-end gap-1">
+                          <span className="text-2xl font-bold text-navy">₹{basePrice}</span>
+                          <span className="text-sm text-gray-500 mb-0.5">/month</span>
+                        </div>
+                        {plan.zone && <p className="text-xs text-gray-500 mt-1">{plan.zone}</p>}
                       </div>
-                    )}
-                    <div className={form.planId === plan.id ? 'pl-7' : ''}>
-                      <p className="font-bold text-gray-900">{plan.name}</p>
-                      <p className="text-sm text-gray-500 mt-0.5">{plan.speed}</p>
-                      <div className="mt-3 flex items-end gap-1">
-                        <span className="text-2xl font-bold text-navy">₹{plan.price}</span>
-                        <span className="text-sm text-gray-500 mb-0.5">/month</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{plan.fup}</p>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  )
+                })}
               </div>
+
+              {/* Tenure selector — shown only when selected plan has multiple tenures */}
+              {selectedPlan?.tenures?.length > 1 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Billing Cycle</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPlan.tenures.map((t, i) => (
+                      <button
+                        key={t.label}
+                        type="button"
+                        onClick={() => set('tenureIdx', i)}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
+                          form.tenureIdx === i
+                            ? 'border-brand-blue bg-brand-blue/5 text-brand-blue'
+                            : 'border-surface-border bg-white text-gray-600 hover:border-brand-blue/40'
+                        }`}
+                      >
+                        {t.label} — ₹{t.price}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-4 pt-1">
                 <FormField label="Installation Date" required error={errors.installDate}>
@@ -933,9 +966,9 @@ export default function AddCustomer() {
                 <ReviewBlock title="Service Plan" onEdit={() => setStep(3)}>
                   <ReviewGrid items={[
                     ['Plan',        selectedPlan.name],
-                    ['Speed',       selectedPlan.speed],
-                    ['Monthly',     `₹${selectedPlan.price + (form.staticIp ? 200 : 0)}`],
-                    ['FUP',         selectedPlan.fup],
+                    ['Speed',       selectedPlan.speed ?? '—'],
+                    ['Monthly',     `₹${(selectedPlan.tenures?.[form.tenureIdx ?? 0]?.price ?? selectedPlan.price ?? 0) + (form.staticIp ? 200 : 0)}`],
+                    ['Cycle',       selectedPlan.tenures?.[form.tenureIdx ?? 0]?.label ?? '1 Month'],
                     ['Install',     form.installDate],
                     ['Static IP',   form.staticIp ? 'Yes (+₹200/mo)' : 'No'],
                     ['Router',      form.routerModel || 'To be assigned'],
