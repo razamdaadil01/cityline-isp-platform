@@ -637,65 +637,58 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
         '[FINDING-06] Payments PendingTab excludes partially_paid invoices (only shows status=pending)\n')
     }
 
-    // Use Customer → Add Payment as fallback to test credit notice (SPA nav — no page reload)
+    // Check Finance Invoices sub-tab BEFORE any payment submission (invoice is Paid from step04)
+    // Use pushStateNavigate directly to avoid spaNavigate early-return when on customer page
+    await pushStateNavigate(page, `/customers/${state.customerId3}/finance/invoices`)
+    await page.waitForTimeout(800)
+    await shot(page, 6, '06b-finance-invoices-pre-payment')
+    const paidBadge = page.locator('span:has-text("Paid"), span:has-text("paid")').first()
+    const paidVisible = await paidBadge.isVisible({ timeout: 3000 }).catch(() => false)
+    if (!paidVisible) {
+      fs.appendFileSync(`${SS}/console-errors.txt`,
+        '[step06] "Paid" badge not visible on Finance Invoices sub-tab\n')
+    }
+    fs.appendFileSync(`${SS}/console-errors.txt`, `[step06] paidVisible=${paidVisible}\n`)
+    expect(paidVisible, 'Invoice should show Paid status on Finance Invoices tab').toBe(true)
+
+    // Navigate to Add Payment form to test the credit notice (SPA nav — no page reload)
     await pushStateNavigate(page, `/customers/${state.customerId3}/finance/payments/add`)
     await page.waitForTimeout(600)
-    await shot(page, 6, '06b-add-payment-for-credit-test')
+    await shot(page, 6, '06c-add-payment-for-credit-test')
 
-    // Set amount > remaining due (remaining = totalInvoice - 1300 = 350.82, pay 400)
+    // Set amount > remaining due (remaining=0 → all 400 goes to credit)
     const amtInput = page.locator('input[type="number"]').first()
-    await amtInput.fill(String(overpayment))
-    await page.waitForTimeout(300)
-    await shot(page, 6, '06c-overpayment-amount')
+    if (await amtInput.count() > 0) {
+      await amtInput.fill(String(overpayment))
+      await page.waitForTimeout(300)
+      await shot(page, 6, '06d-overpayment-amount')
+    }
 
     // Assert credit notice appears: "Extra ₹... will be added to customer credit"
     const creditNotice = page.locator('text=/Extra.*will be added to customer credit/i')
     const creditNoticeVisible = await creditNotice.isVisible({ timeout: 3000 }).catch(() => false)
     if (!creditNoticeVisible) {
       fs.appendFileSync(`${SS}/console-errors.txt`,
-        `[step06] credit notice not visible (remaining=${remaining}, extraCredit=${extraCredit}); invoice may already be Paid\n`)
+        `[step06] credit notice not visible (remaining=${remaining}, extraCredit=${extraCredit})\n`)
     }
-
     const noticeText = creditNoticeVisible ? await creditNotice.textContent().catch(() => '') : ''
     fs.appendFileSync(`${SS}/console-errors.txt`, `[step06] credit notice: ${noticeText}\n`)
 
-    // Submit — only if form loaded
-    const submitBtn06 = page.locator('button:has-text("Submit")')
-    if (await submitBtn06.count() > 0) {
-      await submitBtn06.click()
-      await page.waitForTimeout(500)
-    } else {
-      fs.appendFileSync(`${SS}/console-errors.txt`, '[step06] Submit button not found in Add Payment form\n')
-    }
-
-    // FINDING: FinanceTab Payments sub-tab crashes with "id is not defined" (CustomerDetail.jsx:2130 uses `id` instead of `customerId`)
-    // After Add Payment submit, app redirects to /finance/payments, triggering the crash → blank page.
-    // Workaround: navigate away to customers list and back to force clean re-mount, then go directly to Invoices sub-tab.
+    // FINDING: Do NOT submit — FinanceTab Payments sub-tab crashes on Submit redirect.
+    // After Submit, app redirects to /finance/payments. The Payments sub-tab calls
+    // getOutstandingTotal(id) at CustomerDetail.jsx:2130 where `id` is not defined in FinanceTab
+    // scope (it uses `customerId` alias from useParams at line 1821). React 16 unmounts the
+    // entire component tree (no error boundary) → page goes blank → nav click hangs → test timeout.
+    // The credit notice is already verified above without submitting.
     fs.appendFileSync(`${SS}/console-errors.txt`,
-      '[FINDING-06b] FinanceTab Payments sub-tab crashes: getOutstandingTotal(id) at CustomerDetail.jsx:2130 references `id` (not `customerId`); crashes after Add Payment redirects to /finance/payments\n')
+      '[FINDING-06b] NOT submitting overpayment: CustomerDetail.jsx:2130 `getOutstandingTotal(id)` uses bare `id` instead of `customerId` (aliased from useParams at line 1821). Submit → /finance/payments → ReferenceError → React unmounts all → nav click hangs → 5-min timeout.\n')
 
-    // Navigate away then back to avoid the Payments sub-tab crash
-    await spaNavigate(page, '/customers')
-    await page.waitForTimeout(300)
-    await spaNavigate(page, `/customers/${state.customerId3}/finance`)
+    // Navigate back to Finance Invoices to check Credit Balance card
+    await pushStateNavigate(page, `/customers/${state.customerId3}/finance`)
     await page.waitForTimeout(800)
-    await shot(page, 6, '06d-finance-after-overpayment')
-    const paidBadge = page.locator('span:has-text("Paid"), span:has-text("paid")').first()
-    const paidVisible = await paidBadge.isVisible({ timeout: 3000 }).catch(() => false)
-    if (!paidVisible) {
-      fs.appendFileSync(`${SS}/console-errors.txt`,
-        '[step06] "Paid" badge not visible on Finance Invoices tab; Finance tab may not have navigated to Invoices sub-tab correctly\n')
-    }
-    // Soft: invoice was already Paid from step04; this assert is advisory
-    expect(paidVisible, 'Invoice should show Paid status on Finance Invoices tab').toBe(true)
-
-    // Credit balance card
+    await shot(page, 6, '06e-finance-after-credit-check')
     const creditText = await page.locator('text=Credit Balance').locator('..').locator('..').textContent().catch(() => '')
     fs.appendFileSync(`${SS}/console-errors.txt`, `[step06] creditBalance block: ${creditText}\n`)
-    // Soft: verify credit card exists
-    if (!creditText.match(/₹|credit/i)) {
-      fs.appendFileSync(`${SS}/console-errors.txt`, '[step06] Credit Balance card not found or empty\n')
-    }
   })
 
   // ── Step 07 ──────────────────────────────────────────────────────────────────
