@@ -1,3 +1,6 @@
 --- flow2 run 2026-10-20T06:12:59.624Z ---
 [step01] activationFee set to 500
 [FINDING-02] PackageAdd handleSubmit stub: package not saved
+[step03] customerId3=RES-2026-0031
+[step04] expected: taxable=1399 igst=251.82 total=1650.82
+[step04] outstanding block text: 
