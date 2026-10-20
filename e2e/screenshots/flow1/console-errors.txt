@@ -1,4 +1,4 @@
---- run start 2026-10-20T16:34:08.091Z ---
+--- run start 2026-10-20T17:31:04.938Z ---
 [billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
 [lead-store-diag] {"area":"Noida","areaType":"string","state":"Uttar Pradesh","district":"Gautam Buddha Nagar","locality":"Sector 62","addressType":"object"}
 [pre-feasibility-diag] {"leadArea":"Noida","leadAreaType":"string","existingFR":"none"}
@@ -7,3 +7,18 @@
 [nav] after feasibility nav: http://localhost:5173/sales/feasibility-requests
 [body-text] 
     CitylineNetworks Pvt LtdDashboardCustomersInstallationsTechniciansApprovalsSales & LeadsFollow-upsFeasibility RequestsProposalsAnalyticsIntercomBilling & InvoicePaymentsCollectionSupport & TicketsPackagesOTTIP TVNetworkJaze ServersTR-069 / ACSFibre NetworkSite ManagerPOP ManagementInventoryProjectsResellersBandwidthReportsAudit LogUser ManagementSettingsADAdmin Useradmin@cityline.in320 Oct 2026ADAdminFeasibility RequestsLeads requiring feasibility check for unmapped or new areas6Total Reque
+[billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
+[billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
+[pre-feasibility-diag] {"leadArea":"Noida","leadAreaType":"string","existingFR":"none"}
+[post-feasibility-diag] [{"id":"FR-001","leadId":"LD-301","areaType":"string","area":"Noida"},{"id":"FR-002","leadId":"LD-302","areaType":"string","area":"Ghaziabad"},{"id":"FR-003","leadId":"LD-303","areaType":"string","area":"Bangalore"},{"id":"FR-004","leadId":"LD-304","areaType":"string","area":"Noida Extension"},{"id":"FR-005","leadId":"LD-305","areaType":"string","area":"Indirapuram"},{"id":"FR-006","leadId":"RES-LD-2026-001","areaType":"string","area":"Noida"},{"id":"FR-007","leadId":"RES-LD-2026-002","areaType":"string","area":"Noida"},{"id":"FR-008","leadId":"RES-LD-2026-003","areaType":"string","area":"Noida"}]
+[nav] before feasibility nav: http://localhost:5173/sales/leads/RES-LD-2026-003
+[nav] after feasibility nav: http://localhost:5173/sales/feasibility-requests
+[body-text] 
+    CitylineNetworks Pvt LtdDashboardCustomersInstallationsTechniciansApprovalsSales & LeadsFollow-upsFeasibility RequestsProposalsAnalyticsIntercomBilling & InvoicePaymentsCollectionSupport & TicketsPackagesOTTIP TVNetworkJaze ServersTR-069 / ACSFibre NetworkSite ManagerPOP ManagementInventoryProjectsResellersBandwidthReportsAudit LogUser ManagementSettingsADAdmin Useradmin@cityline.in320 Oct 2026ADAdminFeasibility RequestsLeads requiring feasibility check for unmapped or new areas8Total Reque
+[billing-diag] state=Uttar Pradesh district=Gautam Buddha Nagar area=Noida locality=Sector 62
+[pre-feasibility-diag] {"leadArea":"Noida","leadAreaType":"string","existingFR":"none"}
+[post-feasibility-diag] [{"id":"FR-001","leadId":"LD-301","areaType":"string","area":"Noida"},{"id":"FR-002","leadId":"LD-302","areaType":"string","area":"Ghaziabad"},{"id":"FR-003","leadId":"LD-303","areaType":"string","area":"Bangalore"},{"id":"FR-004","leadId":"LD-304","areaType":"string","area":"Noida Extension"},{"id":"FR-005","leadId":"LD-305","areaType":"string","area":"Indirapuram"},{"id":"FR-006","leadId":"RES-LD-2026-001","areaType":"string","area":"Noida"},{"id":"FR-007","leadId":"RES-LD-2026-002","areaType":"string","area":"Noida"},{"id":"FR-008","leadId":"RES-LD-2026-003","areaType":"string","area":"Noida"},{"id":"FR-009","leadId":"RES-LD-2026-004","areaType":"string","area":"Noida"}]
+[nav] before feasibility nav: http://localhost:5173/sales/leads/RES-LD-2026-004
+[nav] after feasibility nav: http://localhost:5173/sales/feasibility-requests
+[body-text] 
+    CitylineNetworks Pvt LtdDashboardCustomersInstallationsTechniciansApprovalsSales & LeadsFollow-upsFeasibility RequestsProposalsAnalyticsIntercomBilling & InvoicePaymentsCollectionSupport & TicketsPackagesOTTIP TVNetworkJaze ServersTR-069 / ACSFibre NetworkSite ManagerPOP ManagementInventoryProjectsResellersBandwidthReportsAudit LogUser ManagementSettingsADAdmin Useradmin@cityline.in320 Oct 2026ADAdminFeasibility RequestsLeads requiring feasibility check for unmapped or new areas9Total Reque
