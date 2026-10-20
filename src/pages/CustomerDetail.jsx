@@ -37,7 +37,7 @@ import {
 } from '../data/settlementStore'
 import { computeCustomerLedger } from '../utils/ledgerUtils'
 import {
-  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice,
+  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice, cancelInvoice,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments, recordPayment } from '../data/paymentsStore'
 import { getPlans } from '../data/packagesStore'
@@ -2104,6 +2104,30 @@ function FinanceTab({ customer, setActivityLog }) {
                           <button onClick={() => { setInvMenu(null); showInvToast(`Downloading PDF for ${inv.no}…`) }} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
                             <FileText size={13} className="text-gray-400" /> Download PDF
                           </button>
+                          <div className="border-t border-gray-100 mt-1 pt-1">
+                            {(inv.amountPaid || 0) > 0 ? (
+                              <div className="relative group">
+                                <button disabled className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-400 cursor-not-allowed">
+                                  <XCircle size={13} className="text-gray-300" /> Cancel Invoice
+                                </button>
+                                <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-30">
+                                  Invoice has payments — cannot cancel
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  cancelInvoice(inv.no)
+                                  logAudit({ module: 'Customers', action: 'Edit', details: `Invoice ${inv.no} cancelled for customer ${customerId}` })
+                                  setInvMenu(null)
+                                  showInvToast(`Invoice ${inv.no} cancelled.`)
+                                }}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                              >
+                                <XCircle size={13} className="text-red-500" /> Cancel Invoice
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </td>
@@ -2127,7 +2151,7 @@ function FinanceTab({ customer, setActivityLog }) {
               Display Failed Payments
             </label>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">₹{getOutstandingTotal(id).toLocaleString('en-IN')}</span></span>
+              <span className="text-sm text-gray-600 font-medium">Total Due: <span className="text-gray-800">₹{getOutstandingTotal(customerId).toLocaleString('en-IN')}</span></span>
               <button onClick={() => navigate(`/customers/${customerId}/finance/payments/add`)} className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
                 <span>+</span> Add Payment
               </button>
@@ -4106,7 +4130,25 @@ export default function CustomerDetail() {
 
   function handleActivateCustomer(credentials) {
     const today = new Date().toISOString().slice(0, 10)
-    const activatingPkg = customer.selectedPackage ?? customer.bandwidthPackage ?? null
+    const snapshotPkg = customer.selectedPackage ?? customer.bandwidthPackage ?? null
+
+    // Resolve real package from store (snapshot may have no tenures/price)
+    const allPlans = getPlans()
+    const realPkg = (snapshotPkg?.id && allPlans.find(p => p.id === snapshotPkg.id))
+      || (snapshotPkg?.name && allPlans.find(p => p.name === snapshotPkg.name))
+      || null
+    const activatingPkg = realPkg ?? snapshotPkg
+
+    // Step 2 price resolution (before payment so we can block early)
+    const tenureDays = activatingPkg?.tenures?.[0]?.days ?? 30
+    const planPrice = activatingPkg?.tenures?.[0]?.price ?? activatingPkg?.price ?? 0
+
+    if (planPrice === 0) {
+      setSmsToast('Package price not found — assign a package with pricing first.')
+      setTimeout(() => setSmsToast(null), 4000)
+      return
+    }
+
     const expiry = computeExpiry(today, activatingPkg)
 
     // Step 1: record activation payment → goes to creditBalance
@@ -4122,9 +4164,7 @@ export default function CustomerDetail() {
       logAudit({ module: 'Customers', action: 'Edit', details: `Activation payment ₹${Number(credentials.amount).toLocaleString('en-IN')} collected for customer ${id} via ${credentials.mode}` })
     }
 
-    // Step 2: create subscription invoice
-    const tenureDays = activatingPkg?.tenures?.[0]?.days ?? 30
-    const planPrice = activatingPkg?.tenures?.[0]?.price ?? activatingPkg?.price ?? 0
+    // Step 2: create subscription invoice — after payment so credit auto-applies
     const gstRate = activatingPkg?.gstRate ?? 18
     const hsnSac = activatingPkg?.hsnSac ?? '998422'
     const settings = getGeneralSettings()

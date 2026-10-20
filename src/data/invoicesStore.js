@@ -305,6 +305,11 @@ export function getPendingInvoices() {
   return _invoices.filter(i => i.status === 'pending')
 }
 
+export function cancelInvoice(no) {
+  _invoices = _invoices.map(i => i.no === no ? { ...i, status: 'cancelled' } : i)
+  notify()
+}
+
 export function getCollectedTotal() {
   return _invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
 }

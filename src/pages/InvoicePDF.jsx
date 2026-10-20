@@ -66,9 +66,13 @@ export default function InvoicePDF() {
 
   const discountAmt = inv.discountAmount || 0
   const taxable    = (inv.baseAmount || 0) - discountAmt
-  const sgst       = rawInv.sgst ?? Math.round(taxable * 0.09 * 100) / 100
-  const cgst       = rawInv.cgst ?? Math.round(taxable * 0.09 * 100) / 100
-  const grandTotal = rawInv.totalAmount || (taxable + sgst + cgst)
+  const igst       = rawInv.igst ?? 0
+  const sgst       = rawInv.sgst ?? (igst > 0 ? 0 : Math.round(taxable * 0.09 * 100) / 100)
+  const cgst       = rawInv.cgst ?? (igst > 0 ? 0 : Math.round(taxable * 0.09 * 100) / 100)
+  const grandTotal = rawInv.totalAmount || (taxable + (igst > 0 ? igst : sgst + cgst))
+  const igstRate   = taxable > 0 ? Math.round((igst / taxable) * 100 * 100) / 100 : 18
+  const sgstRate   = taxable > 0 ? Math.round((sgst / taxable) * 100 * 100) / 100 : 9
+  const cgstRate   = taxable > 0 ? Math.round((cgst / taxable) * 100 * 100) / 100 : 9
   const badge      = STATUS_BADGE[inv.status] ?? STATUS_BADGE.pending
   // showPackageNameOnInvoice controls whether the HSN Code column appears
   const entity        = getCompanyEntity(inv.companyEntityId)
@@ -208,14 +212,23 @@ export default function InvoicePDF() {
               <span className="text-gray-600">Taxable Amount</span>
               <span className="font-mono text-gray-800">₹ {fmt(taxable)}</span>
             </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">SGST (9%)</span>
-              <span className="font-mono text-gray-800">₹ {fmt(sgst)}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-gray-100">
-              <span className="text-gray-600">CGST (9%)</span>
-              <span className="font-mono text-gray-800">₹ {fmt(cgst)}</span>
-            </div>
+            {igst > 0 ? (
+              <div className="flex justify-between py-2 border-b border-gray-100">
+                <span className="text-gray-600">IGST ({igstRate}%)</span>
+                <span className="font-mono text-gray-800">₹ {fmt(igst)}</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-600">SGST ({sgstRate}%)</span>
+                  <span className="font-mono text-gray-800">₹ {fmt(sgst)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-600">CGST ({cgstRate}%)</span>
+                  <span className="font-mono text-gray-800">₹ {fmt(cgst)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between py-2.5 bg-gray-50 px-3 rounded-b-lg">
               <span className="font-bold text-gray-900">Grand Total</span>
               <span className="font-black font-mono text-gray-900">₹ {fmt(grandTotal)}</span>

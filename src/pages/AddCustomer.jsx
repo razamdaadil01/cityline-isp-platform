@@ -905,7 +905,7 @@ export default function AddCustomer() {
                   ['Email',   form.email || '—'],
                   ['DOB',     form.dob || '—'],
                   ['Gender',  form.gender || '—'],
-                  ['Type',    <Badge variant={ctype === 'B2B' ? 'navy' : 'blue'} size="sm">{ctype}</Badge>],
+                  ['Type',    <Badge key="type" variant={ctype === 'B2B' ? 'navy' : 'blue'} size="sm">{ctype}</Badge>],
                   ...(ctype === 'B2B' ? [
                     ['Company', form.companyName],
                     ['GST No',  form.gstNo || '—'],

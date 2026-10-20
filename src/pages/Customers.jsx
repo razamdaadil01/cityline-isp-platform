@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   UserPlus, Download, Filter, ChevronLeft, ChevronRight,
-  Search, X, ChevronDown, Users, Eye, Edit2,
+  Search, X, ChevronDown, Users, Eye, Edit2, RefreshCw,
 } from 'lucide-react'
 import RowActionMenu from '../components/common/RowActionMenu'
 import Button from '../components/ui/Button'
@@ -684,6 +684,14 @@ export default function Customers() {
                           >
                             <Edit2 size={13} className="text-gray-400 shrink-0" /> Edit Profile
                           </button>
+                          {effectiveStatus(c) === 'expired' && (
+                            <button
+                              onClick={() => navigate(`/customers/${c.id}/packages`)}
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-green-700 hover:bg-green-50 transition-colors"
+                            >
+                              <RefreshCw size={13} className="text-green-600 shrink-0" /> Renew Subscription
+                            </button>
+                          )}
                         </RowActionMenu>
                       </td>
                     )}

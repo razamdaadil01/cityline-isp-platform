@@ -1,0 +1,50 @@
+--- flow2 run 2026-10-20T07:37:42.037Z ---
+[step01] activationFee set to 500
+[FINDING-02] PackageAdd handleSubmit stub: package not saved
+[step03] customerId3=RES-2026-0031
+[step04] expected: taxable=1399 igst=251.82 total=1650.82
+[step04] outstanding block text: 
+[step04] actual invoice total from UI: ₹590 (expected ₹1650.82)
+[FINDING-04b] Activation invoice=₹590, expected ₹1650.82. selectedPackage from lead form has no tenures/price → planPrice=0 → invoice = activation fee only
+[FINDING-04c] partialPayment (1000) >= actualTotal (590): handleActivateCustomer records payment BEFORE addInvoice → all goes to creditBalance → addInvoice auto-applies → invoice=Paid outstanding=0
+[FINDING-04] Invoice not partially_paid; recordPayment runs before addInvoice in handleActivateCustomer → payment goes to creditBalance first, then addInvoice auto-applies credit
+[step05] totalInvoice=590 remaining=0 newOutstanding=0
+[step05] "Settle invoices" not visible — invoice from step04 is already Paid (no outstanding invoices)
+[step05] no amount input found — AddPayment form may not render without outstanding invoices
+[step05] Submit button not found — Add Payment form may not have rendered
+[FINDING-05] Invoice not partially_paid after AddPayment in step05; invoice was already Paid from step04 (activation payment exceeded invoice total) → ₹300 goes to creditBalance
+[step06] totalInvoice=590 alreadyPaid=1300 remaining=0 extraCredit=400
+[FINDING-06] Payments PendingTab excludes partially_paid invoices (only shows status=pending)
+[step06] paidVisible=true
+[step06] credit notice: Extra ₹400.00 will be added to customer credit
+[FINDING-06b] NOT submitting overpayment: CustomerDetail.jsx:2130 `getOutstandingTotal(id)` uses bare `id` instead of `customerId` (aliased from useParams at line 1821). Submit → /finance/payments → ReferenceError → React unmounts all → nav click hangs → 5-min timeout.
+[step06] creditBalance block: Outstanding₹0Credit Balance₹0Total Paid₹1,000
+[step07] customer selected
+[step07] creditBalance after invoice creation: Outstanding₹0Credit Balance₹0Total Paid₹1,000
+[step08] first collection row: INS-001InstallationKaran Mehta₹999₹999—01 Sept 2026— Paid ✓
+[step08] collCustId: null
+[FINDING-08b] Modal title not visible after clicking Record Payment
+[step08] pending-ver row: 117680RES-2026-0003—20-10-2026Cash₹500.00₹500.00Pending Verification—Admin User
+[step08] Outstanding not reduced until verification
+[step09] verified payment; Outstanding should be reduced
+[FINDING-10b] Modal title not visible in step10
+[FINDING-10d] No Pending Verification row in step10
+[FINDING-11] No "Renew" button on packages tab — subscription may not exist
+[FINDING-12] Expired customer row not visible
+[step13] remainingDays=60 unusedValue=1798 newTotal=1768.82 creditApplied=1768.82
+[FINDING-13] No "Modify" button on packages tab — subscription may not exist
+[FINDING-14] Ledger may not show all expected entries
+[step14] ledger rows: 3
+[step16] invoice rows for customerId3: 10
+[step16] No cancel button found in dropdown
+[step17] inter-state: hasIgst=false hasCgst=false
+[FINDING-17] IGST not visible in invoice detail for inter-state customer
+[step18] payment history rows: 10
+[step18] Today's Collection card: Today's Collection₹1,800
+[step19] "Payment" (payment recorded): true
+[step19] "renewed" (subscription renewed): false
+[step19] "Plan changed" (plan change): false
+[step19] "RES-2026-0031" (customerId3 in audit log): true
+[step19] audit log rows: 20
+[step20] seed ledger rows: 5
+[flow2] all 20 steps complete
