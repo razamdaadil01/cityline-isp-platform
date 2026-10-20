@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import { Edit2, ChevronRight } from 'lucide-react'
-import { MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES } from '../data/packagesStore'
+import { getRawBwPkgs, getRawOthPkgs } from '../data/packagesStore'
 
 const YN = ({ value, yesClass }) => (
   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${value ? yesClass : 'bg-gray-100 text-gray-500'}`}>
@@ -38,7 +38,7 @@ export default function PackageDetail() {
   const { packageId, tab } = useParams()
   const navigate = useNavigate()
 
-  const pkg = [...MOCK_BW_PACKAGES, ...MOCK_OTHER_PACKAGES].find(p => p.id === packageId)
+  const pkg = [...getRawBwPkgs(), ...getRawOthPkgs()].find(p => p.id === packageId)
 
   if (!pkg) {
     return (

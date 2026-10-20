@@ -17,7 +17,7 @@ import {
   getInstallations, subscribeInstallations, saveInstallation, nextInstallationId,
   FIELD_ENGINEERS, INSTALLATION_TEAMS,
 } from '../data/installationsStore'
-import { MOCK_PLANS, SERVICE_BADGE, BILLING_TYPES, MOCK_ADDONS } from '../data/packagesStore'
+import { getPlans, subscribePlans, SERVICE_BADGE, BILLING_TYPES, MOCK_ADDONS } from '../data/packagesStore'
 import { saveFollowup } from '../data/followupStore'
 import { getPipelines, subscribePipelines } from '../data/pipelineStore'
 import { getStageFields } from '../data/stageFieldsStore'
@@ -1503,7 +1503,9 @@ function EnterprisePackageCard({ plan, pkg, editPrice, customPriceVal, onToggleE
 function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
   const [search, setSearch] = useState('')
   const [filterBilling, setFilterBilling] = useState('')
+  const [plans, setPlans] = useState(getPlans)
 
+  useEffect(() => subscribePlans(() => setPlans(getPlans())), [])
   useEffect(() => {
     if (isOpen) { setSearch(''); setFilterBilling('') }
   }, [isOpen])
@@ -1512,14 +1514,14 @@ function PackageSelectModal({ isOpen, onClose, onSelect, title }) {
   // exclusively for the lead's Bandwidth Package assignment.
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return MOCK_PLANS.filter(p => {
+    return plans.filter(p => {
       if (p.status !== 'Active') return false
       if (p.serviceType !== 'Bandwidth') return false
       const matchSearch = !q || p.name.toLowerCase().includes(q)
       const matchBilling = !filterBilling || p.billingType === filterBilling
       return matchSearch && matchBilling
     })
-  }, [search, filterBilling])
+  }, [plans, search, filterBilling])
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title ?? 'Select Package'} size="xl">
@@ -1638,7 +1640,7 @@ function QuotationPreviewModal({ isOpen, onClose, lead, formData, onSend }) {
   ].filter(Boolean)
 
   const total = pkgRows.reduce((s, { pkg }) => {
-    const plan = MOCK_PLANS.find(p => p.id === pkg.packageId)
+    const plan = getPlans().find(p => p.id === pkg.packageId)
     return s + (pkg.customPrice ?? plan?.price ?? 0)
   }, 0)
 
@@ -1700,7 +1702,7 @@ function QuotationPreviewModal({ isOpen, onClose, lead, formData, onSend }) {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Package Details</p>
           <div className="divide-y divide-gray-100">
             {pkgRows.map(({ slot, pkg }) => {
-              const plan = MOCK_PLANS.find(p => p.id === pkg.packageId)
+              const plan = getPlans().find(p => p.id === pkg.packageId)
               if (!plan) return null
               const price = pkg.customPrice ?? plan.price
               return (
@@ -1826,7 +1828,7 @@ function SendQuotationModal({ isOpen, onClose, lead, onSend }) {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Package Summary</p>
               <div className="space-y-2">
                 {pkgRows.map(({ slot, pkg }) => {
-                  const plan = MOCK_PLANS.find(p => p.id === pkg.packageId)
+                  const plan = getPlans().find(p => p.id === pkg.packageId)
                   if (!plan) return null
                   const price = pkg.customPrice ?? plan.price
                   return (
@@ -2591,7 +2593,7 @@ export default function SalesLeadDetail() {
   // recomputing fresh mock data (and losing anything added) on every render.
   useEffect(() => {
     if (!lead) return
-    const plan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
+    const plan = lead.bandwidthPackage ? getPlans().find(p => p.id === lead.bandwidthPackage.packageId) : null
     setLeadPayments([
       { id: 1, receiptNo: `RC-${lead.id}-01`, invoiceNo: plan ? `ENT/26-27/${lead.id}` : '—', paymentDate: TODAY, date: `${TODAY} 11:20:00`, mode: 'Bank Transfer', total: plan?.price ?? 0, paid: plan?.price ?? 0, status: 'Complete', orderNo: `ORD-${lead.id}-01`, chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Complete' },
       { id: 2, receiptNo: `RC-${lead.id}-02`, invoiceNo: '—', paymentDate: TODAY, date: `${TODAY} 09:05:00`, mode: 'Online', total: 0, paid: 0, status: 'Pending', orderNo: '—', chequeBCh: 0, addBy: lead.assigned ?? 'Admin', comment: 'Awaiting confirmation' },
@@ -3305,7 +3307,7 @@ export default function SalesLeadDetail() {
   // commented-out "Generate Proforma Invoice" buttons below. Uncomment to re-enable.
   // function handleGeneratePi() {
   //   if (!lead.bandwidthPackage) return
-  //   const plan = MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId)
+  //   const plan = getPlans().find(p => p.id === lead.bandwidthPackage.packageId)
   //   if (!plan) return
   //
   //   const basePrice = plan.price
@@ -3987,7 +3989,7 @@ export default function SalesLeadDetail() {
                 /* Same base Active Package Details card for every customer type;
                    customerType-gated sections below add/remove pieces per type
                    (see customerType checks throughout this block). */
-                const bwPlan = lead.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null
+                const bwPlan = lead.bandwidthPackage ? getPlans().find(p => p.id === lead.bandwidthPackage.packageId) : null
                 const addons = lead.addons ?? []
                 const customerType = PIPELINE_LABEL[lead.pipeline]
                 // Same displayPrice + boundPackagesTotal formula as ResidentialPackageCard's
@@ -4614,7 +4616,7 @@ export default function SalesLeadDetail() {
         onClose={closeLeadDetailModal}
         lead={lead}
         pkg={lead?.bandwidthPackage}
-        plan={lead?.bandwidthPackage ? MOCK_PLANS.find(p => p.id === lead.bandwidthPackage.packageId) : null}
+        plan={lead?.bandwidthPackage ? getPlans().find(p => p.id === lead.bandwidthPackage.packageId) : null}
       />
       <AddPaymentModal
         isOpen={addPaymentOpen}

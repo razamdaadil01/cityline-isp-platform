@@ -277,9 +277,32 @@ export const MOCK_ADDONS = [
 ]
 
 let _plans = [...MOCK_PLANS]
+let _rawBw = [...MOCK_BW_PACKAGES]
+let _rawOth = [...MOCK_OTHER_PACKAGES]
 const _subs = new Set()
 export function getPlans() { return _plans }
-export function savePlan(plan) { _plans = [{ ...plan, id: plan.id || `PKG-${Date.now()}` }, ..._plans]; _subs.forEach(fn => fn()) }
-export function updatePlan(plan) { _plans = _plans.map(p => p.id === plan.id ? { ...p, ...plan } : p); _subs.forEach(fn => fn()) }
-export function updatePlanStatus(id, status) { _plans = _plans.map(p => p.id === id ? { ...p, status } : p); _subs.forEach(fn => fn()) }
+export function getRawBwPkgs() { return _rawBw }
+export function getRawOthPkgs() { return _rawOth }
+export function savePlan(plan) {
+  const withId = { ...plan, id: plan.id || `PKG-${Date.now()}` }
+  if ((withId.type === 'Bandwidth' || withId.serviceType === 'Bandwidth') && withId.rows) {
+    _rawBw = [withId, ..._rawBw]
+  } else if (withId.type === 'Other' || withId.serviceType === 'Other') {
+    _rawOth = [withId, ..._rawOth]
+  }
+  _plans = [withId, ..._plans]
+  _subs.forEach(fn => fn())
+}
+export function updatePlan(plan) {
+  _plans = _plans.map(p => p.id === plan.id ? { ...p, ...plan } : p)
+  _rawBw = _rawBw.map(p => p.id === plan.id ? { ...p, ...plan } : p)
+  _rawOth = _rawOth.map(p => p.id === plan.id ? { ...p, ...plan } : p)
+  _subs.forEach(fn => fn())
+}
+export function updatePlanStatus(id, status) {
+  _plans = _plans.map(p => p.id === id ? { ...p, status } : p)
+  _rawBw = _rawBw.map(p => p.id === id ? { ...p, status } : p)
+  _rawOth = _rawOth.map(p => p.id === id ? { ...p, status } : p)
+  _subs.forEach(fn => fn())
+}
 export function subscribePlans(fn) { _subs.add(fn); return () => _subs.delete(fn) }
