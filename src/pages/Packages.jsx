@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Package, CheckCircle, Wifi, Box, Plus, Search, Filter, MoreVertical, X, Info } from 'lucide-react'
 import {
-  MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES,
+  getRawBwPkgs, getRawOthPkgs, subscribePlans,
 } from '../data/packagesStore'
 import ColumnManager, { useColumnPrefs } from '../components/table/ColumnManager'
 
@@ -170,7 +170,7 @@ export default function Packages() {
   const activeTab = tabParam === 'other' ? 'Other Packages' : 'Bandwidth Packages'
 
   // Bandwidth packages state
-  const [bwPkgs, setBwPkgs] = useState(MOCK_BW_PACKAGES)
+  const [bwPkgs, setBwPkgs] = useState(getRawBwPkgs)
   const [bwSearch, setBwSearch] = useState('')
   const [bwZone, setBwZone] = useState('All')
   const [bwFilters, setBwFilters]         = useState(EMPTY_BW_FILTERS)
@@ -182,12 +182,15 @@ export default function Packages() {
   const visibleCols = new Set(tableColumns.filter(c => c.visible).map(c => c.key))
 
   // Other packages state
-  const [othPkgs, setOthPkgs] = useState(MOCK_OTHER_PACKAGES)
+  const [othPkgs, setOthPkgs] = useState(getRawOthPkgs)
   const [othSearch, setOthSearch] = useState('')
   const [othZone, setOthZone] = useState('All')
   const [othFilters, setOthFilters]       = useState(EMPTY_OTH_FILTERS)
   const [othPendingFilters, setOthPending]= useState(EMPTY_OTH_FILTERS)
   const [othDrawer, setOthDrawer]         = useState(false)
+
+  // Subscribe to packagesStore so newly saved plans appear immediately
+  useEffect(() => subscribePlans(() => { setBwPkgs(getRawBwPkgs()); setOthPkgs(getRawOthPkgs()) }), [])
 
   // Reset filters when switching tabs
   useEffect(() => {

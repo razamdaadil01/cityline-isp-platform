@@ -3732,7 +3732,7 @@ function ActivityTab({ activity }) {
 
 // ── ActivationPaymentModal ───────────────────────────────────────────────────
 
-function ActivationPaymentModal({ isOpen, onClose, customer, data, onPaymentConfirmed }) {
+function ActivationPaymentModal({ isOpen, onClose, customer, data, error, onPaymentConfirmed }) {
   const [paymentType, setPaymentType] = useState('received')
   const [form, setForm] = useState({ amount: '', mode: 'Cash', reference: '', sendVia: 'WhatsApp' })
   const [copied, setCopied] = useState(null)
@@ -3784,6 +3784,12 @@ function ActivationPaymentModal({ isOpen, onClose, customer, data, onPaymentConf
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Activate Customer Account" size="lg">
       <div className="space-y-5">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2">
+            <AlertTriangle size={15} className="text-red-500 shrink-0" />
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        )}
         <div className="bg-navy/5 border border-navy/20 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <Wifi size={13} className="text-navy" />
@@ -4096,6 +4102,7 @@ export default function CustomerDetail() {
   const [smsModalOpen, setSmsModalOpen] = useState(false)
   const [smsToast, setSmsToast] = useState(null)
   const [activationModalOpen, setActivationModalOpen] = useState(false)
+  const [activationError, setActivationError] = useState(null)
   const [activationSuccessData, setActivationSuccessData] = useState(null)
 
   const isPendingActivation = displayStatus === 'Pending Activation'
@@ -4135,6 +4142,7 @@ export default function CustomerDetail() {
     // Resolve real package from store (snapshot may have no tenures/price)
     const allPlans = getPlans()
     const realPkg = (snapshotPkg?.id && allPlans.find(p => p.id === snapshotPkg.id))
+      || (snapshotPkg?.packageId && allPlans.find(p => p.id === snapshotPkg.packageId))
       || (snapshotPkg?.name && allPlans.find(p => p.name === snapshotPkg.name))
       || null
     const activatingPkg = realPkg ?? snapshotPkg
@@ -4144,10 +4152,10 @@ export default function CustomerDetail() {
     const planPrice = activatingPkg?.tenures?.[0]?.price ?? activatingPkg?.price ?? 0
 
     if (planPrice === 0) {
-      setSmsToast('Package price not found — assign a package with pricing first.')
-      setTimeout(() => setSmsToast(null), 4000)
+      setActivationError('Package price not found — assign a package with pricing before activating.')
       return
     }
+    setActivationError(null)
 
     const expiry = computeExpiry(today, activatingPkg)
 
@@ -4717,7 +4725,7 @@ export default function CustomerDetail() {
       />
       <ActivationPaymentModal
         isOpen={activationModalOpen}
-        onClose={() => setActivationModalOpen(false)}
+        onClose={() => { setActivationModalOpen(false); setActivationError(null) }}
         customer={customer}
         data={{
           customerId: id,
@@ -4726,6 +4734,7 @@ export default function CustomerDetail() {
           pppoePassword: customer.radius?.pppoePassword ?? '—',
           appPassword: customer.radius?.appPassword ?? '—',
         }}
+        error={activationError}
         onPaymentConfirmed={handleActivateCustomer}
       />
       <ActivationSuccessModal

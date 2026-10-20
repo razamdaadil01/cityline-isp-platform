@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Wifi, Package, CheckCircle, Plus, Trash2 } from 'lucide-react'
-import { MOCK_BANDWIDTHS, MOCK_TENURES, MOCK_OTT, MOCK_BW_PACKAGES, MOCK_OTHER_PACKAGES, updatePlan, getPlans } from '../data/packagesStore'
+import { MOCK_BANDWIDTHS, MOCK_TENURES, MOCK_OTT, getRawBwPkgs, getRawOthPkgs, updatePlan } from '../data/packagesStore'
 import { logAudit } from '../data/auditLogStore'
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
@@ -21,7 +21,7 @@ export default function PackageEdit() {
   const { packageId } = useParams()
   const navigate = useNavigate()
 
-  const pkg = getPlans().find(p => p.id === packageId) || [...MOCK_BW_PACKAGES, ...MOCK_OTHER_PACKAGES].find(p => p.id === packageId)
+  const pkg = [...getRawBwPkgs(), ...getRawOthPkgs()].find(p => p.id === packageId)
 
   const isBw = pkg?.type === 'Bandwidth'
   const EMPTY_ROW = { bandwidth: '', jazeId: '', tenure: '', price: '', ott: 'None' }
@@ -250,7 +250,7 @@ export default function PackageEdit() {
                   <label className="block text-xs font-medium text-gray-500 mb-1">Bind Package *</label>
                   <select value={bindPkg} onChange={e => setBindPkg(e.target.value)} className={inp}>
                     <option value="">Select bandwidth package...</option>
-                    {MOCK_BW_PACKAGES.map(p => <option key={p.id}>{p.name}</option>)}
+                    {getRawBwPkgs().filter(p => p.status === 'Active').map(p => <option key={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>

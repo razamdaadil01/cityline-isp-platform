@@ -3,6 +3,7 @@ import { getNextCustomerId } from './customersData'
 import { getCompanyEntity } from './companyEntities'
 import { getPartner } from './partners'
 import { computeExpiry } from '../utils/customerUtils'
+import { getPlans } from './packagesStore'
 
 // Maps a Won lead's captured fields onto a new Customer record, matching the
 // section/field layout CustomerDetail.jsx actually renders (address.billing*/
@@ -17,7 +18,14 @@ export function buildCustomerFromLead(lead) {
   const installation = lead.address?.sameAsBilling ? billing : (lead.address?.installation ?? {})
   const feasibility  = getFeasibilityRequests().find(f => f.leadId === lead.id)
   const isCorporate  = lead.pipeline === 'Enterprise'
-  const pkg          = lead.selectedPackage ?? lead.bandwidthPackage ?? null
+  const pkgRef       = lead.selectedPackage ?? lead.bandwidthPackage ?? null
+  // Resolve the full plan from the store so subscription gets real price/tenures
+  const allPlans     = getPlans()
+  const resolvedPkg  = pkgRef && (
+    allPlans.find(p => p.id === (pkgRef.id ?? pkgRef.packageId)) ||
+    allPlans.find(p => p.name === pkgRef.name)
+  ) || null
+  const pkg          = resolvedPkg ?? pkgRef
 
   return {
     id: getNextCustomerId(isCorporate ? 'corporate' : 'resident'),
