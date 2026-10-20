@@ -1,0 +1,2 @@
+--- flow2 run 2026-10-20T05:56:26.620Z ---
+[step01] activationFee set to 500
