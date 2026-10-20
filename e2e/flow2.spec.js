@@ -707,10 +707,25 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
     await custSearch.fill(state.customerId3)
     await page.waitForTimeout(400)
 
-    // Select customer from dropdown
-    const custOption = page.locator(`text=${state.customerId3}`).first()
-    if (await custOption.count() > 0) await custOption.click()
+    // Select customer from dropdown — modal header may intercept clicks on dropdown items.
+    // Use keyboard nav (ArrowDown + Enter) to select without pointer interaction.
+    const custOption = page.locator(`li, [role="option"], [role="listitem"]`).filter({ hasText: state.customerId3 }).first()
+    const custOptionVisible = await custOption.isVisible({ timeout: 2000 }).catch(() => false)
+    if (custOptionVisible) {
+      await custOption.click({ timeout: 3000 }).catch(async () => {
+        // Fallback: keyboard navigation if click is intercepted
+        await custSearch.press('ArrowDown')
+        await page.waitForTimeout(150)
+        await page.keyboard.press('Enter')
+      })
+    } else {
+      // Fallback: keyboard selection
+      await custSearch.press('ArrowDown')
+      await page.waitForTimeout(150)
+      await page.keyboard.press('Enter')
+    }
     await page.waitForTimeout(300)
+    fs.appendFileSync(`${SS}/console-errors.txt`, `[step07] customer selected\n`)
 
     // Select plan
     const planSelect = page.locator('select').filter({ has: page.locator('option:has-text("Sonic")') }).first()
@@ -719,8 +734,8 @@ test.describe.serial('Flow 2: Billing Lifecycle', () => {
 
     await shot(page, 7, '07c-invoice-form-filled')
 
-    // Submit
-    await page.locator('button:has-text("Create Invoice")').click()
+    // Submit — add timeout to avoid infinite retry if button is intercepted
+    await page.locator('button:has-text("Create Invoice")').click({ timeout: 10000 })
     await page.waitForTimeout(500)
     await shot(page, 7, '07d-after-create')
 
