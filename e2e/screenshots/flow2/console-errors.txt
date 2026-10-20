@@ -1,2 +1,3 @@
---- flow2 run 2026-10-20T05:56:26.620Z ---
+--- flow2 run 2026-10-20T06:12:59.624Z ---
 [step01] activationFee set to 500
+[FINDING-02] PackageAdd handleSubmit stub: package not saved
