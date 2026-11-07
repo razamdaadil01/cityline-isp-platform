@@ -160,7 +160,10 @@ const SEED = [
   templateId: o.templateId ?? null,
   assignedAgents: o.assignedAgents ?? [], assignedAgent: o.assignedAgent ?? null,
   assignedTeams: o.assignedTeams ?? [], officeTeam: o.officeTeam ?? null,
-  affectedCustomerCount: o.affectedCustomerCount ?? affectedCustomerCountFor(o.affectedAreas),
+  // null sentinel — computed lazily on first read to avoid calling getAllCustomers()
+  // at module-load time (circular dep: customersData → customerRecoveryStore →
+  // userAssignmentStore → outagesStore → customersData causes TDZ crash).
+  affectedCustomerCount: o.affectedCustomerCount ?? null,
   resolution: o.resolution ?? null,
   createdAt: o.createdAt ?? o.startTime,
   updatedAt: o.updatedAt ?? o.startTime,
@@ -173,6 +176,13 @@ const _listeners = []
 
 function notify() { _listeners.forEach(fn => fn([..._outages])) }
 
+// Fills in affectedCustomerCount the first time an outage is read, so
+// getAllCustomers() is never called at module-load time (circular-dep guard).
+function withAffectedCount(o) {
+  if (o.affectedCustomerCount !== null) return o
+  return { ...o, affectedCustomerCount: affectedCustomerCountFor(o.affectedAreas) }
+}
+
 export function nextOutageNumber() {
   const year = new Date().getFullYear()
   const nums = _outages
@@ -183,9 +193,12 @@ export function nextOutageNumber() {
   return `OUT-${year}-${String(next).padStart(6, '0')}`
 }
 
-export function getOutages() { return [..._outages] }
+export function getOutages() { return _outages.map(withAffectedCount) }
 
-export function getOutage(id) { return _outages.find(o => o.id === id) ?? null }
+export function getOutage(id) {
+  const o = _outages.find(o => o.id === id) ?? null
+  return o ? withAffectedCount(o) : null
+}
 
 export function subscribeOutages(fn) {
   _listeners.push(fn)
