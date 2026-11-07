@@ -55,7 +55,55 @@ import { hasSettlementForCustomer } from './settlementStore'
 // partners.js records, standing in for customers who signed up through
 // that specific channel.
 const _RAW_CUSTOMERS = [
-  { id: 'RES-2026-0001', name: 'Rajan Mehta',       phone: '9876543210', plan: 'FTTH 100Mbps',    status: 'active',    zone: 'Andheri West',  area: 'Andheri',      network: 'OLT-AW-01', expiry: '2027-05-31', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved', createdOn: '25 May 2025', storeId: 'STR-002' },
+  {
+    id: 'RES-2026-0001', name: 'Rajan Mehta', phone: '9876543210', plan: 'FTTH 100Mbps',
+    status: 'active', zone: 'Andheri West', area: 'Andheri', network: 'OLT-AW-01',
+    expiry: '2027-05-31', services: ['Broadband', 'Landline', 'OTT'], cafStatus: 'Approved',
+    createdOn: '10 Jan 2023', storeId: 'STR-002',
+    altPhone: '22 2678 9012', telephone: '022-26789012', email: 'rajan.mehta@gmail.com',
+    dob: '15 Mar 1982', gender: 'Male', sonOf: 'Mohan Mehta', panCard: 'AABCM1234D',
+    customerType: 'Residential', accountManager: 'Pradeep Kumar',
+    notes: 'Customer prefers SMS reminders 3 days before renewal. Known contact - referred by CL-0892.',
+    address: {
+      area: 'Andheri', subArea: 'Lokhandwala', box: 'BOX-AW-14',
+      street: 'Four Bungalows Road', building: 'Sai Darshan CHS, Flat 302',
+      zone: 'Andheri West', olt: 'OLT-AW-02', splitter: 'SPL-14-B', port: 'Port 06',
+      billingState: 'Maharashtra', billingCity: 'Mumbai', billingPincode: '400053',
+      billingLandmark: 'Near D-Mart', billingAddress: 'Sai Darshan CHS, Flat 302, Four Bungalows Road',
+      installState: 'Maharashtra', installCity: 'Mumbai', installPincode: '400053',
+      installLandmark: 'Near D-Mart', installAddress: 'Sai Darshan CHS, Flat 302, Four Bungalows Road',
+    },
+    connection: {
+      type: 'FTTH', serverType: 'CNPL_B2C', ipacctId: '704341139412544',
+      nasInterface: 'BNG:ANDHERIWEST:166:1031',
+      url: 'https://portal.citylinenetworks.in/u/rajan_mehta_cl1001',
+      sbtNo: 'SBT-2023-0014', circuitId: 'CKT-AW-14-0302', vcNo: 'VC-AW-0301',
+      macId: 'A4:C3:F0:11:22:33', serialNo: 'ONU-AW14-20230110',
+      aEnd: 'Andheri West OLT', bEnd: 'Customer Premises', prorataBilling: 'No',
+    },
+    payment: {
+      mode: 'NEFT / Bank Transfer', billingCycle: '1st of every month',
+      installationAmount: 1000, securityDeposit: 1000, installHardware: 'ONU + Router',
+      invoiceDueDays: 7, refundTerms: '30 days after termination', refundSecurity: 'Yes',
+    },
+    radius: {
+      jazeUserId: 'rajan_mehta_cl1001', pppoeUsername: 'CL1001@cityline',
+      pppoePassword: 'Rj@1001#Pass', appPassword: 'Cit@2023#Raj',
+      nas: 'NAS-AW-01', interface: 'ge-0/0/2.0',
+      ipAddress: '10.14.22.45', macAddress: 'A4:C3:F0:11:22:33',
+    },
+    sales: {
+      executive: 'Pradeep Kumar', areaSalesManager: 'Vikram Patil',
+      billingAccountManager: 'Anita Sharma', installationBy: 'Suresh Babu',
+      registrationDate: '10-01-2023 10:35 AM', dueDays: 1, leadSource: 'Referral',
+      remark: 'Customer referred by existing subscriber CL-0892. Prefers SMS reminders.',
+    },
+    kyc: {
+      idProofType: 'Aadhaar Card', addressProofType: 'Utility Bill',
+      signatureUploaded: true, docVerified: true,
+      docComment: 'All documents verified on 12-01-2023 by Admin.',
+    },
+  },
   { id: 'RES-2026-0002', name: 'Priya Sharma',       phone: '9812345678', plan: 'FTTB 50Mbps',     status: 'active',    zone: 'Bandra East',   area: 'Bandra',       network: 'OLT-BE-02', expiry: '2026-09-20', services: ['Broadband'], cafStatus: 'Rejected', createdOn: '15 Nov 2024', storeId: 'STR-003' },
   { id: 'RES-2026-0003', name: 'Suresh Kumar',       phone: '9988776655', plan: 'Wireless 25Mbps', status: 'suspended', zone: 'Goregaon',      area: 'Goregaon',     network: 'OLT-GG-01', expiry: '2026-04-15', services: ['Broadband', 'Intercom'], cafStatus: 'Approved', createdOn: '10 Mar 2024', storeId: 'STR-001' },
   { id: 'RES-2026-0004', name: 'Anita Desai',        phone: '9123456789', plan: 'FTTH 200Mbps',    status: 'active',    zone: 'Versova',       area: 'Andheri',      network: 'OLT-AW-01', expiry: '2027-06-30', services: ['Broadband', 'OTT'], cafStatus: 'Approved', createdOn: '20 Jun 2025', storeId: 'STR-002', partnerId: 2 },
