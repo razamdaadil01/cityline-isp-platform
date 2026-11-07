@@ -61,6 +61,7 @@ import { getEscalationMatrix, saveEscalationMatrix, subscribeEscalationMatrix } 
 import { getActiveUsers, subscribeUsers } from '../data/userStore'
 import { getGeneralSettings, saveGeneralSettings, subscribeGeneralSettings } from '../data/generalSettingsStore'
 import { getInventorySettings, saveInventorySettings, formatPoNumber } from '../data/inventorySettingsStore'
+import { getZones, subscribeZones, addZone, updateZone, removeZone, toggleZoneActive } from '../data/zoneStore'
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -1727,20 +1728,16 @@ function RolesTab() {
   )
 }
 
-// ── Zone mock data ────────────────────────────────────────────────────────────
-
-const INIT_ZONES = [
-  { id: 1, customerType: 'Cityline', zoneName: 'Andheri West Zone', zoneId: 'AW-001', zoneUrl: 'https://jaze.cityline.in/aw', username: 'admin_aw', password: 'P@ssw0rd!1', addedDate: '2025-03-12' },
-  { id: 2, customerType: 'Partner',  zoneName: 'Bandra East Zone',  zoneId: 'BE-002', zoneUrl: 'https://jaze.cityline.in/be', username: 'admin_be', password: 'Secur3#Be2', addedDate: '2025-05-01' },
-  { id: 3, customerType: 'Cityline', zoneName: 'Versova Zone',      zoneId: 'VS-003', zoneUrl: 'https://jaze.cityline.in/vs', username: 'admin_vs', password: 'V3rs0va$3!', addedDate: '2026-01-08' },
-]
-
 function ZoneTab() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [zones, setZones] = useState(INIT_ZONES)
+  const [zones, setZones] = useState(getZones)
   const [menuOpen, setMenuOpen] = useState(null)
   const [shownPw, setShownPw] = useState({})
   const [form, setForm] = useState({ customerType: 'Cityline', zoneName: '', zoneId: '', zoneUrl: '', username: '', password: '' })
+  const [editModal, setEditModal] = useState(null)
+  const [rechargeModal, setRechargeModal] = useState(false)
+
+  useEffect(() => subscribeZones(setZones), [])
 
   const addModal = searchParams.get('modal') === 'add-zone'
 
@@ -1773,7 +1770,7 @@ function ZoneTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50/80 border-b border-surface-border">
-                {['S.NO', 'CUSTOMER TYPE', 'RADIUS NAME', 'RADIUS ID', 'RADIUS IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIONS'].map(h => (
+                {['S.NO', 'CUSTOMER TYPE', 'RADIUS NAME', 'RADIUS ID', 'RADIUS IP/URL', 'USERNAME', 'PASSWORD', 'ADDED DATE', 'ACTIVE', 'ACTIONS'].map(h => (
                   <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1803,31 +1800,113 @@ function ZoneTab() {
                     </div>
                   </td>
                   <td className="px-3 py-3 text-xs text-gray-500">{z.addedDate}</td>
+                  <td className="px-3 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${z.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {z.active ? 'Yes' : 'No'}
+                    </span>
+                  </td>
                   <td className="px-3 py-3 relative">
                     <button onClick={() => setMenuOpen(menuOpen === z.id ? null : z.id)}
                       className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
                       <MoreVertical size={15} />
                     </button>
                     {menuOpen === z.id && (
-                      <div className="absolute right-8 top-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-44" onMouseLeave={() => setMenuOpen(null)}>
-                        {['Active', 'Edit', 'Remove', 'Check Recharge Status'].map(action => (
-                          <button key={action} onClick={() => { if (action === 'Remove') setZones(prev => prev.filter(x => x.id !== z.id)); setMenuOpen(null) }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${action === 'Remove' ? 'text-red-500' : 'text-gray-700'}`}>
-                            {action}
-                          </button>
-                        ))}
+                      <div className="absolute right-8 top-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-48" onMouseLeave={() => setMenuOpen(null)}>
+                        <button onClick={() => { toggleZoneActive(z.id); setMenuOpen(null) }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700">
+                          {z.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => { setEditModal({ ...z }); setMenuOpen(null) }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700">
+                          Edit
+                        </button>
+                        <button onClick={() => { removeZone(z.id); setMenuOpen(null) }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-red-500">
+                          Remove
+                        </button>
+                        <button onClick={() => { setRechargeModal(true); setMenuOpen(null) }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700">
+                          Check Recharge Status
+                        </button>
                       </div>
                     )}
                   </td>
                 </tr>
               ))}
               {zones.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">No radius configured yet</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400">No radius configured yet</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Edit Zone Modal */}
+      {editModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Edit Radius</h2>
+              <button onClick={() => setEditModal(null)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Customer Type *</label>
+                <select value={editModal.customerType} onChange={e => setEditModal(m => ({ ...m, customerType: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]">
+                  <option>Cityline</option>
+                  <option>Partner</option>
+                </select>
+              </div>
+              {[
+                ['Radius Name *',   'zoneName', 'e.g. Andheri West Zone'],
+                ['Radius ID *',     'zoneId',   'e.g. AW-001'],
+                ['Radius IP/URL *', 'zoneUrl',  'e.g. https://jaze.cityline.in/aw'],
+                ['Username *',      'username', 'e.g. admin_aw'],
+                ['Password *',      'password', 'Enter password'],
+              ].map(([label, key, ph]) => (
+                <div key={key}>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">{label}</label>
+                  <input
+                    type={key === 'password' ? 'password' : 'text'}
+                    value={editModal[key] ?? ''} onChange={e => setEditModal(m => ({ ...m, [key]: e.target.value }))}
+                    placeholder={ph}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]" />
+                </div>
+              ))}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditModal(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
+                <button onClick={() => {
+                  if (!editModal.zoneName || !editModal.zoneId) return
+                  const { id, addedDate, active, ...patch } = editModal
+                  updateZone(id, patch)
+                  setEditModal(null)
+                }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Check Recharge Status Modal */}
+      {rechargeModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h2 className="font-semibold text-gray-800">Check Recharge Status</h2>
+              <button onClick={() => setRechargeModal(false)}><X size={16} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 flex flex-col items-center gap-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                <Wifi size={22} className="text-[#0A8DCD]" />
+              </div>
+              <p className="text-sm text-gray-700 font-medium">Jaze Integration Required</p>
+              <p className="text-xs text-gray-500 leading-relaxed">Live recharge status checks require an active Jaze ISP radius connection. This feature will be available once the Jaze integration is configured.</p>
+              <button onClick={() => setRechargeModal(false)} className="mt-1 px-6 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Zone Modal */}
       {addModal && (
@@ -1866,7 +1945,7 @@ function ZoneTab() {
                 <button onClick={closeAddZone} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-gray-600">Cancel</button>
                 <button onClick={() => {
                   if (!form.zoneName || !form.zoneId) return
-                  setZones(prev => [...prev, { id: Date.now(), ...form, addedDate: new Date().toISOString().slice(0, 10) }])
+                  addZone(form)
                   closeAddZone()
                 }} className="flex-1 py-2 bg-[#0A8DCD] text-white rounded-lg text-sm font-medium">Add Radius</button>
               </div>
