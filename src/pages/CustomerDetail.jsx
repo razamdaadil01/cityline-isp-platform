@@ -594,6 +594,13 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
   const [p5, setP5] = useState({ editing: false, draft: null })
   const [p7, setP7] = useState({ editing: false, draft: null })
   const [viewDoc, setViewDoc] = useState(null)
+  const [savedNotes, setSavedNotes] = useState(() => Array.isArray(cust.notesArray) ? cust.notesArray : [])
+  const [profileToast, setProfileToast] = useState(null)
+
+  function showProfileToast(msg, type = 'success') {
+    setProfileToast({ msg, type })
+    setTimeout(() => setProfileToast(null), 2800)
+  }
 
   function startEdit(setter, draft) { setter({ editing: true, draft }) }
   function cancelEdit(setter) { setter({ editing: false, draft: null }) }
@@ -662,6 +669,17 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
     updateCustomer(cust.id, { kyc })
     setCust(c => ({ ...c, kyc }))
     cancelEdit(setP7)
+  }
+
+  function saveNote() {
+    if (!notes.trim()) return
+    const note = { text: notes.trim(), author: 'Admin', timestamp: new Date().toISOString() }
+    const updated = [note, ...savedNotes]
+    updateCustomer(cust.id, { notesArray: updated })
+    setSavedNotes(updated)
+    setNotes('')
+    logAudit({ action: 'Update', module: 'CRM', details: `Internal note added for ${cust.name}` })
+    showProfileToast('Note saved')
   }
 
   // Documents are stored as base64 data URLs directly on the customer record
@@ -1212,27 +1230,58 @@ function ProfileTab({ customer: initCustomer, notes, setNotes, onSendSms }) {
             <Button variant="secondary" size="sm" icon={<MessageSquare size={13} />} className="w-full justify-start" onClick={onSendSms}>
               Send SMS
             </Button>
-            <Button variant="secondary" size="sm" icon={<FileText size={13} />} className="w-full justify-start">View Invoice</Button>
-            <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} className="w-full justify-start">Edit Profile</Button>
+            <Button variant="secondary" size="sm" icon={<FileText size={13} />} className="w-full justify-start"
+              onClick={() => {
+                const inv = getInvoices().filter(i => i.customerId === cust.id)[0]
+                if (inv) navigate(`/billing/invoice/${encodeURIComponent(inv.no)}`)
+                else showProfileToast('No invoices found for this customer', 'warn')
+              }}>View Invoice</Button>
+            <Button variant="secondary" size="sm" icon={<Edit2 size={13} />} className="w-full justify-start"
+              onClick={() => startEdit(setP1, {
+                name: cust.name, sonOf: cust.sonOf, dob: cust.dob, gender: cust.gender,
+                customerType: cust.customerType, gstNo: cust.gstNo, panCard: cust.panCard, createdOn: cust.createdOn,
+                companyName: cust.companyName, contactPersonName: cust.contactPersonName,
+                contactPersonEmail: cust.contactPersonEmail, gstType: cust.gstType,
+              })}>Edit Profile</Button>
           </div>
         </Card>
 
         {/* Internal notes */}
         <Card>
           <CardHeader title="Internal Notes" subtitle="Only visible to staff" />
+          {savedNotes.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {savedNotes.map((n, i) => (
+                <div key={i} className="bg-gray-50 rounded-lg px-3 py-2.5">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{n.text}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {n.author}{n.timestamp ? ` · ${new Date(n.timestamp).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            rows={5}
-            placeholder="Add internal notes…"
+            rows={3}
+            placeholder="Add a note…"
             className="w-full text-sm text-gray-700 bg-surface border border-surface-border rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
           />
           <div className="flex justify-end mt-2">
-            <Button size="xs">Save Note</Button>
+            <Button size="xs" onClick={saveNote} disabled={!notes.trim()}>Save Note</Button>
           </div>
         </Card>
       </div>
       <DocumentViewModal doc={viewDoc} onClose={() => setViewDoc(null)} />
+      {profileToast && (
+        <div className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 ${profileToast.type === 'warn' ? 'bg-amber-500' : 'bg-emerald-600'} text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium pointer-events-none`}>
+          {profileToast.type === 'warn'
+            ? <AlertTriangle size={16} className="shrink-0" />
+            : <CheckCircle size={16} className="shrink-0" />}
+          {profileToast.msg}
+        </div>
+      )}
     </div>
   )
 }
