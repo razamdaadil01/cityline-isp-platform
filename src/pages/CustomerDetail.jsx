@@ -2185,8 +2185,8 @@ function FinanceTab({ customer, setActivityLog }) {
                     <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
                     <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.date}</td>
                     <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">{pay.mode}</td>
-                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.total.toFixed(2)}</td>
-                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.paid.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{(pay.total ?? pay.amount ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{(pay.paid ?? pay.amount ?? 0).toFixed(2)}</td>
                     <td className="px-3 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                         pay.status === 'Complete' ? 'bg-green-100 text-green-700' :
