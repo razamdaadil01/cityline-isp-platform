@@ -101,10 +101,13 @@ const SEED = [
     engineerId: 'eng-004', engineerName: 'Suresh Babu',
     workOrderType: 'Installation', workOrderId: 'INS-001', workOrderLabel: 'INS-001',
     customerName: 'Rajan Mehta', customerId: 'RES-2026-0001',
+    storeId: 'STR-001', storeName: 'Main Warehouse',
     assignmentType: 'new', returnedItem: null,
     items: [
       { productId: 'PRD-001', productName: 'ONT Device', serials: ['ZTEGCB3A12F4'], macs: [], qty: 1 },
-      { productId: 'PRD-002', productName: 'WiFi Router', serials: ['TPL2024WR0091'], macs: [], qty: 1 },
+      // WiFi Router (PRD-002) is quantity-tracked in productStore.js — no serial.
+      // The serial 'TPL2024WR0091' previously here was incorrect seed data.
+      { productId: 'PRD-002', productName: 'WiFi Router', serials: [], macs: [], qty: 1 },
     ],
     remarks: 'Installation completed — ONT and WiFi Router handed off to customer.',
     status: 'Handed Off', assignedBy: 'Suresh Babu', assignedAt: '2023-01-10T10:35:00.000Z',
