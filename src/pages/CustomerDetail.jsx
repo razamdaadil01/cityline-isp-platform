@@ -195,6 +195,7 @@ function makeCustomerFromBase(id) {
       documents: base.kyc?.documents ?? {},
     },
     notes: base.notes ?? '',
+    notesArray: base.notesArray ?? [],
     selectedPackage: base.selectedPackage ?? null,
     bandwidthPackage: base.bandwidthPackage ?? null,
     subscription: base.subscription ?? null,
