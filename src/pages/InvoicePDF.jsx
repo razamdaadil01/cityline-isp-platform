@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { AlertTriangle, Printer } from 'lucide-react'
+import { AlertTriangle, Printer, Download } from 'lucide-react'
 import Button from '../components/ui/Button'
 import { amountInWords } from '../data/billingData'
 import { getCompanyEntity } from '../data/companyEntities'
@@ -80,9 +80,23 @@ export default function InvoicePDF() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 print:bg-white print:py-0 print:px-0">
+      {/* Print CSS — hides the app sidebar and header so only the invoice renders */}
+      <style>{`
+        @media print {
+          aside, header { display: none !important; }
+          body > #root > div { overflow: visible !important; height: auto !important; }
+          body > #root > div > div { margin-left: 0 !important; }
+        }
+      `}</style>
 
-      {/* Print button — top right, hidden on print */}
-      <div className="max-w-4xl mx-auto flex justify-end mb-3 print:hidden">
+      {/* Action buttons — top right, hidden on print */}
+      <div className="max-w-4xl mx-auto flex justify-end gap-2 mb-3 print:hidden">
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand-blue text-white rounded-lg shadow-sm hover:bg-brand-blue/90 transition-colors"
+        >
+          <Download size={14} /> Download PDF
+        </button>
         <button
           onClick={() => window.print()}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white border border-surface-border rounded-lg shadow-sm hover:bg-gray-50 transition-colors text-gray-700"
