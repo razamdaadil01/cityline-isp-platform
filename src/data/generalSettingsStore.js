@@ -29,6 +29,7 @@ let _settings = {
   outageTicketThreshold: 5,
   outageTimeWindowMinutes: 60,
   cleaningIntervalDays: 60,
+  defaultInstallationLabourCharge: 500,
   inventorySettings: {
     entityId: 'ENT-001',
     requirePOApproval: false,

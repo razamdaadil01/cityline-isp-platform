@@ -487,6 +487,12 @@ function GeneralTab() {
                 </FormField>
               </div>
 
+              {/* Default Installation Labour Charge */}
+              <FormField label="Default Installation Labour Charge (₹)">
+                <Input type="number" min="0" value={form.defaultInstallationLabourCharge ?? 500} onChange={e => setField('defaultInstallationLabourCharge', Number(e.target.value))} />
+                <p className="text-xs text-gray-500 mt-0.5">Labour amount added to auto-calculated feasibility cost estimates.</p>
+              </FormField>
+
               {/* PO Terms */}
               <FormField label="PO Terms">
                 <Textarea value={invForm.poTerms} onChange={e => setInvField('poTerms', e.target.value)} rows={3} placeholder="Payment due within agreed terms. Goods must match PO specification." />
