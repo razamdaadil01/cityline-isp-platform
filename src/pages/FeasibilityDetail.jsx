@@ -14,6 +14,7 @@ import AssignEngineerModal from '../components/feasibility/AssignEngineerModal'
 import {
   getFeasibilityRequest, updateFeasibilityStatus, subscribeFeasibility, saveFeasibilityRequest,
 } from '../data/feasibilityStore'
+import { getGeneralSettings, subscribeGeneralSettings } from '../data/generalSettingsStore'
 
 
 /* ── Constants ─────────────────────────────────────────────────── */
@@ -47,10 +48,6 @@ const SEGMENT_STATUS_VARIANT = {
   'Planned':             'gray',
 }
 
-// Fixed labour/installation charge added to the hardware-based cost estimate.
-// No settings store field exists for this yet — a single constant is the
-// right size for this feature; promote to a settings value when needed.
-const FEASIBILITY_LABOUR_CHARGE = 500
 
 // The 4-stage business pipeline shown in the horizontal progress stepper —
 // distinct from the tab bar below it, which is pure content navigation.
@@ -481,6 +478,8 @@ export default function FeasibilityDetail() {
 
   const [costOverrideEditing, setCostOverrideEditing] = useState(false)
   const [costOverrideInput, setCostOverrideInput] = useState('')
+  const [labourCharge, setLabourCharge] = useState(() => getGeneralSettings().defaultInstallationLabourCharge ?? 500)
+  useEffect(() => subscribeGeneralSettings(s => setLabourCharge(s.defaultInstallationLabourCharge ?? 500)), [])
 
   // Attachment upload handlers — each section (siteImages, locationPhotos,
   // supportingDocuments) stores an independent array on the feasibility record.
@@ -1239,8 +1238,12 @@ export default function FeasibilityDetail() {
                   </div>
                 ) : (() => {
                   const items = req.hardwareItems ?? []
-                  const hwTotal = items.reduce((s, it) => s + (it.unitPrice ?? 0) * (it.quantity ?? 1), 0)
-                  const autoTotal = hwTotal + FEASIBILITY_LABOUR_CHARGE
+                  const estDist = parseInt(req.estimatedDistanceFromFiber ?? '', 10) || 0
+                  function effectiveQty(it) {
+                    return /(per m)/i.test(it.name ?? '') && estDist > 0 ? estDist : (it.quantity ?? 1)
+                  }
+                  const hwTotal = items.reduce((s, it) => s + (it.unitPrice ?? 0) * effectiveQty(it), 0)
+                  const autoTotal = hwTotal + labourCharge
                   const displayTotal = req.costOverride ?? autoTotal
                   return (
                     <>
@@ -1265,15 +1268,22 @@ export default function FeasibilityDetail() {
                       )}
                       {items.length > 0 && (
                         <div className="mt-2 space-y-0.5 border-t border-gray-200 pt-2">
-                          {items.map((it, i) => (
-                            <div key={i} className="flex items-center justify-between text-xs text-gray-500">
-                              <span className="truncate mr-1">{it.name} ×{it.quantity ?? 1}</span>
-                              <span className="shrink-0 font-medium">₹{((it.unitPrice ?? 0) * (it.quantity ?? 1)).toLocaleString('en-IN')}</span>
-                            </div>
-                          ))}
+                          {items.map((it, i) => {
+                            const qty = effectiveQty(it)
+                            const isPerM = /(per m)/i.test(it.name ?? '') && estDist > 0
+                            return (
+                              <div key={i} className="flex items-center justify-between text-xs text-gray-500">
+                                <span className="truncate mr-1">
+                                  {it.name} ×{qty}
+                                  {isPerM && <span className="text-brand-blue ml-1">(est. {estDist}m)</span>}
+                                </span>
+                                <span className="shrink-0 font-medium">₹{((it.unitPrice ?? 0) * qty).toLocaleString('en-IN')}</span>
+                              </div>
+                            )
+                          })}
                           <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-1 mt-1">
                             <span>Labour</span>
-                            <span className="font-medium">₹{FEASIBILITY_LABOUR_CHARGE.toLocaleString('en-IN')}</span>
+                            <span className="font-medium">₹{labourCharge.toLocaleString('en-IN')}</span>
                           </div>
                         </div>
                       )}

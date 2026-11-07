@@ -63,7 +63,10 @@ const _RAW_CUSTOMERS = [
     altPhone: '22 2678 9012', telephone: '022-26789012', email: 'rajan.mehta@gmail.com',
     dob: '15 Mar 1982', gender: 'Male', sonOf: 'Mohan Mehta', panCard: 'AABCM1234D',
     customerType: 'Residential', accountManager: 'Pradeep Kumar',
-    notes: 'Customer prefers SMS reminders 3 days before renewal. Known contact - referred by CL-0892.',
+    notes: '',
+    notesArray: [
+      { text: 'Customer prefers SMS reminders 3 days before renewal. Known contact - referred by CL-0892.', author: 'Admin', timestamp: '2023-01-10T10:35:00.000Z' },
+    ],
     address: {
       area: 'Andheri', subArea: 'Lokhandwala', box: 'BOX-AW-14',
       street: 'Four Bungalows Road', building: 'Sai Darshan CHS, Flat 302',
