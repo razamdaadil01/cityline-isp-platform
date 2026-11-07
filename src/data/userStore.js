@@ -63,6 +63,7 @@ const INITIAL_USERS = [
     memberSince: '2022-11-20', leadsAssigned: 20, followupsTotal: 38,
     initials: 'AS', color: 'bg-brand-orange',
     departmentId: 'DEPT-004',
+    salesBranches: ['CNPL-002', 'CNPL-MAR-01', 'CNPL-IND-01'],
   },
   {
     id: 'u3', name: 'Arjun Kumar',   email: 'arjun@cityline.in',   phone: '9876543210',
@@ -72,6 +73,7 @@ const INITIAL_USERS = [
     initials: 'AK', color: 'bg-brand-blue',
     branch: 'CNPL-002', zone: 'Andheri West',
     departmentId: 'DEPT-001',
+    salesBranches: ['CNPL-001', 'CNPL-WHI-01', 'CNPL-IND-01'],
   },
   {
     id: 'u4', name: 'Preethi Nair',  email: 'preethi@cityline.in', phone: '9876001122',
@@ -80,6 +82,7 @@ const INITIAL_USERS = [
     memberSince: '2023-08-15', leadsAssigned: 12, followupsTotal: 30,
     initials: 'PN', color: 'bg-purple-500',
     departmentId: 'DEPT-003',
+    salesBranches: ['CNPL-001', 'CNPL-MAR-01', 'CNPL-NOI-01'],
   },
   {
     id: 'u5', name: 'Suresh Babu',   email: 'suresh@cityline.in',  phone: '9988001133',
@@ -89,6 +92,7 @@ const INITIAL_USERS = [
     initials: 'SB', color: 'bg-emerald-500',
     branch: 'CNPL-010', zone: 'Andheri East',
     departmentId: 'DEPT-001',
+    salesBranches: ['CNPL-002', 'CNPL-WHI-01', 'CNPL-NOI-01'],
   },
   {
     id: 'u6', name: 'Ravi Menon',    email: 'ravi@cityline.in',    phone: '9845001234',
@@ -224,4 +228,13 @@ export function subscribeUsers(fn) {
     const i = _listeners.indexOf(fn)
     if (i !== -1) _listeners.splice(i, 1)
   }
+}
+
+// Returns active users whose salesBranches includes branchCode — the
+// canonical lookup for the Sales Executive dropdown on New Lead / New
+// Customer forms, so both use the same userStore-backed list rather than
+// each maintaining their own SALES_EXECUTIVES_BY_BRANCH mock.
+export function getSalesExecutivesByBranch(branchCode) {
+  if (!branchCode) return []
+  return _users.filter(u => u.status === 'active' && u.salesBranches?.includes(branchCode))
 }

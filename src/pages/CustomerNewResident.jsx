@@ -15,6 +15,7 @@ import { getServiceTagsForType } from '../data/serviceTags'
 import { saveLead, nextSalesLeadId } from '../data/leadsStore'
 import { getFeasibilityRequests, subscribeFeasibility } from '../data/feasibilityStore'
 import { getPlans } from '../data/packagesStore'
+import { getSalesExecutivesByBranch } from '../data/userStore'
 
 const STEPS = [
   { id: 1, label: 'Basic Details',    icon: User },
@@ -28,17 +29,6 @@ const LEAD_SOURCES = ['Referral', 'Walk-in', 'Website', 'Field Survey', 'Campaig
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const COLOR_PALETTE = ['bg-brand-blue', 'bg-purple-500', 'bg-emerald-500', 'bg-brand-orange', 'bg-teal-500', 'bg-pink-500']
 
-// TODO: exact Branch → Sales Executive mapping isn't specified in the PRD
-// (FR-6's note only says "filtered by selected Branch") — this mock mapping
-// is a placeholder; confirm the real assignment rule with the BA.
-const SALES_EXECUTIVES_BY_BRANCH = {
-  'CNPL-001':    ['Arjun Kumar', 'Preethi Nair'],
-  'CNPL-002':    ['Suresh Babu', 'Anita Sharma'],
-  'CNPL-WHI-01': ['Arjun Kumar', 'Suresh Babu'],
-  'CNPL-MAR-01': ['Preethi Nair', 'Anita Sharma'],
-  'CNPL-IND-01': ['Arjun Kumar', 'Anita Sharma'],
-  'CNPL-NOI-01': ['Suresh Babu', 'Preethi Nair'],
-}
 
 function initialsOf(name) {
   return (name || '??').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -181,7 +171,7 @@ export default function CustomerNewResident() {
     navigate(`/sales/leads/${leadId}`)
   }
 
-  const branchExecutives = form.branch ? (SALES_EXECUTIVES_BY_BRANCH[form.branch] || []) : []
+  const branchExecutives = getSalesExecutivesByBranch(form.branch)
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-surface">
@@ -225,7 +215,7 @@ export default function CustomerNewResident() {
                   <FormField label="Sales Executive" required={req('Sales Executive')} hint={!form.branch ? 'Select a branch first' : undefined}>
                     <Select disabled={!form.branch} value={form.salesExecutive} onChange={e => set('salesExecutive', e.target.value)}>
                       <option value="">Select...</option>
-                      {branchExecutives.map(n => <option key={n} value={n}>{n}</option>)}
+                      {branchExecutives.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                     </Select>
                   </FormField>
                 </div>

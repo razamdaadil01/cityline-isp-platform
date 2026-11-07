@@ -51,110 +51,7 @@ import {
 
 // ── Mock customer dataset ────────────────────────────────────────────────────
 
-const MOCK_CUSTOMERS = {
-  'RES-2026-0001': {
-    id: 'RES-2026-0001',
-    name: 'Rajan Mehta',
-    phone: '98765 43210',
-    altPhone: '22 2678 9012',
-    telephone: '022-26789012',
-    email: 'rajan.mehta@gmail.com',
-    dob: '15 Mar 1982',
-    gender: 'Male',
-    sonOf: 'Mohan Mehta',
-    panCard: 'AABCM1234D',
-    customerType: 'Residential',
-    status: 'active',
-    online: true,
-    services: ['Broadband', 'Landline', 'OTT'],
-    outstandingDues: 1200,
-    ekyc: 'verified',
-    accountManager: 'Pradeep Kumar',
-    createdOn: '10 Jan 2023',
-    address: {
-      area: 'Andheri',
-      subArea: 'Lokhandwala',
-      box: 'BOX-AW-14',
-      street: 'Four Bungalows Road',
-      building: 'Sai Darshan CHS, Flat 302',
-      zone: 'Andheri West',
-      olt: 'OLT-AW-02',
-      splitter: 'SPL-14-B',
-      port: 'Port 06',
-      billingState: 'Maharashtra',
-      billingCity: 'Mumbai',
-      billingPincode: '400053',
-      billingLandmark: 'Near D-Mart',
-      billingAddress: 'Sai Darshan CHS, Flat 302, Four Bungalows Road',
-      installState: 'Maharashtra',
-      installCity: 'Mumbai',
-      installPincode: '400053',
-      installLandmark: 'Near D-Mart',
-      installAddress: 'Sai Darshan CHS, Flat 302, Four Bungalows Road',
-    },
-    connection: {
-      type: 'FTTH',
-      serverType: 'CNPL_B2C',
-      ipacctId: '704341139412544',
-      nasInterface: 'BNG:ANDHERIWEST:166:1031',
-      url: 'https://portal.citylinenetworks.in/u/rajan_mehta_cl1001',
-      sbtNo: 'SBT-2023-0014',
-      circuitId: 'CKT-AW-14-0302',
-      vcNo: 'VC-AW-0301',
-      macId: 'A4:C3:F0:11:22:33',
-      serialNo: 'ONU-AW14-20230110',
-      aEnd: 'Andheri West OLT',
-      bEnd: 'Customer Premises',
-      prorataBilling: 'No',
-    },
-    payment: {
-      mode: 'NEFT / Bank Transfer',
-      billingCycle: '1st of every month',
-      installationAmount: 1000,
-      securityDeposit: 1000,
-      installHardware: 'ONU + Router',
-      invoiceDueDays: 7,
-      refundTerms: '30 days after termination',
-      refundSecurity: 'Yes',
-    },
-    radius: {
-      jazeUserId: 'rajan_mehta_cl1001',
-      pppoeUsername: 'CL1001@cityline',
-      pppoePassword: 'Rj@1001#Pass',
-      // TODO: existing seeded customer — kept as-is rather than regenerated
-      // through the Customer Type-configured App Password system.
-      appPassword: 'Cit@2023#Raj',
-      nas: 'NAS-AW-01',
-      interface: 'ge-0/0/2.0',
-      ipAddress: '10.14.22.45',
-      macAddress: 'A4:C3:F0:11:22:33',
-    },
-    sales: {
-      executive: 'Pradeep Kumar',
-      areaSalesManager: 'Vikram Patil',
-      billingAccountManager: 'Anita Sharma',
-      installationBy: 'Suresh Babu',
-      registrationDate: '10-01-2023 10:35 AM',
-      dueDays: 1,
-      leadSource: 'Referral',
-      remark: 'Customer referred by existing subscriber CL-0892. Prefers SMS reminders.',
-    },
-    kyc: {
-      aadhaar: 'verified',
-      pan: 'verified',
-      photo: 'uploaded',
-      agreementSigned: true,
-      idProofType: 'Aadhaar Card',
-      addressProofType: 'Utility Bill',
-      signatureUploaded: true,
-      docVerified: true,
-      docComment: 'All documents verified on 12-01-2023 by Admin.',
-    },
-    notes: 'Customer prefers SMS reminders 3 days before renewal. Known contact - referred by CL-0892.',
-  },
-}
-
-// Build a customer record from base data when full mock data is unavailable
+// Build a customer record from base data
 function makeCustomerFromBase(id) {
   const base = getAllCustomers().find(c => c.id === id)
   if (!base) {
@@ -253,7 +150,7 @@ function makeCustomerFromBase(id) {
     connection: base.connection ?? {},
     ownership: base.ownership ?? {},
     sales: base.sales ?? {},
-    payment: { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
+    payment: base.payment ?? { mode: 'UPI', advanceDeposit: 1000, creditLimit: 3000, billingCycle: '1st of every month' },
     // jazeUserId/pppoePassword/appPassword prefer a persisted base.radius.*
     // value (Connection Details' Edit form writes one via updateCustomer())
     // over the deterministic getPPPoEId()/getAppPassword() default — the
@@ -267,10 +164,10 @@ function makeCustomerFromBase(id) {
       pppoeUsername: base.pppoeUsername ?? base.radius?.pppoeUsername ?? getPPPoEId({ name: base.name, id: base.id }, isCorporate ? 'corporate' : 'resident'),
       pppoePassword: base.radius?.pppoePassword ?? '—',
       appPassword: base.radius?.appPassword ?? '—',
-      nas: 'NAS-01',
-      interface: '—',
-      ipAddress: '—',
-      macAddress: '—',
+      nas: base.radius?.nas ?? 'NAS-01',
+      interface: base.radius?.interface ?? '—',
+      ipAddress: base.radius?.ipAddress ?? '—',
+      macAddress: base.radius?.macAddress ?? '—',
     },
     // aadhaar/pan/photo prefer real upload presence (kyc.documents, written
     // by ProfileTab's KYC Documents card via updateCustomer()) over the
@@ -4020,22 +3917,12 @@ export default function CustomerDetail() {
   const { id, tab, subTab } = useParams()
   const navigate = useNavigate()
 
-  // MOCK_CUSTOMERS['RES-2026-0001'] is a fully hardcoded literal — its own
-  // fields never reflect customersData.js's real override store (unlike
-  // makeCustomerFromBase(id), which already reads through getAllCustomers()
-  // for every other customer). Suspend/Terminate/hardware-recovery-outcome
-  // and, as of ProfileTab's Save/PackagesTab's Add Service, Profile edits
-  // and added packages, all persist via updateCustomer() — so re-read every
-  // field those can touch from that same live source here too, rather than
-  // trusting whichever object this ID happened to come from, otherwise a
-  // fresh mount (e.g. navigating to /customers/hardware-recovery and back)
-  // shows stale hardcoded values instead of anything actually saved.
   // liveCustomer's flat customersData.js record only ever has
   // name/phone/status/services beyond the base id, so `?? baseCustomer.X`
   // only kicks in for fields nothing has overridden yet. `phone` is
   // reformatted the same way makeCustomerFromBase() does, since liveCustomer
   // always stores it as plain digits.
-  const baseCustomer = MOCK_CUSTOMERS[id] ?? makeCustomerFromBase(id)
+  const baseCustomer = makeCustomerFromBase(id)
   const liveCustomer = getAllCustomers().find(c => c.id === id)
   const customer = {
     ...baseCustomer,
@@ -4080,11 +3967,9 @@ export default function CustomerDetail() {
   const [notes, setNotes] = useState(customer.notes)
 
   // Suspend/Terminate write into customersData.js's override store (so the
-  // change persists for makeCustomerFromBase-backed customers), but `customer`
-  // above is recomputed fresh every render rather than held in state — so we
-  // also track the live status locally to reflect it immediately, including
-  // for the hardcoded MOCK_CUSTOMERS['RES-2026-0001'] entry that bypasses the
-  // override store entirely.
+  // change persists across remounts), but `customer` above is recomputed
+  // fresh every render rather than held in state — track the live status
+  // locally too so it reflects immediately without waiting for a re-render.
   const [statusOverride, setStatusOverride] = useState(null)
   const [statusModal, setStatusModal] = useState(null) // 'suspend' | 'terminate' | 'inactive' | null
   const [reactivateModalOpen, setReactivateModalOpen] = useState(false)

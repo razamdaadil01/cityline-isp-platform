@@ -948,7 +948,7 @@ export default function InventoryOverview() {
 
   const stats = useMemo(() => {
     const scoped = allBalances.filter(b => !scopedStoreIds || scopedStoreIds.includes(b.storeId))
-    const totalInventoryItems = scoped.filter(b => b.availableQty > 0).length
+    const totalInventoryItems = new Set(scoped.filter(b => b.availableQty > 0).map(b => b.productId)).size
 
     let hardwareAvailable = 0
     allProducts.filter(p => p.productType === 'hardware').forEach(p => {
