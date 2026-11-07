@@ -9,6 +9,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { MOCK_TICKETS, AGENTS, SLA_HOURS } from '../data/supportData'
+import { generateResolutionOtp, verifyResolutionOtp } from '../data/resolutionOtpHelper'
 
 const P_VARIANT = { P1: 'red', P2: 'orange', P3: 'yellow', P4: 'gray' }
 const STATUS_VARIANT = { open: 'blue', 'in-progress': 'orange', 'pending-customer': 'purple', escalated: 'red', resolved: 'green', closed: 'gray' }
@@ -38,16 +39,22 @@ function formatTime(dateStr) {
 }
 
 // ─── OTP Close Modal ────────────────────────────────────────────────────────
-function OTPModal({ ticket, onClose, onConfirm }) {
+function OTPModal({ ticket, onClose, onConfirm, onOtpSent }) {
   const [otp, setOtp] = useState('')
   const [sent, setSent] = useState(false)
   const [verified, setVerified] = useState(false)
   const [error, setError] = useState('')
+  const [demoOtp, setDemoOtp] = useState('')
 
-  const handleSendOTP = () => setSent(true)
+  const handleSendOTP = () => {
+    const code = generateResolutionOtp(ticket.id)
+    setDemoOtp(code)
+    setSent(true)
+    onOtpSent?.()
+  }
 
   const handleVerify = () => {
-    if (otp === '123456') {
+    if (verifyResolutionOtp(ticket.id, otp)) {
       setVerified(true)
       setError('')
     } else {
@@ -103,7 +110,7 @@ function OTPModal({ ticket, onClose, onConfirm }) {
             />
             {error && <p className="text-xs text-red-500 mt-1.5 text-center">{error}</p>}
           </div>
-          <p className="text-xs text-gray-400 text-center">Demo OTP: 123456</p>
+          {demoOtp && <p className="text-xs text-gray-400 text-center">Demo OTP (SMS not connected): {demoOtp}</p>}
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" onClick={onClose} className="flex-1">Cancel</Button>
             <Button size="sm" onClick={handleVerify} disabled={otp.length !== 6} className="flex-1">Verify & Close</Button>
@@ -170,6 +177,18 @@ export default function TicketDetail() {
     }))
   }
 
+  const handleOtpSent = () => {
+    setTicket(t => ({
+      ...t,
+      timeline: [...t.timeline, {
+        time: new Date().toISOString(),
+        actor: 'Admin',
+        type: 'update',
+        action: 'OTP generated and sent to customer for ticket resolution.',
+      }],
+    }))
+  }
+
   const handleCloseConfirm = () => {
     setTicket(t => ({
       ...t,
@@ -179,7 +198,7 @@ export default function TicketDetail() {
         time: new Date().toISOString(),
         actor: 'Admin',
         type: 'resolved',
-        action: 'Ticket closed after customer OTP verification.',
+        action: 'OTP verified — ticket closed by customer confirmation.',
       }],
     }))
     setOtpModal(false)
@@ -471,7 +490,7 @@ export default function TicketDetail() {
 
       {/* OTP Modal */}
       <Modal isOpen={otpModal} onClose={() => setOtpModal(false)} title="Close Ticket – OTP Verification" size="sm">
-        <OTPModal ticket={ticket} onClose={() => setOtpModal(false)} onConfirm={handleCloseConfirm} />
+        <OTPModal ticket={ticket} onClose={() => setOtpModal(false)} onConfirm={handleCloseConfirm} onOtpSent={handleOtpSent} />
       </Modal>
     </div>
   )

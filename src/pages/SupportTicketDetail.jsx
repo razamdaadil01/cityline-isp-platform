@@ -18,10 +18,11 @@ import {
   getTicket, subscribeTickets, updateTicketStatus, addInternalNote,
   resolveTicket, closeTicket, reopenTicket, scheduleTechnicianVisit,
   findTicketsOnSamePort, assignTechnician, assignTeamMembers,
-  addTicketDocument, removeTicketDocument,
+  addTicketDocument, removeTicketDocument, addTicketActivity,
   TICKET_STATUSES, GATED_STATUSES, PRIORITY_LABEL, RESOLUTION_TYPES, TECH_VISIT_STATUSES,
   TECHNICIAN_PROFILES, TECHNICIANS, TECHNICIAN_SKILLS, slaStatusOf,
 } from '../data/ticketsStore'
+import { generateResolutionOtp, verifyResolutionOtp } from '../data/resolutionOtpHelper'
 
 const CURRENT_USER = 'Admin User'
 
@@ -206,11 +207,10 @@ function maskPhone(phone) {
 }
 
 // ── Verify OTP Modal (second-step gate after the Resolve form) ────────────────
-// UI-only stub: no real SMS gateway is wired up. For demo purposes any OTP of at
-// least 4 digits is accepted as valid (mirrors the same "any code accepted"
-// convention already used by the eKYC OTP step in AddCustomer.jsx); only a
-// too-short/incomplete entry is rejected, so the inline error path is reachable.
-function VerifyOtpModal({ isOpen, phone, onCancel, onVerify }) {
+// No real SMS gateway is wired up. generateResolutionOtp() produces a fresh
+// 6-digit code per ticket; it is shown as "Demo OTP (SMS not connected)" so
+// staff can test the flow without an actual SMS delivery.
+function VerifyOtpModal({ isOpen, ticketId, phone, demoOtp, onCancel, onVerify }) {
   const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
   const [resendTimer, setResendTimer] = useState(30)
@@ -233,8 +233,8 @@ function VerifyOtpModal({ isOpen, phone, onCancel, onVerify }) {
   }
 
   function handleVerify() {
-    if (otp.trim().length < 4) {
-      setError('Invalid OTP, please try again.')
+    if (!verifyResolutionOtp(ticketId, otp)) {
+      setError('Incorrect OTP, please try again.')
       return
     }
     setError('')
@@ -264,10 +264,13 @@ function VerifyOtpModal({ isOpen, phone, onCancel, onVerify }) {
           <Input
             value={otp}
             onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
-            placeholder="Enter 4-6 digit OTP"
+            placeholder="Enter 6-digit OTP"
             inputMode="numeric"
           />
         </FormField>
+        {demoOtp && (
+          <p className="text-xs text-gray-400 text-center">Demo OTP (SMS not connected): {demoOtp}</p>
+        )}
         <button
           type="button"
           onClick={handleResend}
@@ -763,6 +766,7 @@ export default function SupportTicketDetail() {
   // of OTP back to the form.
   const [pendingResolution, setPendingResolution] = useState(null)
   const [resolveResetKey, setResolveResetKey] = useState(0)
+  const [demoOtp, setDemoOtp] = useState('')
   const [toast, setToast] = useState('')
   const [reopenOpen, setReopenOpen] = useState(false)
   const [assignTeamOpen, setAssignTeamOpen] = useState(false)
@@ -840,6 +844,9 @@ export default function SupportTicketDetail() {
 
   function handleResolveFormSubmit(data) {
     setPendingResolution(data)
+    const code = generateResolutionOtp(ticket.id)
+    setDemoOtp(code)
+    addTicketActivity(ticket.id, 'OTP generated and sent to customer for ticket resolution.')
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.set('modal', 'verify-otp')
@@ -856,6 +863,7 @@ export default function SupportTicketDetail() {
   }
 
   function handleOtpVerified() {
+    addTicketActivity(ticket.id, 'OTP verified — ticket resolved by customer confirmation.')
     resolveTicket(ticket.id, pendingResolution ?? {}, CURRENT_USER)
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
@@ -863,6 +871,7 @@ export default function SupportTicketDetail() {
       return next
     }, { replace: true })
     setPendingResolution(null)
+    setDemoOtp('')
     setResolveResetKey(k => k + 1)
     setToast('Ticket marked as Resolved')
   }
@@ -1362,7 +1371,7 @@ export default function SupportTicketDetail() {
 
       <ResolveModal isOpen={resolveOpen} onClose={closeResolveModal}
         onSubmit={handleResolveFormSubmit} resetKey={resolveResetKey} />
-      <VerifyOtpModal isOpen={otpOpen} phone={ticket.phone}
+      <VerifyOtpModal isOpen={otpOpen} ticketId={ticket.id} phone={ticket.phone} demoOtp={demoOtp}
         onCancel={backToResolveForm} onVerify={handleOtpVerified} />
       <ReopenModal isOpen={reopenOpen} onClose={() => setReopenOpen(false)}
         onSubmit={reason => { reopenTicket(ticket.id, reason, CURRENT_USER); setReopenOpen(false) }} />

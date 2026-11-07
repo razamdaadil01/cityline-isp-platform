@@ -822,6 +822,12 @@ export function resolveTicket(id, { rootCause, resolutionDetails, resolutionType
   })
 }
 
+export function addTicketActivity(id, action, actor = 'Admin User') {
+  const t = getTicket(id)
+  if (!t) return null
+  return saveTicket({ ...t, activityLog: appendActivity(t, action, actor) })
+}
+
 export function closeTicket(id, actor = 'Admin User') {
   const t = getTicket(id)
   if (!t || t.status !== 'Resolved') return null
