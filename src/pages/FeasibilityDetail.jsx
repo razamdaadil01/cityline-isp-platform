@@ -1013,22 +1013,31 @@ export default function FeasibilityDetail() {
                         <div className="border border-surface-border rounded-lg divide-y divide-surface-border overflow-hidden">
                           {displayedHardwareItems.length === 0 ? (
                             <p className="text-xs text-gray-400 text-center py-4">No {hardwareCategoryFilter} items</p>
-                          ) : displayedHardwareItems.map(h => (
-                            <div key={h._index} className="flex items-center gap-3 px-3 py-2.5">
-                              <span className="flex-1 min-w-0 truncate text-sm text-gray-700">{h.name}</span>
-                              <Badge variant={h.chargeable ? 'orange' : 'gray'} size="sm" className="shrink-0">
-                                {h.chargeable ? 'Chargeable' : 'Non-Chargeable'}
-                              </Badge>
-                              <span className="w-16 shrink-0 text-right text-xs text-gray-500">Qty {h.quantity}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveHardware(h._index)}
-                                className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          ))}
+                          ) : (() => {
+                            const dist = parseInt(req.estimatedDistanceFromFiber ?? '', 10) || 0
+                            return displayedHardwareItems.map(h => {
+                              const isPerM = /(per m)/i.test(h.name ?? '')
+                              const qtyLabel = isPerM
+                                ? (dist > 0 ? `${dist} m (est.)` : `${h.quantity ?? 1} m`)
+                                : `Qty ${h.quantity ?? 1}`
+                              return (
+                                <div key={h._index} className="flex items-center gap-3 px-3 py-2.5">
+                                  <span className="flex-1 min-w-0 truncate text-sm text-gray-700">{h.name}</span>
+                                  <Badge variant={h.chargeable ? 'orange' : 'gray'} size="sm" className="shrink-0">
+                                    {h.chargeable ? 'Chargeable' : 'Non-Chargeable'}
+                                  </Badge>
+                                  <span className="w-20 shrink-0 text-right text-xs text-gray-500">{qtyLabel}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveHardware(h._index)}
+                                    className="shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              )
+                            })
+                          })()}
                         </div>
                       </div>
                     )}
