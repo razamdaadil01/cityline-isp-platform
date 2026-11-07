@@ -1,4 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+
+function RedirectTicket() {
+  const { id } = useParams()
+  return <Navigate to={`/support/tickets/${id}`} replace />
+}
 import Layout from './components/layout/Layout'
 // RequireAuth import kept but unused while the auth gate is paused — see
 // the comment block below, above the <Route element={<Layout />}> block,
@@ -49,7 +54,6 @@ import Payments from './pages/Payments'
 import Collection from './pages/Collection'
 import InvoicePDF from './pages/InvoicePDF'
 import Support from './pages/Support'
-import TicketDetail from './pages/TicketDetail'
 import TicketList from './pages/TicketList'
 import TicketCreate from './pages/TicketCreate'
 import SupportTicketDetail from './pages/SupportTicketDetail'
@@ -207,7 +211,7 @@ export default function App() {
           <Route path="/payments" element={<Payments />} />
           <Route path="/collection" element={<Collection />} />
           <Route path="/support" element={<Support />} />
-          <Route path="/support/ticket/:id" element={<TicketDetail />} />
+          <Route path="/support/ticket/:id" element={<RedirectTicket />} />
           <Route path="/support/tickets" element={<TicketList />} />
           <Route path="/support/tickets/new" element={<TicketCreate />} />
           <Route path="/support/tickets/:id" element={<SupportTicketDetail />} />

@@ -455,7 +455,7 @@ export default function Support() {
                 return (
                   <tr key={t.id}
                     className={`hover:bg-gray-50/70 transition-colors cursor-pointer ${isBreachedSoon ? 'bg-red-50/30' : ''}`}
-                    onClick={() => navigate(`/support/ticket/${t.id}`)}>
+                    onClick={() => navigate(`/support/tickets/${t.id}`)}>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs text-brand-blue font-bold">{t.id}</span>
                       {isBreachedSoon && (
@@ -491,7 +491,7 @@ export default function Support() {
                       }
                     </td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <Button variant="ghost" size="xs" onClick={() => navigate(`/support/ticket/${t.id}`)}>View</Button>
+                      <Button variant="ghost" size="xs" onClick={() => navigate(`/support/tickets/${t.id}`)}>View</Button>
                     </td>
                   </tr>
                 )

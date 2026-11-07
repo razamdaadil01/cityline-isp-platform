@@ -132,7 +132,7 @@ export default function Header({ onToggleSidebar }) {
         title: t.id,
         sub1:  t.issue,
         sub2:  t.customerName,
-        href:  `/support/ticket/${t.id}`,
+        href:  `/support/tickets/${t.id}`,
       }))
 
     return { leads: matchedLeads, customers: matchedCustomers, tickets: matchedTickets }
