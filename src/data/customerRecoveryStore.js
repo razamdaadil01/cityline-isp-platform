@@ -130,6 +130,7 @@ function reconcileRecoveryStock(recovery, terminalStatus) {
 
       if (allValues.length > 0) {
         // Serial/MAC-tracked: find engineer assignment lines holding these values
+        const matchedValues = new Set()
         for (const asg of assignments) {
           if (asg.status === 'Returned') continue
           for (const line of [...asg.hardwareLines]) {
@@ -167,8 +168,18 @@ function reconcileRecoveryStock(recovery, terminalStatus) {
               })
             }
 
+            toReturn.forEach(v => matchedValues.add(v))
             movedItems.push(`${item.productName} × ${toReturn.length}`)
           }
+        }
+
+        // Serials/MACs not backed by any engineer assignment ("ghost serials"
+        // — handed to the customer outside the engineer-assignment flow or
+        // from a pre-import record). The inventoryLedger Reversed filter
+        // handles their unit status; we still record them in the audit log.
+        const ghostCount = allValues.filter(v => !matchedValues.has(v)).length
+        if (ghostCount > 0) {
+          movedItems.push(`${item.productName} × ${ghostCount}`)
         }
 
       } else if (item.qty > 0 && !item.drumNumber) {

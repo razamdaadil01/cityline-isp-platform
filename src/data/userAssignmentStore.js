@@ -470,9 +470,9 @@ export function reverseUserAssignmentItem(assignmentId, itemId) {
 // modal reads to populate its hardware-to-recover list (never a free-text
 // field the way the Intercom flow's equivalent field is).
 export function getActiveUserAssignmentsForCustomer(customerId) {
-  return _userAssignments.filter(a => (
-    a.customerId === customerId && a.status === 'Handed Off' && !a.recoveryWorkOrderId
-  ))
+  return _userAssignments.filter(a =>
+    a.customerId === customerId && a.status === 'Handed Off'
+  )
 }
 
 // Called once a recovery work order is created for a customer (never on
@@ -513,9 +513,10 @@ export function resolveRecovery(recoveryWorkOrderId, recoveryOutcome) {
     : a)
   notify()
 
+  const itemCount = matches.reduce((sum, a) => sum + a.items.length, 0)
   logAudit({
     action: 'Update', module: 'Inventory',
-    details: `Hardware recovery ${recoveryWorkOrderId} resolved as '${recoveryOutcome}' — ${matches.length} handoff(s) closed out`,
+    details: `Hardware recovery ${recoveryWorkOrderId} resolved as '${recoveryOutcome}' — ${itemCount} item(s) across ${matches.length} handoff(s) closed out`,
   })
 
   return matches.map(a => a.id)

@@ -241,7 +241,7 @@ function computeLedger({ excludeUserAssignmentId, excludeAssignmentId, excludeSt
   // handed to users from that specific held drum — wire's equivalent of
   // handedOffQtyByEngineerKey above.
   const handedOffMetersByEngineerDrumKey = {}
-  getUserAssignments().filter(ua => ua.id !== excludeUserAssignmentId).forEach(ua => {
+  getUserAssignments().filter(ua => ua.id !== excludeUserAssignmentId && ua.status !== 'Reversed').forEach(ua => {
     const toLabel = ua.customerName || 'Customer'
     ua.items.forEach(it => {
       const values = [...it.serials, ...it.macs]
