@@ -47,6 +47,11 @@ const SEGMENT_STATUS_VARIANT = {
   'Planned':             'gray',
 }
 
+// Fixed labour/installation charge added to the hardware-based cost estimate.
+// No settings store field exists for this yet — a single constant is the
+// right size for this feature; promote to a settings value when needed.
+const FEASIBILITY_LABOUR_CHARGE = 500
+
 // The 4-stage business pipeline shown in the horizontal progress stepper —
 // distinct from the tab bar below it, which is pure content navigation.
 const PROGRESS_STAGE_LABELS = ['Request Raised', 'Engineer Assigned', 'Feasibility Check', 'Approved / Rejected']
@@ -474,6 +479,9 @@ export default function FeasibilityDetail() {
 
   const [toast, setToast] = useState('')
 
+  const [costOverrideEditing, setCostOverrideEditing] = useState(false)
+  const [costOverrideInput, setCostOverrideInput] = useState('')
+
   // Attachment upload handlers — each section (siteImages, locationPhotos,
   // supportingDocuments) stores an independent array on the feasibility record.
   function handleAttachmentAdd(field, newFiles) {
@@ -481,6 +489,15 @@ export default function FeasibilityDetail() {
   }
   function handleAttachmentRemove(field, idx) {
     saveFeasibilityRequest({ ...req, [field]: (req[field] ?? []).filter((_, i) => i !== idx) })
+  }
+
+  function handleSaveCostOverride() {
+    const val = parseFloat(costOverrideInput)
+    if (Number.isNaN(val) || val < 0) return
+    const now = new Date().toLocaleString('sv-SE', { hour12: false }).slice(0, 16).replace('T', ' ')
+    saveFeasibilityRequest({ ...req, costOverride: val, costOverrideBy: 'Admin User', costOverrideAt: now })
+    setCostOverrideEditing(false)
+    setToast('Cost estimate updated.')
   }
 
   // ?modal=assign-engineer opens the same "Assign Engineer" modal used by
@@ -1193,11 +1210,76 @@ export default function FeasibilityDetail() {
                 <p className="text-base font-bold text-gray-900">{req.estimatedDistanceFromFiber || '—'}</p>
               </SummaryBox>
               <SummaryBox label="Est. Fiber Cost">
-                {/* TODO: wire to real inventory-based cost calculation once available */}
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-blue">
-                  <FileText size={14} /> Auto-calculated
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">(Inventory Model)</p>
+                {costOverrideEditing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={costOverrideInput}
+                      onChange={e => setCostOverrideInput(e.target.value)}
+                      className="w-full text-sm border border-surface-border rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand-blue"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveCostOverride}
+                        className="flex-1 text-xs font-semibold px-2 py-1 rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCostOverrideEditing(false)}
+                        className="flex-1 text-xs font-semibold px-2 py-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (() => {
+                  const items = req.hardwareItems ?? []
+                  const hwTotal = items.reduce((s, it) => s + (it.unitPrice ?? 0) * (it.quantity ?? 1), 0)
+                  const autoTotal = hwTotal + FEASIBILITY_LABOUR_CHARGE
+                  const displayTotal = req.costOverride ?? autoTotal
+                  return (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-base font-bold text-gray-900">
+                          ₹{displayTotal.toLocaleString('en-IN')}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setCostOverrideInput(String(displayTotal)); setCostOverrideEditing(true) }}
+                          className="text-xs text-brand-blue hover:underline shrink-0"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      {req.costOverride != null ? (
+                        <p className="text-[11px] text-orange-500 font-semibold mt-0.5">
+                          Manual override · {req.costOverrideAt || ''}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-gray-400 mt-0.5">Auto-calculated</p>
+                      )}
+                      {items.length > 0 && (
+                        <div className="mt-2 space-y-0.5 border-t border-gray-200 pt-2">
+                          {items.map((it, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs text-gray-500">
+                              <span className="truncate mr-1">{it.name} ×{it.quantity ?? 1}</span>
+                              <span className="shrink-0 font-medium">₹{((it.unitPrice ?? 0) * (it.quantity ?? 1)).toLocaleString('en-IN')}</span>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-1 mt-1">
+                            <span>Labour</span>
+                            <span className="font-medium">₹{FEASIBILITY_LABOUR_CHARGE.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </SummaryBox>
               <SummaryBox label="Nearest POP">
                 <p className="text-base font-bold text-gray-900">{req.nearestPop || '—'}</p>
