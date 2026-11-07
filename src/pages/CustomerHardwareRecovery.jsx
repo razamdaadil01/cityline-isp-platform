@@ -8,7 +8,7 @@ import { Select } from '../components/ui/FormInputs'
 import {
   getRecoveries, subscribeRecoveries, updateRecovery, RECOVERY_STATUS_CFG, RECOVERY_TERMINAL_STATUSES,
 } from '../data/customerRecoveryStore'
-import { resolveRecovery } from '../data/userAssignmentStore'
+import { getUserAssignments } from '../data/userAssignmentStore'
 import { updateCustomer } from '../data/customersData'
 
 // Phase 4 of the Customer Disconnection flow (customerRecoveryStore.js) —
@@ -54,27 +54,29 @@ export default function CustomerHardwareRecovery() {
     })
   }, [recoveries, search, filterStatus])
 
-  const stats = useMemo(() => ({
-    pending:   recoveries.filter(r => r.status === 'pending').length,
-    overdue:   recoveries.filter(r => (r.status === 'pending' || r.status === 'inprogress') && toISO(r.scheduledDate) < todayISO).length,
-    partial:   recoveries.filter(r => r.status === 'partial_recovery').length,
-    missing:   recoveries.filter(r => r.status === 'missing_hardware').length,
-    damaged:   recoveries.filter(r => r.status === 'damaged_hardware').length,
-    returned:  recoveries.filter(r => r.status === 'completed').length,
-  }), [recoveries, todayISO])
+  const stats = useMemo(() => {
+    const completedIds = new Set(recoveries.filter(r => r.status === 'completed').map(r => r.id))
+    const returnedItems = getUserAssignments()
+      .filter(ua => completedIds.has(ua.recoveryWorkOrderId))
+      .reduce((sum, ua) => sum + ua.items.length, 0)
+    return {
+      pending:   recoveries.filter(r => r.status === 'pending').length,
+      overdue:   recoveries.filter(r => (r.status === 'pending' || r.status === 'inprogress') && toISO(r.scheduledDate) < todayISO).length,
+      partial:   recoveries.filter(r => r.status === 'partial_recovery').length,
+      missing:   recoveries.filter(r => r.status === 'missing_hardware').length,
+      damaged:   recoveries.filter(r => r.status === 'damaged_hardware').length,
+      returned:  returnedItems,
+    }
+  }, [recoveries, todayISO])
 
   function handleStatusChange(id, status) {
     const patch = { status }
     if (status === 'completed') {
       patch.completedDate = new Date().toLocaleDateString('en-GB').split('/').join('-')
     }
-    updateRecovery(id, patch)
+    updateRecovery(id, patch) // internally calls resolveRecovery on terminal status
 
     if (RECOVERY_TERMINAL_STATUSES.includes(status)) {
-      // Step 3: close out the linked handoff(s) and record what actually
-      // happened, so Phase 4 (billing/settlement) has something to charge
-      // for on missing/damaged hardware later.
-      resolveRecovery(id, RECOVERY_OUTCOME[status])
       const r = getRecoveries().find(o => o.id === id)
       if (r) updateCustomer(r.customerId, { hardwareRecoveryOutcome: RECOVERY_OUTCOME[status] })
     }
@@ -97,7 +99,7 @@ export default function CustomerHardwareRecovery() {
           { label: 'Partial Recoveries', value: stats.partial,  icon: PackageMinus,  color: 'text-amber-600',    bg: 'bg-amber-100'        },
           { label: 'Missing Hardware',   value: stats.missing,  icon: PackageX,      color: 'text-red-600',      bg: 'bg-red-100'          },
           { label: 'Damaged Hardware',   value: stats.damaged,  icon: PackageX,      color: 'text-orange-600',   bg: 'bg-orange-100'       },
-          { label: 'Returned to Inventory', value: stats.returned, icon: PackageCheck, color: 'text-emerald-700', bg: 'bg-emerald-100'   },
+          { label: 'Items Returned to Inventory', value: stats.returned, icon: PackageCheck, color: 'text-emerald-700', bg: 'bg-emerald-100'   },
         ].map(s => {
           const Icon = s.icon
           return (

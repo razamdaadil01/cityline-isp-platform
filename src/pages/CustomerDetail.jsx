@@ -2478,6 +2478,7 @@ function InventoryTab({ customer }) {
         qty: it.qty ?? 1,
         assignedBy: asg.assignedBy ?? asg.engineerName,
         assignedAt: asg.assignedAt,
+        recoveryWorkOrderId: asg.recoveryWorkOrderId ?? null,
       }
     })
   )
@@ -2511,7 +2512,10 @@ function InventoryTab({ customer }) {
                   <td className="px-4 py-3 text-xs text-gray-600">Cityline</td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTicketDate(item.assignedAt)}</td>
                   <td className="px-4 py-3">
-                    <Badge variant="green" dot size="sm">Handed Off</Badge>
+                    {item.recoveryWorkOrderId
+                      ? <Badge variant="orange" dot size="sm">Recovery Scheduled</Badge>
+                      : <Badge variant="green" dot size="sm">Handed Off</Badge>
+                    }
                   </td>
                 </tr>
               ))}
