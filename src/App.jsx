@@ -36,6 +36,7 @@ import IntercomCustomerDetail from './pages/IntercomCustomerDetail'
 import IntercomInstallationDetail from './pages/IntercomInstallationDetail'
 import IntercomHardwareRecovery from './pages/IntercomHardwareRecovery'
 import IntercomBilling from './pages/IntercomBilling'
+import IntercomReports from './pages/IntercomReports'
 import FeasibilityRequests from './pages/FeasibilityRequests'
 import FeasibilityDetail from './pages/FeasibilityDetail'
 import Installations from './pages/Installations'
@@ -128,6 +129,7 @@ import UserManagement from './pages/UserManagement'
 import UserAdd from './pages/UserAdd'
 import UserEdit from './pages/UserEdit'
 import UserDepartments from './pages/UserDepartments'
+import NotFoundPage from './pages/NotFoundPage'
 
 export default function App() {
   return (
@@ -191,6 +193,7 @@ export default function App() {
           <Route path="/intercom/billing" element={<IntercomBilling />} />
           <Route path="/intercom/billing/recharge" element={<IntercomBilling />} />
           <Route path="/intercom/billing/payments" element={<IntercomBilling />} />
+          <Route path="/intercom/reports" element={<IntercomReports />} />
           <Route path="/installations" element={<Installations />} />
           <Route path="/installations/:id" element={<InstallationDetail />} />
           <Route path="/technicians" element={<TechnicianDashboard />} />
@@ -324,6 +327,7 @@ export default function App() {
           <Route path="/users/:id/edit" element={<UserEdit />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/bandwidth" element={<BandwidthMonitoring />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

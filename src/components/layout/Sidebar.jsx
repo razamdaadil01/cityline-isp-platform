@@ -78,6 +78,7 @@ const NAV_ITEMS = [
       { label: 'Hardware Recovery', icon: PackageSearch, to: '/intercom/hardware-recovery' },
       { label: 'Customers',         icon: Users,         to: '/intercom/customers'         },
       { label: 'Dashboard',         icon: LayoutDashboard, to: '/intercom/dashboard'       },
+      { label: 'Reports',           icon: BarChart2,       to: '/intercom/reports'          },
     ],
   },
   { label: 'Billing & Invoice',icon: Receipt,         to: '/billing'                   },
