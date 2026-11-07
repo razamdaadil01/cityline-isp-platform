@@ -14,6 +14,11 @@
 // CustomerDetail.jsx's "Schedule Hardware Recovery" action (Terminate flow,
 // 'Pending Disconnection' status) creates one.
 
+import { getUserAssignments, resolveRecovery } from './userAssignmentStore'
+import { getAssignments, getAssignment, returnAssignmentLine, removeUnitFromAssignmentLine } from './assignmentStore'
+import { saveAdjustment } from './inventoryAdjustmentStore'
+import { logAudit } from './auditLogStore'
+
 // Core customers don't have an Intercom-style "Converted to Internet" path
 // — this list only reflects the one path Phase 1/2 actually create a
 // disconnection through (CustomerDetail.jsx's Terminate action).
@@ -75,9 +80,153 @@ export function addRecovery(order) {
   return order
 }
 
+// Internal: perform stock reconciliation when a recovery transitions to a
+// terminal status. Called at most once per recovery — the stockReconciled
+// guard in updateRecovery() ensures idempotency. Does NOT modify _recoveries
+// itself; the caller stamps stockReconciled: true after this returns cleanly.
+//
+// completed / damaged_hardware: each recovered unit's engineer assignment
+// line is removed via returnAssignmentLine() / removeUnitFromAssignmentLine(),
+// which is the same mechanism ordinary "Back to Store" returns use —
+// inventoryLedger.js re-computes every unit's status from the current
+// non-Returned assignment lines, so a removed line automatically makes the
+// unit 'Available' again with no separate ledger write needed. For damaged,
+// an additional repair-type adjustment is logged so the unit shows as
+// 'Sent for Repair' (not available for assignment) until serviced.
+//
+// missing_hardware / partial_recovery: engineer assignment lines are left
+// intact, keeping affected units as 'Assigned to Engineer' in the ledger —
+// they appear as outstanding in Stock Verification. recoveryOutcome on the
+// user assignment records the financial/billing outcome for Phase 4.
+function reconcileRecoveryStock(recovery, terminalStatus) {
+  const recoveryId = recovery.id
+
+  const outcome =
+    terminalStatus === 'completed'        ? 'returned' :
+    terminalStatus === 'damaged_hardware' ? 'damaged'  :
+    terminalStatus === 'missing_hardware' ? 'missing'  : 'partial'
+
+  // Close customer-side handoff tracking — marks linked user assignments
+  // 'Reversed' and stamps recoveryOutcome for Phase 4 billing to read.
+  resolveRecovery(recoveryId, outcome)
+
+  if (terminalStatus !== 'completed' && terminalStatus !== 'damaged_hardware') {
+    logAudit({
+      action: 'Update', module: 'Inventory',
+      details: `Recovery ${recoveryId} (${recovery.customer}) closed as '${outcome}' — hardware not returned to stock`,
+    })
+    return
+  }
+
+  const linkedUserAssignments = getUserAssignments().filter(
+    ua => ua.recoveryWorkOrderId === recoveryId
+  )
+  const assignments = getAssignments() // snapshot before any mutations
+  const movedItems = []
+
+  for (const ua of linkedUserAssignments) {
+    for (const item of ua.items) {
+      const allValues = [...item.serials, ...item.macs]
+
+      if (allValues.length > 0) {
+        // Serial/MAC-tracked: find engineer assignment lines holding these values
+        for (const asg of assignments) {
+          if (asg.status === 'Returned') continue
+          for (const line of [...asg.hardwareLines]) {
+            // Re-read current state — earlier iterations may have removed lines
+            const curAsg = getAssignment(asg.id)
+            if (!curAsg || curAsg.status === 'Returned') break
+            const curLine = curAsg.hardwareLines.find(l => l.id === line.id)
+            if (!curLine) continue
+
+            const lineValues = [...curLine.serials, ...curLine.macs]
+            const toReturn = allValues.filter(v => lineValues.includes(v))
+            if (toReturn.length === 0) continue
+
+            if (toReturn.length === lineValues.length) {
+              returnAssignmentLine(asg.id, 'hardware', line.id)
+            } else {
+              for (const v of toReturn) {
+                removeUnitFromAssignmentLine(asg.id, line.id, v)
+              }
+            }
+
+            if (terminalStatus === 'damaged_hardware') {
+              saveAdjustment({
+                type: 'repair',
+                productId: item.productId,
+                productName: item.productName,
+                storeId: asg.storeId,
+                storeName: asg.storeName,
+                qty: toReturn.length,
+                units: toReturn.map(v => ({
+                  value: v,
+                  kind: item.serials.includes(v) ? 'serial' : 'mac',
+                })),
+                issueDescription: `Damaged — recovered from customer ${recovery.customer} (Recovery ${recovery.id})`,
+              })
+            }
+
+            movedItems.push(`${item.productName} × ${toReturn.length}`)
+          }
+        }
+
+      } else if (item.qty > 0 && !item.drumNumber) {
+        // Quantity-tracked hardware: return matching engineer lines by product
+        const engineerAssignments = assignments.filter(
+          a => a.engineerId === ua.engineerId && a.status !== 'Returned'
+        )
+        let qtyToReturn = item.qty
+        for (const asg of engineerAssignments) {
+          if (qtyToReturn <= 0) break
+          for (const line of [...asg.hardwareLines]) {
+            if (qtyToReturn <= 0) break
+            if (line.productId !== item.productId) continue
+            if (line.serials.length || line.macs.length) continue
+            const curAsg = getAssignment(asg.id)
+            if (!curAsg || curAsg.status === 'Returned') break
+            const curLine = curAsg.hardwareLines.find(l => l.id === line.id)
+            if (!curLine) continue
+            returnAssignmentLine(asg.id, 'hardware', line.id)
+            qtyToReturn -= curLine.assignedQty
+            movedItems.push(`${item.productName} × ${curLine.assignedQty}`)
+          }
+        }
+      }
+      // Wire remains at the customer premises — not recovered via this flow
+    }
+  }
+
+  logAudit({
+    action: 'Update', module: 'Inventory',
+    details: `Recovery ${recoveryId} (${recovery.customer}) — ${outcome}: ${
+      movedItems.length
+        ? movedItems.join(', ') + ' returned to stock'
+        : 'no inventory items to reconcile'
+    }`,
+  })
+}
+
 export function updateRecovery(id, patch) {
+  const existing = getRecovery(id)
   _recoveries = _recoveries.map(o => o.id === id ? { ...o, ...patch } : o)
   notify()
+  const updated = getRecovery(id)
+
+  // Trigger stock reconciliation exactly once when a terminal status is set.
+  // existing.stockReconciled guards against double-posting if updateRecovery
+  // is called again with the same (or a different) terminal status.
+  if (
+    patch.status &&
+    RECOVERY_TERMINAL_STATUSES.includes(patch.status) &&
+    existing &&
+    !existing.stockReconciled
+  ) {
+    reconcileRecoveryStock(updated, patch.status)
+    _recoveries = _recoveries.map(o => o.id === id ? { ...o, stockReconciled: true } : o)
+    notify()
+  }
+
   return getRecovery(id)
 }
 
