@@ -17,6 +17,7 @@
 import { getUserAssignments, resolveRecovery } from './userAssignmentStore'
 import { getAssignments, getAssignment, returnAssignmentLine, removeUnitFromAssignmentLine } from './assignmentStore'
 import { saveAdjustment } from './inventoryAdjustmentStore'
+import { addRecoveryReceipt } from './purchaseStore'
 import { logAudit } from './auditLogStore'
 
 // Core customers don't have an Intercom-style "Converted to Internet" path
@@ -175,11 +176,35 @@ function reconcileRecoveryStock(recovery, terminalStatus) {
 
         // Serials/MACs not backed by any engineer assignment ("ghost serials"
         // — handed to the customer outside the engineer-assignment flow or
-        // from a pre-import record). The inventoryLedger Reversed filter
-        // handles their unit status; we still record them in the audit log.
-        const ghostCount = allValues.filter(v => !matchedValues.has(v)).length
-        if (ghostCount > 0) {
-          movedItems.push(`${item.productName} × ${ghostCount}`)
+        // from a pre-import record). Write a Confirmed recovery receipt so
+        // the ledger gains the unit and Available Qty reflects the return.
+        const ghostValues = allValues.filter(v => !matchedValues.has(v))
+        if (ghostValues.length > 0) {
+          const ghostStoreId = ua.storeId ?? 'STR-001'
+          const ghostStoreName = ua.storeName ?? 'Main Warehouse'
+          addRecoveryReceipt({
+            storeId: ghostStoreId, storeName: ghostStoreName,
+            recoveryId: recovery.id, customerName: recovery.customer,
+            items: [{
+              productId: item.productId, productName: item.productName,
+              qty: ghostValues.length,
+              serials: ghostValues.filter(v => item.serials.includes(v)),
+              macs: ghostValues.filter(v => item.macs.includes(v)),
+            }],
+          })
+          if (terminalStatus === 'damaged_hardware') {
+            saveAdjustment({
+              type: 'repair',
+              productId: item.productId, productName: item.productName,
+              storeId: ghostStoreId, storeName: ghostStoreName,
+              qty: ghostValues.length,
+              units: ghostValues.map(v => ({
+                value: v, kind: item.serials.includes(v) ? 'serial' : 'mac',
+              })),
+              issueDescription: `Damaged — recovered from customer ${recovery.customer} (Recovery ${recovery.id})`,
+            })
+          }
+          movedItems.push(`${item.productName} × ${ghostValues.length}`)
         }
 
       } else if (item.qty > 0 && !item.drumNumber) {
@@ -202,6 +227,17 @@ function reconcileRecoveryStock(recovery, terminalStatus) {
             qtyToReturn -= curLine.assignedQty
             movedItems.push(`${item.productName} × ${curLine.assignedQty}`)
           }
+        }
+        // Ghost qty-tracked items — no matching engineer assignment found
+        if (qtyToReturn > 0) {
+          const ghostStoreId = ua.storeId ?? 'STR-001'
+          const ghostStoreName = ua.storeName ?? 'Main Warehouse'
+          addRecoveryReceipt({
+            storeId: ghostStoreId, storeName: ghostStoreName,
+            recoveryId: recovery.id, customerName: recovery.customer,
+            items: [{ productId: item.productId, productName: item.productName, qty: qtyToReturn, serials: [], macs: [] }],
+          })
+          movedItems.push(`${item.productName} × ${qtyToReturn}`)
         }
       }
       // Wire remains at the customer premises — not recovered via this flow

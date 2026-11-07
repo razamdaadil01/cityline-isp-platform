@@ -547,6 +547,53 @@ export function confirmStockFromQA(purchaseId) {
   })
 }
 
+// Creates a Confirmed purchase record directly for hardware returned via a
+// customer recovery work order — bypasses the savePurchase/QA flow because
+// the work order outcome already carries the condition verdict. Called by
+// customerRecoveryStore.js's reconcileRecoveryStock() for "ghost" items whose
+// serials/MACs are not backed by any engineer assignment (received outside the
+// normal GRN path, or pre-dating the inventory system). Engineer-assignment-
+// backed items use the existing returnAssignmentLine() path instead.
+//
+// `items`: [{ productId, productName, qty, serials?, macs? }]
+export function addRecoveryReceipt({ storeId, storeName, recoveryId, customerName, items }) {
+  const purchaseDate = new Date().toISOString().slice(0, 10)
+  const purchaseItems = items.map((it, i) => computeItemFields({
+    id: `PURI-REC-${Date.now()}-${i}`,
+    source: 'recovery',
+    type: 'hardware',
+    productId: it.productId,
+    productName: it.productName,
+    sku: '',
+    unit: 'Piece',
+    poQty: 0,
+    receivedQty: it.qty,
+    price: 0,
+    gstPercent: 0,
+    serials: it.serials ?? [],
+    macs: it.macs ?? [],
+    drumNumber: '',
+    reason: `Recovery return — ${recoveryId} (${customerName})`,
+  }))
+  const purchase = {
+    id: `PUR-${String(_nextInternalSeq++).padStart(6, '0')}`,
+    purchaseNumber: nextPurchaseNumber(),
+    poId: null, poNumber: null,
+    vendorId: null, vendorName: `Recovery — ${customerName}`,
+    storeId, storeName, companyEntityId: 1,
+    purchaseDate,
+    items: purchaseItems,
+    remarks: `Hardware recovery return: ${recoveryId}`,
+    status: 'Confirmed',
+    createdAt: new Date().toISOString(),
+    createdBy: 'System',
+    ...summarizePurchase(purchaseItems),
+  }
+  _purchases = [purchase, ..._purchases]
+  notify()
+  return purchase
+}
+
 // Reconcile PO receipt status against the seed's already-'Confirmed'
 // Purchases, same "seed then reconcile" pattern purchaseOrderStore.js uses
 // for its own approval-linked seed row — keeps the derived PO status
