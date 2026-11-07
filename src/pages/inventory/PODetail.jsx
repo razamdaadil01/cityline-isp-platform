@@ -67,12 +67,21 @@ export default function PODetail() {
 
   return (
     <div className="p-6 space-y-5">
+      {/* Print CSS — hides the app sidebar and header so only the PO renders */}
+      <style>{`
+        @media print {
+          aside, header { display: none !important; }
+          body > #root > div { overflow: visible !important; height: auto !important; }
+          body > #root > div > div { margin-left: 0 !important; }
+          .po-print-hidden { display: none !important; }
+        }
+      `}</style>
 
       {/* Top bar */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/inventory/purchase-orders')}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors po-print-hidden">
             <ArrowLeft size={18} />
           </button>
           <div>
@@ -90,12 +99,12 @@ export default function PODetail() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Button variant="secondary" size="sm" icon={<Download size={14} />} disabled title="Coming soon">
+        <div className="flex gap-2 shrink-0 po-print-hidden">
+          <Button size="sm" icon={<Download size={14} />} onClick={() => window.print()}>
             Download PO
           </Button>
-          <Button variant="secondary" size="sm" icon={<Printer size={14} />} disabled title="Coming soon">
-            Print
+          <Button variant="secondary" size="sm" icon={<Printer size={14} />} onClick={() => window.print()}>
+            Print PO
           </Button>
           {canEdit && (
             <Button variant="secondary" size="sm" icon={<Edit2 size={14} />} onClick={() => navigate(`/inventory/purchase-orders/${po.id}/edit`)}>

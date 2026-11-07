@@ -10,7 +10,7 @@ import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { getInvoices, subscribeInvoices, addInvoice, updateInvoice } from '../data/invoicesStore'
-import { addPayment, nextReceiptNo, recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
+import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
 import { logAudit } from '../data/auditLogStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
@@ -989,9 +989,9 @@ export default function Billing() {
       id: p.id,
       invoiceNo: p.invoiceNo || (p.invoiceNos?.[0] ?? '—'),
       customerName: custMap[p.customerId] || p.customerId || '—',
-      amount: p.paid ?? p.total ?? 0,
+      amount: p.amount ?? p.paid ?? p.total ?? 0,
       mode: p.mode || '—',
-      txnId: p.chequeBCh || p.txnId || '—',
+      txnId: p.orderNo || p.txnId || (Number(p.chequeBCh) ? String(p.chequeBCh) : '') || '—',
       date: p.paymentDate || (p.date ? p.date.slice(0, 10) : '—'),
       recordedBy: p.addBy || 'System',
     }))
