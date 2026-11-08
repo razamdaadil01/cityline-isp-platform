@@ -37,7 +37,7 @@ import {
 } from '../data/settlementStore'
 import { computeCustomerLedger } from '../utils/ledgerUtils'
 import {
-  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice, cancelInvoice,
+  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice, cancelInvoice, issueCreditNote,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments, recordPayment } from '../data/paymentsStore'
 import { getPlans } from '../data/packagesStore'
@@ -1813,11 +1813,20 @@ function FinanceTab({ customer, setActivityLog }) {
 
   function handleSaveCreditNote() {
     if (!creditForm.amount || !creditForm.reason) return
-    updateInvoice(creditModal, { creditNote: { amount: Number(creditForm.amount), reason: creditForm.reason } })
+    const inv = getInvoices().find(i => i.no === creditModal)
+    const cn = issueCreditNote({
+      invoiceNo: creditModal,
+      reason: creditForm.reason,
+      amount: Number(creditForm.amount),
+      entityId: inv?.entityId ?? 1,
+      customerId,
+      issuedBy: 'Admin User',
+    })
     const now = formatActivityTime(new Date())
-    setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Credit note added', meta: `${creditModal} · ₹${Number(creditForm.amount).toLocaleString('en-IN')} — ${creditForm.reason}` }, ...a])
-    showInvToast(`Credit note saved for ${creditModal}`)
+    setActivityLog(a => [{ time: now, actor: 'Admin', event: 'Credit note issued', meta: `${cn.no} · ₹${Number(creditForm.amount).toLocaleString('en-IN')} — ${creditForm.reason}` }, ...a])
+    showInvToast(`Credit note ${cn.no} issued.`)
     setCreditModal(null)
+    navigate(`/billing/credit-note/${encodeURIComponent(cn.no)}`)
   }
 
   function handleOpenRefundModal(inv) {

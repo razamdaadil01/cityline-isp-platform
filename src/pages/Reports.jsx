@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutGrid, List, Download, FileBarChart, Lock, ChevronDown, ChevronUp } from 'lucide-react'
+import { LayoutGrid, List, Download, FileBarChart, Lock, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportCsv } from '../utils/csvExport'
 
@@ -918,20 +918,20 @@ function EngineerCollectionView() {
   )
 }
 
-function ReportCardGrid({ report, canExport, onDownload }) {
-  const [expanded, setExpanded] = useState(false)
+function ReportCardGrid({ report, canExport, onDownload, expandedKey, onToggleExpand }) {
+  const isExpanded = expandedKey === report.key
   return (
-    <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 flex flex-col gap-2">
+    <div className={`bg-white rounded-xl border shadow-card p-4 flex flex-col gap-2 transition-all ${isExpanded ? 'border-brand-blue ring-2 ring-brand-blue/20' : 'border-surface-border'}`}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900 leading-snug">{report.title}</h3>
         <div className="flex items-center gap-1 shrink-0">
           {report.buildViewData && (
             <button
-              onClick={() => setExpanded(v => !v)}
-              title={expanded ? 'Hide table' : 'View on screen'}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+              onClick={() => onToggleExpand(report.key)}
+              title={isExpanded ? 'Hide table' : 'View on screen'}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isExpanded ? 'text-brand-blue bg-brand-blue/10' : 'text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
             >
-              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
           )}
           {canExport ? (
@@ -950,18 +950,14 @@ function ReportCardGrid({ report, canExport, onDownload }) {
         </div>
       </div>
       <p className="text-xs text-gray-500 leading-snug">{report.description}</p>
-      {expanded && report.buildViewData && report.key === 'overdue-report' && <OverdueTableView />}
-      {expanded && report.buildViewData && report.key === 'gst-summary' && <GstSummaryView />}
-      {expanded && report.buildViewData && report.key === 'daily-cash' && <DailyCashView />}
-      {expanded && report.buildViewData && report.key === 'engineer-collection' && <EngineerCollectionView />}
     </div>
   )
 }
 
-function ReportRowList({ report, canExport, onDownload }) {
-  const [expanded, setExpanded] = useState(false)
+function ReportRowList({ report, canExport, onDownload, expandedKey, onToggleExpand }) {
+  const isExpanded = expandedKey === report.key
   return (
-    <div className="bg-white border border-surface-border first:rounded-t-xl last:rounded-b-xl -mt-px">
+    <div className={`bg-white border first:rounded-t-xl last:rounded-b-xl -mt-px transition-all ${isExpanded ? 'border-brand-blue ring-1 ring-brand-blue/20 z-10 relative' : 'border-surface-border'}`}>
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900">{report.title}</p>
@@ -970,11 +966,11 @@ function ReportRowList({ report, canExport, onDownload }) {
         <div className="flex items-center gap-1 shrink-0">
           {report.buildViewData && (
             <button
-              onClick={() => setExpanded(v => !v)}
-              title={expanded ? 'Hide table' : 'View on screen'}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+              onClick={() => onToggleExpand(report.key)}
+              title={isExpanded ? 'Hide table' : 'View on screen'}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isExpanded ? 'text-brand-blue bg-brand-blue/10' : 'text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10'}`}
             >
-              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
           )}
           {canExport ? (
@@ -992,20 +988,16 @@ function ReportRowList({ report, canExport, onDownload }) {
           )}
         </div>
       </div>
-      {expanded && report.buildViewData && report.key === 'overdue-report' && (
-        <div className="px-4 pb-4"><OverdueTableView /></div>
-      )}
-      {expanded && report.buildViewData && report.key === 'gst-summary' && (
-        <div className="px-4 pb-4"><GstSummaryView /></div>
-      )}
-      {expanded && report.buildViewData && report.key === 'daily-cash' && (
-        <div className="px-4 pb-4"><DailyCashView /></div>
-      )}
-      {expanded && report.buildViewData && report.key === 'engineer-collection' && (
-        <div className="px-4 pb-4"><EngineerCollectionView /></div>
-      )}
     </div>
   )
+}
+
+function ReportView({ reportKey }) {
+  if (reportKey === 'overdue-report') return <OverdueTableView />
+  if (reportKey === 'gst-summary') return <GstSummaryView />
+  if (reportKey === 'daily-cash') return <DailyCashView />
+  if (reportKey === 'engineer-collection') return <EngineerCollectionView />
+  return null
 }
 
 export default function Reports() {
@@ -1015,6 +1007,11 @@ export default function Reports() {
   // rendering falls back to whichever visible section comes first instead
   // of showing a dead/empty tab.
   const [activeSection, setActiveSection] = useState(REPORT_LIBRARY[0].section)
+  const [expandedKey, setExpandedKey] = useState(null)
+
+  function handleToggleExpand(key) {
+    setExpandedKey(prev => prev === key ? null : key)
+  }
 
   // One useMicroPermission() call per distinct Reports permission key this
   // library's cards reference — see REPORT_LIBRARY above for which card
@@ -1105,7 +1102,7 @@ export default function Reports() {
           {visibleSections.map(section => (
             <button
               key={section.section}
-              onClick={() => setActiveSection(section.section)}
+              onClick={() => { setActiveSection(section.section); setExpandedKey(null) }}
               className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
                 currentSection?.section === section.section
                   ? 'border-brand-blue text-brand-blue'
@@ -1119,19 +1116,34 @@ export default function Reports() {
       )}
 
       {currentSection && (
-        view === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {currentSection.reports.map(report => (
-              <ReportCardGrid key={report.key} report={report} canExport={canExport} onDownload={handleDownload} />
-            ))}
-          </div>
-        ) : (
-          <div>
-            {currentSection.reports.map(report => (
-              <ReportRowList key={report.key} report={report} canExport={canExport} onDownload={handleDownload} />
-            ))}
-          </div>
-        )
+        <div className="space-y-4">
+          {view === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {currentSection.reports.map(report => (
+                <ReportCardGrid key={report.key} report={report} canExport={canExport} onDownload={handleDownload} expandedKey={expandedKey} onToggleExpand={handleToggleExpand} />
+              ))}
+            </div>
+          ) : (
+            <div>
+              {currentSection.reports.map(report => (
+                <ReportRowList key={report.key} report={report} canExport={canExport} onDownload={handleDownload} expandedKey={expandedKey} onToggleExpand={handleToggleExpand} />
+              ))}
+            </div>
+          )}
+          {expandedKey && currentSection.reports.find(r => r.key === expandedKey)?.buildViewData && (
+            <div className="bg-white rounded-xl border border-brand-blue/30 shadow-card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {currentSection.reports.find(r => r.key === expandedKey)?.title}
+                </h3>
+                <button onClick={() => setExpandedKey(null)} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                  <X size={15} />
+                </button>
+              </div>
+              <ReportView reportKey={expandedKey} />
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
