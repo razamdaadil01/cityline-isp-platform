@@ -66,7 +66,7 @@ let _companyEntities = [
     sequencePadding: 4,
     lastIssuedSequence: null,
     receiptPrefix: 'CL-RCP',
-    lastIssuedReceiptSequence: null,
+    lastIssuedReceiptSequence: 34,
     cnPrefix: 'CL-CN',
     lastIssuedCnSequence: null,
     // Controls the invoice line-item table's middle column (InvoicePDF.jsx,

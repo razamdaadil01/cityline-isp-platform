@@ -201,6 +201,7 @@ function RecordPaymentModal({ invoice, onClose, onSuccess }) {
 
 // ── TAB 1: All Payments ────────────────────────────────────────────────────────
 function AllPaymentsTab() {
+  const navigate = useNavigate()
   const [payments, setPayments] = useState(getPayments)
   const [collectedTotal, setCollectedTotal] = useState(getCollectedTotal)
   const [pendingTotal, setPendingTotal]     = useState(getPendingTotal)
