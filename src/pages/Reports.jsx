@@ -11,7 +11,7 @@ import { exportCsv } from '../utils/csvExport'
 // builder function's own comment for specifics.
 import { getPayments } from '../data/paymentsStore'
 import { normalizeMode } from '../data/paymentModes'
-import { getInvoices, getOutstandingInvoicesAll } from '../data/invoicesStore'
+import { getInvoices, getOutstandingInvoicesAll, getCreditNotes } from '../data/invoicesStore'
 import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueStats'
 import { computeCollectionByMonth } from '../utils/collectionStats'
 import { getAllCustomers, effectiveStatus } from '../data/customersData'
@@ -437,8 +437,11 @@ function gstInvoiceRows(monthFilter) {
 }
 
 function buildGstSummaryRows(monthFilter) {
-  return gstInvoiceRows(monthFilter).map(({ inv, cust, isB2B }) => ({
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  const invoiceRows = gstInvoiceRows(monthFilter).map(({ inv, cust, isB2B }) => ({
     Type: isB2B ? 'B2B' : 'B2C',
+    'Doc Type': 'Invoice',
     'Invoice No.': inv.no,
     'Invoice Date': inv.issueDate || inv.date,
     'Customer Name': cust?.name ?? inv.customerId,
@@ -451,15 +454,55 @@ function buildGstSummaryRows(monthFilter) {
     'HSN/SAC': (inv.lines?.[0]?.hsnSac) ?? '998422',
     Status: inv.status,
   }))
+  const cnRows = getCreditNotes()
+    .filter(cn => {
+      if (!monthFilter) return true
+      return (cn.issuedOn || '').startsWith(monthFilter)
+    })
+    .map(cn => {
+      const cust = custMap.get(cn.customerId)
+      const isB2B = !!(cust?.gstNo)
+      return {
+        Type: isB2B ? 'B2B' : 'B2C',
+        'Doc Type': 'Credit Note',
+        'Invoice No.': cn.no,
+        'Invoice Date': cn.issuedOn,
+        'Customer Name': cust?.name ?? cn.customerId,
+        GSTIN: cust?.gstNo ?? '—',
+        'Taxable Amount (₹)': -(cn.taxableAmount ?? 0),
+        'CGST (₹)': -(cn.cgst ?? 0),
+        'SGST (₹)': -(cn.sgst ?? 0),
+        'IGST (₹)': -(cn.igst ?? 0),
+        'Total (₹)': -(cn.amount || 0),
+        'HSN/SAC': '998422',
+        Status: cn.status,
+      }
+    })
+  return [...invoiceRows, ...cnRows]
 }
 
 function buildGstViewData(monthFilter) {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
   const rows = gstInvoiceRows(monthFilter)
   const b2b = rows.filter(r => r.isB2B)
   const b2c = rows.filter(r => !r.isB2B)
   const sum = (arr, key) => arr.reduce((s, r) => s + (r.inv[key] ?? 0), 0)
 
-  // HSN-wise summary across all rows
+  // Credit note adjustments
+  const cns = getCreditNotes().filter(cn => {
+    if (!monthFilter) return true
+    return (cn.issuedOn || '').startsWith(monthFilter)
+  })
+  const cnAdj = { taxable: 0, cgst: 0, sgst: 0, igst: 0, count: cns.length }
+  cns.forEach(cn => {
+    cnAdj.taxable += cn.taxableAmount ?? 0
+    cnAdj.cgst += cn.cgst ?? 0
+    cnAdj.sgst += cn.sgst ?? 0
+    cnAdj.igst += cn.igst ?? 0
+  })
+
+  // HSN-wise summary across all rows minus credit notes
   const hsnMap = new Map()
   rows.forEach(({ inv }) => {
     ;(inv.lines || [{ hsnSac: inv.lines?.[0]?.hsnSac ?? '998422', amount: inv.taxableAmount ?? 0 }]).forEach(l => {
@@ -473,6 +516,15 @@ function buildGstViewData(monthFilter) {
       hsnMap.set(hsn, ex)
     })
   })
+  // Subtract credit notes from HSN 998422 (all ISP services)
+  if (cnAdj.count > 0) {
+    const ex = hsnMap.get('998422') ?? { hsn: '998422', taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+    ex.taxable -= cnAdj.taxable
+    ex.cgst -= cnAdj.cgst
+    ex.sgst -= cnAdj.sgst
+    ex.igst -= cnAdj.igst
+    hsnMap.set('998422', ex)
+  }
 
   return {
     b2bCount: b2b.length,
@@ -485,6 +537,7 @@ function buildGstViewData(monthFilter) {
     b2cCgst: sum(b2c, 'cgst'),
     b2cSgst: sum(b2c, 'sgst'),
     b2cIgst: sum(b2c, 'igst'),
+    cnAdj,
     hsnRows: [...hsnMap.values()],
     totalInvoices: rows.length,
   }
@@ -729,7 +782,8 @@ function GstSummaryView({ onMonthChange }) {
         <input type="month" value={month} onChange={handleMonth}
           className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-blue" />
         {month && <button onClick={() => { setMonth(''); onMonthChange?.(null) }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
-        <span className="ml-auto text-xs text-gray-400">{d.totalInvoices} invoice{d.totalInvoices !== 1 ? 's' : ''} (excl. cancelled)</span>
+        <span className="ml-auto text-xs text-gray-400">{d.totalInvoices} invoice{d.totalInvoices !== 1 ? 's' : ''}
+          {d.cnAdj?.count > 0 ? `, ${d.cnAdj.count} credit note${d.cnAdj.count !== 1 ? 's' : ''}` : ''} (excl. cancelled)</span>
       </div>
 
       {/* B2B / B2C split */}

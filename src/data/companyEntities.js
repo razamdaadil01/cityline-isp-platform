@@ -67,6 +67,8 @@ let _companyEntities = [
     lastIssuedSequence: null,
     receiptPrefix: 'CL-RCP',
     lastIssuedReceiptSequence: null,
+    cnPrefix: 'CL-CN',
+    lastIssuedCnSequence: null,
     // Controls the invoice line-item table's middle column (InvoicePDF.jsx,
     // SalesLeadDetail.jsx's InvoiceModal): package name (default) or an HSN
     // code column alongside it when off — see Settings.jsx's CompanyEntityTab.
@@ -132,6 +134,8 @@ let _companyEntities = [
     lastIssuedSequence: null,
     receiptPrefix: 'CLF-RCP',
     lastIssuedReceiptSequence: null,
+    cnPrefix: 'CLF-CN',
+    lastIssuedCnSequence: null,
     showPackageNameOnInvoice: true,
     zohoConfig: {
       enabled: false,
@@ -233,6 +237,16 @@ function currentFYSuffix() {
   const y = now.getFullYear(), m = now.getMonth() + 1
   const start = m >= 4 ? y : y - 1
   return String(start).slice(2) + String(start + 1).slice(2)
+}
+
+export function getNextCreditNoteNumber(entityId) {
+  const entity = getCompanyEntity(entityId)
+  if (!entity) return String(Date.now())
+  const nextSeq = (entity.lastIssuedCnSequence ?? 0) + 1
+  _companyEntities = _companyEntities.map(e => e.id === entityId ? { ...e, lastIssuedCnSequence: nextSeq } : e)
+  notify()
+  const padded = String(nextSeq).padStart(4, '0')
+  return `${entity.cnPrefix || 'CN'}-${currentFYSuffix()}-${padded}`
 }
 
 export function getNextReceiptNumber(entityId) {

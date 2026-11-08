@@ -54,6 +54,7 @@ import Payments from './pages/Payments'
 import Collection from './pages/Collection'
 import InvoicePDF from './pages/InvoicePDF'
 import PaymentReceipt from './pages/PaymentReceipt'
+import CreditNotePDF from './pages/CreditNotePDF'
 import Support from './pages/Support'
 import TicketList from './pages/TicketList'
 import TicketCreate from './pages/TicketCreate'
@@ -209,6 +210,7 @@ export default function App() {
           <Route path="/billing/tax-invoice" element={<Billing />} />
           <Route path="/billing/payment-history" element={<Billing />} />
           <Route path="/billing/invoice/:id" element={<InvoicePDF />} />
+          <Route path="/billing/credit-note/:id" element={<CreditNotePDF />} />
           <Route path="/payments" element={<Payments />} />
           <Route path="/payments/receipt/:id" element={<PaymentReceipt />} />
           <Route path="/collection" element={<Collection />} />
