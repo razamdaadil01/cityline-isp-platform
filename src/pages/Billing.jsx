@@ -18,7 +18,7 @@ import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
 import { computeGst } from '../utils/customerUtils'
 import { getCompanyEntity, getActiveCompanyEntities, getEntityState } from '../data/companyEntities'
-import { renewSubscription } from '../utils/subscriptionUtils'
+import { renewSubscription, getVasLinesForCustomer } from '../utils/subscriptionUtils'
 
 
 const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
@@ -546,7 +546,9 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   // ── Totals ──────────────────────────────────────────────────────────────────
   const packagePrice = selectedTenure?.price ?? selectedPlan?.price ?? 0
   const addonsTotal  = MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).reduce((s, a) => s + a.price, 0)
-  const baseAmount   = packagePrice + addonsTotal
+  const vasLines     = getVasLinesForCustomer(selectedCustomer)
+  const vasTotal     = vasLines.reduce((s, l) => s + (l.price || 0), 0)
+  const baseAmount   = packagePrice + addonsTotal + vasTotal
 
   let discountAmount = 0
   if (appliedCoupon) {
@@ -597,6 +599,9 @@ function CreateInvoiceModal({ onClose, onCreated }) {
     if (selectedPlan) services.push({ name: selectedPlan.name, hsn: selectedPlan.hsnSac ?? '998422', qty: 1, rate: packagePrice })
     MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).forEach(a => {
       services.push({ name: a.name, hsn: '998422', qty: 1, rate: a.price })
+    })
+    vasLines.forEach(v => {
+      services.push({ name: v.name, hsn: v.hsnSac || '998422', qty: 1, rate: v.price })
     })
 
     const bpDisplay = billingPeriod
@@ -820,6 +825,12 @@ function CreateInvoiceModal({ onClose, onCreated }) {
               <div key={a.id} className="flex justify-between">
                 <span className="text-gray-600">{a.name}</span>
                 <span className="font-mono text-gray-800">{fmtAmt(a.price)}</span>
+              </div>
+            ))}
+            {vasLines.map((v, i) => (
+              <div key={`vas-${i}`} className="flex justify-between">
+                <span className="text-gray-600">{v.name}</span>
+                <span className="font-mono text-gray-800">{fmtAmt(v.price)}</span>
               </div>
             ))}
             <div className="flex justify-between pt-1.5 border-t border-surface-border">

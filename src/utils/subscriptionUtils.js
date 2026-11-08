@@ -5,10 +5,26 @@ import { computeExpiry, getCustomerSubscription, computeGst } from './customerUt
 import { getCompanyEntity, getEntityState } from '../data/companyEntities'
 import { getPlans } from '../data/packagesStore'
 import { logAudit } from '../data/auditLogStore'
+import { getVasProducts } from '../data/vasStore'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function todayIso() { return new Date().toISOString().slice(0, 10) }
+
+const VAS_SERVICE_TYPES = new Set(['OTT', 'Landline', 'Static IP', 'IPTV'])
+
+export function getVasLinesForCustomer(customer) {
+  if (!customer) return []
+  const vasProducts = getVasProducts()
+  return (customer.services || [])
+    .filter(s => VAS_SERVICE_TYPES.has(s))
+    .flatMap(svc => {
+      const vas = vasProducts.find(v => v.type === svc && v.status)
+      if (!vas) return []
+      const description = vas.ottPlatform ? `OTT - ${vas.ottPlatform}` : `${vas.type} Service`
+      return [{ name: description, price: vas.price || 0, hsnSac: '998422' }]
+    })
+}
 
 function entityIdForCustomer(customer) {
   return customer.ownership?.entityId ?? customer.entityId ?? 1
@@ -71,7 +87,8 @@ export function renewSubscription(customerId, {
   const price = tenureObj?.price ?? sub.price ?? 0
 
   const renewSub = { ...sub, tenureDays: days, price }
-  const lines = buildInvoiceLines(renewSub, sub.addons)
+  const vasLines = getVasLinesForCustomer(customer)
+  const lines = buildInvoiceLines(renewSub, [...(sub.addons || []), ...vasLines])
   const taxable = lines.reduce((s, l) => s + (l.amount || 0), 0)
 
   const entityId = entityIdForCustomer(customer)
@@ -202,7 +219,8 @@ export function changePlan(customerId, { newPackageId, tenureDays } = {}) {
     addons: sub.addons || [],
   }
 
-  const lines = buildInvoiceLines(newSubFields, sub.addons)
+  const vasLines = getVasLinesForCustomer(customer)
+  const lines = buildInvoiceLines(newSubFields, [...(sub.addons || []), ...vasLines])
   const taxable = lines.reduce((s, l) => s + (l.amount || 0), 0)
 
   const entityId = entityIdForCustomer(customer)
