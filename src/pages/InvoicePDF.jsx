@@ -1,10 +1,15 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { AlertTriangle, Printer, Download } from 'lucide-react'
+import { AlertTriangle, Printer, Download, FileMinus } from 'lucide-react'
 import Button from '../components/ui/Button'
+import Modal from '../components/ui/Modal'
 import { amountInWords } from '../data/billingData'
 import { getCompanyEntity } from '../data/companyEntities'
-import { getInvoices } from '../data/invoicesStore'
+import { getInvoices, issueCreditNote } from '../data/invoicesStore'
 import { CUSTOMERS } from '../data/customersData'
+
+const CN_REASONS = ['Billing Error', 'Service Downgrade', 'Promotional Adjustment', 'Service Cancellation', 'Other']
+const fmtCur = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const fmt = (n) => Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -28,6 +33,10 @@ export default function InvoicePDF() {
   const { id } = useParams()
   const navigate = useNavigate()
   const rawInv = getInvoices().find(i => i.no === decodeURIComponent(id))
+  const [cnModal, setCnModal] = useState(false)
+  const [cnAmount, setCnAmount] = useState('')
+  const [cnReasonType, setCnReasonType] = useState(CN_REASONS[0])
+  const [cnReasonText, setCnReasonText] = useState('')
 
   if (!rawInv) {
     return (
@@ -91,6 +100,14 @@ export default function InvoicePDF() {
 
       {/* Action buttons — top right, hidden on print */}
       <div className="max-w-4xl mx-auto flex justify-end gap-2 mb-3 print:hidden">
+        {rawInv && rawInv.status !== 'paid' && rawInv.status !== 'cancelled' && (
+          <button
+            onClick={() => { setCnAmount(''); setCnReasonType(CN_REASONS[0]); setCnReasonText(''); setCnModal(true) }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg shadow-sm hover:bg-orange-700 transition-colors"
+          >
+            <FileMinus size={14} /> Issue Credit Note
+          </button>
+        )}
         <button
           onClick={() => window.print()}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-brand-blue text-white rounded-lg shadow-sm hover:bg-brand-blue/90 transition-colors"
@@ -284,6 +301,67 @@ export default function InvoicePDF() {
           #invoice-doc { position: fixed; top: 0; left: 0; width: 100%; border-radius: 0; box-shadow: none; }
         }
       `}</style>
+
+      {/* Issue Credit Note Modal */}
+      {cnModal && rawInv && (() => {
+        const maxCredit = (rawInv.totalAmount || 0) - (rawInv.cnApplied || 0)
+        const parsed = parseFloat(cnAmount) || 0
+        const valid = parsed > 0 && parsed <= maxCredit
+        const reason = cnReasonType === 'Other' ? cnReasonText.trim() : cnReasonType
+        function handleIssueCn() {
+          if (!valid || !reason) return
+          const cn = issueCreditNote({
+            invoiceNo: rawInv.no,
+            reason,
+            amount: parsed,
+            entityId: rawInv.entityId ?? 1,
+            customerId: rawInv.customerId,
+            issuedBy: 'Admin User',
+          })
+          setCnModal(false)
+          navigate(`/billing/credit-note/${encodeURIComponent(cn.no)}`)
+        }
+        return (
+          <Modal isOpen onClose={() => setCnModal(false)} title="Issue Credit Note">
+            <div className="space-y-4 py-1">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+                Against invoice <span className="font-mono font-semibold">{rawInv.no}</span>
+                {' '}— max credit: <span className="font-semibold">{fmtCur(maxCredit)}</span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Credit Amount (₹)</label>
+                <input
+                  type="number" min="1" max={maxCredit} step="0.01"
+                  value={cnAmount}
+                  onChange={e => setCnAmount(e.target.value)}
+                  placeholder={`Up to ${fmtCur(maxCredit)}`}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Reason</label>
+                <select value={cnReasonType} onChange={e => setCnReasonType(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 mb-2">
+                  {CN_REASONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+                {cnReasonType === 'Other' && (
+                  <input value={cnReasonText} onChange={e => setCnReasonText(e.target.value)}
+                    placeholder="Describe reason…"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300" />
+                )}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="secondary" size="sm" onClick={() => setCnModal(false)} className="flex-1">Cancel</Button>
+                <Button size="sm" onClick={handleIssueCn}
+                  disabled={!valid || !reason}
+                  className="flex-1 !bg-orange-600 hover:!bg-orange-700 !border-orange-600 disabled:opacity-50">
+                  Issue Credit Note
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }

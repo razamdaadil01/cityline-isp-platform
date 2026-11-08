@@ -4,12 +4,12 @@ import {
   Plus, Download, Search, ChevronDown, FileText, MessageCircle,
   CreditCard, CheckCircle, Clock, AlertTriangle, X, Receipt,
   TrendingUp, Filter, History, IndianRupee, AlertCircle,
-  MoreVertical, CheckCircle2, RotateCcw, Tag,
+  MoreVertical, CheckCircle2, RotateCcw, Tag, FileMinus,
 } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
-import { getInvoices, subscribeInvoices, addInvoice, updateInvoice } from '../data/invoicesStore'
+import { getInvoices, subscribeInvoices, addInvoice, updateInvoice, issueCreditNote } from '../data/invoicesStore'
 import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
 import { PAYMENT_MODES, normalizeMode } from '../data/paymentModes'
 import { logAudit } from '../data/auditLogStore'
@@ -354,11 +354,17 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
 }
 
 // ─── Actions Dropdown ───────────────────────────────────────────────────────
+const CN_REASONS = ['Billing Error', 'Service Downgrade', 'Promotional Adjustment', 'Service Cancellation', 'Other']
+
 function ActionsDropdown({ row, onToast, onRenew }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [statusModal, setStatusModal] = useState(null) // 'einvoice' | 'tally' | null
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [cnModal, setCnModal] = useState(false)
+  const [cnAmount, setCnAmount] = useState('')
+  const [cnReasonType, setCnReasonType] = useState(CN_REASONS[0])
+  const [cnReasonText, setCnReasonText] = useState('')
   const ref = useRef(null)
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -399,6 +405,14 @@ function ActionsDropdown({ row, onToast, onRenew }) {
             >
               View Invoice
             </button>
+            {row.status !== 'paid' && row.status !== 'cancelled' && (
+              <button
+                onClick={() => { setOpen(false); setCnAmount(''); setCnReasonType(CN_REASONS[0]); setCnReasonText(''); setCnModal(true) }}
+                className="w-full text-left px-4 py-2 text-orange-600 hover:bg-orange-50 transition-colors text-xs flex items-center gap-1.5"
+              >
+                <FileMinus size={12} /> Issue Credit Note
+              </button>
+            )}
             <button
               onClick={handleRemove}
               className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 transition-colors text-xs"
@@ -495,6 +509,69 @@ function ActionsDropdown({ row, onToast, onRenew }) {
           </div>
         </Modal>
       )}
+
+      {/* Issue Credit Note Modal */}
+      {cnModal && (() => {
+        const inv = getInvoices().find(i => i.no === row.invoiceNo)
+        const maxCredit = (inv?.totalAmount || row.amount || 0) - (inv?.cnApplied || 0)
+        const parsed = parseFloat(cnAmount) || 0
+        const valid = parsed > 0 && parsed <= maxCredit
+        const reason = cnReasonType === 'Other' ? cnReasonText.trim() : cnReasonType
+        function handleIssueCn() {
+          if (!valid || !reason) return
+          const cn = issueCreditNote({
+            invoiceNo: row.invoiceNo,
+            reason,
+            amount: parsed,
+            entityId: row.entityId ?? 1,
+            customerId: row.customerId,
+            issuedBy: 'Admin User',
+          })
+          setCnModal(false)
+          onToast(`Credit note ${cn.no} issued.`)
+          navigate(`/billing/credit-note/${encodeURIComponent(cn.no)}`)
+        }
+        return (
+          <Modal isOpen onClose={() => setCnModal(false)} title="Issue Credit Note">
+            <div className="space-y-4 py-1">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+                Against invoice <span className="font-mono font-semibold">{row.invoiceNo}</span>
+                {' '}— max credit: <span className="font-semibold">{fmt(maxCredit)}</span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Credit Amount (₹)</label>
+                <input
+                  type="number" min="1" max={maxCredit} step="0.01"
+                  value={cnAmount}
+                  onChange={e => setCnAmount(e.target.value)}
+                  placeholder={`Up to ${fmt(maxCredit)}`}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Reason</label>
+                <select value={cnReasonType} onChange={e => setCnReasonType(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 mb-2">
+                  {CN_REASONS.map(r => <option key={r}>{r}</option>)}
+                </select>
+                {cnReasonType === 'Other' && (
+                  <input value={cnReasonText} onChange={e => setCnReasonText(e.target.value)}
+                    placeholder="Describe reason…"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300" />
+                )}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="secondary" size="sm" onClick={() => setCnModal(false)} className="flex-1">Cancel</Button>
+                <Button size="sm" onClick={handleIssueCn}
+                  disabled={!valid || !reason}
+                  className="flex-1 !bg-orange-600 hover:!bg-orange-700 !border-orange-600 disabled:opacity-50">
+                  Issue Credit Note
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )
+      })()}
     </>
   )
 }
