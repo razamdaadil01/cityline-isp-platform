@@ -416,6 +416,79 @@ function buildPartnerCollectionRows() {
   }))
 }
 
+// GST Summary helpers — B2B = customer has a gstNo; B2C = no GSTIN.
+// Excludes cancelled invoices. `monthFilter` is 'YYYY-MM' or null (all months).
+function gstInvoiceRows(monthFilter) {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  return getInvoices()
+    .filter(inv => inv.status !== 'cancelled')
+    .filter(inv => {
+      if (!monthFilter) return true
+      const iso = inv.issueDate || inv.date || ''
+      return iso.startsWith(monthFilter)
+    })
+    .map(inv => {
+      const cust = custMap.get(inv.customerId)
+      const isB2B = !!(cust?.gstNo)
+      return { inv, cust, isB2B }
+    })
+}
+
+function buildGstSummaryRows(monthFilter) {
+  return gstInvoiceRows(monthFilter).map(({ inv, cust, isB2B }) => ({
+    Type: isB2B ? 'B2B' : 'B2C',
+    'Invoice No.': inv.no,
+    'Invoice Date': inv.issueDate || inv.date,
+    'Customer Name': cust?.name ?? inv.customerId,
+    GSTIN: cust?.gstNo ?? '—',
+    'Taxable Amount (₹)': inv.taxableAmount ?? 0,
+    'CGST (₹)': inv.cgst ?? 0,
+    'SGST (₹)': inv.sgst ?? 0,
+    'IGST (₹)': inv.igst ?? 0,
+    'Total (₹)': inv.totalAmount || inv.amount || 0,
+    'HSN/SAC': (inv.lines?.[0]?.hsnSac) ?? '998422',
+    Status: inv.status,
+  }))
+}
+
+function buildGstViewData(monthFilter) {
+  const rows = gstInvoiceRows(monthFilter)
+  const b2b = rows.filter(r => r.isB2B)
+  const b2c = rows.filter(r => !r.isB2B)
+  const sum = (arr, key) => arr.reduce((s, r) => s + (r.inv[key] ?? 0), 0)
+
+  // HSN-wise summary across all rows
+  const hsnMap = new Map()
+  rows.forEach(({ inv }) => {
+    ;(inv.lines || [{ hsnSac: inv.lines?.[0]?.hsnSac ?? '998422', amount: inv.taxableAmount ?? 0 }]).forEach(l => {
+      const hsn = l.hsnSac || '998422'
+      const ex = hsnMap.get(hsn) ?? { hsn, taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+      const lineFrac = inv.taxableAmount && inv.lines?.length > 1 ? (l.amount / (inv.taxableAmount || 1)) : 1
+      ex.taxable += (inv.taxableAmount ?? 0) * lineFrac
+      ex.cgst += (inv.cgst ?? 0) * lineFrac
+      ex.sgst += (inv.sgst ?? 0) * lineFrac
+      ex.igst += (inv.igst ?? 0) * lineFrac
+      hsnMap.set(hsn, ex)
+    })
+  })
+
+  return {
+    b2bCount: b2b.length,
+    b2cCount: b2c.length,
+    b2bTaxable: sum(b2b, 'taxableAmount'),
+    b2bCgst: sum(b2b, 'cgst'),
+    b2bSgst: sum(b2b, 'sgst'),
+    b2bIgst: sum(b2b, 'igst'),
+    b2cTaxable: sum(b2c, 'taxableAmount'),
+    b2cCgst: sum(b2c, 'cgst'),
+    b2cSgst: sum(b2c, 'sgst'),
+    b2cIgst: sum(b2c, 'igst'),
+    hsnRows: [...hsnMap.values()],
+    totalInvoices: rows.length,
+  }
+}
+
 // ── Report library ────────────────────────────────────────────────────────
 // One entry per card. `permKey` is the Reports micro-permission
 // (rolesStore.js's MODULE_MICRO_PERMISSIONS.Reports) that gates whether the
@@ -432,6 +505,7 @@ const REPORT_LIBRARY = [
       { key: 'overdue-report', title: 'Overdue/Outstanding Report', description: 'Outstanding invoices with customer info, ageing buckets, and bucket totals.', permKey: 'viewCollectionReport', filename: 'overdue_outstanding_report.csv', buildRows: buildOverdueReportRows, buildViewData: buildOverdueViewData },
       { key: 'plan-wise-revenue', title: 'Plan-wise Revenue', description: 'Revenue breakdown by service plan (FTTH, FTTB, P2P, etc.).', permKey: 'viewRevenueReport', filename: 'plan_wise_revenue.csv', buildRows: buildPlanWiseRevenueRows },
       { key: 'payment-history', title: 'Payment History Report', description: 'Detailed log of all recorded payments.', permKey: 'viewRevenueReport', filename: 'payment_history_report.csv', buildRows: buildPaymentHistoryRows },
+      { key: 'gst-summary', title: 'GST Summary (GSTR-1)', description: 'B2B/B2C split, taxable/CGST/SGST/IGST, HSN-wise summary. Excludes cancelled invoices. Month-filterable.', permKey: 'viewRevenueReport', filename: 'gst_summary_gstr1.csv', buildRows: () => buildGstSummaryRows(null), buildViewData: buildGstViewData },
     ],
   },
   {
@@ -558,6 +632,72 @@ function OverdueTableView() {
   )
 }
 
+function GstSummaryView({ onMonthChange }) {
+  const [month, setMonth] = useState('')
+  function handleMonth(e) {
+    setMonth(e.target.value)
+    onMonthChange?.(e.target.value || null)
+  }
+  const d = buildGstViewData(month || null)
+  const fmtAmt = (n) => fmt(n)
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Month</label>
+        <input type="month" value={month} onChange={handleMonth}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-blue" />
+        {month && <button onClick={() => { setMonth(''); onMonthChange?.(null) }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
+        <span className="ml-auto text-xs text-gray-400">{d.totalInvoices} invoice{d.totalInvoices !== 1 ? 's' : ''} (excl. cancelled)</span>
+      </div>
+
+      {/* B2B / B2C split */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'B2B (Registered)', count: d.b2bCount, taxable: d.b2bTaxable, cgst: d.b2bCgst, sgst: d.b2bSgst, igst: d.b2bIgst, color: 'bg-blue-50 border-blue-100' },
+          { label: 'B2C (Unregistered)', count: d.b2cCount, taxable: d.b2cTaxable, cgst: d.b2cCgst, sgst: d.b2cSgst, igst: d.b2cIgst, color: 'bg-purple-50 border-purple-100' },
+        ].map(s => (
+          <div key={s.label} className={`rounded-lg border p-3 text-xs ${s.color}`}>
+            <div className="font-bold text-gray-700 mb-1">{s.label} <span className="font-normal text-gray-500">({s.count})</span></div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-gray-600">
+              <span>Taxable</span><span className="font-semibold text-gray-800">{fmtAmt(s.taxable)}</span>
+              <span>CGST</span><span className="font-semibold">{fmtAmt(s.cgst)}</span>
+              <span>SGST</span><span className="font-semibold">{fmtAmt(s.sgst)}</span>
+              <span>IGST</span><span className="font-semibold">{fmtAmt(s.igst)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* HSN-wise summary */}
+      {d.hsnRows.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">HSN/SAC-wise Summary</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-200">
+                {['HSN/SAC', 'Taxable (₹)', 'CGST (₹)', 'SGST (₹)', 'IGST (₹)'].map(h => (
+                  <th key={h} className="text-left py-1 pr-3 font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.hsnRows.map(r => (
+                <tr key={r.hsn} className="border-b border-gray-100">
+                  <td className="py-1 pr-3 font-mono text-gray-700">{r.hsn}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.taxable)}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.cgst)}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.sgst)}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.igst)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ReportCardGrid({ report, canExport, onDownload }) {
   const [expanded, setExpanded] = useState(false)
   return (
@@ -591,6 +731,7 @@ function ReportCardGrid({ report, canExport, onDownload }) {
       </div>
       <p className="text-xs text-gray-500 leading-snug">{report.description}</p>
       {expanded && report.buildViewData && report.key === 'overdue-report' && <OverdueTableView />}
+      {expanded && report.buildViewData && report.key === 'gst-summary' && <GstSummaryView />}
     </div>
   )
 }
@@ -630,9 +771,10 @@ function ReportRowList({ report, canExport, onDownload }) {
         </div>
       </div>
       {expanded && report.buildViewData && report.key === 'overdue-report' && (
-        <div className="px-4 pb-4">
-          <OverdueTableView />
-        </div>
+        <div className="px-4 pb-4"><OverdueTableView /></div>
+      )}
+      {expanded && report.buildViewData && report.key === 'gst-summary' && (
+        <div className="px-4 pb-4"><GstSummaryView /></div>
       )}
     </div>
   )
