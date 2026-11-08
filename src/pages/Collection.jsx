@@ -5,8 +5,7 @@ import {
   getCollections, subscribeCollections, updateCollection, getCollection,
 } from '../data/collectionStore'
 import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
-
-const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'Cheque']
+import { PAYMENT_MODES } from '../data/paymentModes'
 const PAGE_SIZE = 10
 
 function fmt(n) {
@@ -176,7 +175,7 @@ function RecordPaymentModal({ record, onClose, onSave }) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Payment Mode <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {PAYMENT_MODES.map(m => (
                     <button
                       key={m} type="button"

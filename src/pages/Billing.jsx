@@ -11,6 +11,7 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { getInvoices, subscribeInvoices, addInvoice, updateInvoice } from '../data/invoicesStore'
 import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
+import { PAYMENT_MODES, normalizeMode } from '../data/paymentModes'
 import { logAudit } from '../data/auditLogStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
@@ -22,8 +23,7 @@ import { renewSubscription } from '../utils/subscriptionUtils'
 
 const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
 const STATUS_LABELS = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
-const MODE_VARIANT = { Cash: 'green', UPI: 'blue', NEFT: 'navy', IMPS: 'purple', Cheque: 'orange', Razorpay: 'cyan' }
-const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'IMPS', 'Cheque', 'Razorpay']
+const MODE_VARIANT = { Cash: 'green', UPI: 'blue', 'NEFT/IMPS': 'navy', Cheque: 'orange', Card: 'purple', 'Online Gateway': 'cyan' }
 const SERVICE_TYPES = ['All', 'FTTH', 'FTTB', 'Wireless', 'P2P', 'ILL']
 const NETWORKS = ['All', 'OLT-ANW-01', 'OLT-ANW-02', 'OLT-BNW-01', 'OLT-MNW-01']
 
@@ -264,7 +264,8 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
     const byMode = {}
     let total = 0
     src.forEach(p => {
-      byMode[p.mode] = (byMode[p.mode] || 0) + p.amount
+      const nm = normalizeMode(p.mode)
+      byMode[nm] = (byMode[nm] || 0) + p.amount
       total += p.amount
     })
     return { byMode, total }
@@ -276,7 +277,7 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         {Object.entries(totals.byMode).map(([mode, amt]) => (
           <div key={mode} className="bg-white rounded-xl p-3 border border-surface-border text-center shadow-card">
-            <Badge variant={MODE_VARIANT[mode] || 'gray'} size="sm">{mode}</Badge>
+            <Badge variant={MODE_VARIANT[normalizeMode(mode)] || 'gray'} size="sm">{normalizeMode(mode)}</Badge>
             <p className="text-sm font-bold text-gray-900 mt-2">{fmt(amt)}</p>
           </div>
         ))}
@@ -306,7 +307,7 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
                   <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{p.invoiceNo}</td>
                   <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{p.customerName}</td>
                   <td className="px-4 py-3 font-semibold text-emerald-700">{fmt(p.amount)}</td>
-                  <td className="px-4 py-3"><Badge variant={MODE_VARIANT[p.mode] || 'gray'} size="sm">{p.mode}</Badge></td>
+                  <td className="px-4 py-3"><Badge variant={MODE_VARIANT[normalizeMode(p.mode)] || 'gray'} size="sm">{normalizeMode(p.mode)}</Badge></td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.txnId}</td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{p.date}</td>
                   <td className="px-4 py-3 text-xs text-gray-600">{p.recordedBy}</td>
