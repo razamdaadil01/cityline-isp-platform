@@ -45,6 +45,5 @@ export function updateCollection(id, fields) {
   notify()
 }
 
-export function getTotalAmount()   { return _collections.reduce((s, c) => s + c.amount, 0) }
-export function getTotalReceived() { return _collections.reduce((s, c) => s + c.paid,   0) }
-export function getTotalPending()  { return _collections.reduce((s, c) => s + c.due,    0) }
+export function getTotalAmount() { return _collections.reduce((s, c) => s + c.amount, 0) }
+// Received/pending totals are sourced from paymentsStore (source='collection') — see Collection.jsx
