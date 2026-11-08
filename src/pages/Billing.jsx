@@ -405,7 +405,7 @@ function ActionsDropdown({ row, onToast, onRenew }) {
             >
               View Invoice
             </button>
-            {row.status !== 'paid' && row.status !== 'cancelled' && (
+            {row.status !== 'cancelled' && (
               <button
                 onClick={() => { setOpen(false); setCnAmount(''); setCnReasonType(CN_REASONS[0]); setCnReasonText(''); setCnModal(true) }}
                 className="w-full text-left px-4 py-2 text-orange-600 hover:bg-orange-50 transition-colors text-xs flex items-center gap-1.5"

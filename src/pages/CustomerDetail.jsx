@@ -6,7 +6,7 @@ import {
   CheckCircle, XCircle, Clock, Cpu, Activity, Radio,
   ChevronRight, Edit2, Plus, Signal, Network, Server, Copy,
   LayoutGrid, List, RotateCcw, AlertOctagon, Zap, RefreshCw, MoreVertical, X,
-  PackageSearch, Receipt, Lock, UserX, Upload,
+  PackageSearch, Receipt, Lock, UserX, Upload, FileMinus,
   ClipboardList, Users, CheckCircle2, CreditCard, Send, BookOpen,
 } from 'lucide-react'
 import Badge from '../components/ui/Badge'
@@ -37,7 +37,7 @@ import {
 } from '../data/settlementStore'
 import { computeCustomerLedger } from '../utils/ledgerUtils'
 import {
-  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice, cancelInvoice, issueCreditNote,
+  getInvoices, subscribeInvoices, getOutstandingTotal, updateInvoice, addInvoice, cancelInvoice, issueCreditNote, getCreditNotes,
 } from '../data/invoicesStore'
 import { getPaymentsForCustomer, subscribePayments, recordPayment } from '../data/paymentsStore'
 import { getPlans } from '../data/packagesStore'
@@ -1759,9 +1759,10 @@ function PackagesTab({ customer }) {
 // ── Tab: Finance ─────────────────────────────────────────────────────────────
 
 const FINANCE_SUB_TABS = [
-  { label: 'Invoices',       slug: 'invoices'  },
-  { label: 'Payments',       slug: 'payments'  },
-  { label: 'Account Ledger', slug: 'ledger'    },
+  { label: 'Invoices',       slug: 'invoices'      },
+  { label: 'Payments',       slug: 'payments'      },
+  { label: 'Credit Notes',   slug: 'credit-notes'  },
+  { label: 'Account Ledger', slug: 'ledger'        },
 ]
 
 function FinanceTab({ customer, setActivityLog }) {
@@ -2048,8 +2049,8 @@ function FinanceTab({ customer, setActivityLog }) {
                           <button onClick={() => handleEmailInvoice(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
                             <Mail size={13} className="text-gray-400" /> Email Invoice
                           </button>
-                          <button onClick={() => handleOpenCreditModal(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
-                            <Receipt size={13} className="text-gray-400" /> Add Credit Notes
+                          <button onClick={() => handleOpenCreditModal(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-orange-600 hover:bg-orange-50">
+                            <FileMinus size={13} className="text-orange-400" /> Issue Credit Note
                           </button>
                           <button onClick={() => handleOpenRefundModal(inv)} className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
                             <RotateCcw size={13} className="text-gray-400" /> Refund
@@ -2196,6 +2197,57 @@ function FinanceTab({ customer, setActivityLog }) {
           </div>}
         </Card>
       )}
+
+      {/* Credit Notes */}
+      {activeSlug === 'credit-notes' && (() => {
+        const custCns = getCreditNotes().filter(c => c.customerId === customerId)
+        return (
+          <Card padding={false}>
+            <div className="px-5 py-4 border-b border-surface-border">
+              <h3 className="text-sm font-semibold text-gray-800">Credit Notes</h3>
+            </div>
+            {custCns.length === 0 && (
+              <div className="text-center py-10">
+                <FileMinus size={28} className="mx-auto text-gray-200 mb-3" />
+                <p className="text-sm font-medium text-gray-500">No credit notes yet</p>
+                <p className="text-xs text-gray-400 mt-1">Issue a credit note from an invoice to see it here.</p>
+              </div>
+            )}
+            {custCns.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50/60 border-b border-surface-border">
+                      {['CN No.', 'Invoice', 'Date', 'Reason', 'Amount', ''].map(h => (
+                        <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {custCns.map(cn => (
+                      <tr key={cn.no} className="hover:bg-gray-50/50">
+                        <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{cn.no}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600 font-mono">{cn.invoiceNo}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{cn.date || cn.issueDate || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{cn.reason || '—'}</td>
+                        <td className="px-4 py-3 text-xs font-semibold text-orange-600">₹{Number(cn.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-xs">
+                          <button
+                            onClick={() => navigate(`/billing/credit-note/${encodeURIComponent(cn.no)}`)}
+                            className="text-brand-blue hover:underline text-xs"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        )
+      })()}
 
       {/* Account Ledger */}
       {activeSlug === 'ledger' && (

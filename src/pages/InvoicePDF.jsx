@@ -5,7 +5,7 @@ import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import { amountInWords } from '../data/billingData'
 import { getCompanyEntity } from '../data/companyEntities'
-import { getInvoices, issueCreditNote } from '../data/invoicesStore'
+import { getInvoices, issueCreditNote, getCreditNotes } from '../data/invoicesStore'
 import { CUSTOMERS } from '../data/customersData'
 
 const CN_REASONS = ['Billing Error', 'Service Downgrade', 'Promotional Adjustment', 'Service Cancellation', 'Other']
@@ -100,7 +100,7 @@ export default function InvoicePDF() {
 
       {/* Action buttons — top right, hidden on print */}
       <div className="max-w-4xl mx-auto flex justify-end gap-2 mb-3 print:hidden">
-        {rawInv && rawInv.status !== 'paid' && rawInv.status !== 'cancelled' && (
+        {rawInv && rawInv.status !== 'cancelled' && (
           <button
             onClick={() => { setCnAmount(''); setCnReasonType(CN_REASONS[0]); setCnReasonText(''); setCnModal(true) }}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg shadow-sm hover:bg-orange-700 transition-colors"
@@ -278,6 +278,45 @@ export default function InvoicePDF() {
             ))}
           </ol>
         </div>
+
+        {/* ── CREDIT NOTES ── */}
+        {(() => {
+          const cns = getCreditNotes().filter(c => c.invoiceNo === rawInv.no)
+          if (!cns.length) return null
+          return (
+            <div className="px-8 py-5 border-b border-gray-200 print:border-b">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Credit Notes Applied</p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-1.5 font-semibold text-gray-500">CN No.</th>
+                    <th className="text-left py-1.5 font-semibold text-gray-500">Date</th>
+                    <th className="text-left py-1.5 font-semibold text-gray-500">Reason</th>
+                    <th className="text-right py-1.5 font-semibold text-gray-500">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cns.map(cn => (
+                    <tr key={cn.no} className="border-b border-gray-50">
+                      <td className="py-1.5 font-mono text-brand-blue">{cn.no}</td>
+                      <td className="py-1.5 text-gray-600">{cn.date || cn.issueDate || '—'}</td>
+                      <td className="py-1.5 text-gray-600">{cn.reason || '—'}</td>
+                      <td className="py-1.5 text-right font-semibold text-orange-600">{fmtCur(cn.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={3} className="pt-2 text-right text-gray-500 font-semibold">Total Credit Applied</td>
+                    <td className="pt-2 text-right font-bold text-orange-700">
+                      {fmtCur(cns.reduce((s, c) => s + (c.amount || 0), 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )
+        })()}
 
         {/* ── BACK BUTTON ── */}
         <div className="px-8 py-5 flex justify-center print:hidden">
