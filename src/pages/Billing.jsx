@@ -1303,7 +1303,7 @@ export default function Billing() {
                     {activeTab === 'tax-invoice' && (
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">INVOICE</th>
                     )}
-                    {['PACKAGE', 'AMOUNT', 'DISCOUNT', 'INVOICE DATE', 'DURATION', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
+                    {['PACKAGE', 'AMOUNT', 'DISCOUNT', 'INVOICE DATE', 'DUE DATE', 'ADDED', 'COMMENT', 'ACTIONS'].map(h => (
                       <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1345,7 +1345,7 @@ export default function Billing() {
                       </td>
                       <td className="px-6 py-3 text-xs text-gray-500 whitespace-nowrap">{row.invoiceDate}</td>
                       <td className="px-6 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        {row.durationFrom}<br />{row.durationTo}
+                        {row.durationTo}
                       </td>
                       <td className="px-6 py-3 text-xs text-gray-600 whitespace-nowrap">{row.addedBy}</td>
                       <td className="px-6 py-3 text-xs text-gray-400">{row.comment || '—'}</td>
