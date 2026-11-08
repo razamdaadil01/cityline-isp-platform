@@ -166,14 +166,11 @@ export default function InvoicePDF() {
           {/* Company details */}
           <div className="px-8 py-5 border-r border-gray-200">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Company Details</p>
-            <p className="text-sm font-bold text-gray-900">Cityline Networks Pvt Ltd</p>
-            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-              310, Nebula Business Center,<br />
-              nr. ACE CITY, Chauganpur, Knowledge Park V<br />
-              Greater Noida, Uttar Pradesh - 201307
-            </p>
-            <p className="text-xs text-gray-600 mt-1.5">Contact No:- 9736858585</p>
-            <p className="text-xs text-gray-600">GST No: 09AAGCC4479E2ZG</p>
+            <p className="text-sm font-bold text-gray-900">{entity?.name || 'Cityline Networks Pvt Ltd'}</p>
+            {entity?.address && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{entity.address}</p>}
+            {entity?.phone && <p className="text-xs text-gray-600 mt-1.5">Contact No:- {entity.phone}</p>}
+            {entity?.gstin && <p className="text-xs text-gray-600">GST No: {entity.gstin}</p>}
+            {entity?.email && <p className="text-xs text-gray-600">{entity.email}</p>}
           </div>
 
           {/* Customer details */}

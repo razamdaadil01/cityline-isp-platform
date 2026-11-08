@@ -3,6 +3,7 @@ import { AlertTriangle, Printer, ArrowLeft } from 'lucide-react'
 import { amountInWords } from '../data/billingData'
 import { getCompanyEntity } from '../data/companyEntities'
 import { getPayments } from '../data/paymentsStore'
+import { getInvoices } from '../data/invoicesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { normalizeMode } from '../data/paymentModes'
 
@@ -40,7 +41,12 @@ export default function PaymentReceipt() {
     )
   }
 
-  const entity = getCompanyEntity(payment.entityId ?? 1)
+  // Resolve entity from the invoice this payment is against, so both invoice
+  // and receipt always show the same entity, even when payment.entityId is unset.
+  const invoiceNo = payment.invoiceNos?.[0] || payment.invoiceNo
+  const invoice = invoiceNo ? getInvoices().find(i => i.no === invoiceNo) : null
+  const entityId = invoice?.entityId ?? payment.entityId ?? 1
+  const entity = getCompanyEntity(entityId)
   const cust = CUSTOMERS.find(c => c.id === payment.customerId)
 
   return (
