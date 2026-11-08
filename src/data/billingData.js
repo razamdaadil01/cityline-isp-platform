@@ -1,7 +1,6 @@
+// GSTIN and registered address are per-entity — read from companyEntities.js
 export const COMPANY_INFO = {
   name: 'Cityline Internet Services Pvt. Ltd.',
-  address: 'Unit 5, Tech Park, Andheri East, Mumbai – 400069, Maharashtra',
-  gstin: '27AABCC1234Z1Z5',
   pan: 'AABCC1234Z',
   cin: 'U72200MH2019PTC123456',
   phone: '1800-123-4567',
