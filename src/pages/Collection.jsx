@@ -5,8 +5,7 @@ import {
   getCollections, subscribeCollections, updateCollection, getCollection,
 } from '../data/collectionStore'
 import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
-
-const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'Cheque']
+import { PAYMENT_MODES } from '../data/paymentModes'
 const PAGE_SIZE = 10
 
 function fmt(n) {
@@ -176,7 +175,7 @@ function RecordPaymentModal({ record, onClose, onSave }) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Payment Mode <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {PAYMENT_MODES.map(m => (
                     <button
                       key={m} type="button"
@@ -393,8 +392,9 @@ function FiltersDrawer({ filters, allCollections, onApply, onClose }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 function computeCollectionTotals(payments) {
-  const collPays = payments.filter(p => p.source === 'collection')
-  return collPays.reduce((s, p) => s + (p.paid ?? p.amount ?? 0), 0)
+  return payments
+    .filter(p => p.source === 'collection' && p.status !== 'Failed')
+    .reduce((s, p) => s + (p.paid ?? p.amount ?? 0), 0)
 }
 
 export default function Collection() {
@@ -454,9 +454,28 @@ export default function Collection() {
 
   useEffect(() => subscribePayments(payments => {
     const received = computeCollectionTotals(payments)
-    const total = collections.reduce((s, c) => s + c.amount, 0)
+    const total = getCollections().reduce((s, c) => s + c.amount, 0)
     setTotalReceived(received)
     setTotalPending(Math.max(0, total - received))
+
+    // Sync collection record status when a linked payment is verified or rejected
+    const payMap = Object.fromEntries(payments.map(p => [p.id, p]))
+    getCollections().forEach(c => {
+      if (!c.paymentId) return
+      const pay = payMap[c.paymentId]
+      if (!pay) return
+      if (pay.status === 'Complete' && c.status === 'Pending Verification') {
+        updateCollection(c.id, { status: c.paid >= c.amount ? 'Paid' : 'Partial' })
+      } else if (pay.status === 'Failed' && c.status === 'Pending Verification') {
+        const collected = pay.paid
+        updateCollection(c.id, {
+          paid: Math.max(0, c.paid - collected),
+          due: c.due + collected,
+          status: (c.paid - collected) > 0 ? 'Partial' : 'Pending',
+          paymentId: null,
+        })
+      }
+    })
   }), [collections])
 
   const filtered = useMemo(() => {
@@ -464,7 +483,7 @@ export default function Collection() {
 
     // Quick tab
     if (tab === 'paid')    rows = rows.filter(r => r.status === 'Paid')
-    if (tab === 'pending') rows = rows.filter(r => r.status === 'Pending' || r.status === 'Partial')
+    if (tab === 'pending') rows = rows.filter(r => r.status !== 'Paid')
 
     // Search
     const q = search.trim().toLowerCase()
@@ -504,18 +523,27 @@ export default function Collection() {
 
   function handleSavePayment(id, fields) {
     const rec = getCollection(id)
-    if (rec?.customerId) {
-      const collected = fields.paid - rec.paid
-      recordPayment({
-        customerId: rec.customerId,
-        amount: collected,
-        mode: fields.paymentMode,
-        notes: fields.remarks || 'Collection payment',
-        status: 'Pending Verification',
-        source: 'collection',
-      })
-    }
-    updateCollection(id, fields)
+    if (!rec?.customerId) return
+    if (rec.status === 'Pending Verification') return
+    const collected = Number(fields.paid) - (rec.paid || 0)
+    if (collected <= 0) return
+    const payment = recordPayment({
+      customerId: rec.customerId,
+      amount: collected,
+      mode: fields.paymentMode,
+      notes: fields.remarks || 'Collection payment',
+      status: 'Pending Verification',
+      source: 'collection',
+    })
+    updateCollection(id, {
+      paymentId: payment.id,
+      invoiceNos: payment.invoiceNos,
+      paymentMode: fields.paymentMode,
+      paymentProof: fields.paymentProof || '',
+      paid: fields.paid,
+      due: Math.max(0, fields.due),
+      status: 'Pending Verification',
+    })
   }
 
   function exportCSV() {
@@ -667,6 +695,10 @@ export default function Collection() {
                     {r.status === 'Paid' ? (
                       <span className="flex items-center gap-1 text-emerald-600 text-sm font-semibold">
                         <CheckCircle size={14} /> Paid ✓
+                      </span>
+                    ) : r.status === 'Pending Verification' ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-700 font-medium px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg whitespace-nowrap">
+                        <Clock size={12} /> Pending Verification
                       </span>
                     ) : !r.customerId ? (
                       <span className="text-xs text-amber-600 font-medium">

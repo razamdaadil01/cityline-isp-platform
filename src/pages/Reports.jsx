@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutGrid, List, Download, FileBarChart, Lock } from 'lucide-react'
+import { LayoutGrid, List, Download, FileBarChart, Lock, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportCsv } from '../utils/csvExport'
 
@@ -10,7 +10,8 @@ import { exportCsv } from '../utils/csvExport'
 // that thin real data rather than inventing rows to fill it out — see each
 // builder function's own comment for specifics.
 import { getPayments } from '../data/paymentsStore'
-import { getInvoices, getOutstandingInvoicesAll } from '../data/invoicesStore'
+import { normalizeMode } from '../data/paymentModes'
+import { getInvoices, getOutstandingInvoicesAll, getCreditNotes } from '../data/invoicesStore'
 import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueStats'
 import { computeCollectionByMonth } from '../utils/collectionStats'
 import { getAllCustomers, effectiveStatus } from '../data/customersData'
@@ -61,16 +62,54 @@ function buildCollectionReportRows() {
   }))
 }
 
-// invoicesStore.js is a single shared invoice list with no customerId and
-// no due-date/overdue-by-days field (see that store's own top-of-file
-// comment) — so "days overdue" and "which customer" genuinely don't exist
-// anywhere in this app's data yet. Exports the real outstanding invoices
-// exactly as they are rather than inventing either field.
+function overdueAgeing(dueDate) {
+  if (!dueDate) return { days: 0, bucket: '0–30 days' }
+  const due = new Date(dueDate)
+  const today = new Date()
+  const days = Math.max(0, Math.floor((today - due) / 86400000))
+  const bucket = days <= 30 ? '0–30 days' : days <= 60 ? '31–60 days' : days <= 90 ? '61–90 days' : '90+ days'
+  return { days, bucket }
+}
+
 function buildOverdueReportRows() {
-  return getOutstandingInvoicesAll().map(inv => ({
-    'Invoice No.': inv.no, Package: inv.pkg, 'Issue Date': inv.date,
-    'Amount (₹)': inv.amount, Status: inv.status,
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  return getOutstandingInvoicesAll().map(inv => {
+    const cust = custMap.get(inv.customerId)
+    const { days, bucket } = overdueAgeing(inv.dueDate)
+    return {
+      'Invoice No.': inv.no,
+      'Customer ID': inv.customerId,
+      'Customer Name': cust?.name ?? '—',
+      Phone: cust?.phone ?? '—',
+      Area: cust?.area ?? '—',
+      'Sales Executive': cust?.sales?.executive ?? '—',
+      Package: inv.pkg,
+      'Issue Date': inv.date,
+      'Due Date': inv.dueDate ?? '—',
+      'Days Overdue': days,
+      'Ageing Bucket': bucket,
+      'Amount (₹)': inv.amount,
+      Status: inv.status,
+    }
+  })
+}
+
+function buildOverdueViewData() {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  const BUCKETS = ['0–30 days', '31–60 days', '61–90 days', '90+ days']
+  const rows = getOutstandingInvoicesAll().map(inv => {
+    const cust = custMap.get(inv.customerId)
+    const { days, bucket } = overdueAgeing(inv.dueDate)
+    return { inv, cust, days, bucket }
+  })
+  const bucketTotals = BUCKETS.map(b => ({
+    bucket: b,
+    count: rows.filter(r => r.bucket === b).length,
+    total: rows.filter(r => r.bucket === b).reduce((s, r) => s + r.inv.amount, 0),
   }))
+  return { rows, bucketTotals, BUCKETS }
 }
 
 function buildPlanWiseRevenueRows() {
@@ -378,6 +417,211 @@ function buildPartnerCollectionRows() {
   }))
 }
 
+// GST Summary helpers — B2B = customer has a gstNo; B2C = no GSTIN.
+// Excludes cancelled invoices. `monthFilter` is 'YYYY-MM' or null (all months).
+function gstInvoiceRows(monthFilter) {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  return getInvoices()
+    .filter(inv => inv.status !== 'cancelled')
+    .filter(inv => {
+      if (!monthFilter) return true
+      const iso = inv.issueDate || inv.date || ''
+      return iso.startsWith(monthFilter)
+    })
+    .map(inv => {
+      const cust = custMap.get(inv.customerId)
+      const isB2B = !!(cust?.gstNo)
+      return { inv, cust, isB2B }
+    })
+}
+
+function buildGstSummaryRows(monthFilter) {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  const invoiceRows = gstInvoiceRows(monthFilter).map(({ inv, cust, isB2B }) => ({
+    Type: isB2B ? 'B2B' : 'B2C',
+    'Doc Type': 'Invoice',
+    'Invoice No.': inv.no,
+    'Invoice Date': inv.issueDate || inv.date,
+    'Customer Name': cust?.name ?? inv.customerId,
+    GSTIN: cust?.gstNo ?? '—',
+    'Taxable Amount (₹)': inv.taxableAmount ?? 0,
+    'CGST (₹)': inv.cgst ?? 0,
+    'SGST (₹)': inv.sgst ?? 0,
+    'IGST (₹)': inv.igst ?? 0,
+    'Total (₹)': inv.totalAmount || inv.amount || 0,
+    'HSN/SAC': (inv.lines?.[0]?.hsnSac) ?? '998422',
+    Status: inv.status,
+  }))
+  const cnRows = getCreditNotes()
+    .filter(cn => {
+      if (!monthFilter) return true
+      return (cn.issuedOn || '').startsWith(monthFilter)
+    })
+    .map(cn => {
+      const cust = custMap.get(cn.customerId)
+      const isB2B = !!(cust?.gstNo)
+      return {
+        Type: isB2B ? 'B2B' : 'B2C',
+        'Doc Type': 'Credit Note',
+        'Invoice No.': cn.no,
+        'Invoice Date': cn.issuedOn,
+        'Customer Name': cust?.name ?? cn.customerId,
+        GSTIN: cust?.gstNo ?? '—',
+        'Taxable Amount (₹)': -(cn.taxableAmount ?? 0),
+        'CGST (₹)': -(cn.cgst ?? 0),
+        'SGST (₹)': -(cn.sgst ?? 0),
+        'IGST (₹)': -(cn.igst ?? 0),
+        'Total (₹)': -(cn.amount || 0),
+        'HSN/SAC': '998422',
+        Status: cn.status,
+      }
+    })
+  return [...invoiceRows, ...cnRows]
+}
+
+function buildGstViewData(monthFilter) {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  const rows = gstInvoiceRows(monthFilter)
+  const b2b = rows.filter(r => r.isB2B)
+  const b2c = rows.filter(r => !r.isB2B)
+  const sum = (arr, key) => arr.reduce((s, r) => s + (r.inv[key] ?? 0), 0)
+
+  // Credit note adjustments
+  const cns = getCreditNotes().filter(cn => {
+    if (!monthFilter) return true
+    return (cn.issuedOn || '').startsWith(monthFilter)
+  })
+  const cnAdj = { taxable: 0, cgst: 0, sgst: 0, igst: 0, count: cns.length }
+  cns.forEach(cn => {
+    cnAdj.taxable += cn.taxableAmount ?? 0
+    cnAdj.cgst += cn.cgst ?? 0
+    cnAdj.sgst += cn.sgst ?? 0
+    cnAdj.igst += cn.igst ?? 0
+  })
+
+  // HSN-wise summary across all rows minus credit notes
+  const hsnMap = new Map()
+  rows.forEach(({ inv }) => {
+    ;(inv.lines || [{ hsnSac: inv.lines?.[0]?.hsnSac ?? '998422', amount: inv.taxableAmount ?? 0 }]).forEach(l => {
+      const hsn = l.hsnSac || '998422'
+      const ex = hsnMap.get(hsn) ?? { hsn, taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+      const lineFrac = inv.taxableAmount && inv.lines?.length > 1 ? (l.amount / (inv.taxableAmount || 1)) : 1
+      ex.taxable += (inv.taxableAmount ?? 0) * lineFrac
+      ex.cgst += (inv.cgst ?? 0) * lineFrac
+      ex.sgst += (inv.sgst ?? 0) * lineFrac
+      ex.igst += (inv.igst ?? 0) * lineFrac
+      hsnMap.set(hsn, ex)
+    })
+  })
+  // Subtract credit notes from HSN 998422 (all ISP services)
+  if (cnAdj.count > 0) {
+    const ex = hsnMap.get('998422') ?? { hsn: '998422', taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+    ex.taxable -= cnAdj.taxable
+    ex.cgst -= cnAdj.cgst
+    ex.sgst -= cnAdj.sgst
+    ex.igst -= cnAdj.igst
+    hsnMap.set('998422', ex)
+  }
+
+  return {
+    b2bCount: b2b.length,
+    b2cCount: b2c.length,
+    b2bTaxable: sum(b2b, 'taxableAmount'),
+    b2bCgst: sum(b2b, 'cgst'),
+    b2bSgst: sum(b2b, 'sgst'),
+    b2bIgst: sum(b2b, 'igst'),
+    b2cTaxable: sum(b2c, 'taxableAmount'),
+    b2cCgst: sum(b2c, 'cgst'),
+    b2cSgst: sum(b2c, 'sgst'),
+    b2cIgst: sum(b2c, 'igst'),
+    cnAdj,
+    hsnRows: [...hsnMap.values()],
+    totalInvoices: rows.length,
+  }
+}
+
+// Normalise a payment's date to 'YYYY-MM-DD' for comparison.
+function payDateISO(p) {
+  const raw = p.paymentDate || p.date || ''
+  const s = String(raw).split(' ')[0]
+  if (!s) return ''
+  if (s.includes('-') && s.length === 10 && s.indexOf('-') === 2) {
+    // DD-MM-YYYY
+    const [d, m, y] = s.split('-')
+    return `${y}-${m}-${d}`
+  }
+  return s // already YYYY-MM-DD or ISO
+}
+
+function buildDailyCashRows(dateFilter) {
+  const payments = getPayments().filter(p => {
+    if (p.status === 'Failed') return false
+    if (dateFilter) return payDateISO(p) === dateFilter
+    return true
+  })
+  return payments.map(p => ({
+    Date: payDateISO(p), 'Receipt No.': p.receiptNo, 'Customer ID': p.customerId,
+    Mode: normalizeMode(p.mode), Amount: p.paid ?? p.total ?? 0,
+    'Recorded By': p.addBy ?? '—', Status: p.status,
+  }))
+}
+
+function buildDailyCashViewData(dateFilter) {
+  const payments = getPayments().filter(p => {
+    if (p.status === 'Failed') return false
+    if (dateFilter) return payDateISO(p) === dateFilter
+    return true
+  })
+  const byMode = new Map()
+  const byUser = new Map()
+  payments.forEach(p => {
+    const mode = normalizeMode(p.mode)
+    const amt = p.paid ?? p.total ?? 0
+    byMode.set(mode, (byMode.get(mode) ?? 0) + amt)
+    const user = p.addBy ?? '—'
+    byUser.set(user, (byUser.get(user) ?? 0) + amt)
+  })
+  const grandTotal = [...byMode.values()].reduce((s, v) => s + v, 0)
+  return {
+    byMode: [...byMode.entries()].map(([mode, total]) => ({ mode, total })).sort((a, b) => b.total - a.total),
+    byUser: [...byUser.entries()].map(([user, total]) => ({ user, total })).sort((a, b) => b.total - a.total),
+    count: payments.length,
+    grandTotal,
+  }
+}
+
+function buildEngineerCollectionRows() {
+  const collectionPayments = getPayments().filter(p => p.source === 'collection')
+  return collectionPayments.map(p => ({
+    'Receipt No.': p.receiptNo, 'Customer ID': p.customerId, Date: payDateISO(p),
+    'Collected By': p.addBy ?? '—', Mode: normalizeMode(p.mode),
+    Amount: p.paid ?? p.total ?? 0, Status: p.status,
+  }))
+}
+
+function buildEngineerCollectionViewData() {
+  const today = new Date()
+  const payments = getPayments().filter(p => p.source === 'collection')
+  const byEngineer = new Map()
+  payments.forEach(p => {
+    const eng = p.addBy ?? '—'
+    const existing = byEngineer.get(eng) ?? { engineer: eng, collected: 0, verified: 0, pending: 0, failed: 0, pendingItems: [] }
+    const amt = p.paid ?? p.total ?? 0
+    if (p.status === 'Complete') { existing.collected += amt; existing.verified += amt }
+    else if (p.status === 'Pending Verification') {
+      existing.collected += amt; existing.pending += amt
+      const dateISO = payDateISO(p)
+      const days = dateISO ? Math.floor((today - new Date(dateISO)) / 86400000) : 0
+      existing.pendingItems.push({ receiptNo: p.receiptNo, days, amt })
+    } else if (p.status === 'Failed') { existing.failed += amt }
+    byEngineer.set(eng, existing)
+  })
+  return [...byEngineer.values()].sort((a, b) => b.collected - a.collected)
+}
+
 // ── Report library ────────────────────────────────────────────────────────
 // One entry per card. `permKey` is the Reports micro-permission
 // (rolesStore.js's MODULE_MICRO_PERMISSIONS.Reports) that gates whether the
@@ -391,9 +635,12 @@ const REPORT_LIBRARY = [
     reports: [
       { key: 'revenue-summary', title: 'Revenue Summary', description: 'Monthly revenue collected across all plans and services.', permKey: 'viewRevenueReport', filename: 'revenue_summary.csv', buildRows: buildRevenueSummaryRows },
       { key: 'collection-report', title: 'Collection Report', description: 'Collected vs. pending amounts with collection efficiency %.', permKey: 'viewCollectionReport', filename: 'collection_report.csv', buildRows: buildCollectionReportRows },
-      { key: 'overdue-report', title: 'Overdue/Outstanding Report', description: 'Outstanding invoices — amount and status for each.', permKey: 'viewCollectionReport', filename: 'overdue_outstanding_report.csv', buildRows: buildOverdueReportRows },
+      { key: 'overdue-report', title: 'Overdue/Outstanding Report', description: 'Outstanding invoices with customer info, ageing buckets, and bucket totals.', permKey: 'viewCollectionReport', filename: 'overdue_outstanding_report.csv', buildRows: buildOverdueReportRows, buildViewData: buildOverdueViewData },
       { key: 'plan-wise-revenue', title: 'Plan-wise Revenue', description: 'Revenue breakdown by service plan (FTTH, FTTB, P2P, etc.).', permKey: 'viewRevenueReport', filename: 'plan_wise_revenue.csv', buildRows: buildPlanWiseRevenueRows },
       { key: 'payment-history', title: 'Payment History Report', description: 'Detailed log of all recorded payments.', permKey: 'viewRevenueReport', filename: 'payment_history_report.csv', buildRows: buildPaymentHistoryRows },
+      { key: 'gst-summary', title: 'GST Summary (GSTR-1)', description: 'B2B/B2C split, taxable/CGST/SGST/IGST, HSN-wise summary. Excludes cancelled invoices. Month-filterable.', permKey: 'viewRevenueReport', filename: 'gst_summary_gstr1.csv', buildRows: () => buildGstSummaryRows(null), buildViewData: buildGstViewData },
+      { key: 'daily-cash', title: 'Daily Cash Report', description: 'Payment totals by mode and by recorded-by user for a selected date.', permKey: 'viewCollectionReport', filename: 'daily_cash_report.csv', buildRows: () => buildDailyCashRows(null), buildViewData: buildDailyCashViewData },
+      { key: 'engineer-collection', title: 'Engineer-wise Collection Report', description: 'Collected vs verified vs pending per field engineer, with ageing of pending items.', permKey: 'viewCollectionReport', filename: 'engineer_collection_report.csv', buildRows: buildEngineerCollectionRows, buildViewData: buildEngineerCollectionViewData },
     ],
   },
   {
@@ -460,49 +707,302 @@ const REPORT_LIBRARY = [
 
 // ── UI ─────────────────────────────────────────────────────────────────────
 
+const fmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const BUCKET_COLORS = {
+  '0–30 days': 'text-emerald-700 bg-emerald-50',
+  '31–60 days': 'text-amber-700 bg-amber-50',
+  '61–90 days': 'text-orange-700 bg-orange-50',
+  '90+ days': 'text-red-700 bg-red-50',
+}
+
+function OverdueTableView() {
+  const { rows, bucketTotals } = buildOverdueViewData()
+  if (rows.length === 0) {
+    return <p className="text-xs text-gray-400 italic py-2">No outstanding invoices.</p>
+  }
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Bucket summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {bucketTotals.map(b => (
+          <div key={b.bucket} className={`rounded-lg px-3 py-2 text-xs font-semibold ${BUCKET_COLORS[b.bucket]}`}>
+            <div className="font-bold">{b.bucket}</div>
+            <div>{b.count} invoice{b.count !== 1 ? 's' : ''}</div>
+            <div>{fmt(b.total)}</div>
+          </div>
+        ))}
+      </div>
+      {/* Detail table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-200">
+              {['Invoice', 'Customer', 'Area', 'Sales Exec', 'Due Date', 'Days', 'Bucket', 'Amount'].map(h => (
+                <th key={h} className="text-left py-1.5 pr-3 font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ inv, cust, days, bucket }) => (
+              <tr key={inv.no} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="py-1.5 pr-3 font-mono text-gray-700 whitespace-nowrap">{inv.no}</td>
+                <td className="py-1.5 pr-3 whitespace-nowrap">
+                  <div className="font-medium text-gray-800">{cust?.name ?? '—'}</div>
+                  <div className="text-gray-400">{cust?.phone ?? inv.customerId}</div>
+                </td>
+                <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{cust?.area ?? '—'}</td>
+                <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{cust?.sales?.executive ?? '—'}</td>
+                <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{inv.dueDate ?? '—'}</td>
+                <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{days}</td>
+                <td className="py-1.5 pr-3 whitespace-nowrap">
+                  <span className={`px-1.5 py-0.5 rounded font-semibold ${BUCKET_COLORS[bucket]}`}>{bucket}</span>
+                </td>
+                <td className="py-1.5 pr-3 font-semibold text-gray-900 whitespace-nowrap">{fmt(inv.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function GstSummaryView({ onMonthChange }) {
+  const [month, setMonth] = useState('')
+  function handleMonth(e) {
+    setMonth(e.target.value)
+    onMonthChange?.(e.target.value || null)
+  }
+  const d = buildGstViewData(month || null)
+  const fmtAmt = (n) => fmt(n)
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Month</label>
+        <input type="month" value={month} onChange={handleMonth}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-blue" />
+        {month && <button onClick={() => { setMonth(''); onMonthChange?.(null) }} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
+        <span className="ml-auto text-xs text-gray-400">{d.totalInvoices} invoice{d.totalInvoices !== 1 ? 's' : ''}
+          {d.cnAdj?.count > 0 ? `, ${d.cnAdj.count} credit note${d.cnAdj.count !== 1 ? 's' : ''}` : ''} (excl. cancelled)</span>
+      </div>
+
+      {/* B2B / B2C split */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: 'B2B (Registered)', count: d.b2bCount, taxable: d.b2bTaxable, cgst: d.b2bCgst, sgst: d.b2bSgst, igst: d.b2bIgst, color: 'bg-blue-50 border-blue-100' },
+          { label: 'B2C (Unregistered)', count: d.b2cCount, taxable: d.b2cTaxable, cgst: d.b2cCgst, sgst: d.b2cSgst, igst: d.b2cIgst, color: 'bg-purple-50 border-purple-100' },
+        ].map(s => (
+          <div key={s.label} className={`rounded-lg border p-3 text-xs ${s.color}`}>
+            <div className="font-bold text-gray-700 mb-1">{s.label} <span className="font-normal text-gray-500">({s.count})</span></div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-gray-600">
+              <span>Taxable</span><span className="font-semibold text-gray-800">{fmtAmt(s.taxable)}</span>
+              <span>CGST</span><span className="font-semibold">{fmtAmt(s.cgst)}</span>
+              <span>SGST</span><span className="font-semibold">{fmtAmt(s.sgst)}</span>
+              <span>IGST</span><span className="font-semibold">{fmtAmt(s.igst)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* HSN-wise summary */}
+      {d.hsnRows.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">HSN/SAC-wise Summary</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-200">
+                {['HSN/SAC', 'Taxable (₹)', 'CGST (₹)', 'SGST (₹)', 'IGST (₹)'].map(h => (
+                  <th key={h} className="text-left py-1 pr-3 font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {d.hsnRows.map(r => (
+                <tr key={r.hsn} className="border-b border-gray-100">
+                  <td className="py-1 pr-3 font-mono text-gray-700">{r.hsn}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.taxable)}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.cgst)}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.sgst)}</td>
+                  <td className="py-1 pr-3 text-gray-800">{fmtAmt(r.igst)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DailyCashView() {
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const [date, setDate] = useState(todayISO)
+  const d = buildDailyCashViewData(date || null)
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-blue" />
+        {date !== todayISO && <button onClick={() => setDate(todayISO)} className="text-xs text-gray-400 hover:text-gray-600">Today</button>}
+        <span className="ml-auto text-xs text-gray-400">{d.count} payment{d.count !== 1 ? 's' : ''} · Total {fmt(d.grandTotal)}</span>
+      </div>
+      {d.count === 0 ? <p className="text-xs text-gray-400 italic">No payments on this date.</p> : (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">By Mode</p>
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-gray-200"><th className="text-left py-1 pr-3 font-semibold text-gray-500">Mode</th><th className="text-right py-1 font-semibold text-gray-500">Amount</th></tr></thead>
+              <tbody>
+                {d.byMode.map(r => (
+                  <tr key={r.mode} className="border-b border-gray-100">
+                    <td className="py-1 pr-3 text-gray-700">{r.mode}</td>
+                    <td className="py-1 text-right font-semibold text-gray-800">{fmt(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">By Recorded By</p>
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-gray-200"><th className="text-left py-1 pr-3 font-semibold text-gray-500">User</th><th className="text-right py-1 font-semibold text-gray-500">Amount</th></tr></thead>
+              <tbody>
+                {d.byUser.map(r => (
+                  <tr key={r.user} className="border-b border-gray-100">
+                    <td className="py-1 pr-3 text-gray-700">{r.user}</td>
+                    <td className="py-1 text-right font-semibold text-gray-800">{fmt(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EngineerCollectionView() {
+  const rows = buildEngineerCollectionViewData()
+  if (rows.length === 0) return <p className="text-xs text-gray-400 italic mt-3">No collection payments found.</p>
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-200">
+            {['Engineer', 'Collected', 'Verified', 'Pending', 'Failed', 'Oldest Pending (days)'].map(h => (
+              <th key={h} className="text-left py-1.5 pr-3 font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const oldest = r.pendingItems.length > 0 ? Math.max(...r.pendingItems.map(i => i.days)) : 0
+            return (
+              <tr key={r.engineer} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{r.engineer}</td>
+                <td className="py-1.5 pr-3 font-semibold text-gray-900">{fmt(r.collected)}</td>
+                <td className="py-1.5 pr-3 text-emerald-700">{fmt(r.verified)}</td>
+                <td className={`py-1.5 pr-3 font-semibold ${r.pending > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{fmt(r.pending)}</td>
+                <td className={`py-1.5 pr-3 ${r.failed > 0 ? 'text-red-600' : 'text-gray-400'}`}>{fmt(r.failed)}</td>
+                <td className={`py-1.5 pr-3 font-semibold ${oldest > 7 ? 'text-red-600' : oldest > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                  {r.pendingItems.length > 0 ? oldest : '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function ReportCardGrid({ report, canExport, onDownload }) {
+  const [expanded, setExpanded] = useState(false)
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900 leading-snug">{report.title}</h3>
-        {canExport ? (
-          <button
-            onClick={() => onDownload(report)}
-            title="Download CSV"
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-          >
-            <Download size={15} />
-          </button>
-        ) : (
-          <span title="Export permission required" className="w-8 h-8 shrink-0 flex items-center justify-center text-gray-300">
-            <Lock size={13} />
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {report.buildViewData && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              title={expanded ? 'Hide table' : 'View on screen'}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          )}
+          {canExport ? (
+            <button
+              onClick={() => onDownload(report)}
+              title="Download CSV"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              <Download size={15} />
+            </button>
+          ) : (
+            <span title="Export permission required" className="w-8 h-8 flex items-center justify-center text-gray-300">
+              <Lock size={13} />
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-gray-500 leading-snug">{report.description}</p>
+      {expanded && report.buildViewData && report.key === 'overdue-report' && <OverdueTableView />}
+      {expanded && report.buildViewData && report.key === 'gst-summary' && <GstSummaryView />}
+      {expanded && report.buildViewData && report.key === 'daily-cash' && <DailyCashView />}
+      {expanded && report.buildViewData && report.key === 'engineer-collection' && <EngineerCollectionView />}
     </div>
   )
 }
 
 function ReportRowList({ report, canExport, onDownload }) {
+  const [expanded, setExpanded] = useState(false)
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white border border-surface-border first:rounded-t-xl last:rounded-b-xl -mt-px">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-900">{report.title}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{report.description}</p>
+    <div className="bg-white border border-surface-border first:rounded-t-xl last:rounded-b-xl -mt-px">
+      <div className="flex items-center justify-between gap-4 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900">{report.title}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{report.description}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {report.buildViewData && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              title={expanded ? 'Hide table' : 'View on screen'}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          )}
+          {canExport ? (
+            <button
+              onClick={() => onDownload(report)}
+              title="Download CSV"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              <Download size={15} />
+            </button>
+          ) : (
+            <span title="Export permission required" className="w-8 h-8 flex items-center justify-center text-gray-300">
+              <Lock size={13} />
+            </span>
+          )}
+        </div>
       </div>
-      {canExport ? (
-        <button
-          onClick={() => onDownload(report)}
-          title="Download CSV"
-          className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-        >
-          <Download size={15} />
-        </button>
-      ) : (
-        <span title="Export permission required" className="w-8 h-8 shrink-0 flex items-center justify-center text-gray-300">
-          <Lock size={13} />
-        </span>
+      {expanded && report.buildViewData && report.key === 'overdue-report' && (
+        <div className="px-4 pb-4"><OverdueTableView /></div>
+      )}
+      {expanded && report.buildViewData && report.key === 'gst-summary' && (
+        <div className="px-4 pb-4"><GstSummaryView /></div>
+      )}
+      {expanded && report.buildViewData && report.key === 'daily-cash' && (
+        <div className="px-4 pb-4"><DailyCashView /></div>
+      )}
+      {expanded && report.buildViewData && report.key === 'engineer-collection' && (
+        <div className="px-4 pb-4"><EngineerCollectionView /></div>
       )}
     </div>
   )

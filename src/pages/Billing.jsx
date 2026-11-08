@@ -11,19 +11,19 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import { getInvoices, subscribeInvoices, addInvoice, updateInvoice } from '../data/invoicesStore'
 import { recordPayment, getPayments, subscribePayments } from '../data/paymentsStore'
+import { PAYMENT_MODES, normalizeMode } from '../data/paymentModes'
 import { logAudit } from '../data/auditLogStore'
 import { getPlans, MOCK_ADDONS } from '../data/packagesStore'
 import { CUSTOMERS } from '../data/customersData'
 import { applyCoupon, redeemCoupon } from '../data/couponStore'
 import { computeGst } from '../utils/customerUtils'
 import { getCompanyEntity, getActiveCompanyEntities, getEntityState } from '../data/companyEntities'
-import { renewSubscription } from '../utils/subscriptionUtils'
+import { renewSubscription, getVasLinesForCustomer } from '../utils/subscriptionUtils'
 
 
 const STATUS_VARIANT = { paid: 'green', pending: 'yellow', overdue: 'red' }
 const STATUS_LABELS = { paid: 'Paid', pending: 'Pending', overdue: 'Overdue' }
-const MODE_VARIANT = { Cash: 'green', UPI: 'blue', NEFT: 'navy', IMPS: 'purple', Cheque: 'orange', Razorpay: 'cyan' }
-const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'IMPS', 'Cheque', 'Razorpay']
+const MODE_VARIANT = { Cash: 'green', UPI: 'blue', 'NEFT/IMPS': 'navy', Cheque: 'orange', Card: 'purple', 'Online Gateway': 'cyan' }
 const SERVICE_TYPES = ['All', 'FTTH', 'FTTB', 'Wireless', 'P2P', 'ILL']
 const NETWORKS = ['All', 'OLT-ANW-01', 'OLT-ANW-02', 'OLT-BNW-01', 'OLT-MNW-01']
 
@@ -264,7 +264,8 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
     const byMode = {}
     let total = 0
     src.forEach(p => {
-      byMode[p.mode] = (byMode[p.mode] || 0) + p.amount
+      const nm = normalizeMode(p.mode)
+      byMode[nm] = (byMode[nm] || 0) + p.amount
       total += p.amount
     })
     return { byMode, total }
@@ -276,7 +277,7 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
         {Object.entries(totals.byMode).map(([mode, amt]) => (
           <div key={mode} className="bg-white rounded-xl p-3 border border-surface-border text-center shadow-card">
-            <Badge variant={MODE_VARIANT[mode] || 'gray'} size="sm">{mode}</Badge>
+            <Badge variant={MODE_VARIANT[normalizeMode(mode)] || 'gray'} size="sm">{normalizeMode(mode)}</Badge>
             <p className="text-sm font-bold text-gray-900 mt-2">{fmt(amt)}</p>
           </div>
         ))}
@@ -306,7 +307,7 @@ function PaymentHistory({ payments, allPayments, page, totalPages, pageSize, set
                   <td className="px-4 py-3 font-mono text-xs text-brand-blue font-semibold">{p.invoiceNo}</td>
                   <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{p.customerName}</td>
                   <td className="px-4 py-3 font-semibold text-emerald-700">{fmt(p.amount)}</td>
-                  <td className="px-4 py-3"><Badge variant={MODE_VARIANT[p.mode] || 'gray'} size="sm">{p.mode}</Badge></td>
+                  <td className="px-4 py-3"><Badge variant={MODE_VARIANT[normalizeMode(p.mode)] || 'gray'} size="sm">{normalizeMode(p.mode)}</Badge></td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.txnId}</td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{p.date}</td>
                   <td className="px-4 py-3 text-xs text-gray-600">{p.recordedBy}</td>
@@ -545,7 +546,9 @@ function CreateInvoiceModal({ onClose, onCreated }) {
   // ── Totals ──────────────────────────────────────────────────────────────────
   const packagePrice = selectedTenure?.price ?? selectedPlan?.price ?? 0
   const addonsTotal  = MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).reduce((s, a) => s + a.price, 0)
-  const baseAmount   = packagePrice + addonsTotal
+  const vasLines     = getVasLinesForCustomer(selectedCustomer)
+  const vasTotal     = vasLines.reduce((s, l) => s + (l.price || 0), 0)
+  const baseAmount   = packagePrice + addonsTotal + vasTotal
 
   let discountAmount = 0
   if (appliedCoupon) {
@@ -596,6 +599,9 @@ function CreateInvoiceModal({ onClose, onCreated }) {
     if (selectedPlan) services.push({ name: selectedPlan.name, hsn: selectedPlan.hsnSac ?? '998422', qty: 1, rate: packagePrice })
     MOCK_ADDONS.filter(a => selectedAddons.includes(a.id)).forEach(a => {
       services.push({ name: a.name, hsn: '998422', qty: 1, rate: a.price })
+    })
+    vasLines.forEach(v => {
+      services.push({ name: v.name, hsn: v.hsnSac || '998422', qty: 1, rate: v.price })
     })
 
     const bpDisplay = billingPeriod
@@ -819,6 +825,12 @@ function CreateInvoiceModal({ onClose, onCreated }) {
               <div key={a.id} className="flex justify-between">
                 <span className="text-gray-600">{a.name}</span>
                 <span className="font-mono text-gray-800">{fmtAmt(a.price)}</span>
+              </div>
+            ))}
+            {vasLines.map((v, i) => (
+              <div key={`vas-${i}`} className="flex justify-between">
+                <span className="text-gray-600">{v.name}</span>
+                <span className="font-mono text-gray-800">{fmtAmt(v.price)}</span>
               </div>
             ))}
             <div className="flex justify-between pt-1.5 border-t border-surface-border">

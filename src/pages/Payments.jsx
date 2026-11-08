@@ -11,17 +11,15 @@ import {
   getInvoices, subscribeInvoices,
   getCollectedTotal, getPendingTotal, getOverdueTotal,
 } from '../data/invoicesStore'
+import { PAYMENT_MODES, normalizeMode } from '../data/paymentModes'
 
-const PAYMENT_MODES = ['Cash', 'UPI', 'NEFT', 'IMPS', 'Cheque', 'Razorpay']
 const MODE_COLORS = {
-  Cash:     'bg-gray-100 text-gray-700',
-  UPI:      'bg-blue-100 text-blue-700',
-  NEFT:     'bg-purple-100 text-purple-700',
-  IMPS:     'bg-orange-100 text-orange-700',
-  Cheque:   'bg-yellow-100 text-yellow-700',
-  Razorpay: 'bg-green-100 text-green-700',
-  Online:       'bg-blue-100 text-blue-700',
-  'Android App':'bg-indigo-100 text-indigo-700',
+  Cash:            'bg-gray-100 text-gray-700',
+  UPI:             'bg-blue-100 text-blue-700',
+  'NEFT/IMPS':     'bg-purple-100 text-purple-700',
+  Cheque:          'bg-yellow-100 text-yellow-700',
+  Card:            'bg-pink-100 text-pink-700',
+  'Online Gateway':'bg-green-100 text-green-700',
 }
 
 const fmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -337,7 +335,7 @@ function AllPaymentsTab() {
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.invoiceNo}</td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{pay.paymentDate}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${MODE_COLORS[pay.mode] || 'bg-gray-100 text-gray-700'}`}>{pay.mode}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${MODE_COLORS[normalizeMode(pay.mode)] || 'bg-gray-100 text-gray-700'}`}>{normalizeMode(pay.mode)}</span>
                   </td>
                   <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.total.toFixed(2)}</td>
                   <td className="px-4 py-3 text-xs font-semibold text-gray-800 whitespace-nowrap">₹{pay.paid.toFixed(2)}</td>
@@ -351,7 +349,7 @@ function AllPaymentsTab() {
                   <td className="px-4 py-3">
                     <ThreeDotMenu items={[
                       { label: 'View Details', onClick: () => {} },
-                      { label: 'Download Receipt', onClick: () => {} },
+                      { label: 'Download Receipt', onClick: () => navigate('/payments/receipt/' + encodeURIComponent(pay.id)) },
                       ...(pay.status === 'Pending Verification' ? [
                         { label: 'Verify Payment', onClick: () => { verifyPayment(pay.id); setPayments(getPayments()) } },
                         { label: 'Reject Payment', onClick: () => { setRejectReason(''); setRejectModal({ paymentId: pay.id }) } },

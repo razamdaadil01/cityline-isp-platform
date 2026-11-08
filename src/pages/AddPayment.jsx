@@ -4,6 +4,7 @@ import { ChevronRight, CheckCircle } from 'lucide-react'
 import { getOutstandingInvoices } from '../data/invoicesStore'
 import { recordPayment } from '../data/paymentsStore'
 import { logAudit } from '../data/auditLogStore'
+import { PAYMENT_MODES } from '../data/paymentModes'
 
 const inp = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0A8DCD]/30"
 const disabledInp = "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-500 focus:outline-none cursor-not-allowed"
@@ -113,10 +114,7 @@ export default function AddPayment() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">Payment Mode</label>
             <select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value }))} className={inp}>
-              <option>Cash</option>
-              <option>Online</option>
-              <option>Cheque</option>
-              <option>Android App</option>
+              {PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
             </select>
           </div>
           <div>

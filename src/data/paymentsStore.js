@@ -1,5 +1,6 @@
 import { getInvoices, updateInvoice } from './invoicesStore'
 import { getCustomer, updateCustomer } from './customersData'
+import { getNextReceiptNumber } from './companyEntities'
 
 // Real payment records — Add Payment's Submit action writes here; Finance
 // tab's Payments sub-tab merges these (real, customer-specific) on top of
@@ -114,7 +115,7 @@ export function nextReceiptNo() {
 // first (or specific invoiceNos when provided). Overpayment goes to customer
 // creditBalance. Returns the created payment record.
 export function recordPayment({
-  customerId, amount, mode, invoiceNos, txnId, date, notes, source, status,
+  customerId, amount, mode, invoiceNos, txnId, date, notes, source, status, entityId,
 }) {
   const amountPaid = Number(amount) || 0
   const payStatus = status || 'Complete'
@@ -152,10 +153,12 @@ export function recordPayment({
   const now = new Date()
   const dateOnly = date || now.toLocaleDateString('en-GB').split('/').join('-')
   const timeStr = now.toLocaleTimeString('en-GB')
+  const resolvedEntityId = entityId ?? 1
   const payment = {
     id: `PAY-${Date.now()}`,
     customerId,
-    receiptNo: nextReceiptNo(),
+    entityId: resolvedEntityId,
+    receiptNo: getNextReceiptNumber(resolvedEntityId),
     invoiceNo: applicableNos.join(', ') || (invoiceNos ? invoiceNos.join(', ') : '—'),
     invoiceNos: applicableNos.length > 0 ? applicableNos : (invoiceNos || []),
     paymentDate: dateOnly,

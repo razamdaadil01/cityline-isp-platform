@@ -8,7 +8,7 @@
 // this only makes the shared list a real, mutable store instead of a dead
 // local const, so Add Payment's Submit action can actually mark an invoice
 // Paid and have it persist/reflect live everywhere this data is read.
-import { getNextInvoiceNumber } from './companyEntities'
+import { getNextInvoiceNumber, getNextCreditNoteNumber } from './companyEntities'
 import { getCustomer, updateCustomer } from './customersData'
 
 // GST breakdown for seed invoices: 18% intra-state (CGST 9% + SGST 9%).
@@ -328,4 +328,66 @@ export function subscribeInvoices(fn) {
     const i = _listeners.indexOf(fn)
     if (i > -1) _listeners.splice(i, 1)
   }
+}
+
+// ── Credit Notes ──────────────────────────────────────────────────────────
+let _creditNotes = []
+const _cnListeners = []
+
+function notifyCn() { _cnListeners.forEach(fn => fn([..._creditNotes])) }
+
+export function getCreditNotes() { return [..._creditNotes] }
+
+export function getCreditNote(no) { return _creditNotes.find(c => c.no === no) ?? null }
+
+export function subscribeCreditNotes(fn) {
+  _cnListeners.push(fn)
+  return () => {
+    const i = _cnListeners.indexOf(fn)
+    if (i > -1) _cnListeners.splice(i, 1)
+  }
+}
+
+export function issueCreditNote({ invoiceNo, reason, amount, entityId, customerId, issuedBy }) {
+  const resolvedEntityId = entityId ?? 1
+  const no = getNextCreditNoteNumber(resolvedEntityId)
+  const taxable = Number((amount / 1.18).toFixed(2))
+  const cgst = Number((taxable * 0.09).toFixed(2))
+  const sgst = Number((taxable * 0.09).toFixed(2))
+  const cn = {
+    no,
+    invoiceNo: invoiceNo ?? '—',
+    customerId: customerId ?? '—',
+    entityId: resolvedEntityId,
+    reason: reason ?? '',
+    amount: Number(amount) || 0,
+    taxableAmount: taxable,
+    cgst,
+    sgst,
+    igst: 0,
+    issuedOn: new Date().toISOString().slice(0, 10),
+    issuedBy: issuedBy ?? '—',
+    status: 'issued',
+  }
+  _creditNotes = [..._creditNotes, cn]
+  notifyCn()
+
+  // Reduce invoice outstanding: if CN amount covers full invoice amount, mark paid
+  if (invoiceNo && invoiceNo !== '—') {
+    const inv = _invoices.find(i => i.no === invoiceNo)
+    if (inv && inv.status !== 'paid' && inv.status !== 'cancelled') {
+      const invAmt = inv.totalAmount || inv.amount || 0
+      const prevCnApplied = inv.cnApplied || 0
+      const newCnApplied = prevCnApplied + Number(amount)
+      if (newCnApplied >= invAmt) {
+        _invoices = _invoices.map(i => i.no === invoiceNo
+          ? { ...i, status: 'paid', cnApplied: newCnApplied, paidOn: cn.issuedOn, paymentMode: 'Credit Note' }
+          : i)
+      } else {
+        _invoices = _invoices.map(i => i.no === invoiceNo ? { ...i, cnApplied: newCnApplied } : i)
+      }
+      notify()
+    }
+  }
+  return cn
 }
