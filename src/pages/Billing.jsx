@@ -1086,6 +1086,8 @@ export default function Billing() {
     }))
   }, [allPayments])
 
+  const _todayISO = new Date().toISOString().split('T')[0]
+
   const allRows = useMemo(() => {
     return storeInvoices.map(inv => ({
       id: inv.no,
@@ -1099,7 +1101,7 @@ export default function Billing() {
       amountPaid: inv.amountPaid || 0,
       cgst: inv.cgst || 0,
       sgst: inv.sgst || 0,
-      status: inv.status,
+      status: (inv.status === 'pending' && inv.dueDate && inv.dueDate < _todayISO) ? 'overdue' : inv.status,
       adminAmount: inv.totalAmount,
       resellerAmount: 0,
       invoiceDate: inv.createdAt

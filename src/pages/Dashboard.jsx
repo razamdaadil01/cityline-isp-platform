@@ -18,7 +18,7 @@ import { getPayments, subscribePayments } from '../data/paymentsStore'
 import { getTickets, subscribeTickets, CLOSED_STATUSES, slaStatusOf } from '../data/ticketsStore'
 import { getLeads, subscribeLeads } from '../data/leadsStore'
 import { getOutages, subscribeOutages, ACTIVE_OUTAGE_STATUSES } from '../data/outagesStore'
-import { getOutstandingInvoicesAll, getOutstandingTotalAll, subscribeInvoices } from '../data/invoicesStore'
+import { getOutstandingInvoicesAll, getOutstandingTotalAll, getOverdueInvoices, getOverdueTotal, subscribeInvoices } from '../data/invoicesStore'
 import { getJazeServers, subscribeJazeServers } from '../data/jazeServerStore'
 import { exportCsv } from '../utils/csvExport'
 import { computeRevenueByMonth } from '../utils/revenueStats'
@@ -370,8 +370,8 @@ function buildDashboardReportRows({
     activeOutages.forEach(o => add('Active Outages', `${o.id} — ${o.title}`, o.severity))
   }
 
-  add('Overdue Payments', 'Outstanding Total', `₹${outstandingTotal.toLocaleString('en-IN')}`)
-  add('Overdue Payments', 'Outstanding Invoices', outstandingInvoices.length)
+  add('Overdue Payments', 'Overdue Total', `₹${overdueTotal.toLocaleString('en-IN')}`)
+  add('Overdue Payments', 'Overdue Invoices', overdueInvoices.length)
 
   cafCompliance.buckets.forEach(b => add('CAF Compliance', b.label, b.value))
   add('CAF Compliance', 'Overall Compliance Rate', `${cafCompliance.complianceRate.toFixed(1)}%`)
@@ -414,9 +414,13 @@ export default function Dashboard() {
   // from that payload here.
   const [outstandingInvoices, setOutstandingInvoices] = useState(getOutstandingInvoicesAll)
   const [outstandingTotal, setOutstandingTotal] = useState(getOutstandingTotalAll)
+  const [overdueInvoices, setOverdueInvoices] = useState(getOverdueInvoices)
+  const [overdueTotal, setOverdueTotal] = useState(getOverdueTotal)
   useEffect(() => subscribeInvoices(() => {
     setOutstandingInvoices(getOutstandingInvoicesAll())
     setOutstandingTotal(getOutstandingTotalAll())
+    setOverdueInvoices(getOverdueInvoices())
+    setOverdueTotal(getOverdueTotal())
   }), [])
 
   const [jazeServers, setJazeServers] = useState(getJazeServers)
@@ -537,6 +541,8 @@ export default function Dashboard() {
     setOutages(getOutages())
     setOutstandingInvoices(getOutstandingInvoicesAll())
     setOutstandingTotal(getOutstandingTotalAll())
+    setOverdueInvoices(getOverdueInvoices())
+    setOverdueTotal(getOverdueTotal())
     setJazeServers(getJazeServers())
     setTimeout(() => {
       setRefreshing(false)
@@ -712,13 +718,13 @@ export default function Dashboard() {
             <h3 className="text-sm font-semibold text-gray-800">Overdue Payments</h3>
           </div>
           <div className="p-4">
-            {outstandingInvoices.length === 0 ? (
-              <p className="text-sm text-gray-400">No outstanding invoices.</p>
+            {overdueInvoices.length === 0 ? (
+              <p className="text-sm text-gray-400">No overdue invoices.</p>
             ) : (
               <>
-                <p className="text-2xl font-bold text-amber-600">₹{outstandingTotal.toLocaleString('en-IN')}</p>
+                <p className="text-2xl font-bold text-amber-600">₹{overdueTotal.toLocaleString('en-IN')}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {outstandingInvoices.length} outstanding invoice{outstandingInvoices.length !== 1 ? 's' : ''}
+                  {overdueInvoices.length} overdue invoice{overdueInvoices.length !== 1 ? 's' : ''}
                 </p>
               </>
             )}
