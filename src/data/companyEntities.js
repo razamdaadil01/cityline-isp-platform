@@ -65,6 +65,8 @@ let _companyEntities = [
     startingNumber: 1,
     sequencePadding: 4,
     lastIssuedSequence: null,
+    receiptPrefix: 'CL-RCP',
+    lastIssuedReceiptSequence: null,
     // Controls the invoice line-item table's middle column (InvoicePDF.jsx,
     // SalesLeadDetail.jsx's InvoiceModal): package name (default) or an HSN
     // code column alongside it when off — see Settings.jsx's CompanyEntityTab.
@@ -128,6 +130,8 @@ let _companyEntities = [
     startingNumber: 1,
     sequencePadding: 4,
     lastIssuedSequence: null,
+    receiptPrefix: 'CLF-RCP',
+    lastIssuedReceiptSequence: null,
     showPackageNameOnInvoice: true,
     zohoConfig: {
       enabled: false,
@@ -224,6 +228,23 @@ export function formatInvoiceNumber(entity, seq) {
 // Lead Detail Package tab's "Invoice" modal (SalesLeadDetail.jsx) doesn't
 // display or request an invoice number at all. Call this wherever a real
 // invoice number is actually assigned once that flow exists.
+function currentFYSuffix() {
+  const now = new Date()
+  const y = now.getFullYear(), m = now.getMonth() + 1
+  const start = m >= 4 ? y : y - 1
+  return String(start).slice(2) + String(start + 1).slice(2)
+}
+
+export function getNextReceiptNumber(entityId) {
+  const entity = getCompanyEntity(entityId)
+  if (!entity) return String(Date.now())
+  const nextSeq = (entity.lastIssuedReceiptSequence ?? 0) + 1
+  _companyEntities = _companyEntities.map(e => e.id === entityId ? { ...e, lastIssuedReceiptSequence: nextSeq } : e)
+  notify()
+  const padded = String(nextSeq).padStart(4, '0')
+  return `${entity.receiptPrefix || 'RCP'}-${currentFYSuffix()}-${padded}`
+}
+
 export function getNextInvoiceNumber(entityId) {
   const entity = getCompanyEntity(entityId)
   if (!entity) return null

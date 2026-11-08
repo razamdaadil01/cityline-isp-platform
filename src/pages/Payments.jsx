@@ -349,7 +349,7 @@ function AllPaymentsTab() {
                   <td className="px-4 py-3">
                     <ThreeDotMenu items={[
                       { label: 'View Details', onClick: () => {} },
-                      { label: 'Download Receipt', onClick: () => {} },
+                      { label: 'Download Receipt', onClick: () => navigate('/payments/receipt/' + encodeURIComponent(pay.id)) },
                       ...(pay.status === 'Pending Verification' ? [
                         { label: 'Verify Payment', onClick: () => { verifyPayment(pay.id); setPayments(getPayments()) } },
                         { label: 'Reject Payment', onClick: () => { setRejectReason(''); setRejectModal({ paymentId: pay.id }) } },
