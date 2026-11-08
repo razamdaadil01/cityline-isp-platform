@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LayoutGrid, List, Download, FileBarChart, Lock } from 'lucide-react'
+import { LayoutGrid, List, Download, FileBarChart, Lock, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMicroPermission } from '../data/rolesStore'
 import { exportCsv } from '../utils/csvExport'
 
@@ -61,16 +61,54 @@ function buildCollectionReportRows() {
   }))
 }
 
-// invoicesStore.js is a single shared invoice list with no customerId and
-// no due-date/overdue-by-days field (see that store's own top-of-file
-// comment) — so "days overdue" and "which customer" genuinely don't exist
-// anywhere in this app's data yet. Exports the real outstanding invoices
-// exactly as they are rather than inventing either field.
+function overdueAgeing(dueDate) {
+  if (!dueDate) return { days: 0, bucket: '0–30 days' }
+  const due = new Date(dueDate)
+  const today = new Date()
+  const days = Math.max(0, Math.floor((today - due) / 86400000))
+  const bucket = days <= 30 ? '0–30 days' : days <= 60 ? '31–60 days' : days <= 90 ? '61–90 days' : '90+ days'
+  return { days, bucket }
+}
+
 function buildOverdueReportRows() {
-  return getOutstandingInvoicesAll().map(inv => ({
-    'Invoice No.': inv.no, Package: inv.pkg, 'Issue Date': inv.date,
-    'Amount (₹)': inv.amount, Status: inv.status,
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  return getOutstandingInvoicesAll().map(inv => {
+    const cust = custMap.get(inv.customerId)
+    const { days, bucket } = overdueAgeing(inv.dueDate)
+    return {
+      'Invoice No.': inv.no,
+      'Customer ID': inv.customerId,
+      'Customer Name': cust?.name ?? '—',
+      Phone: cust?.phone ?? '—',
+      Area: cust?.area ?? '—',
+      'Sales Executive': cust?.sales?.executive ?? '—',
+      Package: inv.pkg,
+      'Issue Date': inv.date,
+      'Due Date': inv.dueDate ?? '—',
+      'Days Overdue': days,
+      'Ageing Bucket': bucket,
+      'Amount (₹)': inv.amount,
+      Status: inv.status,
+    }
+  })
+}
+
+function buildOverdueViewData() {
+  const customers = getAllCustomers()
+  const custMap = new Map(customers.map(c => [c.id, c]))
+  const BUCKETS = ['0–30 days', '31–60 days', '61–90 days', '90+ days']
+  const rows = getOutstandingInvoicesAll().map(inv => {
+    const cust = custMap.get(inv.customerId)
+    const { days, bucket } = overdueAgeing(inv.dueDate)
+    return { inv, cust, days, bucket }
+  })
+  const bucketTotals = BUCKETS.map(b => ({
+    bucket: b,
+    count: rows.filter(r => r.bucket === b).length,
+    total: rows.filter(r => r.bucket === b).reduce((s, r) => s + r.inv.amount, 0),
   }))
+  return { rows, bucketTotals, BUCKETS }
 }
 
 function buildPlanWiseRevenueRows() {
@@ -391,7 +429,7 @@ const REPORT_LIBRARY = [
     reports: [
       { key: 'revenue-summary', title: 'Revenue Summary', description: 'Monthly revenue collected across all plans and services.', permKey: 'viewRevenueReport', filename: 'revenue_summary.csv', buildRows: buildRevenueSummaryRows },
       { key: 'collection-report', title: 'Collection Report', description: 'Collected vs. pending amounts with collection efficiency %.', permKey: 'viewCollectionReport', filename: 'collection_report.csv', buildRows: buildCollectionReportRows },
-      { key: 'overdue-report', title: 'Overdue/Outstanding Report', description: 'Outstanding invoices — amount and status for each.', permKey: 'viewCollectionReport', filename: 'overdue_outstanding_report.csv', buildRows: buildOverdueReportRows },
+      { key: 'overdue-report', title: 'Overdue/Outstanding Report', description: 'Outstanding invoices with customer info, ageing buckets, and bucket totals.', permKey: 'viewCollectionReport', filename: 'overdue_outstanding_report.csv', buildRows: buildOverdueReportRows, buildViewData: buildOverdueViewData },
       { key: 'plan-wise-revenue', title: 'Plan-wise Revenue', description: 'Revenue breakdown by service plan (FTTH, FTTB, P2P, etc.).', permKey: 'viewRevenueReport', filename: 'plan_wise_revenue.csv', buildRows: buildPlanWiseRevenueRows },
       { key: 'payment-history', title: 'Payment History Report', description: 'Detailed log of all recorded payments.', permKey: 'viewRevenueReport', filename: 'payment_history_report.csv', buildRows: buildPaymentHistoryRows },
     ],
@@ -460,49 +498,141 @@ const REPORT_LIBRARY = [
 
 // ── UI ─────────────────────────────────────────────────────────────────────
 
+const fmt = (n) => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const BUCKET_COLORS = {
+  '0–30 days': 'text-emerald-700 bg-emerald-50',
+  '31–60 days': 'text-amber-700 bg-amber-50',
+  '61–90 days': 'text-orange-700 bg-orange-50',
+  '90+ days': 'text-red-700 bg-red-50',
+}
+
+function OverdueTableView() {
+  const { rows, bucketTotals } = buildOverdueViewData()
+  if (rows.length === 0) {
+    return <p className="text-xs text-gray-400 italic py-2">No outstanding invoices.</p>
+  }
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Bucket summary */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {bucketTotals.map(b => (
+          <div key={b.bucket} className={`rounded-lg px-3 py-2 text-xs font-semibold ${BUCKET_COLORS[b.bucket]}`}>
+            <div className="font-bold">{b.bucket}</div>
+            <div>{b.count} invoice{b.count !== 1 ? 's' : ''}</div>
+            <div>{fmt(b.total)}</div>
+          </div>
+        ))}
+      </div>
+      {/* Detail table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-200">
+              {['Invoice', 'Customer', 'Area', 'Sales Exec', 'Due Date', 'Days', 'Bucket', 'Amount'].map(h => (
+                <th key={h} className="text-left py-1.5 pr-3 font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ inv, cust, days, bucket }) => (
+              <tr key={inv.no} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="py-1.5 pr-3 font-mono text-gray-700 whitespace-nowrap">{inv.no}</td>
+                <td className="py-1.5 pr-3 whitespace-nowrap">
+                  <div className="font-medium text-gray-800">{cust?.name ?? '—'}</div>
+                  <div className="text-gray-400">{cust?.phone ?? inv.customerId}</div>
+                </td>
+                <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{cust?.area ?? '—'}</td>
+                <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{cust?.sales?.executive ?? '—'}</td>
+                <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{inv.dueDate ?? '—'}</td>
+                <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{days}</td>
+                <td className="py-1.5 pr-3 whitespace-nowrap">
+                  <span className={`px-1.5 py-0.5 rounded font-semibold ${BUCKET_COLORS[bucket]}`}>{bucket}</span>
+                </td>
+                <td className="py-1.5 pr-3 font-semibold text-gray-900 whitespace-nowrap">{fmt(inv.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function ReportCardGrid({ report, canExport, onDownload }) {
+  const [expanded, setExpanded] = useState(false)
   return (
     <div className="bg-white rounded-xl border border-surface-border shadow-card p-4 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-gray-900 leading-snug">{report.title}</h3>
-        {canExport ? (
-          <button
-            onClick={() => onDownload(report)}
-            title="Download CSV"
-            className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-          >
-            <Download size={15} />
-          </button>
-        ) : (
-          <span title="Export permission required" className="w-8 h-8 shrink-0 flex items-center justify-center text-gray-300">
-            <Lock size={13} />
-          </span>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {report.buildViewData && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              title={expanded ? 'Hide table' : 'View on screen'}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          )}
+          {canExport ? (
+            <button
+              onClick={() => onDownload(report)}
+              title="Download CSV"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              <Download size={15} />
+            </button>
+          ) : (
+            <span title="Export permission required" className="w-8 h-8 flex items-center justify-center text-gray-300">
+              <Lock size={13} />
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-gray-500 leading-snug">{report.description}</p>
+      {expanded && report.buildViewData && report.key === 'overdue-report' && <OverdueTableView />}
     </div>
   )
 }
 
 function ReportRowList({ report, canExport, onDownload }) {
+  const [expanded, setExpanded] = useState(false)
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3 bg-white border border-surface-border first:rounded-t-xl last:rounded-b-xl -mt-px">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-900">{report.title}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{report.description}</p>
+    <div className="bg-white border border-surface-border first:rounded-t-xl last:rounded-b-xl -mt-px">
+      <div className="flex items-center justify-between gap-4 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900">{report.title}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{report.description}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {report.buildViewData && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              title={expanded ? 'Hide table' : 'View on screen'}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
+          )}
+          {canExport ? (
+            <button
+              onClick={() => onDownload(report)}
+              title="Download CSV"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
+            >
+              <Download size={15} />
+            </button>
+          ) : (
+            <span title="Export permission required" className="w-8 h-8 flex items-center justify-center text-gray-300">
+              <Lock size={13} />
+            </span>
+          )}
+        </div>
       </div>
-      {canExport ? (
-        <button
-          onClick={() => onDownload(report)}
-          title="Download CSV"
-          className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand-blue hover:bg-brand-blue/10 transition-colors"
-        >
-          <Download size={15} />
-        </button>
-      ) : (
-        <span title="Export permission required" className="w-8 h-8 shrink-0 flex items-center justify-center text-gray-300">
-          <Lock size={13} />
-        </span>
+      {expanded && report.buildViewData && report.key === 'overdue-report' && (
+        <div className="px-4 pb-4">
+          <OverdueTableView />
+        </div>
       )}
     </div>
   )
