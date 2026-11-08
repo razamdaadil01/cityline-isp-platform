@@ -10,6 +10,7 @@ import { exportCsv } from '../utils/csvExport'
 // that thin real data rather than inventing rows to fill it out — see each
 // builder function's own comment for specifics.
 import { getPayments } from '../data/paymentsStore'
+import { normalizeMode } from '../data/paymentModes'
 import { getInvoices, getOutstandingInvoicesAll } from '../data/invoicesStore'
 import { computeRevenueByMonth, computeRevenueByPlan } from '../utils/revenueStats'
 import { computeCollectionByMonth } from '../utils/collectionStats'
@@ -489,6 +490,85 @@ function buildGstViewData(monthFilter) {
   }
 }
 
+// Normalise a payment's date to 'YYYY-MM-DD' for comparison.
+function payDateISO(p) {
+  const raw = p.paymentDate || p.date || ''
+  const s = String(raw).split(' ')[0]
+  if (!s) return ''
+  if (s.includes('-') && s.length === 10 && s.indexOf('-') === 2) {
+    // DD-MM-YYYY
+    const [d, m, y] = s.split('-')
+    return `${y}-${m}-${d}`
+  }
+  return s // already YYYY-MM-DD or ISO
+}
+
+function buildDailyCashRows(dateFilter) {
+  const payments = getPayments().filter(p => {
+    if (p.status === 'Failed') return false
+    if (dateFilter) return payDateISO(p) === dateFilter
+    return true
+  })
+  return payments.map(p => ({
+    Date: payDateISO(p), 'Receipt No.': p.receiptNo, 'Customer ID': p.customerId,
+    Mode: normalizeMode(p.mode), Amount: p.paid ?? p.total ?? 0,
+    'Recorded By': p.addBy ?? '—', Status: p.status,
+  }))
+}
+
+function buildDailyCashViewData(dateFilter) {
+  const payments = getPayments().filter(p => {
+    if (p.status === 'Failed') return false
+    if (dateFilter) return payDateISO(p) === dateFilter
+    return true
+  })
+  const byMode = new Map()
+  const byUser = new Map()
+  payments.forEach(p => {
+    const mode = normalizeMode(p.mode)
+    const amt = p.paid ?? p.total ?? 0
+    byMode.set(mode, (byMode.get(mode) ?? 0) + amt)
+    const user = p.addBy ?? '—'
+    byUser.set(user, (byUser.get(user) ?? 0) + amt)
+  })
+  const grandTotal = [...byMode.values()].reduce((s, v) => s + v, 0)
+  return {
+    byMode: [...byMode.entries()].map(([mode, total]) => ({ mode, total })).sort((a, b) => b.total - a.total),
+    byUser: [...byUser.entries()].map(([user, total]) => ({ user, total })).sort((a, b) => b.total - a.total),
+    count: payments.length,
+    grandTotal,
+  }
+}
+
+function buildEngineerCollectionRows() {
+  const collectionPayments = getPayments().filter(p => p.source === 'collection')
+  return collectionPayments.map(p => ({
+    'Receipt No.': p.receiptNo, 'Customer ID': p.customerId, Date: payDateISO(p),
+    'Collected By': p.addBy ?? '—', Mode: normalizeMode(p.mode),
+    Amount: p.paid ?? p.total ?? 0, Status: p.status,
+  }))
+}
+
+function buildEngineerCollectionViewData() {
+  const today = new Date()
+  const payments = getPayments().filter(p => p.source === 'collection')
+  const byEngineer = new Map()
+  payments.forEach(p => {
+    const eng = p.addBy ?? '—'
+    const existing = byEngineer.get(eng) ?? { engineer: eng, collected: 0, verified: 0, pending: 0, failed: 0, pendingItems: [] }
+    const amt = p.paid ?? p.total ?? 0
+    if (p.status === 'Complete') { existing.collected += amt; existing.verified += amt }
+    else if (p.status === 'Pending Verification') {
+      existing.collected += amt; existing.pending += amt
+      const dateISO = payDateISO(p)
+      const days = dateISO ? Math.floor((today - new Date(dateISO)) / 86400000) : 0
+      existing.pendingItems.push({ receiptNo: p.receiptNo, days, amt })
+    } else if (p.status === 'Failed') { existing.failed += amt }
+    byEngineer.set(eng, existing)
+  })
+  return [...byEngineer.values()].sort((a, b) => b.collected - a.collected)
+}
+
 // ── Report library ────────────────────────────────────────────────────────
 // One entry per card. `permKey` is the Reports micro-permission
 // (rolesStore.js's MODULE_MICRO_PERMISSIONS.Reports) that gates whether the
@@ -506,6 +586,8 @@ const REPORT_LIBRARY = [
       { key: 'plan-wise-revenue', title: 'Plan-wise Revenue', description: 'Revenue breakdown by service plan (FTTH, FTTB, P2P, etc.).', permKey: 'viewRevenueReport', filename: 'plan_wise_revenue.csv', buildRows: buildPlanWiseRevenueRows },
       { key: 'payment-history', title: 'Payment History Report', description: 'Detailed log of all recorded payments.', permKey: 'viewRevenueReport', filename: 'payment_history_report.csv', buildRows: buildPaymentHistoryRows },
       { key: 'gst-summary', title: 'GST Summary (GSTR-1)', description: 'B2B/B2C split, taxable/CGST/SGST/IGST, HSN-wise summary. Excludes cancelled invoices. Month-filterable.', permKey: 'viewRevenueReport', filename: 'gst_summary_gstr1.csv', buildRows: () => buildGstSummaryRows(null), buildViewData: buildGstViewData },
+      { key: 'daily-cash', title: 'Daily Cash Report', description: 'Payment totals by mode and by recorded-by user for a selected date.', permKey: 'viewCollectionReport', filename: 'daily_cash_report.csv', buildRows: () => buildDailyCashRows(null), buildViewData: buildDailyCashViewData },
+      { key: 'engineer-collection', title: 'Engineer-wise Collection Report', description: 'Collected vs verified vs pending per field engineer, with ageing of pending items.', permKey: 'viewCollectionReport', filename: 'engineer_collection_report.csv', buildRows: buildEngineerCollectionRows, buildViewData: buildEngineerCollectionViewData },
     ],
   },
   {
@@ -698,6 +780,90 @@ function GstSummaryView({ onMonthChange }) {
   )
 }
 
+function DailyCashView() {
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const [date, setDate] = useState(todayISO)
+  const d = buildDailyCashViewData(date || null)
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-blue" />
+        {date !== todayISO && <button onClick={() => setDate(todayISO)} className="text-xs text-gray-400 hover:text-gray-600">Today</button>}
+        <span className="ml-auto text-xs text-gray-400">{d.count} payment{d.count !== 1 ? 's' : ''} · Total {fmt(d.grandTotal)}</span>
+      </div>
+      {d.count === 0 ? <p className="text-xs text-gray-400 italic">No payments on this date.</p> : (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">By Mode</p>
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-gray-200"><th className="text-left py-1 pr-3 font-semibold text-gray-500">Mode</th><th className="text-right py-1 font-semibold text-gray-500">Amount</th></tr></thead>
+              <tbody>
+                {d.byMode.map(r => (
+                  <tr key={r.mode} className="border-b border-gray-100">
+                    <td className="py-1 pr-3 text-gray-700">{r.mode}</td>
+                    <td className="py-1 text-right font-semibold text-gray-800">{fmt(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">By Recorded By</p>
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-gray-200"><th className="text-left py-1 pr-3 font-semibold text-gray-500">User</th><th className="text-right py-1 font-semibold text-gray-500">Amount</th></tr></thead>
+              <tbody>
+                {d.byUser.map(r => (
+                  <tr key={r.user} className="border-b border-gray-100">
+                    <td className="py-1 pr-3 text-gray-700">{r.user}</td>
+                    <td className="py-1 text-right font-semibold text-gray-800">{fmt(r.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EngineerCollectionView() {
+  const rows = buildEngineerCollectionViewData()
+  if (rows.length === 0) return <p className="text-xs text-gray-400 italic mt-3">No collection payments found.</p>
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-200">
+            {['Engineer', 'Collected', 'Verified', 'Pending', 'Failed', 'Oldest Pending (days)'].map(h => (
+              <th key={h} className="text-left py-1.5 pr-3 font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => {
+            const oldest = r.pendingItems.length > 0 ? Math.max(...r.pendingItems.map(i => i.days)) : 0
+            return (
+              <tr key={r.engineer} className="border-b border-gray-100 hover:bg-gray-50">
+                <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{r.engineer}</td>
+                <td className="py-1.5 pr-3 font-semibold text-gray-900">{fmt(r.collected)}</td>
+                <td className="py-1.5 pr-3 text-emerald-700">{fmt(r.verified)}</td>
+                <td className={`py-1.5 pr-3 font-semibold ${r.pending > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{fmt(r.pending)}</td>
+                <td className={`py-1.5 pr-3 ${r.failed > 0 ? 'text-red-600' : 'text-gray-400'}`}>{fmt(r.failed)}</td>
+                <td className={`py-1.5 pr-3 font-semibold ${oldest > 7 ? 'text-red-600' : oldest > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                  {r.pendingItems.length > 0 ? oldest : '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function ReportCardGrid({ report, canExport, onDownload }) {
   const [expanded, setExpanded] = useState(false)
   return (
@@ -732,6 +898,8 @@ function ReportCardGrid({ report, canExport, onDownload }) {
       <p className="text-xs text-gray-500 leading-snug">{report.description}</p>
       {expanded && report.buildViewData && report.key === 'overdue-report' && <OverdueTableView />}
       {expanded && report.buildViewData && report.key === 'gst-summary' && <GstSummaryView />}
+      {expanded && report.buildViewData && report.key === 'daily-cash' && <DailyCashView />}
+      {expanded && report.buildViewData && report.key === 'engineer-collection' && <EngineerCollectionView />}
     </div>
   )
 }
@@ -775,6 +943,12 @@ function ReportRowList({ report, canExport, onDownload }) {
       )}
       {expanded && report.buildViewData && report.key === 'gst-summary' && (
         <div className="px-4 pb-4"><GstSummaryView /></div>
+      )}
+      {expanded && report.buildViewData && report.key === 'daily-cash' && (
+        <div className="px-4 pb-4"><DailyCashView /></div>
+      )}
+      {expanded && report.buildViewData && report.key === 'engineer-collection' && (
+        <div className="px-4 pb-4"><EngineerCollectionView /></div>
       )}
     </div>
   )
