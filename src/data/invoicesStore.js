@@ -322,6 +322,16 @@ export function getOverdueTotal() {
   return getOverdueInvoices().reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
 }
 
+// Purely pending: unpaid and NOT yet past due date (distinct from overdue)
+export function getPurelyPendingInvoices() {
+  const today = new Date().toISOString().split('T')[0]
+  return _invoices.filter(i => i.status === 'pending' && (!i.dueDate || i.dueDate >= today))
+}
+
+export function getPurelyPendingTotal() {
+  return getPurelyPendingInvoices().reduce((s, i) => s + (i.totalAmount || i.amount || 0), 0)
+}
+
 export function subscribeInvoices(fn) {
   _listeners.push(fn)
   return () => {

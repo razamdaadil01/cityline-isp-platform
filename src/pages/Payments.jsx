@@ -9,7 +9,7 @@ import {
 } from '../data/paymentsStore'
 import {
   getInvoices, subscribeInvoices,
-  getCollectedTotal, getPendingTotal, getOverdueTotal,
+  getCollectedTotal, getPurelyPendingTotal, getOverdueTotal,
 } from '../data/invoicesStore'
 import { PAYMENT_MODES, normalizeMode } from '../data/paymentModes'
 
@@ -204,13 +204,13 @@ function AllPaymentsTab() {
   const navigate = useNavigate()
   const [payments, setPayments] = useState(getPayments)
   const [collectedTotal, setCollectedTotal] = useState(getCollectedTotal)
-  const [pendingTotal, setPendingTotal]     = useState(getPendingTotal)
+  const [pendingTotal, setPendingTotal]     = useState(getPurelyPendingTotal)
   const [overdueTotal, setOverdueTotal]     = useState(getOverdueTotal)
 
   useEffect(() => subscribePayments(setPayments), [])
   useEffect(() => subscribeInvoices(() => {
     setCollectedTotal(getCollectedTotal())
-    setPendingTotal(getPendingTotal())
+    setPendingTotal(getPurelyPendingTotal())
     setOverdueTotal(getOverdueTotal())
   }), [])
 
